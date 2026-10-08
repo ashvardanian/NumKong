@@ -40,8 +40,8 @@ namespace ashvardanian::numkong {
  *  @param[in] scale Score multiplier, typically 1 / √depth.
  *  @param[in] keys_before Keys visible before each query's position, all of them by default.
  *  @param[in] keys_after Keys visible after each query's position, all of them by default.
- *  @param[in] task_begin First task of a window over the query tokens × heads grid of output rows.
- *  @param[in] task_end End of that half-open window, clipped to the grid, for sharded launches.
+ *  @param[in] tasks_begin First task of a window over the query tokens × heads grid of output rows.
+ *  @param[in] tasks_end End of that half-open window, clipped to the grid, for sharded launches.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *
@@ -56,9 +56,9 @@ status_t attention_packed(in_type_ const *queries, void const *key_value_packed,
                           std::size_t depth, std::uint32_t const *query_offsets, std::size_t queries_stride,
                           std::size_t output_stride, f32_t scale,
                           std::size_t keys_before = std::numeric_limits<std::size_t>::max(),
-                          std::size_t keys_after = std::numeric_limits<std::size_t>::max(), std::size_t task_begin = 0,
-                          std::size_t task_end = std::numeric_limits<std::size_t>::max(),
-                          nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) {
+                          std::size_t keys_after = std::numeric_limits<std::size_t>::max(), std::size_t tasks_begin = 0,
+                          std::size_t tasks_end = std::numeric_limits<std::size_t>::max(),
+                          nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     static_assert(std::is_same_v<result_type_, typename in_type_::attention_result_t>,
                   "Attention accumulates and normalizes in F32");
@@ -69,44 +69,44 @@ status_t attention_packed(in_type_ const *queries, void const *key_value_packed,
         if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_packed_bf16_best(
                 queries_raw, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
-                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, task_begin, task_end,
-                capabilities, stream));
+                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin,
+                tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t>)
             return static_cast<status_t>(nk_attention_packed_f16_best(
                 queries_raw, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
-                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, task_begin, task_end,
-                capabilities, stream));
+                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin,
+                tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_packed_e4m3_best(
                 queries_raw, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
-                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, task_begin, task_end,
-                capabilities, stream));
+                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin,
+                tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
             return static_cast<status_t>(nk_attention_packed_i8_best(
                 queries_raw, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
-                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, task_begin, task_end,
-                capabilities, stream));
+                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin,
+                tasks_end, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(
             nk_attention_packed_bf16_serial(queries_raw, key_value_packed, output_raw, log_sum_exp_raw, head_count,
                                             key_value_head_count, depth, query_offsets, queries_stride, output_stride,
-                                            scale.raw_, keys_before, keys_after, task_begin, task_end, stream));
+                                            scale.raw_, keys_before, keys_after, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, f16_t>)
         return static_cast<status_t>(
             nk_attention_packed_f16_serial(queries_raw, key_value_packed, output_raw, log_sum_exp_raw, head_count,
                                            key_value_head_count, depth, query_offsets, queries_stride, output_stride,
-                                           scale.raw_, keys_before, keys_after, task_begin, task_end, stream));
+                                           scale.raw_, keys_before, keys_after, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
         return static_cast<status_t>(
             nk_attention_packed_e4m3_serial(queries_raw, key_value_packed, output_raw, log_sum_exp_raw, head_count,
                                             key_value_head_count, depth, query_offsets, queries_stride, output_stride,
-                                            scale.raw_, keys_before, keys_after, task_begin, task_end, stream));
+                                            scale.raw_, keys_before, keys_after, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         return static_cast<status_t>(
             nk_attention_packed_i8_serial(queries_raw, key_value_packed, output_raw, log_sum_exp_raw, head_count,
                                           key_value_head_count, depth, query_offsets, queries_stride, output_stride,
-                                          scale.raw_, keys_before, keys_after, task_begin, task_end, stream));
+                                          scale.raw_, keys_before, keys_after, tasks_begin, tasks_end, stream));
     else return status_t::missing_kernel_k;
 }
 
@@ -124,26 +124,24 @@ status_t attention_packed(in_type_ const *queries, void const *key_value_packed,
  *  @param[in] key_offsets First key token of each segment, the pack-time segment offsets.
  *  @param[in] query_gradient_stride Bytes between the @p query_gradient rows of consecutive tokens.
  *  @param[in] key_value_gradient_stride Bytes between the gradient rows of consecutive key tokens.
- *  @param[in] task_begin First task of a window over the segments × key-value heads grid.
- *  @param[in] task_end End of that half-open window, clipped to the grid.
+ *  @param[in] tasks_begin First task of a window over the segments × key-value heads grid.
+ *  @param[in] tasks_end End of that half-open window, clipped to the grid.
  *
  *  Every other parameter follows @c attention_packed; the band must be the forward's.
  *
  *  @tparam in_type_ Input element type, bf16_t.
  */
 template <numeric_dtype in_type_>
-status_t attention_packed_gradients(in_type_ const *queries, void const *key_value_packed, f32_t const *output,
-                                    f32_t const *output_gradient, f32_t const *log_sum_exp, f32_t *query_gradient,
-                                    f32_t *key_gradient, f32_t *value_gradient, std::size_t head_count,
-                                    std::size_t key_value_head_count, std::size_t depth,
-                                    std::uint32_t const *query_offsets, std::uint32_t const *key_offsets,
-                                    std::size_t queries_stride, std::size_t output_stride,
-                                    std::size_t query_gradient_stride, std::size_t key_value_gradient_stride,
-                                    f32_t scale, std::size_t keys_before = std::numeric_limits<std::size_t>::max(),
-                                    std::size_t keys_after = std::numeric_limits<std::size_t>::max(),
-                                    std::size_t task_begin = 0,
-                                    std::size_t task_end = std::numeric_limits<std::size_t>::max(),
-                                    nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) {
+status_t attention_packed_gradients(
+    in_type_ const *queries, void const *key_value_packed, f32_t const *output, f32_t const *output_gradient,
+    f32_t const *log_sum_exp, f32_t *query_gradient, f32_t *key_gradient, f32_t *value_gradient, std::size_t head_count,
+    std::size_t key_value_head_count, std::size_t depth, std::uint32_t const *query_offsets,
+    std::uint32_t const *key_offsets, std::size_t queries_stride, std::size_t output_stride,
+    std::size_t query_gradient_stride, std::size_t key_value_gradient_stride, f32_t scale,
+    std::size_t keys_before = std::numeric_limits<std::size_t>::max(),
+    std::size_t keys_after = std::numeric_limits<std::size_t>::max(), std::size_t tasks_begin = 0,
+    std::size_t tasks_end = std::numeric_limits<std::size_t>::max(),
+    nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) {
     if constexpr (std::is_same_v<in_type_, bf16_t>) {
         auto const *queries_raw = reinterpret_cast<nk_bf16_t const *>(queries);
         auto const *output_raw = reinterpret_cast<nk_f32_t const *>(output);
@@ -157,12 +155,12 @@ status_t attention_packed_gradients(in_type_ const *queries, void const *key_val
                 queries_raw, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
                 key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
                 key_offsets, queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride,
-                scale.raw_, keys_before, keys_after, task_begin, task_end, capabilities, stream));
+                scale.raw_, keys_before, keys_after, tasks_begin, tasks_end, capabilities, stream));
         return static_cast<status_t>(nk_attention_packed_gradients_bf16_serial(
             queries_raw, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
             key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets, key_offsets,
             queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_, keys_before,
-            keys_after, task_begin, task_end, stream));
+            keys_after, tasks_begin, tasks_end, stream));
     }
     else return status_t::missing_kernel_k;
 }
@@ -188,7 +186,7 @@ status_t attention_packed_gradients(in_type_ const *queries, void const *key_val
 template <numeric_dtype in_type_>
 status_t attention_rope(in_type_ const *x, f32_t const *cos, f32_t const *sin, in_type_ *y, std::size_t rows,
                         std::size_t head_count, std::size_t depth, std::size_t x_stride, std::size_t y_stride,
-                        nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+                        nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     if (depth % 2) return status_t::unexpected_dimensions_k;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
@@ -262,7 +260,8 @@ status_t attention_packed(tensor_view<value_type_, max_rank_> queries,
                           tensor_span<typename value_type_::attention_result_t, max_rank_> output, f32_t scale,
                           std::size_t keys_before = std::numeric_limits<std::size_t>::max(),
                           std::size_t keys_after = std::numeric_limits<std::size_t>::max(),
-                          nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+                          nk_capability_t capabilities = default_capabilities(),
+                          nk_stream_t stream = nullptr) noexcept {
     if (status_t status = attention_shapes_(queries, key_value_packed, output); failed(status)) return status;
     return attention_packed<value_type_>(
         queries.data(), key_value_packed.data(), output.data(), nullptr, queries.extent(1),

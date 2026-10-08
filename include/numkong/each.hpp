@@ -28,7 +28,7 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype in_type_>
 status_t add(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ *c,
-             nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+             nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t>)
             return static_cast<status_t>(nk_each_sum_f64_best(&a->raw_, &b->raw_, d, &c->raw_, capabilities, stream));
@@ -86,7 +86,7 @@ status_t add(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ *c,
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
 status_t scale(in_type_ const *a, std::size_t d, typename in_type_::scale_t const *alpha,
                typename in_type_::scale_t const *beta, in_type_ *c,
-               nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+               nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<precision_type_, in_type_>;
 
     if (capabilities) {
@@ -169,7 +169,7 @@ status_t scale(in_type_ const *a, std::size_t d, typename in_type_::scale_t cons
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
 status_t blend(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_type_::scale_t const *alpha,
                typename in_type_::scale_t const *beta, in_type_ *c,
-               nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+               nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<precision_type_, in_type_>;
 
     if (capabilities) {
@@ -253,7 +253,7 @@ status_t blend(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
 status_t fma(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d,
              typename in_type_::scale_t const *alpha, typename in_type_::scale_t const *beta, in_type_ *out,
-             nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+             nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<precision_type_, in_type_>;
 
     if (capabilities) {
@@ -346,7 +346,7 @@ template <numeric_dtype in_type_>
 status_t swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size_t rows, std::size_t columns,
                 std::size_t gate_stride, std::size_t up_stride, std::size_t y_stride, f32_t gate_scale = 1.0f,
                 f32_t output_scale = 1.0f, nk_capability_t capabilities = default_capabilities(),
-                void *stream = nullptr) noexcept {
+                nk_stream_t stream = nullptr) noexcept {
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
             return static_cast<status_t>(
@@ -402,7 +402,7 @@ status_t swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size
 template <numeric_dtype in_type_>
 status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t rows, std::size_t groups,
                  std::size_t columns, std::size_t x_stride, std::size_t y_stride, f32_t epsilon,
-                 nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+                 nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     nk_f32_t const *gamma_raw = gamma ? &gamma->raw_ : nullptr;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
@@ -460,7 +460,7 @@ namespace ashvardanian::numkong {
 template <numeric_dtype in_type_, vector_of<in_type_> a_type_, vector_of<in_type_> b_type_,
           mutable_vector_of<in_type_> output_type_>
 status_t add(a_type_ const &a, b_type_ const &b, output_type_ &&output,
-             nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+             nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     auto output_values = contiguous_values_<in_type_>(output);
@@ -478,7 +478,7 @@ template <numeric_dtype in_type_, vector_of<in_type_> a_type_, mutable_vector_of
     requires(!requires(a_type_ const &tensor) { tensor.rank(); }) // tensors take the tensor overload below
 status_t scale(a_type_ const &a, typename in_type_::scale_t alpha, typename in_type_::scale_t beta,
                output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
-               void *stream = nullptr) noexcept {
+               nk_stream_t stream = nullptr) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto output_values = contiguous_values_<in_type_>(output);
     std::size_t const dimensions = output_values.value.size() * dimensions_per_value<in_type_>();
@@ -494,7 +494,7 @@ template <numeric_dtype in_type_, vector_of<in_type_> a_type_, vector_of<in_type
     requires(!requires(a_type_ const &tensor) { tensor.rank(); })
 status_t blend(a_type_ const &a, b_type_ const &b, typename in_type_::scale_t alpha, typename in_type_::scale_t beta,
                output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
-               void *stream = nullptr) noexcept {
+               nk_stream_t stream = nullptr) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     auto output_values = contiguous_values_<in_type_>(output);
@@ -513,7 +513,7 @@ template <numeric_dtype in_type_, vector_of<in_type_> a_type_, vector_of<in_type
     requires(!requires(a_type_ const &tensor) { tensor.rank(); })
 status_t fma(a_type_ const &a, b_type_ const &b, c_type_ const &c, typename in_type_::scale_t alpha,
              typename in_type_::scale_t beta, output_type_ &&output,
-             nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+             nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     auto c_values = contiguous_values_<in_type_ const>(c);

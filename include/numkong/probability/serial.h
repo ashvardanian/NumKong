@@ -28,7 +28,7 @@ extern "C" {
 #define nk_define_kld_(input_type, unpacked_type, accumulator_type, output_type, load_and_convert, epsilon,          \
                        compute_log)                                                                                  \
     NUMKONG_API nk_status_t nk_kld_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                         nk_size_t n, output_type *result, void *stream) {           \
+                                                         nk_size_t n, output_type *result, nk_stream_t stream) {     \
         nk_assert_(stream == NUMKONG_NULL);                                                                          \
         nk_##accumulator_type##_t sum = 0;                                                                           \
         nk_##unpacked_type##_t a_value, b_value;                                                                     \
@@ -44,7 +44,7 @@ extern "C" {
 #define nk_define_jsd_(input_type, unpacked_type, accumulator_type, output_type, load_and_convert, epsilon,          \
                        compute_log, compute_sqrt)                                                                    \
     NUMKONG_API nk_status_t nk_jsd_##input_type##_serial(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                         nk_size_t n, output_type *result, void *stream) {           \
+                                                         nk_size_t n, output_type *result, nk_stream_t stream) {     \
         nk_assert_(stream == NUMKONG_NULL);                                                                          \
         nk_##accumulator_type##_t sum = 0;                                                                           \
         nk_##unpacked_type##_t a_value, b_value;                                                                     \
@@ -146,7 +146,7 @@ nk_define_jsd_(bf16, f32, f32, nk_f32_t, nk_bf16_to_f32_, NUMKONG_F32_DIVISION_E
                nk_f32_sqrt_)
 
 NUMKONG_API nk_status_t nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Use Kahan summation for higher numerical stability in long distributions
     nk_f64_t sum = 0, compensation = 0;
@@ -164,7 +164,7 @@ NUMKONG_API nk_status_t nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, 
 }
 
 NUMKONG_API nk_status_t nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Use Kahan summation for higher numerical stability in long distributions
     nk_f64_t sum = 0, compensation = 0;

@@ -46,7 +46,7 @@ extern "C" {
 #pragma region Binary Sets
 
 NUMKONG_API nk_status_t nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     // x86 supports unaligned loads and works just fine with the scalar version for small vectors.
@@ -59,7 +59,7 @@ NUMKONG_API nk_status_t nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t cons
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     // x86 supports unaligned loads and works just fine with the scalar version for small vectors.
@@ -78,7 +78,7 @@ NUMKONG_API nk_status_t nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t cons
 #pragma region Integer Sets
 
 NUMKONG_API nk_status_t nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t intersection_count = 0;
     nk_size_t n_remaining = n;
@@ -95,7 +95,7 @@ NUMKONG_API nk_status_t nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const
 }
 
 NUMKONG_API nk_status_t nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Process 32 bytes at a time using AVX2 (256-bit registers).
     // Compare bytes for equality, invert to get not-equal mask, then count mismatches.
@@ -144,7 +144,7 @@ NUMKONG_API nk_status_t nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Process 16 u16 values at a time using AVX2 (256-bit registers).
     // Compare 16-bit integers for equality and count matches.

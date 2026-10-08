@@ -75,7 +75,7 @@ NUMKONG_INLINE uint64x2_t nk_intersect_u64x2_neon_(uint64x2_t a, uint64x2_t b) {
 NUMKONG_API nk_status_t nk_sparse_intersect_u16_neon( //
     nk_u16_t const *a, nk_u16_t const *b,             //
     nk_size_t a_length, nk_size_t b_length,           //
-    nk_u16_t *result, nk_size_t *count, void *stream) {
+    nk_u16_t *result, nk_size_t *count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // NEON lacks compress-store, so fall back to serial for result output
@@ -148,7 +148,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u16_neon( //
 NUMKONG_API nk_status_t nk_sparse_intersect_u32_neon( //
     nk_u32_t const *a, nk_u32_t const *b,             //
     nk_size_t a_length, nk_size_t b_length,           //
-    nk_u32_t *result, nk_size_t *count, void *stream) {
+    nk_u32_t *result, nk_size_t *count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // NEON lacks compress-store, so fall back to serial for result output
@@ -217,7 +217,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u32_neon( //
 NUMKONG_API nk_status_t nk_sparse_intersect_u64_neon( //
     nk_u64_t const *a, nk_u64_t const *b,             //
     nk_size_t a_length, nk_size_t b_length,           //
-    nk_u64_t *result, nk_size_t *count, void *stream) {
+    nk_u64_t *result, nk_size_t *count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // NEON lacks compress-store, so fall back to serial for result output

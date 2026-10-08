@@ -214,19 +214,19 @@ void expect_padding_untouched(error_stats_t &stats, vector_type_ const &output, 
 }
 
 /** Expects a Gram matrix of @p count rows to hold @c canary_k below the diagonal and outside the
- *  rows from @p row_start up to @p row_end. */
+ *  rows from @p rows_begin up to @p rows_end. */
 template <typename result_type_, typename vector_type_>
 void expect_symmetric_untouched(error_stats_t &stats, vector_type_ const &output, std::size_t count, std::size_t stride,
-                                std::size_t row_start, std::size_t row_end) noexcept {
+                                std::size_t rows_begin, std::size_t rows_end) noexcept {
     std::size_t below_diagonal = 0, outside_rows = 0;
     for (std::size_t row = 0; row < count; row++) {
-        bool const computed = row >= row_start && row < row_end;
+        bool const computed = row >= rows_begin && row < rows_end;
         std::size_t const untouched_columns = computed ? row : count;
         (computed ? below_diagonal : outside_rows) += overwritten_bytes(
             output, row * stride, row * stride + untouched_columns * sizeof(result_type_));
     }
     stats.expect(below_diagonal == 0, "wrote below the diagonal");
-    stats.expect(outside_rows == 0, "wrote rows outside [row_start, row_start + row_count)");
+    stats.expect(outside_rows == 0, "wrote rows outside [rows_begin, rows_end)");
     expect_padding_untouched(stats, output, count, count * sizeof(result_type_), stride);
 }
 
@@ -1024,7 +1024,7 @@ error_stats_t test_dots_pack_layout(settings_t const &settings) {
         settings, make_backend<backend_type_>(settings));
 }
 
-/** One Gram-matrix case over @c count vectors, computing rows [row_start, row_start + row_count)
+/** One Gram-matrix case over @c count vectors, computing rows [rows_begin, rows_end)
  *  clipped to @c count. */
 struct dots_symmetric_case_t {
 
@@ -1035,10 +1035,10 @@ struct dots_symmetric_case_t {
     std::size_t depth;
 
     /** First result row computed. */
-    std::size_t row_start;
+    std::size_t rows_begin;
 
-    /** Result rows computed, clipped at the last vector. */
-    std::size_t row_count;
+    /** Result row after the last computed, clipped at the last vector. */
+    std::size_t rows_end;
 
     /** Tight or padded strides for the vectors and the result. */
     dots_strides_t strides;
@@ -1053,8 +1053,8 @@ inline std::vector<dots_symmetric_case_t> dots_symmetric_cases(settings_t const 
         {1, 1, 0, 1, tight},
         {17, 65, 0, 17, padded},
         {129, 300, 0, 129, padded},
-        {129, 300, 5, 40, padded},
-        {300, 1024, 256, 100, padded},
+        {129, 300, 5, 45, padded},
+        {300, 1024, 256, 356, padded},
     };
 }
 
@@ -1078,8 +1078,8 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;) {
         for (dots_symmetric_case_t const &test_case : cases) {
-            std::size_t const count = test_case.count, row_start = test_case.row_start;
-            std::size_t const row_end = std::min(count, row_start + test_case.row_count);
+            std::size_t const count = test_case.count, rows_begin = test_case.rows_begin;
+            std::size_t const rows_end = std::min(count, test_case.rows_end);
             std::size_t const depth = nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple;
             std::size_t const row_bytes = depth / dimensions_per_value * sizeof(scalar_t);
             bool const padded = test_case.strides == dots_strides_t::padded_k;
@@ -1096,18 +1096,18 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
 
             if (!expect_completed(stats, backend,
                                   backend.call(symmetric_fn, scales.operand(a.raw_values_data()), count, depth, stride,
-                                               c.raw_values_data(), c_stride, row_start, test_case.row_count)))
+                                               c.raw_values_data(), c_stride, rows_begin, test_case.rows_end)))
                 return stats;
 
             std::vector<reference_t> c_reference(count * count);
             stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
                 scales.operand(a.values_data()), count, depth, stride, c_reference.data(), count * sizeof(reference_t),
-                row_start, row_end - row_start, no_tiers_k, nullptr));
+                rows_begin, rows_end, no_tiers_k, nullptr));
 
-            for (std::size_t row = row_start; row < row_end; row++)
+            for (std::size_t row = rows_begin; row < rows_end; row++)
                 for (std::size_t column = row; column < count; column++)
                     stats.accumulate(c[row * c_stride / sizeof(result_t) + column], c_reference[row * count + column]);
-            expect_symmetric_untouched<result_t>(stats, c, count, c_stride, row_start, row_end);
+            expect_symmetric_untouched<result_t>(stats, c, count, c_stride, rows_begin, rows_end);
         }
     }
     return stats;
@@ -1751,12 +1751,13 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
 
             nk_status_t status = pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout,
                                                                key_value_packed);
-            auto const attend = [&](auto &into, auto &into_log_sum_exp, std::size_t task_begin, std::size_t task_end) {
+            auto const attend = [&](auto &into, auto &into_log_sum_exp, std::size_t tasks_begin,
+                                    std::size_t tasks_end) {
                 return backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
                                     into.raw_values_data(), into_log_sum_exp.raw_values_data(), layout.head_count,
                                     layout.key_value_head_count, layout.depth, segments.query_offsets.values_data(),
                                     query_stride, output_stride, layout.scale, test_case.keys_before,
-                                    test_case.keys_after, task_begin, task_end);
+                                    test_case.keys_after, tasks_begin, tasks_end);
             };
             if (status == nk_success_k) status = attend(output, log_sum_exp, 0, NUMKONG_SIZE_MAX);
             for (std::size_t window : windows)
@@ -1785,7 +1786,7 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
  *  and log-sum-exp, over ragged segments that offset their queries differently, one without keys.
  *  Unmasked cases cross panel-edge depths and GQA groups; masked ones cross causal, sliding-window,
  *  diagonal and two-sided bands. Gradients start as canaries, the query ones in rows wider than the
- *  output's, and two task windows cover the grid, the second relying on @c task_end clipping. */
+ *  output's, and two task windows cover the grid, the second relying on @c tasks_end clipping. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename gradients_kernel_type_>
 error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_size_kernel_type_ packed_size_fn,

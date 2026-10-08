@@ -44,7 +44,7 @@ extern "C" {
 #define nk_define_bilinear_(input_type, accumulator_type, output_type, load_and_convert)                       \
     NUMKONG_API nk_status_t nk_bilinear_##input_type##_serial(                                                 \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##input_type##_t const *c, nk_size_t n, \
-        nk_##output_type##_t *result, void *stream) {                                                          \
+        nk_##output_type##_t *result, nk_stream_t stream) {                                                    \
         nk_assert_(stream == NUMKONG_NULL);                                                                    \
         nk_##accumulator_type##_t outer_sum = 0;                                                               \
         nk_##accumulator_type##_t vector_a_value, vector_b_value, tensor_value;                                \
@@ -71,7 +71,7 @@ extern "C" {
 #define nk_define_bilinear_complex_(input_type, accumulator_type, output_type, load_and_convert)                    \
     NUMKONG_API nk_status_t nk_bilinear_##input_type##_serial(                                                      \
         nk_##input_type##_t const *a_pairs, nk_##input_type##_t const *b_pairs, nk_##input_type##_t const *c_pairs, \
-        nk_size_t n, nk_##output_type##c_t *results, void *stream) {                                                \
+        nk_size_t n, nk_##output_type##c_t *results, nk_stream_t stream) {                                          \
         nk_assert_(stream == NUMKONG_NULL);                                                                         \
         nk_##accumulator_type##_t outer_sum_real = 0, outer_sum_imag = 0;                                           \
         nk_##accumulator_type##_t a_real, a_imag, b_real, b_imag, c_real, c_imag;                                   \
@@ -105,7 +105,7 @@ extern "C" {
 #define nk_define_mahalanobis_(input_type, accumulator_type, output_type, load_and_convert)                    \
     NUMKONG_API nk_status_t nk_mahalanobis_##input_type##_serial(                                              \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##input_type##_t const *c, nk_size_t n, \
-        nk_##output_type##_t *result, void *stream) {                                                          \
+        nk_##output_type##_t *result, nk_stream_t stream) {                                                    \
         nk_assert_(stream == NUMKONG_NULL);                                                                    \
         nk_##accumulator_type##_t outer_sum = 0;                                                               \
         nk_##accumulator_type##_t a_row_value, b_row_value, a_column_value, b_column_value, tensor_value;      \
@@ -151,7 +151,7 @@ nk_define_mahalanobis_(bf16, f32, f32, nk_bf16_to_f32_)       // nk_mahalanobis_
 
 #if NUMKONG_TARGET_SERIAL
 NUMKONG_API nk_status_t nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                               nk_f64_t *result, void *stream) {
+                                               nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum = 0, outer_comp = 0;
     for (nk_size_t row = 0; row != n; ++row) {
@@ -166,7 +166,7 @@ NUMKONG_API nk_status_t nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const
 
 NUMKONG_API nk_status_t nk_bilinear_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
                                                 nk_f64c_t const *c_pairs, nk_size_t n, nk_f64c_t *results,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum_real = 0, outer_comp_real = 0;
     nk_f64_t outer_sum_imag = 0, outer_comp_imag = 0;
@@ -200,7 +200,7 @@ NUMKONG_API nk_status_t nk_bilinear_f64c_serial(nk_f64c_t const *a_pairs, nk_f64
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                  nk_f64_t *result, void *stream) {
+                                                  nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum = 0, outer_comp = 0;
     for (nk_size_t row = 0; row != n; ++row) {

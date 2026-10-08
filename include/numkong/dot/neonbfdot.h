@@ -79,7 +79,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_dot_bf16_neonbfdot(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                              nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     bfloat16x8_t a_bf16x8, b_bf16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -104,7 +104,7 @@ nk_dot_bf16_neonbfdot_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                               nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+                                               nk_size_t count_pairs, nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float32x4_t sum_real_f32x4 = vdupq_n_f32(0);
     float32x4_t sum_imag_f32x4 = vdupq_n_f32(0);
@@ -133,7 +133,7 @@ NUMKONG_API nk_status_t nk_dot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf1
 }
 
 NUMKONG_API nk_status_t nk_vdot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                                nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+                                                nk_size_t count_pairs, nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float32x4_t sum_real_f32x4 = vdupq_n_f32(0);
     float32x4_t sum_imag_f32x4 = vdupq_n_f32(0);
@@ -162,7 +162,7 @@ NUMKONG_API nk_status_t nk_vdot_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf
 }
 
 NUMKONG_API nk_status_t nk_dot_e4m3_neonbfdot(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                              nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     bfloat16x8_t a_bf16x8, b_bf16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -187,7 +187,7 @@ nk_dot_e4m3_neonbfdot_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e5m2_neonbfdot(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                              nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     bfloat16x8_t a_bf16x8, b_bf16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);

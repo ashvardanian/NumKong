@@ -221,7 +221,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_packed_u1_smebi32_streaming_(
 
 NUMKONG_API nk_status_t nk_hammings_packed_u1_smebi32( //
     nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
-    nk_size_t depth_bits, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t depth_bits, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_smebi32_packed_header_t const *)b_packed)->capability != nk_cap_smebi32_k) return nk_pack_mismatch_k;
     nk_sme_start_streaming_();
@@ -234,8 +234,8 @@ NUMKONG_API nk_status_t nk_hammings_packed_u1_smebi32( //
  *  horizontally and read vertically for BMOPA, while ZA1-3.S hold the BMOPA accumulators for 3 B
  *  column tiles, mirroring the unpacked @c nk_hammings_packed_u1_smebi32_streaming_ kernel. */
 __arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_symmetric_u1_smebi32_streaming_( //
-    nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride, nk_u32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t depth_bits, nk_size_t stride, nk_u32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
 
     nk_size_t const tile_dim = svcntw();        // 16 for 512-bit SVL
     nk_size_t const depth_tile_size = svcntw(); // 16 u32 per depth tile
@@ -252,15 +252,16 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_symmetric_u1_smebi32_streamin
 
     nk_align_(64) nk_u32_t a_buffer[16][16]; // Stack buffer for A column save
 
-    nk_size_t const row_end = row_start + row_count;
-    nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dim);
+    rows_end = nk_min_of_two(rows_end, vector_count);
+    nk_size_t const column_tile_count = nk_size_divide_round_up_(vector_count, tile_dim);
 
-    for (nk_size_t row_tile_start = row_start; row_tile_start < row_end && row_tile_start < vectors_count;
+    for (nk_size_t row_tile_start = rows_begin; row_tile_start < rows_end && row_tile_start < vector_count;
          row_tile_start += tile_dim) {
-        nk_size_t const rows_remaining = (row_tile_start + tile_dim <= row_end) ? tile_dim : (row_end - row_tile_start);
-        nk_size_t const rows_clamped = (row_tile_start + rows_remaining <= vectors_count)
+        nk_size_t const rows_left = rows_end - row_tile_start;
+        nk_size_t const rows_remaining = rows_left < tile_dim ? rows_left : tile_dim;
+        nk_size_t const rows_clamped = (row_tile_start + rows_remaining <= vector_count)
                                            ? rows_remaining
-                                           : (vectors_count - row_tile_start);
+                                           : (vector_count - row_tile_start);
         svbool_t const row_predicate_b32x = svwhilelt_b32_u64(0u, rows_clamped);
 
         // Upper triangle: start from this row tile's column
@@ -298,7 +299,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_symmetric_u1_smebi32_streamin
                 svzero_mask_za(nk_sme_zero_za32_tile_0_k);
                 for (nk_size_t col = 0; col < tile_dim; col++) {
                     nk_size_t const col_abs = (column_tile_index + 0) * tile_dim + col;
-                    if (col_abs < vectors_count) {
+                    if (col_abs < vector_count) {
                         nk_u8_t const *b_row = (nk_u8_t const *)vectors + col_abs * stride + d_start_u32 * 4;
                         svuint8_t col_u8x = svld1_u8(depth_predicate_b8x, b_row);
                         svwrite_hor_za32_u32_m(0, col, batch_predicate_b32x, svreinterpret_u32_u8(col_u8x));
@@ -314,7 +315,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_symmetric_u1_smebi32_streamin
                 svzero_mask_za(nk_sme_zero_za32_tile_0_k);
                 for (nk_size_t col = 0; col < tile_dim; col++) {
                     nk_size_t const col_abs = (column_tile_index + 1) * tile_dim + col;
-                    if (col_abs < vectors_count) {
+                    if (col_abs < vector_count) {
                         nk_u8_t const *b_row = (nk_u8_t const *)vectors + col_abs * stride + d_start_u32 * 4;
                         svuint8_t col_u8x = svld1_u8(depth_predicate_b8x, b_row);
                         svwrite_hor_za32_u32_m(0, col, batch_predicate_b32x, svreinterpret_u32_u8(col_u8x));
@@ -330,7 +331,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_symmetric_u1_smebi32_streamin
                 svzero_mask_za(nk_sme_zero_za32_tile_0_k);
                 for (nk_size_t col = 0; col < tile_dim; col++) {
                     nk_size_t const col_abs = (column_tile_index + 2) * tile_dim + col;
-                    if (col_abs < vectors_count) {
+                    if (col_abs < vector_count) {
                         nk_u8_t const *b_row = (nk_u8_t const *)vectors + col_abs * stride + d_start_u32 * 4;
                         svuint8_t col_u8x = svld1_u8(depth_predicate_b8x, b_row);
                         svwrite_hor_za32_u32_m(0, col, batch_predicate_b32x, svreinterpret_u32_u8(col_u8x));
@@ -345,9 +346,9 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_symmetric_u1_smebi32_streamin
 
             nk_size_t const first_column_start = (column_tile_index + 0) * tile_dim;
             nk_size_t const second_column_start = (column_tile_index + 1) * tile_dim;
-            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
-            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
-            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dim, vectors_count);
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vector_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vector_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dim, vector_count);
             int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dim;
             int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dim;
             // Extract ZA1-3: hamming = depth_bits - ZA[i][j]
@@ -378,9 +379,9 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_symmetric_u1_smebi32_streamin
         // Remainder: 1 column tile at a time using ZA1
         for (; column_tile_index < column_tile_count; column_tile_index++) {
             nk_size_t const col_tile_start = column_tile_index * tile_dim;
-            nk_size_t const columns_remaining = (col_tile_start + tile_dim <= vectors_count)
+            nk_size_t const columns_remaining = (col_tile_start + tile_dim <= vector_count)
                                                     ? tile_dim
-                                                    : (vectors_count - col_tile_start);
+                                                    : (vector_count - col_tile_start);
             svbool_t const column_predicate_b32x = svwhilelt_b32_u64(0u, columns_remaining);
 
             svzero_mask_za(nk_sme_zero_za32_tile_1_k);
@@ -413,7 +414,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_symmetric_u1_smebi32_streamin
                 svzero_mask_za(nk_sme_zero_za32_tile_0_k);
                 for (nk_size_t col = 0; col < tile_dim; col++) {
                     nk_size_t const col_abs = col_tile_start + col;
-                    if (col_abs < vectors_count) {
+                    if (col_abs < vector_count) {
                         nk_u8_t const *b_row = (nk_u8_t const *)vectors + col_abs * stride + d_start_u32 * 4;
                         svuint8_t col_u8x = svld1_u8(depth_predicate_b8x, b_row);
                         svwrite_hor_za32_u32_m(0, col, batch_predicate_b32x, svreinterpret_u32_u8(col_u8x));
@@ -442,13 +443,13 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_symmetric_u1_smebi32_streamin
 }
 
 NUMKONG_API nk_status_t nk_hammings_symmetric_u1_smebi32( //
-    nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride, nk_u32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t depth_bits, nk_size_t stride, nk_u32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth_bits, 8) * sizeof(*vectors));
     nk_sme_start_streaming_();
-    nk_hammings_symmetric_u1_smebi32_streaming_(vectors, vectors_count, depth_bits, stride, result, result_stride,
-                                                row_start, row_count);
+    nk_hammings_symmetric_u1_smebi32_streaming_(vectors, vector_count, depth_bits, stride, result, result_stride,
+                                                rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -705,7 +706,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_packed_u1_smebi32_streaming_(
 
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_smebi32( //
     nk_u1x8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
-    nk_size_t depth_bits, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t depth_bits, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_smebi32_packed_header_t const *)b_packed)->capability != nk_cap_smebi32_k) return nk_pack_mismatch_k;
     nk_sme_start_streaming_();
@@ -718,8 +719,8 @@ NUMKONG_API nk_status_t nk_jaccards_packed_u1_smebi32( //
  *  only, where column_tile ≥ row_tile, so the caller sees result[i][j] for j ≥ i. Norms are
  *  computed on the fly using streaming SVE popcount. */
 __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streaming_( //
-    nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t depth_bits, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
 
     nk_size_t const tile_dim = svcntw();        // 16 for 512-bit SVL
     nk_size_t const depth_tile_size = svcntw(); // 16 u32 per depth tile
@@ -737,15 +738,16 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streamin
 
     nk_align_(64) nk_u32_t a_buffer[16][16]; // Stack buffer for A column save
 
-    nk_size_t const row_end = row_start + row_count;
-    nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dim);
+    rows_end = nk_min_of_two(rows_end, vector_count);
+    nk_size_t const column_tile_count = nk_size_divide_round_up_(vector_count, tile_dim);
 
-    for (nk_size_t row_tile_start = row_start; row_tile_start < row_end && row_tile_start < vectors_count;
+    for (nk_size_t row_tile_start = rows_begin; row_tile_start < rows_end && row_tile_start < vector_count;
          row_tile_start += tile_dim) {
-        nk_size_t const rows_remaining = (row_tile_start + tile_dim <= row_end) ? tile_dim : (row_end - row_tile_start);
-        nk_size_t const rows_clamped = (row_tile_start + rows_remaining <= vectors_count)
+        nk_size_t const rows_left = rows_end - row_tile_start;
+        nk_size_t const rows_remaining = rows_left < tile_dim ? rows_left : tile_dim;
+        nk_size_t const rows_clamped = (row_tile_start + rows_remaining <= vector_count)
                                            ? rows_remaining
-                                           : (vectors_count - row_tile_start);
+                                           : (vector_count - row_tile_start);
         svbool_t const row_predicate_b32x = svwhilelt_b32_u64(0u, rows_clamped);
 
         // Compute A tile norms
@@ -791,7 +793,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streamin
                 svzero_mask_za(nk_sme_zero_za32_tile_0_k);
                 for (nk_size_t col = 0; col < tile_dim; col++) {
                     nk_size_t const col_abs = (column_tile_index + 0) * tile_dim + col;
-                    if (col_abs < vectors_count) {
+                    if (col_abs < vector_count) {
                         nk_u8_t const *b_row = (nk_u8_t const *)vectors + col_abs * stride + d_start_u32 * 4;
                         svuint8_t col_u8x = svld1_u8(depth_predicate_b8x, b_row);
                         svwrite_hor_za32_u32_m(0, col, batch_predicate_b32x, svreinterpret_u32_u8(col_u8x));
@@ -807,7 +809,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streamin
                 svzero_mask_za(nk_sme_zero_za32_tile_0_k);
                 for (nk_size_t col = 0; col < tile_dim; col++) {
                     nk_size_t const col_abs = (column_tile_index + 1) * tile_dim + col;
-                    if (col_abs < vectors_count) {
+                    if (col_abs < vector_count) {
                         nk_u8_t const *b_row = (nk_u8_t const *)vectors + col_abs * stride + d_start_u32 * 4;
                         svuint8_t col_u8x = svld1_u8(depth_predicate_b8x, b_row);
                         svwrite_hor_za32_u32_m(0, col, batch_predicate_b32x, svreinterpret_u32_u8(col_u8x));
@@ -823,7 +825,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streamin
                 svzero_mask_za(nk_sme_zero_za32_tile_0_k);
                 for (nk_size_t col = 0; col < tile_dim; col++) {
                     nk_size_t const col_abs = (column_tile_index + 2) * tile_dim + col;
-                    if (col_abs < vectors_count) {
+                    if (col_abs < vector_count) {
                         nk_u8_t const *b_row = (nk_u8_t const *)vectors + col_abs * stride + d_start_u32 * 4;
                         svuint8_t col_u8x = svld1_u8(depth_predicate_b8x, b_row);
                         svwrite_hor_za32_u32_m(0, col, batch_predicate_b32x, svreinterpret_u32_u8(col_u8x));
@@ -844,17 +846,17 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streamin
                 nk_size_t const col_abs_0 = (column_tile_index + 0) * tile_dim + col;
                 nk_size_t const col_abs_1 = (column_tile_index + 1) * tile_dim + col;
                 nk_size_t const col_abs_2 = (column_tile_index + 2) * tile_dim + col;
-                b_tile_norms_0[col] = (col_abs_0 < vectors_count)
+                b_tile_norms_0[col] = (col_abs_0 < vector_count)
                                           ? nk_dots_reduce_sum_u1_streaming_(
                                                 (nk_u1x8_t const *)((char const *)vectors + col_abs_0 * stride),
                                                 depth_bytes)
                                           : 0;
-                b_tile_norms_1[col] = (col_abs_1 < vectors_count)
+                b_tile_norms_1[col] = (col_abs_1 < vector_count)
                                           ? nk_dots_reduce_sum_u1_streaming_(
                                                 (nk_u1x8_t const *)((char const *)vectors + col_abs_1 * stride),
                                                 depth_bytes)
                                           : 0;
-                b_tile_norms_2[col] = (col_abs_2 < vectors_count)
+                b_tile_norms_2[col] = (col_abs_2 < vector_count)
                                           ? nk_dots_reduce_sum_u1_streaming_(
                                                 (nk_u1x8_t const *)((char const *)vectors + col_abs_2 * stride),
                                                 depth_bytes)
@@ -871,9 +873,9 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streamin
 
             nk_size_t const first_column_start = (column_tile_index + 0) * tile_dim;
             nk_size_t const second_column_start = (column_tile_index + 1) * tile_dim;
-            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vectors_count);
-            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vectors_count);
-            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dim, vectors_count);
+            svbool_t const first_bound_b32x = svwhilelt_b32_u64(first_column_start, vector_count);
+            svbool_t const second_bound_b32x = svwhilelt_b32_u64(second_column_start, vector_count);
+            svbool_t const third_bound_b32x = svwhilelt_b32_u64((column_tile_index + 2) * tile_dim, vector_count);
             int const first_crosses_diagonal = first_column_start < row_tile_start + tile_dim;
             int const second_crosses_diagonal = second_column_start < row_tile_start + tile_dim;
             for (nk_size_t row = 0; row < rows_clamped; row++) {
@@ -945,9 +947,9 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streamin
         // Remainder: 1 column tile at a time using ZA1
         for (; column_tile_index < column_tile_count; column_tile_index++) {
             nk_size_t const col_tile_start = column_tile_index * tile_dim;
-            nk_size_t const columns_remaining = (col_tile_start + tile_dim <= vectors_count)
+            nk_size_t const columns_remaining = (col_tile_start + tile_dim <= vector_count)
                                                     ? tile_dim
-                                                    : (vectors_count - col_tile_start);
+                                                    : (vector_count - col_tile_start);
             svbool_t const column_predicate_b32x = svwhilelt_b32_u64(0u, columns_remaining);
 
             svzero_mask_za(nk_sme_zero_za32_tile_1_k);
@@ -980,7 +982,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streamin
                 svzero_mask_za(nk_sme_zero_za32_tile_0_k);
                 for (nk_size_t col = 0; col < tile_dim; col++) {
                     nk_size_t const col_abs = col_tile_start + col;
-                    if (col_abs < vectors_count) {
+                    if (col_abs < vector_count) {
                         nk_u8_t const *b_row = (nk_u8_t const *)vectors + col_abs * stride + d_start_u32 * 4;
                         svuint8_t col_u8x = svld1_u8(depth_predicate_b8x, b_row);
                         svwrite_hor_za32_u32_m(0, col, batch_predicate_b32x, svreinterpret_u32_u8(col_u8x));
@@ -997,7 +999,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streamin
             nk_align_(64) nk_u32_t b_tile_norms[16];
             for (nk_size_t col = 0; col < tile_dim; col++) {
                 nk_size_t const col_abs = col_tile_start + col;
-                b_tile_norms[col] = (col_abs < vectors_count)
+                b_tile_norms[col] = (col_abs < vector_count)
                                         ? nk_dots_reduce_sum_u1_streaming_(
                                               (nk_u1x8_t const *)((char const *)vectors + col_abs * stride),
                                               depth_bytes)
@@ -1033,13 +1035,13 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streamin
 }
 
 NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_smebi32( //
-    nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t depth_bits, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth_bits, 8) * sizeof(*vectors));
     nk_sme_start_streaming_();
-    nk_jaccards_symmetric_u1_smebi32_streaming_(vectors, vectors_count, depth_bits, stride, result, result_stride,
-                                                row_start, row_count);
+    nk_jaccards_symmetric_u1_smebi32_streaming_(vectors, vector_count, depth_bits, stride, result, result_stride,
+                                                rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }

@@ -803,7 +803,7 @@ nk_define_det3x3_(f64)
     NUMKONG_API nk_status_t nk_##metric##_##input_type##_serial(                                                   \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n, nk_##output_type##_t *a_centroid, \
         nk_##output_type##_t *b_centroid, nk_##output_type##_t *rotation, nk_##output_type##_t *scale,             \
-        nk_##result_type##_t *result, void *stream) {                                                              \
+        nk_##result_type##_t *result, nk_stream_t stream) {                                                        \
         nk_assert_(stream == NUMKONG_NULL);                                                                        \
         nk_##metric##_##input_type##_(a, b, n, a_centroid, b_centroid, rotation, scale, result);                   \
         return nk_success_k;                                                                                       \

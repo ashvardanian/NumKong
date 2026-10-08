@@ -564,7 +564,7 @@ NUMKONG_INLINE __m256i nk_atan_f16x16_skylake_(__m256i values_f16x16) {
 
 #if NUMKONG_TARGET_SKYLAKE
 
-NUMKONG_API nk_status_t nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -581,7 +581,7 @@ NUMKONG_API nk_status_t nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -598,7 +598,7 @@ NUMKONG_API nk_status_t nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -615,7 +615,7 @@ NUMKONG_API nk_status_t nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t 
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -632,7 +632,7 @@ NUMKONG_API nk_status_t nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -649,7 +649,7 @@ NUMKONG_API nk_status_t nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -666,7 +666,7 @@ NUMKONG_API nk_status_t nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t 
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -683,7 +683,7 @@ NUMKONG_API nk_status_t nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {
@@ -700,7 +700,7 @@ NUMKONG_API nk_status_t nk_trig_cos_f16_skylake(nk_f16_t const *ins, nk_size_t n
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 16 <= n; i += 16) {

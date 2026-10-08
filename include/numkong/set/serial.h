@@ -40,7 +40,7 @@ extern "C" {
 #pragma region Binary Sets
 
 NUMKONG_API nk_status_t nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_dims_(n, nk_u1_k);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
@@ -51,7 +51,7 @@ NUMKONG_API nk_status_t nk_hamming_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_dims_(n, nk_u1_k);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
@@ -67,7 +67,7 @@ NUMKONG_API nk_status_t nk_jaccard_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const
 #pragma region Integer Sets
 
 NUMKONG_API nk_status_t nk_jaccard_u32_serial(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t intersection_count = 0;
     for (nk_size_t i = 0; i != n; ++i) intersection_count += (a[i] == b[i]);
@@ -76,7 +76,7 @@ NUMKONG_API nk_status_t nk_jaccard_u32_serial(nk_u32_t const *a, nk_u32_t const 
 }
 
 NUMKONG_API nk_status_t nk_hamming_u8_serial(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t differences = 0;
     for (nk_size_t i = 0; i != n; ++i) differences += (a[i] != b[i]);
@@ -85,7 +85,7 @@ NUMKONG_API nk_status_t nk_hamming_u8_serial(nk_u8_t const *a, nk_u8_t const *b,
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u16_serial(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t matches = 0;
     for (nk_size_t i = 0; i != n; ++i) matches += (a[i] == b[i]);

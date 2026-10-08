@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 /** Sets @p bytes at device-reachable @p pointer to @p value, in order on @p stream. */
-NUMKONG_INLINE nk_status_t nk_reduce_memset_rocm_(void *pointer, int value, nk_size_t bytes, void *stream) {
+NUMKONG_INLINE nk_status_t nk_reduce_memset_rocm_(void *pointer, int value, nk_size_t bytes, nk_stream_t stream) {
     return hipMemsetAsync(pointer, value, bytes, (hipStream_t)stream) == hipSuccess ? nk_success_k
                                                                                     : nk_device_code_mismatch_k;
 }
@@ -29,7 +29,8 @@ NUMKONG_INLINE nk_status_t nk_reduce_memset_rocm_(void *pointer, int value, nk_s
 /** Zeroes the @p sum_bytes and @p sumsq_bytes wide outputs, then launches @p kernel's resident
  *  grid, whose blocks add into them. */
 NUMKONG_INLINE nk_status_t nk_reduce_moments_launch_rocm_(void const *kernel, nk_reduce_arguments_t arguments,
-                                                          nk_size_t sum_bytes, nk_size_t sumsq_bytes, void *stream) {
+                                                          nk_size_t sum_bytes, nk_size_t sumsq_bytes,
+                                                          nk_stream_t stream) {
     nk_status_t status = nk_reduce_memset_rocm_(arguments.first, 0, sum_bytes, stream);
     if (status == nk_success_k) status = nk_reduce_memset_rocm_(arguments.second, 0, sumsq_bytes, stream);
     if (status != nk_success_k || !arguments.count) return status;
@@ -42,7 +43,7 @@ NUMKONG_INLINE nk_status_t nk_reduce_moments_launch_rocm_(void const *kernel, nk
 /** Clears both indices, launches @p kernel's resident grid, whose blocks swap their winners in, and
  *  then @p finish_kernel, which writes the winners' values. */
 NUMKONG_INLINE nk_status_t nk_reduce_minmax_launch_rocm_(void const *kernel, void const *finish_kernel,
-                                                         nk_reduce_arguments_t arguments, void *stream) {
+                                                         nk_reduce_arguments_t arguments, nk_stream_t stream) {
     nk_status_t status = nk_reduce_memset_rocm_(arguments.first_index, 0xFF, sizeof(nk_size_t), stream);
     if (status == nk_success_k)
         status = nk_reduce_memset_rocm_(arguments.second_index, 0xFF, sizeof(nk_size_t), stream);
@@ -172,7 +173,7 @@ NUMKONG_DEVICE void nk_reduce_pairs_moments_rocm_(nk_dtype_t dtype, nk_reduce_ar
     }                                                                                                              \
     NUMKONG_API nk_status_t nk_reduce_moments_##input_type##_##isa_suffix(                                         \
         nk_##input_value_type##_t const *data, nk_size_t count, nk_size_t stride, nk_##sum_type##_t *sum,          \
-        nk_##sumsq_type##_t *sumsq, void *stream) {                                                                \
+        nk_##sumsq_type##_t *sumsq, nk_stream_t stream) {                                                          \
         return nk_reduce_moments_launch_rocm_(                                                                     \
             (void const *)&nk_reduce_moments_##input_type##_##isa_suffix##_kernel_,                                \
             nk_reduce_arguments_simt_(sizeof(nk_##input_value_type##_t), data, count, stride, sum, NUMKONG_NULL,   \
@@ -195,7 +196,7 @@ NUMKONG_DEVICE void nk_reduce_pairs_moments_rocm_(nk_dtype_t dtype, nk_reduce_ar
     }                                                                                                               \
     NUMKONG_API nk_status_t nk_reduce_minmax_##input_type##_##isa_suffix(                                           \
         nk_##input_value_type##_t const *data, nk_size_t count, nk_size_t stride, nk_##output_type##_t *min_value,  \
-        nk_size_t *min_index, nk_##output_type##_t *max_value, nk_size_t *max_index, void *stream) {                \
+        nk_size_t *min_index, nk_##output_type##_t *max_value, nk_size_t *max_index, nk_stream_t stream) {          \
         return nk_reduce_minmax_launch_rocm_(                                                                       \
             (void const *)&nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_,                                  \
             (void const *)&nk_reduce_minmax_##input_type##_finish_##isa_suffix##_kernel_,                           \

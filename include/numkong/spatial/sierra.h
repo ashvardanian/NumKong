@@ -44,7 +44,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_angular_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     __m256i dot_product_i32x8 = _mm256_setzero_si256();
@@ -108,14 +108,14 @@ NUMKONG_INLINE void nk_squared_distance_i8_sierra_(nk_i8_t const *a, nk_i8_t con
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_i8_sierra_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_i8_sierra(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
     nk_squared_distance_i8_sierra_(a, b, n, &distance_sq_u32);
@@ -124,7 +124,7 @@ NUMKONG_API nk_status_t nk_euclidean_i8_sierra(nk_i8_t const *a, nk_i8_t const *
 }
 
 NUMKONG_API nk_status_t nk_angular_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     __m256i dot_product_u32x8 = _mm256_setzero_si256();
@@ -188,14 +188,14 @@ NUMKONG_INLINE void nk_squared_distance_u8_sierra_(nk_u8_t const *a, nk_u8_t con
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_u8_sierra_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_u8_sierra(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
     nk_squared_distance_u8_sierra_(a, b, n, &distance_sq_u32);
@@ -204,7 +204,7 @@ NUMKONG_API nk_status_t nk_euclidean_u8_sierra(nk_u8_t const *a, nk_u8_t const *
 }
 
 NUMKONG_API nk_status_t nk_angular_e2m3_sierra(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                               nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Angular distance for e2m3 using dual-VPSHUFB LUT + VPDPBSSD norm decomposition.
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
@@ -347,14 +347,14 @@ nk_sqeuclidean_e2m3_sierra_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e2m3_sierra(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                                   nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                                   nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e2m3_sierra_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e2m3_sierra(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e2m3_sierra_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -448,14 +448,14 @@ nk_sqeuclidean_e3m2_sierra_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e3m2_sierra(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                                   nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                                   nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e3m2_sierra_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e3m2_sierra(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e3m2_sierra_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -463,7 +463,7 @@ NUMKONG_API nk_status_t nk_euclidean_e3m2_sierra(nk_e3m2_t const *a, nk_e3m2_t c
 }
 
 NUMKONG_API nk_status_t nk_angular_e3m2_sierra(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                               nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // E3M2 angular distance via VPMADDWD integer MAC.
     __m256i const lut_low_byte_first_u8x32 = _mm256_set_epi8(  //

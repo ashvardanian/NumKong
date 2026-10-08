@@ -31,7 +31,8 @@ namespace ashvardanian::numkong {
 template <numeric_dtype index_type_>
 status_t sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_length, std::size_t b_length,
                           index_type_ *result, std::size_t *count,
-                          nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+                          nk_capability_t capabilities = default_capabilities(),
+                          nk_stream_t stream = nullptr) noexcept {
     typename index_type_::raw_t *result_raw = result ? &result->raw_ : nullptr;
     nk_size_t found = 0;
     if (capabilities) {
@@ -88,7 +89,7 @@ template <numeric_dtype index_type_, numeric_dtype weight_t,
           numeric_dtype result_type_ = typename weight_t::dot_result_t>
 status_t sparse_dot(index_type_ const *a, index_type_ const *b, weight_t const *a_weights, weight_t const *b_weights,
                     std::size_t a_length, std::size_t b_length, result_type_ *product,
-                    nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+                    nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename weight_t::dot_result_t>;
 
     if (capabilities) {

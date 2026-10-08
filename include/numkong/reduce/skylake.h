@@ -3018,7 +3018,7 @@ NUMKONG_INLINE void nk_reduce_minmax_f16_skylake_contiguous_( //
 
 NUMKONG_API nk_status_t nk_reduce_moments_f32_skylake(           //
     nk_f32_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr, void *stream) {
+    nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_f32_skylake_chunked_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
@@ -3027,7 +3027,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_f32_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_f32_skylake(            //
     nk_f32_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_f32_t);
     int aligned = (stride % sizeof(nk_f32_t) == 0);
@@ -3067,7 +3067,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_f32_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_f64_skylake(           //
     nk_f64_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr, void *stream) {
+    nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_f64_t);
     int aligned = (stride % sizeof(nk_f64_t) == 0);
@@ -3094,7 +3094,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_f64_skylake(           //
 
 NUMKONG_API nk_status_t nk_reduce_moments_i8_skylake(           //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_i8_t);
     int aligned = (stride % sizeof(nk_i8_t) == 0);
@@ -3124,7 +3124,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_i8_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_i8_skylake(            //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_i8_t);
     int aligned = (stride % sizeof(nk_i8_t) == 0);
@@ -3161,7 +3161,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_i8_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_u8_skylake(           //
     nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_u8_t);
     int aligned = (stride % sizeof(nk_u8_t) == 0);
@@ -3190,7 +3190,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_u8_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_u8_skylake(            //
     nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_u8_t);
     int aligned = (stride % sizeof(nk_u8_t) == 0);
@@ -3227,7 +3227,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_u8_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_i16_skylake(           //
     nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_i16_t);
     int aligned = (stride % sizeof(nk_i16_t) == 0);
@@ -3257,7 +3257,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_i16_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_i16_skylake(            //
     nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_i16_t);
     int aligned = (stride % sizeof(nk_i16_t) == 0);
@@ -3294,7 +3294,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_i16_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_u16_skylake(           //
     nk_u16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_u16_t);
     int aligned = (stride % sizeof(nk_u16_t) == 0);
@@ -3323,7 +3323,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_u16_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_u16_skylake(            //
     nk_u16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_u16_t);
     int aligned = (stride % sizeof(nk_u16_t) == 0);
@@ -3360,7 +3360,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_u16_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_i32_skylake(           //
     nk_i32_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_i32_t);
     int aligned = (stride % sizeof(nk_i32_t) == 0);
@@ -3375,7 +3375,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_i32_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_i32_skylake(            //
     nk_i32_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_i32_t);
     int aligned = (stride % sizeof(nk_i32_t) == 0);
@@ -3412,7 +3412,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_i32_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_u32_skylake(           //
     nk_u32_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_u32_t);
     int aligned = (stride % sizeof(nk_u32_t) == 0);
@@ -3439,7 +3439,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_u32_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_u32_skylake(            //
     nk_u32_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_u32_t);
     int aligned = (stride % sizeof(nk_u32_t) == 0);
@@ -3476,7 +3476,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_u32_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_i64_skylake(           //
     nk_i64_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_i64_t);
     int aligned = (stride % sizeof(nk_i64_t) == 0);
@@ -3491,7 +3491,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_i64_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_i64_skylake(            //
     nk_i64_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_i64_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_i64_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_i64_t);
     int aligned = (stride % sizeof(nk_i64_t) == 0);
@@ -3512,7 +3512,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_i64_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_u64_skylake(           //
     nk_u64_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_u64_t);
     int aligned = (stride % sizeof(nk_u64_t) == 0);
@@ -3527,7 +3527,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_u64_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_u64_skylake(            //
     nk_u64_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_u64_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_u64_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_u64_t);
     int aligned = (stride % sizeof(nk_u64_t) == 0);
@@ -3549,7 +3549,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_u64_skylake(            //
 NUMKONG_API nk_status_t nk_reduce_minmax_f64_skylake(            //
     nk_f64_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_f64_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_f64_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_f64_t);
     int aligned = (stride % sizeof(nk_f64_t) == 0);
@@ -3570,7 +3570,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_f64_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_e4m3_skylake(           //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_e4m3_skylake_chunked_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
@@ -3579,7 +3579,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_e4m3_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_skylake(            //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_e4m3_t);
     if (count == 0)
@@ -3618,7 +3618,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_e5m2_skylake(           //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_e5m2_t);
     int aligned = (stride % sizeof(nk_e5m2_t) == 0);
@@ -3644,7 +3644,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_e5m2_skylake(           //
 
 NUMKONG_API nk_status_t nk_reduce_moments_e2m3_skylake(           //
     nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_e2m3_t);
     int aligned = (stride % sizeof(nk_e2m3_t) == 0);
@@ -3670,7 +3670,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_e2m3_skylake(           //
 
 NUMKONG_API nk_status_t nk_reduce_moments_e3m2_skylake(           //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_e3m2_t);
     int aligned = (stride % sizeof(nk_e3m2_t) == 0);
@@ -3697,7 +3697,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_e3m2_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_e5m2_skylake(            //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_e5m2_t);
     if (count == 0)
@@ -3737,7 +3737,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e5m2_skylake(            //
 NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_skylake(            //
     nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_e2m3_t);
     if (count == 0)
@@ -3771,7 +3771,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_skylake(            //
 NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_skylake(            //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_e3m2_t);
     if (count == 0)
@@ -3804,7 +3804,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_i4_skylake(             //
     nk_i4x2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (stride == 1) nk_reduce_moments_i4_skylake_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
@@ -3814,7 +3814,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_i4_skylake(             //
 
 NUMKONG_API nk_status_t nk_reduce_moments_u4_skylake(             //
     nk_u4x2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (stride == 1) nk_reduce_moments_u4_skylake_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
@@ -3824,7 +3824,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_u4_skylake(             //
 
 NUMKONG_API nk_status_t nk_reduce_moments_u1_skylake(             //
     nk_u1x8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (stride == 1) nk_reduce_moments_u1_skylake_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
@@ -3834,7 +3834,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_u1_skylake(             //
 
 NUMKONG_API nk_status_t nk_reduce_moments_bf16_skylake(           //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_bf16_skylake_chunked_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
@@ -3843,7 +3843,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_bf16_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_bf16_skylake(            //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_bf16_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_bf16_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_bf16_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_bf16_t);
     int aligned = (stride % sizeof(nk_bf16_t) == 0);
@@ -3887,7 +3887,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_bf16_skylake(            //
 
 NUMKONG_API nk_status_t nk_reduce_moments_f16_skylake(           //
     nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_f16_t);
     int aligned = (stride % sizeof(nk_f16_t) == 0);
@@ -3912,7 +3912,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_f16_skylake(           //
 NUMKONG_API nk_status_t nk_reduce_minmax_f16_skylake(            //
     nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr,           //
-    nk_f16_t *max_value_ptr, nk_size_t *max_index_ptr, void *stream) {
+    nk_f16_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_f16_t);
     int aligned = (stride % sizeof(nk_f16_t) == 0);

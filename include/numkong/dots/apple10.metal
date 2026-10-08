@@ -38,7 +38,7 @@ void nk_cross_store_apple10_(thread tile_type_ &tile, device result_type_ *c,
     if constexpr (metric_ == nk_cross_dot_metal_k) {
         if (!on_diagonal) {
             tensor<device result_type_, dextents<int32_t, 2>, tensor_inline> c_cells(
-                c, dextents<int32_t, 2>(arguments.column_count, arguments.row_end),
+                c, dextents<int32_t, 2>(arguments.column_count, arguments.rows_end),
                 array<int32_t, 2> {1, (int32_t)arguments.c_stride});
             auto c_tile = c_cells.slice(first_column, first_row);
             tile.store(c_tile);
@@ -50,7 +50,7 @@ void nk_cross_store_apple10_(thread tile_type_ &tile, device result_type_ *c,
         if (!tile.is_valid_element(index)) continue;
         auto const cell = tile.get_multidimensional_index(index);
         uint const column = first_column + (uint)cell[0], row = first_row + (uint)cell[1];
-        if (row >= arguments.row_end || column >= arguments.column_count || (arguments.upper_triangle && column < row))
+        if (row >= arguments.rows_end || column >= arguments.column_count || (arguments.upper_triangle && column < row))
             continue;
         result_type_ value = result_type_(tile[index]);
         if constexpr (metric_ != nk_cross_dot_metal_k)
@@ -72,13 +72,13 @@ template <typename input_type_, typename result_type_, nk_cross_metric_metal_t m
 void nk_cross_tile_apple10_(device input_type_ const *a, device input_type_ const *b, device output_type_ *c,
                             constant nk_cross_arguments_metal_t &arguments, uint2 group,
                             threadgroup float const (*norms)[nk_cross_tile_metal_k] = nullptr) {
-    uint const first_row = arguments.row_start + group.y * nk_cross_tile_apple10_k;
+    uint const first_row = arguments.rows_begin + group.y * nk_cross_tile_apple10_k;
     uint const first_column = group.x * nk_cross_tile_apple10_k;
     if (arguments.upper_triangle && first_column + nk_cross_tile_apple10_k <= first_row) return; // below the diagonal
 
     // `matmul2d` rejects `const` element types, so the operands shed it; neither is ever written.
     tensor<device input_type_, dextents<int32_t, 2>, tensor_inline> a_rows(
-        const_cast<device input_type_ *>(a), dextents<int32_t, 2>(arguments.depth, arguments.row_end),
+        const_cast<device input_type_ *>(a), dextents<int32_t, 2>(arguments.depth, arguments.rows_end),
         array<int32_t, 2> {1, (int32_t)(arguments.a_stride / sizeof(input_type_))});
     tensor<device input_type_, dextents<int32_t, 2>, tensor_inline> b_columns(
         const_cast<device input_type_ *>(b), dextents<int32_t, 2>(arguments.depth, arguments.column_count),
@@ -116,7 +116,7 @@ void nk_cross_widened_tile_apple10_(device uchar const *a, device uchar const *b
                                     threadgroup float const (*norms)[nk_cross_tile_metal_k] = nullptr) {
     constexpr uint side = nk_cross_tile_apple10_k, threads = 4 * 32;
     constexpr uint per_value = dtype_::dimensions_per_value, words_per_line = side / 4 / per_value;
-    uint const first_row = arguments.row_start + group.y * side;
+    uint const first_row = arguments.rows_begin + group.y * side;
     uint const first_column = group.x * side;
     if (arguments.upper_triangle && first_column + side <= first_row) return; // below the diagonal, group-uniform
 
@@ -143,7 +143,7 @@ void nk_cross_widened_tile_apple10_(device uchar const *a, device uchar const *b
             device uchar const *a_word = a + row * arguments.a_stride + byte;
             device uchar const *b_word = b + column * arguments.b_stride + byte;
             uint4 a_words = uint4(0), b_words = uint4(0);
-            if (row < arguments.row_end)
+            if (row < arguments.rows_end)
                 a_words = whole ? uint4(*(device uint const *)a_word, 0, 0, 0) : nk_tail_load_<dtype_>(a_word, left);
             if (column < arguments.column_count)
                 b_words = whole ? uint4(*(device uint const *)b_word, 0, 0, 0) : nk_tail_load_<dtype_>(b_word, left);
@@ -185,7 +185,7 @@ void nk_cross_int4_tile_apple10_(device uchar const *a, device uchar const *b, d
                                  threadgroup float const (*norms)[side_] = nullptr) {
     constexpr uint side = side_, step = 64, threads = 128;
     constexpr bool native_packing = !is_same_v<input_type_, packed_type_>;
-    uint const first_row = arguments.row_start + group.y * side, first_column = group.x * side;
+    uint const first_row = arguments.rows_begin + group.y * side, first_column = group.x * side;
     if (arguments.upper_triangle && first_column + side <= first_row) return;
     constexpr auto descriptor = matmul2d_descriptor(side, side, step, /*transpose_left=*/false,
                                                     /*transpose_right=*/true, /*relaxed_precision=*/false,
@@ -205,7 +205,7 @@ void nk_cross_int4_tile_apple10_(device uchar const *a, device uchar const *b, d
             uint const line = cell / step, offset = cell % step, dimension = depth_start + (offset ^ 1);
             uint const row = first_row + line;
             // Metal reads the low nibble first, so permute A's adjacent dimensions to match B.
-            a_stage[line][offset] = row < arguments.row_end && dimension < arguments.depth
+            a_stage[line][offset] = row < arguments.rows_end && dimension < arguments.depth
                                         ? input_type_(dtype_::load(a + row * arguments.a_stride, dimension))
                                         : input_type_(0);
             if constexpr (!native_packing) {
@@ -231,7 +231,7 @@ void nk_cross_int4_tile_apple10_(device uchar const *a, device uchar const *b, d
         if (!tile.is_valid_element(index)) continue;
         auto const cell = tile.get_multidimensional_index(index);
         uint const column = first_column + uint(cell[0]), row = first_row + uint(cell[1]);
-        if (row >= arguments.row_end || column >= arguments.column_count || (arguments.upper_triangle && column < row))
+        if (row >= arguments.rows_end || column >= arguments.column_count || (arguments.upper_triangle && column < row))
             continue;
         typename dtype_::dot_result_t const dot = typename dtype_::dot_result_t(tile[index]);
         output_type_ value = output_type_(dot);
@@ -328,7 +328,7 @@ void nk_cross_scaled_tile_apple10_(device uchar const *a, device uchar const *b,
                                    threadgroup half (*b_stage)[block_size_],
                                    threadgroup float const (*norms)[nk_cross_scaled_tile_apple10_k]) {
     constexpr uint side = nk_cross_scaled_tile_apple10_k, threads = 128;
-    uint const first_row = arguments.row_start + group.y * side, first_column = group.x * side;
+    uint const first_row = arguments.rows_begin + group.y * side, first_column = group.x * side;
     if (arguments.upper_triangle && first_column + side <= first_row) return;
     constexpr auto descriptor = matmul2d_descriptor(side, side, block_size_, /*transpose_left=*/false,
                                                     /*transpose_right=*/true, /*relaxed_precision=*/false,
@@ -344,14 +344,14 @@ void nk_cross_scaled_tile_apple10_(device uchar const *a, device uchar const *b,
         for (uint cell = thread_index; cell < side * block_size_; cell += threads) {
             uint const line = cell / block_size_, offset = cell % block_size_;
             uint const row = first_row + line, column = first_column + line;
-            a_stage[line][offset] = row < arguments.row_end
+            a_stage[line][offset] = row < arguments.rows_end
                                         ? half(dtype_::load(a + row * arguments.a_stride, block * block_size_ + offset))
                                         : half(0);
             b_stage[line][offset] = column < arguments.column_count ? half(dtype_::load(b + column * arguments.b_stride,
                                                                                         block * block_size_ + offset))
                                                                     : half(0);
             if constexpr (scale_ == nk_cross_scale_e4m3_metal_k) {
-                if (row < arguments.row_end)
+                if (row < arguments.rows_end)
                     a_stage[line][offset] *= nk::e4m3_t::widen(
                         ushort4(a_scales[row * arguments.a_scales_stride + block]))[0];
                 if (column < arguments.column_count)
@@ -367,7 +367,7 @@ void nk_cross_scaled_tile_apple10_(device uchar const *a, device uchar const *b,
             if (!tile.is_valid_element(index)) continue;
             auto const cell = tile.get_multidimensional_index(index);
             uint const column = first_column + uint(cell[0]), row = first_row + uint(cell[1]);
-            if (row < arguments.row_end && column < arguments.column_count)
+            if (row < arguments.rows_end && column < arguments.column_count)
                 nk_cross_scaled_block_add_metal_<scale_>(
                     sums[index], tile[index],
                     scale_ == nk_cross_scale_e4m3_metal_k ? 0x38 : a_scales[row * arguments.a_scales_stride + block],
@@ -381,7 +381,7 @@ void nk_cross_scaled_tile_apple10_(device uchar const *a, device uchar const *b,
         if (!tile.is_valid_element(index)) continue;
         auto const cell = tile.get_multidimensional_index(index);
         uint const column = first_column + uint(cell[0]), row = first_row + uint(cell[1]);
-        if (row >= arguments.row_end || column >= arguments.column_count || (arguments.upper_triangle && column < row))
+        if (row >= arguments.rows_end || column >= arguments.column_count || (arguments.upper_triangle && column < row))
             continue;
         float value = nk_cross_scaled_dot_metal_(sums[index], tensor_product);
         if constexpr (metric_ != nk_cross_dot_metal_k) {

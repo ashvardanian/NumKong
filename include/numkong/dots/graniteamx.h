@@ -235,7 +235,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_f16_graniteamx(nk_size_t column_count,
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_f16_graniteamx(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                            void *stream) {
+                                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_graniteamx_k) return nk_pack_mismatch_k;
@@ -246,7 +246,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_f16_graniteamx(void const *b_packed
 
 NUMKONG_API nk_status_t nk_dots_pack_f16_graniteamx(            //
     nk_f16_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // AMX FP16 tile dimensions: 16 rows × 32 columns (512 FP16 elements = 1KB)
@@ -675,22 +675,22 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
 
 NUMKONG_API nk_status_t nk_dots_packed_f16_graniteamx(    //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gemm_packed_f16_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
 
-/** F16 Gram upper triangle of @p vectors on AMX-FP16, @p row_count rows from @p row_start. */
-NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                    //
-    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
-    nk_size_t row_start, nk_size_t row_count) {
+/** F16 Gram upper triangle of @p vectors on AMX-FP16, rows @p rows_begin to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                   //
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,      //
+    nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
 
     nk_size_t const stride_elements = stride / sizeof(nk_f16_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
 
-    nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
     // Round depth up to multiple of 96 (3 tiles × 32 elements)
     nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 32);
@@ -703,11 +703,11 @@ NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                    //
 
     nk_amx_tile_configure_sapphireamx_();
 
-    for (nk_size_t row_tile = row_start; row_tile < row_end; row_tile += 16) {
-        nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
 
-        for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
-            nk_size_t const valid_columns = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
+        for (nk_size_t col_tile = row_tile; col_tile < vector_count; col_tile += 16) {
+            nk_size_t const valid_columns = (col_tile + 16 <= vector_count) ? 16 : (vector_count - col_tile);
 
             nk_dots_f16_init_graniteamx_(&state);
 
@@ -755,12 +755,12 @@ NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                    //
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_f16_graniteamx(              //
-    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_dots_symmetric_f16_graniteamx(             //
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,      //
+    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gram_f16_graniteamx_(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
+    return nk_gram_f16_graniteamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }
 
 #pragma endregion F16 Native
@@ -819,7 +819,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e5m2_graniteamx(nk_size_t column_count
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e5m2_graniteamx(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                             void *stream) {
+                                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_graniteamx_k) return nk_pack_mismatch_k;
@@ -830,7 +830,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_e5m2_graniteamx(void const *b_packe
 
 NUMKONG_API nk_status_t nk_dots_pack_e5m2_graniteamx(            //
     nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t const tmm_rows = 16;
@@ -1149,22 +1149,22 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
 
 NUMKONG_API nk_status_t nk_dots_packed_e5m2_graniteamx(    //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gemm_packed_e5m2_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
 
-/** E5M2 Gram upper triangle of @p vectors on AMX-FP16, @p row_count rows from @p row_start. */
-NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                    //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
-    nk_size_t row_start, nk_size_t row_count) {
+/** E5M2 Gram upper triangle of @p vectors on AMX-FP16, rows @p rows_begin to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                   //
+    nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
+    nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
 
     nk_size_t const stride_elements = stride; // E5M2: 1 byte per element
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
 
-    nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
     nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 32);
     nk_size_t const depth_tile_groups = nk_size_divide_round_up_(depth_tiles, 3);
@@ -1176,11 +1176,11 @@ NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                    //
 
     nk_amx_tile_configure_sapphireamx_();
 
-    for (nk_size_t row_tile = row_start; row_tile < row_end; row_tile += 16) {
-        nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
 
-        for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
-            nk_size_t const valid_columns = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
+        for (nk_size_t col_tile = row_tile; col_tile < vector_count; col_tile += 16) {
+            nk_size_t const valid_columns = (col_tile + 16 <= vector_count) ? 16 : (vector_count - col_tile);
 
             nk_dots_f16_init_graniteamx_(&state);
 
@@ -1227,12 +1227,12 @@ NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                    //
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_graniteamx(              //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_graniteamx(             //
+    nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
+    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gram_e5m2_graniteamx_(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
+    return nk_gram_e5m2_graniteamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }
 
 #pragma endregion E5M2 Source

@@ -1127,7 +1127,7 @@ NUMKONG_INLINE void nk_cast_block_scaled_skylake_(void const *from, nk_u8_t cons
 
 #if NUMKONG_TARGET_SKYLAKE
 NUMKONG_API nk_status_t nk_cast_skylake(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                        nk_size_t count, void *stream) {
+                                        nk_size_t count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(from_dtype);
     nk_block_scaled_format_t to_format = nk_block_scaled_format_of_dtype(to_dtype);

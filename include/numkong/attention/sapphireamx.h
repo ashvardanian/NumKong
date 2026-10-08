@@ -37,7 +37,7 @@
  *  @b [tokens,3,hidden] is therefore consumable in place — pass interior pointers and 3 · hidden ·
  *  sizeof(scalar) strides, no copies.
  *
- *  Packing takes a [task_begin, task_end) window over the flat @b [segment,kv_head] grid and
+ *  Packing takes a [tasks_begin, tasks_end) window over the flat @b [segment,kv_head] grid and
  *  attention one over the flat @b [token,head] grid of query rows, so a parallel caller splits
  *  either grid across threads, one per physical core, without any second entry point. Tasks touch
  *  disjoint outputs: packing windows write disjoint tile blocks at offsets they derive from the
@@ -215,7 +215,7 @@ NUMKONG_INLINE void nk_attention_pack_sapphireamx_(                             
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                     //
     nk_size_t segment_count,                                                              //
     nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed,                 //
-    nk_size_t task_begin, nk_size_t task_end) {
+    nk_size_t tasks_begin, nk_size_t tasks_end) {
 
     nk_size_t const tile_elements = 512;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 32);
@@ -223,13 +223,13 @@ NUMKONG_INLINE void nk_attention_pack_sapphireamx_(                             
     nk_size_t const dim_tiles = depth_padded / 16;
 
     nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 task_begin, 32, depth_padded * sizeof(nk_bf16_t), nk_cap_sapphireamx_k);
+                                 tasks_begin, 32, depth_padded * sizeof(nk_bf16_t), nk_cap_sapphireamx_k);
     char *tiles_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
                        nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (task_begin >= total_tasks) return;
-    if (task_end > total_tasks) task_end = total_tasks;
+    if (tasks_begin >= total_tasks) return;
+    if (tasks_end > total_tasks) tasks_end = total_tasks;
 
     __m256i const interleave_index_u16x16 = _mm256_setr_epi16( //
         0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23);
@@ -238,7 +238,7 @@ NUMKONG_INLINE void nk_attention_pack_sapphireamx_(                             
 
     nk_size_t tile_segment = 0;
     nk_u64_t tile_offset = 0;
-    for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
+    for (nk_size_t task_idx = tasks_begin; task_idx < tasks_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count,
                         key_value_head_idx = task_idx % key_value_head_count;
         for (; tile_segment < segment_idx; tile_segment++)
@@ -693,7 +693,7 @@ NUMKONG_INLINE void nk_attention_packed_sapphireamx_(                           
     void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,                          //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
-    nk_diagonal_band_t band, nk_size_t task_begin, nk_size_t task_end) {
+    nk_diagonal_band_t band, nk_size_t tasks_begin, nk_size_t tasks_end) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     nk_assert_(header->depth == depth && header->heads == key_value_head_count && key_value_head_count != 0 &&
@@ -708,9 +708,9 @@ NUMKONG_INLINE void nk_attention_packed_sapphireamx_(                           
     nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x · log₂e)
 
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
-    if (task_begin < grid_begin) task_begin = grid_begin;
-    if (task_end > grid_end) task_end = grid_end;
-    if (task_begin >= task_end) return;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+    if (tasks_begin >= tasks_end) return;
 
     nk_amx_tile_configure_sapphireamx_();
     nk_attention_scratch_sapphireamx_t scratch;
@@ -723,9 +723,9 @@ NUMKONG_INLINE void nk_attention_packed_sapphireamx_(                           
         for (nk_size_t i = 0; i < 32 * nk_attention_max_depth_sapphireamx_k_; i += 16)
             _mm512_store_ps(&scratch.o_acc[row_block_idx][i], zero_f32x16);
 
-    for (nk_size_t head = 0; head < head_count && task_begin < task_end; head++) {
-        nk_size_t const token_first = (task_begin + head_count - 1 - head) / head_count;
-        nk_size_t const token_end = (task_end + head_count - 1 - head) / head_count;
+    for (nk_size_t head = 0; head < head_count && tasks_begin < tasks_end; head++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head) / head_count;
         for (nk_size_t segment = nk_attention_segment_of_(query_offsets, segment_count, token_first);
              segment < segment_count && query_offsets[segment] < token_end; segment++) {
             nk_size_t const query_first = query_offsets[segment], query_end = query_offsets[segment + 1];
@@ -1094,7 +1094,7 @@ NUMKONG_INLINE void nk_attention_packed_i8_sapphireamx_(                        
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                         //
     nk_u32_t const *query_offsets,                                                                 //
     nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_diagonal_band_t band,      //
-    nk_size_t task_begin, nk_size_t task_end) {
+    nk_size_t tasks_begin, nk_size_t tasks_end) {
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     nk_assert_(header->depth == depth && header->heads == key_value_head_count && key_value_head_count != 0 &&
                head_count % key_value_head_count == 0);
@@ -1108,9 +1108,9 @@ NUMKONG_INLINE void nk_attention_packed_i8_sapphireamx_(                        
     nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // fold log2e: softmax(x) = softmax₂(x · log₂e)
 
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
-    if (task_begin < grid_begin) task_begin = grid_begin;
-    if (task_end > grid_end) task_end = grid_end;
-    if (task_begin >= task_end) return;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+    if (tasks_begin >= tasks_end) return;
 
     nk_amx_tile_configure_sapphireamx_();
     nk_attention_scratch_i8_sapphireamx_t_ scratch;
@@ -1123,9 +1123,9 @@ NUMKONG_INLINE void nk_attention_packed_i8_sapphireamx_(                        
         for (nk_size_t i = 0; i < 32 * nk_attention_max_depth_sapphireamx_k_; i += 16)
             _mm512_store_ps(&scratch.o_acc[row_block_idx][i], zero_f32x16);
 
-    for (nk_size_t head = 0; head < head_count && task_begin < task_end; head++) {
-        nk_size_t const token_first = (task_begin + head_count - 1 - head) / head_count;
-        nk_size_t const token_end = (task_end + head_count - 1 - head) / head_count;
+    for (nk_size_t head = 0; head < head_count && tasks_begin < tasks_end; head++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head) / head_count;
         for (nk_size_t segment = nk_attention_segment_of_(query_offsets, segment_count, token_first);
              segment < segment_count && query_offsets[segment] < token_end; segment++) {
             nk_size_t const query_first = query_offsets[segment], query_end = query_offsets[segment + 1];
@@ -1162,7 +1162,7 @@ NUMKONG_API nk_status_t nk_attention_pack_size_bf16_sapphireamx(nk_size_t key_va
 
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_sapphireamx(void const *key_value_packed, nk_size_t *heads,
                                                                    nk_size_t *depth, nk_size_t *segments,
-                                                                   void *stream) {
+                                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_sapphireamx_k)) return nk_pack_mismatch_k;
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
@@ -1178,7 +1178,7 @@ NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_sapphireamx(nk_size_t key_va
 
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_sapphireamx(void const *key_value_packed, nk_size_t *heads,
                                                                    nk_size_t *depth, nk_size_t *segments,
-                                                                   void *stream) {
+                                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_sapphireamx_k)) return nk_pack_mismatch_k;
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
@@ -1191,18 +1191,18 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_sapphireamx(               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,     //
     nk_size_t segment_count,                                              //
     nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, //
-    nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (depth > nk_attention_max_depth_sapphireamx_k_)
         nk_attention_pack_serial_(keys, values, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_,
                                   key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                                  key_stride, value_stride, key_value_packed, task_begin, task_end,
+                                  key_stride, value_stride, key_value_packed, tasks_begin, tasks_end,
                                   nk_cap_sapphireamx_k);
     else
         nk_attention_pack_sapphireamx_(keys, values, sizeof(nk_bf16_t), &nk_attention_gather_bf16_sapphireamx_,
                                        &nk_attention_v_rows_bf16_sapphireamx_, key_value_head_count, depth,
                                        segment_offsets, segment_lengths, segment_count, key_stride, value_stride,
-                                       key_value_packed, task_begin, task_end);
+                                       key_value_packed, tasks_begin, tasks_end);
     return nk_success_k;
 }
 
@@ -1212,18 +1212,18 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_sapphireamx(               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,     //
     nk_size_t segment_count,                                              //
     nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, //
-    nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (depth > nk_attention_max_depth_sapphireamx_k_)
         nk_attention_pack_serial_(keys, values, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_,
                                   key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                                  key_stride, value_stride, key_value_packed, task_begin, task_end,
+                                  key_stride, value_stride, key_value_packed, tasks_begin, tasks_end,
                                   nk_cap_sapphireamx_k);
     else
         nk_attention_pack_sapphireamx_(keys, values, sizeof(nk_e4m3_t), &nk_attention_gather_e4m3_sapphireamx_,
                                        &nk_attention_v_rows_e4m3_sapphireamx_, key_value_head_count, depth,
                                        segment_offsets, segment_lengths, segment_count, key_stride, value_stride,
-                                       key_value_packed, task_begin, task_end);
+                                       key_value_packed, tasks_begin, tasks_end);
     return nk_success_k;
 }
 
@@ -1232,18 +1232,19 @@ NUMKONG_API nk_status_t nk_attention_packed_bf16_sapphireamx(                   
     nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, //
     nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,      //
     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,              //
-    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_sapphireamx_k)) return nk_pack_mismatch_k;
     nk_diagonal_band_t const band = {keys_before, keys_after};
     if (depth > nk_attention_max_depth_sapphireamx_k_)
         nk_attention_serial_(queries, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_, key_value_packed, output,
                              log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
-                             output_stride, scale, band, task_begin, task_end);
+                             output_stride, scale, band, tasks_begin, tasks_end);
     else
         nk_attention_packed_sapphireamx_(queries, sizeof(nk_bf16_t), &nk_attention_gather_bf16_sapphireamx_,
                                          key_value_packed, output, log_sum_exp, head_count, key_value_head_count, depth,
-                                         query_offsets, query_stride, output_stride, scale, band, task_begin, task_end);
+                                         query_offsets, query_stride, output_stride, scale, band, tasks_begin,
+                                         tasks_end);
     return nk_success_k;
 }
 
@@ -1252,18 +1253,19 @@ NUMKONG_API nk_status_t nk_attention_packed_e4m3_sapphireamx(                   
     nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, //
     nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,      //
     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,              //
-    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_sapphireamx_k)) return nk_pack_mismatch_k;
     nk_diagonal_band_t const band = {keys_before, keys_after};
     if (depth > nk_attention_max_depth_sapphireamx_k_)
         nk_attention_serial_(queries, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_, key_value_packed, output,
                              log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
-                             output_stride, scale, band, task_begin, task_end);
+                             output_stride, scale, band, tasks_begin, tasks_end);
     else
         nk_attention_packed_sapphireamx_(queries, sizeof(nk_e4m3_t), &nk_attention_gather_e4m3_sapphireamx_,
                                          key_value_packed, output, log_sum_exp, head_count, key_value_head_count, depth,
-                                         query_offsets, query_stride, output_stride, scale, band, task_begin, task_end);
+                                         query_offsets, query_stride, output_stride, scale, band, tasks_begin,
+                                         tasks_end);
     return nk_success_k;
 }
 
@@ -1278,7 +1280,8 @@ NUMKONG_API nk_status_t nk_attention_pack_size_i8_sapphireamx(nk_size_t key_valu
 }
 
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_sapphireamx(void const *key_value_packed, nk_size_t *heads,
-                                                                 nk_size_t *depth, nk_size_t *segments, void *stream) {
+                                                                 nk_size_t *depth, nk_size_t *segments,
+                                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_sapphireamx_k)) return nk_pack_mismatch_k;
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
@@ -1291,11 +1294,11 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_sapphireamx(                 //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,     //
     nk_size_t segment_count,                                              //
     nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, //
-    nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (depth > nk_attention_max_depth_sapphireamx_k_) {
         nk_attention_pack_i8_serial_(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
-                                     segment_count, key_stride, value_stride, key_value_packed, task_begin, task_end,
+                                     segment_count, key_stride, value_stride, key_value_packed, tasks_begin, tasks_end,
                                      nk_cap_sapphireamx_k);
     }
     else {
@@ -1305,13 +1308,13 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_sapphireamx(                 //
         nk_size_t const tile_bytes = 1024;
 
         nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                     task_begin, 64, depth_padded, nk_cap_sapphireamx_k);
+                                     tasks_begin, 64, depth_padded, nk_cap_sapphireamx_k);
         char *tiles_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
                            nk_attention_pack_directory_size_(segment_count);
 
         nk_size_t const total_tasks = segment_count * key_value_head_count;
-        if (task_begin >= total_tasks) return nk_success_k;
-        if (task_end > total_tasks) task_end = total_tasks;
+        if (tasks_begin >= total_tasks) return nk_success_k;
+        if (tasks_end > total_tasks) tasks_end = total_tasks;
 
         // VPERMB interleaves four V rows for the TDPBUSD right operand.
 
@@ -1323,7 +1326,7 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_sapphireamx(                 //
 
         nk_size_t tile_segment = 0;
         nk_u64_t tile_offset = 0;
-        for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
+        for (nk_size_t task_idx = tasks_begin; task_idx < tasks_end; task_idx++) {
             nk_size_t const segment_idx = task_idx / key_value_head_count,
                             key_value_head_idx = task_idx % key_value_head_count;
             for (; tile_segment < segment_idx; tile_segment++)
@@ -1409,18 +1412,18 @@ NUMKONG_API nk_status_t nk_attention_packed_i8_sapphireamx(                     
     nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, //
     nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,      //
     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,              //
-    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_sapphireamx_k)) return nk_pack_mismatch_k;
     nk_diagonal_band_t const band = {keys_before, keys_after};
     if (depth > nk_attention_max_depth_sapphireamx_k_)
         nk_attention_packed_i8_serial_(queries, key_value_packed, output, log_sum_exp, head_count, key_value_head_count,
-                                       depth, query_offsets, query_stride, output_stride, scale, band, task_begin,
-                                       task_end);
+                                       depth, query_offsets, query_stride, output_stride, scale, band, tasks_begin,
+                                       tasks_end);
     else
         nk_attention_packed_i8_sapphireamx_(queries, key_value_packed, output, log_sum_exp, head_count,
                                             key_value_head_count, depth, query_offsets, query_stride, output_stride,
-                                            scale, band, task_begin, task_end);
+                                            scale, band, tasks_begin, tasks_end);
     return nk_success_k;
 }
 

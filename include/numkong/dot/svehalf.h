@@ -50,7 +50,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_dot_f16_svehalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                           nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_scalars = 0;
     svfloat32_t ab_f32x = svdup_f32(0);
@@ -76,7 +76,7 @@ NUMKONG_API nk_status_t nk_dot_f16_svehalf(nk_f16_t const *a_scalars, nk_f16_t c
 }
 
 NUMKONG_API nk_status_t nk_dot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
-                                            nk_f32c_t *results, void *stream) {
+                                            nk_f32c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_scalars = 0;
     svfloat32_t ab_real_f32x = svdup_f32(0);
@@ -119,7 +119,7 @@ NUMKONG_API nk_status_t nk_dot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t 
 }
 
 NUMKONG_API nk_status_t nk_vdot_f16c_svehalf(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
-                                             nk_f32c_t *results, void *stream) {
+                                             nk_f32c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_scalars = 0;
     svfloat32_t ab_real_f32x = svdup_f32(0);

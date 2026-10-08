@@ -71,7 +71,7 @@ nk_dot_f32_widened_v128relaxed_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     *result = nk_dot_f32_widened_v128relaxed_(a, b, n);
     return nk_success_k;
@@ -103,7 +103,7 @@ nk_dot_f16_widened_v128relaxed_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_f16_v128relaxed(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     *result = nk_dot_f16_widened_v128relaxed_(a, b, n);
     return nk_success_k;
@@ -139,14 +139,14 @@ nk_dot_bf16_widened_v128relaxed_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_bf16_v128relaxed(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     *result = nk_dot_bf16_widened_v128relaxed_(a, b, n);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dot_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f64x2 = wasm_f64x2_splat(0.0);
     v128_t compensation_f64x2 = wasm_f64x2_splat(0.0);
@@ -173,7 +173,7 @@ nk_dot_f64_v128relaxed_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_i64_t sum_total = 0;
     nk_size_t i = 0;
@@ -223,7 +223,7 @@ NUMKONG_API nk_status_t nk_dot_i8_v128relaxed(nk_i8_t const *a, nk_i8_t const *b
 }
 
 NUMKONG_API nk_status_t nk_dot_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_i64_t biased_sum_total = 0;
     nk_i64_t sum_a_total = 0;
@@ -279,7 +279,7 @@ NUMKONG_API nk_status_t nk_dot_u8_v128relaxed(nk_u8_t const *a, nk_u8_t const *b
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m3_v128relaxed(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                                nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using relaxed SIMD: wasm_i32x4_relaxed_dot_i8x16_i7x16_add.
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
@@ -345,7 +345,7 @@ nk_dot_e2m3_v128relaxed_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e3m2_v128relaxed(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                                nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e3m2 using i16 arithmetic with widening multiply.
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
@@ -774,7 +774,7 @@ NUMKONG_INLINE void nk_dot_e2m1x32_finalize_v128relaxed(                        
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m1_v128relaxed(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n,
-                                                nk_f32_t *result, void *stream) {
+                                                nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_e2m1x32_state_v128relaxed_t state;
     nk_dot_e2m1x32_init_v128relaxed(&state);
@@ -874,7 +874,7 @@ NUMKONG_INLINE void nk_partial_load_e4m3x4_to_f32x4_v128relaxed_(void const *src
 }
 
 NUMKONG_API nk_status_t nk_dot_e4m3_v128relaxed(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                                nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
 
@@ -900,7 +900,7 @@ nk_dot_e4m3_v128relaxed_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e5m2_v128relaxed(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                                nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
 
@@ -926,7 +926,7 @@ nk_dot_e5m2_v128relaxed_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_u4_v128relaxed(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     v128_t nibble_mask_u8x16 = wasm_u8x16_splat(0x0F);
@@ -999,7 +999,7 @@ NUMKONG_INLINE void nk_dot_u4x32_finalize_v128relaxed(                          
 }
 
 NUMKONG_API nk_status_t nk_dot_i4_v128relaxed(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
@@ -1119,7 +1119,7 @@ NUMKONG_INLINE void nk_dot_i4x32_finalize_v128relaxed(                          
 }
 
 NUMKONG_API nk_status_t nk_dot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                                nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+                                                nk_size_t count_pairs, nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0);
@@ -1153,7 +1153,7 @@ NUMKONG_API nk_status_t nk_dot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32
 }
 
 NUMKONG_API nk_status_t nk_vdot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                                 nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+                                                 nk_size_t count_pairs, nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0);
@@ -1182,7 +1182,7 @@ NUMKONG_API nk_status_t nk_vdot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f3
 }
 
 NUMKONG_API nk_status_t nk_dot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
-                                                nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+                                                nk_size_t count_pairs, nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0), compensation_real_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0), compensation_imag_f64x2 = wasm_f64x2_splat(0.0);
@@ -1205,7 +1205,7 @@ NUMKONG_API nk_status_t nk_dot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64
 }
 
 NUMKONG_API nk_status_t nk_vdot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs,
-                                                 nk_size_t count_pairs, nk_f64c_t *result, void *stream) {
+                                                 nk_size_t count_pairs, nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_real_f64x2 = wasm_f64x2_splat(0.0), compensation_real_f64x2 = wasm_f64x2_splat(0.0);
     v128_t sum_imag_f64x2 = wasm_f64x2_splat(0.0), compensation_imag_f64x2 = wasm_f64x2_splat(0.0);

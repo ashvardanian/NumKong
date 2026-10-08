@@ -9,12 +9,13 @@
  *  namespaces and templates, so it needs verbose signatures and naming conventions like:
  *
  *  @code{.c}
- *  nk_status_t nk_dot_f64_best(nk_f64_t const*, nk_f64_t const*, nk_size_t, nk_f64_t *, nk_capability_t, void *);
- *  nk_status_t nk_dot_f32_best(nk_f32_t const*, nk_f32_t const*, nk_size_t, nk_f64_t *, nk_capability_t, void *);
- *  nk_status_t nk_dot_f16_best(nk_f16_t const*, nk_f16_t const*, nk_size_t, nk_f32_t *, nk_capability_t, void *);
- *  nk_status_t nk_dot_bf16_best(nk_bf16_t const*, nk_bf16_t const*, nk_size_t, nk_f32_t *, nk_capability_t, void *);
- *  nk_status_t nk_dot_e4m3_best(nk_e4m3_t const*, nk_e4m3_t const*, nk_size_t, nk_f32_t *, nk_capability_t, void *);
- *  nk_status_t nk_dot_e5m2_best(nk_e5m2_t const*, nk_e5m2_t const*, nk_size_t, nk_f32_t *, nk_capability_t, void *);
+ *  nk_status_t nk_dot_f64_best(nk_f64_t const*, nk_f64_t const*, nk_size_t, nk_f64_t *, nk_capability_t, nk_stream_t);
+ *  nk_status_t nk_dot_f32_best(nk_f32_t const*, nk_f32_t const*, nk_size_t, nk_f64_t *, nk_capability_t, nk_stream_t);
+ *  nk_status_t nk_dot_f16_best(nk_f16_t const*, nk_f16_t const*, nk_size_t, nk_f32_t *, nk_capability_t, nk_stream_t);
+ *  nk_status_t nk_dot_bf16_best(nk_bf16_t const*, nk_bf16_t const*, nk_size_t, nk_f32_t *, nk_capability_t,
+ * nk_stream_t); nk_status_t nk_dot_e4m3_best(nk_e4m3_t const*, nk_e4m3_t const*, nk_size_t, nk_f32_t *,
+ * nk_capability_t, nk_stream_t); nk_status_t nk_dot_e5m2_best(nk_e5m2_t const*, nk_e5m2_t const*, nk_size_t, nk_f32_t
+ * *, nk_capability_t, nk_stream_t);
  *  @endcode
  *
  *  As opposed to C++, where the same kernels come in three layers. The raw-pointer layer mirrors

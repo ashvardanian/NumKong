@@ -54,7 +54,7 @@ static nk_capability_kernels_t const *nk_hamming_u1_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_hamming_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
-                                           nk_capability_t capabilities, void *stream) {
+                                           nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_hamming_u1_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -107,7 +107,7 @@ static nk_capability_kernels_t const *nk_jaccard_u1_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
-                                           nk_capability_t capabilities, void *stream) {
+                                           nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_jaccard_u1_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -149,7 +149,7 @@ static nk_capability_kernels_t const *nk_jaccard_u32_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u32_best(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
-                                            nk_capability_t capabilities, void *stream) {
+                                            nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_jaccard_u32_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -198,7 +198,7 @@ static nk_capability_kernels_t const *nk_hamming_u8_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_hamming_u8_best(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                           nk_capability_t capabilities, void *stream) {
+                                           nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_hamming_u8_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -240,7 +240,7 @@ static nk_capability_kernels_t const *nk_jaccard_u16_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u16_best(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
-                                            nk_capability_t capabilities, void *stream) {
+                                            nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_jaccard_u16_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;

@@ -49,13 +49,13 @@ enum { nk_cross_threads_apple10_k = 4 * 32 };
 /** @ref nk_cross_encode_metal_ over the @c apple10 kernels. */
 NUMKONG_INLINE nk_status_t nk_cross_launch_apple10_(char const *kernel, nk_cross_operand_t a, nk_cross_operand_t b,
                                                     nk_size_t b_extra_offset, void *c, nk_size_t result_bytes,
-                                                    nk_size_t row_start, nk_size_t row_end, nk_size_t column_count,
+                                                    nk_size_t rows_begin, nk_size_t rows_end, nk_size_t column_count,
                                                     nk_size_t depth, nk_size_t input_row_bytes, nk_size_t b_tail_bytes,
                                                     nk_size_t a_stride, nk_size_t b_stride, nk_size_t c_stride,
                                                     nk_u32_t upper_triangle, nk_size_t tile_side,
-                                                    nk_size_t scale_blocks, void *stream) {
+                                                    nk_size_t scale_blocks, nk_stream_t stream) {
     return nk_cross_encode_metal_(nk_dots_source_apple10_, NUMKONG_METAL_LANGUAGE_4_0_, nk_cross_threads_apple10_k,
-                                  tile_side, kernel, a, b, b_extra_offset, c, result_bytes, row_start, row_end,
+                                  tile_side, kernel, a, b, b_extra_offset, c, result_bytes, rows_begin, rows_end,
                                   column_count, depth, input_row_bytes, b_tail_bytes, a_stride, b_stride, c_stride,
                                   upper_triangle, scale_blocks, stream);
 }

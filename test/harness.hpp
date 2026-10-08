@@ -1275,7 +1275,7 @@ struct device_backend {
     };
 
     std::shared_ptr<owner_t> owner;
-    void *const stream;
+    nk_stream_t const stream;
 
     explicit device_backend(nk::device_t device)
         : owner(std::make_shared<owner_t>(device)), stream(owner->queue.get()) {}

@@ -45,7 +45,7 @@ NUMKONG_INLINE vuint8m4_t nk_popcount_u8m4_rvvbb_(vuint8m4_t v_u8m4) {
 }
 
 NUMKONG_API nk_status_t nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
-                                            void *stream) {
+                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
@@ -72,7 +72,7 @@ NUMKONG_API nk_status_t nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const 
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
-                                            void *stream) {
+                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 

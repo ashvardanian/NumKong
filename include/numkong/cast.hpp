@@ -30,7 +30,7 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype from_type_, numeric_dtype to_type_>
 status_t cast(from_type_ const *from, std::size_t n, to_type_ *to,
-              nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     if (!capabilities)
         return static_cast<status_t>(nk_cast_serial(from, from_type_::dtype(), to, to_type_::dtype(), n, stream));
     return static_cast<status_t>(
@@ -42,7 +42,7 @@ status_t cast(from_type_ const *from, std::size_t n, to_type_ *to,
 template <numeric_dtype from_type_, numeric_dtype to_type_, vector_of<from_type_> from_vector_type_,
           mutable_vector_of<to_type_> to_vector_type_>
 status_t cast(from_vector_type_ const &from, to_vector_type_ &&to,
-              nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     auto from_values = contiguous_values_<from_type_ const>(from);
     auto to_values = contiguous_values_<to_type_>(to);
     std::size_t const dimensions = from_values.value.size() * dimensions_per_value<from_type_>();
@@ -100,7 +100,7 @@ struct block_scaled_reference_ {
 /** The one place the cast kernel is invoked on block-scaled operands; no capability runs the serial
  *  reference. */
 inline status_t block_scaled_cast_(block_scaled_operand_ &source, block_scaled_operand_ &destination, std::size_t count,
-                                   nk_capability_t capabilities, void *stream) noexcept {
+                                   nk_capability_t capabilities, nk_stream_t stream) noexcept {
     block_scaled_reference_ source_reference = {source.elements, source.scales,
                                                 source.has_tensor_scale ? &source.tensor_scale : nullptr};
     block_scaled_reference_ destination_reference = {
@@ -130,7 +130,7 @@ void store_derived_tensor_scale_(scaled_tensor_span<format_> const &destination,
  */
 template <typename format_, std::size_t max_rank_>
 status_t cast(tensor_view<f32_t, max_rank_> from, scaled_tensor_span<format_, max_rank_> to,
-              nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     auto source = plain_f32_operand_(from.byte_data());
     auto destination = scaled_operand_<format_>(to.elements().byte_data(), to.block_scales().byte_data(),
                                                 /*derive*/ 0.0f);
@@ -142,7 +142,7 @@ status_t cast(tensor_view<f32_t, max_rank_> from, scaled_tensor_span<format_, ma
 /** Encode, or quantize, a dense f32 vector into a preallocated single-row block-scaled tensor. */
 template <typename format_>
 status_t cast(vector_view<f32_t> from, scaled_tensor_span<format_> to,
-              nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     auto source = plain_f32_operand_(from.byte_data());
     auto destination = scaled_operand_<format_>(to.elements().byte_data(), to.block_scales().byte_data(),
                                                 /*derive*/ 0.0f);
@@ -154,7 +154,7 @@ status_t cast(vector_view<f32_t> from, scaled_tensor_span<format_> to,
 /** Decode, or dequantize, one block-scaled row into a dense f32 vector. */
 template <typename format_, std::size_t max_rank_>
 status_t cast(scaled_tensor_view<format_, max_rank_> from, vector_span<f32_t> to,
-              nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     float tensor_scale = 0.0f;
     if constexpr (format_::has_tensor_scale()) tensor_scale = from.tensor_scale().raw_;
     auto source = scaled_operand_<format_>(from.elements().byte_data(), from.block_scales().byte_data(), tensor_scale);
@@ -171,7 +171,7 @@ status_t cast(scaled_tensor_view<format_, max_rank_> from, vector_span<f32_t> to
  */
 template <typename format_, std::size_t max_rank_>
 status_t cast(scaled_tensor_view<format_, max_rank_> from, tensor_span<f32_t, max_rank_> to,
-              nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     bool const contiguous = from.elements().is_contiguous() && from.block_scales().is_contiguous() &&
                             to.is_contiguous();
     if (from.rank() <= 1 || contiguous) {
@@ -199,7 +199,7 @@ status_t cast(scaled_tensor_view<format_, max_rank_> from, tensor_span<f32_t, ma
  */
 template <typename from_format_, typename to_format_, std::size_t max_rank_>
 status_t cast(scaled_tensor_view<from_format_, max_rank_> from, scaled_tensor_span<to_format_, max_rank_> to,
-              nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+              nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     float from_tensor_scale = 0.0f;
     if constexpr (from_format_::has_tensor_scale()) from_tensor_scale = from.tensor_scale().raw_;
     auto source = scaled_operand_<from_format_>(from.elements().byte_data(), from.block_scales().byte_data(),

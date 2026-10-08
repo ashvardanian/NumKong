@@ -68,7 +68,7 @@ NUMKONG_INLINE nk_u64_t nk_reduce_add_u64x4_loongsonasx_(__m256i sum_u64x4) {
 #pragma region Binary Sets
 
 NUMKONG_API nk_status_t nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     __m256i count_u64x4 = __lasx_xvreplgr2vr_d(0);
@@ -89,7 +89,7 @@ NUMKONG_API nk_status_t nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t 
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     __m256i xor_count_u64x4 = __lasx_xvreplgr2vr_d(0);
@@ -121,7 +121,7 @@ NUMKONG_API nk_status_t nk_jaccard_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t 
 #pragma region Integer Sets
 
 NUMKONG_API nk_status_t nk_hamming_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i count_u64x4 = __lasx_xvreplgr2vr_d(0);
     __m256i ones_u8x32 = __lasx_xvreplgr2vr_b(1);

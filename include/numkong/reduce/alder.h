@@ -109,7 +109,7 @@ NUMKONG_INLINE void nk_reduce_moments_u8_alder_strided_(             //
 
 NUMKONG_API nk_status_t nk_reduce_moments_u8_alder(         //
     nk_u8_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_u8_t);
     int aligned = (stride % sizeof(nk_u8_t) == 0);
@@ -199,7 +199,7 @@ NUMKONG_INLINE void nk_reduce_moments_i16_alder_strided_(             //
 
 NUMKONG_API nk_status_t nk_reduce_moments_i16_alder(         //
     nk_i16_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_i16_t);
     int aligned = (stride % sizeof(nk_i16_t) == 0);
@@ -300,7 +300,7 @@ NUMKONG_INLINE void nk_reduce_moments_u16_alder_strided_(             //
 
 NUMKONG_API nk_status_t nk_reduce_moments_u16_alder(         //
     nk_u16_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_u16_t);
     int aligned = (stride % sizeof(nk_u16_t) == 0);
@@ -482,7 +482,7 @@ NUMKONG_INLINE void nk_reduce_moments_e3m2_alder_strided_(             //
 
 NUMKONG_API nk_status_t nk_reduce_moments_e3m2_alder(         //
     nk_e3m2_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum, nk_f32_t *sumsq, void *stream) {
+    nk_f32_t *sum, nk_f32_t *sumsq, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_e3m2_t);
     int aligned = (stride % sizeof(nk_e3m2_t) == 0);
@@ -625,7 +625,7 @@ NUMKONG_INLINE void nk_reduce_moments_e2m3_alder_strided_(             //
 
 NUMKONG_API nk_status_t nk_reduce_moments_e2m3_alder(         //
     nk_e2m3_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum, nk_f32_t *sumsq, void *stream) {
+    nk_f32_t *sum, nk_f32_t *sumsq, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_e2m3_t);
     int aligned = (stride % sizeof(nk_e2m3_t) == 0);

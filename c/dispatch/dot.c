@@ -50,7 +50,7 @@ static nk_capability_kernels_t const *nk_dot_f32_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                        nk_capability_t capabilities, void *stream) {
+                                        nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_f32_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -99,7 +99,7 @@ static nk_capability_kernels_t const *nk_dot_f64_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                        nk_capability_t capabilities, void *stream) {
+                                        nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_f64_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -159,7 +159,7 @@ static nk_capability_kernels_t const *nk_dot_f16_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                        nk_capability_t capabilities, void *stream) {
+                                        nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_f16_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -222,7 +222,7 @@ static nk_capability_kernels_t const *nk_dot_bf16_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                         nk_capability_t capabilities, void *stream) {
+                                         nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_bf16_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -285,7 +285,7 @@ static nk_capability_kernels_t const *nk_dot_i8_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_i8_best(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result,
-                                       nk_capability_t capabilities, void *stream) {
+                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_i8_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -348,7 +348,7 @@ static nk_capability_kernels_t const *nk_dot_u8_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_u8_best(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                       nk_capability_t capabilities, void *stream) {
+                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_u8_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -387,7 +387,7 @@ static nk_capability_kernels_t const *nk_dot_i4_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_i4_best(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result,
-                                       nk_capability_t capabilities, void *stream) {
+                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_i4_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -426,7 +426,7 @@ static nk_capability_kernels_t const *nk_dot_u4_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_u4_best(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                       nk_capability_t capabilities, void *stream) {
+                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_u4_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -472,7 +472,7 @@ static nk_capability_kernels_t const *nk_dot_u1_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
-                                       nk_capability_t capabilities, void *stream) {
+                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_u1_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -535,7 +535,7 @@ static nk_capability_kernels_t const *nk_dot_e4m3_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_e4m3_best(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                         nk_capability_t capabilities, void *stream) {
+                                         nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_e4m3_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -598,7 +598,7 @@ static nk_capability_kernels_t const *nk_dot_e5m2_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_e5m2_best(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                         nk_capability_t capabilities, void *stream) {
+                                         nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_e5m2_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -654,7 +654,7 @@ static nk_capability_kernels_t const *nk_dot_e2m3_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m3_best(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                         nk_capability_t capabilities, void *stream) {
+                                         nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_e2m3_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -700,7 +700,7 @@ static nk_capability_kernels_t const *nk_dot_e2m1_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m1_best(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                         nk_capability_t capabilities, void *stream) {
+                                         nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_e2m1_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -749,7 +749,7 @@ static nk_capability_kernels_t const *nk_dot_e3m2_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_e3m2_best(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                         nk_capability_t capabilities, void *stream) {
+                                         nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_e3m2_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -791,7 +791,7 @@ static nk_capability_kernels_t const *nk_dot_f32c_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_f32c_best(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result,
-                                         nk_capability_t capabilities, void *stream) {
+                                         nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_f32c_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -833,7 +833,7 @@ static nk_capability_kernels_t const *nk_dot_f64c_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_f64c_best(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result,
-                                         nk_capability_t capabilities, void *stream) {
+                                         nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_f64c_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -868,7 +868,7 @@ static nk_capability_kernels_t const *nk_dot_f16c_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_f16c_best(nk_f16c_t const *a, nk_f16c_t const *b, nk_size_t n, nk_f32c_t *result,
-                                         nk_capability_t capabilities, void *stream) {
+                                         nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_f16c_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -900,7 +900,7 @@ static nk_capability_kernels_t const *nk_dot_bf16c_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_dot_bf16c_best(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_size_t n, nk_f32c_t *result,
-                                          nk_capability_t capabilities, void *stream) {
+                                          nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_dot_bf16c_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -942,7 +942,7 @@ static nk_capability_kernels_t const *nk_vdot_f32c_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_vdot_f32c_best(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result,
-                                          nk_capability_t capabilities, void *stream) {
+                                          nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_vdot_f32c_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -984,7 +984,7 @@ static nk_capability_kernels_t const *nk_vdot_f64c_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_vdot_f64c_best(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result,
-                                          nk_capability_t capabilities, void *stream) {
+                                          nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_vdot_f64c_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -1019,7 +1019,7 @@ static nk_capability_kernels_t const *nk_vdot_f16c_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_vdot_f16c_best(nk_f16c_t const *a, nk_f16c_t const *b, nk_size_t n, nk_f32c_t *result,
-                                          nk_capability_t capabilities, void *stream) {
+                                          nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_vdot_f16c_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;
@@ -1051,7 +1051,7 @@ static nk_capability_kernels_t const *nk_vdot_bf16c_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_vdot_bf16c_best(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_size_t n, nk_f32c_t *result,
-                                           nk_capability_t capabilities, void *stream) {
+                                           nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_dense_punned_t const kernel = (nk_metric_dense_punned_t)nk_kernel_pick_(capabilities,
                                                                                       nk_vdot_bf16c_capabilities());
     return kernel ? kernel(a, b, n, result, stream) : nk_missing_kernel_k;

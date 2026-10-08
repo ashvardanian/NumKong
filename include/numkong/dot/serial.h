@@ -144,13 +144,13 @@ extern "C" {
     }
 
 /** Generates @c nk_<api_name>_<input_type>_serial, the public kernel over its helper. */
-#define nk_define_dot_serial_(api_name, input_type, output_type)                                                \
-    NUMKONG_API nk_status_t nk_##api_name##_##input_type##_serial(nk_##input_type##_t const *a,                 \
-                                                                  nk_##input_type##_t const *b, nk_size_t n,    \
-                                                                  nk_##output_type##_t *result, void *stream) { \
-        nk_assert_(stream == NUMKONG_NULL);                                                                     \
-        nk_##api_name##_##input_type##_(a, b, n, result);                                                       \
-        return nk_success_k;                                                                                    \
+#define nk_define_dot_serial_(api_name, input_type, output_type)                                                      \
+    NUMKONG_API nk_status_t nk_##api_name##_##input_type##_serial(nk_##input_type##_t const *a,                       \
+                                                                  nk_##input_type##_t const *b, nk_size_t n,          \
+                                                                  nk_##output_type##_t *result, nk_stream_t stream) { \
+        nk_assert_(stream == NUMKONG_NULL);                                                                           \
+        nk_##api_name##_##input_type##_(a, b, n, result);                                                             \
+        return nk_success_k;                                                                                          \
     }
 
 /*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
@@ -215,7 +215,7 @@ nk_define_dot_serial_(dot, e2m3, f32)
 nk_define_dot_serial_(dot, e3m2, f32)
 
 NUMKONG_API nk_status_t nk_dot_e2m1_serial(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_dims_(n, nk_e2m1_k);
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
@@ -236,7 +236,7 @@ nk_define_dot_serial_(dot, i8, i32)
 nk_define_dot_serial_(dot, u8, u32)
 
 NUMKONG_API nk_status_t nk_dot_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result,
-                                         void *stream) {
+                                         nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_dims_(n, nk_i4_k);
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
@@ -255,7 +255,7 @@ NUMKONG_API nk_status_t nk_dot_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b,
 }
 
 NUMKONG_API nk_status_t nk_dot_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                         void *stream) {
+                                         nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_dims_(n, nk_u4_k);
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
@@ -294,7 +294,7 @@ NUMKONG_API nk_status_t nk_dot_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b,
 #pragma region F32 and F64 Floats
 
 NUMKONG_API nk_status_t nk_dot_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) nk_f64_dot2_(&sum, &compensation, a[i], b[i]);
@@ -303,7 +303,7 @@ NUMKONG_API nk_status_t nk_dot_f64_serial(nk_f64_t const *a, nk_f64_t const *b, 
 }
 
 NUMKONG_API nk_status_t nk_dot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                           nk_f64c_t *result, void *stream) {
+                                           nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t sum_real = 0, sum_imag = 0, compensation_real = 0, compensation_imag = 0;
     for (nk_size_t i = 0; i != count_pairs; ++i) {
@@ -320,7 +320,7 @@ NUMKONG_API nk_status_t nk_dot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t c
 }
 
 NUMKONG_API nk_status_t nk_vdot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                            nk_f64c_t *result, void *stream) {
+                                            nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t sum_real = 0, sum_imag = 0, compensation_real = 0, compensation_imag = 0;
     for (nk_size_t i = 0; i != count_pairs; ++i) {
@@ -902,7 +902,7 @@ NUMKONG_INLINE void nk_dot_i4x16_finalize_serial(nk_dot_i4x16_state_serial_t con
 #endif
 
 NUMKONG_API nk_status_t nk_dot_u1_serial(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
-                                         void *stream) {
+                                         nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_dims_(n_bits, nk_u1_k);
     nk_u32_t dot = 0;

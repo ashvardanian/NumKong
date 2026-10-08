@@ -86,7 +86,7 @@ NUMKONG_INLINE __m512i _mm512_adds_epu64_icelake(__m512i a, __m512i b) {
 #if NUMKONG_TARGET_ICELAKE
 
 NUMKONG_API nk_status_t nk_each_sum_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __mmask64 mask_m64 = 0xFFFFFFFFFFFFFFFF;
     __m512i a_i8_vec, b_i8_vec;
@@ -111,7 +111,7 @@ nk_each_sum_i8_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_each_sum_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __mmask64 mask_m64 = 0xFFFFFFFFFFFFFFFF;
     __m512i a_u8_vec, b_u8_vec;
@@ -136,7 +136,7 @@ nk_each_sum_u8_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_each_sum_i16_icelake(nk_i16_t const *a, nk_i16_t const *b, nk_size_t n, nk_i16_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __mmask32 mask_m32 = 0xFFFFFFFF;
     __m512i a_i16_vec, b_i16_vec;
@@ -161,7 +161,7 @@ nk_each_sum_i16_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_each_sum_u16_icelake(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_u16_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __mmask32 mask_m32 = 0xFFFFFFFF;
     __m512i a_u16_vec, b_u16_vec;
@@ -186,7 +186,7 @@ nk_each_sum_u16_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_each_sum_i32_icelake(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n, nk_i32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __mmask16 mask_m16 = 0xFFFF;
     __m512i a_i32_vec, b_i32_vec;
@@ -211,7 +211,7 @@ nk_each_sum_i32_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_each_sum_u32_icelake(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_u32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __mmask16 mask_m16 = 0xFFFF;
     __m512i a_u32_vec, b_u32_vec;
@@ -236,7 +236,7 @@ nk_each_sum_u32_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_each_sum_i64_icelake(nk_i64_t const *a, nk_i64_t const *b, nk_size_t n, nk_i64_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __mmask8 mask_m8 = 0xFF;
     __m512i a_i64_vec, b_i64_vec;
@@ -261,7 +261,7 @@ nk_each_sum_i64_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_each_sum_u64_icelake(nk_u64_t const *a, nk_u64_t const *b, nk_size_t n, nk_u64_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __mmask8 mask_m8 = 0xFF;
     __m512i a_u64_vec, b_u64_vec;

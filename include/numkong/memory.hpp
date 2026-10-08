@@ -76,7 +76,7 @@ struct allocator {
     using is_always_equal = std::false_type;
 
     nk_allocator_t policy {};
-    void *stream = nullptr;
+    nk_stream_t stream = nullptr;
 
     template <typename other_type_>
     struct rebind {
@@ -85,14 +85,15 @@ struct allocator {
 
     constexpr allocator() noexcept = default;
     static expected<allocator> make(
-        nk_capability_t capabilities, void *stream = nullptr,
+        nk_capability_t capabilities, nk_stream_t stream = nullptr,
         nk_status_t (*initialize)(nk_allocator_t *, nk_capability_t) = nk_allocator_init_unified_best) noexcept {
         nk_allocator_t policy {};
         nk_status_t const status = initialize(&policy, capabilities);
         return {allocator(policy, stream), static_cast<status_t>(status)};
     }
 
-    constexpr allocator(nk_allocator_t policy, void *stream = nullptr) noexcept : policy(policy), stream(stream) {}
+    constexpr allocator(nk_allocator_t policy, nk_stream_t stream = nullptr) noexcept
+        : policy(policy), stream(stream) {}
     template <typename other_type_>
     constexpr allocator(allocator<other_type_> const &other) noexcept : policy(other.policy), stream(other.stream) {}
 
@@ -118,8 +119,8 @@ struct allocator {
 
 /** Owns a device stream; buffers using it must be released before the stream. */
 class stream_t {
-    void *handle_ = nullptr;
-    nk_status_t (*free_)(void *) = nullptr;
+    nk_stream_t handle_ = nullptr;
+    nk_status_t (*free_)(nk_stream_t) = nullptr;
 
   public:
     stream_t() noexcept = default;
@@ -140,20 +141,20 @@ class stream_t {
 
     static expected<stream_t> make(device_t device) noexcept {
         stream_t result;
-        nk_status_t (*initialize)(nk_size_t, void **) = nullptr;
+        nk_status_t (*initialize)(nk_size_t, nk_stream_t *) = nullptr;
         switch (device.kind()) {
         case device_kind_t::cpu_k: return {std::move(result), status_t::success_k};
         case device_kind_t::cuda_k:
-            initialize = nk_cuda_stream_init;
-            result.free_ = nk_cuda_stream_free;
+            initialize = nk_stream_init_cuda;
+            result.free_ = nk_stream_free_cuda;
             break;
         case device_kind_t::rocm_k:
-            initialize = nk_rocm_stream_init;
-            result.free_ = nk_rocm_stream_free;
+            initialize = nk_stream_init_rocm;
+            result.free_ = nk_stream_free_rocm;
             break;
         case device_kind_t::metal_k:
-            initialize = nk_metal_stream_init;
-            result.free_ = nk_metal_stream_free;
+            initialize = nk_stream_init_metal;
+            result.free_ = nk_stream_free_metal;
             break;
         default: return {std::move(result), status_t::missing_gpu_k};
         }
@@ -161,7 +162,7 @@ class stream_t {
         return {std::move(result), static_cast<status_t>(status)};
     }
 
-    void *get() const noexcept { return handle_; }
+    nk_stream_t get() const noexcept { return handle_; }
 };
 
 } // namespace ashvardanian::numkong

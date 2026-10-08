@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-NUMKONG_INLINE void *nk_allocate_heap_(nk_size_t bytes, void *handle, void *stream) {
+NUMKONG_INLINE void *nk_allocate_heap_(nk_size_t bytes, void *handle, nk_stream_t stream) {
     nk_unused_(stream);
     nk_size_t const alignment = (nk_size_t)handle;
     if (!bytes || bytes > NUMKONG_SIZE_MAX - alignment - sizeof(void *)) return NUMKONG_NULL;
@@ -26,7 +26,7 @@ NUMKONG_INLINE void *nk_allocate_heap_(nk_size_t bytes, void *handle, void *stre
     return (void *)address;
 }
 
-NUMKONG_INLINE void nk_free_heap_(void *pointer, nk_size_t bytes, void *handle, void *stream) {
+NUMKONG_INLINE void nk_free_heap_(void *pointer, nk_size_t bytes, void *handle, nk_stream_t stream) {
     nk_unused_(bytes), nk_unused_(handle), nk_unused_(stream);
     if (pointer) free(((void **)pointer)[-1]);
 }
@@ -43,7 +43,7 @@ typedef struct nk_arena_t_ {
     nk_size_t capacity, consumed, alignment;
 } nk_arena_t_;
 
-NUMKONG_INLINE void *nk_allocate_arena_(nk_size_t bytes, void *handle, void *stream) {
+NUMKONG_INLINE void *nk_allocate_arena_(nk_size_t bytes, void *handle, nk_stream_t stream) {
     nk_unused_(stream);
     nk_arena_t_ *arena = (nk_arena_t_ *)handle;
     nk_size_t const padding = (-((nk_size_t)handle + arena->consumed)) & (arena->alignment - 1);
@@ -54,7 +54,7 @@ NUMKONG_INLINE void *nk_allocate_arena_(nk_size_t bytes, void *handle, void *str
     return pointer;
 }
 
-NUMKONG_INLINE void nk_free_arena_(void *pointer, nk_size_t bytes, void *handle, void *stream) {
+NUMKONG_INLINE void nk_free_arena_(void *pointer, nk_size_t bytes, void *handle, nk_stream_t stream) {
     nk_unused_(pointer), nk_unused_(bytes), nk_unused_(handle), nk_unused_(stream);
 }
 
@@ -80,14 +80,14 @@ NUMKONG_API nk_status_t nk_allocator_init_unified_serial(nk_allocator_t *allocat
     return nk_allocator_init_heap(allocator, nk_default_alignment_k);
 }
 
-NUMKONG_API nk_status_t nk_memory_allocate_unified_serial(nk_size_t bytes, void **pointer, void *stream) {
+NUMKONG_API nk_status_t nk_memory_allocate_unified_serial(nk_size_t bytes, void **pointer, nk_stream_t stream) {
     nk_allocator_t allocator;
     nk_unused_(nk_allocator_init_heap(&allocator, nk_default_alignment_k));
     *pointer = allocator.allocate(bytes, allocator.handle, stream);
     return *pointer || !bytes ? nk_success_k : nk_bad_alloc_k;
 }
 
-NUMKONG_API nk_status_t nk_memory_free_unified_serial(void *pointer, nk_size_t bytes, void *stream) {
+NUMKONG_API nk_status_t nk_memory_free_unified_serial(void *pointer, nk_size_t bytes, nk_stream_t stream) {
     nk_allocator_t allocator;
     nk_unused_(nk_allocator_init_heap(&allocator, nk_default_alignment_k));
     allocator.free(pointer, bytes, allocator.handle, stream);

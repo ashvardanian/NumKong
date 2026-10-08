@@ -82,14 +82,14 @@ NUMKONG_INLINE void nk_squared_distance_f32_sve_(nk_f32_t const *a, nk_f32_t con
 
 #if NUMKONG_TARGET_SVE
 NUMKONG_API nk_status_t nk_sqeuclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f32_sve_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f32_sve_(a, b, n, result);
     *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(*result)), 0);
@@ -97,7 +97,7 @@ NUMKONG_API nk_status_t nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *
 }
 
 NUMKONG_API nk_status_t nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svfloat64_t ab_f64x = svdupq_n_f64(0.0, 0.0);
@@ -164,14 +164,14 @@ NUMKONG_INLINE void nk_squared_distance_f64_sve_(nk_f64_t const *a, nk_f64_t con
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f64_sve_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f64_sve_(a, b, n, result);
     *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(*result)), 0);
@@ -179,7 +179,7 @@ NUMKONG_API nk_status_t nk_euclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *
 }
 
 NUMKONG_API nk_status_t nk_angular_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 (Ogita-Rump-Oishi) for cross-product ab (may have cancellation),
     // simple FMA for self-products a2/b2 (all positive, no cancellation)

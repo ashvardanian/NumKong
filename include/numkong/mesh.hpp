@@ -338,7 +338,8 @@ template <typename in_type_, typename transform_type_ = typename in_type_::mesh_
 status_t rmsd(                                           //
     in_type_ const *a, in_type_ const *b, std::size_t n, //
     transform_type_ *a_centroid, transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
-    metric_type_ *metric, nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+    metric_type_ *metric, nk_capability_t capabilities = default_capabilities(),
+    nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
                               std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 
@@ -406,7 +407,8 @@ template <typename in_type_, typename transform_type_ = typename in_type_::mesh_
 status_t kabsch(                                         //
     in_type_ const *a, in_type_ const *b, std::size_t n, //
     transform_type_ *a_centroid, transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
-    metric_type_ *metric, nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+    metric_type_ *metric, nk_capability_t capabilities = default_capabilities(),
+    nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
                               std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 
@@ -576,7 +578,7 @@ template <typename in_type_, typename transform_type_ = typename in_type_::mesh_
           typename metric_type_ = typename in_type_::mesh_metric_t>
 status_t umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type_ *a_centroid,
                  transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale, metric_type_ *metric,
-                 nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+                 nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
                               std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 

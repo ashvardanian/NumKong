@@ -47,7 +47,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_dot_bf16_svebfdot(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                             nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_scalars = 0;
     svfloat32_t sum_f32x = svdup_f32(0);

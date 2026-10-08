@@ -260,7 +260,7 @@ let angs  = try vectors.angularsSymmetric()  // Tensor<Float64>, 3x3
 assert(gram.rows == 3 && gram.columns == 3)
 ```
 
-The free-function form (`dots_symmetric`, `angulars_symmetric`, etc.) exposes `rowStart` and `rowCount` parameters for external partitioning.
+The free-function form (`dots_symmetric`, `angulars_symmetric`, etc.) exposes `rowsBegin` and `rowsEnd` parameters for external partitioning.
 
 ## Set Distance Kernels
 
@@ -297,8 +297,8 @@ Free-function forms are also available:
 ```swift
 try hammings_packed(view, packed, &span)
 try jaccards_packed(view, packed, &span)
-try hammings_symmetric(view, &span, rowStart: 0, rowCount: rows)
-try jaccards_symmetric(view, &span, rowStart: 0, rowCount: rows)
+try hammings_symmetric(view, &span, rowsBegin: 0, rowsEnd: rows)
+try jaccards_symmetric(view, &span, rowsBegin: 0, rowsEnd: rows)
 ```
 
 ## MaxSim and ColBERT-Style Late Interaction

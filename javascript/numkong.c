@@ -684,7 +684,7 @@ static napi_value api_euclideans_packed(napi_env env, napi_callback_info info) {
  *
  *  @code{.ts}
  *  (vectors: TypedArray, result: TypedArray, nVectors: number, depth: number,
- *      vectorsStride: number, resultStride: number, rowStart: number, rowCount: number,
+ *      vectorsStride: number, resultStride: number, rowsBegin: number, rowsEnd: number,
  *      dtype: string, threads?: number)
  *  @endcode
  */
@@ -709,14 +709,14 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
     napi_typedarray_type result_type;
     napi_get_typedarray_info(env, args[1], &result_type, &result_len, &result_data, NULL, NULL);
 
-    // args[2..7]: vectorsCount, depth, vectorsStride, resultStride, rowStart, rowCount
-    uint32_t vectors_count, depth, vectors_stride, result_stride, row_start, row_count;
-    napi_get_value_uint32(env, args[2], &vectors_count);
+    // args[2..7]: vectorsCount, depth, vectorsStride, resultStride, rowsBegin, rowsEnd
+    uint32_t vector_count, depth, vectors_stride, result_stride, rows_begin, rows_end;
+    napi_get_value_uint32(env, args[2], &vector_count);
     napi_get_value_uint32(env, args[3], &depth);
     napi_get_value_uint32(env, args[4], &vectors_stride);
     napi_get_value_uint32(env, args[5], &result_stride);
-    napi_get_value_uint32(env, args[6], &row_start);
-    napi_get_value_uint32(env, args[7], &row_count);
+    napi_get_value_uint32(env, args[6], &rows_begin);
+    napi_get_value_uint32(env, args[7], &rows_end);
 
     // arg[8]: dtype string
     char dtype_str[16];
@@ -741,13 +741,13 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
 
     nk_dots_symmetric_task_t const task = {.kernel = kernel,
                                            .vectors = vectors_data,
-                                           .vectors_count = vectors_count,
+                                           .vector_count = vector_count,
                                            .depth = depth,
                                            .vectors_stride = vectors_stride,
                                            .result = result_data,
                                            .result_stride = result_stride,
-                                           .row_start = row_start,
-                                           .row_count = row_count};
+                                           .rows_begin = rows_begin,
+                                           .rows_end = rows_end};
     check_status(env, nk_parallel_dots_symmetric(&task, threads));
     return NULL;
 }

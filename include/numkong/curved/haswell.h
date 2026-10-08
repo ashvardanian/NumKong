@@ -33,7 +33,7 @@ extern "C" {
 #if NUMKONG_TARGET_HASWELL
 
 NUMKONG_API nk_status_t nk_bilinear_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                nk_f64_t *result, void *stream) {
+                                                nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const tail_length = n % 4;
     nk_size_t const tail_start = n - tail_length;
@@ -69,7 +69,7 @@ NUMKONG_API nk_status_t nk_bilinear_f32_haswell(nk_f32_t const *a, nk_f32_t cons
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                   nk_f64_t *result, void *stream) {
+                                                   nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const tail_length = n % 4;
     nk_size_t const tail_start = n - tail_length;
@@ -107,7 +107,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_haswell(nk_f32_t const *a, nk_f32_t c
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                nk_f32_t *result, void *stream) {
+                                                nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = _mm256_setzero_ps();
     for (nk_size_t i = 0; i != n; ++i) {
@@ -144,7 +144,7 @@ NUMKONG_API nk_status_t nk_bilinear_f16_haswell(nk_f16_t const *a, nk_f16_t cons
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                   nk_f32_t *result, void *stream) {
+                                                   nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = _mm256_setzero_ps();
     for (nk_size_t i = 0; i != n; ++i) {
@@ -188,7 +188,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f16_haswell(nk_f16_t const *a, nk_f16_t c
 }
 
 NUMKONG_API nk_status_t nk_bilinear_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                 nk_size_t n, nk_f32_t *result, void *stream) {
+                                                 nk_size_t n, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = _mm256_setzero_ps();
     for (nk_size_t i = 0; i != n; ++i) {
@@ -229,7 +229,7 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_haswell(nk_bf16_t const *a, nk_bf16_t c
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                    nk_size_t n, nk_f32_t *result, void *stream) {
+                                                    nk_size_t n, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = _mm256_setzero_ps();
     for (nk_size_t i = 0; i != n; ++i) {

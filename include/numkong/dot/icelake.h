@@ -518,7 +518,7 @@ NUMKONG_INLINE void nk_dot_u1x512_finalize_icelake( //
 #if NUMKONG_TARGET_ICELAKE
 
 NUMKONG_API nk_status_t nk_dot_i8_icelake(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                          nk_i32_t *result, void *stream) {
+                                          nk_i32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Optimized i8 × i8 dot product using algebraic transformation with DPBUSD
     //
@@ -580,7 +580,7 @@ nk_dot_i8_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_u8_icelake(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                          nk_u32_t *result, void *stream) {
+                                          nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Optimized u8 × u8 dot product using algebraic transformation with DPBUSD
     //
@@ -641,7 +641,7 @@ nk_dot_u8_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     //
@@ -707,7 +707,7 @@ nk_dot_i4_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // Values are ∈ [0,15], so DPBUSD can be used directly.
@@ -748,7 +748,7 @@ nk_dot_u4_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m3_icelake(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using VPERMB (LUT) + VPDPBUSD (unsigned × signed multiply-add).
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
@@ -809,7 +809,7 @@ nk_dot_e2m3_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e3m2_icelake(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e3m2 using VPERMW (i16 LUT) + VPMADDWD (i16 × i16 → i32).
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
@@ -875,7 +875,7 @@ nk_dot_e3m2_icelake_cycle:
 #pragma region F16 and BF16 Floats
 
 NUMKONG_API nk_status_t nk_dot_e4m3_icelake(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // E4M3 dot product via octave decomposition + VPDPBUSD integer MAC.
     // Splits 4-bit exponent into 2 octave bits + 2 remainder bits, maps low 5 bits via VPERMB
@@ -990,7 +990,7 @@ nk_dot_e4m3_icelake_cycle:
 #pragma region Binary
 
 NUMKONG_API nk_status_t nk_dot_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
     __m512i and_popcount_u64x8 = _mm512_setzero_si512();

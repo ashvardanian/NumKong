@@ -36,7 +36,7 @@ namespace ashvardanian::numkong {
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
 status_t haversine(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const *b_lats, in_type_ const *b_lons,
                    std::size_t d, in_type_ *results, nk_capability_t capabilities = default_capabilities(),
-                   void *stream = nullptr) noexcept {
+                   nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
     if (capabilities) {
@@ -99,7 +99,7 @@ status_t haversine(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ cons
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
 status_t vincenty(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const *b_lats, in_type_ const *b_lons,
                   std::size_t d, in_type_ *results, nk_capability_t capabilities = default_capabilities(),
-                  void *stream = nullptr) noexcept {
+                  nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
     if (capabilities) {

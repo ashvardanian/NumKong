@@ -102,7 +102,7 @@ NUMKONG_INLINE __m256d nk_log2_f64x4_haswell_(__m256d x) {
 #if NUMKONG_TARGET_HASWELL
 
 NUMKONG_API nk_status_t nk_kld_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = _mm256_setzero_ps();
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
@@ -137,7 +137,7 @@ nk_kld_f16_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_jsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     __m256 epsilon_f32x8 = _mm256_set1_ps(epsilon);
@@ -179,7 +179,7 @@ nk_jsd_f16_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_kld_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t epsilon = NUMKONG_F64_DIVISION_EPSILON;
     __m256d epsilon_f64x4 = _mm256_set1_pd(epsilon);
@@ -217,7 +217,7 @@ nk_kld_f64_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_jsd_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t epsilon = NUMKONG_F64_DIVISION_EPSILON;
     __m256d epsilon_f64x4 = _mm256_set1_pd(epsilon);

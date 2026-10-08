@@ -124,14 +124,14 @@ nk_dot_bf16_genoa_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_bf16_genoa(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                          nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                          nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_bf16_through_f32_genoa_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs, nk_size_t count_pairs,
-                                           nk_f32c_t *result, void *stream) {
+                                           nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512i a_bf16x32, b_bf16x32;
     __m512 sum_real_f32x16 = _mm512_setzero_ps();
@@ -177,7 +177,7 @@ nk_dot_bf16c_genoa_cycle:
 }
 
 NUMKONG_API nk_status_t nk_vdot_bf16c_genoa(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs, nk_size_t count_pairs,
-                                            nk_f32c_t *result, void *stream) {
+                                            nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512i a_bf16x32, b_bf16x32;
     __m512 sum_real_f32x16 = _mm512_setzero_ps();
@@ -223,7 +223,7 @@ nk_vdot_bf16c_genoa_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e5m2_genoa(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                          nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                          nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i a_e5m2x32, b_e5m2x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();

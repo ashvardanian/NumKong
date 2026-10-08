@@ -77,14 +77,14 @@ NUMKONG_INLINE void nk_squared_distance_i8_neonsdot_(nk_i8_t const *a, nk_i8_t c
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_i8_neonsdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_i8_neonsdot_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_i8_neonsdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
     nk_squared_distance_i8_neonsdot_(a, b, n, &distance_sq_u32);
@@ -93,7 +93,7 @@ NUMKONG_API nk_status_t nk_euclidean_i8_neonsdot(nk_i8_t const *a, nk_i8_t const
 }
 
 NUMKONG_API nk_status_t nk_angular_i8_neonsdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t i = 0;
@@ -236,14 +236,14 @@ NUMKONG_INLINE void nk_squared_distance_u8_neonsdot_(nk_u8_t const *a, nk_u8_t c
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_u8_neonsdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_u8_neonsdot_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_u8_neonsdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t d2;
     nk_squared_distance_u8_neonsdot_(a, b, n, &d2);
@@ -252,7 +252,7 @@ NUMKONG_API nk_status_t nk_euclidean_u8_neonsdot(nk_u8_t const *a, nk_u8_t const
 }
 
 NUMKONG_API nk_status_t nk_angular_u8_neonsdot(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t i = 0;
@@ -318,14 +318,14 @@ nk_sqeuclidean_i4_neonsdot_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
-                                                   nk_u32_t *result, void *stream) {
+                                                   nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_i4_neonsdot_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t d2;
     nk_squared_distance_i4_neonsdot_(a, b, n, &d2);
@@ -334,7 +334,7 @@ NUMKONG_API nk_status_t nk_euclidean_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t c
 }
 
 NUMKONG_API nk_status_t nk_angular_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     int32x4_t ab_i32x4 = vdupq_n_s32(0);
@@ -414,14 +414,14 @@ nk_sqeuclidean_u4_neonsdot_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
-                                                   nk_u32_t *result, void *stream) {
+                                                   nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_u4_neonsdot_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t d2;
     nk_squared_distance_u4_neonsdot_(a, b, n, &d2);
@@ -430,7 +430,7 @@ NUMKONG_API nk_status_t nk_euclidean_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t c
 }
 
 NUMKONG_API nk_status_t nk_angular_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
     uint8x16_t const nibble_mask_u8x16 = vdupq_n_u8(0x0F);

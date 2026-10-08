@@ -16,14 +16,14 @@ namespace ashvardanian::numkong::bench {
 
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
-nk_status_t sum_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result, void *) {
+nk_status_t sum_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result, nk_stream_t) {
     int const ni = static_cast<int>(n);
     cblas_scopy(ni, a, 1, result, 1);
     cblas_saxpy(ni, 1.0f, b, 1, result, 1);
     return nk_success_k;
 }
 
-nk_status_t sum_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result, void *) {
+nk_status_t sum_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result, nk_stream_t) {
     int const ni = static_cast<int>(n);
     cblas_dcopy(ni, a, 1, result, 1);
     cblas_daxpy(ni, 1.0, b, 1, result, 1);
@@ -31,7 +31,7 @@ nk_status_t sum_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
 }
 
 nk_status_t blend_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t const *alpha,
-                                nk_f32_t const *beta, nk_f32_t *result, void *) {
+                                nk_f32_t const *beta, nk_f32_t *result, nk_stream_t) {
     int const ni = static_cast<int>(n);
     std::memset(result, 0, n * sizeof(nk_f32_t));
     if (*alpha != 0) cblas_saxpy(ni, *alpha, a, 1, result, 1);
@@ -40,7 +40,7 @@ nk_status_t blend_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t 
 }
 
 nk_status_t blend_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t const *alpha,
-                                nk_f64_t const *beta, nk_f64_t *result, void *) {
+                                nk_f64_t const *beta, nk_f64_t *result, nk_stream_t) {
     int const ni = static_cast<int>(n);
     std::memset(result, 0, n * sizeof(nk_f64_t));
     if (*alpha != 0) cblas_daxpy(ni, *alpha, a, 1, result, 1);

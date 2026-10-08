@@ -119,7 +119,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_dot_i8_neonsdot(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                           nk_i32_t *result, void *stream) {
+                                           nk_i32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     int32x4_t sum_i32x4 = vdupq_n_s32(0);
     nk_size_t idx_scalars = 0;
@@ -135,7 +135,7 @@ NUMKONG_API nk_status_t nk_dot_i8_neonsdot(nk_i8_t const *a_scalars, nk_i8_t con
 }
 
 NUMKONG_API nk_status_t nk_dot_u8_neonsdot(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                           nk_u32_t *result, void *stream) {
+                                           nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     uint32x4_t sum_u32x4 = vdupq_n_u32(0);
     nk_size_t idx_scalars = 0;
@@ -207,7 +207,7 @@ NUMKONG_INLINE void nk_dot_u8x16_finalize_neonsdot(                             
 }
 
 NUMKONG_API nk_status_t nk_dot_i4_neonsdot(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     //
@@ -257,7 +257,7 @@ nk_dot_i4_neonsdot_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_u4_neonsdot(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // Values are ∈ [0,15], so UDOT can be used directly.
@@ -382,7 +382,7 @@ NUMKONG_INLINE void nk_dot_u4x32_finalize_neonsdot(                             
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m3_neonsdot(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                             nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using SDOT (signed × signed i8 → i32).
     // Every e2m3 value × 16 is an exact integer in [-120, +120], fits signed i8.
@@ -435,7 +435,7 @@ nk_dot_e2m3_neonsdot_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e3m2_neonsdot(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                             nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e3m2 using i16 LUT via vqtbl2q_u8 (low bytes) + comparison (high byte) + SMLAL.
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
@@ -556,7 +556,7 @@ NUMKONG_INLINE void nk_dot_e2m3x16_finalize_neonsdot(                           
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m1_neonsdot(nk_e2m1x2_t const *a_pairs, nk_e2m1x2_t const *b_pairs,
-                                             nk_size_t count_dimensions, nk_f32_t *result, void *stream) {
+                                             nk_size_t count_dimensions, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Twice every E2M1 value is an exact i8 in [-12, +12], so one signed LUT feeds SDOT directly.
     static nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};

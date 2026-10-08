@@ -133,12 +133,12 @@ NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capa
     *capabilities = 0;
     return nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_cuda_stream_init(nk_size_t ordinal, void **stream) {
+NUMKONG_API nk_status_t nk_stream_init_cuda(nk_size_t ordinal, nk_stream_t *stream) {
     nk_unused_(ordinal);
     *stream = NUMKONG_NULL;
     return nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_cuda_stream_free(void *stream) {
+NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream) {
     nk_unused_(stream);
     return nk_missing_gpu_k;
 }
@@ -167,12 +167,12 @@ NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capa
     *capabilities = 0;
     return nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_rocm_stream_init(nk_size_t ordinal, void **stream) {
+NUMKONG_API nk_status_t nk_stream_init_rocm(nk_size_t ordinal, nk_stream_t *stream) {
     nk_unused_(ordinal);
     *stream = NUMKONG_NULL;
     return nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_rocm_stream_free(void *stream) {
+NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream) {
     nk_unused_(stream);
     return nk_missing_gpu_k;
 }
@@ -199,10 +199,10 @@ NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
 NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
     return nk_metal_capabilities_detected_(ordinal, capabilities);
 }
-NUMKONG_API nk_status_t nk_metal_stream_init(nk_size_t ordinal, void **stream) {
+NUMKONG_API nk_status_t nk_stream_init_metal(nk_size_t ordinal, nk_stream_t *stream) {
     return nk_metal_stream_init_(ordinal, stream);
 }
-NUMKONG_API nk_status_t nk_metal_stream_free(void *stream) { return nk_metal_stream_free_(stream); }
+NUMKONG_API nk_status_t nk_stream_free_metal(nk_stream_t stream) { return nk_metal_stream_free_(stream); }
 #endif
 
 NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabilities) {
@@ -216,7 +216,7 @@ NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t ordinal, nk_capa
     return status;
 }
 
-NUMKONG_API nk_status_t nk_stream_synchronize_serial(void *stream) {
+NUMKONG_API nk_status_t nk_stream_synchronize_serial(nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     return nk_success_k;
 }
@@ -270,7 +270,7 @@ NUMKONG_API nk_status_t nk_allocator_init_pinned_best(nk_allocator_t *allocator,
 }
 
 NUMKONG_API nk_status_t nk_memory_allocate_unified_best(nk_size_t bytes, void **pointer, nk_capability_t capabilities,
-                                                        void *stream) {
+                                                        nk_stream_t stream) {
     switch (nk_capability_group_of_(capabilities)) {
     case nk_capability_group_cpu_k: return nk_memory_allocate_unified_serial(bytes, pointer, stream);
 #if NUMKONG_ARCH_CUDA_
@@ -287,7 +287,7 @@ NUMKONG_API nk_status_t nk_memory_allocate_unified_best(nk_size_t bytes, void **
 }
 
 NUMKONG_API nk_status_t nk_memory_free_unified_best(void *pointer, nk_size_t bytes, nk_capability_t capabilities,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     switch (nk_capability_group_of_(capabilities)) {
     case nk_capability_group_cpu_k: return nk_memory_free_unified_serial(pointer, bytes, stream);
 #if NUMKONG_ARCH_CUDA_
@@ -303,7 +303,7 @@ NUMKONG_API nk_status_t nk_memory_free_unified_best(void *pointer, nk_size_t byt
     }
 }
 
-NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities, nk_stream_t stream) {
     switch (nk_capability_group_of_(capabilities)) {
     case nk_capability_group_cpu_k: return nk_stream_synchronize_serial(stream);
 #if NUMKONG_ARCH_CUDA_

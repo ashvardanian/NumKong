@@ -1387,7 +1387,7 @@ def test_nk_dtype_numpy_roundtrip():
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_dots_packed_row_range(capabilities, np_rng: np.random.Generator):
-    """Test dots_packed with start_row/end_row splits produce the same result."""
+    """Test dots_packed with rows_begin/rows_end splits produce the same result."""
     rows, depth, columns = 100, 64, 50
     left_matrix, _ = make_random((rows, depth), "float32", np_rng)
     right_matrix = np.ascontiguousarray(make_random((columns, depth), "float32", np_rng)[0])
@@ -1396,15 +1396,15 @@ def test_dots_packed_row_range(capabilities, np_rng: np.random.Generator):
     reference = np.array(nk.dots_packed(left_matrix, right_packed))
 
     output = nk.zeros((rows, columns), dtype="float64")
-    nk.dots_packed(left_matrix, right_packed, out=output, start_row=0, end_row=50)
-    nk.dots_packed(left_matrix, right_packed, out=output, start_row=50, end_row=100)
+    nk.dots_packed(left_matrix, right_packed, out=output, rows_begin=0, rows_end=50)
+    nk.dots_packed(left_matrix, right_packed, out=output, rows_begin=50, rows_end=100)
 
     assert_allclose(np.array(output), reference, err_msg="Row-range split differs from full computation")
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_dots_symmetric_row_range(capabilities, np_rng: np.random.Generator):
-    """Test dots_symmetric with start_row/end_row.
+    """Test dots_symmetric with rows_begin/rows_end.
 
     Only the upper triangle of the output is guaranteed to be initialized,
     so we compare only the upper-triangle entries that fall within each row range.
@@ -1416,7 +1416,7 @@ def test_dots_symmetric_row_range(capabilities, np_rng: np.random.Generator):
     mask = np.triu(np.ones((count, count), dtype=bool))
 
     output = nk.zeros((count, count), dtype="float64")
-    nk.dots_symmetric(vectors, out=output, start_row=0, end_row=count, capabilities=capabilities)
+    nk.dots_symmetric(vectors, out=output, rows_begin=0, rows_end=count, capabilities=capabilities)
 
     assert_allclose(np.array(output)[mask], reference[mask], err_msg="Full-range dots_symmetric differs from default")
 
@@ -1527,7 +1527,7 @@ def test_gil_free_threading(np_rng: np.random.Generator):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_gil_free_dots_packed_threading(np_rng: np.random.Generator):
-    """Test multi-threaded dots_packed with start_row/end_row."""
+    """Test multi-threaded dots_packed with rows_begin/rows_end."""
     _skip_unless_free_threaded()
 
     rows, depth, columns = 200, 64, 50
@@ -1544,9 +1544,9 @@ def test_gil_free_dots_packed_threading(np_rng: np.random.Generator):
     rows_per_thread = rows // num_threads
 
     def compute_slice(thread_index):
-        start_row = thread_index * rows_per_thread
-        end_row = start_row + rows_per_thread if thread_index < num_threads - 1 else rows
-        nk.dots_packed(left_matrix, right_packed, out=output, start_row=start_row, end_row=end_row)
+        rows_begin = thread_index * rows_per_thread
+        rows_end = rows_begin + rows_per_thread if thread_index < num_threads - 1 else rows
+        nk.dots_packed(left_matrix, right_packed, out=output, rows_begin=rows_begin, rows_end=rows_end)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as pool:
         list(pool.map(compute_slice, range(num_threads)))
@@ -1558,7 +1558,7 @@ def test_gil_free_dots_packed_threading(np_rng: np.random.Generator):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_gil_free_dots_symmetric_threading(np_rng: np.random.Generator):
-    """Test multi-threaded dots_symmetric with start_row/end_row.
+    """Test multi-threaded dots_symmetric with rows_begin/rows_end.
 
     The symmetric kernel only fills the upper triangle of each row's output.
     Each thread computes a disjoint row range into the same shared output tensor.
@@ -1577,9 +1577,9 @@ def test_gil_free_dots_symmetric_threading(np_rng: np.random.Generator):
     rows_per_thread = count // num_threads
 
     def compute_slice(thread_index):
-        start_row = thread_index * rows_per_thread
-        end_row = start_row + rows_per_thread if thread_index < num_threads - 1 else count
-        nk.dots_symmetric(vectors, out=output, start_row=start_row, end_row=end_row)
+        rows_begin = thread_index * rows_per_thread
+        rows_end = rows_begin + rows_per_thread if thread_index < num_threads - 1 else count
+        nk.dots_symmetric(vectors, out=output, rows_begin=rows_begin, rows_end=rows_end)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as pool:
         list(pool.map(compute_slice, range(num_threads)))

@@ -104,7 +104,7 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64_sve_(svbool_t predicate_b64x, svfl
 #if NUMKONG_TARGET_SVE
 
 NUMKONG_API nk_status_t nk_dot_f32_sve(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
-                                       nk_f64_t *result, void *stream) {
+                                       nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_scalars = 0;
     svfloat64_t ab_f64x = svdup_f64(0.);
@@ -128,7 +128,7 @@ NUMKONG_API nk_status_t nk_dot_f32_sve(nk_f32_t const *a_scalars, nk_f32_t const
 }
 
 NUMKONG_API nk_status_t nk_dot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                        nk_f64c_t *results, void *stream) {
+                                        nk_f64c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_pairs = 0;
     svfloat64_t ab_real_f64x = svdup_f64(0.);
@@ -170,7 +170,7 @@ NUMKONG_API nk_status_t nk_dot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t cons
 }
 
 NUMKONG_API nk_status_t nk_vdot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                         nk_f64c_t *results, void *stream) {
+                                         nk_f64c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t idx_pairs = 0;
     svfloat64_t ab_real_f64x = svdup_f64(0.);
@@ -212,7 +212,7 @@ NUMKONG_API nk_status_t nk_vdot_f32c_sve(nk_f32c_t const *a_pairs, nk_f32c_t con
 }
 
 NUMKONG_API nk_status_t nk_dot_f64_sve(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
-                                       nk_f64_t *result, void *stream) {
+                                       nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 (Ogita-Rump-Oishi) compensated accumulation via TwoProd + TwoSum
     nk_size_t idx_scalars = 0;
@@ -242,7 +242,7 @@ NUMKONG_API nk_status_t nk_dot_f64_sve(nk_f64_t const *a_scalars, nk_f64_t const
 }
 
 NUMKONG_API nk_status_t nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                        nk_f64c_t *results, void *stream) {
+                                        nk_f64c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 compensated accumulation for complex dot product: (a_real + i*a_imag)(b_real + i*b_imag)
     // real = a_real*b_real - a_imag*b_imag, imag = a_real*b_imag + a_imag*b_real
@@ -331,7 +331,7 @@ NUMKONG_API nk_status_t nk_dot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t cons
 }
 
 NUMKONG_API nk_status_t nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                         nk_f64c_t *results, void *stream) {
+                                         nk_f64c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 compensated conjugate dot product: conj(a) · b = (a_real - i*a_imag)(b_real + i*b_imag)
     // real = a_real*b_real + a_imag*b_imag, imag = a_real*b_imag - a_imag*b_real

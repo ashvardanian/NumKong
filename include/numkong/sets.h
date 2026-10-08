@@ -74,26 +74,27 @@ extern "C" {
  */
 NUMKONG_API nk_status_t nk_hammings_packed_u1_best(nk_u1x8_t const *v, void const *query_packed, nk_u32_t *result,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t d, nk_size_t v_stride,
-                                                   nk_size_t r_stride, nk_capability_t capabilities, void *stream);
+                                                   nk_size_t r_stride, nk_capability_t capabilities,
+                                                   nk_stream_t stream);
 
 /**
  *  @brief Computes C = A × Aᵀ symmetric Gram matrix of Hamming distances.
  *  @param[in] vectors Input matrix of row vectors in row-major order.
- *  @param[in] vectors_count Number of vectors (rows) in the input matrix.
+ *  @param[in] vector_count Number of vectors (rows) in the input matrix.
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride Row stride in bytes for the input matrix.
- *  @param[out] result Output symmetric matrix of @p vectors_count × @p vectors_count.
+ *  @param[out] result Output symmetric matrix of @p vector_count × @p vector_count.
  *  @param[in] result_stride Row stride in bytes for the result matrix.
- *  @param[in] row_start Starting row offset of results to compute (needed for parallelism).
- *  @param[in] row_count Number of rows of results to compute (needed for parallelism).
+ *  @param[in] rows_begin First result row to compute, so threads split the work by rows.
+ *  @param[in] rows_end Result row after the last to compute, clamped to @p vector_count.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API nk_status_t nk_hammings_symmetric_u1_best(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_hammings_symmetric_u1_best(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                       nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
-                                                      nk_size_t row_start, nk_size_t row_count,
-                                                      nk_capability_t capabilities, void *stream);
+                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                      nk_capability_t capabilities, nk_stream_t stream);
 
 /**
  *  @brief Compute Jaccard distances between V rows and packed Q rows.
@@ -111,43 +112,44 @@ NUMKONG_API nk_status_t nk_hammings_symmetric_u1_best(nk_u1x8_t const *vectors, 
  */
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_best(nk_u1x8_t const *v, void const *query_packed, nk_f32_t *result,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t d, nk_size_t v_stride,
-                                                   nk_size_t r_stride, nk_capability_t capabilities, void *stream);
+                                                   nk_size_t r_stride, nk_capability_t capabilities,
+                                                   nk_stream_t stream);
 
 /**
  *  @brief Computes C = f(A, Aᵀ) symmetric Gram matrix of Jaccard distances.
  *  @param[in] vectors Input matrix of row vectors in row-major order.
- *  @param[in] vectors_count Number of vectors (rows).
+ *  @param[in] vector_count Number of vectors (rows).
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[in] stride Row stride in bytes.
- *  @param[out] result Output symmetric f32 matrix of @p vectors_count × @p vectors_count.
+ *  @param[out] result Output symmetric f32 matrix of @p vector_count × @p vector_count.
  *  @param[in] result_stride Row stride in bytes for the result matrix.
- *  @param[in] row_start Starting row offset (for parallelism).
- *  @param[in] row_count Number of rows to compute (for parallelism).
+ *  @param[in] rows_begin First result row to compute, so threads split the work by rows.
+ *  @param[in] rows_end Result row after the last to compute, clamped to @p vector_count.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_best(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_best(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                      nk_size_t row_start, nk_size_t row_count,
-                                                      nk_capability_t capabilities, void *stream);
+                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                      nk_capability_t capabilities, nk_stream_t stream);
 
 /** @copydoc nk_hammings_packed_u1_best */
 NUMKONG_API nk_status_t nk_hammings_packed_u1_serial(nk_u1x8_t const *v, void const *query_packed, nk_u32_t *result,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t d, nk_size_t v_stride,
-                                                     nk_size_t r_stride, void *stream);
+                                                     nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_hammings_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_hammings_symmetric_u1_serial(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_hammings_symmetric_u1_serial(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                         nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
-                                                        nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                        nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 /** @copydoc nk_jaccards_packed_u1_best */
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_serial(nk_u1x8_t const *v, void const *query_packed, nk_f32_t *result,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t d, nk_size_t v_stride,
-                                                     nk_size_t r_stride, void *stream);
+                                                     nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_jaccards_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_serial(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_serial(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                         nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                        nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                        nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 
 /*  ARM SME with BI32 (binary integer outer products).
  *  Uses BMOPA/BMOPS for efficient popcount-based set distances. */
@@ -155,19 +157,19 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_serial(nk_u1x8_t const *vectors
 /** @copydoc nk_hammings_packed_u1_best */
 NUMKONG_API nk_status_t nk_hammings_packed_u1_smebi32(nk_u1x8_t const *v, void const *query_packed, nk_u32_t *result,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t d,
-                                                      nk_size_t v_stride, nk_size_t r_stride, void *stream);
+                                                      nk_size_t v_stride, nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_hammings_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_hammings_symmetric_u1_smebi32(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_hammings_symmetric_u1_smebi32(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                          nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
-                                                         nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                         nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 /** @copydoc nk_jaccards_packed_u1_best */
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_smebi32(nk_u1x8_t const *v, void const *query_packed, nk_f32_t *result,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t d,
-                                                      nk_size_t v_stride, nk_size_t r_stride, void *stream);
+                                                      nk_size_t v_stride, nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_jaccards_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_smebi32(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_smebi32(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                          nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                         nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                         nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 #endif // NUMKONG_TARGET_SMEBI32
 
 /*  Haswell backends using AVX2 (Intel Core 4th gen).
@@ -176,19 +178,19 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_smebi32(nk_u1x8_t const *vector
 /** @copydoc nk_hammings_packed_u1_best */
 NUMKONG_API nk_status_t nk_hammings_packed_u1_haswell(nk_u1x8_t const *v, void const *query_packed, nk_u32_t *result,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t d,
-                                                      nk_size_t v_stride, nk_size_t r_stride, void *stream);
+                                                      nk_size_t v_stride, nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_hammings_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_hammings_symmetric_u1_haswell(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_hammings_symmetric_u1_haswell(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                          nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
-                                                         nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                         nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 /** @copydoc nk_jaccards_packed_u1_best */
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_haswell(nk_u1x8_t const *v, void const *query_packed, nk_f32_t *result,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t d,
-                                                      nk_size_t v_stride, nk_size_t r_stride, void *stream);
+                                                      nk_size_t v_stride, nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_jaccards_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_haswell(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_haswell(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                          nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                         nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                         nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 /*  Ice Lake backends using AVX-512 with VNNI (Vector Neural Network Instructions).
@@ -197,19 +199,19 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_haswell(nk_u1x8_t const *vector
 /** @copydoc nk_hammings_packed_u1_best */
 NUMKONG_API nk_status_t nk_hammings_packed_u1_icelake(nk_u1x8_t const *v, void const *query_packed, nk_u32_t *result,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t d,
-                                                      nk_size_t v_stride, nk_size_t r_stride, void *stream);
+                                                      nk_size_t v_stride, nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_hammings_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_hammings_symmetric_u1_icelake(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_hammings_symmetric_u1_icelake(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                          nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
-                                                         nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                         nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 /** @copydoc nk_jaccards_packed_u1_best */
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_icelake(nk_u1x8_t const *v, void const *query_packed, nk_f32_t *result,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t d,
-                                                      nk_size_t v_stride, nk_size_t r_stride, void *stream);
+                                                      nk_size_t v_stride, nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_jaccards_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_icelake(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_icelake(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                          nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                         nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                         nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 #endif // NUMKONG_TARGET_ICELAKE
 
 /*  ARM NEON backends (base NEON with F32/F64 support).
@@ -218,19 +220,19 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_icelake(nk_u1x8_t const *vector
 /** @copydoc nk_hammings_packed_u1_best */
 NUMKONG_API nk_status_t nk_hammings_packed_u1_neon(nk_u1x8_t const *v, void const *query_packed, nk_u32_t *result,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t d, nk_size_t v_stride,
-                                                   nk_size_t r_stride, void *stream);
+                                                   nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_hammings_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_hammings_symmetric_u1_neon(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_hammings_symmetric_u1_neon(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                       nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
-                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                      nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 /** @copydoc nk_jaccards_packed_u1_best */
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_neon(nk_u1x8_t const *v, void const *query_packed, nk_f32_t *result,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t d, nk_size_t v_stride,
-                                                   nk_size_t r_stride, void *stream);
+                                                   nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_jaccards_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_neon(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_neon(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                      nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 #endif // NUMKONG_TARGET_NEON
 
 /*  WASM Relaxed SIMD backends using wasm_i8x16_popcnt for popcount-based set distances. */
@@ -238,19 +240,19 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_neon(nk_u1x8_t const *vectors, 
 /** @copydoc nk_hammings_packed_u1_best */
 NUMKONG_API nk_status_t nk_hammings_packed_u1_v128(nk_u1x8_t const *v, void const *query_packed, nk_u32_t *result,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t d, nk_size_t v_stride,
-                                                   nk_size_t r_stride, void *stream);
+                                                   nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_hammings_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_hammings_symmetric_u1_v128(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_hammings_symmetric_u1_v128(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                       nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
-                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                      nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 /** @copydoc nk_jaccards_packed_u1_best */
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_v128(nk_u1x8_t const *v, void const *query_packed, nk_f32_t *result,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t d, nk_size_t v_stride,
-                                                   nk_size_t r_stride, void *stream);
+                                                   nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_jaccards_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_v128(nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t d,
+NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_v128(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                      nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                      nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 #endif // NUMKONG_TARGET_V128
 
 /*  IBM Power VSX backends using VPOPCNTD for popcount-based set distances. */
@@ -258,21 +260,19 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_v128(nk_u1x8_t const *vectors, 
 /** @copydoc nk_hammings_packed_u1_best */
 NUMKONG_API nk_status_t nk_hammings_packed_u1_powervsx(nk_u1x8_t const *v, void const *query_packed, nk_u32_t *result,
                                                        nk_size_t rows, nk_size_t columns, nk_size_t d,
-                                                       nk_size_t v_stride, nk_size_t r_stride, void *stream);
+                                                       nk_size_t v_stride, nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_hammings_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_hammings_symmetric_u1_powervsx(nk_u1x8_t const *vectors, nk_size_t vectors_count,
-                                                          nk_size_t d, nk_size_t stride, nk_u32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count, void *stream);
+NUMKONG_API nk_status_t nk_hammings_symmetric_u1_powervsx(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
+                                                          nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
+                                                          nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 /** @copydoc nk_jaccards_packed_u1_best */
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_powervsx(nk_u1x8_t const *v, void const *query_packed, nk_f32_t *result,
                                                        nk_size_t rows, nk_size_t columns, nk_size_t d,
-                                                       nk_size_t v_stride, nk_size_t r_stride, void *stream);
+                                                       nk_size_t v_stride, nk_size_t r_stride, nk_stream_t stream);
 /** @copydoc nk_jaccards_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_powervsx(nk_u1x8_t const *vectors, nk_size_t vectors_count,
-                                                          nk_size_t d, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count, void *stream);
+NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_powervsx(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
+                                                          nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                          nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 #endif // NUMKONG_TARGET_POWERVSX
 
 /*  Loongson LASX backends using 256-bit SIMD with XVPCNT.W for popcount-based set distances. */
@@ -281,22 +281,22 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_powervsx(nk_u1x8_t const *vecto
 NUMKONG_API nk_status_t nk_hammings_packed_u1_loongsonasx(nk_u1x8_t const *v, void const *query_packed,
                                                           nk_u32_t *result, nk_size_t rows, nk_size_t columns,
                                                           nk_size_t d, nk_size_t v_stride, nk_size_t r_stride,
-                                                          void *stream);
+                                                          nk_stream_t stream);
 /** @copydoc nk_hammings_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_hammings_symmetric_u1_loongsonasx(nk_u1x8_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_hammings_symmetric_u1_loongsonasx(nk_u1x8_t const *vectors, nk_size_t vector_count,
                                                              nk_size_t d, nk_size_t stride, nk_u32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count, void *stream);
+                                                             nk_size_t result_stride, nk_size_t rows_begin,
+                                                             nk_size_t rows_end, nk_stream_t stream);
 /** @copydoc nk_jaccards_packed_u1_best */
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_loongsonasx(nk_u1x8_t const *v, void const *query_packed,
                                                           nk_f32_t *result, nk_size_t rows, nk_size_t columns,
                                                           nk_size_t d, nk_size_t v_stride, nk_size_t r_stride,
-                                                          void *stream);
+                                                          nk_stream_t stream);
 /** @copydoc nk_jaccards_symmetric_u1_best */
-NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_loongsonasx(nk_u1x8_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_loongsonasx(nk_u1x8_t const *vectors, nk_size_t vector_count,
                                                              nk_size_t d, nk_size_t stride, nk_f32_t *result,
-                                                             nk_size_t result_stride, nk_size_t row_start,
-                                                             nk_size_t row_count, void *stream);
+                                                             nk_size_t result_stride, nk_size_t rows_begin,
+                                                             nk_size_t rows_end, nk_stream_t stream);
 #endif // NUMKONG_TARGET_LOONGSONASX
 
 /**
@@ -329,18 +329,18 @@ extern "C" {
 NUMKONG_API nk_status_t nk_hammings_packed_u1_best(nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                    nk_size_t a_stride, nk_size_t c_stride, nk_capability_t capabilities,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(rows), nk_unused_(columns), nk_unused_(depth),
         nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_hammings_symmetric_u1_best(nk_u1x8_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_u32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
-                                                      nk_capability_t capabilities, void *stream) {
-    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
-        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+NUMKONG_API nk_status_t nk_hammings_symmetric_u1_best(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
+                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                      nk_capability_t capabilities, nk_stream_t stream) {
+    nk_unused_(vectors), nk_unused_(vector_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(rows_begin), nk_unused_(rows_end), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
 }
@@ -348,18 +348,18 @@ NUMKONG_API nk_status_t nk_hammings_symmetric_u1_best(nk_u1x8_t const *vectors, 
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_best(nk_u1x8_t const *a, void const *b_packed, nk_f32_t *c,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                    nk_size_t a_stride, nk_size_t c_stride, nk_capability_t capabilities,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b_packed), nk_unused_(c), nk_unused_(rows), nk_unused_(columns), nk_unused_(depth),
         nk_unused_(a_stride), nk_unused_(c_stride), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_best(nk_u1x8_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
-                                                      nk_capability_t capabilities, void *stream) {
-    nk_unused_(vectors), nk_unused_(vectors_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
-        nk_unused_(result_stride), nk_unused_(row_start), nk_unused_(row_count), nk_unused_(capabilities),
+NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_best(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                      nk_capability_t capabilities, nk_stream_t stream) {
+    nk_unused_(vectors), nk_unused_(vector_count), nk_unused_(depth), nk_unused_(stride), nk_unused_(result),
+        nk_unused_(result_stride), nk_unused_(rows_begin), nk_unused_(rows_end), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
 }

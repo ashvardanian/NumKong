@@ -81,7 +81,7 @@ typedef void (*nk_f32_to_u8_punned_t)(nk_f32_t const *, nk_u8_t *);
  *  the source data it encodes.
  */
 NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                     nk_size_t count, nk_capability_t capabilities, void *stream);
+                                     nk_size_t count, nk_capability_t capabilities, nk_stream_t stream);
 
 /**
  *  @copydoc nk_cast_best
@@ -96,7 +96,7 @@ NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_dtype, vo
  *  @endverbatim
  */
 NUMKONG_API nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                       nk_size_t count, void *stream);
+                                       nk_size_t count, nk_stream_t stream);
 
 /**
  *  @brief Scalar conversion from @c f16 to @c f32, covering every IEEE 754 edge case.
@@ -417,7 +417,7 @@ NUMKONG_API void nk_f16_to_f32_neon(nk_f16_t const *src, nk_f32_t *dest);
 NUMKONG_API void nk_f32_to_f16_neon(nk_f32_t const *src, nk_f16_t *dest);
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                     nk_size_t count, void *stream);
+                                     nk_size_t count, nk_stream_t stream);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_HASWELL
@@ -427,25 +427,25 @@ NUMKONG_API void nk_f16_to_f32_haswell(nk_f16_t const *src, nk_f32_t *dest);
 NUMKONG_API void nk_f32_to_f16_haswell(nk_f32_t const *src, nk_f16_t *dest);
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_haswell(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                        nk_size_t count, void *stream);
+                                        nk_size_t count, nk_stream_t stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_skylake(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                        nk_size_t count, void *stream);
+                                        nk_size_t count, nk_stream_t stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_ICELAKE
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_icelake(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                        nk_size_t count, void *stream);
+                                        nk_size_t count, nk_stream_t stream);
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if NUMKONG_TARGET_SAPPHIRE
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                         nk_size_t count, void *stream);
+                                         nk_size_t count, nk_stream_t stream);
 /** @copydoc nk_f16_to_f32_best */
 NUMKONG_API void nk_f16_to_f32_sapphire(nk_f16_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_f16_best */
@@ -455,13 +455,13 @@ NUMKONG_API void nk_f32_to_f16_sapphire(nk_f32_t const *src, nk_f16_t *dest);
 #if NUMKONG_TARGET_RVV
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                    nk_size_t count, void *stream);
+                                    nk_size_t count, nk_stream_t stream);
 #endif // NUMKONG_TARGET_RVV
 
 #if NUMKONG_TARGET_POWERVSX
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                         nk_size_t count, void *stream);
+                                         nk_size_t count, nk_stream_t stream);
 
 /** @copydoc nk_f16_to_f32_best
  *
@@ -477,7 +477,7 @@ NUMKONG_API void nk_f32_to_f16_powervsx(nk_f32_t const *src, nk_f16_t *dest);
 #if NUMKONG_TARGET_V128RELAXED
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                            nk_size_t count, void *stream);
+                                            nk_size_t count, nk_stream_t stream);
 #endif // NUMKONG_TARGET_V128RELAXED
 
 /*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device;
@@ -485,19 +485,19 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dt
 #if NUMKONG_TARGET_CUDA
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_cuda(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                     nk_size_t count, void *stream);
+                                     nk_size_t count, nk_stream_t stream);
 #endif // NUMKONG_TARGET_CUDA
 
 #if NUMKONG_TARGET_AMPERE
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_ampere(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                       nk_size_t count, void *stream);
+                                       nk_size_t count, nk_stream_t stream);
 #endif // NUMKONG_TARGET_AMPERE
 
 #if NUMKONG_TARGET_ADA
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_ada(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                    nk_size_t count, void *stream);
+                                    nk_size_t count, nk_stream_t stream);
 #endif // NUMKONG_TARGET_ADA
 
 /**
@@ -594,7 +594,7 @@ NUMKONG_API void nk_f32_to_e2m3_best(nk_f32_t const *source, nk_e2m3_t *destinat
 }
 
 NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                     nk_size_t count, nk_capability_t capabilities, void *stream) {
+                                     nk_size_t count, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(from), nk_unused_(from_dtype), nk_unused_(to), nk_unused_(to_dtype), nk_unused_(count),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;

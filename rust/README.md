@@ -145,7 +145,7 @@ Reach for the `_enabled` ones unless you specifically mean one of the raw axes.
 `cpu_detected()` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
 The crate keeps no process state: every CPU kernel call passes `Capabilities::CPUS`, and the library clamps it to the CPU capabilities it settles as it loads.
 `UnifiedAllocator::new(capabilities)` allocates memory the host and that group's device both address, and `capabilities.synchronize(stream)` waits for a stream of that group.
-`Capabilities::cuda_stream_init(ordinal)` makes such a stream on any device by its ordinal, and `Capabilities::cuda_stream_free(stream)` frees it once synchronized, with `rocm_` and `metal_` twins.
+`Capabilities::stream_init_cuda(ordinal)` makes such a stream on any device by its ordinal, and `Capabilities::stream_free_cuda(stream)` frees it once synchronized, with `rocm_` and `metal_` twins.
 
 Call `configure_thread` at the start of every thread that will use AMX operations.
 In a thread-pool setting, each worker thread needs its own call.

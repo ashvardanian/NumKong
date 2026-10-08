@@ -27,7 +27,7 @@ static PyObject *implement_dense_metric( //
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k, out_dtype = nk_dtype_unknown_k;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
     Py_buffer a_buffer, b_buffer, out_buffer;
     nk_matrix_or_vector_view_t a_parsed, b_parsed, out_parsed;
     memset(&a_buffer, 0, sizeof(Py_buffer));
@@ -256,7 +256,7 @@ static PyObject *implement_curved_metric( //
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
     Py_buffer a_buffer, b_buffer, c_buffer;
     nk_matrix_or_vector_view_t a_parsed, b_parsed, c_parsed;
     memset(&a_buffer, 0, sizeof(Py_buffer));
@@ -378,7 +378,7 @@ static PyObject *implement_geospatial_metric( //
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
     Py_buffer a_lats_buffer, a_lons_buffer, b_lats_buffer, b_lons_buffer, out_buffer;
     nk_matrix_or_vector_view_t a_lats_parsed, a_lons_parsed, b_lats_parsed, b_lons_parsed, out_parsed;
     memset(&a_lats_buffer, 0, sizeof(Py_buffer));
@@ -510,7 +510,7 @@ static PyObject *implement_sparse_metric( //
         return NULL;
     }
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
     Py_ssize_t const kwnames_count = kwnames ? PyTuple_Size(kwnames) : 0;
     for (Py_ssize_t i = 0; i < kwnames_count; ++i)
         if (!parse_dispatch_keyword(PyTuple_GET_ITEM(kwnames, i), args[nargs + i], &capabilities, &stream)) return NULL;
@@ -598,7 +598,7 @@ static int metric_to_batch_kinds( //
 
 /** Pairwise loop fallback: one pair at a time through a scalar metric kernel, until one fails. */
 static nk_status_t cdist_pairwise_loop(                            //
-    nk_metric_dense_punned_t metric, void *stream,                 //
+    nk_metric_dense_punned_t metric, nk_stream_t stream,           //
     char const *a_start, nk_size_t a_count, nk_size_t a_stride,    //
     char const *b_start, nk_size_t b_count, nk_size_t b_stride,    //
     nk_size_t dimensions,                                          //
@@ -625,8 +625,8 @@ static nk_status_t cdist_pairwise_loop(                            //
 /** Batch symmetric path: compute C = A × Aᵀ via a SIMD-optimized symmetric kernel. */
 static nk_status_t cdist_batch_symmetric(                            //
     nk_kernel_kind_t symmetric_kind, nk_dtype_t dtype,               //
-    nk_capability_t capabilities, void *stream,                      //
-    char const *vectors, nk_size_t vectors_count, nk_size_t depth,   //
+    nk_capability_t capabilities, nk_stream_t stream,                //
+    char const *vectors, nk_size_t vector_count, nk_size_t depth,    //
     nk_size_t vectors_stride, char *result, nk_size_t result_stride, //
     nk_size_t threads) {
     nk_dots_symmetric_punned_t kernel = NULL;
@@ -636,13 +636,13 @@ static nk_status_t cdist_batch_symmetric(                            //
 
     nk_dots_symmetric_task_t const task = {.kernel = kernel,
                                            .vectors = vectors,
-                                           .vectors_count = vectors_count,
+                                           .vector_count = vector_count,
                                            .depth = depth,
                                            .vectors_stride = vectors_stride,
                                            .result = result,
                                            .result_stride = result_stride,
-                                           .row_start = 0,
-                                           .row_count = vectors_count,
+                                           .rows_begin = 0,
+                                           .rows_end = vector_count,
                                            .stream = stream};
     return nk_parallel_dots_symmetric(&task, threads);
 }
@@ -650,7 +650,7 @@ static nk_status_t cdist_batch_symmetric(                            //
 /** Batch packed path: pack B, then compute C = A × Bᵀ via a SIMD-optimized kernel. */
 static nk_status_t cdist_batch_packed(                                     //
     nk_kernel_kind_t packed_kind, nk_dtype_t dtype,                        //
-    nk_capability_t capabilities, void *stream,                            //
+    nk_capability_t capabilities, nk_stream_t stream,                      //
     char const *a, nk_size_t rows, nk_size_t a_stride,                     //
     char const *b, nk_size_t columns, nk_size_t b_stride, nk_size_t depth, //
     char *c, nk_size_t c_stride, nk_size_t threads) {
@@ -699,7 +699,7 @@ static PyObject *implement_cdist(                        //
     PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, //
     nk_kernel_kind_t metric_kind,                        //
     nk_dtype_t dtype, nk_dtype_t out_dtype,              //
-    nk_capability_t capabilities, void *stream,          //
+    nk_capability_t capabilities, nk_stream_t stream,    //
     nk_size_t threads) {
 
     PyObject *return_obj = NULL;
@@ -941,7 +941,7 @@ PyObject *api_cdist( //
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k, out_dtype = nk_dtype_unknown_k;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     /** Same default as in SciPy:
      *  https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.cdist.html */
@@ -1357,7 +1357,7 @@ PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs
         return NULL;
     }
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
     Py_ssize_t const kwnames_count = kwnames ? PyTuple_Size(kwnames) : 0;
     for (Py_ssize_t i = 0; i < kwnames_count; ++i)
         if (!parse_dispatch_keyword(PyTuple_GET_ITEM(kwnames, i), args[nargs + i], &capabilities, &stream)) return NULL;

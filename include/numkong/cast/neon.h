@@ -1383,7 +1383,7 @@ NUMKONG_API void nk_f32_to_f16_neon(nk_f32_t const *src, nk_f16_t *dest) {
 }
 
 NUMKONG_API nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                     nk_size_t count, void *stream) {
+                                     nk_size_t count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(from_dtype);
     nk_block_scaled_format_t to_format = nk_block_scaled_format_of_dtype(to_dtype);

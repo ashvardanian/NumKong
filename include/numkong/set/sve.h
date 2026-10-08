@@ -53,7 +53,7 @@ extern "C" {
 #pragma region Binary Sets
 
 NUMKONG_API nk_status_t nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     nk_size_t const words_per_register = svcntb();
@@ -81,7 +81,7 @@ NUMKONG_API nk_status_t nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
     nk_size_t const words_per_register = svcntb();
@@ -119,7 +119,7 @@ NUMKONG_API nk_status_t nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b
 #pragma region Integer Sets
 
 NUMKONG_API nk_status_t nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const words_per_register = svcntw();
     nk_size_t i = 0;
@@ -137,7 +137,7 @@ NUMKONG_API nk_status_t nk_jaccard_u32_sve(nk_u32_t const *a, nk_u32_t const *b,
 }
 
 NUMKONG_API nk_status_t nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const bytes_per_register = svcntb();
     nk_size_t i = 0;
@@ -155,7 +155,7 @@ NUMKONG_API nk_status_t nk_hamming_u8_sve(nk_u8_t const *a, nk_u8_t const *b, nk
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const halfwords_per_register = svcnth();
     nk_size_t i = 0;

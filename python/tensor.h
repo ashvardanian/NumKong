@@ -277,7 +277,7 @@ size_t shared_contiguous_tail_dimensions(Py_buffer const *buffers[], size_t buff
 
 /** Recursively apply a binary sum kernel to N-D tensors, stopping at the first failure. */
 nk_status_t each_sum_recursive(                                    //
-    nk_each_sum_punned_t kernel, void *stream,                     //
+    nk_each_sum_punned_t kernel, nk_stream_t stream,               //
     char const *a_data, char const *b_data, char *result_data,     //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,          //
     Py_ssize_t const *b_strides, Py_ssize_t const *result_strides, //
@@ -285,7 +285,7 @@ nk_status_t each_sum_recursive(                                    //
 
 /** Recursively apply a unary scale kernel to an N-D tensor, stopping at the first failure. */
 nk_status_t each_scale_recursive(                                    //
-    nk_each_scale_punned_t kernel, void *stream,                     //
+    nk_each_scale_punned_t kernel, nk_stream_t stream,               //
     char const *a_data, char *result_data,                           //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta, //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,            //
@@ -294,7 +294,7 @@ nk_status_t each_scale_recursive(                                    //
 
 /** Recursively apply a ternary FMA kernel to N-D tensors, stopping at the first failure. */
 nk_status_t each_fma_recursive(                                                    //
-    nk_each_fma_punned_t kernel, void *stream,                                     //
+    nk_each_fma_punned_t kernel, nk_stream_t stream,                               //
     char const *a_data, char const *b_data, char const *c_data, char *result_data, //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta,               //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,                          //
@@ -304,7 +304,7 @@ nk_status_t each_fma_recursive(                                                 
 
 /** Recursively apply a binary blend kernel to N-D tensors, stopping at the first failure. */
 nk_status_t each_blend_recursive(                                    //
-    nk_each_blend_punned_t kernel, void *stream,                     //
+    nk_each_blend_punned_t kernel, nk_stream_t stream,               //
     char const *a_data, char const *b_data, char *result_data,       //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta, //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,            //
@@ -313,7 +313,7 @@ nk_status_t each_blend_recursive(                                    //
 
 /** Recursively apply a trigonometric kernel to an N-D tensor, stopping at the first failure. */
 nk_status_t each_unary_recursive(                         //
-    nk_kernel_trig_punned_t kernel, void *stream,         //
+    nk_kernel_trig_punned_t kernel, nk_stream_t stream,   //
     char const *a_data, char *result_data,                //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides, //
     Py_ssize_t const *result_strides,                     //

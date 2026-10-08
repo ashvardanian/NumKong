@@ -40,7 +40,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // The main loop:
     nk_size_t i = 0;

@@ -40,7 +40,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_each_sum_f16_sapphire(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __mmask32 mask_m32 = 0xFFFFFFFF;
     __m512h a_f16_vec, b_f16_vec;
@@ -65,7 +65,7 @@ nk_each_sum_f16_sapphire_cycle:
 }
 
 NUMKONG_API nk_status_t nk_each_sum_e4m3_sapphire(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                  nk_e4m3_t *result, void *stream) {
+                                                  nk_e4m3_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i a_e4m3x32, b_e4m3x32;
     __m256h a_low_f16x16, a_high_f16x16, b_low_f16x16, b_high_f16x16;

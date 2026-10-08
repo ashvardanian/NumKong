@@ -91,14 +91,14 @@ nk_sqeuclidean_bf16_v128_cycle:
 
 #if NUMKONG_TARGET_V128
 NUMKONG_API nk_status_t nk_sqeuclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_v128_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t l2sq;
     nk_squared_distance_bf16_v128_(a, b, n, &l2sq);
@@ -107,7 +107,7 @@ NUMKONG_API nk_status_t nk_euclidean_bf16_v128(nk_bf16_t const *a, nk_bf16_t con
 }
 
 NUMKONG_API nk_status_t nk_angular_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     v128_t ab_f32x4 = wasm_f32x4_splat(0.0f);
     v128_t a2_f32x4 = wasm_f32x4_splat(0.0f);
@@ -222,14 +222,14 @@ nk_sqeuclidean_i8_v128_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_u8_v128_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq;
     nk_squared_distance_u8_v128_(a, b, n, &distance_sq);
@@ -238,7 +238,7 @@ NUMKONG_API nk_status_t nk_euclidean_u8_v128(nk_u8_t const *a, nk_u8_t const *b,
 }
 
 NUMKONG_API nk_status_t nk_angular_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u64_t dot_ab_total = 0, dot_aa_total = 0, dot_bb_total = 0;
     nk_size_t i = 0;
@@ -286,14 +286,14 @@ NUMKONG_API nk_status_t nk_angular_u8_v128(nk_u8_t const *a, nk_u8_t const *b, n
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_i8_v128_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq;
     nk_squared_distance_i8_v128_(a, b, n, &distance_sq);
@@ -302,7 +302,7 @@ NUMKONG_API nk_status_t nk_euclidean_i8_v128(nk_i8_t const *a, nk_i8_t const *b,
 }
 
 NUMKONG_API nk_status_t nk_angular_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_i64_t dot_ab_total = 0, dot_aa_total = 0, dot_bb_total = 0;
     nk_size_t i = 0;

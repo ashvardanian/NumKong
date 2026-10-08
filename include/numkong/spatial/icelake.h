@@ -502,14 +502,14 @@ nk_sqeuclidean_e3m2_icelake_cycle:
 
 #if NUMKONG_TARGET_ICELAKE
 NUMKONG_API nk_status_t nk_sqeuclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_i8_icelake_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t d2;
     nk_squared_distance_i8_icelake_(a, b, n, &d2);
@@ -518,7 +518,7 @@ NUMKONG_API nk_status_t nk_euclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const 
 }
 
 NUMKONG_API nk_status_t nk_angular_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     __m512i dot_product_i32x16 = _mm512_setzero_si512();
@@ -588,14 +588,14 @@ nk_angular_i8_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_u8_icelake_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t d2;
     nk_squared_distance_u8_icelake_(a, b, n, &d2);
@@ -604,7 +604,7 @@ NUMKONG_API nk_status_t nk_euclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const 
 }
 
 NUMKONG_API nk_status_t nk_angular_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     __m512i dot_product_low_i32x16 = _mm512_setzero_si512();
@@ -656,14 +656,14 @@ nk_angular_u8_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_i4_icelake_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t d2;
     nk_squared_distance_i4_icelake_(a, b, n, &d2);
@@ -672,7 +672,7 @@ NUMKONG_API nk_status_t nk_euclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t co
 }
 
 NUMKONG_API nk_status_t nk_angular_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     nk_size_t n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
@@ -782,14 +782,14 @@ nk_angular_i4_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_u4_icelake_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t d2;
     nk_squared_distance_u4_icelake_(a, b, n, &d2);
@@ -798,7 +798,7 @@ NUMKONG_API nk_status_t nk_euclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t co
 }
 
 NUMKONG_API nk_status_t nk_angular_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     nk_size_t n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
@@ -870,14 +870,14 @@ nk_angular_u4_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e4m3_icelake_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e4m3_icelake_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -885,7 +885,7 @@ NUMKONG_API nk_status_t nk_euclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // E4M3 angular distance via octave VNNI.
 
@@ -1022,14 +1022,14 @@ nk_angular_e4m3_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e2m3_icelake_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e2m3_icelake_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -1037,7 +1037,7 @@ NUMKONG_API nk_status_t nk_euclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // E2M3 angular distance via VPDPBUSD integer MAC.
     __m512i const lut_magnitude_u8x64 = _mm512_set_epi8(120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36,
@@ -1088,14 +1088,14 @@ nk_angular_e2m3_icelake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e3m2_icelake_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e3m2_icelake_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -1103,7 +1103,7 @@ NUMKONG_API nk_status_t nk_euclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // E3M2 angular distance via VPMADDWD integer MAC.
     __m512i const lut_magnitude_i16x32 = _mm512_set_epi16(                       //

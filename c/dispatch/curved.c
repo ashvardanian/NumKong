@@ -32,7 +32,7 @@ static nk_capability_kernels_t const *nk_bilinear_f64_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                             nk_f64_t *result, nk_capability_t capabilities, void *stream) {
+                                             nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(capabilities,
                                                                                         nk_bilinear_f64_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;
@@ -71,7 +71,7 @@ static nk_capability_kernels_t const *nk_bilinear_f32_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                             nk_f64_t *result, nk_capability_t capabilities, void *stream) {
+                                             nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(capabilities,
                                                                                         nk_bilinear_f32_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;
@@ -103,7 +103,7 @@ static nk_capability_kernels_t const *nk_bilinear_f16_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                             nk_f32_t *result, nk_capability_t capabilities, void *stream) {
+                                             nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(capabilities,
                                                                                         nk_bilinear_f16_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;
@@ -138,7 +138,7 @@ static nk_capability_kernels_t const *nk_bilinear_bf16_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_bilinear_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                              nk_f32_t *result, nk_capability_t capabilities, void *stream) {
+                                              nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(
         capabilities, nk_bilinear_bf16_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;
@@ -170,7 +170,7 @@ static nk_capability_kernels_t const *nk_mahalanobis_f64_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                nk_f64_t *result, nk_capability_t capabilities, void *stream) {
+                                                nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(
         capabilities, nk_mahalanobis_f64_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;
@@ -209,7 +209,7 @@ static nk_capability_kernels_t const *nk_mahalanobis_f32_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                nk_f64_t *result, nk_capability_t capabilities, void *stream) {
+                                                nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(
         capabilities, nk_mahalanobis_f32_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;
@@ -241,7 +241,7 @@ static nk_capability_kernels_t const *nk_mahalanobis_f16_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                nk_f32_t *result, nk_capability_t capabilities, void *stream) {
+                                                nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(
         capabilities, nk_mahalanobis_f16_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;
@@ -277,7 +277,7 @@ static nk_capability_kernels_t const *nk_mahalanobis_bf16_capabilities(void) {
 
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
                                                  nk_size_t n, nk_f32_t *result, nk_capability_t capabilities,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(
         capabilities, nk_mahalanobis_bf16_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;
@@ -304,7 +304,7 @@ static nk_capability_kernels_t const *nk_bilinear_f64c_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f64c_best(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                              nk_f64c_t *result, nk_capability_t capabilities, void *stream) {
+                                              nk_f64c_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(
         capabilities, nk_bilinear_f64c_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;
@@ -336,7 +336,7 @@ static nk_capability_kernels_t const *nk_bilinear_f32c_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f32c_best(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                              nk_f64c_t *result, nk_capability_t capabilities, void *stream) {
+                                              nk_f64c_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(
         capabilities, nk_bilinear_f32c_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;
@@ -360,7 +360,7 @@ static nk_capability_kernels_t const *nk_bilinear_f16c_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f16c_best(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
-                                              nk_f32c_t *result, nk_capability_t capabilities, void *stream) {
+                                              nk_f32c_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(
         capabilities, nk_bilinear_f16c_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;
@@ -388,7 +388,7 @@ static nk_capability_kernels_t const *nk_bilinear_bf16c_capabilities(void) {
 
 NUMKONG_API nk_status_t nk_bilinear_bf16c_best(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
                                                nk_size_t n, nk_f32c_t *result, nk_capability_t capabilities,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_metric_curved_punned_t const kernel = (nk_metric_curved_punned_t)nk_kernel_pick_(
         capabilities, nk_bilinear_bf16c_capabilities());
     return kernel ? kernel(a, b, c, n, result, stream) : nk_missing_kernel_k;

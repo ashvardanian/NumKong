@@ -11,7 +11,7 @@
 
 namespace ashvardanian::numkong::bench {
 
-using cast_kernel_t = nk_status_t (*)(void const *, nk_dtype_t, void *, nk_dtype_t, nk_size_t, void *);
+using cast_kernel_t = nk_status_t (*)(void const *, nk_dtype_t, void *, nk_dtype_t, nk_size_t, nk_stream_t);
 
 /**
  *  @brief Measures the performance of type casting operations.

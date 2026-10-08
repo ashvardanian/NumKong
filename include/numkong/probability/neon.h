@@ -57,7 +57,7 @@ NUMKONG_INLINE float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {
 #if NUMKONG_TARGET_NEON
 
 NUMKONG_API nk_status_t nk_kld_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                        void *stream) {
+                                        nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
@@ -94,7 +94,7 @@ nk_kld_f32_neon_cycle:
 }
 
 NUMKONG_API nk_status_t nk_jsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                        void *stream) {
+                                        nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     float32x4_t epsilon_f32x4 = vdupq_n_f32(epsilon);
@@ -136,7 +136,7 @@ nk_jsd_f32_neon_cycle:
 }
 
 NUMKONG_API nk_status_t nk_kld_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                        void *stream) {
+                                        nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
@@ -183,7 +183,7 @@ nk_kld_f16_neon_cycle:
 }
 
 NUMKONG_API nk_status_t nk_jsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                        void *stream) {
+                                        nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;

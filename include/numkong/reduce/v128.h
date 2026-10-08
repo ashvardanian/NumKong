@@ -535,7 +535,7 @@ NUMKONG_INLINE nk_u8_t nk_comparable_to_fp6_v128_(nk_u8_t comparable) {
 #if NUMKONG_TARGET_V128
 NUMKONG_API nk_status_t nk_reduce_moments_f64_v128(          //
     nk_f64_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_f64_t *sum, nk_f64_t *sumsq, void *stream) {
+    nk_f64_t *sum, nk_f64_t *sumsq, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_f64_v128_recursive_(data, count, stride, sum, sumsq);
     return nk_success_k;
@@ -543,7 +543,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_f64_v128(          //
 
 NUMKONG_API nk_status_t nk_reduce_moments_bf16_v128(          //
     nk_bf16_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum, nk_f32_t *sumsq, void *stream) {
+    nk_f32_t *sum, nk_f32_t *sumsq, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_bf16_v128_recursive_(data, count, stride, sum, sumsq);
     return nk_success_k;
@@ -551,7 +551,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_bf16_v128(          //
 
 NUMKONG_API nk_status_t nk_reduce_moments_i8_v128(          //
     nk_i8_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_i64_t *sum, nk_u64_t *sumsq, void *stream) {
+    nk_i64_t *sum, nk_u64_t *sumsq, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_i8_v128_recursive_(data, count, stride, sum, sumsq);
     return nk_success_k;
@@ -559,7 +559,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_i8_v128(          //
 
 NUMKONG_API nk_status_t nk_reduce_moments_u8_v128(          //
     nk_u8_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum, nk_u64_t *sumsq, void *stream) {
+    nk_u64_t *sum, nk_u64_t *sumsq, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_u8_v128_recursive_(data, count, stride, sum, sumsq);
     return nk_success_k;
@@ -567,7 +567,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_u8_v128(          //
 
 NUMKONG_API nk_status_t nk_reduce_moments_i16_v128(          //
     nk_i16_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_i64_t *sum, nk_u64_t *sumsq, void *stream) {
+    nk_i64_t *sum, nk_u64_t *sumsq, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_i16_v128_recursive_(data, count, stride, sum, sumsq);
     return nk_success_k;
@@ -575,7 +575,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_i16_v128(          //
 
 NUMKONG_API nk_status_t nk_reduce_moments_u16_v128(          //
     nk_u16_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum, nk_u64_t *sumsq, void *stream) {
+    nk_u64_t *sum, nk_u64_t *sumsq, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_u16_v128_recursive_(data, count, stride, sum, sumsq);
     return nk_success_k;
@@ -583,7 +583,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_u16_v128(          //
 
 NUMKONG_API nk_status_t nk_reduce_moments_i32_v128(          //
     nk_i32_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_i64_t *sum, nk_u64_t *sumsq, void *stream) {
+    nk_i64_t *sum, nk_u64_t *sumsq, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t stride_elements = stride / sizeof(nk_i32_t);
     int aligned = (stride % sizeof(nk_i32_t) == 0);
@@ -596,7 +596,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_i32_v128(          //
 
 NUMKONG_API nk_status_t nk_reduce_moments_u32_v128(          //
     nk_u32_t const *data, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum, nk_u64_t *sumsq, void *stream) {
+    nk_u64_t *sum, nk_u64_t *sumsq, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_u32_v128_recursive_(data, count, stride, sum, sumsq);
     return nk_success_k;

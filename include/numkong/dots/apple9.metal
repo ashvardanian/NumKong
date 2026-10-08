@@ -44,7 +44,7 @@ void nk_cross_tile_apple9_(device uchar const *a, device uchar const *b, device 
     constexpr uint chunk_dimensions = 16 / sizeof(typename dtype_::raw_t) * dtype_::dimensions_per_value;
     constexpr uint chunks_per_line = step / chunk_dimensions;
     constexpr uint chunks_per_thread = 2 * side * chunks_per_line / nk_cross_threads_apple9_k;
-    uint const first_row = arguments.row_start + group.y * side, first_column = group.x * side;
+    uint const first_row = arguments.rows_begin + group.y * side, first_column = group.x * side;
     if (arguments.upper_triangle && first_column + side <= first_row) return; // below the diagonal, group-uniform
 
     device uint4 const *lines[chunks_per_thread];
@@ -57,7 +57,7 @@ void nk_cross_tile_apple9_(device uchar const *a, device uchar const *b, device 
         line_dimensions[index] = chunk_index % chunks_per_line * chunk_dimensions;
         stage_lines[index] = &stage[operand][line][line_dimensions[index]];
         device uchar const *start = operand ? b + column * arguments.b_stride : a + row * arguments.a_stride;
-        bool const present = operand ? column < arguments.column_count : row < arguments.row_end;
+        bool const present = operand ? column < arguments.column_count : row < arguments.rows_end;
         lines[index] = present ? (device uint4 const *)start : nullptr;
     }
 
@@ -109,7 +109,7 @@ void nk_cross_tile_apple9_(device uchar const *a, device uchar const *b, device 
             for (uint cell = lane; cell < 64; cell += 32) {
                 uint const row = first_row + quadrant_row + 8 * row_step + cell / 8;
                 uint const column = first_column + quadrant_column + 8 * column_step + cell % 8;
-                if (row >= arguments.row_end || column >= arguments.column_count) continue;
+                if (row >= arguments.rows_end || column >= arguments.column_count) continue;
                 if (arguments.upper_triangle && column < row) continue;
                 float value = spill[cell / 8][cell % 8];
                 if (metric_ != nk_cross_dot_metal_k)
@@ -215,7 +215,7 @@ void nk_cross_scaled_tile_apple9_(device uchar const *a, device uchar const *b, 
                                   threadgroup float (*spills)[8][8],
                                   threadgroup float const (*norms)[nk_cross_scaled_tile_apple9_k]) {
     constexpr uint side = nk_cross_scaled_tile_apple9_k, pitch = block_size_ + 8;
-    uint const first_row = arguments.row_start + group.y * side, first_column = group.x * side;
+    uint const first_row = arguments.rows_begin + group.y * side, first_column = group.x * side;
     if (arguments.upper_triangle && first_column + side <= first_row) return;
     uint const quadrant_row = simdgroup / 2 * 16, quadrant_column = simdgroup % 2 * 16;
     nk_cross_scaled_sum_metal_t sums[2][2][2] = {};
@@ -225,7 +225,7 @@ void nk_cross_scaled_tile_apple9_(device uchar const *a, device uchar const *b, 
             uint const line = cell / block_size_, offset = cell % block_size_;
             uint const row = first_row + line, column = first_column + line;
             uint const dimension = block * block_size_ + offset;
-            stage[0][line][offset] = row < arguments.row_end
+            stage[0][line][offset] = row < arguments.rows_end
                                          ? half(dtype_::load(a + row * arguments.a_stride, dimension))
                                          : half(0);
             stage[1][line][offset] = column < arguments.column_count
@@ -259,7 +259,7 @@ void nk_cross_scaled_tile_apple9_(device uchar const *a, device uchar const *b, 
                 uint const cell = lane + part * 32;
                 uint const row = first_row + quadrant_row + 8 * row_step + cell / 8;
                 uint const column = first_column + quadrant_column + 8 * column_step + cell % 8;
-                if (row >= arguments.row_end || column >= arguments.column_count) continue;
+                if (row >= arguments.rows_end || column >= arguments.column_count) continue;
                 nk_cross_scaled_block_add_metal_<scale_>(sums[row_step][column_step][part], spill[cell / 8][cell % 8],
                                                          a_scales[row * arguments.a_scales_stride + block],
                                                          b_scales[column * arguments.b_scales_stride + block]);
@@ -274,7 +274,7 @@ void nk_cross_scaled_tile_apple9_(device uchar const *a, device uchar const *b, 
         uint const cell = lane + part * 32;
         uint const row = first_row + quadrant_row + 8 * row_step + cell / 8;
         uint const column = first_column + quadrant_column + 8 * column_step + cell % 8;
-        if (row >= arguments.row_end || column >= arguments.column_count || (arguments.upper_triangle && column < row))
+        if (row >= arguments.rows_end || column >= arguments.column_count || (arguments.upper_triangle && column < row))
             continue;
         float value = nk_cross_scaled_dot_metal_(sums[row_step][column_step][part], tensor_product);
         if (metric_ != nk_cross_dot_metal_k) {

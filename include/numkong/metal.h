@@ -168,7 +168,7 @@ NUMKONG_API nk_metal_context_t *nk_metal_contexts_(os_unfair_lock_t *contexts_lo
 
 /** The context of the device @p stream belongs to, of the system default device for a null one, or
  *  null without a GPU or past the 8 devices it keeps. */
-NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(void *stream);
+NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(nk_stream_t stream);
 
 /** @p items with room for one past @p count of @p size bytes each, grown twofold from 16, or null
  *  leaving @p items as they were. */
@@ -190,7 +190,7 @@ NUMKONG_INLINE nk_metal_pending_t *nk_metal_pending_(nk_metal_context_t *context
 }
 
 /** Opens @p call on @p stream: its device's context and the queue it names. */
-NUMKONG_INLINE nk_status_t nk_metal_enter_(void *stream, nk_metal_call_t *call) {
+NUMKONG_INLINE nk_status_t nk_metal_enter_(nk_stream_t stream, nk_metal_call_t *call) {
     call->queue = NULL, call->commands = NULL, call->encoder = NULL;
     call->context = nk_metal_context_(stream);
     if (!call->context) return nk_missing_gpu_k;
@@ -355,7 +355,7 @@ NUMKONG_INLINE nk_status_t nk_metal_dispatch_(nk_metal_call_t *call, nk_metal_si
     return nk_metal_abort_(call, commands ? nk_success_k : nk_bad_alloc_k);
 }
 
-NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(void *stream) {
+NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(nk_stream_t stream) {
     os_unfair_lock_t contexts_lock;
     nk_metal_context_t *const contexts = nk_metal_contexts_(&contexts_lock);
     void *const device = stream ? nk_metal_get_(stream, "device") : nk_metal_default_device_();
@@ -378,7 +378,7 @@ NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(void *stream) {
     return context;
 }
 
-NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_metal_(nk_size_t bytes, void **pointer, void *stream) {
+NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_metal_(nk_size_t bytes, void **pointer, nk_stream_t stream) {
     *pointer = NULL;
     if (!bytes) return nk_success_k;
     nk_metal_context_t *const context = nk_metal_context_(stream);
@@ -408,7 +408,7 @@ NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_metal_(nk_size_t bytes, vo
     return nk_success_k;
 }
 
-NUMKONG_INLINE nk_status_t nk_memory_free_unified_metal_(void *pointer, nk_size_t bytes, void *stream) {
+NUMKONG_INLINE nk_status_t nk_memory_free_unified_metal_(void *pointer, nk_size_t bytes, nk_stream_t stream) {
     nk_unused_(bytes);
     if (!pointer) return nk_success_k;
     nk_metal_context_t *const context = nk_metal_context_(stream);
@@ -428,14 +428,14 @@ NUMKONG_INLINE nk_status_t nk_memory_free_unified_metal_(void *pointer, nk_size_
     return status;
 }
 
-NUMKONG_INLINE void *nk_allocate_unified_metal_(nk_size_t bytes, void *handle, void *stream) {
+NUMKONG_INLINE void *nk_allocate_unified_metal_(nk_size_t bytes, void *handle, nk_stream_t stream) {
     nk_unused_(handle);
     void *pointer = NUMKONG_NULL;
     nk_unused_(nk_memory_allocate_unified_metal_(bytes, &pointer, stream));
     return pointer;
 }
 
-NUMKONG_INLINE void nk_free_unified_metal_(void *pointer, nk_size_t bytes, void *handle, void *stream) {
+NUMKONG_INLINE void nk_free_unified_metal_(void *pointer, nk_size_t bytes, void *handle, nk_stream_t stream) {
     nk_unused_(handle);
     nk_unused_(nk_memory_free_unified_metal_(pointer, bytes, stream));
 }
@@ -447,7 +447,7 @@ NUMKONG_INLINE nk_status_t nk_allocator_init_unified_metal_(nk_allocator_t *allo
     return nk_success_k;
 }
 
-NUMKONG_INLINE nk_status_t nk_stream_synchronize_metal_(void *stream) {
+NUMKONG_INLINE nk_status_t nk_stream_synchronize_metal_(nk_stream_t stream) {
     nk_metal_context_t *const context = nk_metal_context_(stream);
     if (!context) return nk_missing_gpu_k;
     void *const queue = stream ? stream : context->queue;
@@ -500,11 +500,11 @@ NUMKONG_INLINE nk_status_t nk_stream_synchronize_metal_(void *stream) {
 }
 
 #if NUMKONG_HEADER_ONLY
-NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void **pointer, void *stream) {
+NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void **pointer, nk_stream_t stream) {
     return nk_memory_allocate_unified_metal_(bytes, pointer, stream);
 }
 
-NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t bytes, void *stream) {
+NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t bytes, nk_stream_t stream) {
     return nk_memory_free_unified_metal_(pointer, bytes, stream);
 }
 
@@ -512,7 +512,7 @@ NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocato
     return nk_allocator_init_unified_metal_(allocator);
 }
 
-NUMKONG_API nk_status_t nk_stream_synchronize_metal(void *stream) { return nk_stream_synchronize_metal_(stream); }
+NUMKONG_API nk_status_t nk_stream_synchronize_metal(nk_stream_t stream) { return nk_stream_synchronize_metal_(stream); }
 #endif // NUMKONG_HEADER_ONLY
 
 #pragma endregion Context

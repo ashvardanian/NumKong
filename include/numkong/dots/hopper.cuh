@@ -367,7 +367,7 @@ NUMKONG_DEVICE void nk_cross_tile_hopper_(nk_cross_multiply_hopper_t multiply, n
     for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
         // The previous tile's last reads of the ring retire before this tile's prologue refills it.
         __syncthreads();
-        nk_size_t const first_row = arguments->row_start + tile / arguments->column_tiles * nk_cross_tile_ampere_k;
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_ampere_k;
         nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_ampere_k;
         if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_ampere_k <= first_row) continue;
 
@@ -422,7 +422,7 @@ NUMKONG_DEVICE void nk_cross_tile_hopper_(nk_cross_multiply_hopper_t multiply, n
         for (unsigned half = 0; half < 2; ++half) {
             unsigned const tile_row = warpgroup_row + warp * 16 + half * 8 + group;
             nk_size_t const row = first_row + tile_row;
-            if (row >= arguments->row_end) continue;
+            if (row >= arguments->rows_end) continue;
             unsigned char *output = (unsigned char *)arguments->c + row * arguments->c_stride;
             nk_fui32_t row_norm;
             row_norm.u = metric == nk_cross_metric_dot_k ? 0 : norms[tile_row].u;

@@ -61,14 +61,14 @@ nk_sqeuclidean_bf16_genoa_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_genoa_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_genoa_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -76,7 +76,7 @@ NUMKONG_API nk_status_t nk_euclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t co
 }
 
 NUMKONG_API nk_status_t nk_angular_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 dot_product_f32x16 = _mm512_setzero_ps();
     __m512 a_norm_sq_f32x16 = _mm512_setzero_ps();

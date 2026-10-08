@@ -142,7 +142,7 @@ NUMKONG_INLINE void nk_dot2_f64x2_powervsx_(nk_vf64x2_t *sum_f64x2, nk_vf64x2_t 
 #pragma region F32 and F64 Floats
 
 NUMKONG_API nk_status_t nk_dot_f32_powervsx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Upcast f32 → f64 for accumulation via vec_doublee (even lanes) and vec_doubleo (odd lanes)
     nk_vf64x2_t sum_even_f64x2 = vec_splats((nk_f64_t)0);
@@ -179,7 +179,7 @@ nk_dot_f32_powervsx_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_f64_powervsx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     nk_vf64x2_t sum_f64x2 = vec_splats((nk_f64_t)0);
@@ -222,7 +222,7 @@ nk_dot_f64_powervsx_cycle:
 #pragma region F16 and BF16 Floats
 
 NUMKONG_API nk_status_t nk_dot_bf16_powervsx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                             nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // bf16 → f32 via mergeh/mergel with zero: shift 16 bits into f32 upper half
     nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
@@ -257,7 +257,7 @@ nk_dot_bf16_powervsx_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_f16_powervsx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // f16 → f32 via vec_extract_fp32_from_shorth/shortl (Power9 XVCVHPSP)
     nk_vf32x4_t sum_f32x4 = vec_splats((nk_f32_t)0);
@@ -294,7 +294,7 @@ nk_dot_f16_powervsx_cycle:
 #pragma region I8 and U8 Integers
 
 NUMKONG_API nk_status_t nk_dot_i8_powervsx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                           nk_i32_t *result, void *stream) {
+                                           nk_i32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Algebraic transform for i8 × i8 using VMSUMMBM (i8 × u8 → i32):
     //     b' = b ⊕ 0x80  (reinterpret signed as unsigned)
@@ -341,7 +341,7 @@ nk_dot_i8_powervsx_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_u8_powervsx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                           nk_u32_t *result, void *stream) {
+                                           nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // vec_msum: multiply u8 × u8 pairs and accumulate 16 products → 4 u32 lanes per call
     nk_vu32x4_t accumulator_u32x4 = vec_splats((nk_u32_t)0);
@@ -373,7 +373,7 @@ nk_dot_u8_powervsx_cycle:
 #pragma region Binary
 
 NUMKONG_API nk_status_t nk_dot_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
     nk_vu64x2_t accumulator_u64x2 = vec_splats((nk_u64_t)0);

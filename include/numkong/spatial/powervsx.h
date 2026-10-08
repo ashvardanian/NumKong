@@ -160,14 +160,14 @@ nk_sqeuclidean_f32_powervsx_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f32_powervsx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f32_powervsx_(a, b, n, result);
     *result = vec_extract(vec_sqrt(vec_splats(*result)), 0);
@@ -175,7 +175,7 @@ NUMKONG_API nk_status_t nk_euclidean_f32_powervsx(nk_f32_t const *a, nk_f32_t co
 }
 
 NUMKONG_API nk_status_t nk_angular_f32_powervsx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Accumulate in f64 for numerical stability using vec_doublee/vec_doubleo
     nk_vf64x2_t ab_even_f64x2 = vec_splats((nk_f64_t)0);
@@ -248,14 +248,14 @@ nk_sqeuclidean_f64_powervsx_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f64_powervsx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f64_powervsx_(a, b, n, result);
     *result = vec_extract(vec_sqrt(vec_splats(*result)), 0);
@@ -263,7 +263,7 @@ NUMKONG_API nk_status_t nk_euclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t co
 }
 
 NUMKONG_API nk_status_t nk_angular_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_vf64x2_t ab_sum_f64x2 = vec_splats((nk_f64_t)0), ab_compensation_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t a2_sum_f64x2 = vec_splats((nk_f64_t)0), a2_compensation_f64x2 = vec_splats((nk_f64_t)0);
@@ -331,14 +331,14 @@ nk_sqeuclidean_bf16_powervsx_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream) {
+                                                     nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_powervsx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                   nk_f32_t *result, void *stream) {
+                                                   nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_powervsx_(a, b, n, result);
     *result = vec_extract(vec_sqrt(vec_splats(*result)), 0);
@@ -346,7 +346,7 @@ NUMKONG_API nk_status_t nk_euclidean_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t
 }
 
 NUMKONG_API nk_status_t nk_angular_bf16_powervsx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
     nk_vf32x4_t ab_f32x4 = vec_splats(0.0f);
@@ -417,14 +417,14 @@ nk_sqeuclidean_f16_powervsx_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f16_powervsx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f16_powervsx_(a, b, n, result);
     *result = vec_extract(vec_sqrt(vec_splats(*result)), 0);
@@ -432,7 +432,7 @@ NUMKONG_API nk_status_t nk_euclidean_f16_powervsx(nk_f16_t const *a, nk_f16_t co
 }
 
 NUMKONG_API nk_status_t nk_angular_f16_powervsx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // f16 → f32 via POWER9 hardware XVCVHPSP
     nk_vf32x4_t ab_f32x4 = vec_splats(0.0f);
@@ -511,14 +511,14 @@ nk_sqeuclidean_i8_powervsx_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_i8_powervsx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
     nk_squared_distance_i8_powervsx_(a, b, n, &distance_sq_u32);
@@ -527,7 +527,7 @@ NUMKONG_API nk_status_t nk_euclidean_i8_powervsx(nk_i8_t const *a, nk_i8_t const
 }
 
 NUMKONG_API nk_status_t nk_angular_i8_powervsx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Hybrid approach for 3-accumulator i8 angular distance:
     //   a · b: algebraic transform — VMSUMMBM(a, b⊕0x80) with correction −128 · Σa
@@ -612,14 +612,14 @@ nk_sqeuclidean_u8_powervsx_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_u8_powervsx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
     nk_squared_distance_u8_powervsx_(a, b, n, &distance_sq_u32);
@@ -628,7 +628,7 @@ NUMKONG_API nk_status_t nk_euclidean_u8_powervsx(nk_u8_t const *a, nk_u8_t const
 }
 
 NUMKONG_API nk_status_t nk_angular_u8_powervsx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Triple accumulator in u32 using vec_msum(u8, u8, u32) → VMSUMUBM
     nk_vu32x4_t ab_u32x4 = vec_splats((nk_u32_t)0);

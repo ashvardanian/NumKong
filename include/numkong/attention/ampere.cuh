@@ -845,7 +845,7 @@ NUMKONG_DEVICE void nk_attention_backward_keys_ampere_(nk_attention_backward_arg
     nk_size_t const gradient_floats = arguments->key_value_gradient_stride / sizeof(nk_f32_t);
 
     // Blocks take every grid-th 64-key block of the window's tasks in turn.
-    nk_size_t segment_first = arguments->task_begin / arguments->key_value_head_count, items_before = 0;
+    nk_size_t segment_first = arguments->tasks_begin / arguments->key_value_head_count, items_before = 0;
     nk_size_t task_index, block;
     for (nk_size_t item = blockIdx.x; nk_attention_backward_next_cuda_(
              arguments, 1, nk_attention_panel_k, &segment_first, &items_before, item, &task_index, &block);
@@ -971,7 +971,7 @@ NUMKONG_DEVICE void nk_attention_backward_queries_ampere_(nk_attention_backward_
     nk_attention_backward_rows_ampere_t *rows =
         (nk_attention_backward_rows_ampere_t *)(gradients_shared + nk_attention_panel_k * row_stride);
 
-    nk_size_t segment_first = arguments->task_begin / arguments->key_value_head_count, items_before = 0;
+    nk_size_t segment_first = arguments->tasks_begin / arguments->key_value_head_count, items_before = 0;
     nk_size_t task_index, chunk;
     for (nk_size_t item = blockIdx.x; nk_attention_backward_next_cuda_(
              arguments, 0, nk_attention_panel_k, &segment_first, &items_before, item, &task_index, &chunk);
@@ -1155,13 +1155,13 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_mma_ampere_(
     nk_dtype_t mma_dtype, void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp,
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale,
-    nk_size_t keys_before, nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
-    if (task_begin >= task_end || depth == 0) return nk_success_k;
+    if (tasks_begin >= tasks_end || depth == 0) return nk_success_k;
     nk_attention_arguments_t arguments = nk_attention_arguments_init_(
         queries, packed, output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
-        output_stride, scale, score_scale, output_scale, keys_before, keys_after, task_begin, task_end);
+        output_stride, scale, score_scale, output_scale, keys_before, keys_after, tasks_begin, tasks_end);
     if (depth > nk_attention_wide_depth_ampere_k)
         return nk_launch_resident_cuda_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments,
                                         stream);
@@ -1179,11 +1179,11 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_(
     void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
     nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
     nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
-    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     return nk_attention_launch_mma_ampere_(narrow_kernel, wide_kernel, fallback_kernel, dtype, dtype, queries, packed,
                                            output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
                                            query_stride, output_stride, scale, score_scale, output_scale, keys_before,
-                                           keys_after, task_begin, task_end, stream);
+                                           keys_after, tasks_begin, tasks_end, stream);
 }
 
 /** The launch for the tile on F16 MMAs, for E4M3 converted to F16 first. */
@@ -1192,11 +1192,11 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_f16_mma_(
     void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
     nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
     nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
-    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     return nk_attention_launch_mma_ampere_(narrow_kernel, wide_kernel, fallback_kernel, dtype, nk_f16_k, queries,
                                            packed, output, log_sum_exp, head_count, key_value_head_count, depth,
                                            query_offsets, query_stride, output_stride, scale, score_scale, output_scale,
-                                           keys_before, keys_after, task_begin, task_end, stream);
+                                           keys_before, keys_after, tasks_begin, tasks_end, stream);
 }
 
 /** Launches the BF16 backward kernels of Ampere and later with as many blocks as stay resident,
@@ -1204,7 +1204,7 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_f16_mma_(
  *  tensor cores or for the device's shared memory. */
 NUMKONG_INLINE nk_status_t nk_attention_backward_launch_ampere_(void const *keys_kernel, void const *queries_kernel,
                                                                 nk_attention_backward_arguments_t arguments,
-                                                                void *stream) {
+                                                                nk_stream_t stream) {
     nk_size_t const shared_bytes = nk_attention_backward_shared_ampere_(arguments.depth);
     int shared_limit = 0;
     nk_status_t const status = nk_device_attribute_cuda_(cudaDevAttrMaxSharedMemoryPerBlockOptin, &shared_limit,

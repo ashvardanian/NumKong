@@ -51,8 +51,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -75,8 +75,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -99,8 +99,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -123,8 +123,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -147,8 +147,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -171,8 +171,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -195,8 +195,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -219,8 +219,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -243,8 +243,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -267,8 +267,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -291,8 +291,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -315,8 +315,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -339,8 +339,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -365,8 +365,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -389,8 +389,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -413,8 +413,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -437,8 +437,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -461,8 +461,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -485,8 +485,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -509,8 +509,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -533,8 +533,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -557,8 +557,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -581,8 +581,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -605,8 +605,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -629,8 +629,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -653,8 +653,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -714,8 +714,8 @@ pub trait Angulars: Dots {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error>;
 }
 
@@ -770,8 +770,8 @@ pub trait Euclideans: Dots {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error>;
 }
 
@@ -810,8 +810,8 @@ impl Angulars for f32 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_f32_best(
             vectors,
@@ -820,8 +820,8 @@ impl Angulars for f32 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -864,8 +864,8 @@ impl Euclideans for f32 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_f32_best(
             vectors,
@@ -874,8 +874,8 @@ impl Euclideans for f32 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -918,8 +918,8 @@ impl Angulars for f64 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_f64_best(
             vectors,
@@ -928,8 +928,8 @@ impl Angulars for f64 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -972,8 +972,8 @@ impl Euclideans for f64 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_f64_best(
             vectors,
@@ -982,8 +982,8 @@ impl Euclideans for f64 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1026,8 +1026,8 @@ impl Angulars for f16 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_f16_best(
             vectors as *const u16,
@@ -1036,8 +1036,8 @@ impl Angulars for f16 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1080,8 +1080,8 @@ impl Euclideans for f16 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_f16_best(
             vectors as *const u16,
@@ -1090,8 +1090,8 @@ impl Euclideans for f16 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1134,8 +1134,8 @@ impl Angulars for bf16 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_bf16_best(
             vectors as *const u16,
@@ -1144,8 +1144,8 @@ impl Angulars for bf16 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1188,8 +1188,8 @@ impl Euclideans for bf16 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_bf16_best(
             vectors as *const u16,
@@ -1198,8 +1198,8 @@ impl Euclideans for bf16 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1242,8 +1242,8 @@ impl Angulars for i8 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_i8_best(
             vectors,
@@ -1252,8 +1252,8 @@ impl Angulars for i8 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1296,8 +1296,8 @@ impl Euclideans for i8 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_i8_best(
             vectors,
@@ -1306,8 +1306,8 @@ impl Euclideans for i8 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1350,8 +1350,8 @@ impl Angulars for u8 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_u8_best(
             vectors,
@@ -1360,8 +1360,8 @@ impl Angulars for u8 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1404,8 +1404,8 @@ impl Euclideans for u8 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_u8_best(
             vectors,
@@ -1414,8 +1414,8 @@ impl Euclideans for u8 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1458,8 +1458,8 @@ impl Angulars for e4m3 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_e4m3_best(
             vectors as *const u8,
@@ -1468,8 +1468,8 @@ impl Angulars for e4m3 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1512,8 +1512,8 @@ impl Euclideans for e4m3 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_e4m3_best(
             vectors as *const u8,
@@ -1522,8 +1522,8 @@ impl Euclideans for e4m3 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1566,8 +1566,8 @@ impl Angulars for e5m2 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_e5m2_best(
             vectors as *const u8,
@@ -1576,8 +1576,8 @@ impl Angulars for e5m2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1620,8 +1620,8 @@ impl Euclideans for e5m2 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_e5m2_best(
             vectors as *const u8,
@@ -1630,8 +1630,8 @@ impl Euclideans for e5m2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1674,8 +1674,8 @@ impl Angulars for e2m3 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_e2m3_best(
             vectors as *const u8,
@@ -1684,8 +1684,8 @@ impl Angulars for e2m3 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1728,8 +1728,8 @@ impl Angulars for e2m1x2 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_e2m1_best(
             vectors as *const u8,
@@ -1738,8 +1738,8 @@ impl Angulars for e2m1x2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1782,8 +1782,8 @@ impl Euclideans for e2m3 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_e2m3_best(
             vectors as *const u8,
@@ -1792,8 +1792,8 @@ impl Euclideans for e2m3 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1836,8 +1836,8 @@ impl Euclideans for e2m1x2 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_e2m1_best(
             vectors as *const u8,
@@ -1846,8 +1846,8 @@ impl Euclideans for e2m1x2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1890,8 +1890,8 @@ impl Angulars for e3m2 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_e3m2_best(
             vectors as *const u8,
@@ -1900,8 +1900,8 @@ impl Angulars for e3m2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1944,8 +1944,8 @@ impl Euclideans for e3m2 {
         stride: usize,
         result: *mut Self::SpatialResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_e3m2_best(
             vectors as *const u8,
@@ -1954,8 +1954,8 @@ impl Euclideans for e3m2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1997,8 +1997,8 @@ impl Angulars for u4x2 {
         stride: usize,
         result: *mut f32,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_u4_best(
             vectors as *const u8,
@@ -2007,8 +2007,8 @@ impl Angulars for u4x2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2048,8 +2048,8 @@ impl Euclideans for u4x2 {
         stride: usize,
         result: *mut f32,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_u4_best(
             vectors as *const u8,
@@ -2058,8 +2058,8 @@ impl Euclideans for u4x2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2099,8 +2099,8 @@ impl Angulars for i4x2 {
         stride: usize,
         result: *mut f32,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_angulars_symmetric_i4_best(
             vectors as *const u8,
@@ -2109,8 +2109,8 @@ impl Angulars for i4x2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2150,8 +2150,8 @@ impl Euclideans for i4x2 {
         stride: usize,
         result: *mut f32,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_euclideans_symmetric_i4_best(
             vectors as *const u8,
@@ -2160,8 +2160,8 @@ impl Euclideans for i4x2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2269,7 +2269,7 @@ where
                 failure.record(Err(error));
                 return;
             }
-            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
+            let (rows_begin, rows_end) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 failure.record(Scalar::angulars_symmetric(
                     vectors_ptr.as_ptr(),
@@ -2278,8 +2278,8 @@ where
                     stride,
                     result_ptr.as_ptr(),
                     result_stride,
-                    row_start,
-                    row_count,
+                    rows_begin,
+                    rows_end,
                 ));
             }
         });
@@ -2334,7 +2334,7 @@ where
                 failure.record(Err(error));
                 return;
             }
-            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
+            let (rows_begin, rows_end) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 failure.record(Scalar::euclideans_symmetric(
                     vectors_ptr.as_ptr(),
@@ -2343,8 +2343,8 @@ where
                     stride,
                     result_ptr.as_ptr(),
                     result_stride,
-                    row_start,
-                    row_count,
+                    rows_begin,
+                    rows_end,
                 ));
             }
         });

@@ -44,7 +44,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                   nk_size_t n, nk_f32_t *result, void *stream) {
+                                                   nk_size_t n, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float32x4_t outer_sum_f32x4 = vdupq_n_f32(0);
 
@@ -84,7 +84,7 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                      nk_size_t n, nk_f32_t *result, void *stream) {
+                                                      nk_size_t n, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t outer_sum = 0;
 
@@ -137,7 +137,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf1
 
 NUMKONG_API nk_status_t nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
                                                     nk_bf16c_t const *c_pairs, nk_size_t n, nk_f32c_t *result,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // ARMv8.3-A FCMLA was benchmarked for this complex multiply pattern.
     // The deinterleave+4FMA approach is 2.3x faster on Apple M4 — see `dot/neon.h` comment.

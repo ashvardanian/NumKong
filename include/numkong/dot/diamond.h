@@ -56,7 +56,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_dot_e4m3_diamond(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i a_e4m3x32, b_e4m3x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
@@ -83,7 +83,7 @@ nk_dot_e4m3_diamond_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e5m2_diamond(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i a_e5m2x32, b_e5m2x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
@@ -110,7 +110,7 @@ nk_dot_e5m2_diamond_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_f16_diamond(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                           nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512h a_f16x32, b_f16x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();

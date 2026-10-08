@@ -624,14 +624,14 @@ nk_sqeuclidean_e5m2_haswell_cycle:
 #pragma region F16 and BF16 Floats
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f16_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f16_haswell_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -639,7 +639,7 @@ NUMKONG_API nk_status_t nk_euclidean_f16_haswell(nk_f16_t const *a, nk_f16_t con
 }
 
 NUMKONG_API nk_status_t nk_angular_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 a_f32x8, b_f32x8;
     __m256 dot_product_f32x8 = _mm256_setzero_ps(), a_norm_sq_f32x8 = _mm256_setzero_ps(),
@@ -672,14 +672,14 @@ nk_angular_f16_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_haswell_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -687,7 +687,7 @@ NUMKONG_API nk_status_t nk_euclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i a_bf16_i16x16, b_bf16_i16x16;
     __m256 dot_product_f32x8 = _mm256_setzero_ps(), a_norm_sq_f32x8 = _mm256_setzero_ps(),
@@ -732,14 +732,14 @@ nk_angular_bf16_haswell_cycle:
 #pragma region I8 and U8 Integers
 
 NUMKONG_API nk_status_t nk_sqeuclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_i8_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
     nk_squared_distance_i8_haswell_(a, b, n, &distance_sq_u32);
@@ -748,7 +748,7 @@ NUMKONG_API nk_status_t nk_euclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const 
 }
 
 NUMKONG_API nk_status_t nk_angular_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     __m256i dot_product_i32x8 = _mm256_setzero_si256();
@@ -801,14 +801,14 @@ NUMKONG_API nk_status_t nk_angular_i8_haswell(nk_i8_t const *a, nk_i8_t const *b
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_u8_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
     nk_squared_distance_u8_haswell_(a, b, n, &distance_sq_u32);
@@ -817,7 +817,7 @@ NUMKONG_API nk_status_t nk_euclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const 
 }
 
 NUMKONG_API nk_status_t nk_angular_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     __m256i dot_product_low_i32x8 = _mm256_setzero_si256();
@@ -886,7 +886,7 @@ NUMKONG_API nk_status_t nk_angular_u8_haswell(nk_u8_t const *a, nk_u8_t const *b
 #pragma region F32 and F64 Floats
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Upcast to f64 for higher precision accumulation
     __m256d sum_f64x4 = _mm256_setzero_pd();
@@ -911,7 +911,7 @@ NUMKONG_API nk_status_t nk_sqeuclidean_f32_haswell(nk_f32_t const *a, nk_f32_t c
 }
 
 NUMKONG_API nk_status_t nk_euclidean_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Upcast to f64 for higher precision accumulation, use f64 sqrt before downcasting
     __m256d sum_f64x4 = _mm256_setzero_pd();
@@ -936,7 +936,7 @@ NUMKONG_API nk_status_t nk_euclidean_f32_haswell(nk_f32_t const *a, nk_f32_t con
 }
 
 NUMKONG_API nk_status_t nk_angular_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Upcast to f64 for higher precision accumulation
     __m256d dot_f64x4 = _mm256_setzero_pd();
@@ -967,14 +967,14 @@ NUMKONG_API nk_status_t nk_angular_f32_haswell(nk_f32_t const *a, nk_f32_t const
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f64_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f64_haswell_(a, b, n, result);
     *result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(*result)));
@@ -982,7 +982,7 @@ NUMKONG_API nk_status_t nk_euclidean_f64_haswell(nk_f64_t const *a, nk_f64_t con
 }
 
 NUMKONG_API nk_status_t nk_angular_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256d dot_sum_f64x4 = _mm256_setzero_pd(), dot_compensation_f64x4 = _mm256_setzero_pd();
     __m256d a_norm_sq_f64x4 = _mm256_setzero_pd(), a_compensation_f64x4 = _mm256_setzero_pd();
@@ -1020,14 +1020,14 @@ nk_angular_f64_haswell_cycle:
 #pragma region FP8 Floats
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e2m3_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e2m3_haswell_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -1035,7 +1035,7 @@ NUMKONG_API nk_status_t nk_euclidean_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 dot_product_f32x8 = _mm256_setzero_ps();
     __m256 a_norm_sq_f32x8 = _mm256_setzero_ps();
@@ -1070,14 +1070,14 @@ nk_angular_e2m3_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e3m2_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e3m2_haswell_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -1085,7 +1085,7 @@ NUMKONG_API nk_status_t nk_euclidean_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 dot_product_f32x8 = _mm256_setzero_ps();
     __m256 a_norm_sq_f32x8 = _mm256_setzero_ps();
@@ -1120,14 +1120,14 @@ nk_angular_e3m2_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e4m3_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e4m3_haswell_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -1135,7 +1135,7 @@ NUMKONG_API nk_status_t nk_euclidean_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 dot_product_f32x8 = _mm256_setzero_ps();
     __m256 a_norm_sq_f32x8 = _mm256_setzero_ps();
@@ -1176,14 +1176,14 @@ nk_angular_e4m3_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e5m2_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e5m2_haswell_(a, b, n, result);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
@@ -1191,7 +1191,7 @@ NUMKONG_API nk_status_t nk_euclidean_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 dot_product_f32x8 = _mm256_setzero_ps();
     __m256 a_norm_sq_f32x8 = _mm256_setzero_ps();

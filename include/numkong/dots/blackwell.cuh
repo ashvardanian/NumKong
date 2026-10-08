@@ -566,7 +566,7 @@ NUMKONG_DEVICE int nk_cross_tile_origin_blackwell_(nk_cross_tile_arguments_black
     nk_size_t const group_first = tile / group_tiles * arguments->group_rows, within = tile % group_tiles;
     nk_size_t const group_rows = row_tiles - group_first < arguments->group_rows ? row_tiles - group_first
                                                                                  : arguments->group_rows;
-    *first_row = shape->row_start + (group_first + within % group_rows) * schedule->tile_rows;
+    *first_row = shape->rows_begin + (group_first + within % group_rows) * schedule->tile_rows;
     *first_column = within / group_rows * schedule->tile_columns;
     return triangle != nk_cross_triangle_upper_k || *first_column + schedule->tile_columns > *first_row;
 }
@@ -667,7 +667,7 @@ NUMKONG_DEVICE void nk_cross_stage_scales_blackwell_(nk_cross_tile_arguments_t c
 #pragma unroll
         for (unsigned group = 0; group < 4; ++group) {
             nk_size_t const row = first_row + lane + 32 * group, column = first_column + lane + 32 * group;
-            a_words[group] = mask && row < shape->row_end
+            a_words[group] = mask && row < shape->rows_end
                                  ? nk_cross_scale_word_blackwell_(
                                        shape->a_scales + row * shape->a_scales_stride + offset, mask)
                                  : 0;
@@ -948,7 +948,7 @@ NUMKONG_DEVICE void nk_cross_prepare_scales_blackwell_(nk_cross_kernel_blackwell
     nk_tmem_fence_after_blackwell_();
     nk_cross_stage_scales_blackwell_(shape, first_row, first_column, slab, schedule->scale_bytes, schedule->blocks,
                                      scale_slot);
-    if (schedule->format.scale_dtype == nk_ue8m0_k && row < shape->row_end)
+    if (schedule->format.scale_dtype == nk_ue8m0_k && row < shape->rows_end)
         nk_cross_zero_unscaled_blocks_blackwell_(schedule->format, stage, tile_row,
                                                  shape->a_scales + row * shape->a_scales_stride + scales_offset,
                                                  slab_blocks);
@@ -956,7 +956,7 @@ NUMKONG_DEVICE void nk_cross_prepare_scales_blackwell_(nk_cross_kernel_blackwell
         nk_cross_zero_unscaled_blocks_blackwell_(schedule->format, stage + nk_cross_a_bytes_blackwell_k, tile_row,
                                                  shape->b_scales + column * shape->b_scales_stride + scales_offset,
                                                  slab_blocks);
-    if (squares && row < shape->row_end)
+    if (squares && row < shape->rows_end)
         nk_cross_stage_scaled_row_blackwell_(schedule->format, stage, tile_row,
                                              shape->a_scales + row * shape->a_scales_stride + scales_offset,
                                              slab_blocks, &statistics->row_real_norm);
@@ -1139,7 +1139,8 @@ NUMKONG_DEVICE void nk_cross_drain_accumulator_blackwell_(
                                           bits, warp_first_row, chunk_column);
             ++*stores;
         }
-        else if (row < shape->row_end) nk_cross_store_sums_blackwell_(kernel->triangle, shape, bits, row, chunk_column);
+        else if (row < shape->rows_end)
+            nk_cross_store_sums_blackwell_(kernel->triangle, shape, bits, row, chunk_column);
     }
 }
 
@@ -1350,7 +1351,7 @@ NUMKONG_INLINE int nk_cross_map_blackwell_(CUtensorMap *map, void const *base, n
 /** Launches as many clusters of two blocks of @p kernel as stay resident, at most @p pairs_wanted,
  *  passing the one argument struct at @p arguments by value. */
 NUMKONG_INLINE nk_status_t nk_cross_launch_pairs_blackwell_(void const *kernel, nk_size_t pairs_wanted, void *arguments,
-                                                            void *stream) {
+                                                            nk_stream_t stream) {
     int caller = 0;
     nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
     if (entered != nk_success_k) return entered;
@@ -1388,10 +1389,10 @@ static __global__ void nk_cross_empty_blackwell_kernel_(nk_cross_tile_arguments_
     nk_f32_t const a_tensor_scale = arguments.a_tensor_scale ? *arguments.a_tensor_scale : 1;
     nk_f32_t const b_tensor_scale = arguments.b_tensor_scale ? *arguments.b_tensor_scale : 1;
     nk_f32_t const value = metric == nk_cross_metric_dot_k ? 0.0f * a_tensor_scale * b_tensor_scale : 0.0f;
-    nk_size_t const outputs = (arguments.row_end - arguments.row_start) * arguments.column_count;
+    nk_size_t const outputs = (arguments.rows_end - arguments.rows_begin) * arguments.column_count;
     for (nk_size_t index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; index < outputs;
          index += gridDim.x * (nk_size_t)blockDim.x) {
-        nk_size_t const row = arguments.row_start + index / arguments.column_count;
+        nk_size_t const row = arguments.rows_begin + index / arguments.column_count;
         nk_size_t const column = index % arguments.column_count;
         if (upper && column < row) continue;
         ((nk_f32_t *)((unsigned char *)arguments.c + row * arguments.c_stride))[column] = value;
@@ -1407,11 +1408,11 @@ static __global__ void nk_cross_empty_blackwell_kernel_(nk_cross_tile_arguments_
  *  of scales do. */
 NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cross_operand_t const *a, nk_size_t a_rows,
                                                       nk_cross_operand_t const *b, void const *b_norms, void *c,
-                                                      nk_size_t result_bytes, nk_size_t row_start, nk_size_t row_end,
+                                                      nk_size_t result_bytes, nk_size_t rows_begin, nk_size_t rows_end,
                                                       nk_size_t column_count, nk_size_t depth, nk_dtype_t dtype,
                                                       nk_cross_metric_t metric, nk_size_t depth_bytes,
                                                       nk_size_t a_stride, nk_size_t b_stride, nk_size_t c_stride,
-                                                      void *stream) {
+                                                      nk_stream_t stream) {
     nk_size_t const block_size = nk_block_scaled_format_of_dtype(dtype).block_size;
     unsigned const raw_bytes = nk_cross_raw_bytes_blackwell_(dtype);
     unsigned const box_bytes = raw_bytes ? raw_bytes : nk_cross_slab_bytes_blackwell_k;
@@ -1419,15 +1420,15 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
     if ((((nk_size_t)a->elements) | a_stride | ((nk_size_t)b->elements) | b_stride) & 15 ||
         (((nk_size_t)c) | c_stride) & (result_bytes - 1))
         return nk_misaligned_k;
-    if (row_end <= row_start || column_count == 0) return nk_success_k;
+    if (rows_end <= rows_begin || column_count == 0) return nk_success_k;
     nk_cross_tile_arguments_blackwell_t arguments;
     if (depth == 0) {
         nk_cross_tile_arguments_t empty = {0};
-        empty.c = c, empty.row_start = row_start, empty.row_end = row_end, empty.column_count = column_count;
+        empty.c = c, empty.rows_begin = rows_begin, empty.rows_end = rows_end, empty.column_count = column_count;
         empty.c_stride = c_stride, empty.a_tensor_scale = a->tensor_scale, empty.b_tensor_scale = b->tensor_scale;
         int upper = b_norms == NUMKONG_NULL;
         void *empty_arguments[3] = {&empty, &metric, &upper};
-        nk_size_t const blocks = nk_size_divide_round_up_((row_end - row_start) * column_count, 256);
+        nk_size_t const blocks = nk_size_divide_round_up_((rows_end - rows_begin) * column_count, 256);
         return nk_launch_cuda_((void const *)nk_cross_empty_blackwell_kernel_, blocks < 1024 ? blocks : 1024, 256,
                                empty_arguments, 0, stream);
     }
@@ -1437,16 +1438,16 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
                                  nk_cross_columns_blackwell_k))
         return nk_device_memory_mismatch_k;
     arguments.c_mapped = !((((nk_size_t)c) | c_stride) & 15) &&
-                         nk_cross_map_blackwell_(&arguments.c_map, c, row_end, column_count * result_bytes, c_stride,
+                         nk_cross_map_blackwell_(&arguments.c_map, c, rows_end, column_count * result_bytes, c_stride,
                                                  128, 32);
     nk_cross_tile_arguments_t *const tile = &arguments.tile;
     int const paired = nk_cross_paired_blackwell_(dtype, metric);
     nk_size_t const tile_rows = nk_cross_rows_blackwell_k << paired,
                     tile_columns = nk_cross_columns_blackwell_k << paired;
     nk_size_t const column_tiles = nk_size_divide_round_up_(column_count, tile_columns);
-    nk_size_t const tiles = nk_size_divide_round_up_(row_end - row_start, tile_rows) * column_tiles;
+    nk_size_t const tiles = nk_size_divide_round_up_(rows_end - rows_begin, tile_rows) * column_tiles;
     tile->a = (unsigned char const *)a->elements, tile->b = (unsigned char const *)b->elements, tile->c = c;
-    tile->row_start = row_start, tile->row_end = row_end, tile->column_count = column_count;
+    tile->rows_begin = rows_begin, tile->rows_end = rows_end, tile->column_count = column_count;
     tile->depth = depth, tile->depth_bytes = depth_bytes, tile->a_stride = a_stride, tile->b_stride = b_stride;
     tile->c_stride = c_stride, tile->column_tiles = column_tiles, tile->tiles = tiles;
     tile->depth_slabs = nk_size_divide_round_up_(depth_bytes, box_bytes);
@@ -1477,7 +1478,7 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
 /**
  *  @brief Generates both shapes of one metric over the TMA launch: C = A × Bᵀ, or its angular or
  *      euclidean distances, over a B packed by @c nk_define_cross_pack_cuda_, and the Gram matrix
- *      C = A × Aᵀ, or its distances, over rows [row_start, row_start + row_count).
+ *      C = A × Aᵀ, or its distances, over rows [rows_begin, rows_end).
  *  @param[in] metric @c dot, @c angular or @c euclidean, naming both the entry and the epilogue.
  *  @param[in] ... The tile's own leading arguments, see @c nk_cross_tile_blackwell_.
  *  @sa nk_define_cross_packed_ and nk_define_cross_symmetric_ for the host originals.
@@ -1496,8 +1497,8 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##metric##s_packed_##input_type_name##_##isa_suffix(                                    \
         nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                          \
-        nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,            \
-        nk_size_t a_stride, nk_size_t c_stride, void *stream) {                                                        \
+        nk_##result_value_type##_t *c_matrix, nk_size_t rows, nk_size_t column_count, nk_size_t depth,                 \
+        nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {                                                  \
         nk_size_t const row_bytes = nk_cross_padded_values_simt_(depth, depth_simd_dimensions, dimensions_per_value,   \
                                                                  sizeof(nk_##packed_value_type##_t)) *                 \
                                     sizeof(nk_##packed_value_type##_t);                                                \
@@ -1508,9 +1509,9 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
         nk_cross_operand_t const b = {b_rows, scales_stride ? b_rows + column_count * row_bytes : NUMKONG_NULL,        \
                                       scales_stride, &header->tensor_scale};                                           \
         return nk_cross_launch_blackwell_(                                                                             \
-            (void const *)nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_, &a, row_count, &b,         \
+            (void const *)nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_, &a, rows, &b,              \
             b_rows + column_count * (row_bytes + scales_stride), c_matrix, sizeof(nk_##result_value_type##_t), 0,      \
-            row_count, column_count, depth, nk_##input_type_name##_k, nk_cross_metric_##metric##_k,                    \
+            rows, column_count, depth, nk_##input_type_name##_k, nk_cross_metric_##metric##_k,                         \
             depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), a_stride, row_bytes, c_stride, stream);  \
     }                                                                                                                  \
     static __global__ void __launch_bounds__(nk_cross_threads_blackwell_k, 1)                                          \
@@ -1520,15 +1521,15 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
                                  nk_cross_metric_##metric##_k, &arguments);                                            \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##metric##s_symmetric_##input_type_name##_##isa_suffix(                                 \
-        nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vectors_count, nk_size_t depth,       \
-        nk_size_t stride, nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t row_start,            \
-        nk_size_t row_count, void *stream) {                                                                           \
-        nk_size_t const row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;       \
+        nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vector_count, nk_size_t depth,        \
+        nk_size_t stride, nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t rows_begin,           \
+        nk_size_t rows_end, nk_stream_t stream) {                                                                      \
+        rows_end = nk_min_of_two(rows_end, vector_count);                                                              \
         nk_cross_operand_t const vectors = nk_cross_operand_(nk_##input_type_name##_k, vectors_operand, stride);       \
         return nk_cross_launch_blackwell_(                                                                             \
-            (void const *)nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_, &vectors,               \
-            vectors_count, &vectors, 0, result, sizeof(nk_##result_value_type##_t), row_start, row_end, vectors_count, \
-            depth, nk_##input_type_name##_k, nk_cross_metric_##metric##_k,                                             \
+            (void const *)nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_, &vectors, vector_count, \
+            &vectors, 0, result, sizeof(nk_##result_value_type##_t), rows_begin, rows_end, vector_count, depth,        \
+            nk_##input_type_name##_k, nk_cross_metric_##metric##_k,                                                    \
             depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), stride, stride, result_stride, stream);  \
     }
 

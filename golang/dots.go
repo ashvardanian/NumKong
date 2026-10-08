@@ -252,14 +252,14 @@ func DotsSymmetricF64(vectors []float64, nVectors, depth int, result []float64) 
 	dotsSymmetricF64(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func dotsSymmetricF64(vectors []float64, nVectors, depth int, result []float64, rowStart, rowCount int) {
+func dotsSymmetricF64(vectors []float64, nVectors, depth int, result []float64, rowsBegin, rowsEnd int) {
 	check(C.nk_dots_symmetric_f64_best(
 		(*C.nk_f64_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*8),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // DotsSymmetricF32 computes the dot product between every pair of nVectors float32 vectors of depth
@@ -275,14 +275,14 @@ func DotsSymmetricF32(vectors []float32, nVectors, depth int, result []float64) 
 	dotsSymmetricF32(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func dotsSymmetricF32(vectors []float32, nVectors, depth int, result []float64, rowStart, rowCount int) {
+func dotsSymmetricF32(vectors []float32, nVectors, depth int, result []float64, rowsBegin, rowsEnd int) {
 	check(C.nk_dots_symmetric_f32_best(
 		(*C.nk_f32_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // DotsSymmetricI8 computes the dot product between every pair of nVectors int8 vectors of depth
@@ -298,14 +298,14 @@ func DotsSymmetricI8(vectors []int8, nVectors, depth int, result []int32) {
 	dotsSymmetricI8(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func dotsSymmetricI8(vectors []int8, nVectors, depth int, result []int32, rowStart, rowCount int) {
+func dotsSymmetricI8(vectors []int8, nVectors, depth int, result []int32, rowsBegin, rowsEnd int) {
 	check(C.nk_dots_symmetric_i8_best(
 		(*C.nk_i8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
 		(*C.nk_i32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // DotsSymmetricU8 computes the dot product between every pair of nVectors uint8 vectors of depth
@@ -321,14 +321,14 @@ func DotsSymmetricU8(vectors []uint8, nVectors, depth int, result []uint32) {
 	dotsSymmetricU8(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func dotsSymmetricU8(vectors []uint8, nVectors, depth int, result []uint32, rowStart, rowCount int) {
+func dotsSymmetricU8(vectors []uint8, nVectors, depth int, result []uint32, rowsBegin, rowsEnd int) {
 	check(C.nk_dots_symmetric_u8_best(
 		(*C.nk_u8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
 		(*C.nk_u32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // endregion

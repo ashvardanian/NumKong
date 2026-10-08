@@ -62,14 +62,14 @@ NUMKONG_INLINE void nk_squared_distance_bf16_rvvbf16_(nk_bf16_t const *a_scalars
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                    nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                                    nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_rvvbf16_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                  nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                                  nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_rvvbf16_(a_scalars, b_scalars, count_scalars, result);
     // Handle potential negative values from floating point errors
@@ -79,7 +79,7 @@ NUMKONG_API nk_status_t nk_euclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk
 }
 
 NUMKONG_API nk_status_t nk_angular_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                                nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Per-lane accumulators — deferred horizontal reduction
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();

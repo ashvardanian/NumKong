@@ -29,7 +29,7 @@ extern "C" {
 NUMKONG_API nk_status_t nk_haversine_f64_serial(    //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_size_t n, nk_f64_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_f64_t const earth_radius = NUMKONG_EARTH_MEDIATORIAL_RADIUS;
@@ -70,7 +70,7 @@ NUMKONG_API nk_status_t nk_haversine_f64_serial(    //
 NUMKONG_API nk_status_t nk_haversine_f32_serial(    //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_size_t n, nk_f32_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_f32_t const earth_radius = (nk_f32_t)NUMKONG_EARTH_MEDIATORIAL_RADIUS;
@@ -113,7 +113,7 @@ NUMKONG_API nk_status_t nk_haversine_f32_serial(    //
 NUMKONG_API nk_status_t nk_vincenty_f64_serial(     //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_size_t n, nk_f64_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_f64_t const equatorial_radius = NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS;
@@ -215,7 +215,7 @@ NUMKONG_API nk_status_t nk_vincenty_f64_serial(     //
 NUMKONG_API nk_status_t nk_vincenty_f32_serial(     //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_size_t n, nk_f32_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_f32_t const equatorial_radius = (nk_f32_t)NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS;

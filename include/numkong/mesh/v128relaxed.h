@@ -259,7 +259,7 @@ NUMKONG_INLINE nk_f64_t nk_transformed_ssd_f32_v128relaxed_(nk_f32_t const *a, n
 
 NUMKONG_API nk_status_t nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                                 nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                                nk_f64_t *result, void *stream) {
+                                                nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
@@ -333,7 +333,7 @@ NUMKONG_API nk_status_t nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t cons
 
 NUMKONG_API nk_status_t nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
                                                 nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                                nk_f64_t *result, void *stream) {
+                                                nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
@@ -397,7 +397,7 @@ NUMKONG_API nk_status_t nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t cons
 
 NUMKONG_API nk_status_t nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
                                                   nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                  nk_f32_t *scale, nk_f64_t *result, void *stream) {
+                                                  nk_f32_t *scale, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
@@ -474,7 +474,7 @@ NUMKONG_API nk_status_t nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t co
 
 NUMKONG_API nk_status_t nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
                                                   nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
-                                                  nk_f64_t *scale, nk_f64_t *result, void *stream) {
+                                                  nk_f64_t *scale, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
@@ -658,7 +658,7 @@ NUMKONG_API nk_status_t nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t co
 
 NUMKONG_API nk_status_t nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
                                                    nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                   nk_f32_t *scale, nk_f64_t *result, void *stream) {
+                                                   nk_f32_t *scale, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
@@ -741,7 +741,7 @@ NUMKONG_API nk_status_t nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t c
 
 NUMKONG_API nk_status_t nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
                                                    nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
-                                                   nk_f64_t *scale, nk_f64_t *result, void *stream) {
+                                                   nk_f64_t *scale, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;

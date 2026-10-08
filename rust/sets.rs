@@ -50,8 +50,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut u32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -75,8 +75,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -132,8 +132,8 @@ pub trait Hammings: Dots {
         stride: usize,
         result: *mut u32,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error>;
 }
 
@@ -170,8 +170,8 @@ impl Hammings for u1x8 {
         stride: usize,
         result: *mut u32,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_hammings_symmetric_u1_best(
             vectors as *const u8,
@@ -180,8 +180,8 @@ impl Hammings for u1x8 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -243,8 +243,8 @@ pub trait Jaccards: Dots {
         stride: usize,
         result: *mut Self::JaccardResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error>;
 }
 
@@ -283,8 +283,8 @@ impl Jaccards for u1x8 {
         stride: usize,
         result: *mut Self::JaccardResult,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_jaccards_symmetric_u1_best(
             vectors as *const u8,
@@ -293,8 +293,8 @@ impl Jaccards for u1x8 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -650,7 +650,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
                 failure.record(Err(error));
                 return;
             }
-            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
+            let (rows_begin, rows_end) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 failure.record(Scalar::hammings_symmetric(
                     vectors_ptr.as_ptr(),
@@ -659,8 +659,8 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
                     stride,
                     result_ptr.as_ptr(),
                     result_stride,
-                    row_start,
-                    row_count,
+                    rows_begin,
+                    rows_end,
                 ));
             }
         });
@@ -811,7 +811,7 @@ where
                 failure.record(Err(error));
                 return;
             }
-            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
+            let (rows_begin, rows_end) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 failure.record(Scalar::jaccards_symmetric(
                     vectors_ptr.as_ptr(),
@@ -820,8 +820,8 @@ where
                     stride,
                     result_ptr.as_ptr(),
                     result_stride,
-                    row_start,
-                    row_count,
+                    rows_begin,
+                    rows_end,
                 ));
             }
         });

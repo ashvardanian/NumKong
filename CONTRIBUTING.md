@@ -515,7 +515,7 @@ To add a new operation family, for example `foo`:
 
 ## Adding a Capability to an Existing Family
 
-A capability's kernel shares its dispatch point's signature short of the mask: it returns an `nk_status_t` and takes a trailing `void *stream`, which a CPU kernel asserts is null.
+A capability's kernel shares its dispatch point's signature short of the mask: it returns an `nk_status_t` and takes a trailing `nk_stream_t stream`, which a CPU kernel asserts is null.
 Every such kernel is wired in four places beyond its capability's header:
 
 1. __Declaration__: add the `NUMKONG_API` declaration with the matching `@copydoc` under its `NUMKONG_TARGET_*` guard in the first half of `include/numkong/<family>.h`.
@@ -626,8 +626,8 @@ Each word names its group's baseline bit, like `nk_cap_cuda_k`, its functions an
 A function that touches a device is either a producer or a consumer:
 
 - A __producer__ reports a device's capabilities or opens a stream on it.
-  It starts with its group, and it is the only kind of function that takes a device's `ordinal`: `nk_cuda_count_devices(&count)`, `nk_cuda_capabilities_enabled(ordinal, &capabilities)` and `nk_cuda_stream_init(ordinal, &stream)`.
-- A __consumer__ takes the `capabilities` it picks from and a trailing `void *stream`, but never an ordinal, since the stream names its device: `nk_memory_allocate_unified_best(bytes, &pointer, capabilities, stream)`.
+  It starts with its group, and it is the only kind of function that takes a device's `ordinal`: `nk_cuda_count_devices(&count)`, `nk_cuda_capabilities_enabled(ordinal, &capabilities)` and `nk_stream_init_cuda(ordinal, &stream)`.
+- A __consumer__ takes the `capabilities` it picks from and a trailing `nk_stream_t stream`, but never an ordinal, since the stream names its device: `nk_memory_allocate_unified_best(bytes, &pointer, capabilities, stream)`.
   It ends in `best` like any dispatch point, and its twins end in their capability, like `nk_memory_allocate_unified_cuda(bytes, &pointer, stream)`.
 
 A null stream is the default stream of the default device: the calling thread's current device on CUDA and ROCm, and the system default device on Metal.
@@ -642,7 +642,7 @@ Each of these words has one meaning across the library:
 | `gpu`                                            | Adjective for every GPU group                                                    | `nk_cap_gpus_k`, `nk_missing_gpu_k`                                               |
 | `device`                                         | A processor kernels run on, which a stream belongs to                            | `nk_cuda_count_devices`, `nk_device_memory_mismatch_k`, `nk_device_current_simt_` |
 | `ordinal`                                        | A device's index within its group, as its runtime numbers it                     | Producer parameters only                                                          |
-| `stream`                                         | A `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>`, which names its device | The trailing `void *stream` of every consumer                                     |
+| `stream`                                         | A `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>`, which names its device | The trailing `nk_stream_t stream` of every consumer                                     |
 | `unified`                                        | Memory both the host and the stream's device address                             | `nk_memory_allocate_unified_best`                                                 |
 | A capability, like `hopper`, `cdna4` or `apple9` | One bit of a mask                                                                | The last token before the role suffix                                             |
 | `kernel`                                         | A GPU entry point                                                                | `_kernel_`, right after the capability                                            |

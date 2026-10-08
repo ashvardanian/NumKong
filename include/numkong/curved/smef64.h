@@ -118,7 +118,8 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_bilinear_f32_smef64_streaming_( //
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f32_smef64( //
-    nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result, void *stream) {
+    nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result,
+    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_bilinear_f32_smef64_streaming_(a, b, c, dimensions, result);
@@ -174,7 +175,8 @@ __arm_new("za") NUMKONG_OUTLINED_ nk_f64_t nk_mahalanobis_f32_smef64_streaming_(
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f32_smef64( //
-    nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result, void *stream) {
+    nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result,
+    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_f64_t quadratic = nk_mahalanobis_f32_smef64_streaming_(a, b, c, dimensions);
@@ -250,7 +252,8 @@ NUMKONG_OUTLINED_ void nk_bilinear_f64_smef64_ssve_( //
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f64_smef64( //
-    nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result, void *stream) {
+    nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result,
+    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_bilinear_f64_smef64_ssve_(a, b, c, dimensions, result);
@@ -357,7 +360,8 @@ NUMKONG_OUTLINED_ nk_f64_t nk_mahalanobis_f64_smef64_ssve_( //
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f64_smef64( //
-    nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result, void *stream) {
+    nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result,
+    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_f64_t quadratic = nk_mahalanobis_f64_smef64_ssve_(a, b, c, dimensions);
@@ -446,7 +450,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_bilinear_f32c_smef64_streaming_( //
 
 NUMKONG_API nk_status_t nk_bilinear_f32c_smef64( //
     nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_f32c_t const *c_pairs, nk_size_t dimensions,
-    nk_f64c_t *results, void *stream) {
+    nk_f64c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_bilinear_f32c_smef64_streaming_(a_pairs, b_pairs, c_pairs, dimensions, results);
@@ -518,7 +522,7 @@ NUMKONG_OUTLINED_ void nk_bilinear_f64c_smef64_ssve_( //
 
 NUMKONG_API nk_status_t nk_bilinear_f64c_smef64( //
     nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_f64c_t const *c_pairs, nk_size_t dimensions,
-    nk_f64c_t *results, void *stream) {
+    nk_f64c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_sme_start_streaming_();
     nk_bilinear_f64c_smef64_ssve_(a_pairs, b_pairs, c_pairs, dimensions, results);

@@ -61,22 +61,22 @@ NUMKONG_INLINE void nk_attention_pack_v128_(                               //
     nk_size_t key_value_head_count, nk_size_t depth,                       //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,      //
     nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride, //
-    void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, nk_capability_t capability) {
+    void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_capability_t capability) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const row_bytes = depth * element_bytes;
     nk_size_t const padded_row_bytes = depth_padded * element_bytes;
     nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 task_begin, 1, padded_row_bytes, capability);
+                                 tasks_begin, 1, padded_row_bytes, capability);
     char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
                          nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (task_begin >= total_tasks) return;
-    if (task_end > total_tasks) task_end = total_tasks;
+    if (tasks_begin >= total_tasks) return;
+    if (tasks_end > total_tasks) tasks_end = total_tasks;
 
     nk_size_t payload_segment = 0;
     nk_u64_t payload_offset = 0;
-    for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
+    for (nk_size_t task_idx = tasks_begin; task_idx < tasks_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count;
         nk_size_t const key_value_head_idx = task_idx % key_value_head_count;
         for (; payload_segment < segment_idx; payload_segment++)

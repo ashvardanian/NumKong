@@ -20,19 +20,20 @@ extern "C" NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
 extern "C" NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
     return nk_cuda_capabilities_detected_(ordinal, capabilities);
 }
-extern "C" NUMKONG_API nk_status_t nk_cuda_stream_init(nk_size_t ordinal, void **stream) {
+extern "C" NUMKONG_API nk_status_t nk_stream_init_cuda(nk_size_t ordinal, nk_stream_t *stream) {
     return nk_cuda_stream_init_(ordinal, stream);
 }
-extern "C" NUMKONG_API nk_status_t nk_cuda_stream_free(void *stream) { return nk_cuda_stream_free_(stream); }
+extern "C" NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream) { return nk_cuda_stream_free_(stream); }
 
-extern "C" NUMKONG_API nk_status_t nk_memory_allocate_unified_cuda(nk_size_t bytes, void **pointer, void *stream) {
+extern "C" NUMKONG_API nk_status_t nk_memory_allocate_unified_cuda(nk_size_t bytes, void **pointer,
+                                                                   nk_stream_t stream) {
     return nk_memory_allocate_unified_cuda_(bytes, pointer, stream);
 }
-extern "C" NUMKONG_API nk_status_t nk_memory_free_unified_cuda(void *pointer, nk_size_t bytes, void *stream) {
+extern "C" NUMKONG_API nk_status_t nk_memory_free_unified_cuda(void *pointer, nk_size_t bytes, nk_stream_t stream) {
     nk_unused_(bytes);
     return nk_memory_free_unified_cuda_(pointer, stream);
 }
-extern "C" NUMKONG_API nk_status_t nk_stream_synchronize_cuda(void *stream) {
+extern "C" NUMKONG_API nk_status_t nk_stream_synchronize_cuda(nk_stream_t stream) {
     return nk_stream_synchronize_cuda_(stream);
 }
 

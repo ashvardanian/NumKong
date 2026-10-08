@@ -443,14 +443,14 @@ NUMKONG_INLINE __m256 nk_silu_f32x8_haswell_(__m256 x_f32x8) {
 #if NUMKONG_TARGET_HASWELL
 
 NUMKONG_API nk_status_t nk_each_sum_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_add_f32_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_each_scale_f32_haswell(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                  nk_f32_t const *beta, nk_f32_t *result, void *stream) {
+                                                  nk_f32_t const *beta, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_affine_f32_haswell_(a, n, alpha, beta, result);
     return nk_success_k;
@@ -458,7 +458,7 @@ NUMKONG_API nk_status_t nk_each_scale_f32_haswell(nk_f32_t const *a, nk_size_t n
 
 NUMKONG_API nk_status_t nk_each_blend_f32_haswell(     //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result, void *stream) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
@@ -499,14 +499,14 @@ NUMKONG_API nk_status_t nk_each_blend_f32_haswell(     //
 }
 
 NUMKONG_API nk_status_t nk_each_sum_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_add_f64_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_each_scale_f64_haswell(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                  nk_f64_t const *beta, nk_f64_t *result, void *stream) {
+                                                  nk_f64_t const *beta, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_affine_f64_haswell_(a, n, alpha, beta, result);
     return nk_success_k;
@@ -514,7 +514,7 @@ NUMKONG_API nk_status_t nk_each_scale_f64_haswell(nk_f64_t const *a, nk_size_t n
 
 NUMKONG_API nk_status_t nk_each_blend_f64_haswell(     //
     nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, //
-    nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result, void *stream) {
+    nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
@@ -555,14 +555,14 @@ NUMKONG_API nk_status_t nk_each_blend_f64_haswell(     //
 }
 
 NUMKONG_API nk_status_t nk_each_sum_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_add_f16_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_each_scale_f16_haswell(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                  nk_f32_t const *beta, nk_f16_t *result, void *stream) {
+                                                  nk_f32_t const *beta, nk_f16_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_affine_f16_haswell_(a, n, alpha, beta, result);
     return nk_success_k;
@@ -570,7 +570,7 @@ NUMKONG_API nk_status_t nk_each_scale_f16_haswell(nk_f16_t const *a, nk_size_t n
 
 NUMKONG_API nk_status_t nk_each_blend_f16_haswell(     //
     nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result, void *stream) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
@@ -621,14 +621,14 @@ NUMKONG_API nk_status_t nk_each_blend_f16_haswell(     //
 }
 
 NUMKONG_API nk_status_t nk_each_sum_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_add_bf16_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_each_scale_bf16_haswell(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                   nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
+                                                   nk_f32_t const *beta, nk_bf16_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_affine_bf16_haswell_(a, n, alpha, beta, result);
     return nk_success_k;
@@ -636,7 +636,7 @@ NUMKONG_API nk_status_t nk_each_scale_bf16_haswell(nk_bf16_t const *a, nk_size_t
 
 NUMKONG_API nk_status_t nk_each_blend_bf16_haswell(      //
     nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
@@ -687,7 +687,7 @@ NUMKONG_API nk_status_t nk_each_blend_bf16_haswell(      //
 
 NUMKONG_API nk_status_t nk_each_fma_f32_haswell(             //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, //
-    nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result, void *stream) {
+    nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
@@ -713,7 +713,7 @@ NUMKONG_API nk_status_t nk_each_fma_f32_haswell(             //
 
 NUMKONG_API nk_status_t nk_each_fma_f64_haswell(             //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, //
-    nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result, void *stream) {
+    nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
@@ -739,7 +739,7 @@ NUMKONG_API nk_status_t nk_each_fma_f64_haswell(             //
 
 NUMKONG_API nk_status_t nk_each_fma_f16_haswell(             //
     nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, //
-    nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result, void *stream) {
+    nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
@@ -777,7 +777,7 @@ NUMKONG_API nk_status_t nk_each_fma_f16_haswell(             //
 
 NUMKONG_API nk_status_t nk_each_fma_bf16_haswell(               //
     nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, //
-    nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
+    nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
@@ -813,14 +813,14 @@ NUMKONG_API nk_status_t nk_each_fma_bf16_haswell(               //
 }
 
 NUMKONG_API nk_status_t nk_each_sum_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_add_i8_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_each_scale_i8_haswell(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                 nk_f32_t const *beta, nk_i8_t *result, void *stream) {
+                                                 nk_f32_t const *beta, nk_i8_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_affine_i8_haswell_(a, n, alpha, beta, result);
     return nk_success_k;
@@ -828,7 +828,7 @@ NUMKONG_API nk_status_t nk_each_scale_i8_haswell(nk_i8_t const *a, nk_size_t n, 
 
 NUMKONG_API nk_status_t nk_each_blend_i8_haswell(    //
     nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result, void *stream) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
@@ -897,14 +897,14 @@ NUMKONG_API nk_status_t nk_each_blend_i8_haswell(    //
 }
 
 NUMKONG_API nk_status_t nk_each_sum_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_add_u8_haswell_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_each_scale_u8_haswell(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                 nk_f32_t const *beta, nk_u8_t *result, void *stream) {
+                                                 nk_f32_t const *beta, nk_u8_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_affine_u8_haswell_(a, n, alpha, beta, result);
     return nk_success_k;
@@ -912,7 +912,7 @@ NUMKONG_API nk_status_t nk_each_scale_u8_haswell(nk_u8_t const *a, nk_size_t n, 
 
 NUMKONG_API nk_status_t nk_each_blend_u8_haswell(    //
     nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result, void *stream) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
@@ -981,7 +981,7 @@ NUMKONG_API nk_status_t nk_each_blend_u8_haswell(    //
 
 NUMKONG_API nk_status_t nk_each_fma_i8_haswell(                        //
     nk_i8_t const *a, nk_i8_t const *b, nk_i8_t const *c, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result, void *stream) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
@@ -1037,7 +1037,7 @@ NUMKONG_API nk_status_t nk_each_fma_i8_haswell(                        //
 
 NUMKONG_API nk_status_t nk_each_fma_u8_haswell(                        //
     nk_u8_t const *a, nk_u8_t const *b, nk_u8_t const *c, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result, void *stream) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_val = *alpha;
     nk_f32_t beta_val = *beta;
@@ -1091,7 +1091,7 @@ NUMKONG_API nk_status_t nk_each_fma_u8_haswell(                        //
 }
 
 NUMKONG_API nk_status_t nk_each_sum_i16_haswell(nk_i16_t const *a, nk_i16_t const *b, nk_size_t n, nk_i16_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // The main loop:
     nk_size_t i = 0;
@@ -1112,7 +1112,7 @@ NUMKONG_API nk_status_t nk_each_sum_i16_haswell(nk_i16_t const *a, nk_i16_t cons
 }
 
 NUMKONG_API nk_status_t nk_each_scale_i16_haswell(nk_i16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                  nk_f32_t const *beta, nk_i16_t *result, void *stream) {
+                                                  nk_f32_t const *beta, nk_i16_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_f32 = *alpha;
     nk_f32_t beta_f32 = *beta;
@@ -1147,7 +1147,7 @@ NUMKONG_API nk_status_t nk_each_scale_i16_haswell(nk_i16_t const *a, nk_size_t n
 
 NUMKONG_API nk_status_t nk_each_fma_i16_haswell(                          //
     nk_i16_t const *a, nk_i16_t const *b, nk_i16_t const *c, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_i16_t *result, void *stream) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_i16_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_f32 = *alpha;
     nk_f32_t beta_f32 = *beta;
@@ -1185,7 +1185,7 @@ NUMKONG_API nk_status_t nk_each_fma_i16_haswell(                          //
 }
 
 NUMKONG_API nk_status_t nk_each_sum_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_u16_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // The main loop:
     nk_size_t i = 0;
@@ -1206,7 +1206,7 @@ NUMKONG_API nk_status_t nk_each_sum_u16_haswell(nk_u16_t const *a, nk_u16_t cons
 }
 
 NUMKONG_API nk_status_t nk_each_scale_u16_haswell(nk_u16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                  nk_f32_t const *beta, nk_u16_t *result, void *stream) {
+                                                  nk_f32_t const *beta, nk_u16_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_f32 = *alpha;
     nk_f32_t beta_f32 = *beta;
@@ -1240,7 +1240,7 @@ NUMKONG_API nk_status_t nk_each_scale_u16_haswell(nk_u16_t const *a, nk_size_t n
 
 NUMKONG_API nk_status_t nk_each_fma_u16_haswell(                          //
     nk_u16_t const *a, nk_u16_t const *b, nk_u16_t const *c, nk_size_t n, //
-    nk_f32_t const *alpha, nk_f32_t const *beta, nk_u16_t *result, void *stream) {
+    nk_f32_t const *alpha, nk_f32_t const *beta, nk_u16_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t alpha_f32 = *alpha;
     nk_f32_t beta_f32 = *beta;
@@ -1277,7 +1277,7 @@ NUMKONG_API nk_status_t nk_each_fma_u16_haswell(                          //
 }
 
 NUMKONG_API nk_status_t nk_each_sum_i32_haswell(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n, nk_i32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // The main loop:
     nk_size_t i = 0;
@@ -1298,7 +1298,7 @@ NUMKONG_API nk_status_t nk_each_sum_i32_haswell(nk_i32_t const *a, nk_i32_t cons
 }
 
 NUMKONG_API nk_status_t nk_each_scale_i32_haswell(nk_i32_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                  nk_f64_t const *beta, nk_i32_t *result, void *stream) {
+                                                  nk_f64_t const *beta, nk_i32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
@@ -1331,7 +1331,7 @@ NUMKONG_API nk_status_t nk_each_scale_i32_haswell(nk_i32_t const *a, nk_size_t n
 
 NUMKONG_API nk_status_t nk_each_fma_i32_haswell(                          //
     nk_i32_t const *a, nk_i32_t const *b, nk_i32_t const *c, nk_size_t n, //
-    nk_f64_t const *alpha, nk_f64_t const *beta, nk_i32_t *result, void *stream) {
+    nk_f64_t const *alpha, nk_f64_t const *beta, nk_i32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
@@ -1367,7 +1367,7 @@ NUMKONG_API nk_status_t nk_each_fma_i32_haswell(                          //
 }
 
 NUMKONG_API nk_status_t nk_each_sum_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_u32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // The main loop:
     nk_size_t i = 0;
@@ -1388,7 +1388,7 @@ NUMKONG_API nk_status_t nk_each_sum_u32_haswell(nk_u32_t const *a, nk_u32_t cons
 }
 
 NUMKONG_API nk_status_t nk_each_scale_u32_haswell(nk_u32_t const *a, nk_size_t n, nk_f64_t const *alpha,
-                                                  nk_f64_t const *beta, nk_u32_t *result, void *stream) {
+                                                  nk_f64_t const *beta, nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
@@ -1420,7 +1420,7 @@ NUMKONG_API nk_status_t nk_each_scale_u32_haswell(nk_u32_t const *a, nk_size_t n
 
 NUMKONG_API nk_status_t nk_each_fma_u32_haswell(                          //
     nk_u32_t const *a, nk_u32_t const *b, nk_u32_t const *c, nk_size_t n, //
-    nk_f64_t const *alpha, nk_f64_t const *beta, nk_u32_t *result, void *stream) {
+    nk_f64_t const *alpha, nk_f64_t const *beta, nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t alpha_val = *alpha;
     nk_f64_t beta_val = *beta;
@@ -1455,7 +1455,7 @@ NUMKONG_API nk_status_t nk_each_fma_u32_haswell(                          //
 }
 
 NUMKONG_API nk_status_t nk_each_sum_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_e4m3_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -1478,7 +1478,7 @@ NUMKONG_API nk_status_t nk_each_sum_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t c
 }
 
 NUMKONG_API nk_status_t nk_each_sum_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_e5m2_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -1501,7 +1501,7 @@ NUMKONG_API nk_status_t nk_each_sum_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t c
 }
 
 NUMKONG_API nk_status_t nk_each_scale_e4m3_haswell(nk_e4m3_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                   nk_f32_t const *beta, nk_e4m3_t *result, void *stream) {
+                                                   nk_f32_t const *beta, nk_e4m3_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
@@ -1525,7 +1525,7 @@ NUMKONG_API nk_status_t nk_each_scale_e4m3_haswell(nk_e4m3_t const *a, nk_size_t
 }
 
 NUMKONG_API nk_status_t nk_each_scale_e5m2_haswell(nk_e5m2_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                                   nk_f32_t const *beta, nk_e5m2_t *result, void *stream) {
+                                                   nk_f32_t const *beta, nk_e5m2_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
@@ -1550,7 +1550,7 @@ NUMKONG_API nk_status_t nk_each_scale_e5m2_haswell(nk_e5m2_t const *a, nk_size_t
 
 NUMKONG_API nk_status_t nk_each_blend_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
                                                    nk_f32_t const *alpha, nk_f32_t const *beta, nk_e4m3_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
@@ -1577,7 +1577,7 @@ NUMKONG_API nk_status_t nk_each_blend_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t
 
 NUMKONG_API nk_status_t nk_each_blend_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
                                                    nk_f32_t const *alpha, nk_f32_t const *beta, nk_e5m2_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
@@ -1604,7 +1604,7 @@ NUMKONG_API nk_status_t nk_each_blend_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t
 
 NUMKONG_API nk_status_t nk_each_fma_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_e4m3_t const *c,
                                                  nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                                                 nk_e4m3_t *result, void *stream) {
+                                                 nk_e4m3_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
@@ -1638,7 +1638,7 @@ NUMKONG_API nk_status_t nk_each_fma_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t c
 
 NUMKONG_API nk_status_t nk_each_fma_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_e5m2_t const *c,
                                                  nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                                                 nk_e5m2_t *result, void *stream) {
+                                                 nk_e5m2_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 alpha_f32x8 = _mm256_set1_ps(*alpha);
     __m256 beta_f32x8 = _mm256_set1_ps(*beta);
@@ -1671,7 +1671,7 @@ NUMKONG_API nk_status_t nk_each_fma_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t c
 }
 
 NUMKONG_API nk_status_t nk_each_scale_f32c_haswell(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
-                                                   nk_f32c_t const *beta, nk_f32c_t *result, void *stream) {
+                                                   nk_f32c_t const *beta, nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
     nk_f32_t *result_f32 = (nk_f32_t *)result;
@@ -1697,7 +1697,7 @@ NUMKONG_API nk_status_t nk_each_scale_f32c_haswell(nk_f32c_t const *a, nk_size_t
 }
 
 NUMKONG_API nk_status_t nk_each_scale_f64c_haswell(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
-                                                   nk_f64c_t const *beta, nk_f64c_t *result, void *stream) {
+                                                   nk_f64c_t const *beta, nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
     nk_f64_t *result_f64 = (nk_f64_t *)result;
@@ -1723,7 +1723,7 @@ NUMKONG_API nk_status_t nk_each_scale_f64c_haswell(nk_f64c_t const *a, nk_size_t
 
 NUMKONG_API nk_status_t nk_each_blend_f32c_haswell(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
                                                    nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
     nk_f32_t const *b_f32 = (nk_f32_t const *)b;
@@ -1759,7 +1759,7 @@ NUMKONG_API nk_status_t nk_each_blend_f32c_haswell(nk_f32c_t const *a, nk_f32c_t
 
 NUMKONG_API nk_status_t nk_each_blend_f64c_haswell(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
                                                    nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
     nk_f64_t const *b_f64 = (nk_f64_t const *)b;
@@ -1795,7 +1795,7 @@ NUMKONG_API nk_status_t nk_each_blend_f64c_haswell(nk_f64c_t const *a, nk_f64c_t
 
 NUMKONG_API nk_status_t nk_each_fma_f32c_haswell(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
                                                  nk_size_t n, nk_f32c_t const *alpha, nk_f32c_t const *beta,
-                                                 nk_f32c_t *result, void *stream) {
+                                                 nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t const *a_f32 = (nk_f32_t const *)a;
     nk_f32_t const *b_f32 = (nk_f32_t const *)b;
@@ -1841,7 +1841,7 @@ NUMKONG_API nk_status_t nk_each_fma_f32c_haswell(nk_f32c_t const *a, nk_f32c_t c
 
 NUMKONG_API nk_status_t nk_each_fma_f64c_haswell(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
                                                  nk_size_t n, nk_f64c_t const *alpha, nk_f64c_t const *beta,
-                                                 nk_f64c_t *result, void *stream) {
+                                                 nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t const *a_f64 = (nk_f64_t const *)a;
     nk_f64_t const *b_f64 = (nk_f64_t const *)b;
@@ -1888,7 +1888,7 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_haswell(nk_f64c_t const *a, nk_f64c_t c
 NUMKONG_API nk_status_t nk_each_swiglu_f32_haswell(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
                                                    nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
-                                                   nk_f32_t output_scale, void *stream) {
+                                                   nk_f32_t output_scale, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 gate_scale_f32x8 = _mm256_set1_ps(gate_scale);
     __m256 output_scale_f32x8 = _mm256_set1_ps(output_scale);
@@ -1917,7 +1917,7 @@ NUMKONG_API nk_status_t nk_each_swiglu_f32_haswell(nk_f32_t const *gate, nk_f32_
 NUMKONG_API nk_status_t nk_each_swiglu_bf16_haswell(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
                                                     nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
                                                     nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
-                                                    nk_f32_t output_scale, void *stream) {
+                                                    nk_f32_t output_scale, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 gate_scale_f32x8 = _mm256_set1_ps(gate_scale);
     __m256 output_scale_f32x8 = _mm256_set1_ps(output_scale);
@@ -1957,7 +1957,7 @@ NUMKONG_API nk_status_t nk_each_swiglu_bf16_haswell(nk_bf16_t const *gate, nk_bf
 NUMKONG_API nk_status_t nk_each_swiglu_e4m3_haswell(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
                                                     nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
                                                     nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
-                                                    nk_f32_t output_scale, void *stream) {
+                                                    nk_f32_t output_scale, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 gate_scale_f32x8 = _mm256_set1_ps(gate_scale);
     __m256 output_scale_f32x8 = _mm256_set1_ps(output_scale);
@@ -1997,7 +1997,7 @@ NUMKONG_API nk_status_t nk_each_swiglu_e4m3_haswell(nk_e4m3_t const *gate, nk_e4
 NUMKONG_API nk_status_t nk_each_rmsnorm_f32_haswell(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y,
                                                     nk_size_t rows, nk_size_t groups, nk_size_t columns,
                                                     nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_stride);
@@ -2025,7 +2025,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_f32_haswell(nk_f32_t const *x, nk_f32_t 
 NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_haswell(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
                                                      nk_size_t rows, nk_size_t groups, nk_size_t columns,
                                                      nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
-                                                     void *stream) {
+                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_bf16_t const *x_row = (nk_bf16_t const *)((unsigned char const *)x + r * x_stride);
@@ -2067,7 +2067,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_haswell(nk_bf16_t const *x, nk_f32_
 NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_haswell(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
                                                      nk_size_t rows, nk_size_t groups, nk_size_t columns,
                                                      nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
-                                                     void *stream) {
+                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_e4m3_t const *x_row = (nk_e4m3_t const *)((unsigned char const *)x + r * x_stride);
@@ -2102,7 +2102,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_haswell(nk_e4m3_t const *x, nk_f32_
 NUMKONG_API nk_status_t nk_each_rmscast_bf16_haswell(nk_f32_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
                                                      nk_size_t rows, nk_size_t groups, nk_size_t columns,
                                                      nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
-                                                     void *stream) {
+                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_stride);
@@ -2133,7 +2133,7 @@ NUMKONG_API nk_status_t nk_each_rmscast_bf16_haswell(nk_f32_t const *x, nk_f32_t
 NUMKONG_API nk_status_t nk_each_rmscast_e4m3_haswell(nk_f32_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
                                                      nk_size_t rows, nk_size_t groups, nk_size_t columns,
                                                      nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
-                                                     void *stream) {
+                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_stride);
@@ -2164,7 +2164,7 @@ NUMKONG_API nk_status_t nk_each_rmscast_e4m3_haswell(nk_f32_t const *x, nk_f32_t
 NUMKONG_API nk_status_t nk_each_rmscast_f32_haswell(nk_f64_t const *x, nk_f32_t const *gamma, nk_f32_t *y,
                                                     nk_size_t rows, nk_size_t groups, nk_size_t columns,
                                                     nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t r = 0; r != rows; ++r) {
         nk_f64_t const *x_row = (nk_f64_t const *)((unsigned char const *)x + r * x_stride);

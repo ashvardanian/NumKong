@@ -32,7 +32,7 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
 status_t bilinear(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d, result_type_ *r,
-                  nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+                  nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::curved_result_t>;
 
     if (capabilities) {
@@ -85,7 +85,7 @@ status_t bilinear(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
 status_t mahalanobis(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d, result_type_ *r,
-                     nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+                     nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::curved_result_t>;
 
     if (capabilities) {

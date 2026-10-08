@@ -324,7 +324,7 @@ NUMKONG_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t hub_ve
 }
 
 NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                            nk_size_t count, void *stream) {
+                                            nk_size_t count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dtype_is_block_scaled(from_dtype) || nk_dtype_is_block_scaled(to_dtype))
         return nk_cast_serial(from, from_dtype, to, to_dtype, count, stream);

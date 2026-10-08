@@ -131,8 +131,8 @@ public protocol NumKongDotsMatrixElement {
         _ depth: Int,
         _ stride: Int,
         _ resultStride: Int,
-        _ rowStart: Int,
-        _ rowCount: Int
+        _ rowsBegin: Int,
+        _ rowsEnd: Int
     ) throws
 }
 
@@ -169,8 +169,8 @@ public protocol NumKongSpatialsMatrixElement: NumKongDotsMatrixElement {
         _ depth: Int,
         _ stride: Int,
         _ resultStride: Int,
-        _ rowStart: Int,
-        _ rowCount: Int
+        _ rowsBegin: Int,
+        _ rowsEnd: Int
     ) throws
     static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<Self>,
@@ -179,8 +179,8 @@ public protocol NumKongSpatialsMatrixElement: NumKongDotsMatrixElement {
         _ depth: Int,
         _ stride: Int,
         _ resultStride: Int,
-        _ rowStart: Int,
-        _ rowCount: Int
+        _ rowsBegin: Int,
+        _ rowsEnd: Int
     ) throws
 }
 
@@ -208,8 +208,8 @@ public protocol NumKongSetsMatrixElement: NumKongDotsMatrixElement {
         _ depth: Int,
         _ stride: Int,
         _ resultStride: Int,
-        _ rowStart: Int,
-        _ rowCount: Int
+        _ rowsBegin: Int,
+        _ rowsEnd: Int
     ) throws
     static func _nk_jaccards_packed(
         _ a: UnsafePointer<Self>,
@@ -228,8 +228,8 @@ public protocol NumKongSetsMatrixElement: NumKongDotsMatrixElement {
         _ depth: Int,
         _ stride: Int,
         _ resultStride: Int,
-        _ rowStart: Int,
-        _ rowCount: Int
+        _ rowsBegin: Int,
+        _ rowsEnd: Int
     ) throws
 }
 
@@ -291,8 +291,8 @@ public func dots_packed<Element: NumKongDotsMatrixElement>(
 public func dots_symmetric<Element: NumKongDotsMatrixElement>(
     _ vectors: MatrixView<Element>,
     _ result: inout MatrixSpan<Element.DotsOutput>,
-    rowStart: Int = 0,
-    rowCount: Int? = nil
+    rowsBegin: Int = 0,
+    rowsEnd: Int? = nil
 ) throws {
     try _nkValidateMatrixView(vectors)
     try _nkValidateMatrixSpan(result)
@@ -301,8 +301,8 @@ public func dots_symmetric<Element: NumKongDotsMatrixElement>(
         throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
-    let count = rowCount ?? (vectors.rows - rowStart)
-    guard rowStart >= 0 && count >= 0 && rowStart + count <= vectors.rows else {
+    let resolvedRowsEnd = rowsEnd ?? vectors.rows
+    guard rowsBegin >= 0 && rowsBegin <= resolvedRowsEnd && resolvedRowsEnd <= vectors.rows else {
         throw fail(.unexpectedDimensions, "the row window exceeds the matrix")
     }
 
@@ -313,8 +313,8 @@ public func dots_symmetric<Element: NumKongDotsMatrixElement>(
         vectors.columns,
         vectors.rowStrideBytes,
         result.rowStrideBytes,
-        rowStart,
-        count
+        rowsBegin,
+        resolvedRowsEnd
     )
 }
 
@@ -379,8 +379,8 @@ public func euclideans_packed<Element: NumKongSpatialsMatrixElement>(
 public func angulars_symmetric<Element: NumKongSpatialsMatrixElement>(
     _ vectors: MatrixView<Element>,
     _ result: inout MatrixSpan<Element.SpatialOutput>,
-    rowStart: Int = 0,
-    rowCount: Int? = nil
+    rowsBegin: Int = 0,
+    rowsEnd: Int? = nil
 ) throws {
     try _nkValidateMatrixView(vectors)
     try _nkValidateMatrixSpan(result)
@@ -389,8 +389,8 @@ public func angulars_symmetric<Element: NumKongSpatialsMatrixElement>(
         throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
-    let count = rowCount ?? (vectors.rows - rowStart)
-    guard rowStart >= 0 && count >= 0 && rowStart + count <= vectors.rows else {
+    let resolvedRowsEnd = rowsEnd ?? vectors.rows
+    guard rowsBegin >= 0 && rowsBegin <= resolvedRowsEnd && resolvedRowsEnd <= vectors.rows else {
         throw fail(.unexpectedDimensions, "the row window exceeds the matrix")
     }
 
@@ -401,8 +401,8 @@ public func angulars_symmetric<Element: NumKongSpatialsMatrixElement>(
         vectors.columns,
         vectors.rowStrideBytes,
         result.rowStrideBytes,
-        rowStart,
-        count
+        rowsBegin,
+        resolvedRowsEnd
     )
 }
 
@@ -411,8 +411,8 @@ public func angulars_symmetric<Element: NumKongSpatialsMatrixElement>(
 public func euclideans_symmetric<Element: NumKongSpatialsMatrixElement>(
     _ vectors: MatrixView<Element>,
     _ result: inout MatrixSpan<Element.SpatialOutput>,
-    rowStart: Int = 0,
-    rowCount: Int? = nil
+    rowsBegin: Int = 0,
+    rowsEnd: Int? = nil
 ) throws {
     try _nkValidateMatrixView(vectors)
     try _nkValidateMatrixSpan(result)
@@ -421,8 +421,8 @@ public func euclideans_symmetric<Element: NumKongSpatialsMatrixElement>(
         throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
-    let count = rowCount ?? (vectors.rows - rowStart)
-    guard rowStart >= 0 && count >= 0 && rowStart + count <= vectors.rows else {
+    let resolvedRowsEnd = rowsEnd ?? vectors.rows
+    guard rowsBegin >= 0 && rowsBegin <= resolvedRowsEnd && resolvedRowsEnd <= vectors.rows else {
         throw fail(.unexpectedDimensions, "the row window exceeds the matrix")
     }
 
@@ -433,8 +433,8 @@ public func euclideans_symmetric<Element: NumKongSpatialsMatrixElement>(
         vectors.columns,
         vectors.rowStrideBytes,
         result.rowStrideBytes,
-        rowStart,
-        count
+        rowsBegin,
+        resolvedRowsEnd
     )
 }
 
@@ -472,8 +472,8 @@ public func hammings_packed<Element: NumKongSetsMatrixElement>(
 public func hammings_symmetric<Element: NumKongSetsMatrixElement>(
     _ vectors: MatrixView<Element>,
     _ result: inout MatrixSpan<Element.HammingOutput>,
-    rowStart: Int = 0,
-    rowCount: Int? = nil
+    rowsBegin: Int = 0,
+    rowsEnd: Int? = nil
 ) throws {
     try _nkValidateMatrixView(vectors)
     try _nkValidateMatrixSpan(result)
@@ -482,8 +482,8 @@ public func hammings_symmetric<Element: NumKongSetsMatrixElement>(
         throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
-    let count = rowCount ?? (vectors.rows - rowStart)
-    guard rowStart >= 0 && count >= 0 && rowStart + count <= vectors.rows else {
+    let resolvedRowsEnd = rowsEnd ?? vectors.rows
+    guard rowsBegin >= 0 && rowsBegin <= resolvedRowsEnd && resolvedRowsEnd <= vectors.rows else {
         throw fail(.unexpectedDimensions, "the row window exceeds the matrix")
     }
 
@@ -494,8 +494,8 @@ public func hammings_symmetric<Element: NumKongSetsMatrixElement>(
         vectors.columns,
         vectors.rowStrideBytes,
         result.rowStrideBytes,
-        rowStart,
-        count
+        rowsBegin,
+        resolvedRowsEnd
     )
 }
 
@@ -531,8 +531,8 @@ public func jaccards_packed<Element: NumKongSetsMatrixElement>(
 public func jaccards_symmetric<Element: NumKongSetsMatrixElement>(
     _ vectors: MatrixView<Element>,
     _ result: inout MatrixSpan<Element.JaccardOutput>,
-    rowStart: Int = 0,
-    rowCount: Int? = nil
+    rowsBegin: Int = 0,
+    rowsEnd: Int? = nil
 ) throws {
     try _nkValidateMatrixView(vectors)
     try _nkValidateMatrixSpan(result)
@@ -541,8 +541,8 @@ public func jaccards_symmetric<Element: NumKongSetsMatrixElement>(
         throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
-    let count = rowCount ?? (vectors.rows - rowStart)
-    guard rowStart >= 0 && count >= 0 && rowStart + count <= vectors.rows else {
+    let resolvedRowsEnd = rowsEnd ?? vectors.rows
+    guard rowsBegin >= 0 && rowsBegin <= resolvedRowsEnd && resolvedRowsEnd <= vectors.rows else {
         throw fail(.unexpectedDimensions, "the row window exceeds the matrix")
     }
 
@@ -553,8 +553,8 @@ public func jaccards_symmetric<Element: NumKongSetsMatrixElement>(
         vectors.columns,
         vectors.rowStrideBytes,
         result.rowStrideBytes,
-        rowStart,
-        count
+        rowsBegin,
+        resolvedRowsEnd
     )
 }
 
@@ -602,13 +602,13 @@ extension Float64: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<Float64>, _ result: UnsafeMutablePointer<Float64>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_dots_symmetric_f64_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -639,24 +639,24 @@ extension Float64: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<Float64>, _ result: UnsafeMutablePointer<Float64>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_angulars_symmetric_f64_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<Float64>, _ result: UnsafeMutablePointer<Float64>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_euclideans_symmetric_f64_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -704,13 +704,13 @@ extension Float32: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<Float32>, _ result: UnsafeMutablePointer<Float64>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_dots_symmetric_f32_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -741,24 +741,24 @@ extension Float32: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<Float32>, _ result: UnsafeMutablePointer<Float64>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_angulars_symmetric_f32_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<Float32>, _ result: UnsafeMutablePointer<Float64>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_euclideans_symmetric_f32_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -808,14 +808,14 @@ extension BFloat16: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<BFloat16>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_bf16_t.self)
         try _nkCheck(
             nk_dots_symmetric_bf16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -848,26 +848,26 @@ extension BFloat16: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<BFloat16>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_bf16_t.self)
         try _nkCheck(
             nk_angulars_symmetric_bf16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<BFloat16>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_bf16_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_bf16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -918,14 +918,14 @@ extension Float16: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<Float16>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_f16_t.self)
         try _nkCheck(
             nk_dots_symmetric_f16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -958,26 +958,26 @@ extension Float16: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<Float16>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_f16_t.self)
         try _nkCheck(
             nk_angulars_symmetric_f16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<Float16>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_f16_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_f16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 #endif
@@ -1028,14 +1028,14 @@ extension E5M2: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<E5M2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e5m2_t.self)
         try _nkCheck(
             nk_dots_symmetric_e5m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1068,26 +1068,26 @@ extension E5M2: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<E5M2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e5m2_t.self)
         try _nkCheck(
             nk_angulars_symmetric_e5m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<E5M2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e5m2_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_e5m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1137,14 +1137,14 @@ extension E4M3: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<E4M3>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e4m3_t.self)
         try _nkCheck(
             nk_dots_symmetric_e4m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1177,26 +1177,26 @@ extension E4M3: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<E4M3>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e4m3_t.self)
         try _nkCheck(
             nk_angulars_symmetric_e4m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<E4M3>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e4m3_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_e4m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1246,14 +1246,14 @@ extension E3M2: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<E3M2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e3m2_t.self)
         try _nkCheck(
             nk_dots_symmetric_e3m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1286,26 +1286,26 @@ extension E3M2: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<E3M2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e3m2_t.self)
         try _nkCheck(
             nk_angulars_symmetric_e3m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<E3M2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e3m2_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_e3m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1355,14 +1355,14 @@ extension E2M3: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<E2M3>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m3_t.self)
         try _nkCheck(
             nk_dots_symmetric_e2m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1395,26 +1395,26 @@ extension E2M3: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<E2M3>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m3_t.self)
         try _nkCheck(
             nk_angulars_symmetric_e2m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<E2M3>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m3_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_e2m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1469,14 +1469,14 @@ extension E2M1x2: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<E2M1x2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m1x2_t.self)
         try _nkCheck(
             nk_dots_symmetric_e2m1_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1513,26 +1513,26 @@ extension E2M1x2: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<E2M1x2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m1x2_t.self)
         try _nkCheck(
             nk_angulars_symmetric_e2m1_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<E2M1x2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m1x2_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_e2m1_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1580,13 +1580,13 @@ extension Int8: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<Int8>, _ result: UnsafeMutablePointer<Int32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_dots_symmetric_i8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1617,24 +1617,24 @@ extension Int8: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<Int8>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_angulars_symmetric_i8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<Int8>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_euclideans_symmetric_i8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1687,14 +1687,14 @@ extension I4x2: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<I4x2>, _ result: UnsafeMutablePointer<Int32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_i4x2_t.self)
         try _nkCheck(
             nk_dots_symmetric_i4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1729,26 +1729,26 @@ extension I4x2: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<I4x2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_i4x2_t.self)
         try _nkCheck(
             nk_angulars_symmetric_i4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<I4x2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_i4x2_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_i4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1796,13 +1796,13 @@ extension UInt8: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<UInt8>, _ result: UnsafeMutablePointer<UInt32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_dots_symmetric_u8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1833,24 +1833,24 @@ extension UInt8: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<UInt8>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_angulars_symmetric_u8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<UInt8>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         try _nkCheck(
             nk_euclideans_symmetric_u8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1903,14 +1903,14 @@ extension U4x2: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<U4x2>, _ result: UnsafeMutablePointer<UInt32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_u4x2_t.self)
         try _nkCheck(
             nk_dots_symmetric_u4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -1945,26 +1945,26 @@ extension U4x2: NumKongSpatialsMatrixElement {
 
     public static func _nk_angulars_symmetric(
         _ vectors: UnsafePointer<U4x2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_u4x2_t.self)
         try _nkCheck(
             nk_angulars_symmetric_u4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
         _ vectors: UnsafePointer<U4x2>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_u4x2_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_u4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -2017,14 +2017,14 @@ extension U1x8: NumKongDotsMatrixElement {
 
     public static func _nk_dots_symmetric(
         _ vectors: UnsafePointer<U1x8>, _ result: UnsafeMutablePointer<UInt32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_u1x8_t.self)
         try _nkCheck(
             nk_dots_symmetric_u1_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }
 
@@ -2048,13 +2048,13 @@ extension U1x8: NumKongSetsMatrixElement {
 
     public static func _nk_hammings_symmetric(
         _ vectors: UnsafePointer<U1x8>, _ result: UnsafeMutablePointer<UInt32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_u1x8_t.self)
         try _nkCheck(
             nk_hammings_symmetric_u1_best(
                 cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 
     public static func _nk_jaccards_packed(
@@ -2071,12 +2071,12 @@ extension U1x8: NumKongSetsMatrixElement {
 
     public static func _nk_jaccards_symmetric(
         _ vectors: UnsafePointer<U1x8>, _ result: UnsafeMutablePointer<Float32>, _ nVectors: Int, _ depth: Int,
-        _ stride: Int, _ resultStride: Int, _ rowStart: Int, _ rowCount: Int
+        _ stride: Int, _ resultStride: Int, _ rowsBegin: Int, _ rowsEnd: Int
     ) throws {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_u1x8_t.self)
         try _nkCheck(
             nk_jaccards_symmetric_u1_best(
                 cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
     }
 }

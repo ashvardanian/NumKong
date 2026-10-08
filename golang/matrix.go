@@ -226,7 +226,7 @@ func DotsSymmetricF64WithPool(vectors []float64, nVectors, depth int, result []f
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		dotsSymmetricF64(vectors, nVectors, depth, result, lo, hi-lo)
+		dotsSymmetricF64(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -241,7 +241,7 @@ func DotsSymmetricF32WithPool(vectors []float32, nVectors, depth int, result []f
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		dotsSymmetricF32(vectors, nVectors, depth, result, lo, hi-lo)
+		dotsSymmetricF32(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -256,7 +256,7 @@ func DotsSymmetricI8WithPool(vectors []int8, nVectors, depth int, result []int32
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		dotsSymmetricI8(vectors, nVectors, depth, result, lo, hi-lo)
+		dotsSymmetricI8(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -271,7 +271,7 @@ func DotsSymmetricU8WithPool(vectors []uint8, nVectors, depth int, result []uint
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		dotsSymmetricU8(vectors, nVectors, depth, result, lo, hi-lo)
+		dotsSymmetricU8(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -286,7 +286,7 @@ func AngularsSymmetricF64WithPool(vectors []float64, nVectors, depth int, result
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		angularsSymmetricF64(vectors, nVectors, depth, result, lo, hi-lo)
+		angularsSymmetricF64(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -301,7 +301,7 @@ func AngularsSymmetricF32WithPool(vectors []float32, nVectors, depth int, result
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		angularsSymmetricF32(vectors, nVectors, depth, result, lo, hi-lo)
+		angularsSymmetricF32(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -316,7 +316,7 @@ func AngularsSymmetricI8WithPool(vectors []int8, nVectors, depth int, result []f
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		angularsSymmetricI8(vectors, nVectors, depth, result, lo, hi-lo)
+		angularsSymmetricI8(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -331,7 +331,7 @@ func AngularsSymmetricU8WithPool(vectors []uint8, nVectors, depth int, result []
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		angularsSymmetricU8(vectors, nVectors, depth, result, lo, hi-lo)
+		angularsSymmetricU8(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -346,7 +346,7 @@ func EuclideansSymmetricF64WithPool(vectors []float64, nVectors, depth int, resu
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		euclideansSymmetricF64(vectors, nVectors, depth, result, lo, hi-lo)
+		euclideansSymmetricF64(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -361,7 +361,7 @@ func EuclideansSymmetricF32WithPool(vectors []float32, nVectors, depth int, resu
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		euclideansSymmetricF32(vectors, nVectors, depth, result, lo, hi-lo)
+		euclideansSymmetricF32(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -376,7 +376,7 @@ func EuclideansSymmetricI8WithPool(vectors []int8, nVectors, depth int, result [
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		euclideansSymmetricI8(vectors, nVectors, depth, result, lo, hi-lo)
+		euclideansSymmetricI8(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -391,7 +391,7 @@ func EuclideansSymmetricU8WithPool(vectors []uint8, nVectors, depth int, result 
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		euclideansSymmetricU8(vectors, nVectors, depth, result, lo, hi-lo)
+		euclideansSymmetricU8(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -408,7 +408,7 @@ func HammingsSymmetricU1WithPool(vectors []byte, nVectors, depth int, result []u
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		hammingsSymmetricU1(vectors, nVectors, depth, result, lo, hi-lo)
+		hammingsSymmetricU1(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 
@@ -425,7 +425,7 @@ func JaccardsSymmetricU1WithPool(vectors []byte, nVectors, depth int, result []f
 		panic("result slice too short for nVectors × nVectors")
 	}
 	pool.run(nVectors, func(lo, hi int) {
-		jaccardsSymmetricU1(vectors, nVectors, depth, result, lo, hi-lo)
+		jaccardsSymmetricU1(vectors, nVectors, depth, result, lo, hi)
 	})
 }
 

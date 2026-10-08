@@ -769,7 +769,7 @@ NUMKONG_INLINE vuint8m1_t nk_f32m4_to_e5m2m1_rvv_(vfloat32m4_t f32_f32m4, nk_siz
 
 #if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                    nk_size_t count, void *stream) {
+                                    nk_size_t count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dtype_is_block_scaled(from_dtype) || nk_dtype_is_block_scaled(to_dtype))
         return nk_cast_serial(from, from_dtype, to, to_dtype, count, stream);

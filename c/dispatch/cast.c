@@ -319,7 +319,7 @@ NUMKONG_API void nk_f32_to_e3m2_best(nk_f32_t const *source, nk_e3m2_t *destinat
 }
 
 NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                     nk_size_t count, nk_capability_t capabilities, void *stream) {
+                                     nk_size_t count, nk_capability_t capabilities, nk_stream_t stream) {
     nk_kernel_cast_punned_t const kernel = (nk_kernel_cast_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_cast_capabilities());
     return kernel ? kernel(from, from_dtype, to, to_dtype, count, stream) : nk_missing_kernel_k;

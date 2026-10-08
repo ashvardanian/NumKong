@@ -19,8 +19,8 @@ void measure_reduce_moments(loop_t &loop, environment_t const &env, kernel_type_
     using output_t = typename input_t::reduce_moments_sum_t;
     using sumsq_t = typename input_t::reduce_moments_sumsq_t;
 
-    std::size_t const vectors_count = input_sets_count(dtype_bytes(input_dtype_, dimensions));
-    std::vector<nk::vector<input_t>> vectors(vectors_count);
+    std::size_t const vector_count = input_sets_count(dtype_bytes(input_dtype_, dimensions));
+    std::vector<nk::vector<input_t>> vectors(vector_count);
     std::mt19937 generator(env.settings.seed.value);
     for (auto &v : vectors) {
         v = make_vector<input_t>(dimensions);
@@ -30,7 +30,7 @@ void measure_reduce_moments(loop_t &loop, environment_t const &env, kernel_type_
     for (std::size_t call : loop) {
         typename output_t::raw_t sum;
         typename sumsq_t::raw_t sumsq;
-        auto const &v = vectors[call & (vectors_count - 1)];
+        auto const &v = vectors[call & (vector_count - 1)];
         if (!succeeded(loop,
                        kernel(v.raw_values_data(), dimensions, sizeof(typename input_t::raw_t), &sum, &sumsq, nullptr)))
             break;
@@ -54,8 +54,8 @@ void measure_reduce_minmax(loop_t &loop, environment_t const &env, kernel_type_ 
     using input_t = typename nk::type_for<input_dtype_>::type;
     using output_t = typename input_t::reduce_minmax_value_t;
 
-    std::size_t const vectors_count = input_sets_count(dtype_bytes(input_dtype_, dimensions));
-    std::vector<nk::vector<input_t>> vectors(vectors_count);
+    std::size_t const vector_count = input_sets_count(dtype_bytes(input_dtype_, dimensions));
+    std::vector<nk::vector<input_t>> vectors(vector_count);
     std::mt19937 generator(env.settings.seed.value);
     for (auto &v : vectors) {
         v = make_vector<input_t>(dimensions);
@@ -65,7 +65,7 @@ void measure_reduce_minmax(loop_t &loop, environment_t const &env, kernel_type_ 
     for (std::size_t call : loop) {
         typename output_t::raw_t min_val, max_val;
         nk_size_t min_idx, max_idx;
-        auto const &v = vectors[call & (vectors_count - 1)];
+        auto const &v = vectors[call & (vector_count - 1)];
         if (!succeeded(loop, kernel(v.raw_values_data(), dimensions, sizeof(typename input_t::raw_t), &min_val,
                                     &min_idx, &max_val, &max_idx, nullptr)))
             break;

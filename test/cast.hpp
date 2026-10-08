@@ -21,7 +21,7 @@
 
 namespace ashvardanian::numkong::test {
 
-using cast_t = nk_status_t (*)(void const *, nk_dtype_t, void *, nk_dtype_t, nk_size_t, void *);
+using cast_t = nk_status_t (*)(void const *, nk_dtype_t, void *, nk_dtype_t, nk_size_t, nk_stream_t);
 
 /**
  *  @brief Pull one logical element out of a vector as a primitive comparable value.

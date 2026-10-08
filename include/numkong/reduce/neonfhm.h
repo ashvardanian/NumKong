@@ -157,7 +157,7 @@ NUMKONG_INLINE void nk_reduce_moments_e4m3_neonfhm_chunked_(      //
 
 NUMKONG_API nk_status_t nk_reduce_moments_e4m3_neonfhm(           //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_e4m3_neonfhm_chunked_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
@@ -292,7 +292,7 @@ NUMKONG_INLINE void nk_reduce_moments_e5m2_neonfhm_chunked_(      //
 
 NUMKONG_API nk_status_t nk_reduce_moments_e5m2_neonfhm(           //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_e5m2_neonfhm_chunked_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;

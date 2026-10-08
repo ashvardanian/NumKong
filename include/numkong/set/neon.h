@@ -101,14 +101,14 @@ NUMKONG_INLINE void nk_u1_and_or_popcounts_neon_(nk_u1x8_t const *a, nk_u1x8_t c
 #if NUMKONG_TARGET_NEON
 
 NUMKONG_API nk_status_t nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     *result = nk_u1_xor_popcount_neon_(a, b, n);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t intersection_count, union_count;
     nk_u1_and_or_popcounts_neon_(a, b, n, &intersection_count, &union_count);
@@ -121,7 +121,7 @@ NUMKONG_API nk_status_t nk_jaccard_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *
 #pragma region Integer Sets
 
 NUMKONG_API nk_status_t nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
-                                            void *stream) {
+                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t intersection_count = 0;
     nk_size_t i = 0;
@@ -139,7 +139,7 @@ NUMKONG_API nk_status_t nk_jaccard_u32_neon(nk_u32_t const *a, nk_u32_t const *b
 }
 
 NUMKONG_API nk_status_t nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     uint32x4_t diff_count_u32x4 = vdupq_n_u32(0);
@@ -165,7 +165,7 @@ NUMKONG_API nk_status_t nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, n
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
-                                            void *stream) {
+                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t matches = 0;
     nk_size_t i = 0;

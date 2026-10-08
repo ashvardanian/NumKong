@@ -17,11 +17,11 @@ NUMKONG_API nk_metal_context_t *nk_metal_contexts_(os_unfair_lock_t *contexts_lo
     return contexts;
 }
 
-NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void **pointer, void *stream) {
+NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void **pointer, nk_stream_t stream) {
     return nk_memory_allocate_unified_metal_(bytes, pointer, stream);
 }
 
-NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t bytes, void *stream) {
+NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t bytes, nk_stream_t stream) {
     return nk_memory_free_unified_metal_(pointer, bytes, stream);
 }
 
@@ -29,7 +29,7 @@ NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocato
     return nk_allocator_init_unified_metal_(allocator);
 }
 
-NUMKONG_API nk_status_t nk_stream_synchronize_metal(void *stream) { return nk_stream_synchronize_metal_(stream); }
+NUMKONG_API nk_status_t nk_stream_synchronize_metal(nk_stream_t stream) { return nk_stream_synchronize_metal_(stream); }
 
 NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
     *count = nk_metal_count_devices_();
@@ -40,8 +40,8 @@ NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t ordinal, nk_cap
     return nk_metal_capabilities_detected_(ordinal, capabilities);
 }
 
-NUMKONG_API nk_status_t nk_metal_stream_init(nk_size_t ordinal, void **stream) {
+NUMKONG_API nk_status_t nk_stream_init_metal(nk_size_t ordinal, nk_stream_t *stream) {
     return nk_metal_stream_init_(ordinal, stream);
 }
 
-NUMKONG_API nk_status_t nk_metal_stream_free(void *stream) { return nk_metal_stream_free_(stream); }
+NUMKONG_API nk_status_t nk_stream_free_metal(nk_stream_t stream) { return nk_metal_stream_free_(stream); }

@@ -292,14 +292,14 @@ NUMKONG_INLINE void nk_squared_distance_i8_loongsonasx_(nk_i8_t const *a, nk_i8_
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                      void *stream) {
+                                                      nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_i8_loongsonasx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
     nk_squared_distance_i8_loongsonasx_(a, b, n, &distance_sq_u32);
@@ -309,7 +309,7 @@ NUMKONG_API nk_status_t nk_euclidean_i8_loongsonasx(nk_i8_t const *a, nk_i8_t co
 }
 
 NUMKONG_API nk_status_t nk_angular_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i dot_i32x8 = __lasx_xvreplgr2vr_w(0);
     __m256i a_sq_i32x8 = __lasx_xvreplgr2vr_w(0);
@@ -377,14 +377,14 @@ NUMKONG_INLINE void nk_squared_distance_u8_loongsonasx_(nk_u8_t const *a, nk_u8_
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                      void *stream) {
+                                                      nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_u8_loongsonasx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq_u32;
     nk_squared_distance_u8_loongsonasx_(a, b, n, &distance_sq_u32);
@@ -394,7 +394,7 @@ NUMKONG_API nk_status_t nk_euclidean_u8_loongsonasx(nk_u8_t const *a, nk_u8_t co
 }
 
 NUMKONG_API nk_status_t nk_angular_u8_loongsonasx(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i dot_i32x8 = __lasx_xvreplgr2vr_w(0);
     __m256i a_sq_i32x8 = __lasx_xvreplgr2vr_w(0);
@@ -474,14 +474,14 @@ NUMKONG_INLINE void nk_squared_distance_f32_loongsonasx_(nk_f32_t const *a, nk_f
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                       nk_f64_t *result, void *stream) {
+                                                       nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f32_loongsonasx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                     nk_f64_t *result, void *stream) {
+                                                     nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f32_loongsonasx_(a, b, n, result);
     *result = nk_f64_sqrt_lane_loongsonasx_(*result);
@@ -489,7 +489,7 @@ NUMKONG_API nk_status_t nk_euclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t
 }
 
 NUMKONG_API nk_status_t nk_angular_f32_loongsonasx(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256d dot_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     __m256d dot_high_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
@@ -541,14 +541,14 @@ NUMKONG_INLINE void nk_squared_distance_f64_loongsonasx_(nk_f64_t const *a, nk_f
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                       nk_f64_t *result, void *stream) {
+                                                       nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f64_loongsonasx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                     nk_f64_t *result, void *stream) {
+                                                     nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f64_loongsonasx_(a, b, n, result);
     *result = nk_f64_sqrt_lane_loongsonasx_(*result);
@@ -556,7 +556,7 @@ NUMKONG_API nk_status_t nk_euclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t
 }
 
 NUMKONG_API nk_status_t nk_angular_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256d dot_sum_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0), dot_compensation_f64x4 = dot_sum_f64x4;
     __m256d a_norm_sq_f64x4 = dot_sum_f64x4, a_compensation_f64x4 = dot_sum_f64x4;
@@ -637,14 +637,14 @@ NUMKONG_INLINE void nk_squared_distance_bf16_loongsonasx_(nk_bf16_t const *a, nk
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_bf16_loongsonasx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                        nk_f32_t *result, void *stream) {
+                                                        nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_loongsonasx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_bf16_loongsonasx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                      nk_f32_t *result, void *stream) {
+                                                      nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_loongsonasx_(a, b, n, result);
     *result = *result > 0 ? *result * nk_f32_rsqrt_lane_loongsonasx_(*result) : 0;
@@ -652,7 +652,7 @@ NUMKONG_API nk_status_t nk_euclidean_bf16_loongsonasx(nk_bf16_t const *a, nk_bf1
 }
 
 NUMKONG_API nk_status_t nk_angular_bf16_loongsonasx(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 dot_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     __m256 a_sq_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
@@ -712,14 +712,14 @@ NUMKONG_INLINE void nk_squared_distance_f16_loongsonasx_(nk_f16_t const *a, nk_f
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f16_loongsonasx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                       nk_f32_t *result, void *stream) {
+                                                       nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f16_loongsonasx_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_f16_loongsonasx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream) {
+                                                     nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f16_loongsonasx_(a, b, n, result);
     *result = *result > 0 ? *result * nk_f32_rsqrt_lane_loongsonasx_(*result) : 0;
@@ -727,7 +727,7 @@ NUMKONG_API nk_status_t nk_euclidean_f16_loongsonasx(nk_f16_t const *a, nk_f16_t
 }
 
 NUMKONG_API nk_status_t nk_angular_f16_loongsonasx(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 dot_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     __m256 a_sq_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);

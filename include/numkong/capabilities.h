@@ -626,82 +626,84 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
 }
 
 typedef nk_status_t (*nk_metric_dense_punned_t)(void const *a, void const *b, nk_size_t dimensions, void *result,
-                                                void *stream);
+                                                nk_stream_t stream);
 
 typedef nk_status_t (*nk_sparse_intersect_punned_t)(void const *a, void const *b, nk_size_t a_length,
-                                                    nk_size_t b_length, void *result, nk_size_t *count, void *stream);
+                                                    nk_size_t b_length, void *result, nk_size_t *count,
+                                                    nk_stream_t stream);
 
 typedef nk_status_t (*nk_sparse_dot_punned_t)(void const *a, void const *b, void const *a_weights,
                                               void const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                              void *product, void *stream);
+                                              void *product, nk_stream_t stream);
 
 typedef nk_status_t (*nk_metric_curved_punned_t)(void const *a, void const *b, void const *c, nk_size_t dimensions,
-                                                 void *result, void *stream);
+                                                 void *result, nk_stream_t stream);
 
 typedef nk_status_t (*nk_metric_geospatial_punned_t)(void const *a_lats, void const *a_lons, void const *b_lats,
-                                                     void const *b_lons, nk_size_t count, void *results, void *stream);
+                                                     void const *b_lons, nk_size_t count, void *results,
+                                                     nk_stream_t stream);
 
 typedef nk_status_t (*nk_each_scale_punned_t)(void const *a, nk_size_t count, void const *alpha, void const *beta,
-                                              void *y, void *stream);
+                                              void *y, nk_stream_t stream);
 
-typedef nk_status_t (*nk_each_sum_punned_t)(void const *a, void const *b, nk_size_t count, void *y, void *stream);
+typedef nk_status_t (*nk_each_sum_punned_t)(void const *a, void const *b, nk_size_t count, void *y, nk_stream_t stream);
 
 typedef nk_status_t (*nk_each_blend_punned_t)(void const *a, void const *b, nk_size_t count, void const *alpha,
-                                              void const *beta, void *y, void *stream);
+                                              void const *beta, void *y, nk_stream_t stream);
 
 typedef nk_status_t (*nk_each_fma_punned_t)(void const *a, void const *b, void const *c, nk_size_t count,
-                                            void const *alpha, void const *beta, void *y, void *stream);
+                                            void const *alpha, void const *beta, void *y, nk_stream_t stream);
 
-typedef nk_status_t (*nk_kernel_trig_punned_t)(void const *x, nk_size_t count, void *y, void *stream);
+typedef nk_status_t (*nk_kernel_trig_punned_t)(void const *x, nk_size_t count, void *y, nk_stream_t stream);
 
 typedef nk_status_t (*nk_metric_mesh_punned_t)(void const *a, void const *b, nk_size_t points_count, void *a_centroid,
                                                void *b_centroid, void *rotation, void *scale, void *result,
-                                               void *stream);
+                                               nk_stream_t stream);
 
 typedef nk_status_t (*nk_reduce_moments_punned_t)(void const *data, nk_size_t count, nk_size_t stride, void *sum,
-                                                  void *sumsq, void *stream);
+                                                  void *sumsq, nk_stream_t stream);
 
 typedef nk_status_t (*nk_reduce_minmax_punned_t)(void const *data, nk_size_t count, nk_size_t stride, void *min_value,
                                                  nk_size_t *min_index, void *max_value, nk_size_t *max_index,
-                                                 void *stream);
+                                                 nk_stream_t stream);
 
 typedef nk_status_t (*nk_each_rmsnorm_punned_t)(void const *x, void const *gamma, void *y, nk_size_t rows,
                                                 nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
-                                                nk_size_t y_stride, nk_f32_t epsilon, void *stream);
+                                                nk_size_t y_stride, nk_f32_t epsilon, nk_stream_t stream);
 
 typedef nk_status_t (*nk_each_swiglu_punned_t)(void const *gate, void const *up, void *y, nk_size_t rows,
                                                nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride,
                                                nk_size_t y_stride, nk_f32_t gate_scale, nk_f32_t output_scale,
-                                               void *stream);
+                                               nk_stream_t stream);
 
 /** Pack sizes are host arithmetic, so they take no stream. */
 typedef nk_status_t (*nk_dots_pack_size_punned_t)(nk_size_t columns, nk_size_t depth, nk_size_t *bytes);
 
 typedef nk_status_t (*nk_dots_packed_shape_punned_t)(void const *packed, nk_size_t *columns, nk_size_t *depth,
-                                                     void *stream);
+                                                     nk_stream_t stream);
 
 typedef nk_status_t (*nk_dots_pack_punned_t)(void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride,
                                              void *b_packed, nk_size_t columns_begin, nk_size_t columns_end,
-                                             void *stream);
+                                             nk_stream_t stream);
 
 typedef nk_status_t (*nk_maxsim_pack_punned_t)(void const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                               nk_size_t stride, void *packed, void *stream);
+                                               nk_size_t stride, void *packed, nk_stream_t stream);
 
 typedef nk_status_t (*nk_dots_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows,
                                                nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                               nk_size_t c_stride, void *stream);
+                                               nk_size_t c_stride, nk_stream_t stream);
 
-typedef nk_status_t (*nk_dots_symmetric_punned_t)(void const *vectors, nk_size_t vectors_count, nk_size_t depth,
+typedef nk_status_t (*nk_dots_symmetric_punned_t)(void const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                   nk_size_t stride, void *result, nk_size_t result_stride,
-                                                  nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 
 /** Bit vectors have no scaled form, so the set batches keep their unscaled shapes. */
 typedef nk_status_t (*nk_sets_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows,
                                                nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                               nk_size_t c_stride, void *stream);
-typedef nk_status_t (*nk_sets_symmetric_punned_t)(void const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                               nk_size_t c_stride, nk_stream_t stream);
+typedef nk_status_t (*nk_sets_symmetric_punned_t)(void const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                   nk_size_t stride, void *result, nk_size_t result_stride,
-                                                  nk_size_t row_start, nk_size_t row_count, void *stream);
+                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 
 typedef nk_sets_packed_punned_t nk_hammings_packed_punned_t;
 typedef nk_sets_symmetric_punned_t nk_hammings_symmetric_punned_t;
@@ -714,10 +716,10 @@ typedef nk_dots_symmetric_punned_t nk_euclideans_symmetric_punned_t;
 
 typedef nk_status_t (*nk_maxsim_packed_punned_t)(void const *query_packed, void const *document_packed,
                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                 void *result, void *stream);
+                                                 void *result, nk_stream_t stream);
 
 typedef nk_status_t (*nk_attention_packed_shape_punned_t)(void const *packed, nk_size_t *head_count, nk_size_t *depth,
-                                                          nk_size_t *segments, void *stream);
+                                                          nk_size_t *segments, nk_stream_t stream);
 
 /** Pack sizes are host arithmetic, so they take no stream. */
 typedef nk_status_t (*nk_attention_pack_size_punned_t)(nk_size_t key_value_head_count, nk_size_t depth,
@@ -728,15 +730,15 @@ typedef nk_status_t (*nk_attention_pack_punned_t)(void const *keys, void const *
                                                   nk_size_t depth, nk_u32_t const *segment_offsets,
                                                   nk_u32_t const *segment_lengths, nk_size_t segment_count,
                                                   nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed,
-                                                  nk_size_t task_begin, nk_size_t task_end, void *stream);
+                                                  nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream);
 
 typedef nk_status_t (*nk_attention_packed_punned_t)(void const *queries, void const *key_value_packed, void *output,
                                                     nk_f32_t *log_sum_exp, nk_size_t head_count,
                                                     nk_size_t key_value_head_count, nk_size_t depth,
                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
-                                                    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
-                                                    void *stream);
+                                                    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end,
+                                                    nk_stream_t stream);
 
 typedef nk_status_t (*nk_attention_packed_gradients_punned_t)(
     void const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
@@ -744,14 +746,14 @@ typedef nk_status_t (*nk_attention_packed_gradients_punned_t)(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
     nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
-    nk_size_t task_begin, nk_size_t task_end, void *stream);
+    nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream);
 
 typedef nk_status_t (*nk_attention_rope_punned_t)(void const *x, void const *cos, void const *sin, void *y,
                                                   nk_size_t rows, nk_size_t head_count, nk_size_t depth,
-                                                  nk_size_t x_stride, nk_size_t y_stride, void *stream);
+                                                  nk_size_t x_stride, nk_size_t y_stride, nk_stream_t stream);
 
 typedef nk_status_t (*nk_kernel_cast_punned_t)(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                               nk_size_t count, void *stream);
+                                               nk_size_t count, nk_stream_t stream);
 
 /** Any kernel, cast back to its kind's signature before the call. */
 typedef void (*nk_kernel_punned_t)(void);
@@ -1323,24 +1325,24 @@ NUMKONG_API nk_size_t nk_capabilities_name(nk_capability_t capabilities, char *b
  *  @return @c nk_success_k, @c nk_device_code_mismatch_k when queued work failed, or
  *      @c nk_missing_gpu_k.
  */
-NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities, void *stream);
+NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities, nk_stream_t stream);
 
 /** @copydoc nk_stream_synchronize_best */
-NUMKONG_API nk_status_t nk_stream_synchronize_serial(void *stream);
+NUMKONG_API nk_status_t nk_stream_synchronize_serial(nk_stream_t stream);
 
 #if NUMKONG_ARCH_CUDA_
 /** @copydoc nk_stream_synchronize_best */
-NUMKONG_API nk_status_t nk_stream_synchronize_cuda(void *stream);
+NUMKONG_API nk_status_t nk_stream_synchronize_cuda(nk_stream_t stream);
 #endif
 
 #if NUMKONG_ARCH_ROCM_
 /** @copydoc nk_stream_synchronize_best */
-NUMKONG_API nk_status_t nk_stream_synchronize_rocm(void *stream);
+NUMKONG_API nk_status_t nk_stream_synchronize_rocm(nk_stream_t stream);
 #endif
 
 #if NUMKONG_ARCH_METAL_
 /** @copydoc nk_stream_synchronize_best */
-NUMKONG_API nk_status_t nk_stream_synchronize_metal(void *stream);
+NUMKONG_API nk_status_t nk_stream_synchronize_metal(nk_stream_t stream);
 #endif
 
 /** How many Metal devices the system lists, or zero. */
@@ -1374,13 +1376,13 @@ NUMKONG_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t ordinal, nk
 
 /** Opens a retained @c id<MTLCommandQueue> on Metal device @p ordinal, in the order the system
  *  lists them. */
-NUMKONG_INLINE nk_status_t nk_metal_stream_init_(nk_size_t ordinal, void **stream) {
+NUMKONG_INLINE nk_status_t nk_metal_stream_init_(nk_size_t ordinal, nk_stream_t *stream) {
     *stream = NUMKONG_NULL;
     if (ordinal >= nk_metal_count_devices_()) return nk_missing_gpu_k;
 #if NUMKONG_ARCH_METAL_
     void *const metal_device = nk_metal_device_(ordinal);
     if (!metal_device) return nk_device_code_mismatch_k;
-    *stream = nk_metal_get_(metal_device, "newCommandQueue");
+    *stream = (nk_stream_t)nk_metal_get_(metal_device, "newCommandQueue");
     nk_metal_do_(metal_device, "release");
     if (!*stream) return nk_bad_alloc_k;
 #endif
@@ -1388,7 +1390,7 @@ NUMKONG_INLINE nk_status_t nk_metal_stream_init_(nk_size_t ordinal, void **strea
 }
 
 /** Waits for @p stream 's committed work and its deferred frees, then releases it. */
-NUMKONG_INLINE nk_status_t nk_metal_stream_free_(void *stream) {
+NUMKONG_INLINE nk_status_t nk_metal_stream_free_(nk_stream_t stream) {
 #if NUMKONG_ARCH_METAL_
     nk_status_t const status = nk_stream_synchronize_metal(stream);
     nk_metal_do_(stream, "release");
@@ -1431,7 +1433,7 @@ NUMKONG_CONSTEXPR nk_capability_t nk_metal_capabilities_compiled_(void) {
  *
  *  ROCm and Metal have the same four. Nothing is cached, as the runtimes answer from their own
  *  state: ask once per device and keep the mask. Each vendor also makes a stream on one device with
- *  @b nk_cuda_stream_init() and frees it with @b nk_cuda_stream_free(), for a caller without the
+ *  @b nk_stream_init_cuda() and frees it with @b nk_stream_free_cuda(), for a caller without the
  *  vendor's runtime at hand. */
 
 /**
@@ -1456,10 +1458,10 @@ NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilit
 NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** Creates a stream on CUDA device @p ordinal with @c cudaStreamCreate, for any consumer to use. */
-NUMKONG_API nk_status_t nk_cuda_stream_init(nk_size_t ordinal, void **stream);
+NUMKONG_API nk_status_t nk_stream_init_cuda(nk_size_t ordinal, nk_stream_t *stream);
 
-/** Destroys a stream of @ref nk_cuda_stream_init with @c cudaStreamDestroy, once its work ends. */
-NUMKONG_API nk_status_t nk_cuda_stream_free(void *stream);
+/** Destroys a stream of @ref nk_stream_init_cuda with @c cudaStreamDestroy, once its work ends. */
+NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream);
 
 /** @copydoc nk_cuda_count_devices, for ROCm. */
 NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count);
@@ -1474,10 +1476,10 @@ NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilit
 NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** Creates a stream on ROCm device @p ordinal with @c hipStreamCreate, for any consumer to use. */
-NUMKONG_API nk_status_t nk_rocm_stream_init(nk_size_t ordinal, void **stream);
+NUMKONG_API nk_status_t nk_stream_init_rocm(nk_size_t ordinal, nk_stream_t *stream);
 
-/** Destroys a stream of @ref nk_rocm_stream_init with @c hipStreamDestroy, once its work ends. */
-NUMKONG_API nk_status_t nk_rocm_stream_free(void *stream);
+/** Destroys a stream of @ref nk_stream_init_rocm with @c hipStreamDestroy, once its work ends. */
+NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream);
 
 /** @copydoc nk_cuda_count_devices, for Metal. */
 NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count);
@@ -1492,10 +1494,10 @@ NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabili
 NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** Opens an @c id<MTLCommandQueue> stream on Metal device @p ordinal with @c newCommandQueue. */
-NUMKONG_API nk_status_t nk_metal_stream_init(nk_size_t ordinal, void **stream);
+NUMKONG_API nk_status_t nk_stream_init_metal(nk_size_t ordinal, nk_stream_t *stream);
 
-/** Waits for a queue of @ref nk_metal_stream_init, then releases it. */
-NUMKONG_API nk_status_t nk_metal_stream_free(void *stream);
+/** Waits for a queue of @ref nk_stream_init_metal, then releases it. */
+NUMKONG_API nk_status_t nk_stream_free_metal(nk_stream_t stream);
 
 /**
  *  @brief Finds the kernel of @p kind for @p dtype that the best of @p capabilities runs.
@@ -1522,12 +1524,12 @@ NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capa
     *capabilities = 0;
     return nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_cuda_stream_init(nk_size_t ordinal, void **stream) {
+NUMKONG_API nk_status_t nk_stream_init_cuda(nk_size_t ordinal, nk_stream_t *stream) {
     nk_unused_(ordinal);
     *stream = NUMKONG_NULL;
     return nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_cuda_stream_free(void *stream) {
+NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream) {
     nk_unused_(stream);
     return nk_missing_gpu_k;
 }
@@ -1551,12 +1553,12 @@ NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capa
     *capabilities = 0;
     return nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_rocm_stream_init(nk_size_t ordinal, void **stream) {
+NUMKONG_API nk_status_t nk_stream_init_rocm(nk_size_t ordinal, nk_stream_t *stream) {
     nk_unused_(ordinal);
     *stream = NUMKONG_NULL;
     return nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_rocm_stream_free(void *stream) {
+NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream) {
     nk_unused_(stream);
     return nk_missing_gpu_k;
 }
@@ -1586,12 +1588,12 @@ NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t ordinal, nk_capa
     *capabilities &= nk_metal_capabilities_compiled_();
     return status;
 }
-NUMKONG_API nk_status_t nk_metal_stream_init(nk_size_t ordinal, void **stream) {
+NUMKONG_API nk_status_t nk_stream_init_metal(nk_size_t ordinal, nk_stream_t *stream) {
     return nk_metal_stream_init_(ordinal, stream);
 }
-NUMKONG_API nk_status_t nk_metal_stream_free(void *stream) { return nk_metal_stream_free_(stream); }
+NUMKONG_API nk_status_t nk_stream_free_metal(nk_stream_t stream) { return nk_metal_stream_free_(stream); }
 
-NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }

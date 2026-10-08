@@ -108,7 +108,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_dot_i8_alder(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                        nk_i32_t *result, void *stream) {
+                                        nk_i32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Optimized i8 × i8 dot product using algebraic transformation with DPBUSD
     //
@@ -227,7 +227,7 @@ NUMKONG_INLINE void nk_dot_i8x32_finalize_alder(                                
 }
 
 NUMKONG_API nk_status_t nk_dot_u8_alder(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                        nk_u32_t *result, void *stream) {
+                                        nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Optimized u8 × u8 dot product using algebraic transformation with DPBUSD
     //
@@ -401,7 +401,7 @@ NUMKONG_INLINE nk_u32_t nk_sum_u8x32_finalize_alder(nk_sum_u8x32_state_alder_t c
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m3_alder(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                          nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                          nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPDPBUSD (unsigned × signed).
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
@@ -614,7 +614,7 @@ NUMKONG_INLINE void nk_dot_e2m1x64_finalize_alder(                              
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m1_alder(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_e2m1x64_state_alder_t state;
     nk_dot_e2m1x64_init_alder(&state);

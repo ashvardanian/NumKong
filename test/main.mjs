@@ -314,7 +314,7 @@ test("Symmetric GEMM (dotsSymmetric) — upper triangle", () => {
   assertAlmostEqual(arr[2 * 4 + 3], 1.0, 0.01); // [0,0,1]·[1,1,1]
 });
 
-test("Symmetric with rowStart/rowCount partitioning", () => {
+test("Symmetric with rowsBegin/rowsEnd partitioning", () => {
   const mData = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1]);
   const mat = numkong.Matrix.fromTypedArray(mData, 4, 3, numkong.DType.F32);
 
@@ -324,8 +324,8 @@ test("Symmetric with rowStart/rowCount partitioning", () => {
 
   // Compute rows 0-1 and rows 2-3 separately into same out
   const out = new numkong.Matrix(4, 4, numkong.DType.F64);
-  numkong.dotsSymmetric(mat, out, { rowStart: 0, rowCount: 2 });
-  numkong.dotsSymmetric(mat, out, { rowStart: 2, rowCount: 2 });
+  numkong.dotsSymmetric(mat, out, { rowsBegin: 0, rowsEnd: 2 });
+  numkong.dotsSymmetric(mat, out, { rowsBegin: 2, rowsEnd: 4 });
   const outArr = out.toTypedArray();
 
   // Verify upper triangle matches full computation

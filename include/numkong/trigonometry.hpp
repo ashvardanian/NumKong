@@ -29,7 +29,7 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
 status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
-             void *stream = nullptr) noexcept {
+             nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
     if (capabilities) {
@@ -57,7 +57,7 @@ status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t c
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
 status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
-             void *stream = nullptr) noexcept {
+             nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
     if (capabilities) {
@@ -85,7 +85,7 @@ status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t c
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
 status_t atan(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
-              void *stream = nullptr) noexcept {
+              nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
     if (capabilities) {
@@ -112,7 +112,7 @@ namespace ashvardanian::numkong {
  *  when they differ or either run is strided or ends mid-value. */
 template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
 status_t sin(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
-             void *stream = nullptr) noexcept {
+             nk_stream_t stream = nullptr) noexcept {
     auto input_values = contiguous_values_<in_type_ const>(input);
     auto output_values = contiguous_values_<in_type_>(output);
     std::size_t const dimensions = input_values.value.size() * dimensions_per_value<in_type_>();
@@ -124,7 +124,7 @@ status_t sin(input_type_ const &input, output_type_ &&output, nk_capability_t ca
 /** Elementwise cos of one run into another, failing like the concept @c sin. */
 template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
 status_t cos(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
-             void *stream = nullptr) noexcept {
+             nk_stream_t stream = nullptr) noexcept {
     auto input_values = contiguous_values_<in_type_ const>(input);
     auto output_values = contiguous_values_<in_type_>(output);
     std::size_t const dimensions = input_values.value.size() * dimensions_per_value<in_type_>();
@@ -136,7 +136,7 @@ status_t cos(input_type_ const &input, output_type_ &&output, nk_capability_t ca
 /** Elementwise atan of one run into another, failing like the concept @c sin. */
 template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
 status_t atan(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
-              void *stream = nullptr) noexcept {
+              nk_stream_t stream = nullptr) noexcept {
     auto input_values = contiguous_values_<in_type_ const>(input);
     auto output_values = contiguous_values_<in_type_>(output);
     std::size_t const dimensions = input_values.value.size() * dimensions_per_value<in_type_>();

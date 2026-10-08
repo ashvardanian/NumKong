@@ -39,7 +39,7 @@ static nk_capability_kernels_t const *nk_trig_sin_f64_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_trig_sin_f64_best(nk_f64_t const *inputs, nk_size_t n, nk_f64_t *outputs,
-                                             nk_capability_t capabilities, void *stream) {
+                                             nk_capability_t capabilities, nk_stream_t stream) {
     nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_trig_sin_f64_capabilities());
     return kernel ? kernel(inputs, n, outputs, stream) : nk_missing_kernel_k;
@@ -78,7 +78,7 @@ static nk_capability_kernels_t const *nk_trig_cos_f64_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_trig_cos_f64_best(nk_f64_t const *inputs, nk_size_t n, nk_f64_t *outputs,
-                                             nk_capability_t capabilities, void *stream) {
+                                             nk_capability_t capabilities, nk_stream_t stream) {
     nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_trig_cos_f64_capabilities());
     return kernel ? kernel(inputs, n, outputs, stream) : nk_missing_kernel_k;
@@ -117,7 +117,7 @@ static nk_capability_kernels_t const *nk_trig_atan_f64_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_trig_atan_f64_best(nk_f64_t const *inputs, nk_size_t n, nk_f64_t *outputs,
-                                              nk_capability_t capabilities, void *stream) {
+                                              nk_capability_t capabilities, nk_stream_t stream) {
     nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_trig_atan_f64_capabilities());
     return kernel ? kernel(inputs, n, outputs, stream) : nk_missing_kernel_k;
@@ -156,7 +156,7 @@ static nk_capability_kernels_t const *nk_trig_sin_f32_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_trig_sin_f32_best(nk_f32_t const *inputs, nk_size_t n, nk_f32_t *outputs,
-                                             nk_capability_t capabilities, void *stream) {
+                                             nk_capability_t capabilities, nk_stream_t stream) {
     nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_trig_sin_f32_capabilities());
     return kernel ? kernel(inputs, n, outputs, stream) : nk_missing_kernel_k;
@@ -195,7 +195,7 @@ static nk_capability_kernels_t const *nk_trig_cos_f32_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_trig_cos_f32_best(nk_f32_t const *inputs, nk_size_t n, nk_f32_t *outputs,
-                                             nk_capability_t capabilities, void *stream) {
+                                             nk_capability_t capabilities, nk_stream_t stream) {
     nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_trig_cos_f32_capabilities());
     return kernel ? kernel(inputs, n, outputs, stream) : nk_missing_kernel_k;
@@ -234,7 +234,7 @@ static nk_capability_kernels_t const *nk_trig_atan_f32_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_trig_atan_f32_best(nk_f32_t const *inputs, nk_size_t n, nk_f32_t *outputs,
-                                              nk_capability_t capabilities, void *stream) {
+                                              nk_capability_t capabilities, nk_stream_t stream) {
     nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_trig_atan_f32_capabilities());
     return kernel ? kernel(inputs, n, outputs, stream) : nk_missing_kernel_k;
@@ -273,7 +273,7 @@ static nk_capability_kernels_t const *nk_trig_sin_f16_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_trig_sin_f16_best(nk_f16_t const *inputs, nk_size_t n, nk_f16_t *outputs,
-                                             nk_capability_t capabilities, void *stream) {
+                                             nk_capability_t capabilities, nk_stream_t stream) {
     nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_trig_sin_f16_capabilities());
     return kernel ? kernel(inputs, n, outputs, stream) : nk_missing_kernel_k;
@@ -312,7 +312,7 @@ static nk_capability_kernels_t const *nk_trig_cos_f16_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_trig_cos_f16_best(nk_f16_t const *inputs, nk_size_t n, nk_f16_t *outputs,
-                                             nk_capability_t capabilities, void *stream) {
+                                             nk_capability_t capabilities, nk_stream_t stream) {
     nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_trig_cos_f16_capabilities());
     return kernel ? kernel(inputs, n, outputs, stream) : nk_missing_kernel_k;
@@ -351,7 +351,7 @@ static nk_capability_kernels_t const *nk_trig_atan_f16_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_trig_atan_f16_best(nk_f16_t const *inputs, nk_size_t n, nk_f16_t *outputs,
-                                              nk_capability_t capabilities, void *stream) {
+                                              nk_capability_t capabilities, nk_stream_t stream) {
     nk_kernel_trig_punned_t const kernel = (nk_kernel_trig_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_trig_atan_f16_capabilities());
     return kernel ? kernel(inputs, n, outputs, stream) : nk_missing_kernel_k;

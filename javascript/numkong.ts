@@ -470,8 +470,8 @@ function packedOperation(compiledName: string, family: KernelFamily, a: Matrix, 
   return out;
 }
 
-function symmetricOperation(compiledName: string, family: KernelFamily, vectors: Matrix, out?: Matrix, rowStart = 0, rowCount?: number): Matrix {
-  const count = rowCount ?? vectors.rows - rowStart;
+function symmetricOperation(compiledName: string, family: KernelFamily, vectors: Matrix, out?: Matrix, rowsBegin = 0, rowsEnd?: number): Matrix {
+  const resolvedRowsEnd = rowsEnd ?? vectors.rows;
   const outDType = outputDType(family, vectors.dtype);
   if (!out) {
     out = new Matrix(vectors.rows, vectors.rows, outDType);
@@ -482,7 +482,7 @@ function symmetricOperation(compiledName: string, family: KernelFamily, vectors:
     vectorsUnwrapped.array, resultArray,
     vectors.rows, vectors.columns,
     vectors.rowStride, out.rowStride,
-    rowStart, count,
+    rowsBegin, resolvedRowsEnd,
     dtypeToString(vectors.dtype),
   );
   return out;
@@ -525,36 +525,36 @@ export function euclideansPacked(a: Matrix, packed: PackedMatrix, out?: Matrix):
  *  Computes the all-pairs dot products between every row of `vectors` and every other row.
  *  @param vectors - The matrix of vectors, __[rows,columns]__ shaped.
  *  @param out - Optional output matrix to write into, __[vectors.rows,vectors.rows]__ shaped.
- *  @param options - Optional row range: `rowStart` and `rowCount` restrict which rows of the
+ *  @param options - Optional row range: `rowsBegin` and `rowsEnd` restrict which rows of the
  *      symmetric matrix are computed, defaulting to all rows.
  *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
  */
-export function dotsSymmetric(vectors: Matrix, out?: Matrix, options?: { rowStart?: number; rowCount?: number }): Matrix {
-  return symmetricOperation('dotsSymmetric', 'dots', vectors, out, options?.rowStart ?? 0, options?.rowCount);
+export function dotsSymmetric(vectors: Matrix, out?: Matrix, options?: { rowsBegin?: number; rowsEnd?: number }): Matrix {
+  return symmetricOperation('dotsSymmetric', 'dots', vectors, out, options?.rowsBegin ?? 0, options?.rowsEnd);
 }
 
 /**
  *  Computes the all-pairs angular distances between every row of `vectors` and every other row.
  *  @param vectors - The matrix of vectors, __[rows,columns]__ shaped.
  *  @param out - Optional output matrix to write into, __[vectors.rows,vectors.rows]__ shaped.
- *  @param options - Optional row range: `rowStart` and `rowCount` restrict which rows of the
+ *  @param options - Optional row range: `rowsBegin` and `rowsEnd` restrict which rows of the
  *      symmetric matrix are computed, defaulting to all rows.
  *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
  */
-export function angularsSymmetric(vectors: Matrix, out?: Matrix, options?: { rowStart?: number; rowCount?: number }): Matrix {
-  return symmetricOperation('angularsSymmetric', 'angulars', vectors, out, options?.rowStart ?? 0, options?.rowCount);
+export function angularsSymmetric(vectors: Matrix, out?: Matrix, options?: { rowsBegin?: number; rowsEnd?: number }): Matrix {
+  return symmetricOperation('angularsSymmetric', 'angulars', vectors, out, options?.rowsBegin ?? 0, options?.rowsEnd);
 }
 
 /**
  *  Computes the all-pairs Euclidean distances between every row of `vectors` and every other row.
  *  @param vectors - The matrix of vectors, __[rows,columns]__ shaped.
  *  @param out - Optional output matrix to write into, __[vectors.rows,vectors.rows]__ shaped.
- *  @param options - Optional row range: `rowStart` and `rowCount` restrict which rows of the
+ *  @param options - Optional row range: `rowsBegin` and `rowsEnd` restrict which rows of the
  *      symmetric matrix are computed, defaulting to all rows.
  *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
  */
-export function euclideansSymmetric(vectors: Matrix, out?: Matrix, options?: { rowStart?: number; rowCount?: number }): Matrix {
-  return symmetricOperation('euclideansSymmetric', 'euclideans', vectors, out, options?.rowStart ?? 0, options?.rowCount);
+export function euclideansSymmetric(vectors: Matrix, out?: Matrix, options?: { rowsBegin?: number; rowsEnd?: number }): Matrix {
+  return symmetricOperation('euclideansSymmetric', 'euclideans', vectors, out, options?.rowsBegin ?? 0, options?.rowsEnd);
 }
 
 export default {

@@ -240,7 +240,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_cou
 }
 
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                               void *stream) {
+                                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_maxsim_sapphireamx_i8_header_t const *header = (nk_maxsim_sapphireamx_i8_header_t const *)packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -250,7 +250,8 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_sapphireamx(void const *packe
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_sapphireamx( //
-    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
+    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed,
+    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_maxsim_zero_sapphireamx_(packed, nk_maxsim_packed_bytes_f32_sapphireamx_(vector_count, depth));
 
@@ -466,7 +467,7 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                       
 
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
-    nk_size_t depth, nk_f64_t *result, void *stream) {
+    nk_size_t depth, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_maxsim_sapphireamx_i8_header_t const *)query_packed)->capability != nk_cap_sapphireamx_k ||
         ((nk_maxsim_sapphireamx_i8_header_t const *)document_packed)->capability != nk_cap_sapphireamx_k)
@@ -482,7 +483,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vector_cou
 }
 
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                               void *stream) {
+                                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_maxsim_sapphireamx_i8_header_t const *header = (nk_maxsim_sapphireamx_i8_header_t const *)packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -492,7 +493,8 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_sapphireamx(void const *packe
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_sapphireamx( //
-    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed,
+    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_maxsim_zero_sapphireamx_(packed, nk_maxsim_packed_bytes_f16_sapphireamx_(vector_count, depth));
 
@@ -552,7 +554,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_sapphireamx( //
 
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
-    nk_size_t depth, nk_f32_t *result, void *stream) {
+    nk_size_t depth, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_maxsim_sapphireamx_i8_header_t const *)query_packed)->capability != nk_cap_sapphireamx_k ||
         ((nk_maxsim_sapphireamx_i8_header_t const *)document_packed)->capability != nk_cap_sapphireamx_k)
@@ -569,7 +571,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t vector_co
 }
 
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_sapphireamx(void const *packed, nk_size_t *vectors,
-                                                                nk_size_t *depth, void *stream) {
+                                                                nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_maxsim_sapphireamx_bf16_header_t const *header = (nk_maxsim_sapphireamx_bf16_header_t const *)packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -579,7 +581,8 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_sapphireamx(void const *pack
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sapphireamx( //
-    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
+    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed,
+    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_maxsim_zero_sapphireamx_(packed, nk_maxsim_packed_bytes_bf16_sapphireamx_(vector_count, depth));
 
@@ -664,7 +667,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sapphireamx( //
 
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sapphireamx( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
-    nk_size_t depth, nk_f32_t *result, void *stream) {
+    nk_size_t depth, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_maxsim_sapphireamx_bf16_header_t const *)query_packed)->capability != nk_cap_sapphireamx_k ||
         ((nk_maxsim_sapphireamx_bf16_header_t const *)document_packed)->capability != nk_cap_sapphireamx_k)

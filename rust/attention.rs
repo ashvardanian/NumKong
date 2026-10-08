@@ -75,8 +75,8 @@ extern "C" {
         key_stride: nk_size_t,
         value_stride: nk_size_t,
         key_value_packed: *mut u8,
-        task_begin: nk_size_t,
-        task_end: nk_size_t,
+        tasks_begin: nk_size_t,
+        tasks_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -94,8 +94,8 @@ extern "C" {
         scale: f32,
         keys_before: nk_size_t,
         keys_after: nk_size_t,
-        task_begin: nk_size_t,
-        task_end: nk_size_t,
+        tasks_begin: nk_size_t,
+        tasks_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -120,8 +120,8 @@ extern "C" {
         scale: f32,
         keys_before: nk_size_t,
         keys_after: nk_size_t,
-        task_begin: nk_size_t,
-        task_end: nk_size_t,
+        tasks_begin: nk_size_t,
+        tasks_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -145,8 +145,8 @@ extern "C" {
         key_stride: nk_size_t,
         value_stride: nk_size_t,
         key_value_packed: *mut u8,
-        task_begin: nk_size_t,
-        task_end: nk_size_t,
+        tasks_begin: nk_size_t,
+        tasks_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -164,8 +164,8 @@ extern "C" {
         scale: f32,
         keys_before: nk_size_t,
         keys_after: nk_size_t,
-        task_begin: nk_size_t,
-        task_end: nk_size_t,
+        tasks_begin: nk_size_t,
+        tasks_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -189,8 +189,8 @@ extern "C" {
         key_stride: nk_size_t,
         value_stride: nk_size_t,
         key_value_packed: *mut u8,
-        task_begin: nk_size_t,
-        task_end: nk_size_t,
+        tasks_begin: nk_size_t,
+        tasks_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -208,8 +208,8 @@ extern "C" {
         scale: f32,
         keys_before: nk_size_t,
         keys_after: nk_size_t,
-        task_begin: nk_size_t,
-        task_end: nk_size_t,
+        tasks_begin: nk_size_t,
+        tasks_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -233,8 +233,8 @@ extern "C" {
         key_stride: nk_size_t,
         value_stride: nk_size_t,
         key_value_packed: *mut u8,
-        task_begin: nk_size_t,
-        task_end: nk_size_t,
+        tasks_begin: nk_size_t,
+        tasks_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -252,8 +252,8 @@ extern "C" {
         scale: f32,
         keys_before: nk_size_t,
         keys_after: nk_size_t,
-        task_begin: nk_size_t,
-        task_end: nk_size_t,
+        tasks_begin: nk_size_t,
+        tasks_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -375,11 +375,11 @@ pub trait Attention: StorageElement + Clone {
         key_stride: usize,
         value_stride: usize,
         key_value_packed: *mut u8,
-        task_begin: usize,
-        task_end: usize,
+        tasks_begin: usize,
+        tasks_end: usize,
     ) -> Result<(), Error>;
 
-    /// Compute attention over the half-open task window `task_begin..task_end` of the
+    /// Compute attention over the half-open task window `tasks_begin..tasks_end` of the
     /// `(query token, head)` grid, task `token * head_count + head`, the end clipped to the grid.
     ///
     /// Each segment's queries align to the end of its keys: row `r` of a segment with `q` queries
@@ -407,8 +407,8 @@ pub trait Attention: StorageElement + Clone {
         scale: f32,
         keys_before: usize,
         keys_after: usize,
-        task_begin: usize,
-        task_end: usize,
+        tasks_begin: usize,
+        tasks_end: usize,
     ) -> Result<(), Error>;
 }
 
@@ -459,8 +459,8 @@ impl Attention for bf16 {
         key_stride: usize,
         value_stride: usize,
         key_value_packed: *mut u8,
-        task_begin: usize,
-        task_end: usize,
+        tasks_begin: usize,
+        tasks_end: usize,
     ) -> Result<(), Error> {
         unsafe {
             nk_attention_pack_bf16_best(
@@ -474,8 +474,8 @@ impl Attention for bf16 {
                 key_stride,
                 value_stride,
                 key_value_packed,
-                task_begin,
-                task_end,
+                tasks_begin,
+                tasks_end,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -497,8 +497,8 @@ impl Attention for bf16 {
         scale: f32,
         keys_before: usize,
         keys_after: usize,
-        task_begin: usize,
-        task_end: usize,
+        tasks_begin: usize,
+        tasks_end: usize,
     ) -> Result<(), Error> {
         unsafe {
             nk_attention_packed_bf16_best(
@@ -515,8 +515,8 @@ impl Attention for bf16 {
                 scale,
                 keys_before,
                 keys_after,
-                task_begin,
-                task_end,
+                tasks_begin,
+                tasks_end,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -527,7 +527,7 @@ impl Attention for bf16 {
 
 impl bf16 {
     /// Compute the gradients of [`attention_packed`](Attention::attention_packed) with respect to
-    /// the queries, keys and values over the task window `task_begin..task_end` of the
+    /// the queries, keys and values over the task window `tasks_begin..tasks_end` of the
     /// `(segment, kv_head)` grid, the end clipped to the grid.
     ///
     /// `output` and `log_sum_exp` are the forward's results. The query gradient holds one row of
@@ -562,8 +562,8 @@ impl bf16 {
         scale: f32,
         keys_before: usize,
         keys_after: usize,
-        task_begin: usize,
-        task_end: usize,
+        tasks_begin: usize,
+        tasks_end: usize,
     ) -> Result<(), Error> {
         unsafe {
             nk_attention_packed_gradients_bf16_best(
@@ -587,8 +587,8 @@ impl bf16 {
                 scale,
                 keys_before,
                 keys_after,
-                task_begin,
-                task_end,
+                tasks_begin,
+                tasks_end,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -644,8 +644,8 @@ impl Attention for f16 {
         key_stride: usize,
         value_stride: usize,
         key_value_packed: *mut u8,
-        task_begin: usize,
-        task_end: usize,
+        tasks_begin: usize,
+        tasks_end: usize,
     ) -> Result<(), Error> {
         unsafe {
             nk_attention_pack_f16_best(
@@ -659,8 +659,8 @@ impl Attention for f16 {
                 key_stride,
                 value_stride,
                 key_value_packed,
-                task_begin,
-                task_end,
+                tasks_begin,
+                tasks_end,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -682,8 +682,8 @@ impl Attention for f16 {
         scale: f32,
         keys_before: usize,
         keys_after: usize,
-        task_begin: usize,
-        task_end: usize,
+        tasks_begin: usize,
+        tasks_end: usize,
     ) -> Result<(), Error> {
         unsafe {
             nk_attention_packed_f16_best(
@@ -700,8 +700,8 @@ impl Attention for f16 {
                 scale,
                 keys_before,
                 keys_after,
-                task_begin,
-                task_end,
+                tasks_begin,
+                tasks_end,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -757,8 +757,8 @@ impl Attention for e4m3 {
         key_stride: usize,
         value_stride: usize,
         key_value_packed: *mut u8,
-        task_begin: usize,
-        task_end: usize,
+        tasks_begin: usize,
+        tasks_end: usize,
     ) -> Result<(), Error> {
         unsafe {
             nk_attention_pack_e4m3_best(
@@ -772,8 +772,8 @@ impl Attention for e4m3 {
                 key_stride,
                 value_stride,
                 key_value_packed,
-                task_begin,
-                task_end,
+                tasks_begin,
+                tasks_end,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -795,8 +795,8 @@ impl Attention for e4m3 {
         scale: f32,
         keys_before: usize,
         keys_after: usize,
-        task_begin: usize,
-        task_end: usize,
+        tasks_begin: usize,
+        tasks_end: usize,
     ) -> Result<(), Error> {
         unsafe {
             nk_attention_packed_e4m3_best(
@@ -813,8 +813,8 @@ impl Attention for e4m3 {
                 scale,
                 keys_before,
                 keys_after,
-                task_begin,
-                task_end,
+                tasks_begin,
+                tasks_end,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -870,8 +870,8 @@ impl Attention for i8 {
         key_stride: usize,
         value_stride: usize,
         key_value_packed: *mut u8,
-        task_begin: usize,
-        task_end: usize,
+        tasks_begin: usize,
+        tasks_end: usize,
     ) -> Result<(), Error> {
         unsafe {
             nk_attention_pack_i8_best(
@@ -885,8 +885,8 @@ impl Attention for i8 {
                 key_stride,
                 value_stride,
                 key_value_packed,
-                task_begin,
-                task_end,
+                tasks_begin,
+                tasks_end,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -908,8 +908,8 @@ impl Attention for i8 {
         scale: f32,
         keys_before: usize,
         keys_after: usize,
-        task_begin: usize,
-        task_end: usize,
+        tasks_begin: usize,
+        tasks_end: usize,
     ) -> Result<(), Error> {
         unsafe {
             nk_attention_packed_i8_best(
@@ -926,8 +926,8 @@ impl Attention for i8 {
                 scale,
                 keys_before,
                 keys_after,
-                task_begin,
-                task_end,
+                tasks_begin,
+                tasks_end,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )

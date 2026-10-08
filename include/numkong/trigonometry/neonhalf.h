@@ -156,7 +156,7 @@ NUMKONG_INLINE float16x8_t nk_atan_f16x8_neonhalf_(float16x8_t values_f16x8) {
     return vbslq_f16(vdupq_n_u16(0x8000), values_f16x8, results_f16x8);
 }
 
-NUMKONG_API nk_status_t nk_trig_sin_f16_neonhalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_sin_f16_neonhalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -172,7 +172,7 @@ NUMKONG_API nk_status_t nk_trig_sin_f16_neonhalf(nk_f16_t const *ins, nk_size_t 
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_cos_f16_neonhalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f16_neonhalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
@@ -188,7 +188,8 @@ NUMKONG_API nk_status_t nk_trig_cos_f16_neonhalf(nk_f16_t const *ins, nk_size_t 
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_atan_f16_neonhalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f16_neonhalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs,
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {

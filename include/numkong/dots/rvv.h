@@ -183,7 +183,7 @@ NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_rvv_(nk_e2m1x2_t const *data, 
  *  Each row loads its own A vector; B vector is shared across rows per depth chunk.
  */
 NUMKONG_INLINE void nk_dots_packed_f32_rvv_aligned_(nk_f32_t const *a_matrix, void const *b_packed_buffer,
-                                                    nk_f64_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                    nk_f64_t *c_matrix, nk_size_t rows, nk_size_t column_count,
                                                     nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
@@ -191,14 +191,14 @@ NUMKONG_INLINE void nk_dots_packed_f32_rvv_aligned_(nk_f32_t const *a_matrix, vo
                                                      sizeof(nk_cross_packed_buffer_header_t));
 
     // Zero output matrix
-    for (nk_size_t i = 0; i < row_count; ++i) {
+    for (nk_size_t i = 0; i < rows; ++i) {
         nk_f64_t *c_row = (nk_f64_t *)((char *)c_matrix + i * c_stride);
         for (nk_size_t j = 0; j < column_count; ++j) c_row[j] = 0;
     }
 
     // mr=4 register tile over rows
     nk_size_t row = 0;
-    for (; row + 4 <= row_count; row += 4) {
+    for (; row + 4 <= rows; row += 4) {
         nk_f32_t const *a_row_0 = (nk_f32_t const *)((char const *)a_matrix + (row + 0) * a_stride);
         nk_f32_t const *a_row_1 = (nk_f32_t const *)((char const *)a_matrix + (row + 1) * a_stride);
         nk_f32_t const *a_row_2 = (nk_f32_t const *)((char const *)a_matrix + (row + 2) * a_stride);
@@ -248,7 +248,7 @@ NUMKONG_INLINE void nk_dots_packed_f32_rvv_aligned_(nk_f32_t const *a_matrix, vo
         }
     }
     // Remainder rows (mr < 4)
-    for (; row < row_count; ++row) {
+    for (; row < rows; ++row) {
         nk_f32_t const *a_row = (nk_f32_t const *)((char const *)a_matrix + row * a_stride);
         nk_f64_t *c_row = (nk_f64_t *)((char *)c_matrix + row * c_stride);
         for (nk_size_t column = 0; column < column_count; ++column) {
@@ -271,18 +271,18 @@ NUMKONG_INLINE void nk_dots_packed_f32_rvv_aligned_(nk_f32_t const *a_matrix, vo
     }
 }
 
-/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
-NUMKONG_INLINE void nk_dots_symmetric_f32_rvv_upper_(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+/** Dots of the rows from @p rows_begin up to @p rows_end against themselves and every later row. */
+NUMKONG_INLINE void nk_dots_symmetric_f32_rvv_upper_(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                      nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
+                                                     nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     nk_size_t const stride_elements = stride / sizeof(nk_f32_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f64_t);
-    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
-    for (nk_size_t i = row_start; i < row_end; ++i) {
+    for (nk_size_t i = rows_begin; i < rows_end; ++i) {
         nk_f32_t const *a_i = vectors + i * stride_elements;
-        for (nk_size_t j = i; j < vectors_count; ++j) {
+        for (nk_size_t j = i; j < vector_count; ++j) {
             nk_f32_t const *a_j = vectors + j * stride_elements;
             nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
             vfloat64m4_t accumulator_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
@@ -322,18 +322,18 @@ NUMKONG_INLINE void nk_dots_packed_f64_rvv_aligned_(nk_f64_t const *a, void cons
     }
 }
 
-/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
-NUMKONG_INLINE void nk_dots_symmetric_f64_rvv_upper_(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+/** Dots of the rows from @p rows_begin up to @p rows_end against themselves and every later row. */
+NUMKONG_INLINE void nk_dots_symmetric_f64_rvv_upper_(nk_f64_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                      nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
+                                                     nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     nk_size_t const stride_elements = stride / sizeof(nk_f64_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f64_t);
-    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
-    for (nk_size_t i = row_start; i < row_end; ++i) {
+    for (nk_size_t i = rows_begin; i < rows_end; ++i) {
         nk_f64_t const *a_i = vectors + i * stride_elements;
-        for (nk_size_t j = i; j < vectors_count; ++j)
+        for (nk_size_t j = i; j < vector_count; ++j)
             result[i * result_stride_elements + j] = nk_dot2_f64_rvv_(a_i, vectors + j * stride_elements, depth);
     }
 }
@@ -356,7 +356,7 @@ NUMKONG_INLINE void nk_dots_symmetric_f64_rvv_upper_(nk_f64_t const *vectors, nk
  *  The LUT gather on A magnitudes uses @c vluxei8_v_u8m1 (byte-indexed byte gather).
  */
 NUMKONG_INLINE void nk_dots_packed_e2m3_rvv_aligned_(nk_e2m3_t const *a_matrix, void const *b_packed_buffer,
-                                                     nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                     nk_f32_t *c_matrix, nk_size_t rows, nk_size_t column_count,
                                                      nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
     nk_f32_t const lut_scale_reciprocal = 1.0f / 256.0f;
 
@@ -366,14 +366,14 @@ NUMKONG_INLINE void nk_dots_packed_e2m3_rvv_aligned_(nk_e2m3_t const *a_matrix, 
                                                    sizeof(nk_cross_packed_buffer_header_t));
 
     // Zero output matrix
-    for (nk_size_t i = 0; i < row_count; ++i) {
+    for (nk_size_t i = 0; i < rows; ++i) {
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + i * c_stride);
         for (nk_size_t j = 0; j < column_count; ++j) c_row[j] = 0;
     }
 
     // mr=4 register tile over rows
     nk_size_t row = 0;
-    for (; row + 4 <= row_count; row += 4) {
+    for (; row + 4 <= rows; row += 4) {
         nk_u8_t const *a_row_0 = (nk_u8_t const *)((char const *)a_matrix + (row + 0) * a_stride);
         nk_u8_t const *a_row_1 = (nk_u8_t const *)((char const *)a_matrix + (row + 1) * a_stride);
         nk_u8_t const *a_row_2 = (nk_u8_t const *)((char const *)a_matrix + (row + 2) * a_stride);
@@ -469,7 +469,7 @@ NUMKONG_INLINE void nk_dots_packed_e2m3_rvv_aligned_(nk_e2m3_t const *a_matrix, 
         }
     }
     // Remainder rows (mr < 4)
-    for (; row < row_count; ++row) {
+    for (; row < rows; ++row) {
         nk_u8_t const *a_row = (nk_u8_t const *)((char const *)a_matrix + row * a_stride);
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + row * c_stride);
         for (nk_size_t column = 0; column < column_count; ++column) {
@@ -501,20 +501,19 @@ NUMKONG_INLINE void nk_dots_packed_e2m3_rvv_aligned_(nk_e2m3_t const *a_matrix, 
     }
 }
 
-/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
-NUMKONG_INLINE void nk_dots_symmetric_e2m3_rvv_upper_(nk_e2m3_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count) {
+/** Dots of the rows from @p rows_begin up to @p rows_end against themselves and every later row. */
+NUMKONG_INLINE void nk_dots_symmetric_e2m3_rvv_upper_(nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     nk_f32_t const lut_scale_reciprocal = 1.0f / 256.0f;
 
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
-    for (nk_size_t i = row_start; i < row_end; ++i) {
+    for (nk_size_t i = rows_begin; i < rows_end; ++i) {
         nk_u8_t const *a_i = (nk_u8_t const *)vectors + i * stride;
-        for (nk_size_t j = i; j < vectors_count; ++j) {
+        for (nk_size_t j = i; j < vector_count; ++j) {
             nk_u8_t const *a_j = (nk_u8_t const *)vectors + j * stride;
             nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
             vint32m4_t accumulator_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
@@ -572,7 +571,7 @@ NUMKONG_INLINE void nk_dots_symmetric_e2m3_rvv_upper_(nk_e2m3_t const *vectors, 
  *  Register tile: 4 rows per iteration.
  */
 NUMKONG_INLINE void nk_dots_packed_e2m1_rvv_aligned_(nk_e2m1x2_t const *a_matrix, void const *b_packed_buffer,
-                                                     nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                     nk_f32_t *c_matrix, nk_size_t rows, nk_size_t column_count,
                                                      nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
@@ -582,7 +581,7 @@ NUMKONG_INLINE void nk_dots_packed_e2m1_rvv_aligned_(nk_e2m1x2_t const *a_matrix
                                                    sizeof(nk_cross_packed_buffer_header_t));
 
     nk_size_t row = 0;
-    for (; row + 4 <= row_count; row += 4) {
+    for (; row + 4 <= rows; row += 4) {
         nk_u8_t const *a_row_0 = (nk_u8_t const *)((char const *)a_matrix + (row + 0) * a_stride);
         nk_u8_t const *a_row_1 = (nk_u8_t const *)((char const *)a_matrix + (row + 1) * a_stride);
         nk_u8_t const *a_row_2 = (nk_u8_t const *)((char const *)a_matrix + (row + 2) * a_stride);
@@ -666,7 +665,7 @@ NUMKONG_INLINE void nk_dots_packed_e2m1_rvv_aligned_(nk_e2m1x2_t const *a_matrix
         }
     }
     // Remainder rows (mr < 4)
-    for (; row < row_count; ++row) {
+    for (; row < rows; ++row) {
         nk_u8_t const *a_row = (nk_u8_t const *)((char const *)a_matrix + row * a_stride);
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + row * c_stride);
         for (nk_size_t column = 0; column < column_count; ++column) {
@@ -697,19 +696,19 @@ NUMKONG_INLINE void nk_dots_packed_e2m1_rvv_aligned_(nk_e2m1x2_t const *a_matrix
     }
 }
 
-/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
-NUMKONG_INLINE void nk_dots_symmetric_e2m1_rvv_upper_(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+/** Dots of the rows from @p rows_begin up to @p rows_end against themselves and every later row. */
+NUMKONG_INLINE void nk_dots_symmetric_e2m1_rvv_upper_(nk_e2m1x2_t const *vectors, nk_size_t vector_count,
                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count) {
+                                                      nk_size_t result_stride, nk_size_t rows_begin,
+                                                      nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const full_bytes = depth / NUMKONG_NIBBLES_PER_BYTE;
 
-    for (nk_size_t i = row_start; i < row_end; ++i) {
+    for (nk_size_t i = rows_begin; i < rows_end; ++i) {
         nk_u8_t const *a_i = (nk_u8_t const *)vectors + i * stride;
-        for (nk_size_t j = i; j < vectors_count; ++j) {
+        for (nk_size_t j = i; j < vector_count; ++j) {
             nk_u8_t const *a_j = (nk_u8_t const *)vectors + j * stride;
             nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
             vint32m4_t accumulator_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
@@ -756,7 +755,7 @@ NUMKONG_INLINE void nk_dots_symmetric_e2m1_rvv_upper_(nk_e2m1x2_t const *vectors
  *  The LUT gather on A magnitudes uses @c vluxei16_v_u16m2 (16-bit indexed 16-bit gather).
  */
 NUMKONG_INLINE void nk_dots_packed_e3m2_rvv_aligned_(nk_e3m2_t const *a_matrix, void const *b_packed_buffer,
-                                                     nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                     nk_f32_t *c_matrix, nk_size_t rows, nk_size_t column_count,
                                                      nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
     nk_f32_t const lut_scale_reciprocal = 1.0f / 256.0f;
 
@@ -766,14 +765,14 @@ NUMKONG_INLINE void nk_dots_packed_e3m2_rvv_aligned_(nk_e3m2_t const *a_matrix, 
                                                      sizeof(nk_cross_packed_buffer_header_t));
 
     // Zero output matrix
-    for (nk_size_t i = 0; i < row_count; ++i) {
+    for (nk_size_t i = 0; i < rows; ++i) {
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + i * c_stride);
         for (nk_size_t j = 0; j < column_count; ++j) c_row[j] = 0;
     }
 
     // mr=2 register tile (i16 at LMUL=2 and i32 at LMUL=4 leaves fewer spare registers)
     nk_size_t row = 0;
-    for (; row + 2 <= row_count; row += 2) {
+    for (; row + 2 <= rows; row += 2) {
         nk_u8_t const *a_row_0 = (nk_u8_t const *)((char const *)a_matrix + (row + 0) * a_stride);
         nk_u8_t const *a_row_1 = (nk_u8_t const *)((char const *)a_matrix + (row + 1) * a_stride);
         nk_f32_t *c_row_0 = (nk_f32_t *)((char *)c_matrix + (row + 0) * c_stride);
@@ -843,7 +842,7 @@ NUMKONG_INLINE void nk_dots_packed_e3m2_rvv_aligned_(nk_e3m2_t const *a_matrix, 
         }
     }
     // Remainder rows
-    for (; row < row_count; ++row) {
+    for (; row < rows; ++row) {
         nk_u8_t const *a_row = (nk_u8_t const *)((char const *)a_matrix + row * a_stride);
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + row * c_stride);
         for (nk_size_t column = 0; column < column_count; ++column) {
@@ -876,20 +875,19 @@ NUMKONG_INLINE void nk_dots_packed_e3m2_rvv_aligned_(nk_e3m2_t const *a_matrix, 
     }
 }
 
-/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
-NUMKONG_INLINE void nk_dots_symmetric_e3m2_rvv_upper_(nk_e3m2_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count) {
+/** Dots of the rows from @p rows_begin up to @p rows_end against themselves and every later row. */
+NUMKONG_INLINE void nk_dots_symmetric_e3m2_rvv_upper_(nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     nk_f32_t const lut_scale_reciprocal = 1.0f / 256.0f;
 
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
-    for (nk_size_t i = row_start; i < row_end; ++i) {
+    for (nk_size_t i = rows_begin; i < rows_end; ++i) {
         nk_u8_t const *a_i = (nk_u8_t const *)vectors + i * stride;
-        for (nk_size_t j = i; j < vectors_count; ++j) {
+        for (nk_size_t j = i; j < vector_count; ++j) {
             nk_u8_t const *a_j = (nk_u8_t const *)vectors + j * stride;
             nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
             vint32m4_t accumulator_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
@@ -954,7 +952,7 @@ NUMKONG_INLINE void nk_dots_symmetric_e3m2_rvv_upper_(nk_e3m2_t const *vectors, 
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
  */
 NUMKONG_INLINE void nk_dots_packed_bf16_rvv_aligned_(nk_bf16_t const *a_matrix, void const *b_packed_buffer,
-                                                     nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                     nk_f32_t *c_matrix, nk_size_t rows, nk_size_t column_count,
                                                      nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
@@ -962,14 +960,14 @@ NUMKONG_INLINE void nk_dots_packed_bf16_rvv_aligned_(nk_bf16_t const *a_matrix, 
                                                      sizeof(nk_cross_packed_buffer_header_t));
 
     // Zero output matrix
-    for (nk_size_t i = 0; i < row_count; ++i) {
+    for (nk_size_t i = 0; i < rows; ++i) {
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + i * c_stride);
         for (nk_size_t j = 0; j < column_count; ++j) c_row[j] = 0;
     }
 
     // mr=4 register tile over rows
     nk_size_t row = 0;
-    for (; row + 4 <= row_count; row += 4) {
+    for (; row + 4 <= rows; row += 4) {
         nk_u16_t const *a_row_0 = (nk_u16_t const *)((char const *)a_matrix + (row + 0) * a_stride);
         nk_u16_t const *a_row_1 = (nk_u16_t const *)((char const *)a_matrix + (row + 1) * a_stride);
         nk_u16_t const *a_row_2 = (nk_u16_t const *)((char const *)a_matrix + (row + 2) * a_stride);
@@ -1024,7 +1022,7 @@ NUMKONG_INLINE void nk_dots_packed_bf16_rvv_aligned_(nk_bf16_t const *a_matrix, 
         }
     }
     // Remainder rows (mr < 4)
-    for (; row < row_count; ++row) {
+    for (; row < rows; ++row) {
         nk_u16_t const *a_row = (nk_u16_t const *)((char const *)a_matrix + row * a_stride);
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + row * c_stride);
         for (nk_size_t column = 0; column < column_count; ++column) {
@@ -1048,18 +1046,17 @@ NUMKONG_INLINE void nk_dots_packed_bf16_rvv_aligned_(nk_bf16_t const *a_matrix, 
     }
 }
 
-/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
-NUMKONG_INLINE void nk_dots_symmetric_bf16_rvv_upper_(nk_bf16_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count) {
+/** Dots of the rows from @p rows_begin up to @p rows_end against themselves and every later row. */
+NUMKONG_INLINE void nk_dots_symmetric_bf16_rvv_upper_(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
-    for (nk_size_t i = row_start; i < row_end; ++i) {
+    for (nk_size_t i = rows_begin; i < rows_end; ++i) {
         nk_u16_t const *a_i = (nk_u16_t const *)((char const *)vectors + i * stride);
-        for (nk_size_t j = i; j < vectors_count; ++j) {
+        for (nk_size_t j = i; j < vector_count; ++j) {
             nk_u16_t const *a_j = (nk_u16_t const *)((char const *)vectors + j * stride);
             nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
             vfloat64m4_t accumulator_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
@@ -1098,7 +1095,7 @@ NUMKONG_INLINE void nk_dots_symmetric_bf16_rvv_upper_(nk_bf16_t const *vectors, 
  *  Register tile: process 4 rows per iteration (rows_per_tile=4).
  */
 NUMKONG_INLINE void nk_dots_packed_f16_rvv_aligned_(nk_f16_t const *a_matrix, void const *b_packed_buffer,
-                                                    nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                    nk_f32_t *c_matrix, nk_size_t rows, nk_size_t column_count,
                                                     nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
@@ -1106,14 +1103,14 @@ NUMKONG_INLINE void nk_dots_packed_f16_rvv_aligned_(nk_f16_t const *a_matrix, vo
                                                      sizeof(nk_cross_packed_buffer_header_t));
 
     // Zero output matrix
-    for (nk_size_t i = 0; i < row_count; ++i) {
+    for (nk_size_t i = 0; i < rows; ++i) {
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + i * c_stride);
         for (nk_size_t j = 0; j < column_count; ++j) c_row[j] = 0;
     }
 
     // mr=4 register tile over rows
     nk_size_t row = 0;
-    for (; row + 4 <= row_count; row += 4) {
+    for (; row + 4 <= rows; row += 4) {
         nk_u16_t const *a_row_0 = (nk_u16_t const *)((char const *)a_matrix + (row + 0) * a_stride);
         nk_u16_t const *a_row_1 = (nk_u16_t const *)((char const *)a_matrix + (row + 1) * a_stride);
         nk_u16_t const *a_row_2 = (nk_u16_t const *)((char const *)a_matrix + (row + 2) * a_stride);
@@ -1168,7 +1165,7 @@ NUMKONG_INLINE void nk_dots_packed_f16_rvv_aligned_(nk_f16_t const *a_matrix, vo
         }
     }
     // Remainder rows (mr < 4)
-    for (; row < row_count; ++row) {
+    for (; row < rows; ++row) {
         nk_u16_t const *a_row = (nk_u16_t const *)((char const *)a_matrix + row * a_stride);
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + row * c_stride);
         for (nk_size_t column = 0; column < column_count; ++column) {
@@ -1192,17 +1189,17 @@ NUMKONG_INLINE void nk_dots_packed_f16_rvv_aligned_(nk_f16_t const *a_matrix, vo
     }
 }
 
-/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
-NUMKONG_INLINE void nk_dots_symmetric_f16_rvv_upper_(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+/** Dots of the rows from @p rows_begin up to @p rows_end against themselves and every later row. */
+NUMKONG_INLINE void nk_dots_symmetric_f16_rvv_upper_(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                     nk_size_t row_start, nk_size_t row_count) {
+                                                     nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
-    for (nk_size_t i = row_start; i < row_end; ++i) {
+    for (nk_size_t i = rows_begin; i < rows_end; ++i) {
         nk_u16_t const *a_i = (nk_u16_t const *)((char const *)vectors + i * stride);
-        for (nk_size_t j = i; j < vectors_count; ++j) {
+        for (nk_size_t j = i; j < vector_count; ++j) {
             nk_u16_t const *a_j = (nk_u16_t const *)((char const *)vectors + j * stride);
             nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
             vfloat64m4_t accumulator_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
@@ -1242,7 +1239,7 @@ NUMKONG_INLINE void nk_dots_symmetric_f16_rvv_upper_(nk_f16_t const *vectors, nk
  *  Output is nk_i32_t (integer result, no scaling).
  */
 NUMKONG_INLINE void nk_dots_packed_i8_rvv_aligned_(nk_i8_t const *a_matrix, void const *b_packed_buffer,
-                                                   nk_i32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                   nk_i32_t *c_matrix, nk_size_t rows, nk_size_t column_count,
                                                    nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
@@ -1250,14 +1247,14 @@ NUMKONG_INLINE void nk_dots_packed_i8_rvv_aligned_(nk_i8_t const *a_matrix, void
                                                    sizeof(nk_cross_packed_buffer_header_t));
 
     // Zero output matrix
-    for (nk_size_t i = 0; i < row_count; ++i) {
+    for (nk_size_t i = 0; i < rows; ++i) {
         nk_i32_t *c_row = (nk_i32_t *)((char *)c_matrix + i * c_stride);
         for (nk_size_t j = 0; j < column_count; ++j) c_row[j] = 0;
     }
 
     // mr=4 register tile over rows
     nk_size_t row = 0;
-    for (; row + 4 <= row_count; row += 4) {
+    for (; row + 4 <= rows; row += 4) {
         nk_i8_t const *a_row_0 = (nk_i8_t const *)((char const *)a_matrix + (row + 0) * a_stride);
         nk_i8_t const *a_row_1 = (nk_i8_t const *)((char const *)a_matrix + (row + 1) * a_stride);
         nk_i8_t const *a_row_2 = (nk_i8_t const *)((char const *)a_matrix + (row + 2) * a_stride);
@@ -1311,7 +1308,7 @@ NUMKONG_INLINE void nk_dots_packed_i8_rvv_aligned_(nk_i8_t const *a_matrix, void
         }
     }
     // Remainder rows (mr < 4)
-    for (; row < row_count; ++row) {
+    for (; row < rows; ++row) {
         nk_i8_t const *a_row = (nk_i8_t const *)((char const *)a_matrix + row * a_stride);
         nk_i32_t *c_row = (nk_i32_t *)((char *)c_matrix + row * c_stride);
         for (nk_size_t column = 0; column < column_count; ++column) {
@@ -1335,17 +1332,17 @@ NUMKONG_INLINE void nk_dots_packed_i8_rvv_aligned_(nk_i8_t const *a_matrix, void
     }
 }
 
-/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
-NUMKONG_INLINE void nk_dots_symmetric_i8_rvv_upper_(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+/** Dots of the rows from @p rows_begin up to @p rows_end against themselves and every later row. */
+NUMKONG_INLINE void nk_dots_symmetric_i8_rvv_upper_(nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                     nk_size_t stride, nk_i32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count) {
+                                                    nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_i32_t);
-    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
-    for (nk_size_t i = row_start; i < row_end; ++i) {
+    for (nk_size_t i = rows_begin; i < rows_end; ++i) {
         nk_i8_t const *a_i = (nk_i8_t const *)((char const *)vectors + i * stride);
-        for (nk_size_t j = i; j < vectors_count; ++j) {
+        for (nk_size_t j = i; j < vector_count; ++j) {
             nk_i8_t const *a_j = (nk_i8_t const *)((char const *)vectors + j * stride);
             nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
             vint32m4_t accumulator_i32m4 = __riscv_vmv_v_x_i32m4(0, max_vector_length);
@@ -1384,7 +1381,7 @@ NUMKONG_INLINE void nk_dots_symmetric_i8_rvv_upper_(nk_i8_t const *vectors, nk_s
  *  Output is nk_u32_t (unsigned integer result, no scaling).
  */
 NUMKONG_INLINE void nk_dots_packed_u8_rvv_aligned_(nk_u8_t const *a_matrix, void const *b_packed_buffer,
-                                                   nk_u32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                   nk_u32_t *c_matrix, nk_size_t rows, nk_size_t column_count,
                                                    nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
@@ -1392,14 +1389,14 @@ NUMKONG_INLINE void nk_dots_packed_u8_rvv_aligned_(nk_u8_t const *a_matrix, void
                                                    sizeof(nk_cross_packed_buffer_header_t));
 
     // Zero output matrix
-    for (nk_size_t i = 0; i < row_count; ++i) {
+    for (nk_size_t i = 0; i < rows; ++i) {
         nk_u32_t *c_row = (nk_u32_t *)((char *)c_matrix + i * c_stride);
         for (nk_size_t j = 0; j < column_count; ++j) c_row[j] = 0;
     }
 
     // mr=4 register tile over rows
     nk_size_t row = 0;
-    for (; row + 4 <= row_count; row += 4) {
+    for (; row + 4 <= rows; row += 4) {
         nk_u8_t const *a_row_0 = (nk_u8_t const *)((char const *)a_matrix + (row + 0) * a_stride);
         nk_u8_t const *a_row_1 = (nk_u8_t const *)((char const *)a_matrix + (row + 1) * a_stride);
         nk_u8_t const *a_row_2 = (nk_u8_t const *)((char const *)a_matrix + (row + 2) * a_stride);
@@ -1453,7 +1450,7 @@ NUMKONG_INLINE void nk_dots_packed_u8_rvv_aligned_(nk_u8_t const *a_matrix, void
         }
     }
     // Remainder rows (mr < 4)
-    for (; row < row_count; ++row) {
+    for (; row < rows; ++row) {
         nk_u8_t const *a_row = (nk_u8_t const *)((char const *)a_matrix + row * a_stride);
         nk_u32_t *c_row = (nk_u32_t *)((char *)c_matrix + row * c_stride);
         for (nk_size_t column = 0; column < column_count; ++column) {
@@ -1477,17 +1474,17 @@ NUMKONG_INLINE void nk_dots_packed_u8_rvv_aligned_(nk_u8_t const *a_matrix, void
     }
 }
 
-/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
-NUMKONG_INLINE void nk_dots_symmetric_u8_rvv_upper_(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+/** Dots of the rows from @p rows_begin up to @p rows_end against themselves and every later row. */
+NUMKONG_INLINE void nk_dots_symmetric_u8_rvv_upper_(nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                     nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
-                                                    nk_size_t row_start, nk_size_t row_count) {
+                                                    nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_u32_t);
-    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
-    for (nk_size_t i = row_start; i < row_end; ++i) {
+    for (nk_size_t i = rows_begin; i < rows_end; ++i) {
         nk_u8_t const *a_i = (nk_u8_t const *)((char const *)vectors + i * stride);
-        for (nk_size_t j = i; j < vectors_count; ++j) {
+        for (nk_size_t j = i; j < vector_count; ++j) {
             nk_u8_t const *a_j = (nk_u8_t const *)((char const *)vectors + j * stride);
             nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
             vuint32m4_t accumulator_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
@@ -1565,7 +1562,7 @@ static nk_u32_t const nk_e4m3_magnitude_lut_rvv_[128] = {
  *  f64m4 accumulator are register-heavy.
  */
 NUMKONG_INLINE void nk_dots_packed_e4m3_rvv_aligned_(nk_e4m3_t const *a_matrix, void const *b_packed_buffer,
-                                                     nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                     nk_f32_t *c_matrix, nk_size_t rows, nk_size_t column_count,
                                                      nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
@@ -1573,14 +1570,14 @@ NUMKONG_INLINE void nk_dots_packed_e4m3_rvv_aligned_(nk_e4m3_t const *a_matrix, 
                                                      sizeof(nk_cross_packed_buffer_header_t));
 
     // Zero output matrix
-    for (nk_size_t i = 0; i < row_count; ++i) {
+    for (nk_size_t i = 0; i < rows; ++i) {
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + i * c_stride);
         for (nk_size_t j = 0; j < column_count; ++j) c_row[j] = 0;
     }
 
     // mr=2 register tile over rows
     nk_size_t row = 0;
-    for (; row + 2 <= row_count; row += 2) {
+    for (; row + 2 <= rows; row += 2) {
         nk_u8_t const *a_row_0 = (nk_u8_t const *)((char const *)a_matrix + (row + 0) * a_stride);
         nk_u8_t const *a_row_1 = (nk_u8_t const *)((char const *)a_matrix + (row + 1) * a_stride);
         nk_f32_t *c_row_0 = (nk_f32_t *)((char *)c_matrix + (row + 0) * c_stride);
@@ -1649,7 +1646,7 @@ NUMKONG_INLINE void nk_dots_packed_e4m3_rvv_aligned_(nk_e4m3_t const *a_matrix, 
         }
     }
     // Remainder rows
-    for (; row < row_count; ++row) {
+    for (; row < rows; ++row) {
         nk_u8_t const *a_row = (nk_u8_t const *)((char const *)a_matrix + row * a_stride);
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + row * c_stride);
         for (nk_size_t column = 0; column < column_count; ++column) {
@@ -1682,18 +1679,17 @@ NUMKONG_INLINE void nk_dots_packed_e4m3_rvv_aligned_(nk_e4m3_t const *a_matrix, 
     }
 }
 
-/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
-NUMKONG_INLINE void nk_dots_symmetric_e4m3_rvv_upper_(nk_e4m3_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count) {
+/** Dots of the rows from @p rows_begin up to @p rows_end against themselves and every later row. */
+NUMKONG_INLINE void nk_dots_symmetric_e4m3_rvv_upper_(nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
-    for (nk_size_t i = row_start; i < row_end; ++i) {
+    for (nk_size_t i = rows_begin; i < rows_end; ++i) {
         nk_u8_t const *a_i = (nk_u8_t const *)vectors + i * stride;
-        for (nk_size_t j = i; j < vectors_count; ++j) {
+        for (nk_size_t j = i; j < vector_count; ++j) {
             nk_u8_t const *a_j = (nk_u8_t const *)vectors + j * stride;
             nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
             vfloat64m4_t accumulator_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
@@ -1796,7 +1792,7 @@ static nk_u32_t const nk_e5m2_magnitude_lut_rvv_[128] = {
  *  f64m4 accumulator are register-heavy.
  */
 NUMKONG_INLINE void nk_dots_packed_e5m2_rvv_aligned_(nk_e5m2_t const *a_matrix, void const *b_packed_buffer,
-                                                     nk_f32_t *c_matrix, nk_size_t row_count, nk_size_t column_count,
+                                                     nk_f32_t *c_matrix, nk_size_t rows, nk_size_t column_count,
                                                      nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;
     nk_size_t const depth_padded = header->depth_padded_values;
@@ -1804,14 +1800,14 @@ NUMKONG_INLINE void nk_dots_packed_e5m2_rvv_aligned_(nk_e5m2_t const *a_matrix, 
                                                      sizeof(nk_cross_packed_buffer_header_t));
 
     // Zero output matrix
-    for (nk_size_t i = 0; i < row_count; ++i) {
+    for (nk_size_t i = 0; i < rows; ++i) {
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + i * c_stride);
         for (nk_size_t j = 0; j < column_count; ++j) c_row[j] = 0;
     }
 
     // mr=2 register tile over rows
     nk_size_t row = 0;
-    for (; row + 2 <= row_count; row += 2) {
+    for (; row + 2 <= rows; row += 2) {
         nk_u8_t const *a_row_0 = (nk_u8_t const *)((char const *)a_matrix + (row + 0) * a_stride);
         nk_u8_t const *a_row_1 = (nk_u8_t const *)((char const *)a_matrix + (row + 1) * a_stride);
         nk_f32_t *c_row_0 = (nk_f32_t *)((char *)c_matrix + (row + 0) * c_stride);
@@ -1880,7 +1876,7 @@ NUMKONG_INLINE void nk_dots_packed_e5m2_rvv_aligned_(nk_e5m2_t const *a_matrix, 
         }
     }
     // Remainder rows
-    for (; row < row_count; ++row) {
+    for (; row < rows; ++row) {
         nk_u8_t const *a_row = (nk_u8_t const *)((char const *)a_matrix + row * a_stride);
         nk_f32_t *c_row = (nk_f32_t *)((char *)c_matrix + row * c_stride);
         for (nk_size_t column = 0; column < column_count; ++column) {
@@ -1913,18 +1909,17 @@ NUMKONG_INLINE void nk_dots_packed_e5m2_rvv_aligned_(nk_e5m2_t const *a_matrix, 
     }
 }
 
-/** Dots of @p row_count rows from @p row_start against themselves and every later row. */
-NUMKONG_INLINE void nk_dots_symmetric_e5m2_rvv_upper_(nk_e5m2_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start,
-                                                      nk_size_t row_count) {
+/** Dots of the rows from @p rows_begin up to @p rows_end against themselves and every later row. */
+NUMKONG_INLINE void nk_dots_symmetric_e5m2_rvv_upper_(nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-    nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
-    for (nk_size_t i = row_start; i < row_end; ++i) {
+    for (nk_size_t i = rows_begin; i < rows_end; ++i) {
         nk_u8_t const *a_i = (nk_u8_t const *)vectors + i * stride;
-        for (nk_size_t j = i; j < vectors_count; ++j) {
+        for (nk_size_t j = i; j < vector_count; ++j) {
             nk_u8_t const *a_j = (nk_u8_t const *)vectors + j * stride;
             nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
             vfloat64m4_t accumulator_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
@@ -1989,7 +1984,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_f32_rvv(nk_size_t column_count, nk_siz
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_f32_rvv(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                     void *stream) {
+                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
     if (header->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
@@ -2000,7 +1995,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_f32_rvv(void const *b_packed, nk_si
 
 NUMKONG_API nk_status_t nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column_count, nk_size_t depth,
                                              nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                             nk_size_t columns_end, void *stream) {
+                                             nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -2049,19 +2044,18 @@ NUMKONG_API nk_status_t nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column
 
 NUMKONG_API nk_status_t nk_dots_packed_f32_rvv(nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
                                                nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                               nk_size_t c_stride, void *stream) {
+                                               nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_cross_packed_buffer_header_t const *)b_packed)->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
     nk_dots_packed_f32_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_dots_symmetric_f32_rvv(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                   nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                  nk_size_t row_start, nk_size_t row_count, void *stream) {
+                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_symmetric_f32_rvv_upper_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
+    nk_dots_symmetric_f32_rvv_upper_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
     return nk_success_k;
 }
 
@@ -2080,7 +2074,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_f64_rvv(nk_size_t column_count, nk_siz
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_f64_rvv(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                     void *stream) {
+                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
     if (header->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
@@ -2091,7 +2085,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_f64_rvv(void const *b_packed, nk_si
 
 NUMKONG_API nk_status_t nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column_count, nk_size_t depth,
                                              nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                             nk_size_t columns_end, void *stream) {
+                                             nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -2140,19 +2134,18 @@ NUMKONG_API nk_status_t nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column
 
 NUMKONG_API nk_status_t nk_dots_packed_f64_rvv(nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
                                                nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                               nk_size_t c_stride, void *stream) {
+                                               nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_cross_packed_buffer_header_t const *)b_packed)->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
     nk_dots_packed_f64_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                   nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                  nk_size_t row_start, nk_size_t row_count, void *stream) {
+                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_symmetric_f64_rvv_upper_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
+    nk_dots_symmetric_f64_rvv_upper_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
     return nk_success_k;
 }
 
@@ -2171,7 +2164,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e2m3_rvv(nk_size_t column_count, nk_si
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e2m3_rvv(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                      void *stream) {
+                                                      nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
     if (header->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
@@ -2182,7 +2175,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_e2m3_rvv(void const *b_packed, nk_s
 
 NUMKONG_API nk_status_t nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t column_count, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                              nk_size_t columns_end, void *stream) {
+                                              nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -2238,19 +2231,19 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t colu
 
 NUMKONG_API nk_status_t nk_dots_packed_e2m3_rvv(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                                nk_size_t c_stride, void *stream) {
+                                                nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_cross_packed_buffer_header_t const *)b_packed)->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
     nk_dots_packed_e2m3_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_dots_symmetric_e2m3_rvv(nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count, void *stream) {
+                                                   nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_symmetric_e2m3_rvv_upper_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
+    nk_dots_symmetric_e2m3_rvv_upper_(vectors, vector_count, depth, stride, result, result_stride, rows_begin,
+                                      rows_end);
     return nk_success_k;
 }
 
@@ -2269,7 +2262,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e2m1_rvv(nk_size_t column_count, nk_si
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e2m1_rvv(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                      void *stream) {
+                                                      nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
     if (header->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
@@ -2280,7 +2273,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_e2m1_rvv(void const *b_packed, nk_s
 
 NUMKONG_API nk_status_t nk_dots_pack_e2m1_rvv(nk_e2m1x2_t const *b, nk_size_t column_count, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                              nk_size_t columns_end, void *stream) {
+                                              nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t half_padded = nk_size_round_up_to_multiple_(depth / NUMKONG_NIBBLES_PER_BYTE, max_vector_length);
@@ -2340,19 +2333,19 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m1_rvv(nk_e2m1x2_t const *b, nk_size_t co
 
 NUMKONG_API nk_status_t nk_dots_packed_e2m1_rvv(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                                nk_size_t c_stride, void *stream) {
+                                                nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_cross_packed_buffer_header_t const *)b_packed)->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
     nk_dots_packed_e2m1_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e2m1_rvv(nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_dots_symmetric_e2m1_rvv(nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count, void *stream) {
+                                                   nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_symmetric_e2m1_rvv_upper_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
+    nk_dots_symmetric_e2m1_rvv_upper_(vectors, vector_count, depth, stride, result, result_stride, rows_begin,
+                                      rows_end);
     return nk_success_k;
 }
 
@@ -2371,7 +2364,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e3m2_rvv(nk_size_t column_count, nk_si
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e3m2_rvv(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                      void *stream) {
+                                                      nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
     if (header->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
@@ -2382,7 +2375,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_e3m2_rvv(void const *b_packed, nk_s
 
 NUMKONG_API nk_status_t nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t column_count, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                              nk_size_t columns_end, void *stream) {
+                                              nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e16m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -2440,19 +2433,19 @@ NUMKONG_API nk_status_t nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t colu
 
 NUMKONG_API nk_status_t nk_dots_packed_e3m2_rvv(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                                nk_size_t c_stride, void *stream) {
+                                                nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_cross_packed_buffer_header_t const *)b_packed)->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
     nk_dots_packed_e3m2_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_dots_symmetric_e3m2_rvv(nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count, void *stream) {
+                                                   nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_symmetric_e3m2_rvv_upper_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
+    nk_dots_symmetric_e3m2_rvv_upper_(vectors, vector_count, depth, stride, result, result_stride, rows_begin,
+                                      rows_end);
     return nk_success_k;
 }
 
@@ -2472,7 +2465,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_bf16_rvv(nk_size_t column_count, nk_si
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_bf16_rvv(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                      void *stream) {
+                                                      nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
     if (header->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
@@ -2483,7 +2476,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_bf16_rvv(void const *b_packed, nk_s
 
 NUMKONG_API nk_status_t nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t column_count, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                              nk_size_t columns_end, void *stream) {
+                                              nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -2533,19 +2526,19 @@ NUMKONG_API nk_status_t nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t colu
 
 NUMKONG_API nk_status_t nk_dots_packed_bf16_rvv(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                                nk_size_t c_stride, void *stream) {
+                                                nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_cross_packed_buffer_header_t const *)b_packed)->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
     nk_dots_packed_bf16_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_dots_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count, void *stream) {
+                                                   nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_symmetric_bf16_rvv_upper_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
+    nk_dots_symmetric_bf16_rvv_upper_(vectors, vector_count, depth, stride, result, result_stride, rows_begin,
+                                      rows_end);
     return nk_success_k;
 }
 
@@ -2565,7 +2558,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_f16_rvv(nk_size_t column_count, nk_siz
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_f16_rvv(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                     void *stream) {
+                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
     if (header->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
@@ -2576,7 +2569,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_f16_rvv(void const *b_packed, nk_si
 
 NUMKONG_API nk_status_t nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column_count, nk_size_t depth,
                                              nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                             nk_size_t columns_end, void *stream) {
+                                             nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -2626,19 +2619,18 @@ NUMKONG_API nk_status_t nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column
 
 NUMKONG_API nk_status_t nk_dots_packed_f16_rvv(nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                               nk_size_t c_stride, void *stream) {
+                                               nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_cross_packed_buffer_header_t const *)b_packed)->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
     nk_dots_packed_f16_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_dots_symmetric_f16_rvv(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                   nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                  nk_size_t row_start, nk_size_t row_count, void *stream) {
+                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_symmetric_f16_rvv_upper_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
+    nk_dots_symmetric_f16_rvv_upper_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
     return nk_success_k;
 }
 
@@ -2658,7 +2650,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_i8_rvv(nk_size_t column_count, nk_size
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_i8_rvv(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
     if (header->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
@@ -2669,7 +2661,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_i8_rvv(void const *b_packed, nk_siz
 
 NUMKONG_API nk_status_t nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_count, nk_size_t depth,
                                             nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                            nk_size_t columns_end, void *stream) {
+                                            nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -2718,18 +2710,18 @@ NUMKONG_API nk_status_t nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_c
 
 NUMKONG_API nk_status_t nk_dots_packed_i8_rvv(nk_i8_t const *a, void const *b_packed, nk_i32_t *c, nk_size_t rows,
                                               nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                              nk_size_t c_stride, void *stream) {
+                                              nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_cross_packed_buffer_header_t const *)b_packed)->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
     nk_dots_packed_i8_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_dots_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                  nk_size_t stride, nk_i32_t *result, nk_size_t result_stride,
-                                                 nk_size_t row_start, nk_size_t row_count, void *stream) {
+                                                 nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_symmetric_i8_rvv_upper_(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
+    nk_dots_symmetric_i8_rvv_upper_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
     return nk_success_k;
 }
 
@@ -2749,7 +2741,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_u8_rvv(nk_size_t column_count, nk_size
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_u8_rvv(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
     if (header->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
@@ -2760,7 +2752,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_u8_rvv(void const *b_packed, nk_siz
 
 NUMKONG_API nk_status_t nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_count, nk_size_t depth,
                                             nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                            nk_size_t columns_end, void *stream) {
+                                            nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e8m1();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -2809,18 +2801,18 @@ NUMKONG_API nk_status_t nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_c
 
 NUMKONG_API nk_status_t nk_dots_packed_u8_rvv(nk_u8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t rows,
                                               nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                              nk_size_t c_stride, void *stream) {
+                                              nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_cross_packed_buffer_header_t const *)b_packed)->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
     nk_dots_packed_u8_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_dots_symmetric_u8_rvv(nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                  nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
-                                                 nk_size_t row_start, nk_size_t row_count, void *stream) {
+                                                 nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_symmetric_u8_rvv_upper_(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
+    nk_dots_symmetric_u8_rvv_upper_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
     return nk_success_k;
 }
 
@@ -2839,7 +2831,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e4m3_rvv(nk_size_t column_count, nk_si
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e4m3_rvv(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                      void *stream) {
+                                                      nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
     if (header->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
@@ -2850,7 +2842,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_e4m3_rvv(void const *b_packed, nk_s
 
 NUMKONG_API nk_status_t nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t column_count, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                              nk_size_t columns_end, void *stream) {
+                                              nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -2900,19 +2892,19 @@ NUMKONG_API nk_status_t nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t colu
 
 NUMKONG_API nk_status_t nk_dots_packed_e4m3_rvv(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                                nk_size_t c_stride, void *stream) {
+                                                nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_cross_packed_buffer_header_t const *)b_packed)->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
     nk_dots_packed_e4m3_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_dots_symmetric_e4m3_rvv(nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count, void *stream) {
+                                                   nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_symmetric_e4m3_rvv_upper_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
+    nk_dots_symmetric_e4m3_rvv_upper_(vectors, vector_count, depth, stride, result, result_stride, rows_begin,
+                                      rows_end);
     return nk_success_k;
 }
 
@@ -2931,7 +2923,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e5m2_rvv(nk_size_t column_count, nk_si
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e5m2_rvv(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                      void *stream) {
+                                                      nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
     if (header->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
@@ -2942,7 +2934,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_e5m2_rvv(void const *b_packed, nk_s
 
 NUMKONG_API nk_status_t nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                              nk_size_t columns_end, void *stream) {
+                                              nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_size_t depth_padded = nk_size_round_up_to_multiple_(depth, max_vector_length);
@@ -2992,19 +2984,19 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t colu
 
 NUMKONG_API nk_status_t nk_dots_packed_e5m2_rvv(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                                nk_size_t c_stride, void *stream) {
+                                                nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_cross_packed_buffer_header_t const *)b_packed)->capability != nk_cap_rvv_k) return nk_pack_mismatch_k;
     nk_dots_packed_e5m2_rvv_aligned_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_rvv(nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_rvv(nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                   nk_size_t row_start, nk_size_t row_count, void *stream) {
+                                                   nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_symmetric_e5m2_rvv_upper_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                      row_count);
+    nk_dots_symmetric_e5m2_rvv_upper_(vectors, vector_count, depth, stride, result, result_stride, rows_begin,
+                                      rows_end);
     return nk_success_k;
 }
 

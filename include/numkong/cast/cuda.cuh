@@ -30,7 +30,7 @@ NUMKONG_INLINE nk_status_t nk_cast_block_scaled_launch_cuda_(void const *kernel,
                                                              nk_block_scaled_format_t const *from_format,
                                                              nk_cast_operand_t const &to,
                                                              nk_block_scaled_format_t const *to_format, nk_size_t count,
-                                                             void *stream) {
+                                                             nk_stream_t stream) {
     int const from_plain = from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0;
     int const to_plain = to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0;
     nk_cast_block_scaled_arguments_t arguments;
@@ -69,7 +69,7 @@ NUMKONG_INLINE nk_status_t nk_cast_block_scaled_launch_cuda_(void const *kernel,
 NUMKONG_INLINE nk_status_t nk_cast_launch_cuda_(void const *kernel, void const *vectors_kernel,
                                                 void const *block_scaled_kernel, void const *from,
                                                 nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype, nk_size_t count,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_cast_arguments_t arguments;
     if (nk_dtype_is_block_scaled(from_dtype) || nk_dtype_is_block_scaled(to_dtype)) {
         nk_block_scaled_format_t const from_format = nk_block_scaled_format_of_dtype(from_dtype);
@@ -104,7 +104,7 @@ static __global__ void nk_cast_block_scaled_cuda_kernel_(nk_cast_block_scaled_ar
 }
 
 NUMKONG_API nk_status_t nk_cast_cuda(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                     nk_size_t count, void *stream) {
+                                     nk_size_t count, nk_stream_t stream) {
     return nk_cast_launch_cuda_((void const *)&nk_cast_cuda_kernel_, (void const *)&nk_cast_vectors_cuda_kernel_,
                                 (void const *)&nk_cast_block_scaled_cuda_kernel_, from, from_dtype, to, to_dtype, count,
                                 stream);

@@ -61,7 +61,7 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_buffer a_buffer, out_buffer;
     nk_buffer_backing_t a_backing, out_backing;

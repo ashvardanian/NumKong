@@ -289,10 +289,10 @@ NUMKONG_DEVICE void nk_cross_stage_ampere_(unsigned char *a_stage, unsigned char
                                    : 0;
 
         nk_size_t const row = first_row + tile_row;
-        unsigned char const *a_source = row < arguments->row_end ? arguments->a + row * arguments->a_stride + byte
-                                                                 : arguments->a;
+        unsigned char const *a_source = row < arguments->rows_end ? arguments->a + row * arguments->a_stride + byte
+                                                                  : arguments->a;
         nk_copy_b128_async_ampere_(nk_shared_address_ampere_(a_stage + swizzled), a_source,
-                                   row < arguments->row_end ? valid : 0);
+                                   row < arguments->rows_end ? valid : 0);
 
         nk_size_t const b_row = first_column + tile_row;
         unsigned char const *b_source = b_row < arguments->column_count
@@ -351,7 +351,7 @@ NUMKONG_DEVICE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply, n
     for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
         // The previous tile's last reads of the ring must retire before this tile's prologue refills it.
         __syncthreads();
-        nk_size_t const first_row = arguments->row_start + tile / arguments->column_tiles * nk_cross_tile_ampere_k;
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_ampere_k;
         nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_ampere_k;
         if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_ampere_k <= first_row) continue;
 
@@ -443,7 +443,7 @@ NUMKONG_DEVICE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply, n
             for (unsigned half = 0; half < 2; ++half) {
                 unsigned const tile_row = warp_row + row_tile * 16 + half * 8 + group;
                 nk_size_t const row = first_row + tile_row;
-                if (row >= arguments->row_end) continue;
+                if (row >= arguments->rows_end) continue;
                 unsigned char *output = (unsigned char *)arguments->c + row * arguments->c_stride;
                 nk_fui32_t row_norm;
                 row_norm.u = metric == nk_cross_metric_dot_k ? 0 : norms[tile_row].u;

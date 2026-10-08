@@ -721,7 +721,7 @@ error_stats_t test_custom_allocator(settings_t const &) {
     nk_allocator_t policy;
     stats.expect(nk_allocator_init_arena(&policy, storage, sizeof(storage), 64) == nk_success_k,
                  "arena initialization failed");
-    nk::allocator<float> arena(policy, storage);
+    nk::allocator<float> arena(policy);
     nk::allocator<char> rebound(arena);
     stats.expect(rebound == arena, "rebind lost allocation context");
     stats.expect(rebound.allocate(sizeof(storage)) == nullptr, "arena accepted oversized allocation");

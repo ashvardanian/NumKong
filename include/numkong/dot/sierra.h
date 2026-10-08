@@ -96,7 +96,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_dot_i8_sierra(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                         nk_i32_t *result, void *stream) {
+                                         nk_i32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Native i8 × i8 dot product using DPBSSD (signed × signed → i32).
     // No algebraic transformation needed - dpbssd handles signed*signed directly.
@@ -171,7 +171,7 @@ NUMKONG_INLINE void nk_dot_i8x32_finalize_sierra(                               
 }
 
 NUMKONG_API nk_status_t nk_dot_u8_sierra(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                         nk_u32_t *result, void *stream) {
+                                         nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Native u8 × u8 dot product using DPBUUD (unsigned × unsigned → u32).
     // No algebraic transformation needed - dpbuud handles unsigned*unsigned directly.
@@ -246,7 +246,7 @@ NUMKONG_INLINE void nk_dot_u8x32_finalize_sierra(                               
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m3_sierra(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                           nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPDPBSSD (signed*signed).
     // Every e2m3 value * 16 is an exact integer in [-120, +120].
@@ -454,7 +454,7 @@ NUMKONG_INLINE void nk_dot_e2m1x64_finalize_sierra(                             
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m1_sierra(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_e2m1x64_state_sierra_t state;
     nk_dot_e2m1x64_init_sierra(&state);

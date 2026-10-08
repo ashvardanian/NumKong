@@ -183,7 +183,7 @@ NUMKONG_INLINE nk_u8_t nk_intersect_u64x8_icelake_(__m512i a, __m512i b) {
 NUMKONG_API nk_status_t nk_sparse_intersect_u16_icelake( //
     nk_u16_t const *a, nk_u16_t const *b,                //
     nk_size_t a_length, nk_size_t b_length,              //
-    nk_u16_t *result, nk_size_t *count, void *stream) {
+    nk_u16_t *result, nk_size_t *count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
@@ -248,7 +248,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u16_icelake( //
 NUMKONG_API nk_status_t nk_sparse_intersect_u32_icelake( //
     nk_u32_t const *a, nk_u32_t const *b,                //
     nk_size_t a_length, nk_size_t b_length,              //
-    nk_u32_t *result, nk_size_t *count, void *stream) {
+    nk_u32_t *result, nk_size_t *count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
@@ -313,7 +313,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u32_icelake( //
 NUMKONG_API nk_status_t nk_sparse_intersect_u64_icelake( //
     nk_u64_t const *a, nk_u64_t const *b,                //
     nk_size_t a_length, nk_size_t b_length,              //
-    nk_u64_t *result, nk_size_t *count, void *stream) {
+    nk_u64_t *result, nk_size_t *count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
@@ -378,7 +378,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u64_icelake( //
 NUMKONG_API nk_status_t nk_sparse_dot_u32f32_icelake(     //
     nk_u32_t const *a, nk_u32_t const *b,                 //
     nk_f32_t const *a_weights, nk_f32_t const *b_weights, //
-    nk_size_t a_length, nk_size_t b_length, nk_f64_t *product, void *stream) {
+    nk_size_t a_length, nk_size_t b_length, nk_f64_t *product, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT

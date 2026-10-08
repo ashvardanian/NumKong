@@ -126,10 +126,10 @@ typedef struct {
     void *c;
 
     /** First output row. */
-    nk_size_t row_start;
+    nk_size_t rows_begin;
 
     /** One past the last output row. */
-    nk_size_t row_end;
+    nk_size_t rows_end;
 
     /** Output columns, the rows of B. */
     nk_size_t column_count;
@@ -644,7 +644,7 @@ NUMKONG_DEVICE void nk_cross_stage_slab_f64_simt_(nk_dtype_t dtype, nk_cross_til
         unsigned const element = threadIdx.x + step * nk_cross_threads_simt_k;
         unsigned const tile_row = element / nk_cross_slab_simt_k, offset = element % nk_cross_slab_simt_k;
         nk_size_t const index = slab + offset, row = first_row + tile_row, column = first_column + tile_row;
-        nk_f64_t const a_value = row < arguments->row_end && index < arguments->depth
+        nk_f64_t const a_value = row < arguments->rows_end && index < arguments->depth
                                      ? nk_cross_load_f64_(dtype, arguments->a + row * arguments->a_stride, index)
                                      : 0;
         nk_f64_t const b_value = column < arguments->column_count && index < arguments->depth
@@ -691,7 +691,7 @@ NUMKONG_DEVICE void nk_cross_store_tile_f64_simt_(
     for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step) {
         unsigned const tile_row = thread_row + nk_cross_grid_side_simt_k * row_step;
         nk_size_t const row = first_row + tile_row;
-        if (row >= arguments->row_end) continue;
+        if (row >= arguments->rows_end) continue;
         nk_f64_t *output = (nk_f64_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
 #pragma unroll
         for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
@@ -722,7 +722,7 @@ NUMKONG_DEVICE void nk_cross_stage_slab_b32_simt_(nk_dtype_t dtype, nk_cross_acc
         unsigned const element = threadIdx.x + step * nk_cross_threads_simt_k;
         unsigned const tile_row = element / nk_cross_slab_simt_k, offset = element % nk_cross_slab_simt_k;
         nk_size_t const word = slab + offset, row = first_row + tile_row, column = first_column + tile_row;
-        nk_u32_t const a_word = row < arguments->row_end && word < words
+        nk_u32_t const a_word = row < arguments->rows_end && word < words
                                     ? nk_cross_stage_b32_(accumulation, dtype, arguments->a + row * arguments->a_stride,
                                                           word, arguments->depth)
                                     : 0;
@@ -774,7 +774,7 @@ NUMKONG_DEVICE void nk_cross_store_tile_b32_simt_(
     for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step) {
         unsigned const tile_row = thread_row + nk_cross_grid_side_simt_k * row_step;
         nk_size_t const row = first_row + tile_row;
-        if (row >= arguments->row_end) continue;
+        if (row >= arguments->rows_end) continue;
         nk_fui32_t *output = (nk_fui32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
 #pragma unroll
         for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {

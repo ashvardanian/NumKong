@@ -274,7 +274,7 @@ static error_stats_t test_best_reduce_moments_f32(settings_t const &settings) {
 
 /** @c nk_cast_best over each runnable capability alone runs that capability's kernel. */
 static error_stats_t test_best_cast(settings_t const &settings) {
-    using cast_kernel_t = nk_status_t (*)(void const *, nk_dtype_t, void *, nk_dtype_t, nk_size_t, void *);
+    using cast_kernel_t = nk_status_t (*)(void const *, nk_dtype_t, void *, nk_dtype_t, nk_size_t, nk_stream_t);
     capability_kernel<cast_kernel_t> const capabilities[] = {
         {nk_cap_serial_k, nk_cast_serial},
 #if NUMKONG_TARGET_NEON

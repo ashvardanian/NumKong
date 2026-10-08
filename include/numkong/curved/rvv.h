@@ -35,7 +35,7 @@ extern "C" {
 #if NUMKONG_TARGET_RVV
 
 NUMKONG_API nk_status_t nk_bilinear_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                            nk_f64_t *result, void *stream) {
+                                            nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_f64_t outer_sum = 0;
@@ -59,7 +59,7 @@ NUMKONG_API nk_status_t nk_bilinear_f32_rvv(nk_f32_t const *a, nk_f32_t const *b
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                            nk_f64_t *result, void *stream) {
+                                            nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m1_t sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
@@ -99,7 +99,7 @@ NUMKONG_API nk_status_t nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const *b
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                            nk_f32_t *result, void *stream) {
+                                            nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
@@ -129,7 +129,7 @@ NUMKONG_API nk_status_t nk_bilinear_f16_rvv(nk_f16_t const *a, nk_f16_t const *b
 }
 
 NUMKONG_API nk_status_t nk_bilinear_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                             nk_f32_t *result, void *stream) {
+                                             nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
@@ -159,7 +159,7 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                               nk_f64_t *result, void *stream) {
+                                               nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     nk_f64_t outer_sum = 0;
@@ -189,7 +189,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_rvv(nk_f32_t const *a, nk_f32_t const
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                               nk_f64_t *result, void *stream) {
+                                               nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m1_t sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
@@ -235,7 +235,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t const
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                               nk_f32_t *result, void *stream) {
+                                               nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
@@ -271,7 +271,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f16_rvv(nk_f16_t const *a, nk_f16_t const
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                                nk_f32_t *result, void *stream) {
+                                                nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);

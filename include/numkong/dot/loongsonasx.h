@@ -130,7 +130,7 @@ NUMKONG_INLINE void nk_dot2_f64x4_loongsonasx_(__m256d *sum_f64x4, __m256d *comp
 #pragma region F32 and F64 Floats
 
 NUMKONG_API nk_status_t nk_dot_f32_loongsonasx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+                                               nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // LASX is 256-bit = 8 × f32. Load 8 f32, split into low/high 4, widen each to f64, FMA in f64.
     __m256d sum_low_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);  // 4 f64 accumulators (from low 4 f32)
@@ -158,7 +158,7 @@ NUMKONG_API nk_status_t nk_dot_f32_loongsonasx(nk_f32_t const *a_scalars, nk_f32
 }
 
 NUMKONG_API nk_status_t nk_dot_f64_loongsonasx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+                                               nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     __m256d sum_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
@@ -192,7 +192,7 @@ NUMKONG_API nk_status_t nk_dot_f64_loongsonasx(nk_f64_t const *a_scalars, nk_f64
 }
 
 NUMKONG_API nk_status_t nk_dot_i8_loongsonasx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_i32_t *result, void *stream) {
+                                              nk_size_t count_scalars, nk_i32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i sum_i32x8 = __lasx_xvreplgr2vr_w(0);
     nk_size_t index_scalars = 0;
@@ -215,7 +215,7 @@ NUMKONG_API nk_status_t nk_dot_i8_loongsonasx(nk_i8_t const *a_scalars, nk_i8_t 
 }
 
 NUMKONG_API nk_status_t nk_dot_u8_loongsonasx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+                                              nk_size_t count_scalars, nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i sum_i32x8 = __lasx_xvreplgr2vr_w(0);
     nk_size_t index_scalars = 0;
@@ -238,7 +238,7 @@ NUMKONG_API nk_status_t nk_dot_u8_loongsonasx(nk_u8_t const *a_scalars, nk_u8_t 
 }
 
 NUMKONG_API nk_status_t nk_dot_bf16_loongsonasx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                                nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     __m256i mask_high_u32x8 = __lasx_xvreplgr2vr_w((int)0xFFFF0000);
@@ -595,7 +595,7 @@ NUMKONG_INLINE void nk_dot_bf16x16_finalize_loongsonasx(                        
 }
 
 NUMKONG_API nk_status_t nk_dot_f16_loongsonasx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                               nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = (__m256)__lasx_xvreplgr2vr_w(0);
     nk_size_t index_scalars = 0;

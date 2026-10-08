@@ -57,14 +57,14 @@ nk_sqeuclidean_e4m3_neonfp8_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e4m3_neonfp8_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e4m3_neonfp8_(a, b, n, result);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
@@ -72,7 +72,7 @@ NUMKONG_API nk_status_t nk_euclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
@@ -125,14 +125,14 @@ nk_sqeuclidean_e5m2_neonfp8_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e5m2_neonfp8_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e5m2_neonfp8_(a, b, n, result);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
@@ -140,7 +140,7 @@ NUMKONG_API nk_status_t nk_euclidean_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_e5m2_neonfp8(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
@@ -193,14 +193,14 @@ nk_sqeuclidean_e2m3_neonfp8_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e2m3_neonfp8_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e2m3_neonfp8_(a, b, n, result);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
@@ -208,7 +208,7 @@ NUMKONG_API nk_status_t nk_euclidean_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_e2m3_neonfp8(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);
@@ -261,14 +261,14 @@ nk_sqeuclidean_e3m2_neonfp8_cycle:
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
+                                                    nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e3m2_neonfp8_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_e3m2_neonfp8_(a, b, n, result);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
@@ -276,7 +276,7 @@ NUMKONG_API nk_status_t nk_euclidean_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t 
 }
 
 NUMKONG_API nk_status_t nk_angular_e3m2_neonfp8(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
+                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     mfloat8x16_t a_mf8x16, b_mf8x16;
     float32x4_t ab_f32x4 = vdupq_n_f32(0), a2_f32x4 = vdupq_n_f32(0), b2_f32x4 = vdupq_n_f32(0);

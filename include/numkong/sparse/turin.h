@@ -33,7 +33,7 @@ extern "C" {
 NUMKONG_API nk_status_t nk_sparse_intersect_u16_turin( //
     nk_u16_t const *a, nk_u16_t const *b,              //
     nk_size_t a_length, nk_size_t b_length,            //
-    nk_u16_t *result, nk_size_t *count, void *stream) {
+    nk_u16_t *result, nk_size_t *count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     //! There is no such thing as `_mm512_2intersect_epi16`, only the 32-bit variant!
@@ -77,7 +77,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u16_turin( //
 NUMKONG_API nk_status_t nk_sparse_intersect_u32_turin( //
     nk_u32_t const *a, nk_u32_t const *b,              //
     nk_size_t a_length, nk_size_t b_length,            //
-    nk_u32_t *result, nk_size_t *count, void *stream) {
+    nk_u32_t *result, nk_size_t *count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_u32_t const *const a_end = a + a_length;
@@ -117,7 +117,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u32_turin( //
 NUMKONG_API nk_status_t nk_sparse_intersect_u64_turin( //
     nk_u64_t const *a, nk_u64_t const *b,              //
     nk_size_t a_length, nk_size_t b_length,            //
-    nk_u64_t *result, nk_size_t *count, void *stream) {
+    nk_u64_t *result, nk_size_t *count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_u64_t const *const a_end = a + a_length;
@@ -158,7 +158,7 @@ NUMKONG_API nk_status_t nk_sparse_dot_u16bf16_turin(        //
     nk_u16_t const *a, nk_u16_t const *b,                   //
     nk_bf16_t const *a_weights, nk_bf16_t const *b_weights, //
     nk_size_t a_length, nk_size_t b_length,                 //
-    nk_f32_t *product, void *stream) {
+    nk_f32_t *product, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT
@@ -239,7 +239,7 @@ NUMKONG_API nk_status_t nk_sparse_dot_u32f32_turin(       //
     nk_u32_t const *a, nk_u32_t const *b,                 //
     nk_f32_t const *a_weights, nk_f32_t const *b_weights, //
     nk_size_t a_length, nk_size_t b_length,               //
-    nk_f64_t *product, void *stream) {
+    nk_f64_t *product, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
 #if NUMKONG_ALLOW_ISA_REDIRECT

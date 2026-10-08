@@ -518,8 +518,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -530,8 +530,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -542,8 +542,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -554,8 +554,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -566,8 +566,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut i32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -578,8 +578,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut u32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -590,8 +590,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -602,8 +602,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -614,8 +614,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -626,8 +626,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -638,8 +638,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -650,8 +650,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut u32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -662,8 +662,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut i32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -711,8 +711,8 @@ extern "C" {
         stride: nk_size_t,
         result: *mut u32,
         result_stride: nk_size_t,
-        row_start: nk_size_t,
-        row_count: nk_size_t,
+        rows_begin: nk_size_t,
+        rows_end: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -817,7 +817,7 @@ pub trait Dots: StorageElement + private::Sealed {
     /// - `vectors` must point to valid memory for `vector_count × depth` elements with given stride
     /// - `result` must point to valid memory for `vector_count×vector_count` elements, given stride
     /// - Strides are in bytes, not elements
-    /// - `row_start + row_count` must be <= `vector_count`
+    /// - `rows_begin <= rows_end`; `rows_end` is clamped to `vector_count`
     unsafe fn dots_symmetric(
         vectors: *const Self,
         vector_count: usize,
@@ -825,8 +825,8 @@ pub trait Dots: StorageElement + private::Sealed {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error>;
 }
 
@@ -900,8 +900,8 @@ impl Dots for f32 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_f32_best(
             vectors,
@@ -910,8 +910,8 @@ impl Dots for f32 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -989,8 +989,8 @@ impl Dots for f64 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_f64_best(
             vectors,
@@ -999,8 +999,8 @@ impl Dots for f64 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1078,8 +1078,8 @@ impl Dots for f16 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_f16_best(
             vectors as *const u16,
@@ -1088,8 +1088,8 @@ impl Dots for f16 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1167,8 +1167,8 @@ impl Dots for bf16 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_bf16_best(
             vectors as *const u16,
@@ -1177,8 +1177,8 @@ impl Dots for bf16 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1256,8 +1256,8 @@ impl Dots for i8 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_i8_best(
             vectors,
@@ -1266,8 +1266,8 @@ impl Dots for i8 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1345,8 +1345,8 @@ impl Dots for u8 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_u8_best(
             vectors,
@@ -1355,8 +1355,8 @@ impl Dots for u8 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1434,8 +1434,8 @@ impl Dots for e4m3 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_e4m3_best(
             vectors as *const u8,
@@ -1444,8 +1444,8 @@ impl Dots for e4m3 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1523,8 +1523,8 @@ impl Dots for e5m2 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_e5m2_best(
             vectors as *const u8,
@@ -1533,8 +1533,8 @@ impl Dots for e5m2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1612,8 +1612,8 @@ impl Dots for e2m3 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_e2m3_best(
             vectors as *const u8,
@@ -1622,8 +1622,8 @@ impl Dots for e2m3 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1701,8 +1701,8 @@ impl Dots for e2m1x2 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_e2m1_best(
             vectors as *const u8,
@@ -1711,8 +1711,8 @@ impl Dots for e2m1x2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1790,8 +1790,8 @@ impl Dots for e3m2 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_e3m2_best(
             vectors as *const u8,
@@ -1800,8 +1800,8 @@ impl Dots for e3m2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1879,8 +1879,8 @@ impl Dots for u4x2 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_u4_best(
             vectors as *const u8,
@@ -1889,8 +1889,8 @@ impl Dots for u4x2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1968,8 +1968,8 @@ impl Dots for i4x2 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_i4_best(
             vectors as *const u8,
@@ -1978,8 +1978,8 @@ impl Dots for i4x2 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2057,8 +2057,8 @@ impl Dots for u1x8 {
         stride: usize,
         result: *mut Self::Accumulator,
         result_stride: usize,
-        row_start: usize,
-        row_count: usize,
+        rows_begin: usize,
+        rows_end: usize,
     ) -> Result<(), Error> {
         nk_dots_symmetric_u1_best(
             vectors as *const u8,
@@ -2067,8 +2067,8 @@ impl Dots for u1x8 {
             stride,
             result,
             result_stride,
-            row_start,
-            row_count,
+            rows_begin,
+            rows_end,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2787,19 +2787,19 @@ pub(crate) fn compute_thread_rows(thread_index: usize, num_threads: usize, n: us
 
     // Solve: r^2 - r(2n + 1) + 2*work = 0
     // Using quadratic formula: r = (2n + 1 - sqrt((2n + 1)^2 - 8*work)) / 2
-    let start_row = if work_start == 0 {
+    let rows_begin = if work_start == 0 {
         0
     } else {
         let n_f64 = n as f64;
         let work_f64 = work_start as f64;
         let discriminant = (2.0 * n_f64 + 1.0).powi(2) - 8.0 * work_f64;
         let row_f64 = (2.0 * n_f64 + 1.0 - discriminant.sqrt()) / 2.0;
-        // Use ceil so thread t's start_row equals thread t-1's end_row,
+        // Use ceil so thread t's rows_begin equals thread t-1's rows_end,
         // giving threads disjoint row ranges — whole-row scheduling.
         row_f64.ceil() as usize
     };
 
-    let end_row = if work_end >= total_work {
+    let rows_end = if work_end >= total_work {
         n
     } else {
         let n_f64 = n as f64;
@@ -2809,7 +2809,7 @@ pub(crate) fn compute_thread_rows(thread_index: usize, num_threads: usize, n: us
         row_f64.ceil() as usize
     };
 
-    (start_row, end_row.saturating_sub(start_row))
+    (rows_begin, rows_end)
 }
 
 #[cfg(feature = "parallel")]
@@ -2879,7 +2879,7 @@ where
                 failure.record(Err(error));
                 return;
             }
-            let (row_start, row_count) = compute_thread_rows(thread_index, num_threads, vector_count);
+            let (rows_begin, rows_end) = compute_thread_rows(thread_index, num_threads, vector_count);
             unsafe {
                 failure.record(Scalar::dots_symmetric(
                     vectors_ptr.as_ptr(),
@@ -2888,8 +2888,8 @@ where
                     stride,
                     result_ptr.as_ptr(),
                     result_stride,
-                    row_start,
-                    row_count,
+                    rows_begin,
+                    rows_end,
                 ));
             }
         });

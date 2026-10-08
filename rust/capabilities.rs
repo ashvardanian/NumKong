@@ -10,7 +10,7 @@
 //! - [`Capabilities::cpu_enabled`], [`Capabilities::cuda_enabled`]: what dispatch runs within —
 //!   both axes at once, which the library settles for the CPU as it loads
 //!
-//! ROCm and Metal have the same functions. Only these and [`Capabilities::cuda_stream_init`] take a
+//! ROCm and Metal have the same functions. Only these and [`Capabilities::stream_init_cuda`] take a
 //! GPU's ordinal: everything else takes the mask and a stream, which names the device. Reach for
 //! the `enabled` ones unless you specifically mean one of the raw axes. A `detected` mask alone
 //! describes the machine and says nothing about whether a kernel was compiled in, so selecting on
@@ -54,20 +54,20 @@ extern "C" {
     fn nk_cuda_capabilities_detected(ordinal: nk_size_t, capabilities: *mut nk_capability_t) -> nk_status_t;
     fn nk_cuda_capabilities_compiled(capabilities: *mut nk_capability_t) -> nk_status_t;
     fn nk_cuda_capabilities_enabled(ordinal: nk_size_t, capabilities: *mut nk_capability_t) -> nk_status_t;
-    fn nk_cuda_stream_init(ordinal: nk_size_t, stream: *mut *mut c_void) -> nk_status_t;
-    fn nk_cuda_stream_free(stream: *mut c_void) -> nk_status_t;
+    fn nk_stream_init_cuda(ordinal: nk_size_t, stream: *mut *mut c_void) -> nk_status_t;
+    fn nk_stream_free_cuda(stream: *mut c_void) -> nk_status_t;
     fn nk_rocm_count_devices(count: *mut nk_size_t) -> nk_status_t;
     fn nk_rocm_capabilities_detected(ordinal: nk_size_t, capabilities: *mut nk_capability_t) -> nk_status_t;
     fn nk_rocm_capabilities_compiled(capabilities: *mut nk_capability_t) -> nk_status_t;
     fn nk_rocm_capabilities_enabled(ordinal: nk_size_t, capabilities: *mut nk_capability_t) -> nk_status_t;
-    fn nk_rocm_stream_init(ordinal: nk_size_t, stream: *mut *mut c_void) -> nk_status_t;
-    fn nk_rocm_stream_free(stream: *mut c_void) -> nk_status_t;
+    fn nk_stream_init_rocm(ordinal: nk_size_t, stream: *mut *mut c_void) -> nk_status_t;
+    fn nk_stream_free_rocm(stream: *mut c_void) -> nk_status_t;
     fn nk_metal_count_devices(count: *mut nk_size_t) -> nk_status_t;
     fn nk_metal_capabilities_detected(ordinal: nk_size_t, capabilities: *mut nk_capability_t) -> nk_status_t;
     fn nk_metal_capabilities_compiled(capabilities: *mut nk_capability_t) -> nk_status_t;
     fn nk_metal_capabilities_enabled(ordinal: nk_size_t, capabilities: *mut nk_capability_t) -> nk_status_t;
-    fn nk_metal_stream_init(ordinal: nk_size_t, stream: *mut *mut c_void) -> nk_status_t;
-    fn nk_metal_stream_free(stream: *mut c_void) -> nk_status_t;
+    fn nk_stream_init_metal(ordinal: nk_size_t, stream: *mut *mut c_void) -> nk_status_t;
+    fn nk_stream_free_metal(stream: *mut c_void) -> nk_status_t;
     fn nk_memory_allocate_unified_best(
         bytes: nk_size_t,
         pointer: *mut *mut c_void,
@@ -426,20 +426,20 @@ impl Capabilities {
     /// CUDA.
     ///
     /// # Safety
-    /// The caller owns the stream and frees it once, through [`Capabilities::cuda_stream_free`].
-    pub unsafe fn cuda_stream_init(ordinal: usize) -> Result<*mut c_void, Error> {
+    /// The caller owns the stream and frees it once, through [`Capabilities::stream_free_cuda`].
+    pub unsafe fn stream_init_cuda(ordinal: usize) -> Result<*mut c_void, Error> {
         let mut stream: *mut c_void = core::ptr::null_mut();
-        unsafe { nk_cuda_stream_init(ordinal, &mut stream) }.check()?;
+        unsafe { nk_stream_init_cuda(ordinal, &mut stream) }.check()?;
         Ok(stream)
     }
 
-    /// Frees a stream [`Capabilities::cuda_stream_init`] made.
+    /// Frees a stream [`Capabilities::stream_init_cuda`] made.
     ///
     /// # Safety
-    /// `stream` must come from [`Capabilities::cuda_stream_init`] and not be freed yet, and nothing
+    /// `stream` must come from [`Capabilities::stream_init_cuda`] and not be freed yet, and nothing
     /// may use it afterwards, so whatever was queued on it is synchronized first.
-    pub unsafe fn cuda_stream_free(stream: *mut c_void) -> Result<(), Error> {
-        unsafe { nk_cuda_stream_free(stream) }.check()
+    pub unsafe fn stream_free_cuda(stream: *mut c_void) -> Result<(), Error> {
+        unsafe { nk_stream_free_cuda(stream) }.check()
     }
 
     /// [`Capabilities::cuda_count_devices`], for ROCm.
@@ -474,22 +474,22 @@ impl Capabilities {
         Ok(Capabilities(capabilities))
     }
 
-    /// [`Capabilities::cuda_stream_init`], for ROCm, making a `hipStream_t`.
+    /// [`Capabilities::stream_init_cuda`], for ROCm, making a `hipStream_t`.
     ///
     /// # Safety
-    /// The caller owns the stream and frees it once, through [`Capabilities::rocm_stream_free`].
-    pub unsafe fn rocm_stream_init(ordinal: usize) -> Result<*mut c_void, Error> {
+    /// The caller owns the stream and frees it once, through [`Capabilities::stream_free_rocm`].
+    pub unsafe fn stream_init_rocm(ordinal: usize) -> Result<*mut c_void, Error> {
         let mut stream: *mut c_void = core::ptr::null_mut();
-        unsafe { nk_rocm_stream_init(ordinal, &mut stream) }.check()?;
+        unsafe { nk_stream_init_rocm(ordinal, &mut stream) }.check()?;
         Ok(stream)
     }
 
-    /// [`Capabilities::cuda_stream_free`], for ROCm.
+    /// [`Capabilities::stream_free_cuda`], for ROCm.
     ///
     /// # Safety
-    /// `stream` must come from [`Capabilities::rocm_stream_init`], on the same terms.
-    pub unsafe fn rocm_stream_free(stream: *mut c_void) -> Result<(), Error> {
-        unsafe { nk_rocm_stream_free(stream) }.check()
+    /// `stream` must come from [`Capabilities::stream_init_rocm`], on the same terms.
+    pub unsafe fn stream_free_rocm(stream: *mut c_void) -> Result<(), Error> {
+        unsafe { nk_stream_free_rocm(stream) }.check()
     }
 
     /// [`Capabilities::cuda_count_devices`], for Metal, whose devices count in system order.
@@ -524,22 +524,22 @@ impl Capabilities {
         Ok(Capabilities(capabilities))
     }
 
-    /// [`Capabilities::cuda_stream_init`], for Metal, making an `id<MTLCommandQueue>`.
+    /// [`Capabilities::stream_init_cuda`], for Metal, making an `id<MTLCommandQueue>`.
     ///
     /// # Safety
-    /// The caller owns the stream and frees it once, through [`Capabilities::metal_stream_free`].
-    pub unsafe fn metal_stream_init(ordinal: usize) -> Result<*mut c_void, Error> {
+    /// The caller owns the stream and frees it once, through [`Capabilities::stream_free_metal`].
+    pub unsafe fn stream_init_metal(ordinal: usize) -> Result<*mut c_void, Error> {
         let mut stream: *mut c_void = core::ptr::null_mut();
-        unsafe { nk_metal_stream_init(ordinal, &mut stream) }.check()?;
+        unsafe { nk_stream_init_metal(ordinal, &mut stream) }.check()?;
         Ok(stream)
     }
 
-    /// [`Capabilities::cuda_stream_free`], for Metal.
+    /// [`Capabilities::stream_free_cuda`], for Metal.
     ///
     /// # Safety
-    /// `stream` must come from [`Capabilities::metal_stream_init`], on the same terms.
-    pub unsafe fn metal_stream_free(stream: *mut c_void) -> Result<(), Error> {
-        unsafe { nk_metal_stream_free(stream) }.check()
+    /// `stream` must come from [`Capabilities::stream_init_metal`], on the same terms.
+    pub unsafe fn stream_free_metal(stream: *mut c_void) -> Result<(), Error> {
+        unsafe { nk_stream_free_metal(stream) }.check()
     }
 
     /// Waits for everything queued on `stream`, a stream of this mask's group, null for its

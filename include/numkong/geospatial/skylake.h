@@ -474,7 +474,7 @@ NUMKONG_INLINE __m512 nk_vincenty_f32x16_skylake_(                 //
 NUMKONG_API nk_status_t nk_haversine_f64_skylake(   //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_size_t n, nk_f64_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 8) {
@@ -508,7 +508,7 @@ NUMKONG_API nk_status_t nk_haversine_f64_skylake(   //
 NUMKONG_API nk_status_t nk_vincenty_f64_skylake(    //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_size_t n, nk_f64_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 8) {
@@ -542,7 +542,7 @@ NUMKONG_API nk_status_t nk_vincenty_f64_skylake(    //
 NUMKONG_API nk_status_t nk_haversine_f32_skylake(   //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_size_t n, nk_f32_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 16) {
@@ -576,7 +576,7 @@ NUMKONG_API nk_status_t nk_haversine_f32_skylake(   //
 NUMKONG_API nk_status_t nk_vincenty_f32_skylake(    //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_size_t n, nk_f32_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 16) {

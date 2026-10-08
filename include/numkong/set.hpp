@@ -29,7 +29,7 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
 status_t hamming(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
-                 nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+                 nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::hamming_result_t>;
 
     if (capabilities) {
@@ -62,7 +62,7 @@ status_t hamming(in_type_ const *a, in_type_ const *b, std::size_t d, result_typ
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
 status_t jaccard(in_type_ const *a, in_type_ const *b, std::size_t d, result_type_ *r,
-                 nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+                 nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::jaccard_result_t>;
 
     if (capabilities) {

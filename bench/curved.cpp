@@ -17,7 +17,7 @@ namespace ashvardanian::numkong::bench {
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
 nk_status_t bilinear_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                   nk_f64_t *result, void *) {
+                                   nk_f64_t *result, nk_stream_t) {
     static thread_local std::vector<nk_f32_t> intermediate;
     if (intermediate.size() < n) intermediate.resize(n);
     int const ni = static_cast<int>(n);
@@ -27,7 +27,7 @@ nk_status_t bilinear_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_f32_
 }
 
 nk_status_t bilinear_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                   nk_f64_t *result, void *) {
+                                   nk_f64_t *result, nk_stream_t) {
     static thread_local std::vector<nk_f64_t> intermediate;
     if (intermediate.size() < n) intermediate.resize(n);
     int const ni = static_cast<int>(n);
@@ -37,7 +37,7 @@ nk_status_t bilinear_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_f64_
 }
 
 nk_status_t bilinear_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                    nk_f64c_t *results, void *) {
+                                    nk_f64c_t *results, nk_stream_t) {
     static thread_local std::vector<nk_f32c_t> intermediate;
     nk_f32c_t reduced_result_f32;
     if (intermediate.size() < n) intermediate.resize(n);
@@ -63,7 +63,7 @@ nk_status_t bilinear_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_f
 }
 
 nk_status_t bilinear_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                    nk_f64c_t *results, void *) {
+                                    nk_f64c_t *results, nk_stream_t) {
     static thread_local std::vector<nk_f64c_t> intermediate;
     if (intermediate.size() < n) intermediate.resize(n);
     int const ni = static_cast<int>(n);
@@ -100,11 +100,11 @@ void measure_curved(loop_t &loop, environment_t const &env, kernel_type_ kernel,
     using input_vector_t = nk::vector<input_t>;
 
     // Preallocate inputs: pairs of vectors + metric tensors (dimensions x dimensions)
-    std::size_t const vectors_count = input_sets_count(
+    std::size_t const vector_count = input_sets_count(
         dtype_bytes(input_dtype_, 2 * dimensions + dimensions * dimensions));
-    std::vector<input_vector_t> first_vectors(vectors_count), second_vectors(vectors_count), tensors(vectors_count);
+    std::vector<input_vector_t> first_vectors(vector_count), second_vectors(vector_count), tensors(vector_count);
     std::mt19937 generator(env.settings.seed.value);
-    for (std::size_t index = 0; index != vectors_count; ++index) {
+    for (std::size_t index = 0; index != vector_count; ++index) {
         first_vectors[index] = make_vector<input_t>(dimensions);
         second_vectors[index] = make_vector<input_t>(dimensions);
         tensors[index] = make_vector<input_t>(dimensions * dimensions);
@@ -116,7 +116,7 @@ void measure_curved(loop_t &loop, environment_t const &env, kernel_type_ kernel,
     // Benchmark loop
     for (std::size_t call : loop) {
         output_t output[2] = {};
-        std::size_t const index = call & (vectors_count - 1);
+        std::size_t const index = call & (vector_count - 1);
         if (!succeeded(loop, kernel(first_vectors[index].raw_values_data(), second_vectors[index].raw_values_data(),
                                     tensors[index].raw_values_data(), dimensions, &output[0].raw_, nullptr)))
             break;

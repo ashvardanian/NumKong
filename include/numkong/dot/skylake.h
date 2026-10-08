@@ -869,14 +869,14 @@ NUMKONG_INLINE void nk_euclidean_f32x4_from_relative_skylake_(nk_b128_vec_t *val
 #pragma region F32 and F64 Floats
 
 NUMKONG_API nk_status_t nk_dot_f32_skylake(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+                                           nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_f32_through_f64_skylake_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dot_f64_skylake(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+                                           nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     __m512d a_f64x8, b_f64x8;
@@ -915,7 +915,7 @@ nk_dot_f64_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_f32c_skylake(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                            nk_f64c_t *result, void *stream) {
+                                            nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 a_f32x8, b_f32x8;
     __m512d sum_real_f64x8 = _mm512_setzero_pd();
@@ -953,7 +953,7 @@ nk_dot_f32c_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_vdot_f32c_skylake(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                             nk_f64c_t *result, void *stream) {
+                                             nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 a_f32x8, b_f32x8;
     __m512d sum_real_f64x8 = _mm512_setzero_pd();
@@ -991,7 +991,7 @@ nk_vdot_f32c_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_f64c_skylake(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                            nk_f64c_t *result, void *stream) {
+                                            nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated complex dot product
     __m512d a_f64x8, b_f64x8;
@@ -1059,7 +1059,7 @@ nk_dot_f64c_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_vdot_f64c_skylake(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                             nk_f64c_t *result, void *stream) {
+                                             nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated conjugate dot product
     __m512d a_f64x8, b_f64x8;
@@ -1131,14 +1131,14 @@ nk_vdot_f64c_skylake_cycle:
 #pragma region F16 and BF16 Floats
 
 NUMKONG_API nk_status_t nk_dot_f16_skylake(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                           nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_f16_through_f32_skylake_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dot_bf16_skylake(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512i a_bf16_i16x32, b_bf16_i16x32;
     __m512 sum_f32x16 = _mm512_setzero_ps();
@@ -1169,7 +1169,7 @@ nk_dot_bf16_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e4m3_skylake(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m128i a_e4m3_u8x16, b_e4m3_u8x16;
     __m512 sum_f32x16 = _mm512_setzero_ps();
@@ -1196,7 +1196,7 @@ nk_dot_e4m3_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e5m2_skylake(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // E5M2 shares F16 bias (15): vpunpck*bw against zero places the byte as F16 encoding,
     // so we inline the widen rather than calling the helper 4× — same ops, cleaner code.
@@ -1240,7 +1240,7 @@ nk_dot_e5m2_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m3_skylake(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPMADDUBSW (unsigned × signed).
     // 64 elements per iteration using AVX-512BW. Result = i32_dot / 256.0f (exact).
@@ -1312,7 +1312,7 @@ nk_dot_e2m3_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e3m2_skylake(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e3m2 using dual-VPSHUFB (low-byte LUT) + VPMADDWD (i16 × i16 → i32).
     // 64 elements per iteration using AVX-512BW. Magnitudes reach 448, requiring i16.
@@ -1405,7 +1405,7 @@ nk_dot_e3m2_skylake_cycle:
 #pragma region I8 and U8 Integers
 
 NUMKONG_API nk_status_t nk_dot_i8_skylake(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                          nk_i32_t *result, void *stream) {
+                                          nk_i32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512i sum_i32x16 = _mm512_setzero_si512();
     nk_size_t idx_scalars = 0;
@@ -1429,7 +1429,7 @@ NUMKONG_API nk_status_t nk_dot_i8_skylake(nk_i8_t const *a_scalars, nk_i8_t cons
 }
 
 NUMKONG_API nk_status_t nk_dot_u8_skylake(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                          nk_u32_t *result, void *stream) {
+                                          nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512i sum_i32x16 = _mm512_setzero_si512();
     nk_size_t idx_scalars = 0;
@@ -1453,7 +1453,7 @@ NUMKONG_API nk_status_t nk_dot_u8_skylake(nk_u8_t const *a_scalars, nk_u8_t cons
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m1_skylake(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                            void *stream) {
+                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_e2m1x128_state_skylake_t state;
     nk_dot_e2m1x128_init_skylake(&state);

@@ -121,7 +121,7 @@ NUMKONG_DEVICE void nk_cross_tile_f64_cuda_(nk_dtype_t dtype, nk_cross_accumulat
     __shared__ nk_f64_t norms[2][nk_cross_tile_simt_k];
 
     for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
-        nk_size_t const first_row = arguments->row_start + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
         nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
         if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_simt_k <= first_row) continue;
         nk_f64_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
@@ -232,7 +232,7 @@ NUMKONG_DEVICE void nk_cross_tile_b32_cuda_(nk_dtype_t dtype, nk_cross_accumulat
     nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_b32_dimensions_(accumulation));
 
     for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
-        nk_size_t const first_row = arguments->row_start + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
         nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
         if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_simt_k <= first_row) continue;
         nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
@@ -322,14 +322,14 @@ NUMKONG_DEVICE void nk_cross_tile_scaled_cuda_(nk_f32_t (*load)(unsigned char co
     nk_cross_tensor_factor_t const b_factor = nk_cross_tensor_factor_simt_(b_tensor_scale, b_tensor_scale);
 
     for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
-        nk_size_t const first_row = arguments->row_start + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
         nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
         if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_simt_k <= first_row) continue;
         // The first barrier retires the previous tile's epilogue reads, the second publishes these.
         __syncthreads();
         if (threadIdx.x < nk_cross_tile_simt_k)
             nk_cross_rebase_rows_cuda_(load, split, block_size, arguments->a, arguments->a_stride, arguments->a_scales,
-                                       arguments->a_scales_stride, first_row, arguments->row_end, depth, normalized,
+                                       arguments->a_scales_stride, first_row, arguments->rows_end, depth, normalized,
                                        bases[0], spreads[0], norms[0]);
         else if (threadIdx.x < 2 * nk_cross_tile_simt_k) {
             nk_cross_rebase_rows_cuda_(load, split, block_size, arguments->b, arguments->b_stride, arguments->b_scales,
@@ -349,7 +349,7 @@ NUMKONG_DEVICE void nk_cross_tile_scaled_cuda_(nk_f32_t (*load)(unsigned char co
                 unsigned const element = threadIdx.x + step * nk_cross_threads_simt_k;
                 unsigned const tile_row = element / nk_cross_slab_simt_k, offset = element % nk_cross_slab_simt_k;
                 nk_size_t const index = slab + offset, row = first_row + tile_row, column = first_column + tile_row;
-                a_slab[offset][tile_row] = row < arguments->row_end
+                a_slab[offset][tile_row] = row < arguments->rows_end
                                                ? __float_as_uint(load(arguments->a + row * arguments->a_stride, index))
                                                : 0;
                 b_slab[offset][tile_row] = column < arguments->column_count
@@ -360,7 +360,7 @@ NUMKONG_DEVICE void nk_cross_tile_scaled_cuda_(nk_f32_t (*load)(unsigned char co
             nk_size_t const block = slab / block_size;
             if (threadIdx.x < nk_cross_tile_simt_k) {
                 nk_size_t const row = first_row + threadIdx.x, column = first_column + threadIdx.x;
-                a_scales[threadIdx.x] = row < arguments->row_end
+                a_scales[threadIdx.x] = row < arguments->rows_end
                                             ? nk_cross_relative_scale_simt_(
                                                   split, arguments->a_scales[row * arguments->a_scales_stride + block],
                                                   bases[0][threadIdx.x])
@@ -391,7 +391,7 @@ NUMKONG_DEVICE void nk_cross_tile_scaled_cuda_(nk_f32_t (*load)(unsigned char co
         for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step) {
             unsigned const tile_row = thread_row + nk_cross_grid_side_simt_k * row_step;
             nk_size_t const row = first_row + tile_row;
-            if (row >= arguments->row_end) continue;
+            if (row >= arguments->rows_end) continue;
             nk_f32_t *output = (nk_f32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
 #pragma unroll
             for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
@@ -485,21 +485,21 @@ NUMKONG_DEVICE nk_u32_t nk_cross_pack_norm_u32_cuda_(nk_u64_t share) {
 NUMKONG_INLINE nk_status_t nk_cross_launch_cuda_(void const *kernel, unsigned tile, unsigned threads,
                                                  nk_cross_operand_t const *a, nk_cross_operand_t const *b,
                                                  void const *b_norms, void *c, nk_size_t result_bytes,
-                                                 nk_size_t row_start, nk_size_t row_end, nk_size_t column_count,
+                                                 nk_size_t rows_begin, nk_size_t rows_end, nk_size_t column_count,
                                                  nk_size_t depth, nk_size_t block_size, nk_size_t depth_bytes,
                                                  nk_size_t a_stride, nk_size_t b_stride, nk_size_t c_stride,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     if (block_size && (depth % block_size || (depth && (!a->scales || !b->scales)))) return nk_unexpected_dimensions_k;
     if ((((nk_size_t)a->elements) | a_stride | ((nk_size_t)b->elements) | b_stride) & 15 ||
         (((nk_size_t)c) | c_stride) & (result_bytes - 1))
         return nk_misaligned_k;
-    if (row_end <= row_start || column_count == 0) return nk_success_k;
+    if (rows_end <= rows_begin || column_count == 0) return nk_success_k;
     nk_size_t const column_tiles = nk_size_divide_round_up_(column_count, tile);
-    nk_size_t const tiles = nk_size_divide_round_up_(row_end - row_start, tile) * column_tiles;
+    nk_size_t const tiles = nk_size_divide_round_up_(rows_end - rows_begin, tile) * column_tiles;
     nk_cross_tile_arguments_t arguments;
     arguments.a = (unsigned char const *)a->elements, arguments.b = (unsigned char const *)b->elements;
     arguments.c = c;
-    arguments.row_start = row_start, arguments.row_end = row_end, arguments.column_count = column_count;
+    arguments.rows_begin = rows_begin, arguments.rows_end = rows_end, arguments.column_count = column_count;
     arguments.depth = depth, arguments.depth_bytes = depth_bytes, arguments.a_stride = a_stride;
     arguments.b_stride = b_stride;
     arguments.c_stride = c_stride, arguments.column_tiles = column_tiles, arguments.tiles = tiles;
@@ -518,7 +518,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
                                                       nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                                       nk_size_t columns_end, nk_size_t depth_values_padded,
                                                       nk_capability_t capability, nk_size_t scales_stride,
-                                                      void *stream) {
+                                                      nk_stream_t stream) {
     nk_size_t const columns = columns_end > columns_begin ? columns_end - columns_begin : 0;
     nk_size_t const needed = nk_size_divide_round_up_(columns, nk_cross_pack_groups_k);
     nk_size_t const blocks = needed == 0 ? 1 : needed < 65535 ? needed : 65535;
@@ -544,7 +544,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
  */
 #define nk_define_cross_packed_shape_cuda_(input_type_name, isa_suffix)                      \
     NUMKONG_API nk_status_t nk_dots_packed_shape_##input_type_name##_##isa_suffix(           \
-        void const *b_packed, nk_size_t *columns, nk_size_t *depth, void *stream) {          \
+        void const *b_packed, nk_size_t *columns, nk_size_t *depth, nk_stream_t stream) {    \
         if ((nk_size_t)b_packed & 15) return nk_misaligned_k;                                \
         nk_cross_packed_buffer_header_t header;                                              \
         nk_status_t const status = nk_read_cuda_(&header, b_packed, sizeof(header), stream); \
@@ -617,7 +617,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_dots_pack_##input_type_name##_##isa_suffix(                                             \
         nk_cross_##input_type_name##_operand_t const *b_operand, nk_size_t column_count, nk_size_t depth,              \
-        nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {            \
+        nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {      \
         nk_cross_operand_t const b = nk_cross_operand_(nk_##input_type_name##_k, b_operand, b_stride);                 \
         nk_size_t const depth_values_padded = nk_cross_padded_values_simt_(                                            \
             depth, depth_simd_dimensions, dimensions_per_value, sizeof(nk_##packed_value_type##_t));                   \
@@ -659,8 +659,8 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_##metric##s_packed_##input_type_name##_##isa_suffix(                                   \
         nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                         \
-        nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,           \
-        nk_size_t a_stride, nk_size_t c_stride, void *stream) {                                                       \
+        nk_##result_value_type##_t *c_matrix, nk_size_t rows, nk_size_t column_count, nk_size_t depth,                \
+        nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {                                                 \
         nk_size_t const row_bytes = nk_cross_padded_values_simt_(depth, depth_simd_dimensions, dimensions_per_value,  \
                                                                  sizeof(nk_##packed_value_type##_t)) *                \
                                     sizeof(nk_##packed_value_type##_t);                                               \
@@ -673,15 +673,15 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
         return nk_cross_launch_cuda_(                                                                                 \
             (void const *)nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_, nk_cross_tile_##tile##_k, \
             nk_cross_threads_##tile##_k, &a, &b, b_rows + column_count * (row_bytes + scales_stride), c_matrix,       \
-            sizeof(nk_##result_value_type##_t), 0, row_count, column_count, depth,                                    \
+            sizeof(nk_##result_value_type##_t), 0, rows, column_count, depth,                                         \
             nk_block_scaled_format_of_dtype(nk_##input_type_name##_k).block_size,                                     \
             depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), a_stride, row_bytes, c_stride, stream); \
     }
 
 /**
  *  @brief Generates the Gram matrix C = A × Aᵀ, or its angular or euclidean distances, on @p tile
- *      over rows [row_start, row_start + row_count), with its kernel, which walks the upper
- *      triangle and skips tiles wholly below it.
+ *      over rows [rows_begin, rows_end), with its kernel, which walks the upper triangle and skips
+ *      tiles wholly below it.
  *
  *  Takes the parameters of @c nk_define_cross_packed_cuda_, so one bundle feeds both.
  *
@@ -695,15 +695,15 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
         nk_cross_tile_##tile##_(__VA_ARGS__, nk_cross_triangle_upper_k, nk_cross_metric_##metric##_k, &arguments);    \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_##metric##s_symmetric_##input_type_name##_##isa_suffix(                                \
-        nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vectors_count, nk_size_t depth,      \
-        nk_size_t stride, nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t row_start,           \
-        nk_size_t row_count, void *stream) {                                                                          \
-        nk_size_t const row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;      \
+        nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vector_count, nk_size_t depth,       \
+        nk_size_t stride, nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t rows_begin,          \
+        nk_size_t rows_end, nk_stream_t stream) {                                                                     \
+        rows_end = nk_min_of_two(rows_end, vector_count);                                                             \
         nk_cross_operand_t const vectors = nk_cross_operand_(nk_##input_type_name##_k, vectors_operand, stride);      \
         return nk_cross_launch_cuda_(                                                                                 \
             (void const *)nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_,                        \
             nk_cross_tile_##tile##_k, nk_cross_threads_##tile##_k, &vectors, &vectors, 0, result,                     \
-            sizeof(nk_##result_value_type##_t), row_start, row_end, vectors_count, depth,                             \
+            sizeof(nk_##result_value_type##_t), rows_begin, rows_end, vector_count, depth,                            \
             nk_block_scaled_format_of_dtype(nk_##input_type_name##_k).block_size,                                     \
             depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), stride, stride, result_stride, stream); \
     }

@@ -19,7 +19,7 @@ extern "C" {
 #define nk_define_spatials_metal_(metric, dtype, isa, raw_type, depth_width, per_value, language, alignment)          \
     NUMKONG_API nk_status_t nk_##metric##s_packed_##dtype##_##isa(                                                    \
         nk_cross_##dtype##_operand_t const *a, void const *packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns,    \
-        nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {                                      \
+        nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {                                \
         nk_size_t bytes;                                                                                              \
         nk_status_t const status = nk_dots_pack_size_##dtype##_##isa(columns, depth, &bytes);                         \
         if (status != nk_success_k) return status;                                                                    \
@@ -49,19 +49,20 @@ extern "C" {
                                       nk_cross_scale_blocks_(nk_##dtype##_k, depth), stream);                         \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_##metric##s_symmetric_##dtype##_##isa(                                                 \
-        nk_cross_##dtype##_operand_t const *vectors, nk_size_t count, nk_size_t depth, nk_size_t stride,              \
-        nk_f32_t *result, nk_size_t result_stride, nk_size_t begin, nk_size_t rows, void *stream) {                   \
+        nk_cross_##dtype##_operand_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride,       \
+        nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {    \
         if (!nk_cross_whole_blocks_(nk_##dtype##_k, depth)) return nk_unexpected_dimensions_k;                        \
-        nk_size_t const end = begin < count ? begin + nk_min_of_two(rows, count - begin) : count;                     \
+        rows_end = nk_min_of_two(rows_end, vector_count);                                                             \
+        nk_size_t const window_rows = rows_end > rows_begin ? rows_end - rows_begin : 0;                              \
         nk_cross_operand_t const a = nk_cross_operand_(nk_##dtype##_k, vectors, stride);                              \
         if (depth && (((nk_size_t)a.elements | stride) & (alignment - 1))) return nk_misaligned_k;                    \
         return nk_cross_encode_metal_(                                                                                \
             nk_dots_source_##isa##_, language, nk_cross_threads_##isa##_k,                                            \
-            nk_cross_tile_side_metal_(nk_##dtype##_k, nk_cap_##isa##_k, end > begin ? end - begin : 0, count),        \
-            nk_cross_small_int4_metal_(nk_##dtype##_k, nk_cap_##isa##_k, end > begin ? end - begin : 0, count)        \
+            nk_cross_tile_side_metal_(nk_##dtype##_k, nk_cap_##isa##_k, window_rows, vector_count),                   \
+            nk_cross_small_int4_metal_(nk_##dtype##_k, nk_cap_##isa##_k, window_rows, vector_count)                   \
                 ? "nk_" #metric "s_" #dtype "_" #isa "_small_kernel_"                                                 \
                 : "nk_" #metric "s_" #dtype "_" #isa "_kernel_",                                                      \
-            a, a, 0, result, sizeof(nk_f32_t), begin, end, count, depth,                                              \
+            a, a, 0, result, sizeof(nk_f32_t), rows_begin, rows_end, vector_count, depth,                             \
             depth / per_value * sizeof(nk_##raw_type##_t), 0, stride, stride, result_stride, 1,                       \
             nk_cross_scale_blocks_(nk_##dtype##_k, depth), stream);                                                   \
     }

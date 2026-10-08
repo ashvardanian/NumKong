@@ -113,7 +113,7 @@ size_t shared_contiguous_tail_dimensions(Py_buffer const *buffers[], size_t buff
 }
 
 nk_status_t each_sum_recursive(                                    //
-    nk_each_sum_punned_t kernel, void *stream,                     //
+    nk_each_sum_punned_t kernel, nk_stream_t stream,               //
     char const *a_data, char const *b_data, char *result_data,     //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,          //
     Py_ssize_t const *b_strides, Py_ssize_t const *result_strides, //
@@ -144,7 +144,7 @@ nk_status_t each_sum_recursive(                                    //
 }
 
 nk_status_t each_scale_recursive(                                    //
-    nk_each_scale_punned_t kernel, void *stream,                     //
+    nk_each_scale_punned_t kernel, nk_stream_t stream,               //
     char const *a_data, char *result_data,                           //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta, //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,            //
@@ -174,7 +174,7 @@ nk_status_t each_scale_recursive(                                    //
 }
 
 nk_status_t each_fma_recursive(                                                    //
-    nk_each_fma_punned_t kernel, void *stream,                                     //
+    nk_each_fma_punned_t kernel, nk_stream_t stream,                               //
     char const *a_data, char const *b_data, char const *c_data, char *result_data, //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta,               //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,                          //
@@ -208,7 +208,7 @@ nk_status_t each_fma_recursive(                                                 
 }
 
 nk_status_t each_blend_recursive(                                    //
-    nk_each_blend_punned_t kernel, void *stream,                     //
+    nk_each_blend_punned_t kernel, nk_stream_t stream,               //
     char const *a_data, char const *b_data, char *result_data,       //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta, //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,            //
@@ -239,7 +239,7 @@ nk_status_t each_blend_recursive(                                    //
 }
 
 nk_status_t each_unary_recursive(                         //
-    nk_kernel_trig_punned_t kernel, void *stream,         //
+    nk_kernel_trig_punned_t kernel, nk_stream_t stream,   //
     char const *a_data, char *result_data,                //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides, //
     Py_ssize_t const *result_strides,                     //
@@ -1710,11 +1710,11 @@ static size_t build_collapsed_shape(Py_ssize_t const *shape, Py_ssize_t const *s
 
 /** Recursively reduce moments over an N-D tensor using a SIMD kernel. Re-analyzes remaining
  *  dimensions at each level to collapse uniform-stride tails, and stops at the first failure. */
-static nk_status_t reduce_moments_recursive(                           //
-    nk_reduce_moments_punned_t kernel, void *stream, nk_dtype_t dtype, //
-    nk_dtype_t sum_dtype, nk_dtype_t sumsq_dtype,                      //
-    char const *data, Py_ssize_t const *shape,                         //
-    Py_ssize_t const *strides, size_t rank, size_t dim,                //
+static nk_status_t reduce_moments_recursive(                                 //
+    nk_reduce_moments_punned_t kernel, nk_stream_t stream, nk_dtype_t dtype, //
+    nk_dtype_t sum_dtype, nk_dtype_t sumsq_dtype,                            //
+    char const *data, Py_ssize_t const *shape,                               //
+    Py_ssize_t const *strides, size_t rank, size_t dim,                      //
     nk_scalar_buffer_t *sum_accum, nk_scalar_buffer_t *sumsq_accum) {
 
     size_t remaining = rank - dim;
@@ -1763,7 +1763,7 @@ static nk_status_t reduce_moments_recursive(                           //
 }
 
 /** Reduce moments over an N-D tensor into typed scalar buffers; -1 sets a Python error. */
-static int impl_reduce_moments(nk_tensor_view_t const *view, nk_capability_t capabilities, void *stream,
+static int impl_reduce_moments(nk_tensor_view_t const *view, nk_capability_t capabilities, nk_stream_t stream,
                                nk_scalar_buffer_t *sum_out, nk_dtype_t *sum_dtype_out, nk_scalar_buffer_t *sumsq_out,
                                nk_dtype_t *sumsq_dtype_out) {
 
@@ -1841,13 +1841,13 @@ static void minmax_update(nk_scalar_buffer_t *running_min, nk_size_t *running_mi
 
 /** Recursively reduce minmax over an N-D tensor using a SIMD kernel. Re-analyzes remaining
  *  dimensions at each level to collapse uniform-stride tails. */
-static nk_status_t reduce_minmax_recursive(                           //
-    nk_reduce_minmax_punned_t kernel, void *stream, nk_dtype_t dtype, //
-    nk_dtype_t value_dtype,                                           //
-    char const *data, Py_ssize_t const *shape,                        //
-    Py_ssize_t const *strides, size_t rank, size_t dim,               //
-    size_t flat_offset,                                               //
-    nk_scalar_buffer_t *min_accum, nk_size_t *min_idx_accum,          //
+static nk_status_t reduce_minmax_recursive(                                 //
+    nk_reduce_minmax_punned_t kernel, nk_stream_t stream, nk_dtype_t dtype, //
+    nk_dtype_t value_dtype,                                                 //
+    char const *data, Py_ssize_t const *shape,                              //
+    Py_ssize_t const *strides, size_t rank, size_t dim,                     //
+    size_t flat_offset,                                                     //
+    nk_scalar_buffer_t *min_accum, nk_size_t *min_idx_accum,                //
     nk_scalar_buffer_t *max_accum, nk_size_t *max_idx_accum) {
 
     size_t remaining = rank - dim;
@@ -1906,7 +1906,7 @@ static nk_status_t reduce_minmax_recursive(                           //
 }
 
 /** Reduce minmax over an N-D tensor into typed scalar buffers; -1 sets a Python error. */
-static int impl_reduce_minmax(nk_tensor_view_t const *view, nk_capability_t capabilities, void *stream,
+static int impl_reduce_minmax(nk_tensor_view_t const *view, nk_capability_t capabilities, nk_stream_t stream,
                               nk_scalar_buffer_t *min_out, nk_dtype_t *min_dtype_out, size_t *min_index_out,
                               nk_scalar_buffer_t *max_out, nk_dtype_t *max_dtype_out, size_t *max_index_out) {
 
@@ -1973,7 +1973,8 @@ char const doc_method_moments[] =                            //
     "Signature:\n"                                           //
     "    >>> def moments(self, /): ...";
 
-static PyObject *impl_moments_from_view(nk_tensor_view_t const *view, nk_capability_t capabilities, void *stream) {
+static PyObject *impl_moments_from_view(nk_tensor_view_t const *view, nk_capability_t capabilities,
+                                        nk_stream_t stream) {
     nk_scalar_buffer_t sum_buf, sumsq_buf;
     nk_dtype_t sum_dtype, sumsq_dtype;
     if (impl_reduce_moments(view, capabilities, stream, &sum_buf, &sum_dtype, &sumsq_buf, &sumsq_dtype) < 0)
@@ -2006,7 +2007,7 @@ char const doc_method_minmax[] =                                                
     "Signature:\n"                                                                              //
     "    >>> def minmax(self, /): ...";
 
-static PyObject *impl_minmax_from_view(nk_tensor_view_t const *view, nk_capability_t capabilities, void *stream) {
+static PyObject *impl_minmax_from_view(nk_tensor_view_t const *view, nk_capability_t capabilities, nk_stream_t stream) {
     nk_scalar_buffer_t min_buf, max_buf;
     nk_dtype_t min_dtype, max_dtype;
     size_t min_index = 0, max_index = 0;
@@ -2071,7 +2072,7 @@ typedef struct {
     nk_capability_t capabilities;
 
     /** NULL on the CPU. */
-    void *stream;
+    nk_stream_t stream;
 } reduce_args_t;
 
 /** Parse a single axis value, int, tuple of ints, or None, into the axes array. Returns 1 if axes
@@ -4550,7 +4551,7 @@ PyObject *api_moments(PyObject *self, PyObject *const *args, Py_ssize_t const na
 
     nk_dtype_t dtype_override = nk_dtype_unknown_k;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
     Py_ssize_t const kwcount = kwnames ? PyTuple_Size(kwnames) : 0;
     for (Py_ssize_t i = 0; i < kwcount; i++) {
         PyObject *name = PyTuple_GET_ITEM(kwnames, i);
@@ -4598,7 +4599,7 @@ PyObject *api_minmax(PyObject *self, PyObject *const *args, Py_ssize_t const nar
 
     nk_dtype_t dtype_override = nk_dtype_unknown_k;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
     Py_ssize_t const kwcount = kwnames ? PyTuple_Size(kwnames) : 0;
     for (Py_ssize_t i = 0; i < kwcount; i++) {
         PyObject *name = PyTuple_GET_ITEM(kwnames, i);

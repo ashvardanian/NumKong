@@ -210,7 +210,7 @@ Modern hardware makes the "spawn N threads and split evenly" model increasingly 
 
 Instead, NumKong exposes __row-range parameters__ that let the caller partition work across any threading model.
 For GEMM-shaped `dots_packed`, this is straightforward — pass a slice of A's rows and the full packed B to compute the corresponding slice of C.
-For SYRK-shaped `dots_symmetric`, explicit `start_row` / `end_row` parameters control which rows of the symmetric output matrix a given thread computes.
+For SYRK-shaped `dots_symmetric`, explicit `rows_begin` / `rows_end` parameters control which rows of the symmetric output matrix a given thread computes.
 The [GIL](https://docs.python.org/3/glossary.html#term-global-interpreter-lock) (Global Interpreter Lock) is released around every kernel call, making NumKong compatible with `concurrent.futures`, `multiprocessing`, or any other parallelism model:
 
 ```python
@@ -222,7 +222,7 @@ output = nk.zeros((1000, 1000), dtype="float64")
 def compute_slice(t):
     start = t * (len(vectors) // num_threads)
     end = start + len(vectors) // num_threads if t < num_threads - 1 else len(vectors)
-    nk.dots_symmetric(vectors, out=output, start_row=start, end_row=end)
+    nk.dots_symmetric(vectors, out=output, rows_begin=start, rows_end=end)
 
 with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as pool:
     list(pool.map(compute_slice, range(num_threads)))
@@ -330,9 +330,9 @@ Instead, every batch kernel takes inputs as `const` pointers, writes outputs thr
 
 ```c
 nk_status_t nk_dot_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                            nk_capability_t capabilities, void *stream);
+                            nk_capability_t capabilities, nk_stream_t stream);
 nk_status_t nk_dot_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                             nk_capability_t capabilities, void *stream);
+                             nk_capability_t capabilities, nk_stream_t stream);
 ```
 
 Pointers eliminate implicit casts for types with platform-dependent storage — this is why they matter for half-precision types.

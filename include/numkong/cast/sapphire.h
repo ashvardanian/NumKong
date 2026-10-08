@@ -232,7 +232,7 @@ NUMKONG_INLINE __m128i nk_f16x16_to_e5m2x16_sapphire_(__m256h f16x16) {
 #pragma region Public API
 
 NUMKONG_API nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                         nk_size_t count, void *stream) {
+                                         nk_size_t count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dtype_is_block_scaled(from_dtype) || nk_dtype_is_block_scaled(to_dtype)) {
         nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(from_dtype);

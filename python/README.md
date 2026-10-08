@@ -590,7 +590,7 @@ Important runtime rules from the current implementation:
 - `a` must have contiguous rows
 - negative strides are rejected for these matrix kernels
 - `out`, when provided, must be C-contiguous with the expected dtype
-- `start_row` and `end_row` split the left operand rows
+- `rows_begin` and `rows_end` split the left operand rows
 
 The arithmetic advantages are:
 
@@ -617,8 +617,8 @@ import numkong as nk
 vectors = np.random.randn(1024, 768).astype(np.float32)
 out = nk.zeros((1024, 1024), dtype="float64")
 
-nk.dots_symmetric(vectors, out=out, start_row=0, end_row=256)
-nk.dots_symmetric(vectors, out=out, start_row=256, end_row=512)
+nk.dots_symmetric(vectors, out=out, rows_begin=0, rows_end=256)
+nk.dots_symmetric(vectors, out=out, rows_begin=256, rows_end=512)
 
 assert out.shape == (1024, 1024)
 ```
@@ -770,7 +770,7 @@ packed = nk.dots_pack(right, dtype="float32")
 out = nk.zeros((4096, 8192), dtype="float64")  # out must be pre-allocated with correct shape and dtype
 
 def packed_chunk(start, end):
-    nk.dots_packed(left, packed, out=out, start_row=start, end_row=end) # split left rows against one shared packed RHS
+    nk.dots_packed(left, packed, out=out, rows_begin=start, rows_end=end) # split left rows against one shared packed RHS
 
 with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
     for start in range(0, 4096, 1024):
@@ -786,7 +786,7 @@ vectors = np.random.randn(4096, 768).astype(np.float32)
 out = nk.zeros((4096, 4096), dtype="float64")  # out must be pre-allocated with correct shape and dtype
 
 def symmetric_chunk(start, end):
-    nk.dots_symmetric(vectors, out=out, start_row=start, end_row=end) # split row windows of one square output
+    nk.dots_symmetric(vectors, out=out, rows_begin=start, rows_end=end) # split row windows of one square output
 
 with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
     for start in range(0, 4096, 1024):
@@ -806,7 +806,7 @@ Only `dots_pack` and the dots, angulars and euclideans `_packed` and `_symmetric
 Element access, NumPy conversion, `cdist`, `maxsim` and every other CPU kernel raise `BufferError` rather than read device memory.
 NumKong allocates no device memory, so every GPU call writes into an `out=` Tensor on the same device, and mixing devices raises `ValueError`.
 A GPU call queues one launch on `stream=`, an integer handle defaulting to 0, the legacy stream, and returns before it finishes, as PyTorch does, and `nk.synchronize(capabilities, stream=stream)` waits for it.
-`nk.cuda_stream_init(ordinal)` makes such a handle on any device by its ordinal, and `nk.cuda_stream_free(stream)` frees it once synchronized, with `rocm_` and `metal_` twins.
+`nk.stream_init_cuda(ordinal)` makes such a handle on any device by its ordinal, and `nk.stream_free_cuda(stream)` frees it once synchronized, with `rocm_` and `metal_` twins.
 Metal tensors are host-readable and keep running on the CPU kernels.
 
 ```python

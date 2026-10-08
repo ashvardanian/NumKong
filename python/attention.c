@@ -30,7 +30,7 @@ typedef struct attention_pack_task_t {
     nk_size_t segment_count;
     nk_size_t key_stride, value_stride;
     void *key_value_packed;
-    void *stream;
+    nk_stream_t stream;
 } attention_pack_task_t;
 
 static nk_status_t attention_pack_tile_(nk_size_t tile_index, void *context) {
@@ -56,7 +56,7 @@ typedef struct attention_arguments_t {
     nk_f32_t scale;
     nk_size_t keys_before;
     nk_size_t keys_after;
-    void *stream;
+    nk_stream_t stream;
 } attention_arguments_t;
 
 /** Most windows of the query tokens × heads grid one attention call is cut into. */
@@ -317,7 +317,7 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
     PyObject *k_obj = NULL, *v_obj = NULL, *offsets_obj = NULL, *lengths_obj = NULL;
     nk_size_t depth = 0, threads = 1;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     if (nargs < 2 || nargs > 3 || nargs + nkw > 8) {
@@ -677,7 +677,7 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
     nk_capability_t capabilities = PyObject_TypeCheck(args[1], &AttentionPackedMatrixType)
                                        ? ((AttentionPackedMatrix *)args[1])->capabilities
                                        : nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
     if (nargs >= 3) query_offsets_object = args[2];
     for (Py_ssize_t keyword_index = 0; keyword_index < keyword_count; keyword_index++) {
         PyObject *keyword = PyTuple_GET_ITEM(kwnames, keyword_index);
@@ -786,7 +786,7 @@ PyObject *api_attention_packed_gradients(PyObject *self, PyObject *const *args, 
     nk_capability_t capabilities = PyObject_TypeCheck(args[1], &AttentionPackedMatrixType)
                                        ? ((AttentionPackedMatrix *)args[1])->capabilities
                                        : nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
     for (Py_ssize_t keyword_index = 0; keyword_index < keyword_count; keyword_index++) {
         PyObject *keyword = PyTuple_GET_ITEM(kwnames, keyword_index);
         PyObject *value = args[nargs + keyword_index];
@@ -920,7 +920,7 @@ PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t c
     PyObject *x_object = NULL, *cos_object = NULL, *sin_object = NULL, *head_count_object = NULL, *depth_object = NULL;
     PyObject *out_object = NULL;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_buffer x_buffer, y_buffer, cos_buffer, sin_buffer;
     nk_buffer_backing_t x_backing, y_backing, cos_backing, sin_backing;

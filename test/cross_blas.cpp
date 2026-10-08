@@ -96,17 +96,17 @@ error_stats_t test_dots_unpacked_conjugated(settings_t const &settings, kernel_t
     return stats;
 }
 
-nk_status_t dot_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result, void *) {
+nk_status_t dot_f32_with_blas(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result, nk_stream_t) {
     *result = cblas_dsdot(static_cast<int>(n), a, 1, b, 1);
     return nk_success_k;
 }
 
-nk_status_t dot_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result, void *) {
+nk_status_t dot_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result, nk_stream_t) {
     *result = cblas_ddot(static_cast<int>(n), a, 1, b, 1);
     return nk_success_k;
 }
 
-nk_status_t dot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
+nk_status_t dot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result, nk_stream_t) {
     nk_f32c_t reduced_result_f32;
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_cdotu_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_float_complex const *>(a), 1,
@@ -119,7 +119,7 @@ nk_status_t dot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t
     return nk_success_k;
 }
 
-nk_status_t vdot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
+nk_status_t vdot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f64c_t *result, nk_stream_t) {
     nk_f32c_t reduced_result_f32;
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_cdotc_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_float_complex const *>(a), 1,
@@ -132,7 +132,7 @@ nk_status_t vdot_f32c_with_blas(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_
     return nk_success_k;
 }
 
-nk_status_t dot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
+nk_status_t dot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result, nk_stream_t) {
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_zdotu_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_double_complex const *>(a), 1,
                     reinterpret_cast<__LAPACK_double_complex const *>(b), 1,
@@ -143,7 +143,7 @@ nk_status_t dot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t
     return nk_success_k;
 }
 
-nk_status_t vdot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result, void *) {
+nk_status_t vdot_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result, nk_stream_t) {
 #if NUMKONG_COMPARE_TO_ACCELERATE
     cblas_zdotc_sub(static_cast<int>(n), reinterpret_cast<__LAPACK_double_complex const *>(a), 1,
                     reinterpret_cast<__LAPACK_double_complex const *>(b), 1,
@@ -217,7 +217,7 @@ void dots_f64c_with_blas(f64c_t const *a, f64c_t const *b, f64c_t *c, nk_size_t 
 /** SYRK over all of A into scratch, copying back the upper triangle of only the requested rows. */
 template <typename scalar_type_>
 nk_status_t dots_symmetric_with_blas(scalar_type_ const *a, nk_size_t n, nk_size_t k, nk_size_t a_stride, nk_f64_t *c,
-                                     nk_size_t c_stride, nk_size_t row_start, nk_size_t row_count, void *) {
+                                     nk_size_t c_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t) {
     std::vector<scalar_type_> full(n * n);
     int const size = static_cast<int>(n), depth = static_cast<int>(k);
     int const leading_dimension_a = static_cast<int>(a_stride / sizeof(scalar_type_));
@@ -227,7 +227,8 @@ nk_status_t dots_symmetric_with_blas(scalar_type_ const *a, nk_size_t n, nk_size
     else
         cblas_dsyrk(CblasRowMajor, CblasUpper, CblasNoTrans, size, depth, 1, a, leading_dimension_a, 0, full.data(),
                     size);
-    for (nk_size_t row = row_start; row < std::min(n, row_start + row_count); row++)
+    rows_end = std::min(n, rows_end);
+    for (nk_size_t row = rows_begin; row < rows_end; row++)
         std::copy(&full[row * n + row], &full[row * n] + n, c + row * (c_stride / sizeof(nk_f64_t)) + row);
     return nk_success_k;
 }

@@ -491,7 +491,7 @@ NUMKONG_INLINE __m256 nk_vincenty_f32x8_haswell_(                //
 NUMKONG_API nk_status_t nk_haversine_f64_haswell(   //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_size_t n, nk_f64_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 4) {
@@ -525,7 +525,7 @@ NUMKONG_API nk_status_t nk_haversine_f64_haswell(   //
 NUMKONG_API nk_status_t nk_haversine_f32_haswell(   //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_size_t n, nk_f32_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 8) {
@@ -559,7 +559,7 @@ NUMKONG_API nk_status_t nk_haversine_f32_haswell(   //
 NUMKONG_API nk_status_t nk_vincenty_f64_haswell(    //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_size_t n, nk_f64_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 4) {
@@ -593,7 +593,7 @@ NUMKONG_API nk_status_t nk_vincenty_f64_haswell(    //
 NUMKONG_API nk_status_t nk_vincenty_f32_haswell(    //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_size_t n, nk_f32_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     while (n >= 8) {

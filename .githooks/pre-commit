@@ -355,26 +355,33 @@ check_kernels_call_no_public_kernels() {
         "            call the helper it is built on, or add one named for what it computes:"
 }
 
-# Rejects an added kernel signature with a runtime `nk_dtype_t` parameter, because a kernel takes typed
-# function arguments, generated per dtype by a macro; a `NUMKONG_CONSTEXPR` helper may fold the lookup.
+# Rejects a kernel signature with a runtime `nk_dtype_t` parameter that HEAD's copy of the function lacks,
+# because a kernel takes typed function arguments, generated per dtype by a macro; a `NUMKONG_CONSTEXPR`
+# helper may fold the lookup. Touching an older signature, as a parameter rename does, never fires.
 check_kernels_take_no_runtime_dtype() {
     case "$staged_path" in include/numkong/*/*.h | include/numkong/*/*.cuh) ;; *) return 0 ;; esac
-    local runtime_dtypes
-    runtime_dtypes=$(scan_staged_file_marking_added_lines '
+    local signatures previous_names runtime_dtypes
+    signatures='
         !in_signature && /^[[:space:]]*(NUMKONG_INLINE|NUMKONG_OUTLINED_|NUMKONG_API|NUMKONG_DEVICE|__global__|static[[:space:]])/ {
-            in_signature = 1; touched = 0; constexpr = 0; typed_line = 0
+            in_signature = 1; touched = 0; constexpr = 0; typed_line = 0; name = ""
         }
         in_signature {
             if (FNR in added) touched = 1
             if ($0 ~ /NUMKONG_CONSTEXPR/) constexpr = 1
+            line = $0; gsub(/__launch_bounds__[[:space:]]*\([^)]*\)/, "", line)
+            if (name == "" && match(line, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(/)) { name = substr(line, RSTART, RLENGTH); sub(/[[:space:]]*\($/, "", name) }
             if (!typed_line && $0 ~ /(^|[^A-Za-z0-9_])nk_dtype_t[[:space:]]+(const[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[,)]/) {
                 typed_line = FNR; typed_text = $0
             }
             if ($0 ~ /[{;]/) {
-                if (touched && typed_line && !constexpr) printf "line %d: %s\n", typed_line, typed_text
+                if ((touched || listing) && typed_line && !constexpr) printf "%s\tline %d: %s\n", name, typed_line, typed_text
                 in_signature = 0
             }
-        }' "$staged_code_path")
+        }'
+    previous_names=$(git show "HEAD:$staged_path" 2> /dev/null | blank_c_comments_preserving_columns |
+        awk -v listing=1 "$signatures" | cut -f1)
+    runtime_dtypes=$(scan_staged_file_marking_added_lines "$signatures" "$staged_code_path" |
+        awk -F '\t' -v previous="$previous_names" 'BEGIN { split(previous, names, "\n"); for (position in names) existing[names[position]] } !($1 in existing) { print $2 }')
     [ -z "$runtime_dtypes" ] || reject_with_reason "$runtime_dtypes" \
         "$staged_path gives a kernel a runtime nk_dtype_t parameter;" \
         "            kernels take typed function arguments, generated per dtype by a macro:"

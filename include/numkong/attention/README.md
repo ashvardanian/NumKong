@@ -2,7 +2,7 @@
 
 NumKong implements FlashAttention-style scaled-dot-product attention __(SDPA)__ over ragged batches with a pre-packed KV-cache, as the fused core of Transformer inference on CPUs.
 Every backend shares one packing pair, `pack_size` to size the cache and `pack` to rearrange K/V into a backend-opaque layout, and one compute kernel over the same pack, `packed`, with `packed_gradients` for training.
-Each takes a half-open `[task_begin, task_end)` window over its task grid for embarrassingly parallel execution, and windows run in any order.
+Each takes a half-open `[tasks_begin, tasks_end)` window over its task grid for embarrassingly parallel execution, and windows run in any order.
 Packing tasks are segments × key-value heads; the window starting at task 0 also writes the header and directory, which no other window reads.
 Attention tasks are query tokens × heads, task `t · head_count + h` being head `h` of query token `t`, the index of its log-sum-exp, so a window may split a segment or a head group.
 Bindings cut that grid into a few windows of equal cost per thread, a row costing the keys it sees, so a single decode token still spreads over its heads.

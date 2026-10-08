@@ -47,7 +47,7 @@ func HammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32) {
 	hammingsSymmetricU1(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func hammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32, rowStart, rowCount int) {
+func hammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32, rowsBegin, rowsEnd int) {
 	bytesPerVec := DimensionsToValues("u1", depth)
 	check(C.nk_hammings_symmetric_u1_best(
 		(*C.nk_u1x8_t)(&vectors[0]),
@@ -55,7 +55,7 @@ func hammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32, r
 		C.nk_size_t(bytesPerVec),
 		(*C.nk_u32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // JaccardsPackedU1 computes the Jaccard distance from each of rows binary vectors to every packed
@@ -96,7 +96,7 @@ func JaccardsSymmetricU1(vectors []byte, nVectors, depth int, result []float32) 
 	jaccardsSymmetricU1(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func jaccardsSymmetricU1(vectors []byte, nVectors, depth int, result []float32, rowStart, rowCount int) {
+func jaccardsSymmetricU1(vectors []byte, nVectors, depth int, result []float32, rowsBegin, rowsEnd int) {
 	bytesPerVec := DimensionsToValues("u1", depth)
 	check(C.nk_jaccards_symmetric_u1_best(
 		(*C.nk_u1x8_t)(&vectors[0]),
@@ -104,5 +104,5 @@ func jaccardsSymmetricU1(vectors []byte, nVectors, depth int, result []float32, 
 		C.nk_size_t(bytesPerVec),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }

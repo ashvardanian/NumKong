@@ -58,21 +58,21 @@ typedef struct {
     nk_size_t depth;
     nk_size_t a_stride;
     nk_size_t c_stride;
-    void *stream;
+    nk_stream_t stream;
 } nk_dots_packed_task_t;
 
-/** One Gram matrix C = A × Aᵀ over rows [row_start, row_start + row_count), for plain dtypes. */
+/** One Gram matrix C = A × Aᵀ over rows [rows_begin, rows_end), for plain dtypes. */
 typedef struct {
     nk_dots_symmetric_punned_t kernel;
     char const *vectors;
-    nk_size_t vectors_count;
+    nk_size_t vector_count;
     nk_size_t depth;
     nk_size_t vectors_stride;
     char *result;
     nk_size_t result_stride;
-    nk_size_t row_start;
-    nk_size_t row_count;
-    void *stream;
+    nk_size_t rows_begin;
+    nk_size_t rows_end;
+    nk_stream_t stream;
 } nk_dots_symmetric_task_t;
 
 /** Runs @p task in tiles of @c NUMKONG_PARALLEL_PACKED_TILE rows of A on @p threads workers. */

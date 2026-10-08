@@ -89,7 +89,7 @@ NUMKONG_INLINE vuint8m4_t nk_popcount_u8m4_rvv_(vuint8m4_t v_u8m4, nk_size_t vec
 #pragma region Binary Sets
 
 NUMKONG_API nk_status_t nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
@@ -118,7 +118,7 @@ NUMKONG_API nk_status_t nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
@@ -161,7 +161,7 @@ NUMKONG_API nk_status_t nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b
 #pragma region Integer Sets
 
 NUMKONG_API nk_status_t nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     vuint32m1_t diff_count_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
 
@@ -187,7 +187,7 @@ NUMKONG_API nk_status_t nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t match_count_u32 = 0;
 
@@ -210,7 +210,7 @@ NUMKONG_API nk_status_t nk_jaccard_u32_rvv(nk_u32_t const *a, nk_u32_t const *b,
 }
 
 NUMKONG_API nk_status_t nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t match_count_u32 = 0;
 

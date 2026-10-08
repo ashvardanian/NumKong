@@ -27,12 +27,12 @@ void measure_sparse(loop_t &loop, environment_t const &env, kernel_type_ kernel,
     using input_vector_t = nk::vector<input_t>;
 
     // Preallocate sorted unique set vectors
-    std::size_t const vectors_count = input_sets_count(dtype_bytes(input_dtype_, first_size + second_size));
-    std::vector<input_vector_t> first_vectors(vectors_count), second_vectors(vectors_count);
+    std::size_t const vector_count = input_sets_count(dtype_bytes(input_dtype_, first_size + second_size));
+    std::vector<input_vector_t> first_vectors(vector_count), second_vectors(vector_count);
     std::mt19937 generator(env.settings.seed.value);
 
     auto max_val = input_t(first_size * second_size / intersection_size);
-    for (std::size_t index = 0; index != vectors_count; ++index) {
+    for (std::size_t index = 0; index != vector_count; ++index) {
         first_vectors[index] = make_vector<input_t>(first_size);
         second_vectors[index] = make_vector<input_t>(second_size);
         nk::fill_sorted_unique(generator, first_vectors[index].values_data(), first_size, max_val);
@@ -42,7 +42,7 @@ void measure_sparse(loop_t &loop, environment_t const &env, kernel_type_ kernel,
     // Benchmark loop
     for (std::size_t call : loop) {
         nk_size_t count;
-        std::size_t const index = call & (vectors_count - 1);
+        std::size_t const index = call & (vector_count - 1);
         if (!succeeded(loop, kernel(first_vectors[index].raw_values_data(), second_vectors[index].raw_values_data(),
                                     first_size, second_size, nullptr, &count, nullptr)))
             break;
@@ -126,13 +126,13 @@ void measure_sparse_dot(loop_t &loop, environment_t const &env, kernel_type_ ker
     using index_vector_t = nk::vector<index_t>;
     using weight_vector_t = nk::vector<weight_t>;
 
-    std::size_t const vectors_count = input_sets_count(dtype_bytes(index_dtype_, first_size + second_size));
-    std::vector<index_vector_t> first_indices(vectors_count), second_indices(vectors_count);
-    std::vector<weight_vector_t> first_weights(vectors_count), second_weights(vectors_count);
+    std::size_t const vector_count = input_sets_count(dtype_bytes(index_dtype_, first_size + second_size));
+    std::vector<index_vector_t> first_indices(vector_count), second_indices(vector_count);
+    std::vector<weight_vector_t> first_weights(vector_count), second_weights(vector_count);
     std::mt19937 generator(env.settings.seed.value);
     auto max_val = index_t(first_size * second_size / intersection_size);
 
-    for (std::size_t index = 0; index != vectors_count; ++index) {
+    for (std::size_t index = 0; index != vector_count; ++index) {
         first_indices[index] = make_vector<index_t>(first_size);
         second_indices[index] = make_vector<index_t>(second_size);
         first_weights[index] = make_vector<weight_t>(first_size);
@@ -148,7 +148,7 @@ void measure_sparse_dot(loop_t &loop, environment_t const &env, kernel_type_ ker
 
     product_t product;
     for (std::size_t call : loop) {
-        std::size_t const idx = call & (vectors_count - 1);
+        std::size_t const idx = call & (vector_count - 1);
         if (!succeeded(loop, kernel(first_indices[idx].raw_values_data(), second_indices[idx].raw_values_data(),
                                     first_weights[idx].raw_values_data(), second_weights[idx].raw_values_data(),
                                     first_size, second_size, &product.raw_, nullptr)))

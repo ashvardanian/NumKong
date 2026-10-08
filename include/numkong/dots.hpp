@@ -47,7 +47,7 @@ using operand_pointer = typename operand_pointer_<in_type_>::type;
  *  @param[in] a Row-major matrix A of shape @b [rows,depth], see @c operand_pointer
  *  @param[in] b Row-major matrix B of shape @b [columns,depth], accessed as Bᵀ
  *  @param[out] c Row-major output matrix C of shape @b [rows,columns]
- *  @param[in] row_count Rows of A and C (m)
+ *  @param[in] rows Rows of A and C (m)
  *  @param[in] column_count Rows of B and columns of C (n)
  *  @param[in] depth Columns of A and B (k). Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride Stride between rows of A in bytes
@@ -61,7 +61,7 @@ using operand_pointer = typename operand_pointer_<in_type_>::type;
  *  reading as 1, before they are multiplied and summed.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
-void dots_unpacked(operand_pointer<in_type_> a, operand_pointer<in_type_> b, result_type_ *c, std::size_t row_count,
+void dots_unpacked(operand_pointer<in_type_> a, operand_pointer<in_type_> b, result_type_ *c, std::size_t rows,
                    std::size_t column_count, std::size_t depth, std::size_t a_stride, std::size_t b_stride,
                    std::size_t c_stride) noexcept {
     char *c_bytes = reinterpret_cast<char *>(c);
@@ -70,7 +70,7 @@ void dots_unpacked(operand_pointer<in_type_> a, operand_pointer<in_type_> b, res
         char const *a_bytes = reinterpret_cast<char const *>(a);
         char const *b_bytes = reinterpret_cast<char const *>(b);
         std::size_t const depth_values = depth / dimensions_per_value<in_type_>();
-        for (std::size_t i = 0; i < row_count; i++) {
+        for (std::size_t i = 0; i < rows; i++) {
             in_type_ const *a_row = reinterpret_cast<in_type_ const *>(a_bytes + i * a_stride);
             result_type_ *c_row = reinterpret_cast<result_type_ *>(c_bytes + i * c_stride);
             for (std::size_t j = 0; j < column_count; j++) {
@@ -104,7 +104,7 @@ void dots_unpacked(operand_pointer<in_type_> a, operand_pointer<in_type_> b, res
         char const *a_scales_bytes = reinterpret_cast<char const *>(a->scales);
         char const *b_scales_bytes = reinterpret_cast<char const *>(b->scales);
 
-        for (std::size_t i = 0; i < row_count; i++) {
+        for (std::size_t i = 0; i < rows; i++) {
             element_t const *a_row = reinterpret_cast<element_t const *>(a_bytes + i * a_stride);
             scale_t const *a_row_scales = reinterpret_cast<scale_t const *>(a_scales_bytes +
                                                                             i * (a_stride / format.block_bytes));
@@ -131,7 +131,7 @@ void dots_unpacked(operand_pointer<in_type_> a, operand_pointer<in_type_> b, res
  *  inner product matching `cblas_{c,z}gemm` with @c CblasConjTrans.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
-void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_ *c, std::size_t row_count,
+void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_ *c, std::size_t rows,
                               std::size_t column_count, std::size_t depth, std::size_t a_stride, std::size_t b_stride,
                               std::size_t c_stride) noexcept {
     char const *a_bytes = reinterpret_cast<char const *>(a);
@@ -139,7 +139,7 @@ void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_
     char *c_bytes = reinterpret_cast<char *>(c);
     std::size_t const depth_values = depth / dimensions_per_value<in_type_>();
 
-    for (std::size_t i = 0; i < row_count; i++) {
+    for (std::size_t i = 0; i < rows; i++) {
         in_type_ const *a_row = reinterpret_cast<in_type_ const *>(a_bytes + i * a_stride);
         result_type_ *c_row = reinterpret_cast<result_type_ *>(c_bytes + i * c_stride);
         for (std::size_t j = 0; j < column_count; j++) {
@@ -156,7 +156,7 @@ void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_
  *  @param[in] a Matrix A of shape @b [rows,depth]
  *  @param[in] b_packed Packed matrix B of shape @b [depth,columns], with stride metadata appended
  *  @param[out] c Output matrix C of shape @b [rows,columns]
- *  @param[in] row_count Rows of A and C
+ *  @param[in] rows Rows of A and C
  *  @param[in] column_count Columns of B and C
  *  @param[in] depth Columns of A, rows of B, a multiple of the values per byte.
  *  @param[in] a_stride Stride between rows of A in bytes
@@ -171,50 +171,50 @@ void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_
  *  @tparam result_type_ Accumulator/output type, defaults to @c in_type_::dot_result_t
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
-status_t dots_packed(operand_pointer<in_type_> a, void const *b_packed, result_type_ *c, std::size_t row_count,
+status_t dots_packed(operand_pointer<in_type_> a, void const *b_packed, result_type_ *c, std::size_t rows,
                      std::size_t column_count, std::size_t depth, std::size_t a_stride, std::size_t c_stride,
-                     nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+                     nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::dot_result_t>;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_f64_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
+            return static_cast<status_t>(nk_dots_packed_f64_best(&a->raw_, b_packed, &c->raw_, rows, column_count,
                                                                  depth, a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_f32_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
+            return static_cast<status_t>(nk_dots_packed_f32_best(&a->raw_, b_packed, &c->raw_, rows, column_count,
                                                                  depth, a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_f16_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
+            return static_cast<status_t>(nk_dots_packed_f16_best(&a->raw_, b_packed, &c->raw_, rows, column_count,
                                                                  depth, a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_bf16_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
+            return static_cast<status_t>(nk_dots_packed_bf16_best(&a->raw_, b_packed, &c->raw_, rows, column_count,
                                                                   depth, a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_i8_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
-                                                                depth, a_stride, c_stride, capabilities, stream));
+            return static_cast<status_t>(nk_dots_packed_i8_best(&a->raw_, b_packed, &c->raw_, rows, column_count, depth,
+                                                                a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_u8_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
-                                                                depth, a_stride, c_stride, capabilities, stream));
+            return static_cast<status_t>(nk_dots_packed_u8_best(&a->raw_, b_packed, &c->raw_, rows, column_count, depth,
+                                                                a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_e4m3_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
+            return static_cast<status_t>(nk_dots_packed_e4m3_best(&a->raw_, b_packed, &c->raw_, rows, column_count,
                                                                   depth, a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_e5m2_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
+            return static_cast<status_t>(nk_dots_packed_e5m2_best(&a->raw_, b_packed, &c->raw_, rows, column_count,
                                                                   depth, a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_e2m3_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
+            return static_cast<status_t>(nk_dots_packed_e2m3_best(&a->raw_, b_packed, &c->raw_, rows, column_count,
                                                                   depth, a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_e2m1_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
+            return static_cast<status_t>(nk_dots_packed_e2m1_best(&a->raw_, b_packed, &c->raw_, rows, column_count,
                                                                   depth, a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_e3m2_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
+            return static_cast<status_t>(nk_dots_packed_e3m2_best(&a->raw_, b_packed, &c->raw_, rows, column_count,
                                                                   depth, a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_u4_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
-                                                                depth, a_stride, c_stride, capabilities, stream));
+            return static_cast<status_t>(nk_dots_packed_u4_best(&a->raw_, b_packed, &c->raw_, rows, column_count, depth,
+                                                                a_stride, c_stride, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
-            return static_cast<status_t>(nk_dots_packed_i4_best(&a->raw_, b_packed, &c->raw_, row_count, column_count,
-                                                                depth, a_stride, c_stride, capabilities, stream));
+            return static_cast<status_t>(nk_dots_packed_i4_best(&a->raw_, b_packed, &c->raw_, rows, column_count, depth,
+                                                                a_stride, c_stride, capabilities, stream));
     }
     std::size_t b_stride;
     char const *b_packed_bytes = reinterpret_cast<char const *>(b_packed);
@@ -222,13 +222,13 @@ status_t dots_packed(operand_pointer<in_type_> a, void const *b_packed, result_t
         typename in_type_::cref_t b;
         std::memcpy(&b, b_packed_bytes, sizeof(b));
         std::memcpy(&b_stride, b_packed_bytes + sizeof(b), sizeof(std::size_t));
-        dots_unpacked<in_type_, result_type_>(a, &b, c, row_count, column_count, depth, a_stride, b_stride, c_stride);
+        dots_unpacked<in_type_, result_type_>(a, &b, c, rows, column_count, depth, a_stride, b_stride, c_stride);
     }
     else {
         in_type_ const *b;
         std::memcpy(&b, b_packed_bytes, sizeof(void *));
         std::memcpy(&b_stride, b_packed_bytes + sizeof(void *), sizeof(std::size_t));
-        dots_unpacked<in_type_, result_type_>(a, b, c, row_count, column_count, depth, a_stride, b_stride, c_stride);
+        dots_unpacked<in_type_, result_type_>(a, b, c, rows, column_count, depth, a_stride, b_stride, c_stride);
     }
     return status_t::success_k;
 }
@@ -236,13 +236,13 @@ status_t dots_packed(operand_pointer<in_type_> a, void const *b_packed, result_t
 /**
  *  @brief Symmetric dot products: C = A × Aᵀ where C[i,j] = ⟨A[i], A[j]⟩
  *  @param[in] a Matrix A of shape @b [vectors,depth]
- *  @param[in] vectors_count Number of vectors
+ *  @param[in] vector_count Number of vectors
  *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride Stride between vectors in A
  *  @param[out] c Output matrix C of shape @b [vectors,vectors]
  *  @param[in] c_stride Stride between rows of C in bytes
- *  @param[in] row_start First row of C to compute, 0 by default
- *  @param[in] row_count Rows of C to compute, all by default
+ *  @param[in] rows_begin First row of C to compute, 0 by default
+ *  @param[in] rows_end Row of C after the last, clamped to @p vector_count, all by default
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *  @param[in] a_scales Block scales of the vectors rows, ignored by plain dtypes
@@ -253,97 +253,96 @@ status_t dots_packed(operand_pointer<in_type_> a, void const *b_packed, result_t
  *  @tparam result_type_ Accumulator/output type, defaults to @c in_type_::dot_result_t
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
-status_t dots_symmetric(operand_pointer<in_type_> a, std::size_t vectors_count, std::size_t depth, std::size_t a_stride,
-                        result_type_ *c, std::size_t c_stride, std::size_t row_start = 0,
-                        std::size_t row_count = std::numeric_limits<std::size_t>::max(),
-                        nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
-    if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vectors_count;
+status_t dots_symmetric(operand_pointer<in_type_> a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
+                        result_type_ *c, std::size_t c_stride, std::size_t rows_begin = 0,
+                        std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+                        nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+    if (rows_end > vector_count) rows_end = vector_count;
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::dot_result_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_f64_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                    c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_f64_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                    c_stride, rows_begin, rows_end, capabilities,
                                                                     stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_f32_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                    c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_f32_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                    c_stride, rows_begin, rows_end, capabilities,
                                                                     stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_f16_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                    c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_f16_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                    c_stride, rows_begin, rows_end, capabilities,
                                                                     stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_bf16_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                     c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_bf16_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                     c_stride, rows_begin, rows_end, capabilities,
                                                                      stream));
         else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_i8_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                   c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_i8_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                   c_stride, rows_begin, rows_end, capabilities,
                                                                    stream));
         else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_u8_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                   c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_u8_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                   c_stride, rows_begin, rows_end, capabilities,
                                                                    stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_e4m3_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                     c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_e4m3_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                     c_stride, rows_begin, rows_end, capabilities,
                                                                      stream));
         else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_e5m2_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                     c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_e5m2_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                     c_stride, rows_begin, rows_end, capabilities,
                                                                      stream));
         else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_e2m3_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                     c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_e2m3_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                     c_stride, rows_begin, rows_end, capabilities,
                                                                      stream));
         else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_e2m1_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                     c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_e2m1_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                     c_stride, rows_begin, rows_end, capabilities,
                                                                      stream));
         else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_e3m2_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                     c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_e3m2_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                     c_stride, rows_begin, rows_end, capabilities,
                                                                      stream));
         else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_u4_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                   c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_u4_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                   c_stride, rows_begin, rows_end, capabilities,
                                                                    stream));
         else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
-            return static_cast<status_t>(nk_dots_symmetric_i4_best(&a->raw_, vectors_count, depth, a_stride, &c->raw_,
-                                                                   c_stride, row_start, row_count, capabilities,
+            return static_cast<status_t>(nk_dots_symmetric_i4_best(&a->raw_, vector_count, depth, a_stride, &c->raw_,
+                                                                   c_stride, rows_begin, rows_end, capabilities,
                                                                    stream));
     }
-    if (row_start >= vectors_count) return status_t::success_k;
-    std::size_t const row_end = vectors_count - row_start > row_count ? row_start + row_count : vectors_count;
-    result_type_ *c_rows = reinterpret_cast<result_type_ *>(reinterpret_cast<char *>(c) + row_start * c_stride);
+    if (rows_begin >= rows_end) return status_t::success_k;
+    result_type_ *c_rows = reinterpret_cast<result_type_ *>(reinterpret_cast<char *>(c) + rows_begin * c_stride);
     if constexpr (nk_block_scaled_format_of_dtype(in_type_::dtype()).block_size != 0) {
         constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(in_type_::dtype());
         typename in_type_::cref_t rows = *a;
         rows.elements = reinterpret_cast<decltype(a->elements)>(reinterpret_cast<char const *>(a->elements) +
-                                                                row_start * a_stride);
+                                                                rows_begin * a_stride);
         rows.scales = reinterpret_cast<decltype(a->scales)>(reinterpret_cast<char const *>(a->scales) +
-                                                            row_start * (a_stride / format.block_bytes));
-        dots_unpacked<in_type_, result_type_>(&rows, a, c_rows, row_end - row_start, vectors_count, depth, a_stride,
+                                                            rows_begin * (a_stride / format.block_bytes));
+        dots_unpacked<in_type_, result_type_>(&rows, a, c_rows, rows_end - rows_begin, vector_count, depth, a_stride,
                                               a_stride, c_stride);
     }
     else
         dots_unpacked<in_type_, result_type_>(
-            reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(a) + row_start * a_stride), a, c_rows,
-            row_end - row_start, vectors_count, depth, a_stride, a_stride, c_stride);
+            reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(a) + rows_begin * a_stride), a, c_rows,
+            rows_end - rows_begin, vector_count, depth, a_stride, a_stride, c_stride);
     return status_t::success_k;
 }
 
 /**
  *  @brief Symmetric Hamming distance matrix: C[i,j] = hamming(A[i], A[j])
- *  @param[in] a Input matrix, shape @b [vectors_count,depth]
- *  @param[in] vectors_count Number of vectors
+ *  @param[in] a Input matrix, shape @b [vector_count,depth]
+ *  @param[in] vector_count Number of vectors
  *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride Row stride in bytes
- *  @param[out] c Output matrix, shape @b [vectors_count,vectors_count]
+ *  @param[out] c Output matrix, shape @b [vector_count,vector_count]
  *  @param[in] c_stride Output row stride in bytes
- *  @param[in] row_start Starting row index (default 0)
- *  @param[in] row_count Number of rows to compute (default all)
+ *  @param[in] rows_begin First row to compute (default 0)
+ *  @param[in] rows_end Row after the last to compute, clamped to @p vector_count (default all)
  *
  *  Computes Hamming distances between all pairs of binary vectors. For @c u1x8_t inputs, distances
  *  are exact bit counts, returned as @c u32_t.
@@ -355,30 +354,30 @@ status_t dots_symmetric(operand_pointer<in_type_> a, std::size_t vectors_count, 
  *  @tparam result_type_ Output type (u32_t for Hamming distances)
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
-status_t hammings_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_t depth, std::size_t a_stride,
-                            result_type_ *c, std::size_t c_stride, std::size_t row_start = 0,
-                            std::size_t row_count = std::numeric_limits<std::size_t>::max(),
-                            nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
-    if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vectors_count;
+status_t hammings_symmetric(in_type_ const *a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
+                            result_type_ *c, std::size_t c_stride, std::size_t rows_begin = 0,
+                            std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+                            nk_capability_t capabilities = default_capabilities(),
+                            nk_stream_t stream = nullptr) noexcept {
+    if (rows_end > vector_count) rows_end = vector_count;
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::hamming_result_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, u1x8_t> && dispatch)
-            return static_cast<status_t>(nk_hammings_symmetric_u1_best(&a->raw_, vectors_count, depth, a_stride,
-                                                                       &c->raw_, c_stride, row_start, row_count,
+            return static_cast<status_t>(nk_hammings_symmetric_u1_best(&a->raw_, vector_count, depth, a_stride,
+                                                                       &c->raw_, c_stride, rows_begin, rows_end,
                                                                        capabilities, stream));
     }
     using raw_t = typename in_type_::raw_t;
     std::size_t depth_bytes = depth / dimensions_per_value<in_type_>();
     char const *a_bytes = reinterpret_cast<char const *>(a);
     char *c_bytes = reinterpret_cast<char *>(c);
-    std::size_t row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;
 
-    for (std::size_t i = row_start; i < row_end; i++) {
+    for (std::size_t i = rows_begin; i < rows_end; i++) {
         raw_t const *a_i = reinterpret_cast<raw_t const *>(a_bytes + i * a_stride);
         result_type_ *c_row = reinterpret_cast<result_type_ *>(c_bytes + i * c_stride);
 
-        for (std::size_t j = 0; j < vectors_count; j++) {
+        for (std::size_t j = 0; j < vector_count; j++) {
             raw_t const *a_j = reinterpret_cast<raw_t const *>(a_bytes + j * a_stride);
             typename result_type_::raw_t distance = 0;
             for (std::size_t b = 0; b < depth_bytes; b++) {
@@ -396,7 +395,7 @@ status_t hammings_symmetric(in_type_ const *a, std::size_t vectors_count, std::s
  *  @param[in] a Pointer to the first matrix (m x k).
  *  @param[in] b_packed Pointer to the packed second matrix (k x n).
  *  @param[out] c Pointer to the output matrix (m x n).
- *  @param[in] row_count Number of rows in A (m).
+ *  @param[in] rows Number of rows in A (m).
  *  @param[in] column_count Number of columns in B (n).
  *  @param[in] depth Counts dimensions, a multiple of the values per byte.
  *  @param[in] a_stride Stride between consecutive rows of A in bytes.
@@ -412,10 +411,10 @@ status_t hammings_symmetric(in_type_ const *a, std::size_t vectors_count, std::s
  *  @tparam result_type_ Output type (u32_t for Hamming distances)
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
-status_t hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
+status_t hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t rows,
                          std::size_t column_count, std::size_t depth, std::size_t a_stride = 0,
                          std::size_t c_stride = 0, nk_capability_t capabilities = default_capabilities(),
-                         void *stream = nullptr) noexcept {
+                         nk_stream_t stream = nullptr) noexcept {
     // Compute default strides
     if (!a_stride) a_stride = depth / dimensions_per_value<in_type_>() * sizeof(in_type_);
     if (!c_stride) c_stride = column_count * sizeof(result_type_);
@@ -424,9 +423,9 @@ status_t hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, u1x8_t> && dispatch)
-            return static_cast<status_t>(nk_hammings_packed_u1_best(
-                reinterpret_cast<nk_u1x8_t const *>(a), b_packed, reinterpret_cast<nk_u32_t *>(c), row_count,
-                column_count, depth, a_stride, c_stride, capabilities, stream));
+            return static_cast<status_t>(nk_hammings_packed_u1_best(reinterpret_cast<nk_u1x8_t const *>(a), b_packed,
+                                                                    reinterpret_cast<nk_u32_t *>(c), rows, column_count,
+                                                                    depth, a_stride, c_stride, capabilities, stream));
     }
     // Scalar fallback: extract pointer and stride from b_packed, then compute directly
     in_type_ const *b;
@@ -441,7 +440,7 @@ status_t hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *
     char *c_bytes = reinterpret_cast<char *>(c);
     std::size_t depth_bytes = depth / dimensions_per_value<in_type_>();
 
-    for (std::size_t i = 0; i < row_count; i++) {
+    for (std::size_t i = 0; i < rows; i++) {
         typename in_type_::raw_t const *a_row = reinterpret_cast<typename in_type_::raw_t const *>(a_bytes +
                                                                                                    i * a_stride);
         result_type_ *c_row = reinterpret_cast<result_type_ *>(c_bytes + i * c_stride);
@@ -464,30 +463,30 @@ status_t hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *
 
 /** Symmetric Jaccard distance matrix: C[i,j] = jaccard(A[i], A[j]). */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
-status_t jaccards_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_t depth, std::size_t a_stride,
-                            result_type_ *c, std::size_t c_stride, std::size_t row_start = 0,
-                            std::size_t row_count = std::numeric_limits<std::size_t>::max(),
-                            nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
-    if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vectors_count;
+status_t jaccards_symmetric(in_type_ const *a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
+                            result_type_ *c, std::size_t c_stride, std::size_t rows_begin = 0,
+                            std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+                            nk_capability_t capabilities = default_capabilities(),
+                            nk_stream_t stream = nullptr) noexcept {
+    if (rows_end > vector_count) rows_end = vector_count;
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::jaccard_result_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, u1x8_t> && dispatch)
-            return static_cast<status_t>(nk_jaccards_symmetric_u1_best(&a->raw_, vectors_count, depth, a_stride,
-                                                                       &c->raw_, c_stride, row_start, row_count,
+            return static_cast<status_t>(nk_jaccards_symmetric_u1_best(&a->raw_, vector_count, depth, a_stride,
+                                                                       &c->raw_, c_stride, rows_begin, rows_end,
                                                                        capabilities, stream));
     }
     using raw_t = typename in_type_::raw_t;
     std::size_t depth_bytes = depth / dimensions_per_value<in_type_>();
     char const *a_bytes = reinterpret_cast<char const *>(a);
     char *c_bytes = reinterpret_cast<char *>(c);
-    std::size_t row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;
 
-    for (std::size_t i = row_start; i < row_end; i++) {
+    for (std::size_t i = rows_begin; i < rows_end; i++) {
         raw_t const *a_i = reinterpret_cast<raw_t const *>(a_bytes + i * a_stride);
         result_type_ *c_row = reinterpret_cast<result_type_ *>(c_bytes + i * c_stride);
 
-        for (std::size_t j = 0; j < vectors_count; j++) {
+        for (std::size_t j = 0; j < vector_count; j++) {
             raw_t const *a_j = reinterpret_cast<raw_t const *>(a_bytes + j * a_stride);
             unsigned intersection = 0, union_ = 0;
             for (std::size_t b = 0; b < depth_bytes; b++) {
@@ -503,10 +502,10 @@ status_t jaccards_symmetric(in_type_ const *a, std::size_t vectors_count, std::s
 
 /** Computes Jaccard distances between rows of A and columns of packed B. */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
-status_t jaccards_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
+status_t jaccards_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t rows,
                          std::size_t column_count, std::size_t depth, std::size_t a_stride = 0,
                          std::size_t c_stride = 0, nk_capability_t capabilities = default_capabilities(),
-                         void *stream = nullptr) noexcept {
+                         nk_stream_t stream = nullptr) noexcept {
     if (!a_stride) a_stride = depth / dimensions_per_value<in_type_>() * sizeof(in_type_);
     if (!c_stride) c_stride = column_count * sizeof(result_type_);
 
@@ -514,9 +513,9 @@ status_t jaccards_packed(in_type_ const *a, void const *b_packed, result_type_ *
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, u1x8_t> && dispatch)
-            return static_cast<status_t>(nk_jaccards_packed_u1_best(
-                reinterpret_cast<nk_u1x8_t const *>(a), b_packed, reinterpret_cast<nk_f32_t *>(c), row_count,
-                column_count, depth, a_stride, c_stride, capabilities, stream));
+            return static_cast<status_t>(nk_jaccards_packed_u1_best(reinterpret_cast<nk_u1x8_t const *>(a), b_packed,
+                                                                    reinterpret_cast<nk_f32_t *>(c), rows, column_count,
+                                                                    depth, a_stride, c_stride, capabilities, stream));
     }
     // Scalar fallback: extract pointer and stride from b_packed, then compute directly
     in_type_ const *b;
@@ -530,7 +529,7 @@ status_t jaccards_packed(in_type_ const *a, void const *b_packed, result_type_ *
     char *c_bytes = reinterpret_cast<char *>(c);
     std::size_t depth_bytes = depth / dimensions_per_value<in_type_>();
 
-    for (std::size_t i = 0; i < row_count; i++) {
+    for (std::size_t i = 0; i < rows; i++) {
         typename in_type_::raw_t const *a_row = reinterpret_cast<typename in_type_::raw_t const *>(a_bytes +
                                                                                                    i * a_stride);
         result_type_ *c_row = reinterpret_cast<result_type_ *>(c_bytes + i * c_stride);
@@ -575,14 +574,14 @@ status_t dots_symmetric(input_matrix_ const &input, output_matrix_ &&output) noe
  *  unless the output is square over the input rows. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::dot_result_t> output_matrix_>
-status_t dots_symmetric(input_matrix_ const &input, output_matrix_ output, std::size_t row_start,
-                        std::size_t row_count) noexcept {
+status_t dots_symmetric(input_matrix_ const &input, output_matrix_ output, std::size_t rows_begin,
+                        std::size_t rows_end) noexcept {
     std::size_t num_vectors = input.extent(0);
     if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
     return numkong::dots_symmetric<value_type_>(reinterpret_cast<value_type_ const *>(input.data()), num_vectors,
                                                 input.extent(1), static_cast<std::size_t>(input.stride_bytes(0)),
                                                 reinterpret_cast<typename value_type_::dot_result_t *>(output.data()),
-                                                static_cast<std::size_t>(output.stride_bytes(0)), row_start, row_count);
+                                                static_cast<std::size_t>(output.stride_bytes(0)), rows_begin, rows_end);
 }
 
 /** Allocating symmetric dot products: C = A × Aᵀ. Empty for an empty input, or the allocation's or

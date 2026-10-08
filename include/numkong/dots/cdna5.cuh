@@ -216,7 +216,7 @@ NUMKONG_DEVICE void nk_cross_tile_cdna5_(nk_cross_multiply_cdna5_t multiply, nk_
     for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
         // The previous tile's epilogue reads the first stage, which this tile's first slab refills.
         __syncthreads();
-        nk_size_t const first_row = arguments->row_start + tile / arguments->column_tiles * nk_cross_tile_cdna3_k;
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_cdna3_k;
         nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_cdna3_k;
         if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_cdna3_k <= first_row) continue;
 
@@ -267,7 +267,7 @@ NUMKONG_DEVICE void nk_cross_tile_cdna5_(nk_cross_multiply_cdna5_t multiply, nk_
             for (unsigned element = 0; element < 8; ++element) {
                 unsigned const tile_row = wave_row + row_tile * 16 + half * 8 + element;
                 nk_size_t const row = first_row + tile_row;
-                if (row >= arguments->row_end) continue;
+                if (row >= arguments->rows_end) continue;
                 unsigned char *output = (unsigned char *)arguments->c + row * arguments->c_stride;
 #pragma unroll
                 for (unsigned column_tile = 0; column_tile < 2; ++column_tile) {

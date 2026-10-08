@@ -39,7 +39,7 @@ namespace ashvardanian::numkong {
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::maxsim_result_t>
 status_t maxsim_packed(void const *query_packed, void const *document_packed, std::size_t query_count,
                        std::size_t document_count, std::size_t depth, result_type_ *result,
-                       nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) {
+                       nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::maxsim_result_t>;
 
     if (capabilities) {

@@ -90,10 +90,10 @@ typedef struct {
     nk_diagonal_band_t band;
 
     /** First task of the window over query tokens × heads. */
-    nk_size_t task_begin;
+    nk_size_t tasks_begin;
 
     /** One past the last task of the window, clipped on the device. */
-    nk_size_t task_end;
+    nk_size_t tasks_end;
 
     /** Score multiplier in base 2, scale · log₂e. */
     nk_f32_t scale2;
@@ -127,10 +127,10 @@ typedef struct {
     nk_size_t group_heads;
 
     /** First task of the window, clipped to the grid. */
-    nk_size_t task_begin;
+    nk_size_t tasks_begin;
 
     /** One past the last task, clipped to the grid. */
-    nk_size_t task_end;
+    nk_size_t tasks_end;
 
     /** One past the last segment the window touches. */
     nk_size_t segment_end;
@@ -285,8 +285,8 @@ NUMKONG_DEVICE void nk_attention_segment_rows_(nk_attention_schedule_t const *sc
                                                nk_size_t key_value_head, nk_size_t *row_begin, nk_size_t *row_end) {
     nk_size_t const grid_first = schedule->query_offsets[segment] * schedule->head_count;
     nk_size_t const grid_end = schedule->query_offsets[segment + 1] * schedule->head_count;
-    nk_size_t const begin = schedule->task_begin > grid_first ? schedule->task_begin : grid_first;
-    nk_size_t const end = schedule->task_end < grid_end ? schedule->task_end : grid_end;
+    nk_size_t const begin = schedule->tasks_begin > grid_first ? schedule->tasks_begin : grid_first;
+    nk_size_t const end = schedule->tasks_end < grid_end ? schedule->tasks_end : grid_end;
     *row_begin = *row_end = 0;
     if (begin >= end) return;
     *row_begin = nk_attention_group_rows_before_(schedule, begin - grid_first, key_value_head);
@@ -295,8 +295,8 @@ NUMKONG_DEVICE void nk_attention_segment_rows_(nk_attention_schedule_t const *sc
 
 /** Whether the window covers every task of @p segment, which then cuts every head group alike. */
 NUMKONG_DEVICE int nk_attention_segment_whole_(nk_attention_schedule_t const *schedule, nk_size_t segment) {
-    return schedule->task_begin <= schedule->query_offsets[segment] * schedule->head_count &&
-           schedule->query_offsets[segment + 1] * schedule->head_count <= schedule->task_end;
+    return schedule->tasks_begin <= schedule->query_offsets[segment] * schedule->head_count &&
+           schedule->query_offsets[segment + 1] * schedule->head_count <= schedule->tasks_end;
 }
 
 /** Items of up to @p rows rows that @p segment splits into in the window, one K and V head each,
@@ -355,14 +355,14 @@ NUMKONG_DEVICE int nk_attention_schedule_init_(nk_attention_arguments_t const *a
     nk_size_t const segments = header->segments, heads = arguments->head_count;
     nk_u32_t const *query_offsets = arguments->query_offsets;
     nk_size_t const grid_begin = query_offsets[0] * heads, grid_end = query_offsets[segments] * heads;
-    schedule->task_begin = arguments->task_begin > grid_begin ? arguments->task_begin : grid_begin;
-    schedule->task_end = arguments->task_end < grid_end ? arguments->task_end : grid_end;
-    if (schedule->task_begin >= schedule->task_end) return 0;
+    schedule->tasks_begin = arguments->tasks_begin > grid_begin ? arguments->tasks_begin : grid_begin;
+    schedule->tasks_end = arguments->tasks_end < grid_end ? arguments->tasks_end : grid_end;
+    if (schedule->tasks_begin >= schedule->tasks_end) return 0;
     schedule->query_offsets = query_offsets;
     schedule->head_count = heads;
     schedule->group_heads = heads / arguments->key_value_head_count;
-    schedule->chunk_first = nk_attention_segment_of_(query_offsets, segments, schedule->task_begin / heads);
-    schedule->segment_end = nk_attention_segment_of_(query_offsets, segments, (schedule->task_end - 1) / heads) + 1;
+    schedule->chunk_first = nk_attention_segment_of_(query_offsets, segments, schedule->tasks_begin / heads);
+    schedule->segment_end = nk_attention_segment_of_(query_offsets, segments, (schedule->tasks_end - 1) / heads) + 1;
     schedule->items_before = 0;
     return 1;
 }
@@ -514,7 +514,7 @@ NUMKONG_DEVICE void nk_attention_pack_payload_(nk_dtype_t dtype, unsigned char c
                                                nk_size_t key_value_head_count, nk_size_t depth,
                                                nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
                                                nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride,
-                                               unsigned char *packed, nk_size_t task_begin, nk_size_t task_end) {
+                                               unsigned char *packed, nk_size_t tasks_begin, nk_size_t tasks_end) {
     nk_size_t const element_bytes = nk_attention_element_bytes_(dtype), depth_bytes = depth * element_bytes;
     nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth_bytes, nk_attention_step_bytes_k);
     nk_size_t const row_elements = row_bytes / element_bytes, row_chunks = row_bytes / 16;
@@ -524,7 +524,7 @@ NUMKONG_DEVICE void nk_attention_pack_payload_(nk_dtype_t dtype, unsigned char c
     uint4 const zero = make_uint4(0, 0, 0, 0);
     nk_size_t cursor_segment = 0;
     nk_u64_t payload_offset = 0;
-    for (nk_size_t task = task_begin + blockIdx.x; task < task_end; task += gridDim.x) {
+    for (nk_size_t task = tasks_begin + blockIdx.x; task < tasks_end; task += gridDim.x) {
         nk_size_t const segment = task / key_value_head_count, head = task % key_value_head_count;
         nk_attention_pack_advance_(segment_lengths, key_value_head_count, row_bytes, segment, &cursor_segment,
                                    &payload_offset);
@@ -628,8 +628,8 @@ typedef struct {
     nk_diagonal_band_t band;
 
     /** The window over segments × key-value heads, its end clipped on the device. */
-    nk_size_t task_begin;
-    nk_size_t task_end;
+    nk_size_t tasks_begin;
+    nk_size_t tasks_end;
 
     /** Whether a dQ row holds its dO as BF16 and D past it, until the query pass overwrites it. */
     int prepared;
@@ -670,17 +670,17 @@ nk_attention_backward_task_(nk_attention_backward_arguments_t const *arguments, 
 NUMKONG_DEVICE nk_size_t nk_attention_backward_task_end_(nk_attention_backward_arguments_t const *arguments) {
     nk_size_t const tasks = ((nk_attention_packed_header_t const *)arguments->packed)->segments *
                             arguments->key_value_head_count;
-    return arguments->task_end < tasks ? arguments->task_end : tasks;
+    return arguments->tasks_end < tasks ? arguments->tasks_end : tasks;
 }
 
-/** Fills the backward arguments, @p task_end left for the device to clip. */
+/** Fills the backward arguments, @p tasks_end left for the device to clip. */
 NUMKONG_INLINE nk_attention_backward_arguments_t nk_attention_backward_arguments_init_(
     void const *queries, void const *packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
     nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
     nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
-    nk_size_t task_begin, nk_size_t task_end) {
+    nk_size_t tasks_begin, nk_size_t tasks_end) {
     nk_attention_backward_arguments_t arguments;
     arguments.queries = (unsigned char const *)queries, arguments.packed = (unsigned char const *)packed;
     arguments.output = output, arguments.output_gradient = output_gradient, arguments.log_sum_exp = log_sum_exp;
@@ -693,7 +693,7 @@ NUMKONG_INLINE nk_attention_backward_arguments_t nk_attention_backward_arguments
     arguments.key_value_gradient_stride = key_value_gradient_stride;
     arguments.scale = scale, arguments.scale2 = scale * NUMKONG_F32_LOG2E_;
     arguments.band.subdiagonals = keys_before, arguments.band.superdiagonals = keys_after;
-    arguments.task_begin = task_begin, arguments.task_end = task_end;
+    arguments.tasks_begin = tasks_begin, arguments.tasks_end = tasks_end;
     arguments.prepared = 0;
     return arguments;
 }
@@ -703,19 +703,19 @@ NUMKONG_INLINE nk_attention_backward_arguments_t nk_attention_backward_arguments
 #pragma region Launch Arguments
 
 /** The arguments of one launch, with the shared-memory offsets zero for the capability to place and
- *  @p task_end left for the device to clip. */
+ *  @p tasks_end left for the device to clip. */
 NUMKONG_INLINE nk_attention_arguments_t nk_attention_arguments_init_(
     void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
     nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
     nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
-    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end) {
+    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end) {
     nk_attention_arguments_t arguments;
     arguments.queries = (unsigned char const *)queries, arguments.packed = (unsigned char const *)packed;
     arguments.output = output, arguments.log_sum_exp = log_sum_exp, arguments.query_offsets = query_offsets;
     arguments.head_count = head_count, arguments.key_value_head_count = key_value_head_count;
     arguments.depth = depth, arguments.query_stride = query_stride, arguments.output_stride = output_stride;
     arguments.band.subdiagonals = keys_before, arguments.band.superdiagonals = keys_after;
-    arguments.task_begin = task_begin, arguments.task_end = task_end;
+    arguments.tasks_begin = tasks_begin, arguments.tasks_end = tasks_end;
     arguments.scale2 = scale * NUMKONG_F32_LOG2E_;
     arguments.score_scale = score_scale, arguments.output_scale = output_scale;
     arguments.key_offset[0] = arguments.key_offset[1] = 0;

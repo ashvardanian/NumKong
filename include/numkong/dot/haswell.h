@@ -1059,14 +1059,14 @@ NUMKONG_INLINE void nk_dot_u1x128_finalize_haswell( //
 #if NUMKONG_TARGET_HASWELL
 
 NUMKONG_API nk_status_t nk_dot_f32_haswell(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+                                           nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_f32_through_f64_haswell_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dot_f32c_haswell(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                            nk_f64c_t *result, void *stream) {
+                                            nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Flipping the sign bit lets FMA also handle the subtractions.
     __m256d sum_real_f64x4 = _mm256_setzero_pd();
@@ -1097,7 +1097,7 @@ NUMKONG_API nk_status_t nk_dot_f32c_haswell(nk_f32c_t const *a_pairs, nk_f32c_t 
 }
 
 NUMKONG_API nk_status_t nk_vdot_f32c_haswell(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                             nk_f64c_t *result, void *stream) {
+                                             nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256d sum_real_f64x4 = _mm256_setzero_pd();
     __m256d sum_imag_f64x4 = _mm256_setzero_pd();
@@ -1127,7 +1127,7 @@ NUMKONG_API nk_status_t nk_vdot_f32c_haswell(nk_f32c_t const *a_pairs, nk_f32c_t
 }
 
 NUMKONG_API nk_status_t nk_dot_f64_haswell(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+                                           nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     __m256d sum_f64x4 = _mm256_setzero_pd();
@@ -1169,7 +1169,7 @@ nk_dot_f64_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_f64c_haswell(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                            nk_f64c_t *result, void *stream) {
+                                            nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated complex dot product
     __m256d sum_real_f64x4 = _mm256_setzero_pd();
@@ -1234,7 +1234,7 @@ nk_dot_f64c_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_vdot_f64c_haswell(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                             nk_f64c_t *result, void *stream) {
+                                             nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated conjugate dot product
     __m256d sum_real_f64x4 = _mm256_setzero_pd();
@@ -1299,21 +1299,21 @@ nk_vdot_f64c_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_bf16_haswell(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_bf16_through_f32_haswell_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dot_f16_haswell(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                           nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                           nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_f16_through_f32_haswell_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dot_bf16c_haswell(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                             nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+                                             nk_size_t count_pairs, nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Convert BF16 to F32, then use F32 complex dot product with sign-flipping optimization.
     // Uses same XOR trick as f32c to double throughput by deferring sign flips until after loop.
@@ -1361,7 +1361,7 @@ nk_dot_bf16c_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_vdot_bf16c_haswell(nk_bf16c_t const *a_pairs, nk_bf16c_t const *b_pairs,
-                                              nk_size_t count_pairs, nk_f32c_t *result, void *stream) {
+                                              nk_size_t count_pairs, nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Conjugate complex dot product: conj(a) * b
     __m128i a_bf16_i16x8, b_bf16_i16x8;
@@ -1408,7 +1408,7 @@ nk_vdot_bf16c_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
-                                            nk_f32c_t *result, void *stream) {
+                                            nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_real_f32x8 = _mm256_setzero_ps();
     __m256 sum_imag_f32x8 = _mm256_setzero_ps();
@@ -1434,7 +1434,7 @@ NUMKONG_API nk_status_t nk_dot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c_t 
 }
 
 NUMKONG_API nk_status_t nk_vdot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
-                                             nk_f32c_t *result, void *stream) {
+                                             nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_real_f32x8 = _mm256_setzero_ps();
     __m256 sum_imag_f32x8 = _mm256_setzero_ps();
@@ -1459,7 +1459,7 @@ NUMKONG_API nk_status_t nk_vdot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c_t
 }
 
 NUMKONG_API nk_status_t nk_dot_e4m3_haswell(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 a_f32x8, b_f32x8;
     __m256 sum_f32x8 = _mm256_setzero_ps();
@@ -1484,7 +1484,7 @@ nk_dot_e4m3_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e5m2_haswell(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // E5M2 shares F16 bias; inline the free-shift unpack for the two 8-lane halves.
     __m256 first_chain_f32x8 = _mm256_setzero_ps();
@@ -1523,7 +1523,7 @@ nk_dot_e5m2_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m3_haswell(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e2m3 using dual-VPSHUFB (LUT) + VPMADDUBSW (unsigned × signed).
     // Every e2m3 value × 16 is an exact integer in [-120, +120].
@@ -1595,7 +1595,7 @@ nk_dot_e2m3_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e3m2_haswell(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Integer dot product for e3m2 using dual-VPSHUFB (low-byte LUT) + VPMADDWD (i16 × i16 → i32).
     // Every e3m2 value × 16 is an exact integer, but magnitudes reach 448, requiring i16.
@@ -1684,7 +1684,7 @@ nk_dot_e3m2_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m1_haswell(nk_e2m1x2_t const *a, nk_e2m1x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                            void *stream) {
+                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_e2m1x64_state_haswell_t state;
     nk_dot_e2m1x64_init_haswell(&state);
@@ -1704,7 +1704,7 @@ NUMKONG_API nk_status_t nk_dot_e2m1_haswell(nk_e2m1x2_t const *a, nk_e2m1x2_t co
 }
 
 NUMKONG_API nk_status_t nk_dot_i8_haswell(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                          nk_i32_t *result, void *stream) {
+                                          nk_i32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i sum_low_i32x8 = _mm256_setzero_si256();
     __m256i sum_high_i32x8 = _mm256_setzero_si256();
@@ -1732,7 +1732,7 @@ NUMKONG_API nk_status_t nk_dot_i8_haswell(nk_i8_t const *a_scalars, nk_i8_t cons
 }
 
 NUMKONG_API nk_status_t nk_dot_u8_haswell(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                          nk_u32_t *result, void *stream) {
+                                          nk_u32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256i sum_low_i32x8 = _mm256_setzero_si256();
     __m256i sum_high_i32x8 = _mm256_setzero_si256();
@@ -1757,7 +1757,7 @@ NUMKONG_API nk_status_t nk_dot_u8_haswell(nk_u8_t const *a_scalars, nk_u8_t cons
 }
 
 NUMKONG_API nk_status_t nk_dot_i4_haswell(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_i32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     //
@@ -1844,7 +1844,7 @@ nk_dot_i4_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_u4_haswell(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // Values are ∈ [0,15], so we can use direct unpacking and multiplication.
@@ -1897,7 +1897,7 @@ nk_dot_u4_haswell_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
-                                          void *stream) {
+                                          nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
     nk_u32_t dot = 0;

@@ -91,7 +91,8 @@ NUMKONG_API nk_status_t nk_attention_pack_size_bf16_genoa(nk_size_t key_value_he
 }
 
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_genoa(void const *key_value_packed, nk_size_t *heads,
-                                                             nk_size_t *depth, nk_size_t *segments, void *stream) {
+                                                             nk_size_t *depth, nk_size_t *segments,
+                                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_genoa_k)) return nk_pack_mismatch_k;
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
@@ -106,7 +107,8 @@ NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_genoa(nk_size_t key_value_he
 }
 
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_genoa(void const *key_value_packed, nk_size_t *heads,
-                                                             nk_size_t *depth, nk_size_t *segments, void *stream) {
+                                                             nk_size_t *depth, nk_size_t *segments,
+                                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_genoa_k)) return nk_pack_mismatch_k;
     nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
@@ -119,20 +121,20 @@ NUMKONG_INLINE void nk_attention_pack_genoa_(                                   
     nk_size_t key_value_head_count, nk_size_t depth,                                           //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, //
     nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed,                      //
-    nk_size_t task_begin, nk_size_t task_end) {
+    nk_size_t tasks_begin, nk_size_t tasks_end) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 32);
     nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 task_begin, 1, depth_padded * sizeof(nk_bf16_t), nk_cap_genoa_k);
+                                 tasks_begin, 1, depth_padded * sizeof(nk_bf16_t), nk_cap_genoa_k);
     char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
                          nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (task_begin >= total_tasks) return;
-    if (task_end > total_tasks) task_end = total_tasks;
+    if (tasks_begin >= total_tasks) return;
+    if (tasks_end > total_tasks) tasks_end = total_tasks;
 
     nk_size_t payload_segment = 0;
     nk_u64_t payload_offset = 0;
-    for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
+    for (nk_size_t task_idx = tasks_begin; task_idx < tasks_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count,
                         key_value_head_idx = task_idx % key_value_head_count;
         for (; payload_segment < segment_idx; payload_segment++)
@@ -158,22 +160,22 @@ NUMKONG_INLINE void nk_attention_pack_genoa_(                                   
 NUMKONG_API nk_status_t nk_attention_pack_bf16_genoa(                                                //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
-    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_attention_pack_genoa_(keys, values, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_genoa_, key_value_head_count,
                              depth, segment_offsets, segment_lengths, segment_count, key_stride, value_stride,
-                             key_value_packed, task_begin, task_end);
+                             key_value_packed, tasks_begin, tasks_end);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_e4m3_genoa(                                                //
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
-    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_attention_pack_genoa_(keys, values, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_genoa_, key_value_head_count,
                              depth, segment_offsets, segment_lengths, segment_count, key_stride, value_stride,
-                             key_value_packed, task_begin, task_end);
+                             key_value_packed, tasks_begin, tasks_end);
     return nk_success_k;
 }
 
@@ -184,7 +186,7 @@ NUMKONG_INLINE void nk_attention_packed_genoa_(                                 
     void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,                          //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
-    nk_diagonal_band_t band, nk_size_t task_begin, nk_size_t task_end) {
+    nk_diagonal_band_t band, nk_size_t tasks_begin, nk_size_t tasks_end) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     nk_assert_(header->depth == depth && header->heads == key_value_head_count && key_value_head_count != 0 &&
@@ -201,17 +203,17 @@ NUMKONG_INLINE void nk_attention_packed_genoa_(                                 
     nk_size_t const panel_width = nk_attention_panel_genoa_k_;
 
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
-    if (task_begin < grid_begin) task_begin = grid_begin;
-    if (task_end > grid_end) task_end = grid_end;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
 
     nk_align_(64) nk_bf16_t query_row[nk_attention_depth_chunk_genoa_k_];
     nk_align_(64) nk_f32_t scores[nk_attention_panel_genoa_k_];
     nk_size_t const depth_full = depth & ~(nk_size_t)15;
     __mmask16 const depth_tail_m16 = (__mmask16)((1u << (depth - depth_full)) - 1);
 
-    for (nk_size_t head_idx = 0; head_idx < head_count && task_begin < task_end; head_idx++) {
-        nk_size_t const token_first = (task_begin + head_count - 1 - head_idx) / head_count;
-        nk_size_t const token_end = (task_end + head_count - 1 - head_idx) / head_count;
+    for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
         for (nk_size_t segment_idx = nk_attention_segment_of_(query_offsets, segment_count, token_first);
              segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
             nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
@@ -334,13 +336,13 @@ NUMKONG_API nk_status_t nk_attention_packed_bf16_genoa(                         
     nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, //
     nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,      //
     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,              //
-    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_genoa_k)) return nk_pack_mismatch_k;
     nk_diagonal_band_t const band = {keys_before, keys_after};
     nk_attention_packed_genoa_(queries, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_genoa_, key_value_packed, output,
                                log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
-                               output_stride, scale, band, task_begin, task_end);
+                               output_stride, scale, band, tasks_begin, tasks_end);
     return nk_success_k;
 }
 
@@ -349,13 +351,13 @@ NUMKONG_API nk_status_t nk_attention_packed_e4m3_genoa(                         
     nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, //
     nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,      //
     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,              //
-    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_genoa_k)) return nk_pack_mismatch_k;
     nk_diagonal_band_t const band = {keys_before, keys_after};
     nk_attention_packed_genoa_(queries, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_genoa_, key_value_packed, output,
                                log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
-                               output_stride, scale, band, task_begin, task_end);
+                               output_stride, scale, band, tasks_begin, tasks_end);
     return nk_success_k;
 }
 

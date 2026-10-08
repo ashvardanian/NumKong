@@ -32,7 +32,7 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                               nk_f32_t *result, void *stream) {
+                                               nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
@@ -67,7 +67,7 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t con
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                  nk_size_t n, nk_f32_t *result, void *stream) {
+                                                  nk_size_t n, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const tail_length = n % 32;
     nk_size_t const tail_start = n - tail_length;
@@ -115,7 +115,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t 
 }
 
 NUMKONG_API nk_status_t nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
-                                                nk_size_t n, nk_f32c_t *results, void *stream) {
+                                                nk_size_t n, nk_f32c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // We take into account, that FMS is the same as FMA with a negative multiplier.

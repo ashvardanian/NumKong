@@ -96,7 +96,7 @@ extern "C" {
 #define nk_define_sparse_intersect_(input_type)                                                             \
     NUMKONG_API nk_status_t nk_sparse_intersect_##input_type##_serial(                                      \
         nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,    \
-        nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count, void *stream) {             \
+        nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count, nk_stream_t stream) {       \
         nk_assert_(stream == NUMKONG_NULL);                                                                 \
         nk_sparse_intersect_##input_type##_(shorter, longer, shorter_length, longer_length, result, count); \
         return nk_success_k;                                                                                \
@@ -129,7 +129,7 @@ extern "C" {
     NUMKONG_API nk_status_t nk_sparse_dot_##input_type##weight_type##_serial(                                \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##weight_type##_t const *a_weights,   \
         nk_##weight_type##_t const *b_weights, nk_size_t a_length, nk_size_t b_length,                       \
-        nk_##accumulator_type##_t *product, void *stream) {                                                  \
+        nk_##accumulator_type##_t *product, nk_stream_t stream) {                                            \
         nk_assert_(stream == NUMKONG_NULL);                                                                  \
         nk_sparse_dot_##input_type##weight_type##_(a, b, a_weights, b_weights, a_length, b_length, product); \
         return nk_success_k;                                                                                 \

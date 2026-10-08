@@ -1222,18 +1222,18 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_bf16_sapphireamx_( //
     return nk_success_k;
 }
 
-/** BF16 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
-NUMKONG_INLINE nk_status_t nk_gram_bf16_sapphireamx_(                   //
-    nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
-    nk_size_t row_start, nk_size_t row_count) {
+/** BF16 Gram upper triangle of @p vectors on AMX tiles, rows @p rows_begin to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_gram_bf16_sapphireamx_(                  //
+    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
+    nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
 
     nk_size_t const stride_elements = stride / sizeof(nk_bf16_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
 
-    // Handle row slicing: compute rows [row_start, row_end)
-    nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
+    // Handle row slicing: compute rows [rows_begin, rows_end)
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
     // Round depth up to multiple of 96 (3 tiles × 32 elements)
     nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 32);
@@ -1246,11 +1246,11 @@ NUMKONG_INLINE nk_status_t nk_gram_bf16_sapphireamx_(                   //
 
     nk_amx_tile_configure_sapphireamx_();
 
-    for (nk_size_t row_tile = row_start; row_tile < row_end; row_tile += 16) {
-        nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
 
-        for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
-            nk_size_t const valid_columns = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
+        for (nk_size_t col_tile = row_tile; col_tile < vector_count; col_tile += 16) {
+            nk_size_t const valid_columns = (col_tile + 16 <= vector_count) ? 16 : (vector_count - col_tile);
 
             nk_dots_bf16_init_sapphireamx_(&state);
 
@@ -1636,17 +1636,17 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_i8_sapphireamx_( //
     return nk_success_k;
 }
 
-/** I8 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
-NUMKONG_INLINE nk_status_t nk_gram_i8_sapphireamx_(                   //
-    nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_i32_t *result, nk_size_t result_stride,      //
-    nk_size_t row_start, nk_size_t row_count) {
+/** I8 Gram upper triangle of @p vectors on AMX tiles, rows @p rows_begin to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_gram_i8_sapphireamx_(                  //
+    nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_i32_t *result, nk_size_t result_stride,     //
+    nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
 
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_i32_t);
 
-    // Handle row slicing: compute rows [row_start, row_end)
-    nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
+    // Handle row slicing: compute rows [rows_begin, rows_end)
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
     // Round depth up to multiple of 192 (3 tiles × 64 elements)
     nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 64);
@@ -1659,11 +1659,11 @@ NUMKONG_INLINE nk_status_t nk_gram_i8_sapphireamx_(                   //
 
     nk_amx_tile_configure_sapphireamx_();
 
-    for (nk_size_t row_tile = row_start; row_tile < row_end; row_tile += 16) {
-        nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
 
-        for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
-            nk_size_t const valid_columns = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
+        for (nk_size_t col_tile = row_tile; col_tile < vector_count; col_tile += 16) {
+            nk_size_t const valid_columns = (col_tile + 16 <= vector_count) ? 16 : (vector_count - col_tile);
 
             nk_dots_i8_init_sapphireamx_(&state);
 
@@ -2018,17 +2018,17 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_u8_sapphireamx_( //
     return nk_success_k;
 }
 
-/** U8 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
-NUMKONG_INLINE nk_status_t nk_gram_u8_sapphireamx_(                   //
-    nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,      //
-    nk_size_t row_start, nk_size_t row_count) {
+/** U8 Gram upper triangle of @p vectors on AMX tiles, rows @p rows_begin to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_gram_u8_sapphireamx_(                  //
+    nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,     //
+    nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
 
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_u32_t);
 
-    // Handle row slicing: compute rows [row_start, row_end)
-    nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
+    // Handle row slicing: compute rows [rows_begin, rows_end)
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
     // Round depth up to multiple of 192 (3 tiles × 64 elements)
     nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 64);
@@ -2041,11 +2041,11 @@ NUMKONG_INLINE nk_status_t nk_gram_u8_sapphireamx_(                   //
 
     nk_amx_tile_configure_sapphireamx_();
 
-    for (nk_size_t row_tile = row_start; row_tile < row_end; row_tile += 16) {
-        nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
 
-        for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
-            nk_size_t const valid_columns = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
+        for (nk_size_t col_tile = row_tile; col_tile < vector_count; col_tile += 16) {
+            nk_size_t const valid_columns = (col_tile + 16 <= vector_count) ? 16 : (vector_count - col_tile);
 
             nk_dots_u8_init_sapphireamx_(&state);
 
@@ -2531,15 +2531,15 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_through_bf16_sapphireamx_(            
 }
 
 /** Gram upper triangle of @p vectors, widened to BF16 like the GEMM's A, on AMX tiles, covering
- *  @p row_count rows from @p row_start. */
-NUMKONG_INLINE nk_status_t nk_gram_through_bf16_sapphireamx_(                                                 //
-    nk_dots_bf16_rows_sapphireamx_t vectors, nk_f32_t tensor_scale, nk_size_t vectors_count, nk_size_t depth, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count) {
+ *  rows from @p rows_begin up to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_gram_through_bf16_sapphireamx_(                                                //
+    nk_dots_bf16_rows_sapphireamx_t vectors, nk_f32_t tensor_scale, nk_size_t vector_count, nk_size_t depth, //
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) {
 
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
 
-    // Handle row slicing: compute rows [row_start, row_end)
-    nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
+    // Handle row slicing: compute rows [rows_begin, rows_end)
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
     // Round depth up to multiple of 96 (3 tiles × 32 elements)
     nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 32);
@@ -2552,11 +2552,11 @@ NUMKONG_INLINE nk_status_t nk_gram_through_bf16_sapphireamx_(                   
 
     nk_amx_tile_configure_sapphireamx_();
 
-    for (nk_size_t row_tile = row_start; row_tile < row_end; row_tile += 16) {
-        nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
 
-        for (nk_size_t column_tile = row_tile; column_tile < vectors_count; column_tile += 16) {
-            nk_size_t const valid_columns = (column_tile + 16 <= vectors_count) ? 16 : (vectors_count - column_tile);
+        for (nk_size_t column_tile = row_tile; column_tile < vector_count; column_tile += 16) {
+            nk_size_t const valid_columns = (column_tile + 16 <= vector_count) ? 16 : (vector_count - column_tile);
 
             nk_dots_bf16_init_sapphireamx_(&state);
 
@@ -2591,8 +2591,8 @@ NUMKONG_INLINE nk_status_t nk_gram_through_bf16_sapphireamx_(                   
                 result_stride_elements, valid_rows, valid_columns, column_tile - row_tile);
         }
     }
-    for (nk_size_t row = row_start; row < row_end; row++)
-        nk_cross_scale_results_(result + row * result_stride_elements + row, vectors_count - row,
+    for (nk_size_t row = rows_begin; row < rows_end; row++)
+        nk_cross_scale_results_(result + row * result_stride_elements + row, vector_count - row,
                                 tensor_scale * tensor_scale);
     return nk_success_k;
 }
@@ -2888,17 +2888,17 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e2m3_sapphireamx_( //
     return nk_success_k;
 }
 
-/** E2M3 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
-NUMKONG_INLINE nk_status_t nk_gram_e2m3_sapphireamx_(                   //
-    nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
-    nk_size_t row_start, nk_size_t row_count) {
+/** E2M3 Gram upper triangle of @p vectors on AMX tiles, rows @p rows_begin to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_gram_e2m3_sapphireamx_(                  //
+    nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
+    nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
 
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
 
-    // Handle row slicing: compute rows [row_start, row_end)
-    nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
+    // Handle row slicing: compute rows [rows_begin, rows_end)
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
     // Round depth up to multiple of 192 (3 tiles x 64 elements)
     nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 64);
@@ -2911,11 +2911,11 @@ NUMKONG_INLINE nk_status_t nk_gram_e2m3_sapphireamx_(                   //
 
     nk_amx_tile_configure_sapphireamx_();
 
-    for (nk_size_t row_tile = row_start; row_tile < row_end; row_tile += 16) {
-        nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
 
-        for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
-            nk_size_t const valid_columns = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
+        for (nk_size_t col_tile = row_tile; col_tile < vector_count; col_tile += 16) {
+            nk_size_t const valid_columns = (col_tile + 16 <= vector_count) ? 16 : (vector_count - col_tile);
 
             nk_dots_i8_init_sapphireamx_(&state);
 
@@ -3243,16 +3243,16 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e2m1_sapphireamx_( //
     return nk_success_k;
 }
 
-/** E2M1 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
-NUMKONG_INLINE nk_status_t nk_gram_e2m1_sapphireamx_(                     //
-    nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,          //
-    nk_size_t row_start, nk_size_t row_count) {
+/** E2M1 Gram upper triangle of @p vectors on AMX tiles, rows @p rows_begin to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_gram_e2m1_sapphireamx_(                    //
+    nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,         //
+    nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
 
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
 
-    nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
     nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 64);
     nk_size_t const depth_tile_groups = nk_size_divide_round_up_(depth_tiles, 3); // 3 tiles × 64 = 192 values
@@ -3264,11 +3264,11 @@ NUMKONG_INLINE nk_status_t nk_gram_e2m1_sapphireamx_(                     //
 
     nk_amx_tile_configure_sapphireamx_();
 
-    for (nk_size_t row_tile = row_start; row_tile < row_end; row_tile += 16) {
-        nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
 
-        for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
-            nk_size_t const valid_columns = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
+        for (nk_size_t col_tile = row_tile; col_tile < vector_count; col_tile += 16) {
+            nk_size_t const valid_columns = (col_tile + 16 <= vector_count) ? 16 : (vector_count - col_tile);
 
             nk_dots_i8_init_sapphireamx_(&state);
 
@@ -3535,18 +3535,18 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e3m2_sapphireamx_( //
     return nk_success_k;
 }
 
-/** E3M2 Gram upper triangle of @p vectors on AMX tiles, @p row_count rows from @p row_start. */
-NUMKONG_INLINE nk_status_t nk_gram_e3m2_sapphireamx_(                   //
-    nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
-    nk_size_t row_start, nk_size_t row_count) {
+/** E3M2 Gram upper triangle of @p vectors on AMX tiles, rows @p rows_begin to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_gram_e3m2_sapphireamx_(                  //
+    nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
+    nk_size_t rows_begin, nk_size_t rows_end) {
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
 
     nk_size_t const stride_elements = stride; // sizeof(nk_e3m2_t) == 1, so bytes == elements
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
 
-    // Handle row slicing: compute rows [row_start, row_end)
-    nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
+    // Handle row slicing: compute rows [rows_begin, rows_end)
+    rows_end = nk_min_of_two(rows_end, vector_count);
 
     // Round depth up to multiple of 96 (3 tiles x 32 bf16 elements)
     nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 32);
@@ -3559,11 +3559,11 @@ NUMKONG_INLINE nk_status_t nk_gram_e3m2_sapphireamx_(                   //
 
     nk_amx_tile_configure_sapphireamx_();
 
-    for (nk_size_t row_tile = row_start; row_tile < row_end; row_tile += 16) {
-        nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
 
-        for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
-            nk_size_t const valid_columns = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
+        for (nk_size_t col_tile = row_tile; col_tile < vector_count; col_tile += 16) {
+            nk_size_t const valid_columns = (col_tile + 16 <= vector_count) ? 16 : (vector_count - col_tile);
 
             nk_dots_bf16_init_sapphireamx_(&state);
 
@@ -3615,7 +3615,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_bf16_sapphireamx(nk_size_t column_coun
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_bf16_sapphireamx(void const *b_packed, nk_size_t *columns,
-                                                              nk_size_t *depth, void *stream) {
+                                                              nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -3626,7 +3626,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_bf16_sapphireamx(void const *b_pack
 
 NUMKONG_API nk_status_t nk_dots_pack_bf16_sapphireamx(           //
     nk_bf16_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // AMX BF16 tile dimensions: 16 rows × 32 columns (512 BF16 elements = 1KB)
@@ -3725,18 +3725,17 @@ NUMKONG_API nk_status_t nk_dots_pack_bf16_sapphireamx(           //
 
 NUMKONG_API nk_status_t nk_dots_packed_bf16_sapphireamx(   //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gemm_packed_bf16_sapphireamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_bf16_sapphireamx(             //
-    nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_dots_symmetric_bf16_sapphireamx(            //
+    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
+    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gram_bf16_sapphireamx_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
+    return nk_gram_bf16_sapphireamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_i8_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
@@ -3745,7 +3744,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_i8_sapphireamx(nk_size_t column_count,
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_i8_sapphireamx(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                            void *stream) {
+                                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -3756,7 +3755,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_i8_sapphireamx(void const *b_packed
 
 NUMKONG_API nk_status_t nk_dots_pack_i8_sapphireamx(           //
     nk_i8_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // AMX I8 tile dimensions: 16 rows × 64 columns (1024 I8 elements = 1KB)
@@ -3855,17 +3854,17 @@ NUMKONG_API nk_status_t nk_dots_pack_i8_sapphireamx(           //
 
 NUMKONG_API nk_status_t nk_dots_packed_i8_sapphireamx(   //
     nk_i8_t const *a, void const *b_packed, nk_i32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gemm_packed_i8_sapphireamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_i8_sapphireamx(             //
-    nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_i32_t *result, nk_size_t result_stride,      //
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_dots_symmetric_i8_sapphireamx(            //
+    nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_i32_t *result, nk_size_t result_stride,     //
+    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gram_i8_sapphireamx_(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
+    return nk_gram_i8_sapphireamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_u8_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
@@ -3875,7 +3874,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_u8_sapphireamx(nk_size_t column_count,
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_u8_sapphireamx(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                            void *stream) {
+                                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -3886,7 +3885,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_u8_sapphireamx(void const *b_packed
 
 NUMKONG_API nk_status_t nk_dots_pack_u8_sapphireamx(           //
     nk_u8_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t const tmm_rows = 16;
@@ -3979,17 +3978,17 @@ NUMKONG_API nk_status_t nk_dots_pack_u8_sapphireamx(           //
 
 NUMKONG_API nk_status_t nk_dots_packed_u8_sapphireamx(   //
     nk_u8_t const *a, void const *b_packed, nk_u32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gemm_packed_u8_sapphireamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_u8_sapphireamx(             //
-    nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,      //
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_dots_symmetric_u8_sapphireamx(            //
+    nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,     //
+    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gram_u8_sapphireamx_(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
+    return nk_gram_u8_sapphireamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_e4m3_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
@@ -3999,7 +3998,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e4m3_sapphireamx(nk_size_t column_coun
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e4m3_sapphireamx(void const *b_packed, nk_size_t *columns,
-                                                              nk_size_t *depth, void *stream) {
+                                                              nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -4010,7 +4009,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_e4m3_sapphireamx(void const *b_pack
 
 NUMKONG_API nk_status_t nk_dots_pack_e4m3_sapphireamx(           //
     nk_e4m3_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_bf16_rows_sapphireamx_t const rows = {
         (nk_u8_t const *)b, b_stride, NUMKONG_NULL, 0, nk_e4m3_widen_bf16_sapphireamx_, nk_e4m3_sumsq_sapphireamx_};
@@ -4019,7 +4018,8 @@ NUMKONG_API nk_status_t nk_dots_pack_e4m3_sapphireamx(           //
 
 NUMKONG_API nk_status_t nk_dots_packed_e4m3_sapphireamx(   //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t row_count, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t row_count, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
+    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_bf16_rows_sapphireamx_t const rows = {
         (nk_u8_t const *)a, a_stride, NUMKONG_NULL, 0, nk_e4m3_widen_bf16_sapphireamx_, nk_e4m3_sumsq_sapphireamx_};
@@ -4032,7 +4032,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e5m2_sapphireamx(nk_size_t column_coun
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e5m2_sapphireamx(void const *b_packed, nk_size_t *columns,
-                                                              nk_size_t *depth, void *stream) {
+                                                              nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -4043,7 +4043,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_e5m2_sapphireamx(void const *b_pack
 
 NUMKONG_API nk_status_t nk_dots_pack_e5m2_sapphireamx(           //
     nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_bf16_rows_sapphireamx_t const rows = {
         (nk_u8_t const *)b, b_stride, NUMKONG_NULL, 0, nk_e5m2_widen_bf16_sapphireamx_, nk_e5m2_sumsq_sapphireamx_};
@@ -4052,33 +4052,32 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_sapphireamx(           //
 
 NUMKONG_API nk_status_t nk_dots_packed_e5m2_sapphireamx(   //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t row_count, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t row_count, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
+    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_bf16_rows_sapphireamx_t const rows = {
         (nk_u8_t const *)a, a_stride, NUMKONG_NULL, 0, nk_e5m2_widen_bf16_sapphireamx_, nk_e5m2_sumsq_sapphireamx_};
     return nk_gemm_packed_through_bf16_sapphireamx_(rows, 1, b_packed, c, row_count, columns, depth, c_stride);
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_sapphireamx(             //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_sapphireamx(            //
+    nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
+    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_bf16_rows_sapphireamx_t const rows = {
         (nk_u8_t const *)vectors, stride, NUMKONG_NULL, 0, nk_e5m2_widen_bf16_sapphireamx_, nk_e5m2_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, 1, vectors_count, depth, result, result_stride, row_start,
-                                             row_count);
+    return nk_gram_through_bf16_sapphireamx_(rows, 1, vector_count, depth, result, result_stride, rows_begin, rows_end);
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e4m3_sapphireamx(             //
-    nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_dots_symmetric_e4m3_sapphireamx(            //
+    nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
+    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_bf16_rows_sapphireamx_t const rows = {
         (nk_u8_t const *)vectors, stride, NUMKONG_NULL, 0, nk_e4m3_widen_bf16_sapphireamx_, nk_e4m3_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, 1, vectors_count, depth, result, result_stride, row_start,
-                                             row_count);
+    return nk_gram_through_bf16_sapphireamx_(rows, 1, vector_count, depth, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_nvfp4_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
@@ -4087,7 +4086,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_nvfp4_sapphireamx(nk_size_t column_cou
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_nvfp4_sapphireamx(void const *b_packed, nk_size_t *columns,
-                                                               nk_size_t *depth, void *stream) {
+                                                               nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -4097,7 +4096,8 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_nvfp4_sapphireamx(void const *b_pac
 
 NUMKONG_API nk_status_t nk_dots_pack_nvfp4_sapphireamx(nk_nvfp4_cref_t const *b, nk_size_t column_count,
                                                        nk_size_t depth, nk_size_t b_stride, void *b_packed,
-                                                       nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+                                                       nk_size_t columns_begin, nk_size_t columns_end,
+                                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const b_unpacked = nk_cross_operand_(nk_nvfp4_k, b, b_stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)b_unpacked.elements,
@@ -4112,7 +4112,7 @@ NUMKONG_API nk_status_t nk_dots_pack_nvfp4_sapphireamx(nk_nvfp4_cref_t const *b,
 
 NUMKONG_API nk_status_t nk_dots_packed_nvfp4_sapphireamx(nk_nvfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
                                                          nk_size_t row_count, nk_size_t columns, nk_size_t depth,
-                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+                                                         nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const a_unpacked = nk_cross_operand_(nk_nvfp4_k, a, a_stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)a_unpacked.elements,
@@ -4125,10 +4125,10 @@ NUMKONG_API nk_status_t nk_dots_packed_nvfp4_sapphireamx(nk_nvfp4_cref_t const *
                                                     row_count, columns, depth, c_stride);
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_nvfp4_sapphireamx(nk_nvfp4_cref_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_dots_symmetric_nvfp4_sapphireamx(nk_nvfp4_cref_t const *vectors, nk_size_t vector_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count, void *stream) {
+                                                            nk_size_t result_stride, nk_size_t rows_begin,
+                                                            nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const vectors_unpacked = nk_cross_operand_(nk_nvfp4_k, vectors, stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)vectors_unpacked.elements,
@@ -4137,8 +4137,8 @@ NUMKONG_API nk_status_t nk_dots_symmetric_nvfp4_sapphireamx(nk_nvfp4_cref_t cons
                                                   vectors_unpacked.scales_stride,
                                                   nk_nvfp4_widen_bf16_sapphireamx_,
                                                   nk_scaled_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vectors_count,
-                                             depth, result, result_stride, row_start, row_count);
+    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vector_count,
+                                             depth, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp4_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
@@ -4147,7 +4147,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_mxfp4_sapphireamx(nk_size_t column_cou
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp4_sapphireamx(void const *b_packed, nk_size_t *columns,
-                                                               nk_size_t *depth, void *stream) {
+                                                               nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -4157,7 +4157,8 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp4_sapphireamx(void const *b_pac
 
 NUMKONG_API nk_status_t nk_dots_pack_mxfp4_sapphireamx(nk_mxfp4_cref_t const *b, nk_size_t column_count,
                                                        nk_size_t depth, nk_size_t b_stride, void *b_packed,
-                                                       nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+                                                       nk_size_t columns_begin, nk_size_t columns_end,
+                                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const b_unpacked = nk_cross_operand_(nk_mxfp4_k, b, b_stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)b_unpacked.elements,
@@ -4172,7 +4173,7 @@ NUMKONG_API nk_status_t nk_dots_pack_mxfp4_sapphireamx(nk_mxfp4_cref_t const *b,
 
 NUMKONG_API nk_status_t nk_dots_packed_mxfp4_sapphireamx(nk_mxfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
                                                          nk_size_t row_count, nk_size_t columns, nk_size_t depth,
-                                                         nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+                                                         nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const a_unpacked = nk_cross_operand_(nk_mxfp4_k, a, a_stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)a_unpacked.elements,
@@ -4185,10 +4186,10 @@ NUMKONG_API nk_status_t nk_dots_packed_mxfp4_sapphireamx(nk_mxfp4_cref_t const *
                                                     row_count, columns, depth, c_stride);
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_mxfp4_sapphireamx(nk_mxfp4_cref_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_dots_symmetric_mxfp4_sapphireamx(nk_mxfp4_cref_t const *vectors, nk_size_t vector_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count, void *stream) {
+                                                            nk_size_t result_stride, nk_size_t rows_begin,
+                                                            nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const vectors_unpacked = nk_cross_operand_(nk_mxfp4_k, vectors, stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)vectors_unpacked.elements,
@@ -4197,8 +4198,8 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp4_sapphireamx(nk_mxfp4_cref_t cons
                                                   vectors_unpacked.scales_stride,
                                                   nk_mxfp4_widen_bf16_sapphireamx_,
                                                   nk_scaled_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vectors_count,
-                                             depth, result, result_stride, row_start, row_count);
+    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vector_count,
+                                             depth, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp8e4m3_sapphireamx(nk_size_t column_count, nk_size_t depth,
@@ -4208,7 +4209,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_mxfp8e4m3_sapphireamx(nk_size_t column
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp8e4m3_sapphireamx(void const *b_packed, nk_size_t *columns,
-                                                                   nk_size_t *depth, void *stream) {
+                                                                   nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -4219,7 +4220,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp8e4m3_sapphireamx(void const *b
 NUMKONG_API nk_status_t nk_dots_pack_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cref_t const *b, nk_size_t column_count,
                                                            nk_size_t depth, nk_size_t b_stride, void *b_packed,
                                                            nk_size_t columns_begin, nk_size_t columns_end,
-                                                           void *stream) {
+                                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const b_unpacked = nk_cross_operand_(nk_mxfp8e4m3_k, b, b_stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)b_unpacked.elements,
@@ -4235,7 +4236,7 @@ NUMKONG_API nk_status_t nk_dots_pack_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cref_t c
 NUMKONG_API nk_status_t nk_dots_packed_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cref_t const *a, void const *b_packed,
                                                              nk_f32_t *c, nk_size_t row_count, nk_size_t columns,
                                                              nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                             void *stream) {
+                                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const a_unpacked = nk_cross_operand_(nk_mxfp8e4m3_k, a, a_stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)a_unpacked.elements,
@@ -4249,10 +4250,10 @@ NUMKONG_API nk_status_t nk_dots_packed_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cref_t
 }
 
 NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cref_t const *vectors,
-                                                                nk_size_t vectors_count, nk_size_t depth,
+                                                                nk_size_t vector_count, nk_size_t depth,
                                                                 nk_size_t stride, nk_f32_t *result,
-                                                                nk_size_t result_stride, nk_size_t row_start,
-                                                                nk_size_t row_count, void *stream) {
+                                                                nk_size_t result_stride, nk_size_t rows_begin,
+                                                                nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const vectors_unpacked = nk_cross_operand_(nk_mxfp8e4m3_k, vectors, stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)vectors_unpacked.elements,
@@ -4261,8 +4262,8 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cre
                                                   vectors_unpacked.scales_stride,
                                                   nk_mxfp8e4m3_widen_bf16_sapphireamx_,
                                                   nk_scaled_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vectors_count,
-                                             depth, result, result_stride, row_start, row_count);
+    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vector_count,
+                                             depth, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp8e5m2_sapphireamx(nk_size_t column_count, nk_size_t depth,
@@ -4272,7 +4273,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_mxfp8e5m2_sapphireamx(nk_size_t column
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp8e5m2_sapphireamx(void const *b_packed, nk_size_t *columns,
-                                                                   nk_size_t *depth, void *stream) {
+                                                                   nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -4283,7 +4284,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp8e5m2_sapphireamx(void const *b
 NUMKONG_API nk_status_t nk_dots_pack_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cref_t const *b, nk_size_t column_count,
                                                            nk_size_t depth, nk_size_t b_stride, void *b_packed,
                                                            nk_size_t columns_begin, nk_size_t columns_end,
-                                                           void *stream) {
+                                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const b_unpacked = nk_cross_operand_(nk_mxfp8e5m2_k, b, b_stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)b_unpacked.elements,
@@ -4299,7 +4300,7 @@ NUMKONG_API nk_status_t nk_dots_pack_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cref_t c
 NUMKONG_API nk_status_t nk_dots_packed_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cref_t const *a, void const *b_packed,
                                                              nk_f32_t *c, nk_size_t row_count, nk_size_t columns,
                                                              nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                             void *stream) {
+                                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const a_unpacked = nk_cross_operand_(nk_mxfp8e5m2_k, a, a_stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)a_unpacked.elements,
@@ -4313,10 +4314,10 @@ NUMKONG_API nk_status_t nk_dots_packed_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cref_t
 }
 
 NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cref_t const *vectors,
-                                                                nk_size_t vectors_count, nk_size_t depth,
+                                                                nk_size_t vector_count, nk_size_t depth,
                                                                 nk_size_t stride, nk_f32_t *result,
-                                                                nk_size_t result_stride, nk_size_t row_start,
-                                                                nk_size_t row_count, void *stream) {
+                                                                nk_size_t result_stride, nk_size_t rows_begin,
+                                                                nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_cross_operand_t const vectors_unpacked = nk_cross_operand_(nk_mxfp8e5m2_k, vectors, stride);
     nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)vectors_unpacked.elements,
@@ -4325,8 +4326,8 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cre
                                                   vectors_unpacked.scales_stride,
                                                   nk_mxfp8e5m2_widen_bf16_sapphireamx_,
                                                   nk_scaled_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vectors_count,
-                                             depth, result, result_stride, row_start, row_count);
+    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vector_count,
+                                             depth, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_e2m3_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
@@ -4336,7 +4337,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e2m3_sapphireamx(nk_size_t column_coun
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e2m3_sapphireamx(void const *b_packed, nk_size_t *columns,
-                                                              nk_size_t *depth, void *stream) {
+                                                              nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -4347,7 +4348,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_e2m3_sapphireamx(void const *b_pack
 
 NUMKONG_API nk_status_t nk_dots_pack_e2m3_sapphireamx(           //
     nk_e2m3_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // AMX I8 tile dimensions: 16 rows x 64 columns (1024 I8 elements = 1KB)
@@ -4448,18 +4449,17 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m3_sapphireamx(           //
 
 NUMKONG_API nk_status_t nk_dots_packed_e2m3_sapphireamx(   //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gemm_packed_e2m3_sapphireamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e2m3_sapphireamx(             //
-    nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_dots_symmetric_e2m3_sapphireamx(            //
+    nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
+    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gram_e2m3_sapphireamx_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
+    return nk_gram_e2m3_sapphireamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_e2m1_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
@@ -4469,7 +4469,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e2m1_sapphireamx(nk_size_t column_coun
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e2m1_sapphireamx(void const *b_packed, nk_size_t *columns,
-                                                              nk_size_t *depth, void *stream) {
+                                                              nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -4480,7 +4480,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_e2m1_sapphireamx(void const *b_pack
 
 NUMKONG_API nk_status_t nk_dots_pack_e2m1_sapphireamx(             //
     nk_e2m1x2_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t const tmm_rows = 16;
@@ -4565,18 +4565,17 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m1_sapphireamx(             //
 
 NUMKONG_API nk_status_t nk_dots_packed_e2m1_sapphireamx(     //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gemm_packed_e2m1_sapphireamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e2m1_sapphireamx(               //
-    nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,          //
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_dots_symmetric_e2m1_sapphireamx(              //
+    nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,         //
+    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gram_e2m1_sapphireamx_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
+    return nk_gram_e2m1_sapphireamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_e3m2_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
@@ -4585,7 +4584,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e3m2_sapphireamx(nk_size_t column_coun
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e3m2_sapphireamx(void const *b_packed, nk_size_t *columns,
-                                                              nk_size_t *depth, void *stream) {
+                                                              nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
@@ -4596,7 +4595,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_e3m2_sapphireamx(void const *b_pack
 
 NUMKONG_API nk_status_t nk_dots_pack_e3m2_sapphireamx(           //
     nk_e3m2_t const *b, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t const tmm_rows = 16;
@@ -4684,18 +4683,17 @@ NUMKONG_API nk_status_t nk_dots_pack_e3m2_sapphireamx(           //
 
 NUMKONG_API nk_status_t nk_dots_packed_e3m2_sapphireamx(   //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gemm_packed_e3m2_sapphireamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e3m2_sapphireamx(             //
-    nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_dots_symmetric_e3m2_sapphireamx(            //
+    nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
+    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gram_e3m2_sapphireamx_(vectors, vectors_count, depth, stride, result, result_stride, row_start,
-                                     row_count);
+    return nk_gram_e3m2_sapphireamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }
 
 #endif // NUMKONG_TARGET_SAPPHIREAMX

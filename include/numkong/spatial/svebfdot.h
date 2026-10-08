@@ -86,14 +86,14 @@ NUMKONG_INLINE void nk_squared_distance_bf16_svebfdot_(nk_bf16_t const *a_enum, 
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                     nk_f32_t *result, void *stream) {
+                                                     nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_svebfdot_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                   nk_f32_t *result, void *stream) {
+                                                   nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_svebfdot_(a, b, n, result);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
@@ -101,7 +101,7 @@ NUMKONG_API nk_status_t nk_euclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t
 }
 
 NUMKONG_API nk_status_t nk_angular_bf16_svebfdot(nk_bf16_t const *a_enum, nk_bf16_t const *b_enum, nk_size_t n,
-                                                 nk_f32_t *result, void *stream) {
+                                                 nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     svfloat32_t ab_f32x = svdupq_n_f32(0.f, 0.f, 0.f, 0.f);

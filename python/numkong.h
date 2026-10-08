@@ -292,7 +292,7 @@ int py_number_to_f64(PyObject *obj, nk_f64_t *value);
  *  @param[inout] stream Stream to pass kernels, null on the CPU.
  *  @return 1 on success, 0 on failure (Python exception set).
  */
-int parse_dispatch_keyword(PyObject *key, PyObject *value, nk_capability_t *capabilities, void **stream);
+int parse_dispatch_keyword(PyObject *key, PyObject *value, nk_capability_t *capabilities, nk_stream_t *stream);
 
 /**
  *  @brief Raise an exception named by @c nk_status_name unless @p status is a success:

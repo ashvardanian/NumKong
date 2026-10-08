@@ -150,10 +150,10 @@ extension Tensor where Element: NumKongDotsMatrixElement {
     }
 
     /// Computes the symmetric dot-product matrix for all row pairs, returning an owned result.
-    public func dotsSymmetric(rowStart: Int = 0, rowCount: Int? = nil) throws -> Tensor<Element.DotsOutput> {
+    public func dotsSymmetric(rowsBegin: Int = 0, rowsEnd: Int? = nil) throws -> Tensor<Element.DotsOutput> {
         let result = try Tensor<Element.DotsOutput>._zeroInitialized(rows: rows, columns: rows)
         var rSpan = result.span()
-        try dots_symmetric(view(), &rSpan, rowStart: rowStart, rowCount: rowCount)
+        try dots_symmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
         return result
     }
 }
@@ -178,18 +178,18 @@ extension Tensor where Element: NumKongSpatialsMatrixElement {
     }
 
     /// Computes the symmetric angular-distance matrix for all row pairs.
-    public func angularsSymmetric(rowStart: Int = 0, rowCount: Int? = nil) throws -> Tensor<Element.SpatialOutput> {
+    public func angularsSymmetric(rowsBegin: Int = 0, rowsEnd: Int? = nil) throws -> Tensor<Element.SpatialOutput> {
         let result = try Tensor<Element.SpatialOutput>._zeroInitialized(rows: rows, columns: rows)
         var rSpan = result.span()
-        try angulars_symmetric(view(), &rSpan, rowStart: rowStart, rowCount: rowCount)
+        try angulars_symmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
         return result
     }
 
     /// Computes the symmetric Euclidean-distance matrix for all row pairs.
-    public func euclideansSymmetric(rowStart: Int = 0, rowCount: Int? = nil) throws -> Tensor<Element.SpatialOutput> {
+    public func euclideansSymmetric(rowsBegin: Int = 0, rowsEnd: Int? = nil) throws -> Tensor<Element.SpatialOutput> {
         let result = try Tensor<Element.SpatialOutput>._zeroInitialized(rows: rows, columns: rows)
         var rSpan = result.span()
-        try euclideans_symmetric(view(), &rSpan, rowStart: rowStart, rowCount: rowCount)
+        try euclideans_symmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
         return result
     }
 }
@@ -206,10 +206,10 @@ extension Tensor where Element: NumKongSetsMatrixElement {
     }
 
     /// Computes the symmetric Hamming-distance matrix for all row pairs.
-    public func hammingsSymmetric(rowStart: Int = 0, rowCount: Int? = nil) throws -> Tensor<Element.HammingOutput> {
+    public func hammingsSymmetric(rowsBegin: Int = 0, rowsEnd: Int? = nil) throws -> Tensor<Element.HammingOutput> {
         let result = try Tensor<Element.HammingOutput>._zeroInitialized(rows: rows, columns: rows)
         var rSpan = result.span()
-        try NumKong.hammings_symmetric(view(), &rSpan, rowStart: rowStart, rowCount: rowCount)
+        try NumKong.hammings_symmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
         return result
     }
 
@@ -222,10 +222,10 @@ extension Tensor where Element: NumKongSetsMatrixElement {
     }
 
     /// Computes the symmetric Jaccard-distance matrix for all row pairs.
-    public func jaccardsSymmetric(rowStart: Int = 0, rowCount: Int? = nil) throws -> Tensor<Element.JaccardOutput> {
+    public func jaccardsSymmetric(rowsBegin: Int = 0, rowsEnd: Int? = nil) throws -> Tensor<Element.JaccardOutput> {
         let result = try Tensor<Element.JaccardOutput>._zeroInitialized(rows: rows, columns: rows)
         var rSpan = result.span()
-        try NumKong.jaccards_symmetric(view(), &rSpan, rowStart: rowStart, rowCount: rowCount)
+        try NumKong.jaccards_symmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
         return result
     }
 }

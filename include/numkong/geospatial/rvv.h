@@ -716,7 +716,7 @@ NUMKONG_INLINE void nk_vincenty_f32_rvv_kernel_(    //
 NUMKONG_API nk_status_t nk_haversine_f64_rvv(       //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_size_t n, nk_f64_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,
@@ -730,7 +730,7 @@ NUMKONG_API nk_status_t nk_haversine_f64_rvv(       //
 NUMKONG_API nk_status_t nk_haversine_f32_rvv(       //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_size_t n, nk_f32_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,
@@ -748,7 +748,7 @@ NUMKONG_API nk_status_t nk_haversine_f32_rvv(       //
 NUMKONG_API nk_status_t nk_vincenty_f64_rvv(        //
     nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
     nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_size_t n, nk_f64_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,
@@ -762,7 +762,7 @@ NUMKONG_API nk_status_t nk_vincenty_f64_rvv(        //
 NUMKONG_API nk_status_t nk_vincenty_f32_rvv(        //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_size_t n, nk_f32_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,

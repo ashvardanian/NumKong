@@ -52,7 +52,7 @@ NUMKONG_INLINE void nk_angulars_packed_f16_graniteamx_finalize_(nk_f16_t const *
 NUMKONG_API nk_status_t nk_angulars_packed_f16_graniteamx( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c,  //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_f16_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -79,7 +79,7 @@ NUMKONG_INLINE void nk_euclideans_packed_f16_graniteamx_finalize_(nk_f16_t const
 NUMKONG_API nk_status_t nk_euclideans_packed_f16_graniteamx( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c,    //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_f16_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -94,23 +94,23 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f16_graniteamx( //
 
 #pragma region F16 Symmetric
 
-NUMKONG_INLINE void nk_angulars_symmetric_f16_graniteamx_finalize_(nk_f16_t const *vectors, nk_size_t vectors_count,
+NUMKONG_INLINE void nk_angulars_symmetric_f16_graniteamx_finalize_(nk_f16_t const *vectors, nk_size_t vector_count,
                                                                    nk_size_t depth, nk_size_t stride_elements,
                                                                    nk_f32_t *result, nk_size_t result_stride_elements,
-                                                                   nk_size_t row_start, nk_size_t row_count) {
+                                                                   nk_size_t rows_begin, nk_size_t rows_end) {
 
-    for (nk_size_t row = row_start; row < row_start + row_count; row++)
+    for (nk_size_t row = rows_begin; row < rows_end; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_f16_skylake_(vectors + row * stride_elements,
                                                                                        depth, sizeof(nk_f16_t));
 
     nk_f32_t column_norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; col++)
             column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_f16_skylake_(vectors + col * stride_elements,
                                                                                       depth, sizeof(nk_f16_t));
 
-        for (nk_size_t row = row_start; row < row_start + row_count; row++) {
+        for (nk_size_t row = rows_begin; row < rows_end; row++) {
             nk_f32_t *r_row = result + row * result_stride_elements;
             nk_size_t col_start = chunk_start > row + 1 ? chunk_start : row + 1;
             if (col_start >= chunk_end) continue;
@@ -119,43 +119,43 @@ NUMKONG_INLINE void nk_angulars_symmetric_f16_graniteamx_finalize_(nk_f16_t cons
         }
     }
 
-    for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; row++) result[row * result_stride_elements + row] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_f16_graniteamx( //
-    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_f16_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-    nk_status_t const status = nk_gram_f16_graniteamx_(vectors, vectors_count, depth, stride, result, result_stride,
-                                                       row_start, row_count);
+    nk_status_t const status = nk_gram_f16_graniteamx_(vectors, vector_count, depth, stride, result, result_stride,
+                                                       rows_begin, rows_end);
     if (status != nk_success_k) return status;
-    nk_angulars_symmetric_f16_graniteamx_finalize_(vectors, vectors_count, depth, stride_elements, result,
-                                                   result_stride_elements, row_start, row_count);
+    nk_angulars_symmetric_f16_graniteamx_finalize_(vectors, vector_count, depth, stride_elements, result,
+                                                   result_stride_elements, rows_begin, rows_end);
     return nk_success_k;
 }
 
-NUMKONG_INLINE void nk_euclideans_symmetric_f16_graniteamx_finalize_(nk_f16_t const *vectors, nk_size_t vectors_count,
+NUMKONG_INLINE void nk_euclideans_symmetric_f16_graniteamx_finalize_(nk_f16_t const *vectors, nk_size_t vector_count,
                                                                      nk_size_t depth, nk_size_t stride_elements,
                                                                      nk_f32_t *result, nk_size_t result_stride_elements,
-                                                                     nk_size_t row_start, nk_size_t row_count) {
+                                                                     nk_size_t rows_begin, nk_size_t rows_end) {
 
-    for (nk_size_t row = row_start; row < row_start + row_count; row++)
+    for (nk_size_t row = rows_begin; row < rows_end; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_f16_skylake_(vectors + row * stride_elements,
                                                                                        depth, sizeof(nk_f16_t));
 
     nk_f32_t column_norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; col++)
             column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_f16_skylake_(vectors + col * stride_elements,
                                                                                       depth, sizeof(nk_f16_t));
 
-        for (nk_size_t row = row_start; row < row_start + row_count; row++) {
+        for (nk_size_t row = rows_begin; row < rows_end; row++) {
             nk_f32_t *r_row = result + row * result_stride_elements;
             nk_size_t col_start = chunk_start > row + 1 ? chunk_start : row + 1;
             if (col_start >= chunk_end) continue;
@@ -164,23 +164,23 @@ NUMKONG_INLINE void nk_euclideans_symmetric_f16_graniteamx_finalize_(nk_f16_t co
         }
     }
 
-    for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; row++) result[row * result_stride_elements + row] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_graniteamx( //
-    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_f16_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-    nk_status_t const status = nk_gram_f16_graniteamx_(vectors, vectors_count, depth, stride, result, result_stride,
-                                                       row_start, row_count);
+    nk_status_t const status = nk_gram_f16_graniteamx_(vectors, vector_count, depth, stride, result, result_stride,
+                                                       rows_begin, rows_end);
     if (status != nk_success_k) return status;
-    nk_euclideans_symmetric_f16_graniteamx_finalize_(vectors, vectors_count, depth, stride_elements, result,
-                                                     result_stride_elements, row_start, row_count);
+    nk_euclideans_symmetric_f16_graniteamx_finalize_(vectors, vector_count, depth, stride_elements, result,
+                                                     result_stride_elements, rows_begin, rows_end);
     return nk_success_k;
 }
 
@@ -204,7 +204,7 @@ NUMKONG_INLINE void nk_angulars_packed_e5m2_graniteamx_finalize_(nk_e5m2_t const
 NUMKONG_API nk_status_t nk_angulars_packed_e5m2_graniteamx( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,  //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,     //
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride;
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -232,7 +232,7 @@ NUMKONG_INLINE void nk_euclideans_packed_e5m2_graniteamx_finalize_(nk_e5m2_t con
 NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_graniteamx( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,    //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,       //
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride;
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -248,23 +248,23 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_graniteamx( //
 
 #pragma region E5M2 Symmetric
 
-NUMKONG_INLINE void nk_angulars_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+NUMKONG_INLINE void nk_angulars_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_t const *vectors, nk_size_t vector_count,
                                                                     nk_size_t depth, nk_size_t stride_elements,
                                                                     nk_f32_t *result, nk_size_t result_stride_elements,
-                                                                    nk_size_t row_start, nk_size_t row_count) {
+                                                                    nk_size_t rows_begin, nk_size_t rows_end) {
 
-    for (nk_size_t row = row_start; row < row_start + row_count; row++)
+    for (nk_size_t row = rows_begin; row < rows_end; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e5m2_skylake_(vectors + row * stride_elements,
                                                                                         depth, sizeof(nk_e5m2_t));
 
     nk_f32_t column_norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; col++)
             column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e5m2_skylake_(vectors + col * stride_elements,
                                                                                        depth, sizeof(nk_e5m2_t));
 
-        for (nk_size_t row = row_start; row < row_start + row_count; row++) {
+        for (nk_size_t row = rows_begin; row < rows_end; row++) {
             nk_f32_t *r_row = result + row * result_stride_elements;
             nk_size_t col_start = chunk_start > row + 1 ? chunk_start : row + 1;
             if (col_start >= chunk_end) continue;
@@ -273,44 +273,44 @@ NUMKONG_INLINE void nk_angulars_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_t co
         }
     }
 
-    for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; row++) result[row * result_stride_elements + row] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_graniteamx( //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+    nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride;
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-    nk_status_t const status = nk_gram_e5m2_graniteamx_(vectors, vectors_count, depth, stride, result, result_stride,
-                                                        row_start, row_count);
+    nk_status_t const status = nk_gram_e5m2_graniteamx_(vectors, vector_count, depth, stride, result, result_stride,
+                                                        rows_begin, rows_end);
     if (status != nk_success_k) return status;
-    nk_angulars_symmetric_e5m2_graniteamx_finalize_(vectors, vectors_count, depth, stride_elements, result,
-                                                    result_stride_elements, row_start, row_count);
+    nk_angulars_symmetric_e5m2_graniteamx_finalize_(vectors, vector_count, depth, stride_elements, result,
+                                                    result_stride_elements, rows_begin, rows_end);
     return nk_success_k;
 }
 
-NUMKONG_INLINE void nk_euclideans_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+NUMKONG_INLINE void nk_euclideans_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_t const *vectors, nk_size_t vector_count,
                                                                       nk_size_t depth, nk_size_t stride_elements,
                                                                       nk_f32_t *result,
                                                                       nk_size_t result_stride_elements,
-                                                                      nk_size_t row_start, nk_size_t row_count) {
+                                                                      nk_size_t rows_begin, nk_size_t rows_end) {
 
-    for (nk_size_t row = row_start; row < row_start + row_count; row++)
+    for (nk_size_t row = rows_begin; row < rows_end; row++)
         result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e5m2_skylake_(vectors + row * stride_elements,
                                                                                         depth, sizeof(nk_e5m2_t));
 
     nk_f32_t column_norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; col++)
             column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e5m2_skylake_(vectors + col * stride_elements,
                                                                                        depth, sizeof(nk_e5m2_t));
 
-        for (nk_size_t row = row_start; row < row_start + row_count; row++) {
+        for (nk_size_t row = rows_begin; row < rows_end; row++) {
             nk_f32_t *r_row = result + row * result_stride_elements;
             nk_size_t col_start = chunk_start > row + 1 ? chunk_start : row + 1;
             if (col_start >= chunk_end) continue;
@@ -319,23 +319,23 @@ NUMKONG_INLINE void nk_euclideans_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_t 
         }
     }
 
-    for (nk_size_t row = row_start; row < row_start + row_count; row++) result[row * result_stride_elements + row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; row++) result[row * result_stride_elements + row] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_graniteamx( //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+    nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride;
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-    nk_status_t const status = nk_gram_e5m2_graniteamx_(vectors, vectors_count, depth, stride, result, result_stride,
-                                                        row_start, row_count);
+    nk_status_t const status = nk_gram_e5m2_graniteamx_(vectors, vector_count, depth, stride, result, result_stride,
+                                                        rows_begin, rows_end);
     if (status != nk_success_k) return status;
-    nk_euclideans_symmetric_e5m2_graniteamx_finalize_(vectors, vectors_count, depth, stride_elements, result,
-                                                      result_stride_elements, row_start, row_count);
+    nk_euclideans_symmetric_e5m2_graniteamx_finalize_(vectors, vector_count, depth, stride_elements, result,
+                                                      result_stride_elements, rows_begin, rows_end);
     return nk_success_k;
 }
 

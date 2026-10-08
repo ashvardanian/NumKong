@@ -204,14 +204,14 @@ func AngularsSymmetricF64(vectors []float64, nVectors, depth int, result []float
 	angularsSymmetricF64(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func angularsSymmetricF64(vectors []float64, nVectors, depth int, result []float64, rowStart, rowCount int) {
+func angularsSymmetricF64(vectors []float64, nVectors, depth int, result []float64, rowsBegin, rowsEnd int) {
 	check(C.nk_angulars_symmetric_f64_best(
 		(*C.nk_f64_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*8),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // AngularsSymmetricF32 computes the angular distance between every pair of nVectors row-major
@@ -227,14 +227,14 @@ func AngularsSymmetricF32(vectors []float32, nVectors, depth int, result []float
 	angularsSymmetricF32(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func angularsSymmetricF32(vectors []float32, nVectors, depth int, result []float64, rowStart, rowCount int) {
+func angularsSymmetricF32(vectors []float32, nVectors, depth int, result []float64, rowsBegin, rowsEnd int) {
 	check(C.nk_angulars_symmetric_f32_best(
 		(*C.nk_f32_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // AngularsSymmetricI8 computes the angular distance between every pair of nVectors row-major int8
@@ -250,14 +250,14 @@ func AngularsSymmetricI8(vectors []int8, nVectors, depth int, result []float32) 
 	angularsSymmetricI8(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func angularsSymmetricI8(vectors []int8, nVectors, depth int, result []float32, rowStart, rowCount int) {
+func angularsSymmetricI8(vectors []int8, nVectors, depth int, result []float32, rowsBegin, rowsEnd int) {
 	check(C.nk_angulars_symmetric_i8_best(
 		(*C.nk_i8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // AngularsSymmetricU8 computes the angular distance between every pair of nVectors row-major uint8
@@ -273,14 +273,14 @@ func AngularsSymmetricU8(vectors []uint8, nVectors, depth int, result []float32)
 	angularsSymmetricU8(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func angularsSymmetricU8(vectors []uint8, nVectors, depth int, result []float32, rowStart, rowCount int) {
+func angularsSymmetricU8(vectors []uint8, nVectors, depth int, result []float32, rowsBegin, rowsEnd int) {
 	check(C.nk_angulars_symmetric_u8_best(
 		(*C.nk_u8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansSymmetricF64 computes the Euclidean distance between every pair of nVectors row-major
@@ -296,14 +296,14 @@ func EuclideansSymmetricF64(vectors []float64, nVectors, depth int, result []flo
 	euclideansSymmetricF64(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func euclideansSymmetricF64(vectors []float64, nVectors, depth int, result []float64, rowStart, rowCount int) {
+func euclideansSymmetricF64(vectors []float64, nVectors, depth int, result []float64, rowsBegin, rowsEnd int) {
 	check(C.nk_euclideans_symmetric_f64_best(
 		(*C.nk_f64_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*8),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansSymmetricF32 computes the Euclidean distance between every pair of nVectors row-major
@@ -319,14 +319,14 @@ func EuclideansSymmetricF32(vectors []float32, nVectors, depth int, result []flo
 	euclideansSymmetricF32(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func euclideansSymmetricF32(vectors []float32, nVectors, depth int, result []float64, rowStart, rowCount int) {
+func euclideansSymmetricF32(vectors []float32, nVectors, depth int, result []float64, rowsBegin, rowsEnd int) {
 	check(C.nk_euclideans_symmetric_f32_best(
 		(*C.nk_f32_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansSymmetricI8 computes the Euclidean distance between every pair of nVectors row-major
@@ -342,14 +342,14 @@ func EuclideansSymmetricI8(vectors []int8, nVectors, depth int, result []float32
 	euclideansSymmetricI8(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func euclideansSymmetricI8(vectors []int8, nVectors, depth int, result []float32, rowStart, rowCount int) {
+func euclideansSymmetricI8(vectors []int8, nVectors, depth int, result []float32, rowsBegin, rowsEnd int) {
 	check(C.nk_euclideans_symmetric_i8_best(
 		(*C.nk_i8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansSymmetricU8 computes the Euclidean distance between every pair of nVectors row-major
@@ -365,14 +365,14 @@ func EuclideansSymmetricU8(vectors []uint8, nVectors, depth int, result []float3
 	euclideansSymmetricU8(vectors, nVectors, depth, result, 0, nVectors)
 }
 
-func euclideansSymmetricU8(vectors []uint8, nVectors, depth int, result []float32, rowStart, rowCount int) {
+func euclideansSymmetricU8(vectors []uint8, nVectors, depth int, result []float32, rowsBegin, rowsEnd int) {
 	check(C.nk_euclideans_symmetric_u8_best(
 		(*C.nk_u8_t)(&vectors[0]),
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
 }
 
 // endregion

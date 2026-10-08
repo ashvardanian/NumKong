@@ -685,7 +685,7 @@ NUMKONG_INLINE nk_f64_t nk_transformed_ssd_f32_rvv_(nk_f32_t const *a, nk_f32_t 
 
 NUMKONG_API nk_status_t nk_rmsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,
                                         nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                        nk_f64_t *result, void *stream) {
+                                        nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
@@ -738,7 +738,7 @@ NUMKONG_API nk_status_t nk_rmsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk
 
 NUMKONG_API nk_status_t nk_rmsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count,
                                         nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                        nk_f64_t *result, void *stream) {
+                                        nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (rotation)
         rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
@@ -785,7 +785,7 @@ NUMKONG_API nk_status_t nk_rmsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk
 
 NUMKONG_API nk_status_t nk_kabsch_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,
                                           nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                          nk_f32_t *scale, nk_f64_t *result, void *stream) {
+                                          nk_f32_t *scale, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (points_count == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
@@ -847,7 +847,7 @@ NUMKONG_API nk_status_t nk_kabsch_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, 
 
 NUMKONG_API nk_status_t nk_kabsch_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count,
                                           nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
-                                          nk_f64_t *scale, nk_f64_t *result, void *stream) {
+                                          nk_f64_t *scale, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (points_count == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
@@ -905,7 +905,7 @@ NUMKONG_API nk_status_t nk_kabsch_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, 
 
 NUMKONG_API nk_status_t nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,
                                            nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                           nk_f32_t *scale, nk_f64_t *result, void *stream) {
+                                           nk_f32_t *scale, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (points_count == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
@@ -976,7 +976,7 @@ NUMKONG_API nk_status_t nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b,
 
 NUMKONG_API nk_status_t nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t points_count,
                                            nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
-                                           nk_f64_t *scale, nk_f64_t *result, void *stream) {
+                                           nk_f64_t *scale, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (points_count == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
@@ -1043,7 +1043,7 @@ NUMKONG_API nk_status_t nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b,
 
 NUMKONG_API nk_status_t nk_rmsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t points_count,
                                         nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                        nk_f32_t *result, void *stream) {
+                                        nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_rmsd_f16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
@@ -1051,7 +1051,7 @@ NUMKONG_API nk_status_t nk_rmsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk
 
 NUMKONG_API nk_status_t nk_kabsch_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t points_count,
                                           nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                          nk_f32_t *scale, nk_f32_t *result, void *stream) {
+                                          nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_kabsch_f16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
@@ -1059,7 +1059,7 @@ NUMKONG_API nk_status_t nk_kabsch_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, 
 
 NUMKONG_API nk_status_t nk_umeyama_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_size_t points_count,
                                            nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                           nk_f32_t *scale, nk_f32_t *result, void *stream) {
+                                           nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_umeyama_f16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
@@ -1067,7 +1067,7 @@ NUMKONG_API nk_status_t nk_umeyama_f16_rvv(nk_f16_t const *a, nk_f16_t const *b,
 
 NUMKONG_API nk_status_t nk_rmsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t points_count,
                                          nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                         nk_f32_t *scale, nk_f32_t *result, void *stream) {
+                                         nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_rmsd_bf16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
@@ -1075,7 +1075,7 @@ NUMKONG_API nk_status_t nk_rmsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b,
 
 NUMKONG_API nk_status_t nk_kabsch_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t points_count,
                                            nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                           nk_f32_t *scale, nk_f32_t *result, void *stream) {
+                                           nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_kabsch_bf16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
@@ -1083,7 +1083,7 @@ NUMKONG_API nk_status_t nk_kabsch_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *
 
 NUMKONG_API nk_status_t nk_umeyama_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t points_count,
                                             nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                            nk_f32_t *scale, nk_f32_t *result, void *stream) {
+                                            nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_umeyama_bf16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;

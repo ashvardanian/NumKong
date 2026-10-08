@@ -138,13 +138,13 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_cdna3_(
     void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
     nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
     nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
-    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
-    if (task_begin >= task_end || depth == 0) return nk_success_k;
+    if (tasks_begin >= tasks_end || depth == 0) return nk_success_k;
     nk_attention_arguments_t arguments = nk_attention_arguments_init_(
         queries, packed, output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
-        output_stride, scale, score_scale, output_scale, keys_before, keys_after, task_begin, task_end);
+        output_stride, scale, score_scale, output_scale, keys_before, keys_after, tasks_begin, tasks_end);
     nk_attention_width_t const width = depth <= nk_attention_narrow_depth_cdna3_k ? nk_attention_width_128_k
                                                                                   : nk_attention_width_256_k;
     nk_size_t const width_depth = width == nk_attention_width_128_k ? nk_attention_narrow_depth_cdna3_k

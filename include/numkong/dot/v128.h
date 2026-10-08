@@ -73,7 +73,7 @@ NUMKONG_INLINE void nk_dot2_f64x2_v128_(v128_t *sum_f64x2, v128_t *compensation_
 
 #if NUMKONG_TARGET_V128
 NUMKONG_API nk_status_t nk_dot_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                         void *stream) {
+                                         nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
     v128_t mask_high_u32x4 = wasm_i32x4_splat((int)0xFFFF0000);
@@ -105,7 +105,7 @@ nk_dot_bf16_v128_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result,
-                                       void *stream) {
+                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_i64_t sum_total = 0;
     nk_size_t i = 0;
@@ -140,7 +140,7 @@ NUMKONG_API nk_status_t nk_dot_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_si
 }
 
 NUMKONG_API nk_status_t nk_dot_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                       void *stream) {
+                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u64_t sum_total = 0;
     nk_size_t i = 0;
@@ -175,7 +175,7 @@ NUMKONG_API nk_status_t nk_dot_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_si
 }
 
 NUMKONG_API nk_status_t nk_dot_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
-                                       void *stream) {
+                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u8_t const *a_bytes = (nk_u8_t const *)a;
     nk_u8_t const *b_bytes = (nk_u8_t const *)b;

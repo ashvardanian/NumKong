@@ -1407,9 +1407,12 @@ typedef enum NUMKONG_NODISCARD_ {
 /** Default alignment in bytes for host allocations. */
 enum { nk_default_alignment_k = NUMKONG_DEFAULT_ALIGNMENT };
 
+/** A vendor stream: a @c cudaStream_t, @c hipStream_t or Metal command queue; null on CPUs. */
+typedef struct nk_stream_opaque_ *nk_stream_t;
+
 /** Allocation callbacks retain the caller's context and use its device stream. */
-typedef void *(*nk_allocate_t)(nk_size_t bytes, void *handle, void *stream);
-typedef void (*nk_free_t)(void *pointer, nk_size_t bytes, void *handle, void *stream);
+typedef void *(*nk_allocate_t)(nk_size_t bytes, void *handle, nk_stream_t stream);
+typedef void (*nk_free_t)(void *pointer, nk_size_t bytes, void *handle, nk_stream_t stream);
 
 /** Allocation policy; the caller owns the handle and any stream passed to its callbacks. */
 typedef struct nk_allocator_t {

@@ -750,12 +750,12 @@ def cuda_capabilities_enabled(ordinal: int, /) -> Capability:
     """The mask CUDA device `ordinal` dispatches with, raising ValueError past the last one."""
     ...
 
-def cuda_stream_init(ordinal: int, /) -> int:
+def stream_init_cuda(ordinal: int, /) -> int:
     """A new `cudaStream_t` on CUDA device `ordinal` as an integer, raising ValueError past the last one."""
     ...
 
-def cuda_stream_free(stream: int, /) -> None:
-    """Free a stream `cuda_stream_init` made, once `synchronize` joined its work."""
+def stream_free_cuda(stream: int, /) -> None:
+    """Free a stream `stream_init_cuda` made, once `synchronize` joined its work."""
     ...
 
 def rocm_count_devices() -> int:
@@ -774,12 +774,12 @@ def rocm_capabilities_enabled(ordinal: int, /) -> Capability:
     """The mask ROCm device `ordinal` dispatches with, raising ValueError past the last one."""
     ...
 
-def rocm_stream_init(ordinal: int, /) -> int:
+def stream_init_rocm(ordinal: int, /) -> int:
     """A new `hipStream_t` on ROCm device `ordinal` as an integer, raising ValueError past the last one."""
     ...
 
-def rocm_stream_free(stream: int, /) -> None:
-    """Free a stream `rocm_stream_init` made, once `synchronize` joined its work."""
+def stream_free_rocm(stream: int, /) -> None:
+    """Free a stream `stream_init_rocm` made, once `synchronize` joined its work."""
     ...
 
 def metal_count_devices() -> int:
@@ -798,12 +798,12 @@ def metal_capabilities_enabled(ordinal: int, /) -> Capability:
     """The mask Metal device `ordinal` dispatches with, raising ValueError past the last one."""
     ...
 
-def metal_stream_init(ordinal: int, /) -> int:
+def stream_init_metal(ordinal: int, /) -> int:
     """A new `id<MTLCommandQueue>` on Metal device `ordinal` as an integer, raising ValueError past the last one."""
     ...
 
-def metal_stream_free(stream: int, /) -> None:
-    """Free a stream `metal_stream_init` made, once `synchronize` joined its work."""
+def stream_free_metal(stream: int, /) -> None:
+    """Free a stream `stream_init_metal` made, once `synchronize` joined its work."""
     ...
 
 def synchronize(capabilities: Capability | int, /, stream: int | None = None) -> None:
@@ -811,7 +811,7 @@ def synchronize(capabilities: Capability | int, /, stream: int | None = None) ->
     ...
 
 # Kernel pointer accessors, to the CPU's enabled capabilities.
-# Each takes a trailing `void *stream`, null on the CPU, and returns an `nk_status_t`.
+# Each takes a trailing `nk_stream_t stream`, null on the CPU, and returns an `nk_status_t`.
 def pointer_to_euclidean(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int: ...
 def pointer_to_sqeuclidean(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int: ...
 def pointer_to_angular(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int: ...
@@ -1453,8 +1453,8 @@ def dots_symmetric(
     *,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     out: _BufferType | None = None,
-    start_row: int | None = None,
-    end_row: int | None = None,
+    rows_begin: int | None = None,
+    rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
@@ -1464,8 +1464,8 @@ def hammings_symmetric(
     *,
     dtype: _IntegralTypeName | _MiniFloatType | None = None,
     out: _BufferType | None = None,
-    start_row: int | None = None,
-    end_row: int | None = None,
+    rows_begin: int | None = None,
+    rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
@@ -1475,8 +1475,8 @@ def jaccards_symmetric(
     *,
     dtype: _IntegralTypeName | _MiniFloatType | None = None,
     out: _BufferType | None = None,
-    start_row: int | None = None,
-    end_row: int | None = None,
+    rows_begin: int | None = None,
+    rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
@@ -1486,8 +1486,8 @@ def angulars_symmetric(
     *,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     out: _BufferType | None = None,
-    start_row: int | None = None,
-    end_row: int | None = None,
+    rows_begin: int | None = None,
+    rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
@@ -1497,8 +1497,8 @@ def euclideans_symmetric(
     *,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     out: _BufferType | None = None,
-    start_row: int | None = None,
-    end_row: int | None = None,
+    rows_begin: int | None = None,
+    rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
@@ -1524,8 +1524,8 @@ def dots_packed(
     /,
     *,
     out: _BufferType | None = None,
-    start_row: int | None = None,
-    end_row: int | None = None,
+    rows_begin: int | None = None,
+    rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
@@ -1545,8 +1545,8 @@ def hammings_packed(
     /,
     *,
     out: _BufferType | None = None,
-    start_row: int | None = None,
-    end_row: int | None = None,
+    rows_begin: int | None = None,
+    rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
@@ -1558,8 +1558,8 @@ def jaccards_packed(
     /,
     *,
     out: _BufferType | None = None,
-    start_row: int | None = None,
-    end_row: int | None = None,
+    rows_begin: int | None = None,
+    rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
@@ -1571,8 +1571,8 @@ def angulars_packed(
     /,
     *,
     out: _BufferType | None = None,
-    start_row: int | None = None,
-    end_row: int | None = None,
+    rows_begin: int | None = None,
+    rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...
@@ -1584,8 +1584,8 @@ def euclideans_packed(
     /,
     *,
     out: _BufferType | None = None,
-    start_row: int | None = None,
-    end_row: int | None = None,
+    rows_begin: int | None = None,
+    rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor: ...

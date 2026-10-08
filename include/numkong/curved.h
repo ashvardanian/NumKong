@@ -72,16 +72,16 @@ extern "C" {
  *  @note The output value can be negative.
  */
 NUMKONG_API nk_status_t nk_bilinear_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                             nk_f64_t *result, nk_capability_t capabilities, void *stream);
+                                             nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_bilinear_f64_best */
 NUMKONG_API nk_status_t nk_bilinear_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                             nk_f64_t *result, nk_capability_t capabilities, void *stream);
+                                             nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_bilinear_f64_best */
 NUMKONG_API nk_status_t nk_bilinear_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                             nk_f32_t *result, nk_capability_t capabilities, void *stream);
+                                             nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_bilinear_f64_best */
 NUMKONG_API nk_status_t nk_bilinear_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                              nk_f32_t *result, nk_capability_t capabilities, void *stream);
+                                              nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream);
 
 /**
  *  @brief Mahalanobis distance between vectors a and b under metric tensor C.
@@ -103,17 +103,17 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_best(nk_bf16_t const *a, nk_bf16_t cons
  *      (a-b) may be negative, and the square root will produce NaN.
  */
 NUMKONG_API nk_status_t nk_mahalanobis_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                nk_f64_t *result, nk_capability_t capabilities, void *stream);
+                                                nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f64_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                nk_f64_t *result, nk_capability_t capabilities, void *stream);
+                                                nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f64_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                nk_f32_t *result, nk_capability_t capabilities, void *stream);
+                                                nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f64_best */
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
                                                  nk_size_t n, nk_f32_t *result, nk_capability_t capabilities,
-                                                 void *stream);
+                                                 nk_stream_t stream);
 
 /**
  *  @brief Complex bilinear form between vectors a and b under metric tensor C.
@@ -128,188 +128,188 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_best(nk_bf16_t const *a, nk_bf16_t c
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_bilinear_f64c_best(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                              nk_f64c_t *results, nk_capability_t capabilities, void *stream);
+                                              nk_f64c_t *results, nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_bilinear_f64c_best */
 NUMKONG_API nk_status_t nk_bilinear_f32c_best(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                              nk_f64c_t *results, nk_capability_t capabilities, void *stream);
+                                              nk_f64c_t *results, nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_bilinear_f64c_best */
 NUMKONG_API nk_status_t nk_bilinear_f16c_best(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
-                                              nk_f32c_t *results, nk_capability_t capabilities, void *stream);
+                                              nk_f32c_t *results, nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_bilinear_f64c_best */
 NUMKONG_API nk_status_t nk_bilinear_bf16c_best(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
                                                nk_size_t n, nk_f32c_t *results, nk_capability_t capabilities,
-                                               void *stream);
+                                               nk_stream_t stream);
 
 /** @copydoc nk_bilinear_f64_best */
 NUMKONG_API nk_status_t nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                               nk_f64_t *result, void *stream);
+                                               nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f64c_best */
 NUMKONG_API nk_status_t nk_bilinear_f64c_serial(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                                nk_f64c_t *results, void *stream);
+                                                nk_f64c_t *results, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f64_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                  nk_f64_t *result, void *stream);
+                                                  nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f32_best */
 NUMKONG_API nk_status_t nk_bilinear_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                               nk_f64_t *result, void *stream);
+                                               nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f32c_best */
 NUMKONG_API nk_status_t nk_bilinear_f32c_serial(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                                nk_f64c_t *results, void *stream);
+                                                nk_f64c_t *results, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f32_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f32_serial(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                  nk_f64_t *result, void *stream);
+                                                  nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f16_best */
 NUMKONG_API nk_status_t nk_bilinear_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                               nk_f32_t *result, void *stream);
+                                               nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f16c_best */
 NUMKONG_API nk_status_t nk_bilinear_f16c_serial(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
-                                                nk_f32c_t *results, void *stream);
+                                                nk_f32c_t *results, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f16_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f16_serial(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                  nk_f32_t *result, void *stream);
+                                                  nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_bf16_best */
 NUMKONG_API nk_status_t nk_bilinear_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                                nk_f32_t *result, void *stream);
+                                                nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_bf16c_best */
 NUMKONG_API nk_status_t nk_bilinear_bf16c_serial(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
-                                                 nk_size_t n, nk_f32c_t *results, void *stream);
+                                                 nk_size_t n, nk_f32c_t *results, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_bf16_best */
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_serial(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                   nk_size_t n, nk_f32_t *result, void *stream);
+                                                   nk_size_t n, nk_f32_t *result, nk_stream_t stream);
 
 #if NUMKONG_TARGET_NEON
 /** @copydoc nk_bilinear_f32_best */
 NUMKONG_API nk_status_t nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                             nk_f64_t *result, void *stream);
+                                             nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f32c_best */
 NUMKONG_API nk_status_t nk_bilinear_f32c_neon(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                              nk_f64c_t *results, void *stream);
+                                              nk_f64c_t *results, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f32_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                nk_f64_t *result, void *stream);
+                                                nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f16_best */
 NUMKONG_API nk_status_t nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                             nk_f32_t *result, void *stream);
+                                             nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f16c_best */
 NUMKONG_API nk_status_t nk_bilinear_f16c_neon(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
-                                              nk_f32c_t *results, void *stream);
+                                              nk_f32c_t *results, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f16_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                nk_f32_t *result, void *stream);
+                                                nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_NEONBFDOT
 /** @copydoc nk_bilinear_bf16_best */
 NUMKONG_API nk_status_t nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                   nk_size_t n, nk_f32_t *result, void *stream);
+                                                   nk_size_t n, nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_bf16c_best */
 NUMKONG_API nk_status_t nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
-                                                    nk_size_t n, nk_f32c_t *results, void *stream);
+                                                    nk_size_t n, nk_f32c_t *results, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_bf16_best */
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                      nk_size_t n, nk_f32_t *result, void *stream);
+                                                      nk_size_t n, nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_NEONBFDOT
 
 #if NUMKONG_TARGET_SMEF64
 /** @copydoc nk_bilinear_f32_best */
 NUMKONG_API nk_status_t nk_bilinear_f32_smef64(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                               nk_f64_t *result, void *stream);
+                                               nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f32c_best */
 NUMKONG_API nk_status_t nk_bilinear_f32c_smef64(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                                nk_f64c_t *result, void *stream);
+                                                nk_f64c_t *result, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f32_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f32_smef64(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                  nk_f64_t *result, void *stream);
+                                                  nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f64_best */
 NUMKONG_API nk_status_t nk_bilinear_f64_smef64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                               nk_f64_t *result, void *stream);
+                                               nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f64c_best */
 NUMKONG_API nk_status_t nk_bilinear_f64c_smef64(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                                nk_f64c_t *result, void *stream);
+                                                nk_f64c_t *result, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f64_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f64_smef64(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                  nk_f64_t *result, void *stream);
+                                                  nk_f64_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_SMEF64
 
 #if NUMKONG_TARGET_HASWELL
 /** @copydoc nk_bilinear_f32_best */
 NUMKONG_API nk_status_t nk_bilinear_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                nk_f64_t *result, void *stream);
+                                                nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f32_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                   nk_f64_t *result, void *stream);
+                                                   nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f16_best */
 NUMKONG_API nk_status_t nk_bilinear_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                nk_f32_t *result, void *stream);
+                                                nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f16_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                   nk_f32_t *result, void *stream);
+                                                   nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_bf16_best */
 NUMKONG_API nk_status_t nk_bilinear_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                 nk_size_t n, nk_f32_t *result, void *stream);
+                                                 nk_size_t n, nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_bf16_best */
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                    nk_size_t n, nk_f32_t *result, void *stream);
+                                                    nk_size_t n, nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
 /** @copydoc nk_bilinear_f64_best */
 NUMKONG_API nk_status_t nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                nk_f64_t *result, void *stream);
+                                                nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f64c_best */
 NUMKONG_API nk_status_t nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
-                                                 nk_size_t n, nk_f64c_t *results, void *stream);
+                                                 nk_size_t n, nk_f64c_t *results, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f64_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                   nk_f64_t *result, void *stream);
+                                                   nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f32_best */
 NUMKONG_API nk_status_t nk_bilinear_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                nk_f64_t *result, void *stream);
+                                                nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f32c_best */
 NUMKONG_API nk_status_t nk_bilinear_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
-                                                 nk_size_t n, nk_f64c_t *results, void *stream);
+                                                 nk_size_t n, nk_f64c_t *results, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f32_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                   nk_f64_t *result, void *stream);
+                                                   nk_f64_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_GENOA
 /** @copydoc nk_bilinear_bf16_best */
 NUMKONG_API nk_status_t nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                               nk_f32_t *result, void *stream);
+                                               nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_bf16c_best */
 NUMKONG_API nk_status_t nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
-                                                nk_size_t n, nk_f32c_t *results, void *stream);
+                                                nk_size_t n, nk_f32c_t *results, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_bf16_best */
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
-                                                  nk_size_t n, nk_f32_t *result, void *stream);
+                                                  nk_size_t n, nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_GENOA
 
 #if NUMKONG_TARGET_RVV
 /** @copydoc nk_bilinear_f64_best */
 NUMKONG_API nk_status_t nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                            nk_f64_t *result, void *stream);
+                                            nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f64_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                               nk_f64_t *result, void *stream);
+                                               nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f32_best */
 NUMKONG_API nk_status_t nk_bilinear_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                            nk_f64_t *result, void *stream);
+                                            nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f32_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                               nk_f64_t *result, void *stream);
+                                               nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_f16_best */
 NUMKONG_API nk_status_t nk_bilinear_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                            nk_f32_t *result, void *stream);
+                                            nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_f16_best */
 NUMKONG_API nk_status_t nk_mahalanobis_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                               nk_f32_t *result, void *stream);
+                                               nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_bilinear_bf16_best */
 NUMKONG_API nk_status_t nk_bilinear_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                             nk_f32_t *result, void *stream);
+                                             nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_mahalanobis_bf16_best */
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                                nk_f32_t *result, void *stream);
+                                                nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_RVV
 
 /** Returns the output dtype for bilinear forms. */
@@ -378,35 +378,35 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_bilinear_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                             nk_f64_t *result, nk_capability_t capabilities, void *stream) {
+                                             nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                nk_f64_t *result, nk_capability_t capabilities, void *stream) {
+                                                nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                             nk_f64_t *result, nk_capability_t capabilities, void *stream) {
+                                             nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                nk_f64_t *result, nk_capability_t capabilities, void *stream) {
+                                                nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_bilinear_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
-                                              nk_f32_t *result, nk_capability_t capabilities, void *stream) {
+                                              nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
@@ -414,35 +414,35 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_best(nk_bf16_t const *a, nk_bf16_t cons
 
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
                                                  nk_size_t n, nk_f32_t *result, nk_capability_t capabilities,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                             nk_f32_t *result, nk_capability_t capabilities, void *stream) {
+                                             nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                nk_f32_t *result, nk_capability_t capabilities, void *stream) {
+                                                nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f64c_best(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
-                                              nk_f64c_t *result, nk_capability_t capabilities, void *stream) {
+                                              nk_f64c_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f32c_best(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
-                                              nk_f64c_t *result, nk_capability_t capabilities, void *stream) {
+                                              nk_f64c_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
@@ -450,14 +450,14 @@ NUMKONG_API nk_status_t nk_bilinear_f32c_best(nk_f32c_t const *a, nk_f32c_t cons
 
 NUMKONG_API nk_status_t nk_bilinear_bf16c_best(nk_bf16c_t const *a, nk_bf16c_t const *b, nk_bf16c_t const *c,
                                                nk_size_t n, nk_f32c_t *result, nk_capability_t capabilities,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f16c_best(nk_f16c_t const *a, nk_f16c_t const *b, nk_f16c_t const *c, nk_size_t n,
-                                              nk_f32c_t *result, nk_capability_t capabilities, void *stream) {
+                                              nk_f32c_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(a), nk_unused_(b), nk_unused_(c), nk_unused_(n), nk_unused_(result), nk_unused_(capabilities),
         nk_unused_(stream);
     return nk_missing_library_k;

@@ -27,7 +27,7 @@ struct atan_with_stl {
 };
 
 template <typename scalar_type_, typename kernel_type_>
-nk_status_t elementwise_with_stl(scalar_type_ const *ins, nk_size_t n, scalar_type_ *outs, void *) {
+nk_status_t elementwise_with_stl(scalar_type_ const *ins, nk_size_t n, scalar_type_ *outs, nk_stream_t) {
     for (nk_size_t i = 0; i != n; ++i) outs[i] = kernel_type_ {}(ins[i]);
     return nk_success_k;
 }
@@ -45,10 +45,10 @@ void measure_trigonometry(loop_t &loop, environment_t const &env, kernel_type_ k
     using input_vector_t = nk::vector<input_t>;
 
     // Preallocate vectors for trigonometric kernels (unary: input + output)
-    std::size_t const vectors_count = input_sets_count(dtype_bytes(input_dtype_, 2 * dimensions));
-    std::vector<input_vector_t> input_a(vectors_count), output(vectors_count);
+    std::size_t const vector_count = input_sets_count(dtype_bytes(input_dtype_, 2 * dimensions));
+    std::vector<input_vector_t> input_a(vector_count), output(vector_count);
     std::mt19937 generator(env.settings.seed.value);
-    for (std::size_t index = 0; index != vectors_count; ++index) {
+    for (std::size_t index = 0; index != vector_count; ++index) {
         input_a[index] = make_vector<input_t>(dimensions);
         output[index] = make_vector<input_t>(dimensions);
         nk::fill_uniform(generator, input_a[index].values_data(), dimensions);
@@ -56,7 +56,7 @@ void measure_trigonometry(loop_t &loop, environment_t const &env, kernel_type_ k
 
     // Benchmark loop
     for (std::size_t call : loop) {
-        std::size_t const index = call & (vectors_count - 1);
+        std::size_t const index = call & (vector_count - 1);
         if (!succeeded(loop,
                        kernel(input_a[index].raw_values_data(), dimensions, output[index].raw_values_data(), nullptr)))
             break;

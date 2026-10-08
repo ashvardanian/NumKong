@@ -776,14 +776,14 @@ NUMKONG_INLINE void nk_dot_u1x128_finalize_neon( //
 #pragma region F32 and F64 Floats
 
 NUMKONG_API nk_status_t nk_dot_f32_neon(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
-                                        nk_f64_t *result, void *stream) {
+                                        nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_f32_through_f64_neon_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dot_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                         nk_f64c_t *result, void *stream) {
+                                         nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Upcast f32 to f64 for accumulation (2 complex pairs per iteration, avoids slow vget_low/high)
     float64x2_t sum_real_f64x2 = vdupq_n_f64(0);
@@ -826,7 +826,7 @@ NUMKONG_API nk_status_t nk_dot_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t con
 }
 
 NUMKONG_API nk_status_t nk_vdot_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
-                                          nk_f64c_t *result, void *stream) {
+                                          nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Upcast f32 to f64 for accumulation (2 complex pairs per iteration, avoids slow vget_low/high)
     float64x2_t sum_real_f64x2 = vdupq_n_f64(0);
@@ -863,7 +863,7 @@ NUMKONG_API nk_status_t nk_vdot_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t co
 }
 
 NUMKONG_API nk_status_t nk_dot_f64_neon(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars, nk_size_t count_scalars,
-                                        nk_f64_t *result, void *stream) {
+                                        nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
     float64x2_t sum_f64x2 = vdupq_n_f64(0);
@@ -904,7 +904,7 @@ nk_dot_f64_neon_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_f64c_neon(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                         nk_f64c_t *result, void *stream) {
+                                         nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated complex dot product
     float64x2_t sum_real_f64x2 = vdupq_n_f64(0);
@@ -989,7 +989,7 @@ nk_dot_f64c_neon_cycle:
 }
 
 NUMKONG_API nk_status_t nk_vdot_f64c_neon(nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_size_t count_pairs,
-                                          nk_f64c_t *result, void *stream) {
+                                          nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated conjugate dot product
     float64x2_t sum_real_f64x2 = vdupq_n_f64(0);
@@ -1077,21 +1077,21 @@ nk_vdot_f64c_neon_cycle:
 #pragma region F16 and BF16 Floats
 
 NUMKONG_API nk_status_t nk_dot_bf16_neon(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                         nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_bf16_through_f32_neon_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dot_f16_neon(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars, nk_size_t count_scalars,
-                                        nk_f32_t *result, void *stream) {
+                                        nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dot_f16_through_f32_neon_(a_scalars, b_scalars, count_scalars, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dot_e4m3_neon(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                         nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float16x8_t a_f16x8, b_f16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -1121,7 +1121,7 @@ nk_dot_e4m3_neon_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e5m2_neon(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                         nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float16x8_t a_f16x8, b_f16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -1151,7 +1151,7 @@ nk_dot_e5m2_neon_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e2m3_neon(nk_e2m3_t const *a_scalars, nk_e2m3_t const *b_scalars,
-                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                         nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float16x8_t a_low_f16x8, a_high_f16x8, b_low_f16x8, b_high_f16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -1181,7 +1181,7 @@ nk_dot_e2m3_neon_cycle:
 }
 
 NUMKONG_API nk_status_t nk_dot_e3m2_neon(nk_e3m2_t const *a_scalars, nk_e3m2_t const *b_scalars,
-                                         nk_size_t count_scalars, nk_f32_t *result, void *stream) {
+                                         nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float16x8_t a_low_f16x8, a_high_f16x8, b_low_f16x8, b_high_f16x8;
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
@@ -1214,7 +1214,7 @@ nk_dot_e3m2_neon_cycle:
 #pragma region Binary
 
 NUMKONG_API nk_status_t nk_dot_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
-                                       void *stream) {
+                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
     nk_u32_t dot = 0;
@@ -1235,7 +1235,7 @@ NUMKONG_API nk_status_t nk_dot_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, n
 #pragma endregion Binary
 
 NUMKONG_API nk_status_t nk_dot_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
-                                         nk_f32c_t *result, void *stream) {
+                                         nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float32x4_t sum_real_f32x4 = vdupq_n_f32(0);
     float32x4_t sum_imag_f32x4 = vdupq_n_f32(0);
@@ -1260,7 +1260,7 @@ NUMKONG_API nk_status_t nk_dot_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_t con
 }
 
 NUMKONG_API nk_status_t nk_vdot_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs, nk_size_t count_pairs,
-                                          nk_f32c_t *result, void *stream) {
+                                          nk_f32c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float32x4_t sum_real_f32x4 = vdupq_n_f32(0);
     float32x4_t sum_imag_f32x4 = vdupq_n_f32(0);

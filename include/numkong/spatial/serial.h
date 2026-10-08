@@ -33,50 +33,50 @@ extern "C" {
     }
 
 /** Generates @c nk_sqeuclidean_<input_type>_serial, the public kernel over its helper. */
-#define nk_define_sqeuclidean_serial_(input_type, output_type)                                                 \
-    NUMKONG_API nk_status_t nk_sqeuclidean_##input_type##_serial(nk_##input_type##_t const *a,                 \
-                                                                 nk_##input_type##_t const *b, nk_size_t n,    \
-                                                                 nk_##output_type##_t *result, void *stream) { \
-        nk_assert_(stream == NUMKONG_NULL);                                                                    \
-        nk_sqeuclidean_##input_type##_(a, b, n, result);                                                       \
-        return nk_success_k;                                                                                   \
+#define nk_define_sqeuclidean_serial_(input_type, output_type)                                                       \
+    NUMKONG_API nk_status_t nk_sqeuclidean_##input_type##_serial(nk_##input_type##_t const *a,                       \
+                                                                 nk_##input_type##_t const *b, nk_size_t n,          \
+                                                                 nk_##output_type##_t *result, nk_stream_t stream) { \
+        nk_assert_(stream == NUMKONG_NULL);                                                                          \
+        nk_sqeuclidean_##input_type##_(a, b, n, result);                                                             \
+        return nk_success_k;                                                                                         \
     }
 
-#define nk_define_euclidean_(input_type, accumulator_type, l2sq_output_type, output_type, load_and_convert,  \
-                             compute_sqrt)                                                                   \
-    NUMKONG_API nk_status_t nk_euclidean_##input_type##_serial(nk_##input_type##_t const *a,                 \
-                                                               nk_##input_type##_t const *b, nk_size_t n,    \
-                                                               nk_##output_type##_t *result, void *stream) { \
-        nk_assert_(stream == NUMKONG_NULL);                                                                  \
-        nk_##l2sq_output_type##_t distance_sq;                                                               \
-        nk_sqeuclidean_##input_type##_(a, b, n, &distance_sq);                                               \
-        *result = compute_sqrt((nk_##output_type##_t)distance_sq);                                           \
-        return nk_success_k;                                                                                 \
+#define nk_define_euclidean_(input_type, accumulator_type, l2sq_output_type, output_type, load_and_convert,        \
+                             compute_sqrt)                                                                         \
+    NUMKONG_API nk_status_t nk_euclidean_##input_type##_serial(nk_##input_type##_t const *a,                       \
+                                                               nk_##input_type##_t const *b, nk_size_t n,          \
+                                                               nk_##output_type##_t *result, nk_stream_t stream) { \
+        nk_assert_(stream == NUMKONG_NULL);                                                                        \
+        nk_##l2sq_output_type##_t distance_sq;                                                                     \
+        nk_sqeuclidean_##input_type##_(a, b, n, &distance_sq);                                                     \
+        *result = compute_sqrt((nk_##output_type##_t)distance_sq);                                                 \
+        return nk_success_k;                                                                                       \
     }
 
 /** Generates @c nk_angular_<input_type>_serial, an angular distance with simple accumulation. */
-#define nk_define_angular_(input_type, accumulator_type, output_type, load_and_convert, compute_rsqrt)     \
-    NUMKONG_API nk_status_t nk_angular_##input_type##_serial(nk_##input_type##_t const *a,                 \
-                                                             nk_##input_type##_t const *b, nk_size_t n,    \
-                                                             nk_##output_type##_t *result, void *stream) { \
-        nk_assert_(stream == NUMKONG_NULL);                                                                \
-        nk_##accumulator_type##_t dot_product = 0, a_norm_sq = 0, b_norm_sq = 0, a_value, b_value;         \
-        for (nk_size_t i = 0; i != n; ++i) {                                                               \
-            load_and_convert(a + i, &a_value);                                                             \
-            load_and_convert(b + i, &b_value);                                                             \
-            dot_product += a_value * b_value;                                                              \
-            a_norm_sq += a_value * a_value;                                                                \
-            b_norm_sq += b_value * b_value;                                                                \
-        }                                                                                                  \
-        if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }                                             \
-        else if (dot_product == 0) { *result = 1; }                                                        \
-        else {                                                                                             \
-            nk_##output_type##_t unclipped_distance = (nk_##output_type##_t)(                              \
-                1 - (nk_##output_type##_t)dot_product * compute_rsqrt((nk_##output_type##_t)a_norm_sq) *   \
-                        compute_rsqrt((nk_##output_type##_t)b_norm_sq));                                   \
-            *result = unclipped_distance > 0 ? unclipped_distance : 0;                                     \
-        }                                                                                                  \
-        return nk_success_k;                                                                               \
+#define nk_define_angular_(input_type, accumulator_type, output_type, load_and_convert, compute_rsqrt)           \
+    NUMKONG_API nk_status_t nk_angular_##input_type##_serial(nk_##input_type##_t const *a,                       \
+                                                             nk_##input_type##_t const *b, nk_size_t n,          \
+                                                             nk_##output_type##_t *result, nk_stream_t stream) { \
+        nk_assert_(stream == NUMKONG_NULL);                                                                      \
+        nk_##accumulator_type##_t dot_product = 0, a_norm_sq = 0, b_norm_sq = 0, a_value, b_value;               \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                     \
+            load_and_convert(a + i, &a_value);                                                                   \
+            load_and_convert(b + i, &b_value);                                                                   \
+            dot_product += a_value * b_value;                                                                    \
+            a_norm_sq += a_value * a_value;                                                                      \
+            b_norm_sq += b_value * b_value;                                                                      \
+        }                                                                                                        \
+        if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }                                                   \
+        else if (dot_product == 0) { *result = 1; }                                                              \
+        else {                                                                                                   \
+            nk_##output_type##_t unclipped_distance = (nk_##output_type##_t)(                                    \
+                1 - (nk_##output_type##_t)dot_product * compute_rsqrt((nk_##output_type##_t)a_norm_sq) *         \
+                        compute_rsqrt((nk_##output_type##_t)b_norm_sq));                                         \
+            *result = unclipped_distance > 0 ? unclipped_distance : 0;                                           \
+        }                                                                                                        \
+        return nk_success_k;                                                                                     \
     }
 
 /*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
@@ -153,7 +153,7 @@ NUMKONG_INLINE void nk_sqeuclidean_u4_(nk_u4x2_t const *a, nk_u4x2_t const *b, n
 #endif
 
 NUMKONG_API nk_status_t nk_angular_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t dot_product = 0, a_norm_sq = 0, b_norm_sq = 0;
     nk_f64_t dot_compensation = 0, a_compensation = 0, b_compensation = 0;
@@ -211,14 +211,14 @@ nk_define_sqeuclidean_serial_(u8, u32)                                    // nk_
 nk_define_euclidean_(u8, u32, u32, f32, nk_assign_from_to_, nk_f32_sqrt_) // nk_euclidean_u8_serial
 
 NUMKONG_API nk_status_t nk_sqeuclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_sqeuclidean_i4_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq;
     nk_sqeuclidean_i4_(a, b, n, &distance_sq);
@@ -227,7 +227,7 @@ NUMKONG_API nk_status_t nk_euclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t con
 }
 
 NUMKONG_API nk_status_t nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_dims_(n, nk_i4_k);
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
@@ -252,14 +252,14 @@ NUMKONG_API nk_status_t nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                                 void *stream) {
+                                                 nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_sqeuclidean_u4_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_euclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
+                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq;
     nk_sqeuclidean_u4_(a, b, n, &distance_sq);
@@ -268,7 +268,7 @@ NUMKONG_API nk_status_t nk_euclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t con
 }
 
 NUMKONG_API nk_status_t nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_dims_(n, nk_u4_k);
     nk_size_t const n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;

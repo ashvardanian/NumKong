@@ -64,7 +64,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_f32_capabilities(void) 
 NUMKONG_API nk_status_t nk_angulars_packed_f32_best(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
                                                     nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                     nk_size_t a_stride, nk_size_t c_stride,
-                                                    nk_capability_t capabilities, void *stream) {
+                                                    nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_f32_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -124,14 +124,13 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_f32_capabilities(voi
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_f32_best(nk_f32_t const *vectors, nk_size_t vectors_count,
-                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                       nk_size_t result_stride, nk_size_t row_start,
-                                                       nk_size_t row_count, nk_capability_t capabilities,
-                                                       void *stream) {
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_best(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
+                                                       nk_size_t rows_begin, nk_size_t rows_end,
+                                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_f32_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -192,7 +191,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_f32_capabilities(void
 NUMKONG_API nk_status_t nk_euclideans_packed_f32_best(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                       nk_size_t a_stride, nk_size_t c_stride,
-                                                      nk_capability_t capabilities, void *stream) {
+                                                      nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_f32_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -252,14 +251,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_f32_capabilities(v
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_best(nk_f32_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_best(nk_f32_t const *vectors, nk_size_t vector_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count, nk_capability_t capabilities,
-                                                         void *stream) {
+                                                         nk_size_t result_stride, nk_size_t rows_begin,
+                                                         nk_size_t rows_end, nk_capability_t capabilities,
+                                                         nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_f32_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -320,7 +319,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_f64_capabilities(void) 
 NUMKONG_API nk_status_t nk_angulars_packed_f64_best(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
                                                     nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                     nk_size_t a_stride, nk_size_t c_stride,
-                                                    nk_capability_t capabilities, void *stream) {
+                                                    nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_f64_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -380,14 +379,13 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_f64_capabilities(voi
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_f64_best(nk_f64_t const *vectors, nk_size_t vectors_count,
-                                                       nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                       nk_size_t result_stride, nk_size_t row_start,
-                                                       nk_size_t row_count, nk_capability_t capabilities,
-                                                       void *stream) {
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_best(nk_f64_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
+                                                       nk_size_t rows_begin, nk_size_t rows_end,
+                                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_f64_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -448,7 +446,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_f64_capabilities(void
 NUMKONG_API nk_status_t nk_euclideans_packed_f64_best(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                       nk_size_t a_stride, nk_size_t c_stride,
-                                                      nk_capability_t capabilities, void *stream) {
+                                                      nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_f64_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -508,14 +506,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_f64_capabilities(v
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_best(nk_f64_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_best(nk_f64_t const *vectors, nk_size_t vector_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count, nk_capability_t capabilities,
-                                                         void *stream) {
+                                                         nk_size_t result_stride, nk_size_t rows_begin,
+                                                         nk_size_t rows_end, nk_capability_t capabilities,
+                                                         nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_f64_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -619,7 +617,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_f16_capabilities(void) 
 NUMKONG_API nk_status_t nk_angulars_packed_f16_best(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
                                                     nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                     nk_size_t a_stride, nk_size_t c_stride,
-                                                    nk_capability_t capabilities, void *stream) {
+                                                    nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_f16_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -722,14 +720,13 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_f16_capabilities(voi
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_f16_best(nk_f16_t const *vectors, nk_size_t vectors_count,
-                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                       nk_size_t result_stride, nk_size_t row_start,
-                                                       nk_size_t row_count, nk_capability_t capabilities,
-                                                       void *stream) {
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_best(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                       nk_size_t rows_begin, nk_size_t rows_end,
+                                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_f16_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -833,7 +830,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_f16_capabilities(void
 NUMKONG_API nk_status_t nk_euclideans_packed_f16_best(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                       nk_size_t a_stride, nk_size_t c_stride,
-                                                      nk_capability_t capabilities, void *stream) {
+                                                      nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_f16_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -936,14 +933,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_f16_capabilities(v
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_best(nk_f16_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_best(nk_f16_t const *vectors, nk_size_t vector_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count, nk_capability_t capabilities,
-                                                         void *stream) {
+                                                         nk_size_t result_stride, nk_size_t rows_begin,
+                                                         nk_size_t rows_end, nk_capability_t capabilities,
+                                                         nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_f16_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1054,7 +1051,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_bf16_capabilities(void)
 NUMKONG_API nk_status_t nk_angulars_packed_bf16_best(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_bf16_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -1164,14 +1161,14 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_bf16_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_best(nk_bf16_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_best(nk_bf16_t const *vectors, nk_size_t vector_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, nk_capability_t capabilities,
-                                                        void *stream) {
+                                                        nk_size_t result_stride, nk_size_t rows_begin,
+                                                        nk_size_t rows_end, nk_capability_t capabilities,
+                                                        nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_bf16_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1282,7 +1279,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_bf16_capabilities(voi
 NUMKONG_API nk_status_t nk_euclideans_packed_bf16_best(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                        nk_size_t a_stride, nk_size_t c_stride,
-                                                       nk_capability_t capabilities, void *stream) {
+                                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_bf16_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -1392,14 +1389,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_bf16_capabilities(
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_best(nk_bf16_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_best(nk_bf16_t const *vectors, nk_size_t vector_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count, nk_capability_t capabilities,
-                                                          void *stream) {
+                                                          nk_size_t result_stride, nk_size_t rows_begin,
+                                                          nk_size_t rows_end, nk_capability_t capabilities,
+                                                          nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_bf16_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1503,7 +1500,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_e4m3_capabilities(void)
 NUMKONG_API nk_status_t nk_angulars_packed_e4m3_best(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_e4m3_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -1606,14 +1603,14 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_e4m3_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_best(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_best(nk_e4m3_t const *vectors, nk_size_t vector_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, nk_capability_t capabilities,
-                                                        void *stream) {
+                                                        nk_size_t result_stride, nk_size_t rows_begin,
+                                                        nk_size_t rows_end, nk_capability_t capabilities,
+                                                        nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_e4m3_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1717,7 +1714,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_e4m3_capabilities(voi
 NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_best(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,
                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                        nk_size_t a_stride, nk_size_t c_stride,
-                                                       nk_capability_t capabilities, void *stream) {
+                                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_e4m3_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -1820,14 +1817,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_e4m3_capabilities(
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_best(nk_e4m3_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_best(nk_e4m3_t const *vectors, nk_size_t vector_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count, nk_capability_t capabilities,
-                                                          void *stream) {
+                                                          nk_size_t result_stride, nk_size_t rows_begin,
+                                                          nk_size_t rows_end, nk_capability_t capabilities,
+                                                          nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_e4m3_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1935,7 +1932,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_e5m2_capabilities(void)
 NUMKONG_API nk_status_t nk_angulars_packed_e5m2_best(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_e5m2_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -2042,14 +2039,14 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_e5m2_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_best(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_best(nk_e5m2_t const *vectors, nk_size_t vector_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, nk_capability_t capabilities,
-                                                        void *stream) {
+                                                        nk_size_t result_stride, nk_size_t rows_begin,
+                                                        nk_size_t rows_end, nk_capability_t capabilities,
+                                                        nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_e5m2_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -2157,7 +2154,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_e5m2_capabilities(voi
 NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_best(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                        nk_size_t a_stride, nk_size_t c_stride,
-                                                       nk_capability_t capabilities, void *stream) {
+                                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_e5m2_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -2264,14 +2261,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_e5m2_capabilities(
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_best(nk_e5m2_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_best(nk_e5m2_t const *vectors, nk_size_t vector_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count, nk_capability_t capabilities,
-                                                          void *stream) {
+                                                          nk_size_t result_stride, nk_size_t rows_begin,
+                                                          nk_size_t rows_end, nk_capability_t capabilities,
+                                                          nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_e5m2_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -2379,7 +2376,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_e2m3_capabilities(void)
 NUMKONG_API nk_status_t nk_angulars_packed_e2m3_best(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_e2m3_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -2489,7 +2486,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_e2m1_capabilities(void)
 NUMKONG_API nk_status_t nk_angulars_packed_e2m1_best(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_e2m1_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -2553,7 +2550,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_nvfp4_capabilities(void
 NUMKONG_API nk_status_t nk_angulars_packed_nvfp4_best(nk_nvfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                       nk_size_t a_stride, nk_size_t c_stride,
-                                                      nk_capability_t capabilities, void *stream) {
+                                                      nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_nvfp4_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -2806,7 +2803,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_mxfp8e5m2_capabilities(
 NUMKONG_API nk_status_t nk_angulars_packed_mxfp4_best(nk_mxfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                       nk_size_t a_stride, nk_size_t c_stride,
-                                                      nk_capability_t capabilities, void *stream) {
+                                                      nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_mxfp4_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -2814,7 +2811,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp4_best(nk_mxfp4_cref_t const *a, 
 NUMKONG_API nk_status_t nk_angulars_packed_mxfp8e4m3_best(nk_mxfp8e4m3_cref_t const *a, void const *b_packed,
                                                           nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                           nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                          nk_capability_t capabilities, void *stream) {
+                                                          nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_mxfp8e4m3_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -2823,7 +2820,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp8e4m3_best(nk_mxfp8e4m3_cref_t co
 NUMKONG_API nk_status_t nk_angulars_packed_mxfp6e2m3_best(nk_mxfp6e2m3_cref_t const *a, void const *b_packed,
                                                           nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                           nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                          nk_capability_t capabilities, void *stream) {
+                                                          nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_mxfp6e2m3_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -2832,7 +2829,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp6e2m3_best(nk_mxfp6e2m3_cref_t co
 NUMKONG_API nk_status_t nk_angulars_packed_mxfp6e3m2_best(nk_mxfp6e3m2_cref_t const *a, void const *b_packed,
                                                           nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                           nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                          nk_capability_t capabilities, void *stream) {
+                                                          nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_mxfp6e3m2_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -2840,7 +2837,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp6e3m2_best(nk_mxfp6e3m2_cref_t co
 NUMKONG_API nk_status_t nk_angulars_packed_mxfp8e5m2_best(nk_mxfp8e5m2_cref_t const *a, void const *b_packed,
                                                           nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                           nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                          nk_capability_t capabilities, void *stream) {
+                                                          nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_mxfp8e5m2_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -2947,14 +2944,14 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_e2m3_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_best(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_best(nk_e2m3_t const *vectors, nk_size_t vector_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, nk_capability_t capabilities,
-                                                        void *stream) {
+                                                        nk_size_t result_stride, nk_size_t rows_begin,
+                                                        nk_size_t rows_end, nk_capability_t capabilities,
+                                                        nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_e2m3_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -3059,14 +3056,14 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_e2m1_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_best(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_best(nk_e2m1x2_t const *vectors, nk_size_t vector_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, nk_capability_t capabilities,
-                                                        void *stream) {
+                                                        nk_size_t result_stride, nk_size_t rows_begin,
+                                                        nk_size_t rows_end, nk_capability_t capabilities,
+                                                        nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_e2m1_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -3125,14 +3122,14 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_nvfp4_capabilities(v
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_nvfp4_best(nk_nvfp4_cref_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_nvfp4_best(nk_nvfp4_cref_t const *vectors, nk_size_t vector_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count, nk_capability_t capabilities,
-                                                         void *stream) {
+                                                         nk_size_t result_stride, nk_size_t rows_begin,
+                                                         nk_size_t rows_end, nk_capability_t capabilities,
+                                                         nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_nvfp4_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -3380,56 +3377,56 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_mxfp8e5m2_capabiliti
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp4_best(nk_mxfp4_cref_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp4_best(nk_mxfp4_cref_t const *vectors, nk_size_t vector_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                         nk_size_t result_stride, nk_size_t row_start,
-                                                         nk_size_t row_count, nk_capability_t capabilities,
-                                                         void *stream) {
+                                                         nk_size_t result_stride, nk_size_t rows_begin,
+                                                         nk_size_t rows_end, nk_capability_t capabilities,
+                                                         nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_mxfp4_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
-NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp8e4m3_best(nk_mxfp8e4m3_cref_t const *vectors,
-                                                             nk_size_t vectors_count, nk_size_t depth, nk_size_t stride,
-                                                             nk_f32_t *result, nk_size_t result_stride,
-                                                             nk_size_t row_start, nk_size_t row_count,
-                                                             nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp8e4m3_best(nk_mxfp8e4m3_cref_t const *vectors, nk_size_t vector_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t rows_begin,
+                                                             nk_size_t rows_end, nk_capability_t capabilities,
+                                                             nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_mxfp8e4m3_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp6e2m3_best(nk_mxfp6e2m3_cref_t const *vectors,
-                                                             nk_size_t vectors_count, nk_size_t depth, nk_size_t stride,
-                                                             nk_f32_t *result, nk_size_t result_stride,
-                                                             nk_size_t row_start, nk_size_t row_count,
-                                                             nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp6e2m3_best(nk_mxfp6e2m3_cref_t const *vectors, nk_size_t vector_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t rows_begin,
+                                                             nk_size_t rows_end, nk_capability_t capabilities,
+                                                             nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_mxfp6e2m3_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp6e3m2_best(nk_mxfp6e3m2_cref_t const *vectors,
-                                                             nk_size_t vectors_count, nk_size_t depth, nk_size_t stride,
-                                                             nk_f32_t *result, nk_size_t result_stride,
-                                                             nk_size_t row_start, nk_size_t row_count,
-                                                             nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp6e3m2_best(nk_mxfp6e3m2_cref_t const *vectors, nk_size_t vector_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t rows_begin,
+                                                             nk_size_t rows_end, nk_capability_t capabilities,
+                                                             nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_mxfp6e3m2_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
-NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp8e5m2_best(nk_mxfp8e5m2_cref_t const *vectors,
-                                                             nk_size_t vectors_count, nk_size_t depth, nk_size_t stride,
-                                                             nk_f32_t *result, nk_size_t result_stride,
-                                                             nk_size_t row_start, nk_size_t row_count,
-                                                             nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp8e5m2_best(nk_mxfp8e5m2_cref_t const *vectors, nk_size_t vector_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t rows_begin,
+                                                             nk_size_t rows_end, nk_capability_t capabilities,
+                                                             nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_mxfp8e5m2_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -3537,7 +3534,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_e2m3_capabilities(voi
 NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_best(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,
                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                        nk_size_t a_stride, nk_size_t c_stride,
-                                                       nk_capability_t capabilities, void *stream) {
+                                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_e2m3_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -3647,7 +3644,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_e2m1_capabilities(voi
 NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_best(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,
                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                        nk_size_t a_stride, nk_size_t c_stride,
-                                                       nk_capability_t capabilities, void *stream) {
+                                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_e2m1_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -3711,7 +3708,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_nvfp4_capabilities(vo
 NUMKONG_API nk_status_t nk_euclideans_packed_nvfp4_best(nk_nvfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
                                                         nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                         nk_size_t a_stride, nk_size_t c_stride,
-                                                        nk_capability_t capabilities, void *stream) {
+                                                        nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_nvfp4_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -3964,7 +3961,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_mxfp8e5m2_capabilitie
 NUMKONG_API nk_status_t nk_euclideans_packed_mxfp4_best(nk_mxfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
                                                         nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                         nk_size_t a_stride, nk_size_t c_stride,
-                                                        nk_capability_t capabilities, void *stream) {
+                                                        nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_mxfp4_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -3972,7 +3969,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp4_best(nk_mxfp4_cref_t const *a
 NUMKONG_API nk_status_t nk_euclideans_packed_mxfp8e4m3_best(nk_mxfp8e4m3_cref_t const *a, void const *b_packed,
                                                             nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                             nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                            nk_capability_t capabilities, void *stream) {
+                                                            nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_mxfp8e4m3_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -3981,7 +3978,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp8e4m3_best(nk_mxfp8e4m3_cref_t 
 NUMKONG_API nk_status_t nk_euclideans_packed_mxfp6e2m3_best(nk_mxfp6e2m3_cref_t const *a, void const *b_packed,
                                                             nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                             nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                            nk_capability_t capabilities, void *stream) {
+                                                            nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_mxfp6e2m3_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -3990,7 +3987,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp6e2m3_best(nk_mxfp6e2m3_cref_t 
 NUMKONG_API nk_status_t nk_euclideans_packed_mxfp6e3m2_best(nk_mxfp6e3m2_cref_t const *a, void const *b_packed,
                                                             nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                             nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                            nk_capability_t capabilities, void *stream) {
+                                                            nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_mxfp6e3m2_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -3998,7 +3995,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp6e3m2_best(nk_mxfp6e3m2_cref_t 
 NUMKONG_API nk_status_t nk_euclideans_packed_mxfp8e5m2_best(nk_mxfp8e5m2_cref_t const *a, void const *b_packed,
                                                             nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                             nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                            nk_capability_t capabilities, void *stream) {
+                                                            nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_mxfp8e5m2_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -4105,14 +4102,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_e2m3_capabilities(
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_best(nk_e2m3_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_best(nk_e2m3_t const *vectors, nk_size_t vector_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count, nk_capability_t capabilities,
-                                                          void *stream) {
+                                                          nk_size_t result_stride, nk_size_t rows_begin,
+                                                          nk_size_t rows_end, nk_capability_t capabilities,
+                                                          nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_e2m3_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -4217,14 +4214,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_e2m1_capabilities(
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_best(nk_e2m1x2_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_best(nk_e2m1x2_t const *vectors, nk_size_t vector_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count, nk_capability_t capabilities,
-                                                          void *stream) {
+                                                          nk_size_t result_stride, nk_size_t rows_begin,
+                                                          nk_size_t rows_end, nk_capability_t capabilities,
+                                                          nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_e2m1_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -4283,14 +4280,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_nvfp4_capabilities
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_nvfp4_best(nk_nvfp4_cref_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_nvfp4_best(nk_nvfp4_cref_t const *vectors, nk_size_t vector_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count, nk_capability_t capabilities,
-                                                           void *stream) {
+                                                           nk_size_t result_stride, nk_size_t rows_begin,
+                                                           nk_size_t rows_end, nk_capability_t capabilities,
+                                                           nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_nvfp4_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -4538,48 +4535,60 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_mxfp8e5m2_capabili
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp4_best(nk_mxfp4_cref_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp4_best(nk_mxfp4_cref_t const *vectors, nk_size_t vector_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                           nk_size_t result_stride, nk_size_t row_start,
-                                                           nk_size_t row_count, nk_capability_t capabilities,
-                                                           void *stream) {
+                                                           nk_size_t result_stride, nk_size_t rows_begin,
+                                                           nk_size_t rows_end, nk_capability_t capabilities,
+                                                           nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_mxfp4_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
-NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp8e4m3_best(
-    nk_mxfp8e4m3_cref_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp8e4m3_best(nk_mxfp8e4m3_cref_t const *vectors,
+                                                               nk_size_t vector_count, nk_size_t depth,
+                                                               nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t rows_begin,
+                                                               nk_size_t rows_end, nk_capability_t capabilities,
+                                                               nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_mxfp8e4m3_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp6e2m3_best(
-    nk_mxfp6e2m3_cref_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp6e2m3_best(nk_mxfp6e2m3_cref_t const *vectors,
+                                                               nk_size_t vector_count, nk_size_t depth,
+                                                               nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t rows_begin,
+                                                               nk_size_t rows_end, nk_capability_t capabilities,
+                                                               nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_mxfp6e2m3_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp6e3m2_best(
-    nk_mxfp6e3m2_cref_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp6e3m2_best(nk_mxfp6e3m2_cref_t const *vectors,
+                                                               nk_size_t vector_count, nk_size_t depth,
+                                                               nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t rows_begin,
+                                                               nk_size_t rows_end, nk_capability_t capabilities,
+                                                               nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_mxfp6e3m2_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
-NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp8e5m2_best(
-    nk_mxfp8e5m2_cref_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp8e5m2_best(nk_mxfp8e5m2_cref_t const *vectors,
+                                                               nk_size_t vector_count, nk_size_t depth,
+                                                               nk_size_t stride, nk_f32_t *result,
+                                                               nk_size_t result_stride, nk_size_t rows_begin,
+                                                               nk_size_t rows_end, nk_capability_t capabilities,
+                                                               nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_mxfp8e5m2_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -4676,7 +4685,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_e3m2_capabilities(void)
 NUMKONG_API nk_status_t nk_angulars_packed_e3m2_best(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_e3m2_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -4772,14 +4781,14 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_e3m2_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_best(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_best(nk_e3m2_t const *vectors, nk_size_t vector_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, nk_capability_t capabilities,
-                                                        void *stream) {
+                                                        nk_size_t result_stride, nk_size_t rows_begin,
+                                                        nk_size_t rows_end, nk_capability_t capabilities,
+                                                        nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_e3m2_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -4876,7 +4885,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_e3m2_capabilities(voi
 NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_best(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,
                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                        nk_size_t a_stride, nk_size_t c_stride,
-                                                       nk_capability_t capabilities, void *stream) {
+                                                       nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_e3m2_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -4972,14 +4981,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_e3m2_capabilities(
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_best(nk_e3m2_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_best(nk_e3m2_t const *vectors, nk_size_t vector_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count, nk_capability_t capabilities,
-                                                          void *stream) {
+                                                          nk_size_t result_stride, nk_size_t rows_begin,
+                                                          nk_size_t rows_end, nk_capability_t capabilities,
+                                                          nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_e3m2_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -5084,7 +5093,8 @@ static nk_capability_kernels_t const *nk_angulars_packed_i8_capabilities(void) {
 
 NUMKONG_API nk_status_t nk_angulars_packed_i8_best(nk_i8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                    nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                                   nk_size_t c_stride, nk_capability_t capabilities, void *stream) {
+                                                   nk_size_t c_stride, nk_capability_t capabilities,
+                                                   nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_i8_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -5189,13 +5199,13 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_i8_capabilities(void
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_i8_best(nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_best(nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                      nk_size_t row_start, nk_size_t row_count,
-                                                      nk_capability_t capabilities, void *stream) {
+                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                      nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_i8_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -5301,7 +5311,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_i8_capabilities(void)
 NUMKONG_API nk_status_t nk_euclideans_packed_i8_best(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_i8_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -5406,14 +5416,13 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_i8_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_best(nk_i8_t const *vectors, nk_size_t vectors_count,
-                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, nk_capability_t capabilities,
-                                                        void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_best(nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                        nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                        nk_size_t rows_begin, nk_size_t rows_end,
+                                                        nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_i8_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -5518,7 +5527,8 @@ static nk_capability_kernels_t const *nk_angulars_packed_u8_capabilities(void) {
 
 NUMKONG_API nk_status_t nk_angulars_packed_u8_best(nk_u8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                    nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                                   nk_size_t c_stride, nk_capability_t capabilities, void *stream) {
+                                                   nk_size_t c_stride, nk_capability_t capabilities,
+                                                   nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_u8_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -5623,13 +5633,13 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_u8_capabilities(void
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_u8_best(nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_best(nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
-                                                      nk_size_t row_start, nk_size_t row_count,
-                                                      nk_capability_t capabilities, void *stream) {
+                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                      nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_u8_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -5735,7 +5745,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_u8_capabilities(void)
 NUMKONG_API nk_status_t nk_euclideans_packed_u8_best(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_u8_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -5840,14 +5850,13 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_u8_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_best(nk_u8_t const *vectors, nk_size_t vectors_count,
-                                                        nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, nk_capability_t capabilities,
-                                                        void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_best(nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                        nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                        nk_size_t rows_begin, nk_size_t rows_end,
+                                                        nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_u8_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -5929,7 +5938,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_i4_capabilities(void) {
 NUMKONG_API nk_status_t nk_angulars_packed_i4_best(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                    nk_size_t a_stride, nk_size_t c_stride, nk_capability_t capabilities,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_i4_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -6010,13 +6019,13 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_i4_capabilities(void
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_i4_best(nk_i4x2_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
-                                                      nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_best(nk_i4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                      nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_i4_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -6098,7 +6107,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_i4_capabilities(void)
 NUMKONG_API nk_status_t nk_euclideans_packed_i4_best(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_i4_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -6179,14 +6188,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_i4_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_best(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_best(nk_i4x2_t const *vectors, nk_size_t vector_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, nk_capability_t capabilities,
-                                                        void *stream) {
+                                                        nk_size_t result_stride, nk_size_t rows_begin,
+                                                        nk_size_t rows_end, nk_capability_t capabilities,
+                                                        nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_i4_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -6268,7 +6277,7 @@ static nk_capability_kernels_t const *nk_angulars_packed_u4_capabilities(void) {
 NUMKONG_API nk_status_t nk_angulars_packed_u4_best(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                    nk_size_t a_stride, nk_size_t c_stride, nk_capability_t capabilities,
-                                                   void *stream) {
+                                                   nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_packed_u4_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -6349,13 +6358,13 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_u4_capabilities(void
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_u4_best(nk_u4x2_t const *vectors, nk_size_t vectors_count,
-                                                      nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                      nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
-                                                      nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_best(nk_u4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                      nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
+                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                      nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_angulars_symmetric_u4_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -6437,7 +6446,7 @@ static nk_capability_kernels_t const *nk_euclideans_packed_u4_capabilities(void)
 NUMKONG_API nk_status_t nk_euclideans_packed_u4_best(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_packed_u4_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
@@ -6518,14 +6527,14 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_u4_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_best(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_best(nk_u4x2_t const *vectors, nk_size_t vector_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, nk_capability_t capabilities,
-                                                        void *stream) {
+                                                        nk_size_t result_stride, nk_size_t rows_begin,
+                                                        nk_size_t rows_end, nk_capability_t capabilities,
+                                                        nk_stream_t stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_euclideans_symmetric_u4_capabilities());
-    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+    return kernel ? kernel(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end, stream)
                   : nk_missing_kernel_k;
 }
 

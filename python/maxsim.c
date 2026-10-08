@@ -187,7 +187,7 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
     PyObject *b_obj = NULL;
     PyObject *dtype_obj = NULL;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     Py_ssize_t total = nargs + nkw;
@@ -335,9 +335,9 @@ char const doc_maxsim_packed[] =                                             //
     "Signature:\n"                                                           //
     "    >>> def maxsim_packed(queries, documents, /) -> float: ...";
 
-static PyObject *maxsim_result_to_py_number(                                //
-    nk_maxsim_packed_punned_t kernel, void *stream, nk_dtype_t input_dtype, //
-    void const *queries, void const *documents,                             //
+static PyObject *maxsim_result_to_py_number(                                      //
+    nk_maxsim_packed_punned_t kernel, nk_stream_t stream, nk_dtype_t input_dtype, //
+    void const *queries, void const *documents,                                   //
     nk_size_t query_count, nk_size_t document_count, nk_size_t depth) {
 
     nk_dtype_t out_dtype = nk_kernel_output_dtype(nk_kernel_maxsim_packed_k, input_dtype);
@@ -376,7 +376,7 @@ PyObject *api_maxsim_packed(PyObject *self, PyObject *const *args, Py_ssize_t na
     MaxSimPackedMatrix *queries = (MaxSimPackedMatrix *)args[0];
     MaxSimPackedMatrix *documents = (MaxSimPackedMatrix *)args[1];
     nk_capability_t capabilities = queries->capabilities;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
     Py_ssize_t const kwnames_count = kwnames ? PyTuple_Size(kwnames) : 0;
     for (Py_ssize_t i = 0; i < kwnames_count; ++i)
         if (!parse_dispatch_keyword(PyTuple_GET_ITEM(kwnames, i), args[nargs + i], &capabilities, &stream)) return NULL;
@@ -424,7 +424,7 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
     PyObject *queries_obj = NULL, *documents_obj = NULL;
     PyObject *dtype_obj = NULL;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     Py_ssize_t total = nargs + nkw;

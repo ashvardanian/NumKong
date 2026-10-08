@@ -37,7 +37,7 @@ static nk_capability_kernels_t const *nk_sparse_intersect_u16_capabilities(void)
 
 NUMKONG_API nk_status_t nk_sparse_intersect_u16_best(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
                                                      nk_size_t b_length, nk_u16_t *result, nk_size_t *count,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_sparse_intersect_punned_t const kernel = (nk_sparse_intersect_punned_t)nk_kernel_pick_(
         capabilities, nk_sparse_intersect_u16_capabilities());
     return kernel ? kernel(a, b, a_length, b_length, result, count, stream) : nk_missing_kernel_k;
@@ -73,7 +73,7 @@ static nk_capability_kernels_t const *nk_sparse_intersect_u32_capabilities(void)
 
 NUMKONG_API nk_status_t nk_sparse_intersect_u32_best(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
                                                      nk_size_t b_length, nk_u32_t *result, nk_size_t *count,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_sparse_intersect_punned_t const kernel = (nk_sparse_intersect_punned_t)nk_kernel_pick_(
         capabilities, nk_sparse_intersect_u32_capabilities());
     return kernel ? kernel(a, b, a_length, b_length, result, count, stream) : nk_missing_kernel_k;
@@ -109,7 +109,7 @@ static nk_capability_kernels_t const *nk_sparse_intersect_u64_capabilities(void)
 
 NUMKONG_API nk_status_t nk_sparse_intersect_u64_best(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
                                                      nk_size_t b_length, nk_u64_t *result, nk_size_t *count,
-                                                     nk_capability_t capabilities, void *stream) {
+                                                     nk_capability_t capabilities, nk_stream_t stream) {
     nk_sparse_intersect_punned_t const kernel = (nk_sparse_intersect_punned_t)nk_kernel_pick_(
         capabilities, nk_sparse_intersect_u64_capabilities());
     return kernel ? kernel(a, b, a_length, b_length, result, count, stream) : nk_missing_kernel_k;
@@ -137,7 +137,8 @@ static nk_capability_kernels_t const *nk_sparse_dot_u16bf16_capabilities(void) {
 
 NUMKONG_API nk_status_t nk_sparse_dot_u16bf16_best(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
                                                    nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                                   nk_f32_t *product, nk_capability_t capabilities, void *stream) {
+                                                   nk_f32_t *product, nk_capability_t capabilities,
+                                                   nk_stream_t stream) {
     nk_sparse_dot_punned_t const kernel = (nk_sparse_dot_punned_t)nk_kernel_pick_(capabilities,
                                                                                   nk_sparse_dot_u16bf16_capabilities());
     return kernel ? kernel(a, b, a_weights, b_weights, a_length, b_length, product, stream) : nk_missing_kernel_k;
@@ -173,7 +174,7 @@ static nk_capability_kernels_t const *nk_sparse_dot_u32f32_capabilities(void) {
 
 NUMKONG_API nk_status_t nk_sparse_dot_u32f32_best(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
                                                   nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
-                                                  nk_f64_t *product, nk_capability_t capabilities, void *stream) {
+                                                  nk_f64_t *product, nk_capability_t capabilities, nk_stream_t stream) {
     nk_sparse_dot_punned_t const kernel = (nk_sparse_dot_punned_t)nk_kernel_pick_(capabilities,
                                                                                   nk_sparse_dot_u32f32_capabilities());
     return kernel ? kernel(a, b, a_weights, b_weights, a_length, b_length, product, stream) : nk_missing_kernel_k;

@@ -82,7 +82,7 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_buffer a_buffer, b_buffer, c_buffer, out_buffer;
     nk_buffer_backing_t a_backing, b_backing, c_backing, out_backing;
@@ -234,7 +234,7 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_buffer a_buffer, b_buffer, out_buffer;
     nk_buffer_backing_t a_backing, b_backing, out_backing;
@@ -379,7 +379,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_buffer a_buffer, out_buffer;
     nk_buffer_backing_t a_backing, out_backing;
@@ -506,7 +506,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
     PyObject *x_obj = NULL, *gamma_obj = NULL, *out_obj = NULL;
     PyObject *groups_obj = NULL, *epsilon_value = NULL;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_buffer x_buffer, gamma_buffer, out_buffer;
     nk_buffer_backing_t x_backing, gamma_backing, out_backing;
@@ -663,7 +663,7 @@ PyObject *api_rmscast(PyObject *self, PyObject *const *args, Py_ssize_t const po
     PyObject *x_obj = NULL, *gamma_obj = NULL, *dtype_obj = NULL, *out_obj = NULL;
     PyObject *groups_obj = NULL, *epsilon_value = NULL;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_buffer x_buffer, gamma_buffer, out_buffer;
     nk_buffer_backing_t x_backing, gamma_backing, out_backing;
@@ -820,7 +820,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     PyObject *return_obj = NULL;
     PyObject *gate_obj = NULL, *up_obj = NULL, *out_obj = NULL, *gate_scale_value = NULL, *output_scale_value = NULL;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_buffer gate_buffer, up_buffer, out_buffer;
     nk_buffer_backing_t gate_backing, up_backing, out_backing;
@@ -960,7 +960,7 @@ char const doc_add[] =                                                          
 
 /** Handle scalar + array addition: result = 1 * array + scalar. */
 static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyObject *out_obj, PyObject *out_dtype_obj,
-                                  nk_capability_t capabilities, void *stream) {
+                                  nk_capability_t capabilities, nk_stream_t stream) {
     PyObject *return_obj = NULL;
     char *cast_staging = NULL;
     Py_buffer a_buffer, out_buffer;
@@ -1065,7 +1065,7 @@ cleanup:
 
 /** Handle array + array addition using sum kernel with dtype promotion. */
 static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, PyObject *out_dtype_obj,
-                                 nk_capability_t capabilities, void *stream) {
+                                 nk_capability_t capabilities, nk_stream_t stream) {
     PyObject *return_obj = NULL;
     char *a_promoted = NULL;
     char *b_promoted = NULL;
@@ -1207,7 +1207,7 @@ PyObject *api_add(PyObject *self, PyObject *const *args, Py_ssize_t const positi
     PyObject *a_obj = NULL, *b_obj = NULL;
     PyObject *out_obj = NULL, *a_dtype_obj = NULL, *b_dtype_obj = NULL, *out_dtype_obj = NULL;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
@@ -1271,7 +1271,7 @@ char const doc_multiply[] =                                                     
 
 /** Handle scalar * array multiplication: result = scalar * array + 0. */
 static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyObject *out_obj,
-                                       PyObject *out_dtype_obj, nk_capability_t capabilities, void *stream) {
+                                       PyObject *out_dtype_obj, nk_capability_t capabilities, nk_stream_t stream) {
     PyObject *return_obj = NULL;
     char *cast_staging = NULL;
     Py_buffer a_buffer, out_buffer;
@@ -1376,7 +1376,7 @@ cleanup:
 
 /** Handle array * array multiplication using fma kernel with dtype promotion. */
 static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, PyObject *out_dtype_obj,
-                                      nk_capability_t capabilities, void *stream) {
+                                      nk_capability_t capabilities, nk_stream_t stream) {
     PyObject *return_obj = NULL;
     char *a_promoted = NULL;
     char *b_promoted = NULL;
@@ -1526,7 +1526,7 @@ PyObject *api_multiply(PyObject *self, PyObject *const *args, Py_ssize_t const p
     PyObject *a_obj = NULL, *b_obj = NULL;
     PyObject *out_obj = NULL, *a_dtype_obj = NULL, *b_dtype_obj = NULL, *out_dtype_obj = NULL;
     nk_capability_t capabilities = nk_cap_cpus_k;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;

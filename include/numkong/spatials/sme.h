@@ -394,7 +394,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_f16_sme_finalize_ssve_( //
 #if NUMKONG_TARGET_SME
 NUMKONG_API nk_status_t nk_angulars_packed_f16_sme( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_f16_t);
@@ -430,7 +430,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_f16_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_euclideans_packed_f16_sme( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_f16_t);
@@ -444,20 +444,20 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f16_sme( //
 }
 
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_f16_sme_finalize_ssve_( //
-    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_f16_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_f16_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -473,42 +473,42 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_f16_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_f16_sme( //
-    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_f16_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_f16_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                         row_count);
-    nk_angulars_symmetric_f16_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                 result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_f16_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                         rows_end);
+    nk_angulars_symmetric_f16_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                 result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_f16_sme_finalize_ssve_( //
-    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_f16_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_f16_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -524,23 +524,23 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_f16_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_sme( //
-    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_f16_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_f16_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                         row_count);
-    nk_euclideans_symmetric_f16_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                   result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_f16_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                         rows_end);
+    nk_euclideans_symmetric_f16_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                   result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -572,7 +572,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_bf16_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_angulars_packed_bf16_sme( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_bf16_t);
@@ -608,7 +608,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_bf16_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_euclideans_packed_bf16_sme( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_bf16_t);
@@ -622,20 +622,20 @@ NUMKONG_API nk_status_t nk_euclideans_packed_bf16_sme( //
 }
 
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_bf16_sme_finalize_ssve_( //
-    nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_bf16_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_bf16_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -651,42 +651,42 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_bf16_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_sme( //
-    nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_bf16_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_bf16_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_angulars_symmetric_bf16_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                  result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_bf16_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_angulars_symmetric_bf16_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                  result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_bf16_sme_finalize_ssve_( //
-    nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_bf16_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_bf16_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -702,23 +702,23 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_bf16_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_sme( //
-    nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_bf16_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_bf16_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_euclideans_symmetric_bf16_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                    result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_bf16_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_euclideans_symmetric_bf16_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                    result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -750,7 +750,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_e4m3_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_angulars_packed_e4m3_sme( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e4m3_t);
@@ -786,7 +786,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_e4m3_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_sme( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e4m3_t);
@@ -800,20 +800,20 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_sme( //
 }
 
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_e4m3_sme_finalize_ssve_( //
-    nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_e4m3_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e4m3_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -829,42 +829,42 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_e4m3_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_sme( //
-    nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_e4m3_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_e4m3_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_angulars_symmetric_e4m3_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                  result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_e4m3_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_angulars_symmetric_e4m3_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                  result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e4m3_sme_finalize_ssve_( //
-    nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_e4m3_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e4m3_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -880,23 +880,23 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e4m3_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_sme( //
-    nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_e4m3_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_e4m3_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_euclideans_symmetric_e4m3_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                    result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_e4m3_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_euclideans_symmetric_e4m3_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                    result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -928,7 +928,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_e5m2_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_angulars_packed_e5m2_sme( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e5m2_t);
@@ -964,7 +964,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_e5m2_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_sme( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e5m2_t);
@@ -978,20 +978,20 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_sme( //
 }
 
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_e5m2_sme_finalize_ssve_( //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_e5m2_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e5m2_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1007,42 +1007,42 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_e5m2_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_sme( //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_e5m2_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_e5m2_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_angulars_symmetric_e5m2_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                  result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_e5m2_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_angulars_symmetric_e5m2_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                  result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e5m2_sme_finalize_ssve_( //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_e5m2_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e5m2_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1058,23 +1058,23 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e5m2_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_sme( //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_e5m2_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_e5m2_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_euclideans_symmetric_e5m2_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                    result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_e5m2_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_euclideans_symmetric_e5m2_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                    result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -1106,7 +1106,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_e2m3_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_angulars_packed_e2m3_sme( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e2m3_t);
@@ -1142,7 +1142,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_e2m3_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_sme( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e2m3_t);
@@ -1156,20 +1156,20 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_sme( //
 }
 
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_e2m3_sme_finalize_ssve_( //
-    nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_e2m3_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e2m3_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1185,42 +1185,42 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_e2m3_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_sme( //
-    nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_e2m3_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_e2m3_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_angulars_symmetric_e2m3_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                  result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_e2m3_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_angulars_symmetric_e2m3_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                  result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e2m3_sme_finalize_ssve_( //
-    nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_e2m3_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e2m3_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1236,23 +1236,23 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e2m3_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_sme( //
-    nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_e2m3_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_e2m3_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_euclideans_symmetric_e2m3_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                    result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_e2m3_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_euclideans_symmetric_e2m3_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                    result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -1284,7 +1284,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_e2m1_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_angulars_packed_e2m1_sme( //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e2m1x2_t);
@@ -1320,7 +1320,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_e2m1_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_sme( //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e2m1x2_t);
@@ -1334,20 +1334,20 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_sme( //
 }
 
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_e2m1_sme_finalize_ssve_( //
-    nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_e2m1_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e2m1_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1363,42 +1363,42 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_e2m1_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_sme( //
-    nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_e2m1x2_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_e2m1_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_angulars_symmetric_e2m1_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                  result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_e2m1_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_angulars_symmetric_e2m1_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                  result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e2m1_sme_finalize_ssve_( //
-    nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_e2m1_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e2m1_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1414,23 +1414,23 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e2m1_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_sme( //
-    nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_e2m1x2_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_e2m1_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_euclideans_symmetric_e2m1_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                    result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_e2m1_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_euclideans_symmetric_e2m1_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                    result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -1462,7 +1462,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_e3m2_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_angulars_packed_e3m2_sme( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e3m2_t);
@@ -1498,7 +1498,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_e3m2_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_sme( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e3m2_t);
@@ -1512,20 +1512,20 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_sme( //
 }
 
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_e3m2_sme_finalize_ssve_( //
-    nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_e3m2_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e3m2_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1541,42 +1541,42 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_e3m2_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_sme( //
-    nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_e3m2_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_e3m2_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_angulars_symmetric_e3m2_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                  result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_e3m2_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_angulars_symmetric_e3m2_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                  result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e3m2_sme_finalize_ssve_( //
-    nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_f32_t *result_row = result + row_index * result_stride_elements;
         result_row[row_index] = nk_dots_reduce_sumsq_e3m2_ssve_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
     nk_f32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e3m2_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1592,23 +1592,23 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_e3m2_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_sme( //
-    nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_e3m2_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_e3m2_sme_streaming_(vectors, stride, vectors_count, depth, result, result_stride, row_start,
-                                          row_count);
-    nk_euclideans_symmetric_e3m2_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                    result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_e3m2_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
+                                          rows_end);
+    nk_euclideans_symmetric_e3m2_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                    result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -1637,7 +1637,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_i8_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_angulars_packed_i8_sme( //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_i8_t);
@@ -1671,7 +1671,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_i8_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_euclideans_packed_i8_sme( //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_i8_t);
@@ -1685,20 +1685,20 @@ NUMKONG_API nk_status_t nk_euclideans_packed_i8_sme( //
 }
 
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_i8_sme_finalize_ssve_( //
-    nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_u32_t row_sumsq_u32 = nk_dots_reduce_sumsq_i8_ssve_(vectors + row_index * stride_elements, depth);
         ((nk_u32_t *)(result + row_index * result_stride_elements))[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
     nk_u32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_i8_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1713,42 +1713,42 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_i8_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_i8_sme( //
-    nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_i8_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_i8_sme_streaming_(vectors, stride, vectors_count, depth, (nk_i32_t *)result, result_stride,
-                                        row_start, row_count);
-    nk_angulars_symmetric_i8_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_i8_sme_streaming_(vectors, stride, vector_count, depth, (nk_i32_t *)result, result_stride,
+                                        rows_begin, rows_end);
+    nk_angulars_symmetric_i8_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_i8_sme_finalize_ssve_( //
-    nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_u32_t row_sumsq_u32 = nk_dots_reduce_sumsq_i8_ssve_(vectors + row_index * stride_elements, depth);
         ((nk_u32_t *)(result + row_index * result_stride_elements))[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
     nk_u32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_i8_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1763,23 +1763,23 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_i8_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_sme( //
-    nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_i8_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_i8_sme_streaming_(vectors, stride, vectors_count, depth, (nk_i32_t *)result, result_stride,
-                                        row_start, row_count);
-    nk_euclideans_symmetric_i8_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                  result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_i8_sme_streaming_(vectors, stride, vector_count, depth, (nk_i32_t *)result, result_stride,
+                                        rows_begin, rows_end);
+    nk_euclideans_symmetric_i8_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                  result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -1809,7 +1809,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_u8_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_angulars_packed_u8_sme( //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_u8_t);
@@ -1843,7 +1843,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_u8_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_euclideans_packed_u8_sme( //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_u8_t);
@@ -1857,20 +1857,20 @@ NUMKONG_API nk_status_t nk_euclideans_packed_u8_sme( //
 }
 
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_u8_sme_finalize_ssve_( //
-    nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_u32_t row_sumsq_u32 = nk_dots_reduce_sumsq_u8_ssve_(vectors + row_index * stride_elements, depth);
         ((nk_u32_t *)(result + row_index * result_stride_elements))[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
     nk_u32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_u8_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1885,42 +1885,42 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_u8_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_u8_sme( //
-    nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_u8_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_u8_sme_streaming_(vectors, stride, vectors_count, depth, (nk_u32_t *)result, result_stride,
-                                        row_start, row_count);
-    nk_angulars_symmetric_u8_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_u8_sme_streaming_(vectors, stride, vector_count, depth, (nk_u32_t *)result, result_stride,
+                                        rows_begin, rows_end);
+    nk_angulars_symmetric_u8_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_u8_sme_finalize_ssve_( //
-    nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_u32_t row_sumsq_u32 = nk_dots_reduce_sumsq_u8_ssve_(vectors + row_index * stride_elements, depth);
         ((nk_u32_t *)(result + row_index * result_stride_elements))[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
     nk_u32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_u8_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -1935,23 +1935,23 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_u8_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_sme( //
-    nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_u8_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_u8_sme_streaming_(vectors, stride, vectors_count, depth, (nk_u32_t *)result, result_stride,
-                                        row_start, row_count);
-    nk_euclideans_symmetric_u8_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                  result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_u8_sme_streaming_(vectors, stride, vector_count, depth, (nk_u32_t *)result, result_stride,
+                                        rows_begin, rows_end);
+    nk_euclideans_symmetric_u8_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                  result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -1981,7 +1981,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_i4_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_angulars_packed_i4_sme( //
     nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_i4x2_t);
@@ -2015,7 +2015,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_i4_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_euclideans_packed_i4_sme( //
     nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_i4x2_t);
@@ -2029,20 +2029,20 @@ NUMKONG_API nk_status_t nk_euclideans_packed_i4_sme( //
 }
 
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_i4_sme_finalize_ssve_( //
-    nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_i4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_u32_t row_sumsq_u32 = nk_dots_reduce_sumsq_i4_ssve_(vectors + row_index * stride_elements, depth);
         ((nk_u32_t *)(result + row_index * result_stride_elements))[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
     nk_u32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_i4_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -2057,42 +2057,42 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_i4_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_i4_sme( //
-    nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_i4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_i4x2_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_i4_sme_streaming_(vectors, stride, vectors_count, depth, (nk_i32_t *)result, result_stride,
-                                        row_start, row_count);
-    nk_angulars_symmetric_i4_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_i4_sme_streaming_(vectors, stride, vector_count, depth, (nk_i32_t *)result, result_stride,
+                                        rows_begin, rows_end);
+    nk_angulars_symmetric_i4_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_i4_sme_finalize_ssve_( //
-    nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_i4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_u32_t row_sumsq_u32 = nk_dots_reduce_sumsq_i4_ssve_(vectors + row_index * stride_elements, depth);
         ((nk_u32_t *)(result + row_index * result_stride_elements))[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
     nk_u32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_i4_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -2107,23 +2107,23 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_i4_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_sme( //
-    nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_i4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_i4x2_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_i4_sme_streaming_(vectors, stride, vectors_count, depth, (nk_i32_t *)result, result_stride,
-                                        row_start, row_count);
-    nk_euclideans_symmetric_i4_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                  result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_i4_sme_streaming_(vectors, stride, vector_count, depth, (nk_i32_t *)result, result_stride,
+                                        rows_begin, rows_end);
+    nk_euclideans_symmetric_i4_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                  result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -2153,7 +2153,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_u4_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_angulars_packed_u4_sme( //
     nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_u4x2_t);
@@ -2187,7 +2187,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_u4_sme_finalize_ssve_( //
 
 NUMKONG_API nk_status_t nk_euclideans_packed_u4_sme( //
     nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_u4x2_t);
@@ -2201,20 +2201,20 @@ NUMKONG_API nk_status_t nk_euclideans_packed_u4_sme( //
 }
 
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_u4_sme_finalize_ssve_( //
-    nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_u4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_u32_t row_sumsq_u32 = nk_dots_reduce_sumsq_u4_ssve_(vectors + row_index * stride_elements, depth);
         ((nk_u32_t *)(result + row_index * result_stride_elements))[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
     nk_u32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_u4_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -2229,42 +2229,42 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_u4_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_u4_sme( //
-    nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_u4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_u4x2_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_u4_sme_streaming_(vectors, stride, vectors_count, depth, (nk_u32_t *)result, result_stride,
-                                        row_start, row_count);
-    nk_angulars_symmetric_u4_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_u4_sme_streaming_(vectors, stride, vector_count, depth, (nk_u32_t *)result, result_stride,
+                                        rows_begin, rows_end);
+    nk_angulars_symmetric_u4_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_u4_sme_finalize_ssve_( //
-    nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
-    nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
+    nk_u4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
+    nk_size_t result_stride_elements, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     // cache row norms on diagonal (store as u32 in f32 slot)
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
         nk_u32_t row_sumsq_u32 = nk_dots_reduce_sumsq_u4_ssve_(vectors + row_index * stride_elements, depth);
         ((nk_u32_t *)(result + row_index * result_stride_elements))[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
     nk_u32_t norms_cache[256];
-    for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
-        nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
+    for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
+        nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
             norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_u4_ssve_(vectors + col * stride_elements, depth);
-        for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {
+        for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
             nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
             if (col_start >= chunk_end) continue;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
@@ -2279,23 +2279,23 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_u4_sme_finalize_ssve_( //
         }
     }
     // zero diagonals
-    for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index)
+    for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index)
         result[row_index * result_stride_elements + row_index] = 0;
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_sme( //
-    nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_u4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
-    row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_size_t const stride_elements = stride / sizeof(nk_u4x2_t);
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_u4_sme_streaming_(vectors, stride, vectors_count, depth, (nk_u32_t *)result, result_stride,
-                                        row_start, row_count);
-    nk_euclideans_symmetric_u4_sme_finalize_ssve_(vectors, vectors_count, depth, stride_elements, result,
-                                                  result_stride_elements, row_start, row_count);
+    nk_dots_symmetric_u4_sme_streaming_(vectors, stride, vector_count, depth, (nk_u32_t *)result, result_stride,
+                                        rows_begin, rows_end);
+    nk_euclideans_symmetric_u4_sme_finalize_ssve_(vectors, vector_count, depth, stride_elements, result,
+                                                  result_stride_elements, rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -2319,20 +2319,20 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_nvfp4_sme_finalize_ssve_(nk_cross_oper
 
 /** Turns symmetric NVFP4 relative dots into angular distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_nvfp4_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                      nk_size_t count, nk_size_t depth,
+                                                                      nk_size_t vector_count, nk_size_t depth,
                                                                       nk_f32_t *result, nk_size_t result_stride,
-                                                                      nk_size_t row_start,
-                                                                      nk_size_t row_end) NUMKONG_STREAMING_ {
+                                                                      nk_size_t rows_begin,
+                                                                      nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column)
             norms[column - chunk] = nk_dots_scaled_row_nvfp4_sme_(vectors, stride, column, depth,
                                                                   &exponents[column - chunk]);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_nvfp4_sme_(vectors, stride, row, depth, &exponent);
@@ -2340,7 +2340,8 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_nvfp4_sme_finalize_ssve_(nk_cross_o
                                             chunk_end - first, mantissa * mantissa, norm, norms + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 /** Turns packed NVFP4 relative dots into Euclidean distances. */
@@ -2361,20 +2362,20 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_nvfp4_sme_finalize_ssve_(nk_cross_op
 
 /** Turns symmetric NVFP4 relative dots into Euclidean distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_nvfp4_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                        nk_size_t count, nk_size_t depth,
+                                                                        nk_size_t vector_count, nk_size_t depth,
                                                                         nk_f32_t *result, nk_size_t result_stride,
-                                                                        nk_size_t row_start,
-                                                                        nk_size_t row_end) NUMKONG_STREAMING_ {
+                                                                        nk_size_t rows_begin,
+                                                                        nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column)
             norms[column - chunk] = nk_dots_scaled_row_nvfp4_sme_(vectors, stride, column, depth,
                                                                   &exponents[column - chunk]);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_nvfp4_sme_(vectors, stride, row, depth, &exponent);
@@ -2383,12 +2384,13 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_nvfp4_sme_finalize_ssve_(nk_cross
                                               norms + (first - chunk), exponents + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_packed_nvfp4_sme(nk_nvfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+                                                     nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_nvfp4_k, a, a_stride);
@@ -2398,24 +2400,24 @@ NUMKONG_API nk_status_t nk_angulars_packed_nvfp4_sme(nk_nvfp4_cref_t const *a, v
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_angulars_symmetric_nvfp4_sme(nk_nvfp4_cref_t const *vectors, nk_size_t count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_nvfp4_sme(nk_nvfp4_cref_t const *vectors, nk_size_t vector_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, void *stream) {
+                                                        nk_size_t result_stride, nk_size_t rows_begin,
+                                                        nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_nvfp4_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_nvfp4_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                           row_end - row_start);
-    nk_angulars_symmetric_nvfp4_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride, row_start,
-                                                   row_end);
+    nk_dots_symmetric_nvfp4_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                           rows_end);
+    nk_angulars_symmetric_nvfp4_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                   rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_euclideans_packed_nvfp4_sme(nk_nvfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+                                                       nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_nvfp4_k, a, a_stride);
@@ -2425,18 +2427,18 @@ NUMKONG_API nk_status_t nk_euclideans_packed_nvfp4_sme(nk_nvfp4_cref_t const *a,
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_euclideans_symmetric_nvfp4_sme(nk_nvfp4_cref_t const *vectors, nk_size_t count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_nvfp4_sme(nk_nvfp4_cref_t const *vectors, nk_size_t vector_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count, void *stream) {
+                                                          nk_size_t result_stride, nk_size_t rows_begin,
+                                                          nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_nvfp4_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_nvfp4_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                           row_end - row_start);
-    nk_euclideans_symmetric_nvfp4_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride, row_start,
-                                                     row_end);
+    nk_dots_symmetric_nvfp4_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                           rows_end);
+    nk_euclideans_symmetric_nvfp4_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                     rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -2460,18 +2462,18 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_mxfp4_sme_finalize_ssve_(nk_cross_oper
 
 /** Turns symmetric MXFP4 relative dots into angular distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp4_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                      nk_size_t count, nk_size_t depth,
+                                                                      nk_size_t vector_count, nk_size_t depth,
                                                                       nk_f32_t *result, nk_size_t result_stride,
-                                                                      nk_size_t row_start,
-                                                                      nk_size_t row_end) NUMKONG_STREAMING_ {
+                                                                      nk_size_t rows_begin,
+                                                                      nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
             nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
@@ -2479,9 +2481,9 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp4_sme_finalize_ssve_(nk_cross_o
             norms[column - chunk] = nk_dots_scaled_row_mxfp4_sme_(vectors, stride, column, depth,
                                                                   &exponents[column - chunk]);
         }
-        nk_dots_scaled_exact_mxfp4_sme_(vectors, stride, row_start, row_end, vectors, stride, chunk, chunk_end, bases,
+        nk_dots_scaled_exact_mxfp4_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end, bases,
                                         exponents, 1, depth, result, result_stride);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp4_sme_(vectors, stride, row, depth, &exponent);
@@ -2489,7 +2491,8 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp4_sme_finalize_ssve_(nk_cross_o
                                             chunk_end - first, mantissa * mantissa, norm, norms + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 /** Turns packed MXFP4 relative dots into Euclidean distances. */
@@ -2512,18 +2515,18 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_mxfp4_sme_finalize_ssve_(nk_cross_op
 
 /** Turns symmetric MXFP4 relative dots into Euclidean distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp4_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                        nk_size_t count, nk_size_t depth,
+                                                                        nk_size_t vector_count, nk_size_t depth,
                                                                         nk_f32_t *result, nk_size_t result_stride,
-                                                                        nk_size_t row_start,
-                                                                        nk_size_t row_end) NUMKONG_STREAMING_ {
+                                                                        nk_size_t rows_begin,
+                                                                        nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
             nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
@@ -2531,9 +2534,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp4_sme_finalize_ssve_(nk_cross
             norms[column - chunk] = nk_dots_scaled_row_mxfp4_sme_(vectors, stride, column, depth,
                                                                   &exponents[column - chunk]);
         }
-        nk_dots_scaled_exact_mxfp4_sme_(vectors, stride, row_start, row_end, vectors, stride, chunk, chunk_end, bases,
+        nk_dots_scaled_exact_mxfp4_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end, bases,
                                         exponents, 1, depth, result, result_stride);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp4_sme_(vectors, stride, row, depth, &exponent);
@@ -2542,12 +2545,13 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp4_sme_finalize_ssve_(nk_cross
                                               norms + (first - chunk), exponents + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_packed_mxfp4_sme(nk_mxfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                     nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+                                                     nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp4_k, a, a_stride);
@@ -2557,24 +2561,24 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp4_sme(nk_mxfp4_cref_t const *a, v
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp4_sme(nk_mxfp4_cref_t const *vectors, nk_size_t count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp4_sme(nk_mxfp4_cref_t const *vectors, nk_size_t vector_count,
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                        nk_size_t result_stride, nk_size_t row_start,
-                                                        nk_size_t row_count, void *stream) {
+                                                        nk_size_t result_stride, nk_size_t rows_begin,
+                                                        nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp4_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_mxfp4_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                           row_end - row_start);
-    nk_angulars_symmetric_mxfp4_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride, row_start,
-                                                   row_end);
+    nk_dots_symmetric_mxfp4_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                           rows_end);
+    nk_angulars_symmetric_mxfp4_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                   rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_euclideans_packed_mxfp4_sme(nk_mxfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                       nk_size_t a_stride, nk_size_t c_stride, void *stream) {
+                                                       nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp4_k, a, a_stride);
@@ -2584,18 +2588,18 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp4_sme(nk_mxfp4_cref_t const *a,
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp4_sme(nk_mxfp4_cref_t const *vectors, nk_size_t count,
+NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp4_sme(nk_mxfp4_cref_t const *vectors, nk_size_t vector_count,
                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                          nk_size_t result_stride, nk_size_t row_start,
-                                                          nk_size_t row_count, void *stream) {
+                                                          nk_size_t result_stride, nk_size_t rows_begin,
+                                                          nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp4_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_mxfp4_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                           row_end - row_start);
-    nk_euclideans_symmetric_mxfp4_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride, row_start,
-                                                     row_end);
+    nk_dots_symmetric_mxfp4_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                           rows_end);
+    nk_euclideans_symmetric_mxfp4_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                     rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -2620,18 +2624,18 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_mxfp6e2m3_sme_finalize_ssve_(nk_cross_
 
 /** Turns symmetric MXFP6 E2M3 relative dots into angular distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp6e2m3_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                          nk_size_t count, nk_size_t depth,
+                                                                          nk_size_t vector_count, nk_size_t depth,
                                                                           nk_f32_t *result, nk_size_t result_stride,
-                                                                          nk_size_t row_start,
-                                                                          nk_size_t row_end) NUMKONG_STREAMING_ {
+                                                                          nk_size_t rows_begin,
+                                                                          nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
             nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
@@ -2639,9 +2643,9 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp6e2m3_sme_finalize_ssve_(nk_cro
             norms[column - chunk] = nk_dots_scaled_row_mxfp6e2m3_sme_(vectors, stride, column, depth,
                                                                       &exponents[column - chunk]);
         }
-        nk_dots_scaled_exact_mxfp6e2m3_sme_(vectors, stride, row_start, row_end, vectors, stride, chunk, chunk_end,
+        nk_dots_scaled_exact_mxfp6e2m3_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp6e2m3_sme_(vectors, stride, row, depth, &exponent);
@@ -2649,7 +2653,8 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp6e2m3_sme_finalize_ssve_(nk_cro
                                             chunk_end - first, mantissa * mantissa, norm, norms + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 /** Turns packed MXFP6 E2M3 relative dots into Euclidean distances. */
@@ -2673,16 +2678,16 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_mxfp6e2m3_sme_finalize_ssve_(nk_cros
 
 /** Turns symmetric MXFP6 E2M3 relative dots into Euclidean distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp6e2m3_sme_finalize_ssve_(
-    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t count, nk_size_t depth, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_end) NUMKONG_STREAMING_ {
+    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
             nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
@@ -2690,9 +2695,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp6e2m3_sme_finalize_ssve_(
             norms[column - chunk] = nk_dots_scaled_row_mxfp6e2m3_sme_(vectors, stride, column, depth,
                                                                       &exponents[column - chunk]);
         }
-        nk_dots_scaled_exact_mxfp6e2m3_sme_(vectors, stride, row_start, row_end, vectors, stride, chunk, chunk_end,
+        nk_dots_scaled_exact_mxfp6e2m3_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp6e2m3_sme_(vectors, stride, row, depth, &exponent);
@@ -2701,13 +2706,14 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp6e2m3_sme_finalize_ssve_(
                                               norms + (first - chunk), exponents + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_packed_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t const *a, void const *b_packed,
                                                          nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                          nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                         void *stream) {
+                                                         nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e2m3_k, a, a_stride);
@@ -2717,25 +2723,25 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t con
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t const *vectors, nk_size_t count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t const *vectors, nk_size_t vector_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count, void *stream) {
+                                                            nk_size_t result_stride, nk_size_t rows_begin,
+                                                            nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e2m3_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_mxfp6e2m3_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                               row_end - row_start);
-    nk_angulars_symmetric_mxfp6e2m3_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride, row_start,
-                                                       row_end);
+    nk_dots_symmetric_mxfp6e2m3_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                               rows_end);
+    nk_angulars_symmetric_mxfp6e2m3_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                       rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_euclideans_packed_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t const *a, void const *b_packed,
                                                            nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                            nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                           void *stream) {
+                                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e2m3_k, a, a_stride);
@@ -2745,18 +2751,19 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t c
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t const *vectors, nk_size_t count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t const *vectors,
+                                                              nk_size_t vector_count, nk_size_t depth, nk_size_t stride,
+                                                              nk_f32_t *result, nk_size_t result_stride,
+                                                              nk_size_t rows_begin, nk_size_t rows_end,
+                                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e2m3_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_mxfp6e2m3_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                               row_end - row_start);
-    nk_euclideans_symmetric_mxfp6e2m3_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride,
-                                                         row_start, row_end);
+    nk_dots_symmetric_mxfp6e2m3_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                               rows_end);
+    nk_euclideans_symmetric_mxfp6e2m3_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                         rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -2781,18 +2788,18 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_mxfp6e3m2_sme_finalize_ssve_(nk_cross_
 
 /** Turns symmetric MXFP6 E3M2 relative dots into angular distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp6e3m2_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                          nk_size_t count, nk_size_t depth,
+                                                                          nk_size_t vector_count, nk_size_t depth,
                                                                           nk_f32_t *result, nk_size_t result_stride,
-                                                                          nk_size_t row_start,
-                                                                          nk_size_t row_end) NUMKONG_STREAMING_ {
+                                                                          nk_size_t rows_begin,
+                                                                          nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
             nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
@@ -2800,9 +2807,9 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp6e3m2_sme_finalize_ssve_(nk_cro
             norms[column - chunk] = nk_dots_scaled_row_mxfp6e3m2_sme_(vectors, stride, column, depth,
                                                                       &exponents[column - chunk]);
         }
-        nk_dots_scaled_exact_mxfp6e3m2_sme_(vectors, stride, row_start, row_end, vectors, stride, chunk, chunk_end,
+        nk_dots_scaled_exact_mxfp6e3m2_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp6e3m2_sme_(vectors, stride, row, depth, &exponent);
@@ -2810,7 +2817,8 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp6e3m2_sme_finalize_ssve_(nk_cro
                                             chunk_end - first, mantissa * mantissa, norm, norms + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 /** Turns packed MXFP6 E3M2 relative dots into Euclidean distances. */
@@ -2834,16 +2842,16 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_mxfp6e3m2_sme_finalize_ssve_(nk_cros
 
 /** Turns symmetric MXFP6 E3M2 relative dots into Euclidean distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp6e3m2_sme_finalize_ssve_(
-    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t count, nk_size_t depth, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_end) NUMKONG_STREAMING_ {
+    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
             nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
@@ -2851,9 +2859,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp6e3m2_sme_finalize_ssve_(
             norms[column - chunk] = nk_dots_scaled_row_mxfp6e3m2_sme_(vectors, stride, column, depth,
                                                                       &exponents[column - chunk]);
         }
-        nk_dots_scaled_exact_mxfp6e3m2_sme_(vectors, stride, row_start, row_end, vectors, stride, chunk, chunk_end,
+        nk_dots_scaled_exact_mxfp6e3m2_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp6e3m2_sme_(vectors, stride, row, depth, &exponent);
@@ -2862,13 +2870,14 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp6e3m2_sme_finalize_ssve_(
                                               norms + (first - chunk), exponents + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_packed_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t const *a, void const *b_packed,
                                                          nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                          nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                         void *stream) {
+                                                         nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e3m2_k, a, a_stride);
@@ -2878,25 +2887,25 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t con
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t const *vectors, nk_size_t count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t const *vectors, nk_size_t vector_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count, void *stream) {
+                                                            nk_size_t result_stride, nk_size_t rows_begin,
+                                                            nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e3m2_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_mxfp6e3m2_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                               row_end - row_start);
-    nk_angulars_symmetric_mxfp6e3m2_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride, row_start,
-                                                       row_end);
+    nk_dots_symmetric_mxfp6e3m2_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                               rows_end);
+    nk_angulars_symmetric_mxfp6e3m2_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                       rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_euclideans_packed_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t const *a, void const *b_packed,
                                                            nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                            nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                           void *stream) {
+                                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e3m2_k, a, a_stride);
@@ -2906,18 +2915,19 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t c
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t const *vectors, nk_size_t count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t const *vectors,
+                                                              nk_size_t vector_count, nk_size_t depth, nk_size_t stride,
+                                                              nk_f32_t *result, nk_size_t result_stride,
+                                                              nk_size_t rows_begin, nk_size_t rows_end,
+                                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e3m2_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_mxfp6e3m2_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                               row_end - row_start);
-    nk_euclideans_symmetric_mxfp6e3m2_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride,
-                                                         row_start, row_end);
+    nk_dots_symmetric_mxfp6e3m2_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                               rows_end);
+    nk_euclideans_symmetric_mxfp6e3m2_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                         rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -2942,18 +2952,18 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_mxfp8e4m3_sme_finalize_ssve_(nk_cross_
 
 /** Turns symmetric MXFP8 E4M3 relative dots into angular distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp8e4m3_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                          nk_size_t count, nk_size_t depth,
+                                                                          nk_size_t vector_count, nk_size_t depth,
                                                                           nk_f32_t *result, nk_size_t result_stride,
-                                                                          nk_size_t row_start,
-                                                                          nk_size_t row_end) NUMKONG_STREAMING_ {
+                                                                          nk_size_t rows_begin,
+                                                                          nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
             nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
@@ -2961,9 +2971,9 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp8e4m3_sme_finalize_ssve_(nk_cro
             norms[column - chunk] = nk_dots_scaled_row_mxfp8e4m3_sme_(vectors, stride, column, depth,
                                                                       &exponents[column - chunk]);
         }
-        nk_dots_scaled_exact_mxfp8e4m3_sme_(vectors, stride, row_start, row_end, vectors, stride, chunk, chunk_end,
+        nk_dots_scaled_exact_mxfp8e4m3_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp8e4m3_sme_(vectors, stride, row, depth, &exponent);
@@ -2971,7 +2981,8 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp8e4m3_sme_finalize_ssve_(nk_cro
                                             chunk_end - first, mantissa * mantissa, norm, norms + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 /** Turns packed MXFP8 E4M3 relative dots into Euclidean distances. */
@@ -2995,16 +3006,16 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_mxfp8e4m3_sme_finalize_ssve_(nk_cros
 
 /** Turns symmetric MXFP8 E4M3 relative dots into Euclidean distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp8e4m3_sme_finalize_ssve_(
-    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t count, nk_size_t depth, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_end) NUMKONG_STREAMING_ {
+    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
             nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
@@ -3012,9 +3023,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp8e4m3_sme_finalize_ssve_(
             norms[column - chunk] = nk_dots_scaled_row_mxfp8e4m3_sme_(vectors, stride, column, depth,
                                                                       &exponents[column - chunk]);
         }
-        nk_dots_scaled_exact_mxfp8e4m3_sme_(vectors, stride, row_start, row_end, vectors, stride, chunk, chunk_end,
+        nk_dots_scaled_exact_mxfp8e4m3_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp8e4m3_sme_(vectors, stride, row, depth, &exponent);
@@ -3023,13 +3034,14 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp8e4m3_sme_finalize_ssve_(
                                               norms + (first - chunk), exponents + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_packed_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t const *a, void const *b_packed,
                                                          nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                          nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                         void *stream) {
+                                                         nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e4m3_k, a, a_stride);
@@ -3039,25 +3051,25 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t con
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t const *vectors, nk_size_t count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t const *vectors, nk_size_t vector_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count, void *stream) {
+                                                            nk_size_t result_stride, nk_size_t rows_begin,
+                                                            nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e4m3_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_mxfp8e4m3_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                               row_end - row_start);
-    nk_angulars_symmetric_mxfp8e4m3_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride, row_start,
-                                                       row_end);
+    nk_dots_symmetric_mxfp8e4m3_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                               rows_end);
+    nk_angulars_symmetric_mxfp8e4m3_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                       rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_euclideans_packed_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t const *a, void const *b_packed,
                                                            nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                            nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                           void *stream) {
+                                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e4m3_k, a, a_stride);
@@ -3067,18 +3079,19 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t c
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t const *vectors, nk_size_t count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t const *vectors,
+                                                              nk_size_t vector_count, nk_size_t depth, nk_size_t stride,
+                                                              nk_f32_t *result, nk_size_t result_stride,
+                                                              nk_size_t rows_begin, nk_size_t rows_end,
+                                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e4m3_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_mxfp8e4m3_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                               row_end - row_start);
-    nk_euclideans_symmetric_mxfp8e4m3_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride,
-                                                         row_start, row_end);
+    nk_dots_symmetric_mxfp8e4m3_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                               rows_end);
+    nk_euclideans_symmetric_mxfp8e4m3_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                         rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
@@ -3103,18 +3116,18 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_mxfp8e5m2_sme_finalize_ssve_(nk_cross_
 
 /** Turns symmetric MXFP8 E5M2 relative dots into angular distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp8e5m2_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                          nk_size_t count, nk_size_t depth,
+                                                                          nk_size_t vector_count, nk_size_t depth,
                                                                           nk_f32_t *result, nk_size_t result_stride,
-                                                                          nk_size_t row_start,
-                                                                          nk_size_t row_end) NUMKONG_STREAMING_ {
+                                                                          nk_size_t rows_begin,
+                                                                          nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
             nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
@@ -3122,9 +3135,9 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp8e5m2_sme_finalize_ssve_(nk_cro
             norms[column - chunk] = nk_dots_scaled_row_mxfp8e5m2_sme_(vectors, stride, column, depth,
                                                                       &exponents[column - chunk]);
         }
-        nk_dots_scaled_exact_mxfp8e5m2_sme_(vectors, stride, row_start, row_end, vectors, stride, chunk, chunk_end,
+        nk_dots_scaled_exact_mxfp8e5m2_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp8e5m2_sme_(vectors, stride, row, depth, &exponent);
@@ -3132,7 +3145,8 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_mxfp8e5m2_sme_finalize_ssve_(nk_cro
                                             chunk_end - first, mantissa * mantissa, norm, norms + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 /** Turns packed MXFP8 E5M2 relative dots into Euclidean distances. */
@@ -3156,16 +3170,16 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_mxfp8e5m2_sme_finalize_ssve_(nk_cros
 
 /** Turns symmetric MXFP8 E5M2 relative dots into Euclidean distances with a zero diagonal. */
 NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp8e5m2_sme_finalize_ssve_(
-    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t count, nk_size_t depth, nk_f32_t *result,
-    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_end) NUMKONG_STREAMING_ {
+    nk_cross_operand_t vectors, nk_size_t stride, nk_size_t vector_count, nk_size_t depth, nk_f32_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
     nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = row_start; chunk < count; chunk += nk_sme_finish_columns_k) {
-        nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
+    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
             nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
@@ -3173,9 +3187,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp8e5m2_sme_finalize_ssve_(
             norms[column - chunk] = nk_dots_scaled_row_mxfp8e5m2_sme_(vectors, stride, column, depth,
                                                                       &exponents[column - chunk]);
         }
-        nk_dots_scaled_exact_mxfp8e5m2_sme_(vectors, stride, row_start, row_end, vectors, stride, chunk, chunk_end,
+        nk_dots_scaled_exact_mxfp8e5m2_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
-        for (nk_size_t row = row_start; row < row_end && row < chunk_end; ++row) {
+        for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp8e5m2_sme_(vectors, stride, row, depth, &exponent);
@@ -3184,13 +3198,14 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_mxfp8e5m2_sme_finalize_ssve_(
                                               norms + (first - chunk), exponents + (first - chunk));
         }
     }
-    for (nk_size_t row = row_start; row < row_end; ++row) ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
+    for (nk_size_t row = rows_begin; row < rows_end; ++row)
+        ((nk_f32_t *)((char *)result + row * result_stride))[row] = 0;
 }
 
 NUMKONG_API nk_status_t nk_angulars_packed_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t const *a, void const *b_packed,
                                                          nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                          nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                         void *stream) {
+                                                         nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e5m2_k, a, a_stride);
@@ -3200,25 +3215,25 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t con
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t const *vectors, nk_size_t count,
+NUMKONG_API nk_status_t nk_angulars_symmetric_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t const *vectors, nk_size_t vector_count,
                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                            nk_size_t result_stride, nk_size_t row_start,
-                                                            nk_size_t row_count, void *stream) {
+                                                            nk_size_t result_stride, nk_size_t rows_begin,
+                                                            nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e5m2_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_mxfp8e5m2_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                               row_end - row_start);
-    nk_angulars_symmetric_mxfp8e5m2_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride, row_start,
-                                                       row_end);
+    nk_dots_symmetric_mxfp8e5m2_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                               rows_end);
+    nk_angulars_symmetric_mxfp8e5m2_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                       rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_euclideans_packed_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t const *a, void const *b_packed,
                                                            nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                            nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
-                                                           void *stream) {
+                                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e5m2_k, a, a_stride);
@@ -3228,18 +3243,19 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t c
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t const *vectors, nk_size_t count,
-                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
-                                                              nk_size_t result_stride, nk_size_t row_start,
-                                                              nk_size_t row_count, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t const *vectors,
+                                                              nk_size_t vector_count, nk_size_t depth, nk_size_t stride,
+                                                              nk_f32_t *result, nk_size_t result_stride,
+                                                              nk_size_t rows_begin, nk_size_t rows_end,
+                                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const row_end = nk_dots_sme_row_end_(count, row_start, row_count);
+    rows_end = nk_min_of_two(rows_end, vector_count);
     nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e5m2_k, vectors, stride);
     nk_sme_start_streaming_();
-    nk_dots_symmetric_mxfp8e5m2_sme_streaming_(operand, stride, count, depth, result, result_stride, row_start,
-                                               row_end - row_start);
-    nk_euclideans_symmetric_mxfp8e5m2_sme_finalize_ssve_(operand, stride, count, depth, result, result_stride,
-                                                         row_start, row_end);
+    nk_dots_symmetric_mxfp8e5m2_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
+                                               rows_end);
+    nk_euclideans_symmetric_mxfp8e5m2_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
+                                                         rows_begin, rows_end);
     nk_sme_stop_streaming_();
     return nk_success_k;
 }

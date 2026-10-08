@@ -568,7 +568,8 @@ NUMKONG_INLINE v128_t nk_f64x2_atan2_v128relaxed_(v128_t const ys_inputs, v128_t
  *  wasm_v128_load and wasm_v128_store, while tails use nk_partial_load_b32x4_serial_ and
  *  nk_partial_store_b32x4_serial_ through the .v128 union member. */
 
-NUMKONG_API nk_status_t nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
@@ -587,7 +588,8 @@ NUMKONG_API nk_status_t nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
@@ -606,7 +608,8 @@ NUMKONG_API nk_status_t nk_trig_cos_f32_v128relaxed(nk_f32_t const *ins, nk_size
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
+                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
@@ -625,7 +628,8 @@ NUMKONG_API nk_status_t nk_trig_atan_f32_v128relaxed(nk_f32_t const *ins, nk_siz
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
@@ -644,7 +648,8 @@ NUMKONG_API nk_status_t nk_trig_sin_f64_v128relaxed(nk_f64_t const *ins, nk_size
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
@@ -663,7 +668,8 @@ NUMKONG_API nk_status_t nk_trig_cos_f64_v128relaxed(nk_f64_t const *ins, nk_size
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+NUMKONG_API nk_status_t nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs,
+                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {

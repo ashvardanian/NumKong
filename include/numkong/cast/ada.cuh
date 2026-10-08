@@ -141,7 +141,7 @@ static __global__ void nk_cast_block_scaled_ada_kernel_(nk_cast_block_scaled_arg
 }
 
 NUMKONG_API nk_status_t nk_cast_ada(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
-                                    nk_size_t count, void *stream) {
+                                    nk_size_t count, nk_stream_t stream) {
     return nk_cast_launch_cuda_((void const *)&nk_cast_ada_kernel_, (void const *)&nk_cast_vectors_ada_kernel_,
                                 (void const *)&nk_cast_block_scaled_ada_kernel_, from, from_dtype, to, to_dtype, count,
                                 stream);

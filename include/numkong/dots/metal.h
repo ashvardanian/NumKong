@@ -48,7 +48,7 @@ enum { nk_cross_tile_metal_k = 64, nk_cross_threads_metal_k = 256 };
 /** The launch record of a tile kernel, laid out as the kernels' record of the same name. */
 typedef struct {
     nk_u64_t a_stride, b_stride, c_stride;
-    nk_u32_t row_start, row_end, column_count, depth;
+    nk_u32_t rows_begin, rows_end, column_count, depth;
     nk_u32_t upper_triangle;
     nk_u64_t a_scales_stride, b_scales_stride;
     nk_u32_t a_tensor_present, b_tensor_present;
@@ -110,7 +110,7 @@ NUMKONG_INLINE int nk_cross_span_metal_(nk_size_t count, nk_size_t stride, nk_si
 /** Synchronizes, then reads the columns and depth out of a packed B's header, if @p capability
  *  packed it. */
 NUMKONG_INLINE nk_status_t nk_cross_packed_shape_metal_(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                        nk_capability_t capability, void *stream) {
+                                                        nk_capability_t capability, nk_stream_t stream) {
     if ((nk_size_t)b_packed & 15) return nk_misaligned_k;
     nk_status_t const status = nk_stream_synchronize_metal_(stream);
     if (status != nk_success_k) return status;
@@ -134,7 +134,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_metal_(char const *kernel, nk_cr
                                                        nk_size_t depth_simd_dimensions, nk_size_t value_bytes,
                                                        nk_size_t norm_bytes, nk_size_t dimensions_per_value,
                                                        nk_size_t scale_blocks, nk_capability_t capability,
-                                                       void *stream) {
+                                                       nk_stream_t stream) {
     if ((nk_size_t)b_packed & 15) return nk_misaligned_k;
     if (columns > 0xFFFFFFFFu || depth > 0xFFFFFFFFu || !dimensions_per_value || depth % dimensions_per_value)
         return nk_unexpected_dimensions_k;
@@ -199,32 +199,32 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_metal_(char const *kernel, nk_cr
     return nk_metal_dispatch_(&call, grid, threads);
 }
 
-/** Validates the contract and encodes C = A × Bᵀ for the rows from @p row_start up to @p row_end,
+/** Validates the contract and encodes C = A × Bᵀ for the rows from @p rows_begin up to @p rows_end,
  *  one threadgroup per square tile of @p tile_side elements, with A and B strides in bytes. */
 NUMKONG_INLINE nk_status_t nk_cross_encode_metal_(char const *source, nk_size_t language_version, nk_size_t threads,
                                                   nk_size_t tile_side, char const *kernel, nk_cross_operand_t a,
                                                   nk_cross_operand_t b, nk_size_t b_extra_offset, void *c,
-                                                  nk_size_t result_bytes, nk_size_t row_start, nk_size_t row_end,
+                                                  nk_size_t result_bytes, nk_size_t rows_begin, nk_size_t rows_end,
                                                   nk_size_t column_count, nk_size_t depth, nk_size_t input_row_bytes,
                                                   nk_size_t b_tail_bytes, nk_size_t a_stride, nk_size_t b_stride,
                                                   nk_size_t c_stride, nk_u32_t upper_triangle, nk_size_t scale_blocks,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     if ((input_row_bytes && !scale_blocks && ((((nk_size_t)a.elements) | a_stride) & 15)) ||
         ((((nk_size_t)c) | c_stride) & (result_bytes - 1)))
         return nk_misaligned_k;
-    if (row_end <= row_start || column_count == 0) return nk_success_k;
+    if (rows_end <= rows_begin || column_count == 0) return nk_success_k;
     if (scale_blocks && (!a.scales || !b.scales)) return nk_device_memory_mismatch_k;
-    if (row_end > 0xFFFFFFFFu || column_count > 0xFFFFFFFFu || depth > 0xFFFFFFFFu) return nk_unexpected_dimensions_k;
+    if (rows_end > 0xFFFFFFFFu || column_count > 0xFFFFFFFFu || depth > 0xFFFFFFFFu) return nk_unexpected_dimensions_k;
     nk_metal_call_t call;
     nk_status_t status = nk_metal_enter_(stream, &call);
     if (status != nk_success_k) return status;
     nk_size_t a_offset = 0, b_offset = 0, c_offset = 0;
     nk_size_t a_bytes, b_bytes, c_bytes, result_row_bytes;
-    if (!nk_cross_span_metal_(input_row_bytes ? row_end : 0, a_stride, input_row_bytes, &a_bytes) ||
+    if (!nk_cross_span_metal_(input_row_bytes ? rows_end : 0, a_stride, input_row_bytes, &a_bytes) ||
         !nk_cross_span_metal_(input_row_bytes ? column_count : 0, b_stride, b_extra_offset ? b_stride : input_row_bytes,
                               &b_bytes) ||
         !nk_size_mul_checked_(column_count, result_bytes, &result_row_bytes) ||
-        !nk_cross_span_metal_(row_end, c_stride, result_row_bytes, &c_bytes) ||
+        !nk_cross_span_metal_(rows_end, c_stride, result_row_bytes, &c_bytes) ||
         b_bytes > NUMKONG_SIZE_MAX - b_extra_offset || b_tail_bytes > NUMKONG_SIZE_MAX - b_extra_offset - b_bytes)
         return nk_metal_abort_(&call, nk_unexpected_dimensions_k);
     b_bytes += b_extra_offset + b_tail_bytes;
@@ -235,7 +235,7 @@ NUMKONG_INLINE nk_status_t nk_cross_encode_metal_(char const *source, nk_size_t 
     if (!b_bytes) b_offset = c_offset;
     if (!a_buffer || !b_buffer || !c_buffer) return nk_metal_abort_(&call, nk_device_memory_mismatch_k);
     nk_size_t a_scales_bytes, b_scales_bytes;
-    if (!nk_cross_span_metal_(scale_blocks ? row_end : 0, a.scales_stride, scale_blocks, &a_scales_bytes) ||
+    if (!nk_cross_span_metal_(scale_blocks ? rows_end : 0, a.scales_stride, scale_blocks, &a_scales_bytes) ||
         !nk_cross_span_metal_(scale_blocks ? column_count : 0, b.scales_stride, scale_blocks, &b_scales_bytes))
         return nk_metal_abort_(&call, nk_unexpected_dimensions_k);
     nk_size_t a_scales_offset = 0, b_scales_offset = 0, a_tensor_offset = 0, b_tensor_offset = 0;
@@ -260,7 +260,7 @@ NUMKONG_INLINE nk_status_t nk_cross_encode_metal_(char const *source, nk_size_t 
 
     nk_cross_arguments_metal_t arguments;
     arguments.a_stride = a_stride, arguments.b_stride = b_stride, arguments.c_stride = c_stride / result_bytes;
-    arguments.row_start = (nk_u32_t)row_start, arguments.row_end = (nk_u32_t)row_end;
+    arguments.rows_begin = (nk_u32_t)rows_begin, arguments.rows_end = (nk_u32_t)rows_end;
     arguments.column_count = (nk_u32_t)column_count, arguments.depth = (nk_u32_t)depth;
     arguments.upper_triangle = upper_triangle;
     arguments.a_scales_stride = a.scales_stride, arguments.b_scales_stride = b.scales_stride;
@@ -278,7 +278,7 @@ NUMKONG_INLINE nk_status_t nk_cross_encode_metal_(char const *source, nk_size_t 
     nk_metal_bind_(call.encoder, b_tensor_buffer ? b_tensor_buffer : b_buffer,
                    b_tensor_buffer ? b_tensor_offset : b_offset, 7);
     nk_metal_size_t const grid = {nk_size_divide_round_up_(column_count, tile_side),
-                                  nk_size_divide_round_up_(row_end - row_start, tile_side), 1};
+                                  nk_size_divide_round_up_(rows_end - rows_begin, tile_side), 1};
     nk_metal_size_t const group = {threads, 1, 1};
     return nk_metal_dispatch_(&call, grid, group);
 }
@@ -286,13 +286,13 @@ NUMKONG_INLINE nk_status_t nk_cross_encode_metal_(char const *source, nk_size_t 
 /** @ref nk_cross_encode_metal_ over the @c metal capability's kernels. */
 NUMKONG_INLINE nk_status_t nk_cross_launch_metal_(char const *kernel, nk_cross_operand_t a, nk_cross_operand_t b,
                                                   nk_size_t b_extra_offset, void *c, nk_size_t result_bytes,
-                                                  nk_size_t row_start, nk_size_t row_end, nk_size_t column_count,
+                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_size_t column_count,
                                                   nk_size_t depth, nk_size_t input_row_bytes, nk_size_t b_tail_bytes,
                                                   nk_size_t a_stride, nk_size_t b_stride, nk_size_t c_stride,
                                                   nk_u32_t upper_triangle, nk_size_t tile_side, nk_size_t scale_blocks,
-                                                  void *stream) {
+                                                  nk_stream_t stream) {
     return nk_cross_encode_metal_(nk_dots_source_metal_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cross_threads_metal_k,
-                                  tile_side, kernel, a, b, b_extra_offset, c, result_bytes, row_start, row_end,
+                                  tile_side, kernel, a, b, b_extra_offset, c, result_bytes, rows_begin, rows_end,
                                   column_count, depth, input_row_bytes, b_tail_bytes, a_stride, b_stride, c_stride,
                                   upper_triangle, scale_blocks, stream);
 }
@@ -313,12 +313,12 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_metal_(char const *kernel, nk_cross_o
         return *bytes ? nk_success_k : nk_unexpected_dimensions_k;                                                     \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_dots_packed_shape_##dtype##_##isa(void const *b, nk_size_t *columns, nk_size_t *depth,  \
-                                                                 void *stream) {                                       \
+                                                                 nk_stream_t stream) {                                 \
         return nk_cross_packed_shape_metal_(b, columns, depth, nk_cap_##isa##_k, stream);                              \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_dots_pack_##dtype##_##isa(nk_cross_##dtype##_operand_t const *b, nk_size_t columns,     \
                                                          nk_size_t depth, nk_size_t stride, void *packed,              \
-                                                         nk_size_t begin, nk_size_t end, void *stream) {               \
+                                                         nk_size_t begin, nk_size_t end, nk_stream_t stream) {         \
         if (!nk_cross_whole_blocks_(nk_##dtype##_k, depth)) return nk_unexpected_dimensions_k;                         \
         return nk_cross_pack_launch_metal_(                                                                            \
             "nk_dots_pack_" #dtype "_metal_kernel_", nk_cross_operand_(nk_##dtype##_k, b, stride), columns, depth,     \
@@ -327,7 +327,7 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_metal_(char const *kernel, nk_cross_o
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_dots_packed_##dtype##_##isa(                                                            \
         nk_cross_##dtype##_operand_t const *a, void const *packed, nk_##result_type##_t *c, nk_size_t rows,            \
-        nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {                    \
+        nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {              \
         nk_size_t bytes;                                                                                               \
         nk_status_t const status = nk_dots_pack_size_##dtype##_##isa(columns, depth, &bytes);                          \
         if (status != nk_success_k) return status;                                                                     \
@@ -357,18 +357,20 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_metal_(char const *kernel, nk_cross_o
                                         nk_cross_scale_blocks_(nk_##dtype##_k, depth), stream);                        \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_dots_symmetric_##dtype##_##isa(                                                         \
-        nk_cross_##dtype##_operand_t const *vectors, nk_size_t count, nk_size_t depth, nk_size_t stride,               \
-        nk_##result_type##_t *result, nk_size_t result_stride, nk_size_t begin, nk_size_t rows, void *stream) {        \
+        nk_cross_##dtype##_operand_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride,        \
+        nk_##result_type##_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end,               \
+        nk_stream_t stream) {                                                                                          \
         if (!nk_cross_whole_blocks_(nk_##dtype##_k, depth)) return nk_unexpected_dimensions_k;                         \
-        nk_size_t const end = begin < count ? begin + nk_min_of_two(rows, count - begin) : count;                      \
+        rows_end = nk_min_of_two(rows_end, vector_count);                                                              \
+        nk_size_t const window_rows = rows_end > rows_begin ? rows_end - rows_begin : 0;                               \
         nk_cross_operand_t const a = nk_cross_operand_(nk_##dtype##_k, vectors, stride);                               \
         return nk_cross_launch_##isa##_(                                                                               \
-            nk_cross_small_int4_metal_(nk_##dtype##_k, nk_cap_##isa##_k, end > begin ? end - begin : 0, count)         \
+            nk_cross_small_int4_metal_(nk_##dtype##_k, nk_cap_##isa##_k, window_rows, vector_count)                    \
                 ? "nk_dots_" #dtype "_" #isa "_small_kernel_"                                                          \
                 : "nk_dots_" #dtype "_" #isa "_kernel_",                                                               \
-            a, a, 0, result, sizeof(nk_##result_type##_t), begin, end, count, depth,                                   \
+            a, a, 0, result, sizeof(nk_##result_type##_t), rows_begin, rows_end, vector_count, depth,                  \
             depth / per_value * sizeof(nk_##raw_type##_t), 0, stride, stride, result_stride, 1,                        \
-            nk_cross_tile_side_metal_(nk_##dtype##_k, nk_cap_##isa##_k, end > begin ? end - begin : 0, count),         \
+            nk_cross_tile_side_metal_(nk_##dtype##_k, nk_cap_##isa##_k, window_rows, vector_count),                    \
             nk_cross_scale_blocks_(nk_##dtype##_k, depth), stream);                                                    \
     }
 

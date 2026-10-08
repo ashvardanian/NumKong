@@ -138,7 +138,7 @@ NUMKONG_INLINE void nk_centered_moments_bf16_neonbfdot_(nk_bf16_t const *a, nk_b
 
 NUMKONG_API nk_status_t nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                               nk_f32_t *scale, nk_f32_t *result, void *stream) {
+                                               nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // RMSD uses identity rotation and scale=1.0
     if (rotation)
@@ -202,7 +202,7 @@ NUMKONG_API nk_status_t nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t con
 
 NUMKONG_API nk_status_t nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                  nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                 nk_f32_t *scale, nk_f32_t *result, void *stream) {
+                                                 nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
@@ -279,7 +279,7 @@ NUMKONG_API nk_status_t nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t c
 
 NUMKONG_API nk_status_t nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                   nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                  nk_f32_t *scale, nk_f32_t *result, void *stream) {
+                                                  nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (n == 0) {
         if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;

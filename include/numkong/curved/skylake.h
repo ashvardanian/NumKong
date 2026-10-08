@@ -33,7 +33,7 @@ extern "C" {
 #if NUMKONG_TARGET_SKYLAKE
 
 NUMKONG_API nk_status_t nk_bilinear_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                nk_f64_t *result, void *stream) {
+                                                nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // Default case for arbitrary size `n`
@@ -68,7 +68,7 @@ NUMKONG_API nk_status_t nk_bilinear_f32_skylake(nk_f32_t const *a, nk_f32_t cons
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                   nk_f64_t *result, void *stream) {
+                                                   nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // We use f64 accumulators to prevent catastrophic cancellation.
     nk_size_t const tail_length = n % 8;
@@ -107,7 +107,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_skylake(nk_f32_t const *a, nk_f32_t c
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f32c_skylake(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c,
-                                                 nk_size_t n, nk_f64c_t *results, void *stream) {
+                                                 nk_size_t n, nk_f64c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // We take into account, that FMS is the same as FMA with a negative multiplier.
@@ -171,7 +171,7 @@ NUMKONG_API nk_status_t nk_bilinear_f32c_skylake(nk_f32c_t const *a, nk_f32c_t c
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                nk_f64_t *result, void *stream) {
+                                                nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // Default case for arbitrary size `n`
@@ -241,7 +241,7 @@ NUMKONG_API nk_status_t nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t cons
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
-                                                   nk_f64_t *result, void *stream) {
+                                                   nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Using Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated summation.
     nk_size_t const tail_length = n % 8;
@@ -315,7 +315,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t c
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c,
-                                                 nk_size_t n, nk_f64c_t *results, void *stream) {
+                                                 nk_size_t n, nk_f64c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // We take into account, that FMS is the same as FMA with a negative multiplier.

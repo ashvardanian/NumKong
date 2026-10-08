@@ -937,7 +937,7 @@ int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, nk_tensor_view_t *view, nk
 /** The `numkong.Capability` flags class, built at import, that every capability query speaks. */
 static PyObject *capability_type = NULL;
 
-int parse_dispatch_keyword(PyObject *key, PyObject *value, nk_capability_t *capabilities, void **stream) {
+int parse_dispatch_keyword(PyObject *key, PyObject *value, nk_capability_t *capabilities, nk_stream_t *stream) {
     if (PyUnicode_CompareWithASCIIString(key, "capabilities") == 0) {
         if (value == Py_None) return 1;
         unsigned long long const bits = PyLong_AsUnsignedLongLong(value);
@@ -1018,10 +1018,10 @@ static PyObject *capabilities_reported(nk_status_t (*query)(nk_capability_t *cap
 
 /** The stream @p init creates on the device numbered @p ordinal_object, as an integer, raising
  *  ValueError past the devices this process sees. */
-static PyObject *stream_created(nk_status_t (*init)(nk_size_t ordinal, void **stream), PyObject *ordinal_object) {
+static PyObject *stream_created(nk_status_t (*init)(nk_size_t ordinal, nk_stream_t *stream), PyObject *ordinal_object) {
     Py_ssize_t const ordinal = PyLong_AsSsize_t(ordinal_object);
     if (ordinal == -1 && PyErr_Occurred()) return NULL;
-    void *stream = NULL;
+    nk_stream_t stream = NULL;
     nk_status_t const status = ordinal < 0 ? nk_missing_gpu_k : init((nk_size_t)ordinal, &stream);
     if (status == nk_missing_gpu_k) return PyErr_Format(PyExc_ValueError, "no device %zd in this process", ordinal);
     if (!check_status(status)) return NULL;
@@ -1029,7 +1029,7 @@ static PyObject *stream_created(nk_status_t (*init)(nk_size_t ordinal, void **st
 }
 
 /** Frees @p stream_object, a stream made by a `*_stream_init` function, through @p release. */
-static PyObject *stream_freed(nk_status_t (*release)(void *stream), PyObject *stream_object) {
+static PyObject *stream_freed(nk_status_t (*release)(nk_stream_t stream), PyObject *stream_object) {
     void *const stream = PyLong_AsVoidPtr(stream_object);
     if (PyErr_Occurred()) return NULL;
     if (!check_status(release(stream))) return NULL;
@@ -1128,13 +1128,13 @@ static char const doc_stream_init[] =                                           
     "    int: The `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>` pointer as an integer.\n"  //
     "        Raises ValueError past the devices this process sees.\n\n"                             //
     "Signature:\n"                                                                                  //
-    "    >>> def cuda_stream_init(ordinal, /) -> int: ...  # rocm_ and metal_ alike";
+    "    >>> def stream_init_cuda(ordinal, /) -> int: ...  # rocm_ and metal_ alike";
 
 static char const doc_stream_free[] =                                                                 //
-    "Free a stream `cuda_stream_init` made, once `synchronize` joined whatever was queued on it.\n\n" //
+    "Free a stream `stream_init_cuda` made, once `synchronize` joined whatever was queued on it.\n\n" //
     "Nothing may use the stream afterwards.\n\n"                                                      //
     "Signature:\n"                                                                                    //
-    "    >>> def cuda_stream_free(stream, /) -> None: ...  # rocm_ and metal_ alike";
+    "    >>> def stream_free_cuda(stream, /) -> None: ...  # rocm_ and metal_ alike";
 
 static PyObject *api_cuda_count_devices(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
@@ -1154,11 +1154,11 @@ static PyObject *api_cuda_capabilities_enabled(PyObject *self, PyObject *ordinal
 }
 static PyObject *api_cuda_stream_init(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
-    return stream_created(nk_cuda_stream_init, ordinal);
+    return stream_created(nk_stream_init_cuda, ordinal);
 }
 static PyObject *api_cuda_stream_free(PyObject *self, PyObject *stream) {
     nk_unused_(self);
-    return stream_freed(nk_cuda_stream_free, stream);
+    return stream_freed(nk_stream_free_cuda, stream);
 }
 static PyObject *api_rocm_count_devices(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
@@ -1178,11 +1178,11 @@ static PyObject *api_rocm_capabilities_enabled(PyObject *self, PyObject *ordinal
 }
 static PyObject *api_rocm_stream_init(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
-    return stream_created(nk_rocm_stream_init, ordinal);
+    return stream_created(nk_stream_init_rocm, ordinal);
 }
 static PyObject *api_rocm_stream_free(PyObject *self, PyObject *stream) {
     nk_unused_(self);
-    return stream_freed(nk_rocm_stream_free, stream);
+    return stream_freed(nk_stream_free_rocm, stream);
 }
 static PyObject *api_metal_count_devices(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
@@ -1202,11 +1202,11 @@ static PyObject *api_metal_capabilities_enabled(PyObject *self, PyObject *ordina
 }
 static PyObject *api_metal_stream_init(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
-    return stream_created(nk_metal_stream_init, ordinal);
+    return stream_created(nk_stream_init_metal, ordinal);
 }
 static PyObject *api_metal_stream_free(PyObject *self, PyObject *stream) {
     nk_unused_(self);
-    return stream_freed(nk_metal_stream_free, stream);
+    return stream_freed(nk_stream_free_metal, stream);
 }
 
 static char const doc_synchronize[] =                                                                   //
@@ -1368,20 +1368,20 @@ static PyMethodDef nk_methods[] = {
     {"cuda_capabilities_detected", api_cuda_capabilities_detected, METH_O, doc_capabilities_detected},
     {"cuda_capabilities_compiled", api_cuda_capabilities_compiled, METH_NOARGS, doc_capabilities_compiled},
     {"cuda_capabilities_enabled", api_cuda_capabilities_enabled, METH_O, doc_capabilities_enabled},
-    {"cuda_stream_init", api_cuda_stream_init, METH_O, doc_stream_init},
-    {"cuda_stream_free", api_cuda_stream_free, METH_O, doc_stream_free},
+    {"stream_init_cuda", api_cuda_stream_init, METH_O, doc_stream_init},
+    {"stream_free_cuda", api_cuda_stream_free, METH_O, doc_stream_free},
     {"rocm_count_devices", api_rocm_count_devices, METH_NOARGS, doc_count_devices},
     {"rocm_capabilities_detected", api_rocm_capabilities_detected, METH_O, doc_capabilities_detected},
     {"rocm_capabilities_compiled", api_rocm_capabilities_compiled, METH_NOARGS, doc_capabilities_compiled},
     {"rocm_capabilities_enabled", api_rocm_capabilities_enabled, METH_O, doc_capabilities_enabled},
-    {"rocm_stream_init", api_rocm_stream_init, METH_O, doc_stream_init},
-    {"rocm_stream_free", api_rocm_stream_free, METH_O, doc_stream_free},
+    {"stream_init_rocm", api_rocm_stream_init, METH_O, doc_stream_init},
+    {"stream_free_rocm", api_rocm_stream_free, METH_O, doc_stream_free},
     {"metal_count_devices", api_metal_count_devices, METH_NOARGS, doc_count_devices},
     {"metal_capabilities_detected", api_metal_capabilities_detected, METH_O, doc_capabilities_detected},
     {"metal_capabilities_compiled", api_metal_capabilities_compiled, METH_NOARGS, doc_capabilities_compiled},
     {"metal_capabilities_enabled", api_metal_capabilities_enabled, METH_O, doc_capabilities_enabled},
-    {"metal_stream_init", api_metal_stream_init, METH_O, doc_stream_init},
-    {"metal_stream_free", api_metal_stream_free, METH_O, doc_stream_free},
+    {"stream_init_metal", api_metal_stream_init, METH_O, doc_stream_init},
+    {"stream_free_metal", api_metal_stream_free, METH_O, doc_stream_free},
     {"synchronize", (PyCFunction)api_synchronize, METH_FASTCALL | METH_KEYWORDS, doc_synchronize},
 
     // Sentinel

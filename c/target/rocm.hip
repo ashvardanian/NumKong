@@ -19,19 +19,20 @@ extern "C" NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
 extern "C" NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
     return nk_rocm_capabilities_detected_(ordinal, capabilities);
 }
-extern "C" NUMKONG_API nk_status_t nk_rocm_stream_init(nk_size_t ordinal, void **stream) {
+extern "C" NUMKONG_API nk_status_t nk_stream_init_rocm(nk_size_t ordinal, nk_stream_t *stream) {
     return nk_rocm_stream_init_(ordinal, stream);
 }
-extern "C" NUMKONG_API nk_status_t nk_rocm_stream_free(void *stream) { return nk_rocm_stream_free_(stream); }
+extern "C" NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream) { return nk_rocm_stream_free_(stream); }
 
-extern "C" NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t bytes, void **pointer, void *stream) {
+extern "C" NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t bytes, void **pointer,
+                                                                   nk_stream_t stream) {
     return nk_memory_allocate_unified_rocm_(bytes, pointer, stream);
 }
-extern "C" NUMKONG_API nk_status_t nk_memory_free_unified_rocm(void *pointer, nk_size_t bytes, void *stream) {
+extern "C" NUMKONG_API nk_status_t nk_memory_free_unified_rocm(void *pointer, nk_size_t bytes, nk_stream_t stream) {
     nk_unused_(bytes);
     return nk_memory_free_unified_rocm_(pointer, stream);
 }
-extern "C" NUMKONG_API nk_status_t nk_stream_synchronize_rocm(void *stream) {
+extern "C" NUMKONG_API nk_status_t nk_stream_synchronize_rocm(nk_stream_t stream) {
     return nk_stream_synchronize_rocm_(stream);
 }
 

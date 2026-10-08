@@ -143,28 +143,28 @@ NUMKONG_INLINE void nk_each_add_u8_v128_(nk_u8_t const *a, nk_u8_t const *b, nk_
 
 #if NUMKONG_TARGET_V128
 NUMKONG_API nk_status_t nk_each_sum_f32_v128(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
+                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_each_add_f32_v128_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_each_sum_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result,
-                                              void *stream) {
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_each_add_bf16_v128_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_each_sum_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result,
-                                            void *stream) {
+                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_each_add_i8_v128_(a, b, n, result);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_each_sum_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result,
-                                            void *stream) {
+                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_each_add_u8_v128_(a, b, n, result);
     return nk_success_k;

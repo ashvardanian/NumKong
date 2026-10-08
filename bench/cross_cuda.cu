@@ -651,7 +651,7 @@ void run_unpacked(environment_t const &env, std::string const &name, expected_me
         return nk_success_k;
     };
     auto const copy = [](auto b, std::size_t columns, std::size_t, std::size_t row_bytes, void *packed, std::size_t,
-                         std::size_t, void *stream) {
+                         std::size_t, nk_stream_t stream) {
         return cudaMemcpyAsync(packed, operand_codes(b), columns * row_bytes, cudaMemcpyDeviceToDevice,
                                (cudaStream_t)stream);
     };
@@ -818,7 +818,7 @@ void run_dots_with_cublaslt(environment_t const &env, std::string const &name, c
     run_unpacked<input_dtype_, output_type_>(
         env, name, dot_compensated_f64,
         [plan](auto a, void const *b, void *c, std::size_t, std::size_t, std::size_t, std::size_t, std::size_t,
-               void *stream) { return plan->launch(operand_codes(a), b, c, (cudaStream_t)stream); },
+               nk_stream_t stream) { return plan->launch(operand_codes(a), b, c, (cudaStream_t)stream); },
         backend);
 }
 
@@ -834,7 +834,7 @@ void run_dots_f64_with_cublas(environment_t const &env, std::string const &name,
     run_unpacked<nk_f64_k, nk::f64_t>(
         env, name, dot_compensated_f64,
         [handle](void const *a, void const *b, void *c, std::size_t rows, std::size_t columns, std::size_t depth,
-                 std::size_t a_stride, std::size_t, void *stream) {
+                 std::size_t a_stride, std::size_t, nk_stream_t stream) {
             double const alpha = 1, beta = 0;
             cublasSetStream(handle.get(), (cudaStream_t)stream);
             cublasStatus_t const status = cublasGemmEx(
@@ -995,7 +995,7 @@ struct cudnn_attention_plan_t {
      *  none did. */
     cudnnStatus_t build(nk_dtype_t dtype, attention_visibility_t visibility, attention_shape_t shape,
                         cuda_backend_t const &backend) {
-        void *stream = backend.memory.stream;
+        nk_stream_t stream = backend.memory.stream;
         std::int64_t const heads = shape.head_count, key_value_heads = shape.key_value_head_count, depth = shape.depth,
                            queries = shape.queries, keys = shape.keys;
         cudnnDataType_t const io_type = cudnn_data_type(dtype);
@@ -1179,7 +1179,7 @@ void run_attention_row_with_cudnn(environment_t const &env, std::string const &n
     auto const pack = [key_bytes = plan->key_bytes](void const *keys, void const *values, std::size_t, std::size_t,
                                                     nk_u32_t const *, nk_u32_t const *, std::size_t, std::size_t,
                                                     std::size_t, std::size_t, std::size_t, void *packed, std::size_t,
-                                                    std::size_t, void *stream) {
+                                                    std::size_t, nk_stream_t stream) {
         cudaMemcpyAsync(packed, keys, key_bytes, cudaMemcpyDeviceToDevice, (cudaStream_t)stream);
         return cudaMemcpyAsync(static_cast<char *>(packed) + key_bytes, values, key_bytes, cudaMemcpyDeviceToDevice,
                                (cudaStream_t)stream);
@@ -1246,7 +1246,7 @@ void run_spatials_with_cuvs(environment_t const &env, std::string const &name, e
         env, name, compute_expected,
         [resources, distance, bits, ordinal = static_cast<int>(backend.device.ordinal())](
             void const *a, void const *b, void *c, std::size_t rows, std::size_t columns, std::size_t depth,
-            std::size_t a_stride, std::size_t, void *stream) {
+            std::size_t a_stride, std::size_t, nk_stream_t stream) {
             if (a_stride * 8 != depth * bits) return cudaErrorInvalidPitchValue;
             std::int64_t a_shape[2] = {std::int64_t(rows), std::int64_t(depth)};
             std::int64_t b_shape[2] = {std::int64_t(columns), std::int64_t(depth)};

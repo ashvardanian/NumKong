@@ -25,7 +25,7 @@ extern "C" {
 #endif
 
 /** Makes the stream's device current, retaining the caller's device for restoration. */
-NUMKONG_INLINE nk_status_t nk_device_enter_rocm_(void *stream, int *caller) {
+NUMKONG_INLINE nk_status_t nk_device_enter_rocm_(nk_stream_t stream, int *caller) {
     int current = 0, device = 0;
     *caller = -1;
     if (hipGetDevice(&current) != hipSuccess) return nk_missing_gpu_k;
@@ -44,7 +44,7 @@ NUMKONG_INLINE void nk_device_leave_rocm_(int caller) {
 /** Launches @p blocks blocks of @p threads running @p kernel on @p stream, its arguments passed by
  *  address. The runtime's own error stays readable through @c hipGetLastError. */
 NUMKONG_INLINE nk_status_t nk_launch_rocm_(void const *kernel, nk_size_t blocks, unsigned threads, void **arguments,
-                                           nk_size_t shared_bytes, void *stream) {
+                                           nk_size_t shared_bytes, nk_stream_t stream) {
     int caller = 0;
     nk_status_t const entered = nk_device_enter_rocm_(stream, &caller);
     if (entered != nk_success_k) return entered;
@@ -65,7 +65,7 @@ NUMKONG_INLINE nk_status_t nk_launch_rocm_(void const *kernel, nk_size_t blocks,
  */
 NUMKONG_INLINE nk_status_t nk_launch_resident_rocm_(void const *kernel, unsigned threads, nk_size_t shared_bytes,
                                                     nk_size_t shared_ceiling, nk_size_t blocks_wanted, void *arguments,
-                                                    void *stream) {
+                                                    nk_stream_t stream) {
     int caller = 0;
     nk_status_t const entered = nk_device_enter_rocm_(stream, &caller);
     if (entered != nk_success_k) return entered;
@@ -94,7 +94,7 @@ NUMKONG_INLINE nk_status_t nk_launch_resident_rocm_(void const *kernel, unsigned
 }
 
 /** Reads @p attribute of the stream's device into @p value. */
-NUMKONG_INLINE nk_status_t nk_device_attribute_rocm_(hipDeviceAttribute_t attribute, int *value, void *stream) {
+NUMKONG_INLINE nk_status_t nk_device_attribute_rocm_(hipDeviceAttribute_t attribute, int *value, nk_stream_t stream) {
     int device = 0;
     hipError_t const status = stream ? hipStreamGetDevice((hipStream_t)stream, &device) : hipGetDevice(&device);
     if (status != hipSuccess) return nk_device_code_mismatch_k;
@@ -102,7 +102,7 @@ NUMKONG_INLINE nk_status_t nk_device_attribute_rocm_(hipDeviceAttribute_t attrib
 }
 
 /** Copies @p bytes from the device back to @p host once everything queued on @p stream is done. */
-NUMKONG_INLINE nk_status_t nk_read_rocm_(void *host, void const *device, nk_size_t bytes, void *stream) {
+NUMKONG_INLINE nk_status_t nk_read_rocm_(void *host, void const *device, nk_size_t bytes, nk_stream_t stream) {
     int caller = 0;
     nk_status_t const entered = nk_device_enter_rocm_(stream, &caller);
     if (entered != nk_success_k) return entered;
@@ -114,7 +114,7 @@ NUMKONG_INLINE nk_status_t nk_read_rocm_(void *host, void const *device, nk_size
 
 /** Allocates @p bytes of managed memory on the device of @p stream, the current one for a null
  *  stream, leaving the caller's current device as it was. */
-NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_rocm_(nk_size_t bytes, void **pointer, void *stream) {
+NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_rocm_(nk_size_t bytes, void **pointer, nk_stream_t stream) {
     *pointer = NUMKONG_NULL;
     if (!bytes) return nk_success_k;
     int caller = 0;
@@ -128,7 +128,7 @@ NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_rocm_(nk_size_t bytes, voi
 }
 
 /** Frees a block of @ref nk_memory_allocate_unified_rocm_ once the device is done with it. */
-NUMKONG_INLINE nk_status_t nk_memory_free_unified_rocm_(void *pointer, void *stream) {
+NUMKONG_INLINE nk_status_t nk_memory_free_unified_rocm_(void *pointer, nk_stream_t stream) {
     if (!pointer) return nk_success_k;
     int caller = 0;
     nk_status_t const entered = nk_device_enter_rocm_(stream, &caller);
@@ -139,7 +139,7 @@ NUMKONG_INLINE nk_status_t nk_memory_free_unified_rocm_(void *pointer, void *str
 }
 
 /** Waits for everything queued on @p stream. */
-NUMKONG_INLINE nk_status_t nk_stream_synchronize_rocm_(void *stream) {
+NUMKONG_INLINE nk_status_t nk_stream_synchronize_rocm_(nk_stream_t stream) {
     int caller = 0;
     nk_status_t const entered = nk_device_enter_rocm_(stream, &caller);
     if (entered != nk_success_k) return entered;
@@ -170,7 +170,7 @@ NUMKONG_INLINE nk_status_t nk_rocm_capabilities_detected_(nk_size_t ordinal, nk_
 }
 
 /** Creates a stream on ROCm device @p ordinal, leaving the caller's current device as it was. */
-NUMKONG_INLINE nk_status_t nk_rocm_stream_init_(nk_size_t ordinal, void **stream) {
+NUMKONG_INLINE nk_status_t nk_rocm_stream_init_(nk_size_t ordinal, nk_stream_t *stream) {
     *stream = NUMKONG_NULL;
     if (ordinal >= nk_rocm_count_devices_()) return nk_missing_gpu_k;
     int caller = 0;
@@ -179,12 +179,12 @@ NUMKONG_INLINE nk_status_t nk_rocm_stream_init_(nk_size_t ordinal, void **stream
     hipError_t const error = hipStreamCreate(&created);
     nk_unused_(hipSetDevice(caller));
     if (error != hipSuccess) return nk_bad_alloc_k;
-    *stream = (void *)created;
+    *stream = (nk_stream_t)created;
     return nk_success_k;
 }
 
 /** Destroys @p stream once the work queued on it completes; a null stream is the default one. */
-NUMKONG_INLINE nk_status_t nk_rocm_stream_free_(void *stream) {
+NUMKONG_INLINE nk_status_t nk_rocm_stream_free_(nk_stream_t stream) {
     if (!stream) return nk_success_k;
     int caller = 0;
     nk_status_t const entered = nk_device_enter_rocm_(stream, &caller);
@@ -194,14 +194,14 @@ NUMKONG_INLINE nk_status_t nk_rocm_stream_free_(void *stream) {
     return status == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
-NUMKONG_INLINE void *nk_allocate_unified_rocm_(nk_size_t bytes, void *handle, void *stream) {
+NUMKONG_INLINE void *nk_allocate_unified_rocm_(nk_size_t bytes, void *handle, nk_stream_t stream) {
     nk_unused_(handle);
     void *pointer = NUMKONG_NULL;
     nk_unused_(nk_memory_allocate_unified_rocm_(bytes, &pointer, stream));
     return pointer;
 }
 
-NUMKONG_INLINE void *nk_allocate_device_rocm_(nk_size_t bytes, void *handle, void *stream) {
+NUMKONG_INLINE void *nk_allocate_device_rocm_(nk_size_t bytes, void *handle, nk_stream_t stream) {
     nk_unused_(handle);
     void *pointer = NUMKONG_NULL;
     if (!bytes) return NUMKONG_NULL;
@@ -212,7 +212,7 @@ NUMKONG_INLINE void *nk_allocate_device_rocm_(nk_size_t bytes, void *handle, voi
     return pointer;
 }
 
-NUMKONG_INLINE void *nk_allocate_pinned_rocm_(nk_size_t bytes, void *handle, void *stream) {
+NUMKONG_INLINE void *nk_allocate_pinned_rocm_(nk_size_t bytes, void *handle, nk_stream_t stream) {
     nk_unused_(handle);
     void *pointer = NUMKONG_NULL;
     if (!bytes) return NUMKONG_NULL;
@@ -223,12 +223,12 @@ NUMKONG_INLINE void *nk_allocate_pinned_rocm_(nk_size_t bytes, void *handle, voi
     return pointer;
 }
 
-NUMKONG_INLINE void nk_free_device_rocm_(void *pointer, nk_size_t bytes, void *handle, void *stream) {
+NUMKONG_INLINE void nk_free_device_rocm_(void *pointer, nk_size_t bytes, void *handle, nk_stream_t stream) {
     nk_unused_(bytes), nk_unused_(handle);
     nk_unused_(nk_memory_free_unified_rocm_(pointer, stream));
 }
 
-NUMKONG_INLINE void nk_free_pinned_rocm_(void *pointer, nk_size_t bytes, void *handle, void *stream) {
+NUMKONG_INLINE void nk_free_pinned_rocm_(void *pointer, nk_size_t bytes, void *handle, nk_stream_t stream) {
     nk_unused_(bytes), nk_unused_(handle);
     int caller = 0;
     if (!pointer || nk_device_enter_rocm_(stream, &caller) != nk_success_k) return;
@@ -322,18 +322,18 @@ NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
 NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
     return nk_rocm_capabilities_detected_(ordinal, capabilities);
 }
-NUMKONG_API nk_status_t nk_rocm_stream_init(nk_size_t ordinal, void **stream) {
+NUMKONG_API nk_status_t nk_stream_init_rocm(nk_size_t ordinal, nk_stream_t *stream) {
     return nk_rocm_stream_init_(ordinal, stream);
 }
-NUMKONG_API nk_status_t nk_rocm_stream_free(void *stream) { return nk_rocm_stream_free_(stream); }
-NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t bytes, void **pointer, void *stream) {
+NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream) { return nk_rocm_stream_free_(stream); }
+NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t bytes, void **pointer, nk_stream_t stream) {
     return nk_memory_allocate_unified_rocm_(bytes, pointer, stream);
 }
-NUMKONG_API nk_status_t nk_memory_free_unified_rocm(void *pointer, nk_size_t bytes, void *stream) {
+NUMKONG_API nk_status_t nk_memory_free_unified_rocm(void *pointer, nk_size_t bytes, nk_stream_t stream) {
     nk_unused_(bytes);
     return nk_memory_free_unified_rocm_(pointer, stream);
 }
-NUMKONG_API nk_status_t nk_stream_synchronize_rocm(void *stream) { return nk_stream_synchronize_rocm_(stream); }
+NUMKONG_API nk_status_t nk_stream_synchronize_rocm(nk_stream_t stream) { return nk_stream_synchronize_rocm_(stream); }
 
 #endif // NUMKONG_HEADER_ONLY
 

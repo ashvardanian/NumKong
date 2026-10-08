@@ -46,7 +46,7 @@ extern "C" {
 #if NUMKONG_TARGET_NEON
 
 NUMKONG_API nk_status_t nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                             nk_f64_t *result, void *stream) {
+                                             nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum_f64 = 0;
 
@@ -87,7 +87,7 @@ NUMKONG_API nk_status_t nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_t const *
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
-                                                nk_f64_t *result, void *stream) {
+                                                nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t outer_sum_f64 = 0;
 
@@ -135,7 +135,8 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t cons
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,
-                                              nk_f32c_t const *c_pairs, nk_size_t n, nk_f64c_t *results, void *stream) {
+                                              nk_f32c_t const *c_pairs, nk_size_t n, nk_f64c_t *results,
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // ARMv8.3-A FCMLA (`vcmlaq_f32`) was benchmarked for this complex inner loop.
     // The deinterleave+4FMA pattern is 2.3x faster on Apple M4 — see `dot/neon.h` comment.
@@ -199,7 +200,7 @@ NUMKONG_API nk_status_t nk_bilinear_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                             nk_f32_t *result, void *stream) {
+                                             nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t outer_sum = 0;
     for (nk_size_t row = 0; row != n; ++row) {
@@ -232,7 +233,7 @@ NUMKONG_API nk_status_t nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const *
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
-                                                nk_f32_t *result, void *stream) {
+                                                nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t outer_sum = 0;
     for (nk_size_t row = 0; row != n; ++row) {
@@ -274,7 +275,8 @@ NUMKONG_API nk_status_t nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t cons
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_t const *b_pairs,
-                                              nk_f16c_t const *c_pairs, nk_size_t n, nk_f32c_t *results, void *stream) {
+                                              nk_f16c_t const *c_pairs, nk_size_t n, nk_f32c_t *results,
+                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f32_t outer_sum_real = 0;
     nk_f32_t outer_sum_imag = 0;

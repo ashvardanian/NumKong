@@ -273,7 +273,7 @@ constant uint nk_cross_tile_metal_k = 64, nk_cross_slab_metal_k = 16, nk_cross_t
 /** The launch record of every capability's tile, A and B strides in bytes and C's in results. */
 struct nk_cross_arguments_metal_t {
     ulong a_stride, b_stride, c_stride;
-    uint row_start, row_end, column_count, depth;
+    uint rows_begin, rows_end, column_count, depth;
 
     /** Nonzero keeps only cells on and above the diagonal, the symmetric kernels' output. */
     uint upper_triangle;
@@ -315,11 +315,11 @@ template <typename dtype_, uint side_ = nk_cross_tile_metal_k>
 void nk_cross_norms_metal_(device uchar const *a, device uchar const *b, constant nk_cross_arguments_metal_t &arguments,
                            uint2 group, uint thread_index, threadgroup float (*norms)[side_]) {
     if (thread_index < side_) {
-        uint const row = arguments.row_start + group.y * side_ + thread_index;
+        uint const row = arguments.rows_begin + group.y * side_ + thread_index;
         uint const column = group.x * side_ + thread_index;
         typename dtype_::norm_t a_norm = 0, b_norm = 0;
         for (uint depth = 0; depth < arguments.depth; ++depth) {
-            if (row < arguments.row_end) {
+            if (row < arguments.rows_end) {
                 auto const value = dtype_::load(a + row * arguments.a_stride, depth);
                 a_norm += value * value;
             }
@@ -348,7 +348,7 @@ void nk_cross_tile_metal_(device uchar const *a, device uchar const *b, device r
                           threadgroup float const (*norms)[nk_cross_tile_metal_k] = nullptr) {
     using accumulator_t = typename dtype_::dot_result_t;
     constexpr uint side = nk_cross_tile_metal_k, slab_depth = nk_cross_slab_metal_k;
-    uint const first_row = arguments.row_start + group.y * side, first_column = group.x * side;
+    uint const first_row = arguments.rows_begin + group.y * side, first_column = group.x * side;
     if (arguments.upper_triangle && first_column + side <= first_row) return; // below the diagonal, group-uniform
     uint const thread_column = thread_index & 15, thread_row = thread_index >> 4;
 
@@ -361,8 +361,9 @@ void nk_cross_tile_metal_(device uchar const *a, device uchar const *b, device r
             uint const line = element / slab_depth, offset = element % slab_depth, index = slab + offset;
             uint const row = first_row + line, column = first_column + line;
             bool const inside = index < arguments.depth;
-            a_slab[offset][line] = inside && row < arguments.row_end ? dtype_::load(a + row * arguments.a_stride, index)
-                                                                     : accumulator_t(0);
+            a_slab[offset][line] = inside && row < arguments.rows_end
+                                       ? dtype_::load(a + row * arguments.a_stride, index)
+                                       : accumulator_t(0);
             b_slab[offset][line] = inside && column < arguments.column_count
                                        ? dtype_::load(b + column * arguments.b_stride, index)
                                        : accumulator_t(0);
@@ -382,7 +383,7 @@ void nk_cross_tile_metal_(device uchar const *a, device uchar const *b, device r
 
     for (uint row_step = 0; row_step != 4; ++row_step) {
         uint const row = first_row + thread_row + 16 * row_step;
-        if (row >= arguments.row_end) continue;
+        if (row >= arguments.rows_end) continue;
         for (uint column_step = 0; column_step != 4; ++column_step) {
             uint const column = first_column + thread_column + 16 * column_step;
             if (column >= arguments.column_count || (arguments.upper_triangle && column < row)) continue;
@@ -798,9 +799,9 @@ void nk_cross_scaled_norms_metal_(device uchar const *a, device uchar const *b, 
                                   constant nk_cross_arguments_metal_t &arguments, uint2 group, uint thread_index,
                                   threadgroup float (*norms)[side_]) {
     if (thread_index < side_) {
-        uint const row = arguments.row_start + group.y * side_ + thread_index;
+        uint const row = arguments.rows_begin + group.y * side_ + thread_index;
         uint const column = group.x * side_ + thread_index;
-        norms[0][thread_index] = row < arguments.row_end
+        norms[0][thread_index] = row < arguments.rows_end
                                      ? nk_cross_scaled_norm_metal_<dtype_, block_size_, scale_>(
                                            a + row * arguments.a_stride, a_scales + row * arguments.a_scales_stride,
                                            arguments.depth, a_tensor)
@@ -843,7 +844,7 @@ void nk_cross_scaled_tile_metal_(device uchar const *a, device uchar const *b, d
                                  threadgroup float (*b_slab)[nk_cross_tile_metal_k + 1],
                                  threadgroup float const (*norms)[nk_cross_tile_metal_k]) {
     constexpr uint side = nk_cross_tile_metal_k;
-    uint const first_row = arguments.row_start + group.y * side, first_column = group.x * side;
+    uint const first_row = arguments.rows_begin + group.y * side, first_column = group.x * side;
     if (arguments.upper_triangle && first_column + side <= first_row) return;
     uint const thread_column = thread_index & 15, thread_row = thread_index >> 4;
     nk_cross_scaled_sum_metal_t sums[4][4] = {};
@@ -855,13 +856,13 @@ void nk_cross_scaled_tile_metal_(device uchar const *a, device uchar const *b, d
                 uint const line = element / nk_cross_slab_metal_k, offset = element % nk_cross_slab_metal_k;
                 uint const row = first_row + line, column = first_column + line,
                            dimension = block * block_size_ + slab + offset;
-                a_slab[offset][line] = row < arguments.row_end ? dtype_::load(a + row * arguments.a_stride, dimension)
-                                                               : 0;
+                a_slab[offset][line] = row < arguments.rows_end ? dtype_::load(a + row * arguments.a_stride, dimension)
+                                                                : 0;
                 b_slab[offset][line] = column < arguments.column_count
                                            ? dtype_::load(b + column * arguments.b_stride, dimension)
                                            : 0;
                 if (scale_ == nk_cross_scale_e4m3_metal_k) {
-                    if (row < arguments.row_end)
+                    if (row < arguments.rows_end)
                         a_slab[offset][line] *= float(
                             nk::e4m3_t::widen(ushort4(a_scales[row * arguments.a_scales_stride + block]))[0]);
                     if (column < arguments.column_count)
@@ -881,7 +882,7 @@ void nk_cross_scaled_tile_metal_(device uchar const *a, device uchar const *b, d
             for (uint column_step = 0; column_step != 4; ++column_step) {
                 uint const row = first_row + thread_row + 16 * row_step,
                            column = first_column + thread_column + 16 * column_step;
-                if (row < arguments.row_end && column < arguments.column_count)
+                if (row < arguments.rows_end && column < arguments.column_count)
                     nk_cross_scaled_block_add_metal_<scale_>(
                         sums[row_step][column_step], dots[row_step][column_step],
                         scale_ == nk_cross_scale_e4m3_metal_k ? 0x38
@@ -895,7 +896,7 @@ void nk_cross_scaled_tile_metal_(device uchar const *a, device uchar const *b, d
         uint const row_step = output / 4, column_step = output % 4;
         uint const row = first_row + thread_row + 16 * row_step,
                    column = first_column + thread_column + 16 * column_step;
-        if (row >= arguments.row_end || column >= arguments.column_count || (arguments.upper_triangle && column < row))
+        if (row >= arguments.rows_end || column >= arguments.column_count || (arguments.upper_triangle && column < row))
             continue;
         float value = nk_cross_scaled_dot_metal_(sums[row_step][column_step], tensor_product);
         if (metric_ != nk_cross_dot_metal_k) {

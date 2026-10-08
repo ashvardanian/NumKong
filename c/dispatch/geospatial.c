@@ -40,7 +40,7 @@ static nk_capability_kernels_t const *nk_haversine_f64_capabilities(void) {
 
 NUMKONG_API nk_status_t nk_haversine_f64_best(nk_f64_t const *a_lats, nk_f64_t const *a_lons, nk_f64_t const *b_lats,
                                               nk_f64_t const *b_lons, nk_size_t n, nk_f64_t *results,
-                                              nk_capability_t capabilities, void *stream) {
+                                              nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_geospatial_punned_t const kernel = (nk_metric_geospatial_punned_t)nk_kernel_pick_(
         capabilities, nk_haversine_f64_capabilities());
     return kernel ? kernel(a_lats, a_lons, b_lats, b_lons, n, results, stream) : nk_missing_kernel_k;
@@ -80,7 +80,7 @@ static nk_capability_kernels_t const *nk_haversine_f32_capabilities(void) {
 
 NUMKONG_API nk_status_t nk_haversine_f32_best(nk_f32_t const *a_lats, nk_f32_t const *a_lons, nk_f32_t const *b_lats,
                                               nk_f32_t const *b_lons, nk_size_t n, nk_f32_t *results,
-                                              nk_capability_t capabilities, void *stream) {
+                                              nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_geospatial_punned_t const kernel = (nk_metric_geospatial_punned_t)nk_kernel_pick_(
         capabilities, nk_haversine_f32_capabilities());
     return kernel ? kernel(a_lats, a_lons, b_lats, b_lons, n, results, stream) : nk_missing_kernel_k;
@@ -120,7 +120,7 @@ static nk_capability_kernels_t const *nk_vincenty_f64_capabilities(void) {
 
 NUMKONG_API nk_status_t nk_vincenty_f64_best(nk_f64_t const *a_lats, nk_f64_t const *a_lons, nk_f64_t const *b_lats,
                                              nk_f64_t const *b_lons, nk_size_t n, nk_f64_t *results,
-                                             nk_capability_t capabilities, void *stream) {
+                                             nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_geospatial_punned_t const kernel = (nk_metric_geospatial_punned_t)nk_kernel_pick_(
         capabilities, nk_vincenty_f64_capabilities());
     return kernel ? kernel(a_lats, a_lons, b_lats, b_lons, n, results, stream) : nk_missing_kernel_k;
@@ -160,7 +160,7 @@ static nk_capability_kernels_t const *nk_vincenty_f32_capabilities(void) {
 
 NUMKONG_API nk_status_t nk_vincenty_f32_best(nk_f32_t const *a_lats, nk_f32_t const *a_lons, nk_f32_t const *b_lats,
                                              nk_f32_t const *b_lons, nk_size_t n, nk_f32_t *results,
-                                             nk_capability_t capabilities, void *stream) {
+                                             nk_capability_t capabilities, nk_stream_t stream) {
     nk_metric_geospatial_punned_t const kernel = (nk_metric_geospatial_punned_t)nk_kernel_pick_(
         capabilities, nk_vincenty_f32_capabilities());
     return kernel ? kernel(a_lats, a_lons, b_lats, b_lons, n, results, stream) : nk_missing_kernel_k;

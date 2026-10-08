@@ -95,13 +95,13 @@ NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_best(nk_size_t vector_count, nk_
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_best(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                         nk_capability_t capabilities, void *stream);
+                                                         nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_best(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                        nk_capability_t capabilities, void *stream);
+                                                        nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_best(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                        nk_capability_t capabilities, void *stream);
+                                                        nk_capability_t capabilities, nk_stream_t stream);
 
 /**
  *  @brief Packs vectors into a backend-specific layout for maxsim computation.
@@ -117,15 +117,15 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_best(void const *packed, nk_s
  */
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_best(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                  nk_size_t stride, void *packed, nk_capability_t capabilities,
-                                                 void *stream);
+                                                 nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_best(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                 nk_size_t stride, void *packed, nk_capability_t capabilities,
-                                                void *stream);
+                                                nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_best(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                 nk_size_t stride, void *packed, nk_capability_t capabilities,
-                                                void *stream);
+                                                nk_stream_t stream);
 
 /**
  *  @brief Computes angular distance late-interaction on pre-packed vectors. Returns Σᵢ minⱼ
@@ -144,78 +144,78 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_best(nk_f16_t const *vectors, nk_size
  */
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_best(void const *query_packed, void const *document_packed,
                                                    nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                   nk_f32_t *result, nk_capability_t capabilities, void *stream);
+                                                   nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_best(void const *query_packed, void const *document_packed,
                                                   nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                  nk_f64_t *result, nk_capability_t capabilities, void *stream);
+                                                  nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_best(void const *query_packed, void const *document_packed,
                                                   nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                  nk_f32_t *result, nk_capability_t capabilities, void *stream);
+                                                  nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream);
 
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_serial(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                           void *stream);
+                                                           nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_serial(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f32_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                          void *stream);
+                                                          nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_serial(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_serial(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                          void *stream);
+                                                          nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_serial(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                   nk_size_t stride, void *packed, void *stream);
+                                                   nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_serial(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                  nk_size_t stride, void *packed, void *stream);
+                                                  nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_serial(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                  nk_size_t stride, void *packed, void *stream);
+                                                  nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_serial(void const *query_packed, void const *document_packed,
                                                      nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                     nk_f32_t *result, void *stream);
+                                                     nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_serial(void const *query_packed, void const *document_packed,
                                                     nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                    nk_f64_t *result, void *stream);
+                                                    nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_serial(void const *query_packed, void const *document_packed,
                                                     nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                    nk_f32_t *result, void *stream);
+                                                    nk_f32_t *result, nk_stream_t stream);
 
 #if NUMKONG_TARGET_ICELAKE
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_icelake(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f32_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                           void *stream);
+                                                           nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_icelake(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                           void *stream);
+                                                           nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_icelake(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                   nk_size_t stride, void *packed, void *stream);
+                                                   nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_icelake(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                   nk_size_t stride, void *packed, void *stream);
+                                                   nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_icelake(void const *query_packed, void const *document_packed,
                                                      nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                     nk_f64_t *result, void *stream);
+                                                     nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_icelake(void const *query_packed, void const *document_packed,
                                                      nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                     nk_f32_t *result, void *stream);
+                                                     nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if NUMKONG_TARGET_GENOA
@@ -223,14 +223,14 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_icelake(void const *query_packed, v
 NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_genoa(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_genoa(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                          void *stream);
+                                                          nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_genoa(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                  nk_size_t stride, void *packed, void *stream);
+                                                  nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_genoa(void const *query_packed, void const *document_packed,
                                                     nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                    nk_f32_t *result, void *stream);
+                                                    nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_GENOA
 
 #if NUMKONG_TARGET_SAPPHIREAMX
@@ -238,26 +238,27 @@ NUMKONG_API nk_status_t nk_maxsim_packed_bf16_genoa(void const *query_packed, vo
 NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_sapphireamx(void const *packed, nk_size_t *vectors,
-                                                                nk_size_t *depth, void *stream);
+                                                                nk_size_t *depth, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f32_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                               void *stream);
+                                                               nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_sapphireamx(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                               void *stream);
+                                                               nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sapphireamx(nk_bf16_t const *vectors, nk_size_t vector_count,
-                                                        nk_size_t depth, nk_size_t stride, void *packed, void *stream);
+                                                        nk_size_t depth, nk_size_t stride, void *packed,
+                                                        nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_sapphireamx(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                       nk_size_t stride, void *packed, void *stream);
+                                                       nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_sapphireamx(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                       nk_size_t stride, void *packed, void *stream);
+                                                       nk_size_t stride, void *packed, nk_stream_t stream);
 
 /**
  *  @copydoc nk_maxsim_packed_bf16_best
@@ -266,15 +267,15 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_sapphireamx(nk_f16_t const *vectors, 
  */
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sapphireamx(void const *query_packed, void const *document_packed,
                                                           nk_size_t query_count, nk_size_t document_count,
-                                                          nk_size_t depth, nk_f32_t *result, void *stream);
+                                                          nk_size_t depth, nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_sapphireamx(void const *query_packed, void const *document_packed,
                                                          nk_size_t query_count, nk_size_t document_count,
-                                                         nk_size_t depth, nk_f64_t *result, void *stream);
+                                                         nk_size_t depth, nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_sapphireamx(void const *query_packed, void const *document_packed,
                                                          nk_size_t query_count, nk_size_t document_count,
-                                                         nk_size_t depth, nk_f32_t *result, void *stream);
+                                                         nk_size_t depth, nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
 #if NUMKONG_TARGET_HASWELL
@@ -282,38 +283,38 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_sapphireamx(void const *query_packe
 NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_haswell(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                            void *stream);
+                                                            nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_haswell(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f32_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                           void *stream);
+                                                           nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_haswell(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                           void *stream);
+                                                           nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_haswell(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                    nk_size_t stride, void *packed, void *stream);
+                                                    nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_haswell(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                   nk_size_t stride, void *packed, void *stream);
+                                                   nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_haswell(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                   nk_size_t stride, void *packed, void *stream);
+                                                   nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_haswell(void const *query_packed, void const *document_packed,
                                                       nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                      nk_f32_t *result, void *stream);
+                                                      nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_haswell(void const *query_packed, void const *document_packed,
                                                      nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                     nk_f64_t *result, void *stream);
+                                                     nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_haswell(void const *query_packed, void const *document_packed,
                                                      nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                     nk_f32_t *result, void *stream);
+                                                     nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_ALDER
@@ -321,38 +322,38 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_haswell(void const *query_packed, v
 NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_alder(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_alder(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                          void *stream);
+                                                          nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_alder(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f32_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_alder(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                         void *stream);
+                                                         nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_alder(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_alder(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                         void *stream);
+                                                         nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_alder(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                  nk_size_t stride, void *packed, void *stream);
+                                                  nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_alder(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                 nk_size_t stride, void *packed, void *stream);
+                                                 nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_alder(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                 nk_size_t stride, void *packed, void *stream);
+                                                 nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_alder(void const *query_packed, void const *document_packed,
                                                     nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                    nk_f32_t *result, void *stream);
+                                                    nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_alder(void const *query_packed, void const *document_packed,
                                                    nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                   nk_f64_t *result, void *stream);
+                                                   nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_alder(void const *query_packed, void const *document_packed,
                                                    nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                   nk_f32_t *result, void *stream);
+                                                   nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_ALDER
 
 #if NUMKONG_TARGET_V128RELAXED
@@ -364,34 +365,35 @@ NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_v128relaxed(nk_size_t vector_cou
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_v128relaxed(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_v128relaxed(void const *packed, nk_size_t *vectors,
-                                                                nk_size_t *depth, void *stream);
+                                                                nk_size_t *depth, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_v128relaxed(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                               void *stream);
+                                                               nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_v128relaxed(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                               void *stream);
+                                                               nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_v128relaxed(nk_bf16_t const *vectors, nk_size_t vector_count,
-                                                        nk_size_t depth, nk_size_t stride, void *packed, void *stream);
+                                                        nk_size_t depth, nk_size_t stride, void *packed,
+                                                        nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_v128relaxed(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                       nk_size_t stride, void *packed, void *stream);
+                                                       nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_v128relaxed(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                       nk_size_t stride, void *packed, void *stream);
+                                                       nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_v128relaxed(void const *query_packed, void const *document_packed,
                                                           nk_size_t query_count, nk_size_t document_count,
-                                                          nk_size_t depth, nk_f32_t *result, void *stream);
+                                                          nk_size_t depth, nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_v128relaxed(void const *query_packed, void const *document_packed,
                                                          nk_size_t query_count, nk_size_t document_count,
-                                                         nk_size_t depth, nk_f64_t *result, void *stream);
+                                                         nk_size_t depth, nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_v128relaxed(void const *query_packed, void const *document_packed,
                                                          nk_size_t query_count, nk_size_t document_count,
-                                                         nk_size_t depth, nk_f32_t *result, void *stream);
+                                                         nk_size_t depth, nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_V128RELAXED
 
 #if NUMKONG_TARGET_NEONSDOT
@@ -399,38 +401,38 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_v128relaxed(void const *query_packe
 NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_neonsdot(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                             void *stream);
+                                                             nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_neonsdot(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f32_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                            void *stream);
+                                                            nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_neonsdot(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_neonsdot(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                            void *stream);
+                                                            nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_neonsdot(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                     nk_size_t stride, void *packed, void *stream);
+                                                     nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_neonsdot(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                    nk_size_t stride, void *packed, void *stream);
+                                                    nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_neonsdot(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                    nk_size_t stride, void *packed, void *stream);
+                                                    nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_neonsdot(void const *query_packed, void const *document_packed,
                                                        nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                       nk_f32_t *result, void *stream);
+                                                       nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_neonsdot(void const *query_packed, void const *document_packed,
                                                       nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                      nk_f64_t *result, void *stream);
+                                                      nk_f64_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_neonsdot(void const *query_packed, void const *document_packed,
                                                       nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                      nk_f32_t *result, void *stream);
+                                                      nk_f32_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_NEONSDOT
 
 #if NUMKONG_TARGET_SME
@@ -438,34 +440,34 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_neonsdot(void const *query_packed, 
 NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_sme(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                        void *stream);
+                                                        nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_sme(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                       void *stream);
+                                                       nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_sme(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_maxsim_packed_shape_f32_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                       void *stream);
+                                                       nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sme(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                nk_size_t stride, void *packed, void *stream);
+                                                nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_sme(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                               nk_size_t stride, void *packed, void *stream);
+                                               nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_sme(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                               nk_size_t stride, void *packed, void *stream);
+                                               nk_size_t stride, void *packed, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sme(void const *query_packed, void const *document_packed,
                                                   nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                  nk_f32_t *result, void *stream);
+                                                  nk_f32_t *result, nk_stream_t stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_sme(void const *query_packed, void const *document_packed,
                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                 nk_f32_t *result, void *stream);
+                                                 nk_f32_t *result, nk_stream_t stream);
 
 /**
  *  @copydoc nk_maxsim_packed_bf16_best
@@ -474,7 +476,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_sme(void const *query_packed, void 
  */
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_sme(void const *query_packed, void const *document_packed,
                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                 nk_f64_t *result, void *stream);
+                                                 nk_f64_t *result, nk_stream_t stream);
 #endif // NUMKONG_TARGET_SME
 
 /** Returns the output dtype for MaxSim late-interaction. */
@@ -521,85 +523,85 @@ NUMKONG_API nk_status_t nk_maxsim_find_kernel(nk_kernel_kind_t kind, nk_dtype_t 
 extern "C" {
 #endif
 
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_best(nk_size_t columns, nk_size_t depth, nk_capability_t capabilities,
-                                                     nk_size_t *bytes) {
-    nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_best(nk_size_t vector_count, nk_size_t depth,
+                                                     nk_capability_t capabilities, nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
-                                                        nk_capability_t capabilities, void *stream) {
-    nk_unused_(packed), nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_best(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                        nk_capability_t capabilities, nk_stream_t stream) {
+    nk_unused_(packed), nk_unused_(vectors), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_f32_best(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
+NUMKONG_API nk_status_t nk_maxsim_pack_f32_best(nk_f32_t const *b, nk_size_t vector_count, nk_size_t depth,
                                                 nk_size_t b_stride, void *b_packed, nk_capability_t capabilities,
-                                                void *stream) {
-    nk_unused_(b), nk_unused_(columns), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
+                                                nk_stream_t stream) {
+    nk_unused_(b), nk_unused_(vector_count), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_best(void const *query_packed, void const *document_packed,
                                                   nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                  nk_f64_t *result, nk_capability_t capabilities, void *stream) {
+                                                  nk_f64_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(query_packed), nk_unused_(document_packed), nk_unused_(query_count), nk_unused_(document_count),
         nk_unused_(depth), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_best(nk_size_t columns, nk_size_t depth, nk_capability_t capabilities,
-                                                      nk_size_t *bytes) {
-    nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
+NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_best(nk_size_t vector_count, nk_size_t depth,
+                                                      nk_capability_t capabilities, nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
-                                                         nk_capability_t capabilities, void *stream) {
-    nk_unused_(packed), nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_best(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                         nk_capability_t capabilities, nk_stream_t stream) {
+    nk_unused_(packed), nk_unused_(vectors), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_bf16_best(nk_bf16_t const *b, nk_size_t columns, nk_size_t depth,
+NUMKONG_API nk_status_t nk_maxsim_pack_bf16_best(nk_bf16_t const *b, nk_size_t vector_count, nk_size_t depth,
                                                  nk_size_t b_stride, void *b_packed, nk_capability_t capabilities,
-                                                 void *stream) {
-    nk_unused_(b), nk_unused_(columns), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
+                                                 nk_stream_t stream) {
+    nk_unused_(b), nk_unused_(vector_count), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_best(void const *query_packed, void const *document_packed,
                                                    nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                   nk_f32_t *result, nk_capability_t capabilities, void *stream) {
+                                                   nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(query_packed), nk_unused_(document_packed), nk_unused_(query_count), nk_unused_(document_count),
         nk_unused_(depth), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_best(nk_size_t columns, nk_size_t depth, nk_capability_t capabilities,
-                                                     nk_size_t *bytes) {
-    nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_best(nk_size_t vector_count, nk_size_t depth,
+                                                     nk_capability_t capabilities, nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
-                                                        nk_capability_t capabilities, void *stream) {
-    nk_unused_(packed), nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_best(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                        nk_capability_t capabilities, nk_stream_t stream) {
+    nk_unused_(packed), nk_unused_(vectors), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_f16_best(nk_f16_t const *b, nk_size_t columns, nk_size_t depth,
+NUMKONG_API nk_status_t nk_maxsim_pack_f16_best(nk_f16_t const *b, nk_size_t vector_count, nk_size_t depth,
                                                 nk_size_t b_stride, void *b_packed, nk_capability_t capabilities,
-                                                void *stream) {
-    nk_unused_(b), nk_unused_(columns), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
+                                                nk_stream_t stream) {
+    nk_unused_(b), nk_unused_(vector_count), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_best(void const *query_packed, void const *document_packed,
                                                   nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
-                                                  nk_f32_t *result, nk_capability_t capabilities, void *stream) {
+                                                  nk_f32_t *result, nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(query_packed), nk_unused_(document_packed), nk_unused_(query_count), nk_unused_(document_count),
         nk_unused_(depth), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;

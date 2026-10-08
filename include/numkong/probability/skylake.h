@@ -91,7 +91,7 @@ NUMKONG_INLINE __m512d nk_log2_f64x8_skylake_(__m512d x) {
 #if NUMKONG_TARGET_SKYLAKE
 
 NUMKONG_API nk_status_t nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_f32x16 = _mm512_setzero_ps();
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
@@ -126,7 +126,7 @@ nk_kld_f32_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_jsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_f32x16 = _mm512_setzero_ps();
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
@@ -168,7 +168,7 @@ nk_jsd_f32_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_kld_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d compensation_f64x8 = _mm512_setzero_pd();
@@ -204,7 +204,7 @@ nk_kld_f64_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_jsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d compensation_f64x8 = _mm512_setzero_pd();
@@ -252,7 +252,7 @@ nk_jsd_f64_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_kld_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_f32x16 = _mm512_setzero_ps();
     __m512 epsilon_f32x16 = _mm512_set1_ps(NUMKONG_F32_DIVISION_EPSILON);
@@ -283,7 +283,7 @@ nk_kld_f16_skylake_cycle:
 }
 
 NUMKONG_API nk_status_t nk_jsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                           void *stream) {
+                                           nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m512 sum_a_f32x16 = _mm512_setzero_ps();
     __m512 sum_b_f32x16 = _mm512_setzero_ps();
