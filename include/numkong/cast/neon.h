@@ -999,13 +999,13 @@ NUMKONG_INLINE void nk_store_f32x4_as_bf16_neon_(nk_bf16_t *dst, float32x4_t val
 
 NUMKONG_INLINE float32x4_t nk_load_e4m3x4_as_f32_neon_(nk_e4m3_t const *src) {
     nk_b32_vec_t packed_vec;
-    nk_copy_bytes_(&packed_vec, src, 4);
+    packed_vec.u32 = vget_lane_u32(vld1_dup_u32((nk_u32_t const *)src), 0);
     return nk_e4m3x4_to_f32x4_neon_(packed_vec);
 }
 
 NUMKONG_INLINE void nk_store_f32x4_as_e4m3_neon_(nk_e4m3_t *dst, float32x4_t values_f32x4) {
     nk_b32_vec_t packed_vec = nk_f32x4_to_e4m3x4_neon_(values_f32x4);
-    nk_copy_bytes_(dst, &packed_vec, 4);
+    vst1_lane_u32((nk_u32_t *)dst, vdup_n_u32(packed_vec.u32), 0);
 }
 
 NUMKONG_INLINE uint32x4_t nk_load_u4x4_as_u32_neon_(nk_u8_t const *src) {
@@ -1057,7 +1057,24 @@ NUMKONG_INLINE void nk_cast_elementwise_neon_(void const *from, nk_dtype_t from_
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
-        if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / 8);
+        nk_size_t size_bytes = n * size_bits / 8;
+        nk_u8_t const *from_bytes = (nk_u8_t const *)from;
+        nk_u8_t *to_bytes = (nk_u8_t *)to;
+        nk_size_t offset = 0;
+        for (; offset + 16 <= size_bytes; offset += 16) vst1q_u8(to_bytes + offset, vld1q_u8(from_bytes + offset));
+        if (offset + 8 <= size_bytes) {
+            vst1_u8(to_bytes + offset, vld1_u8(from_bytes + offset));
+            offset += 8;
+        }
+        if (offset + 4 <= size_bytes) {
+            vst1_lane_u32((nk_u32_t *)(to_bytes + offset), vld1_dup_u32((nk_u32_t const *)(from_bytes + offset)), 0);
+            offset += 4;
+        }
+        if (offset + 2 <= size_bytes) {
+            vst1_lane_u16((nk_u16_t *)(to_bytes + offset), vld1_dup_u16((nk_u16_t const *)(from_bytes + offset)), 0);
+            offset += 2;
+        }
+        if (offset < size_bytes) vst1_lane_u8(to_bytes + offset, vld1_dup_u8(from_bytes + offset), 0);
         return;
     }
 

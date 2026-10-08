@@ -348,8 +348,16 @@ NUMKONG_INLINE void nk_e2m3x64_to_i8x64_neon_(void const *codes, nk_b512_vec_t *
 /** The first @p n codes of a 64-element E2M3 step, zero-padded. */
 NUMKONG_INLINE void nk_partial_e2m3x64_to_i8x64_neon_(void const *codes, nk_b512_vec_t *dst, nk_size_t n) {
     nk_b512_vec_t codes_vec;
-    for (nk_size_t index = 0; index != 64; ++index) codes_vec.u8s[index] = 0;
-    nk_copy_bytes_(codes_vec.u8s, codes, n);
+    nk_u8_t const *source = (nk_u8_t const *)codes;
+    for (nk_size_t chunk = 0; chunk != 4; ++chunk) {
+        nk_size_t const offset = chunk * 16;
+        if (n >= offset + 16) codes_vec.u8x16s[chunk] = vld1q_u8(source + offset);
+        else {
+            nk_b128_vec_t tail_vec;
+            nk_partial_load_b8x16_serial_(source + offset, &tail_vec, n > offset ? n - offset : 0);
+            codes_vec.u8x16s[chunk] = tail_vec.u8x16;
+        }
+    }
     nk_e2m3x64_to_i8x64_neon_(&codes_vec, dst);
 }
 

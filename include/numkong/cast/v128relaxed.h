@@ -331,7 +331,26 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dt
     // Same-type fast path
     if (from_dtype == to_dtype) {
         nk_size_t size_bits = nk_dtype_bits(from_dtype);
-        if (size_bits > 0) nk_copy_bytes_(to, from, count * size_bits / 8);
+        nk_size_t size_bytes = count * size_bits / 8;
+        nk_u8_t const *from_bytes = (nk_u8_t const *)from;
+        nk_u8_t *to_bytes = (nk_u8_t *)to;
+        nk_size_t offset = 0;
+        for (; offset + 16 <= size_bytes; offset += 16)
+            wasm_v128_store(to_bytes + offset, wasm_v128_load(from_bytes + offset));
+        if (offset + 8 <= size_bytes) {
+            wasm_v128_store64_lane(to_bytes + offset, wasm_v128_load64_zero(from_bytes + offset), 0);
+            offset += 8;
+        }
+        if (offset + 4 <= size_bytes) {
+            wasm_v128_store32_lane(to_bytes + offset, wasm_v128_load32_zero(from_bytes + offset), 0);
+            offset += 4;
+        }
+        if (offset + 2 <= size_bytes) {
+            wasm_v128_store16_lane(to_bytes + offset, wasm_v128_load16_splat(from_bytes + offset), 0);
+            offset += 2;
+        }
+        if (offset < size_bytes)
+            wasm_v128_store8_lane(to_bytes + offset, wasm_v128_load8_splat(from_bytes + offset), 0);
         return nk_success_k;
     }
 

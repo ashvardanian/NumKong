@@ -84,7 +84,7 @@
 #include "numkong/cast/serial.h"    // `nk_partial_load_b32x4_serial_`
 #include "numkong/dot/serial.h"     // `nk_dot_f32x4_state_serial_t`
 #include "numkong/spatial/serial.h" // `nk_f32_sqrt_`
-#include "numkong/reduce.h"         // `nk_reduce_moments_f32_best`, so packs norm with their own capability
+#include "numkong/reduce/serial.h"  // `nk_reduce_moments_f32_strided_`
 
 /*  GCC's -Wstringop-overflow produces false positives on the padded accumulator arrays in
  *  nk_define_cross_symmetric_ macro expansions — accumulators[4][7] with runtime indexing. */
@@ -211,8 +211,7 @@ NUMKONG_INLINE nk_cross_operand_t nk_cross_operand_(nk_dtype_t dtype, void const
         unpacked.tensor_scale = reference->tensor_scale;
     }
     else if (format.block_size) {
-        nk_mxfp4_cref_t reference;
-        nk_copy_bytes_(&reference, operand, sizeof(reference));
+        nk_mxfp4_cref_t const reference = *(nk_mxfp4_cref_t const *)operand;
         unpacked.elements = reference.elements, unpacked.scales = reference.scales;
     }
     nk_assert_(!format.block_size || stride % format.block_bytes == 0);

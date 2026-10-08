@@ -235,7 +235,16 @@ NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_dtype
     // Same-type fast path
     if (from_dtype == to_dtype) {
         nk_size_t size_bits = nk_dtype_bits(from_dtype);
-        if (size_bits > 0) nk_copy_bytes_(to, from, count * size_bits / 8);
+        nk_size_t size_bytes = count * size_bits / 8;
+        nk_u8_t const *from_bytes = (nk_u8_t const *)from;
+        nk_u8_t *to_bytes = (nk_u8_t *)to;
+        nk_size_t offset = 0;
+        for (; offset + 16 <= size_bytes; offset += 16) vec_xst(vec_xl(0, from_bytes + offset), 0, to_bytes + offset);
+        if (offset < size_bytes) {
+            nk_b128_vec_t tail_vec;
+            nk_partial_load_b8x16_powervsx_(from_bytes + offset, &tail_vec, size_bytes - offset);
+            nk_partial_store_b8x16_powervsx_(&tail_vec, to_bytes + offset, size_bytes - offset);
+        }
         return nk_success_k;
     }
 

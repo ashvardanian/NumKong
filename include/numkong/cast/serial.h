@@ -1870,7 +1870,8 @@ NUMKONG_INLINE void nk_scalar_buffers_to_f64c_(                        //
         nk_scalar_buffer_t staged;
         for (i = 0; i < from_count; ++i) {
             staged.u64 = 0;
-            nk_copy_bytes_(&staged, (char const *)from_ptr + i * stride, stride);
+            nk_u8_t const *source = (nk_u8_t const *)from_ptr + i * stride;
+            for (nk_size_t byte = 0; byte != stride; ++byte) staged.bytes[byte] = source[byte];
             nk_scalar_buffer_to_f64c_(&staged, from_dtype, &to_buffers[i].f64c);
         }
     } break;
@@ -2010,7 +2011,8 @@ NUMKONG_INLINE void nk_scalar_buffers_from_f64c_(           //
         nk_scalar_buffer_t tmp;
         for (i = 0; i < to_count; ++i) {
             nk_scalar_buffer_from_f64c_(&from_buffers[i].f64c, &tmp, to_dtype);
-            nk_copy_bytes_((char *)to_ptr + i * stride, &tmp, stride);
+            nk_u8_t *target = (nk_u8_t *)to_ptr + i * stride;
+            for (nk_size_t byte = 0; byte != stride; ++byte) target[byte] = tmp.bytes[byte];
         }
     } break;
     }
@@ -2270,7 +2272,9 @@ NUMKONG_INLINE void nk_cast_elementwise_(void const *from, nk_dtype_t from_type,
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
         nk_size_t size_bytes = n * size_bits / NUMKONG_BITS_PER_BYTE;
-        if (size_bytes > 0) nk_copy_bytes_(to, from, size_bytes);
+        nk_u8_t const *source = (nk_u8_t const *)from;
+        nk_u8_t *target = (nk_u8_t *)to;
+        for (nk_size_t byte = 0; byte != size_bytes; ++byte) target[byte] = source[byte];
         return;
     }
 

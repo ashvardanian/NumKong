@@ -818,7 +818,19 @@ NUMKONG_INLINE void nk_cast_elementwise_haswell_(void const *from, nk_dtype_t fr
     // Same-type fast path
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);
-        if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / NUMKONG_BITS_PER_BYTE);
+        nk_size_t size_bytes = n * size_bits / NUMKONG_BITS_PER_BYTE;
+        nk_u8_t const *from_bytes = (nk_u8_t const *)from;
+        nk_u8_t *to_bytes = (nk_u8_t *)to;
+        nk_size_t offset = 0;
+        for (; offset + 32 <= size_bytes; offset += 32) {
+            __m256i const chunk_u8x32 = _mm256_loadu_si256((__m256i const *)(from_bytes + offset));
+            _mm256_storeu_si256((__m256i *)(to_bytes + offset), chunk_u8x32);
+        }
+        if (offset < size_bytes) {
+            nk_b256_vec_t tail_vec;
+            nk_partial_load_b8x32_haswell_(from_bytes + offset, &tail_vec, size_bytes - offset);
+            nk_partial_store_b8x32_haswell_(&tail_vec, to_bytes + offset, size_bytes - offset);
+        }
         return;
     }
 

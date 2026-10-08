@@ -1480,16 +1480,16 @@ NUMKONG_API nk_status_t nk_each_swiglu_e4m3_neon(nk_e4m3_t const *gate, nk_e4m3_
         for (nk_size_t c = 0; c < columns; c += 4) {
             nk_size_t count = columns - c;
             nk_b32_vec_t gate_vec, up_vec, result_vec;
-            if (count >= 4) nk_copy_bytes_(&gate_vec, g + c, sizeof(gate_vec));
+            if (count >= 4) gate_vec.u32 = vget_lane_u32(vld1_dup_u32((nk_u32_t const *)(g + c)), 0);
             else gate_vec = nk_partial_load_b8x4_serial_(g + c, count);
             float32x4_t result_f32x4 = nk_silu_f32x4_neon_(vmulq_n_f32(nk_e4m3x4_to_f32x4_neon_(gate_vec), gate_scale));
             if (u) {
-                if (count >= 4) nk_copy_bytes_(&up_vec, u + c, sizeof(up_vec));
+                if (count >= 4) up_vec.u32 = vget_lane_u32(vld1_dup_u32((nk_u32_t const *)(u + c)), 0);
                 else up_vec = nk_partial_load_b8x4_serial_(u + c, count);
                 result_f32x4 = vmulq_f32(result_f32x4, nk_e4m3x4_to_f32x4_neon_(up_vec));
             }
             result_vec = nk_f32x4_to_e4m3x4_neon_(vmulq_n_f32(result_f32x4, output_scale));
-            if (count >= 4) nk_copy_bytes_(dst + c, &result_vec, sizeof(result_vec));
+            if (count >= 4) vst1_lane_u32((nk_u32_t *)(dst + c), vdup_n_u32(result_vec.u32), 0);
             else nk_partial_store_b8x4_serial_(&result_vec, dst + c, count);
         }
     }
@@ -1604,7 +1604,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_neon(nk_e4m3_t const *x, nk_f32_t c
             for (nk_size_t c = 0; c < columns; c += 4) {
                 nk_size_t count = columns - c;
                 nk_b32_vec_t input_vec, result_vec;
-                if (count >= 4) nk_copy_bytes_(&input_vec, input + c, sizeof(input_vec));
+                if (count >= 4) input_vec.u32 = vget_lane_u32(vld1_dup_u32((nk_u32_t const *)(input + c)), 0);
                 else input_vec = nk_partial_load_b8x4_serial_(input + c, count);
                 float32x4_t result_f32x4 = vmulq_n_f32(nk_e4m3x4_to_f32x4_neon_(input_vec), inv_rms);
                 if (gamma) {
@@ -1614,7 +1614,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_neon(nk_e4m3_t const *x, nk_f32_t c
                     result_f32x4 = vmulq_f32(result_f32x4, gamma_vec.f32x4);
                 }
                 result_vec = nk_f32x4_to_e4m3x4_neon_(result_f32x4);
-                if (count >= 4) nk_copy_bytes_(output + c, &result_vec, sizeof(result_vec));
+                if (count >= 4) vst1_lane_u32((nk_u32_t *)(output + c), vdup_n_u32(result_vec.u32), 0);
                 else nk_partial_store_b8x4_serial_(&result_vec, output + c, count);
             }
         }
@@ -1828,7 +1828,7 @@ NUMKONG_API nk_status_t nk_each_rmscast_e4m3_neon(nk_f32_t const *x, nk_f32_t co
                     result_f32x4 = vmulq_f32(result_f32x4, gamma_vec.f32x4);
                 }
                 result_vec = nk_f32x4_to_e4m3x4_neon_(result_f32x4);
-                if (count >= 4) nk_copy_bytes_(output + c, &result_vec, sizeof(result_vec));
+                if (count >= 4) vst1_lane_u32((nk_u32_t *)(output + c), vdup_n_u32(result_vec.u32), 0);
                 else nk_partial_store_b8x4_serial_(&result_vec, output + c, count);
             }
         }
