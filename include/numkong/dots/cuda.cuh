@@ -1038,9 +1038,10 @@ NUMKONG_DEVICE void nk_cross_accumulate_scaled_cuda_(
     for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
 #pragma unroll
         for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
+            // Scales multiply first: a partial times one edge scale alone can underflow
             totals[row_step][column_step] += partials[row_step][column_step].f *
-                                             a_scales[thread_row + nk_cross_grid_side_simt_k * row_step] *
-                                             b_scales[thread_column + nk_cross_grid_side_simt_k * column_step];
+                                             (a_scales[thread_row + nk_cross_grid_side_simt_k * row_step] *
+                                              b_scales[thread_column + nk_cross_grid_side_simt_k * column_step]);
             partials[row_step][column_step].f = 0;
         }
 }
