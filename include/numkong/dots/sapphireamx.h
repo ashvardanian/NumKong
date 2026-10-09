@@ -34,8 +34,12 @@
  *  Several optimizations are used across file:
  *
  *  - Pre-pack B matrix once for repeated inference (avoids runtime reordering)
+ *  - BF16 rows interleave pairs and INT8 rows quads, so each 32-bit slot feeds one multiply step,
+ *    and @c LDTILECFG shrinks the edge tiles instead of masking them
  *  - Morton Z-curve tile ordering improves L2 cache hit rate by 5-25%
  *  - Use streaming stores for large C matrices to avoid cache pollution
+ *  - E4M3 and E5M2 have no tile type, so they become BF16 at the pack and A staging through the Ice
+ *    Lake @c VPERMI2W lookups, port-5-bound but the simplest route into @c TDPBF16PS
  *
  *  @section amx_instructions Intel AMX Instructions (Sapphire Rapids+)
  *

@@ -71,8 +71,6 @@ Power-of-2 strides, where `stride & (stride - 1) == 0`, get `depth_simd_dimensio
 Type conversion is amortized into the pack step: BFloat16 → Float32, Float16 → Float32, and Float8 → Float32 conversions happen once during packing instead of per-row during GEMM.
 A 64-byte header stores the column count, depth, padded depth and the offset of the column norms.
 Row grouping (`group_size=16`) zero-pads partial groups at matrix edges for uniform SIMD processing.
-Block-scaled NEON packs also decode the codes into the integer or Float16 values their updates read and the scales into Float32 or Float64, so no row tile decodes B again.
-SME packs store each 16-column tile in outer-product operand order, 2 depth steps per 32-bit lane for 16-bit operands and 4 for 8-bit ones, with the same layout the A panels use.
 
 ### Tiled Register Accumulation
 
@@ -81,53 +79,12 @@ A 1×8 tile kernel with 8 accumulators handles edge rows that don't fill a full 
 No depth blocking is used — the kernel relies on hardware prefetch for streaming A/B access patterns.
 Row loads are amortized across multiple dot products: each A row is loaded once and multiplied against 4 B columns per tile pass.
 
-### AMX 2D Tile Engine
+### Folding Block Scales into Operands
 
-The Sapphire Rapids AMX backends for `bf16`, mini-floats, `i8`, and `u8` use Intel AMX's 8 tile registers (TMM0–TMM7), each 1 KB (16 rows × 64 bytes).
-Convention: TMM0–1 hold A tiles, TMM2–3 hold B tiles, TMM4–7 are C accumulators — giving a 2×2 output tile (32×32 Float32 results) per tile pass.
-`TDPBF16PS tmm_c, tmm_a, tmm_b` performs a 16×16 outer product with 32 BFloat16 multiply-adds per cell (16×16×32 = 8,192 MACs per instruction).
-Each A row contains 16 BFloat16 pairs interleaved as [a₀, a₁, a₀, a₁, ...] and B columns as [b₀, b₁, b₀, b₁, ...] — the hardware consumes two BFloat16 elements per slot, accumulating into Float32.
-`TDPBSSD tmm_c, tmm_a, tmm_b` does the same for Int8: 64 bytes per row gives 16×16×64 = 16,384 Int8 MACs per instruction.
-Int8 data is quad-interleaved: [a₀, a₁, a₂, a₃, a₀, a₁, a₂, a₃, ...] so the hardware can consume four Int8 elements per 32-bit slot.
-Tile configuration via `LDTILECFG` sets row counts and column byte-widths per tile — allows undersized tiles at matrix edges without masking.
-Morton Z-curve ordering for tile traversal improves cache reuse when both A and B exceed L2.
-This eliminates the explicit M×N×K loop nesting and register file pressure of vector ISAs — the entire dot-product reduction happens inside the tile instruction.
-FP8 inputs on Sapphire AMX go through an on-the-fly E4M3/E5M2 → BF16 pack via the Ice Lake `VPERMI2W` LUT helpers — port-5-bound but the simplest correct route to feed `TDPBF16PS` tiles.
-Granite Rapids adds `TDPFP16PS` (same tile shape, FP16 operands); the E5M2 variant widens inputs with `VPMOVZXBW` and a left shift by 8 into FP16 tiles at pack time and then reuses the native FP16 compute loop — keeps the intermediate at FP16 precision instead of truncating to BF16 like the Sapphire path.
-
-### SME Outer-Product Streaming
-
-The SME kernels use Arm's ZA tile array: four 32-bit tiles ZA0–ZA3, each SVL × SVL elements, 16 × 16 on Apple M4 and M5.
-A widening `FMOPA`, `BFMOPA`, `SMOPA` or `UMOPA` adds a full 16 × 16 rank-2 or rank-4 update of one A vector and one B vector to a tile.
-Every kernel decodes 16 rows of A once per depth chunk into a stack panel already in MOPA operand order, transposing through ZA0 with horizontal writes and vertical stores, so A is never re-decoded per column tile.
-All four tiles then accumulate: 2 × 2 tiles over two 16-row panels and two column tiles, or 1 × 4 tiles over one panel and four column tiles for the last 16-row strip and for BFloat16 operands.
-Depth chunks of 2048 dimensions for 16-bit operands and 4096 for 8-bit ones keep two panels within 128 KB of stack; partial sums of longer rows spill straight from ZA and reload before the next chunk, and the scaling waits for the last chunk.
-Each chunk pays a pipeline drain per tile group, which is what longer chunks buy back on skinny shapes.
-Symmetric kernels decode a window of 8 column tiles once per depth chunk and sweep every row tile of the upper triangle across it.
-Every kernel is vector-length agnostic: decoder tables of up to 16 halfwords or 32 bytes load as register pairs for the two-register `TBL`, which holds them even at a 128-bit streaming vector length.
-On M5 the streaming integer, `TBL`, `LUTI4` and load instructions overlap `FMOPA` up to about 2 per outer product, while streaming FP vector instructions run at a quarter of that rate, so the hot loops spend at most half an FP instruction per outer product.
-Helpers called inside ZA-owning functions are always inlined: any other call costs an `SMSTART ZA` and a lazy-save restore.
-`SMSTART`/`SMSTOP` streaming mode transitions cost ~50–100 cycles, amortized across the full M×N output.
-
-Block-scaled kernels fold every block scale into the decoded operands instead of draining ZA per block.
-An NVFP4 element times its UE4M3 scale has at most 6 significant bits within 2⁻¹⁰ … 2688, so it is an exact Float16 and the tensor scales multiply once in the epilogue.
-MX elements have at most 4 significant bits, so element · 2^(e − base) is an exact BFloat16 while a row spans at most 32 binades: A rows rebase to their smallest block exponent, MXFP4 rows and packed B columns to their largest, and the epilogue applies `FSCALE` by both bases with one rounding.
-Rows or columns spanning more than 32 binades are recomputed by an exact scalar loop after streaming mode ends.
-NVFP4 and MXFP4 packs keep one byte per code and decode B with `TBL` inside the loop: MXFP4 restores the exponent with one saturating subtract, which leaves zeros untouched, and NVFP4 multiplies by a Float16 scale vector shared by the two outer products of a 2 × 2 step.
-That matches `LUTI4` from a 4-bit pack in speed without requiring SME2, while decoding packed nibbles in the loop measured 15–20% slower.
-MXFP6 and MXFP8 packs store the folded BFloat16 values.
-
-Ozaki splitting for Float64 (`nk_dots_packed_f64_smef64`, `nk_dots_symmetric_f64_smef64`) scales every row of A and column of B by a power of two and cuts it into 4 slices on 20-bit grids plus a remainder.
-The 13 grid products with index sums up to 4 add up exactly in 5 ZA tiles for 4096 depth steps, the 2 remainder products round in a sixth, and TwoSum folds them into a running sum, so results are compensated like Dot2.
-Streaming mode issues Float64 arithmetic only every 4 cycles, so the unpacked side is split with exponent-field additions, `FRINTN`, conversions and shifts, leaving 3 multiplies per vector.
-Packed B stores the 5 slices in Float64, 40 bytes per element or 5× the input, plus an exponent and a norm per column.
-
-### Apple GPU Tiles
-
-Each threadgroup of four SIMD-groups owns a 64 × 64 output tile: the `metal` baseline on the SIMT cores, each thread holding a 4 × 4 grid strided by 16, `apple9` on SIMD-group matrices, sixteen 8 × 8 `float` accumulators per quadrant, and `apple10` on the `matmul2d` tensor operations of the M5 Neural Accelerators.
-The 8-, 6- and 4-bit floats widen to `half` exactly as they are staged, so every product of two staged values is exact in `float` and only the sums round.
-Block-scaled tiles multiply each block's sum by its two scales and add it into a compensated `float` pair carrying its own exponent, so blocks of any spread round once, and the tensor scales multiply in the epilogue.
-Integer angular and Euclidean epilogues form q · t − d² and q + t − 2d in 64-bit integers before a `float` tail, as the CPU finalizers do.
+Block-scaled CPU kernels fold each block scale into the decoded operand wherever the product stays exact in the format the multiply consumes, instead of draining accumulators per block.
+An NVFP4 element times its UE4M3 scale has at most 6 significant bits within 2⁻¹⁰ … 2688, an exact F16, and an MX element times 2^(e − base) is an exact BF16 while a row spans at most 32 binades, so the F16 and BF16 multiplies take them as is and the tensor scales and bases apply once in the epilogue.
+Rows or columns spanning more take an exact wide sum after the fast loop.
+GPU tiles instead multiply each block's sum by both scales, the two scales together first so neither alone flushes the partial, and Metal adds those products into compensated pairs that carry their own exponent.
 
 ### Compensated Integer GEMM
 
@@ -139,21 +96,11 @@ The inner loop only needs the `VPDPBUSD` accumulator — the bias subtraction is
 This reduces per-accumulator state from 2 registers (dot + running sum) to 1 register (dot only), freeing registers for more accumulators in the 4×4 tile.
 Haswell fallback uses `VPMADDUBSW` (UInt8 × Int8 → Int16) + `VPMADDWD` (Int16 → Int32), a two-instruction chain with Int16 intermediate overflow risk — quantization ranges must be tighter ([-79, 79] vs [-127, 127]).
 
-### 4-Way Finalizer Amortization
+### Finalizers Over One Accumulation Loop
 
-All packed and symmetric kernels across the dots, spatials, and sets modules share a finalizer-based design.
-The 4×4 tile accumulates 16 dot products in registers, then stores results 4-wide via `nk_b128_vec_t`, a union of `f32[4]`, `i32[4]`, `u32[4]` fitting a 128-bit register.
-The kernel macros take the finalizer as a typed argument, so it inlines into every generated kernel and turns 4 dots at a time into 4 outputs:
-
-```c
-void finalizer(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq, nk_b128_vec_t const *target_sumsqs_vec,
-               nk_b128_vec_t *result_vec);
-```
-
+Dots, spatials and sets share one accumulation loop per kernel and differ only in a finalizer, which inlines into every kernel and turns 4 dots into 4 outputs through `nk_b128_vec_t`, a union of `f32[4]`, `i32[4]` and `u32[4]`.
 Angular finalizers compute 1 − d · rsqrt(q) · rsqrt(t) with separate reciprocal roots, so two large norms never overflow, and Euclidean ones √(q + t − 2d).
-Integer angular and Euclidean finalizers form q · t − d² and q + t − 2d exactly before rounding, so identical vectors give exactly 0.
-The 4×4 tile calls the finalizer once per query row, and the 1×8 edge tile twice.
-Dots, spatials and sets differ only in the finalizer over the same accumulation loop.
+Integer angular and Euclidean finalizers form q · t − d² and q + t − 2d exactly in 64-bit integers before rounding, on every CPU and GPU tier, so identical vectors give exactly 0.
 
 ## Performance
 

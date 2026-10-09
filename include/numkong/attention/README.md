@@ -44,9 +44,9 @@ Internally every backend uses the streaming base-2 softmax: the scale folds $\lo
 
 | Input Type  | Output Type | Description                                                                |
 | :---------- | :---------- | :------------------------------------------------------------------------- |
-| `bf16`      | `f32`       | 16-bit brain float; native AMX tiles and `VDPBF16PS` lanes                 |
-| `f16`       | `f32`       | 16-bit IEEE half; F16 tensor cores and F16 weights from Ampere on          |
-| `e4m3`      | `f32`       | 8-bit Float8; widened to the ISA's compute format at the pack boundary     |
+| `bf16`      | `f32`       | 16-bit brain float                                                         |
+| `f16`       | `f32`       | 16-bit IEEE half                                                           |
+| `e4m3`      | `f32`       | 8-bit Float8: 4 exponent, 3 mantissa bits                                  |
 | `i8`        | `f32`       | 8-bit signed integers; exact `i32` scores, probabilities quantized to `u8` |
 | `nvfp4`     | `f32`       | E2M1 codes in blocks of 16 under UE4M3 scales and an F32 tensor scale      |
 | `mxfp4`     | `f32`       | E2M1 codes in blocks of 32 under UE8M0 power-of-two scales                 |
@@ -70,58 +70,37 @@ dV = P^\top dO, \quad dS = P \circ (dO\,V^\top - D), \quad dQ = \text{scale} \cd
 $$
 
 Here $D = \text{rowsum}(dO \circ O)$.
-The backward's task grid is segments × key-value heads, each task owning one key-value head of one segment with every query head sharing it, so the gradients need no atomics and, outside the Blackwell single pass below, every sum runs in a fixed order.
+The backward's task grid is segments × key-value heads, each task owning one key-value head of one segment with every query head sharing it, so the gradients need no atomics and every sum runs in a fixed order.
 Query gradient rows take their own `query_gradient_stride`, and key and value gradient rows past a segment's live keys, the gaps and tails before the next segment, are never written, so callers zero them when they matter.
-The BF16 backward runs on tensor cores for heads of up to 256 dimensions: FlashAttention-2 on `mma.sync` from Ampere on, and `tcgen05.mma` accumulating in tensor memory on Blackwell.
-Gradients accumulate 128 columns at a time, so heads past 128 dimensions recompute the scores for a second slice.
 Block-scaled gradients are taken with respect to the decoded values.
 
-### Two Backward Paths on Blackwell
-
-The two-pass backward walks every 128-key block once for $dK$ and $dV$, then every 128-row chunk once more for $dQ$, so it recomputes $S$, $dP$ and $dS$ twice: 7 products per pair where 5 suffice.
-The single pass computes them once per block and chunk, keeps $dK$ and $dV$ in tensor memory, writes the partial $dS\,K$ over the spent $dP$ columns, and adds it into `query_gradient` with TMA reduce-add of F32 boxes.
-It runs for BF16 heads of 64 or 128 dimensions when the query head group divides 128 and every row and stride is 16-byte aligned; any other call takes the two-pass path.
-It needs $dO$ as BF16 and $D$ once per row, so it allocates a workspace of `query_token_count` × `head_count` × (2 × `depth` + 4) bytes with `cudaMallocAsync` on the caller's stream and frees it with `cudaFreeAsync` after the kernels, which keeps graph capture working and never synchronizes.
-If that allocation fails, the call falls back to the two-pass path.
-A caller that synchronizes between calls lets the default memory pool return the workspace to the driver, so the next call maps it again for about a millisecond; raising that pool's `cudaMemPoolAttrReleaseThreshold` keeps it mapped.
-Different blocks add their $dQ$ partials in whatever order they finish, so the low bits of $dQ$ may differ from run to run, as with any F32 accumulation of BF16 products; $dK$ and $dV$ stay deterministic.
+The one exception is the Blackwell single pass for BF16, which adds $dQ$ partials in completion order, so the low bits of $dQ$ may differ between runs while $dK$ and $dV$ stay deterministic.
+It allocates a workspace of `query_token_count` × `head_count` × (2 × `depth` + 4) bytes on the caller's stream and frees it after the kernels, which keeps graph capture working; a caller that synchronizes between calls lets the default memory pool unmap it, unless `cudaMemPoolAttrReleaseThreshold` is raised.
 
 ## Optimizations
 
 ### Panel-Flash Sweep with L2-Resident Score Panels
 
-All SIMD backends sweep KV in panels of 512 positions: scores for a query block land in a scratch panel, one row-major pass computes the running maximum, exponentials, and weight sum, and the weighted V accumulation drains once per panel with the correction FMA fused in.
+All CPU backends sweep KV in panels of 512 positions: scores for a query block land in a scratch panel, one row-major pass computes the running maximum, exponentials, and weight sum, and the weighted V accumulation drains once per panel with the correction FMA fused in.
 This bounds the vector-unit work to one crossover per score, which is the dominant cost on matrix-unit ISAs where tile registers support no elementwise math.
+Matrix units drain score tiles position-major, one query per lane, so the softmax bookkeeping stays lane-parallel with no horizontal reductions, and each KV panel serves several query blocks, which holds throughput flat as the context outgrows L2.
 
-### AMX 2×2 Tile Blocking with KV Reuse
+### Storage and Weight Formats
 
-`nk_attention_packed_bf16_sapphireamx` processes 32 query rows against 32-column K pair-tiles with all eight TMM registers: four accumulators, two Q tiles, two K tiles — exactly one tile load per `TDPBF16PS`.
-Query blocks are chunked in groups of four so each KV panel streamed from L2 serves 128 query rows, which is what holds throughput flat from 1K to 16K context.
-The `i8` variant swaps in `TDPBSSD` over quad-interleaved K tiles (depth 64 per step) and `TDPBUSD` for the u8-probability × i8-value product.
+Packing converts K and V only into the format the ISA multiplies, as in the `dots` family, since at-rest bytes are memory bandwidth: FMA tiers keep BF16 and F16 raw and widen in the loop, and E4M3 becomes F16 or BF16 where a dot instruction consumes it.
+Probabilities enter P · V in the same format as V on matrix, tile and widening instructions, F16 on NEON FHM, SME and Ampere, BF16 on AMX and SME, E4M3 on Blackwell, while FMA tiers keep them in F32 and integer tiers quantize them to U8.
 
-### Per-ISA Storage Formats
+### One Recipe for Block-Scaled Formats
 
-Packing converts dtypes only into the ISA's native compute format, mirroring the `dots` family: raw BF16 plus in-loop widening on Haswell and Skylake, `e4m3 → f16` at pack on Skylake so the hot loop widens with one `VCVTPH2PS`, `e4m3 → bf16` through the Ice Lake converters for Genoa's `VDPBF16PS` and the AMX tiles, and raw bytes on Haswell where every conversion is on the fly.
-KV planes are the streamed operand, so at-rest bytes are memory bandwidth.
+An NVFP4 element times its UE4M3 block scale is an exact F16, so NVFP4 planes store those products and run each tier's F16 path, with both tensor scales in the pack header.
+MX scales span 254 binades, so each MX plane rebases its elements by its largest finite block exponent less 31, exact in BF16, runs each tier's BF16 path, and records that exponent in a small table past the planes.
+A plane whose block exponents span more than 89 binades keeps its raw codes and scale codes, and it and any query row past the window take serial's exact path outside the fast loop.
+Scores sum each query block in F32 and add the blocks into a wide sum, so query scales of any spread round once, and outputs apply their plane's power of two once per element.
 
-### SME Streaming Softmax with Lane-Parallel Bookkeeping
+### Split Decode for Short Outputs
 
-The Arm SME backend enters streaming mode once per call and never leaves it: scores accumulate as 2×2 widening MOPA outer products, drain through vertical ZA stores into a position-major panel with one query per lane, and the running maxima, corrections, weight sums, output rescaling, and normalization all run as plain lane-parallel vector operations with no horizontal reductions or scalar broadcasts.
-Probabilities round to pair-interleaved BF16 MOPA operands in registers with one `TRN2` per position pair, and the Q staging plus the final output transpose reuse the ZA horizontal-write/vertical-read idiom from the `dots` packer.
-Non-widening ZA16 tiles measure about twice the MOPA rate but lose ~12% relative accuracy on signed depth-256 reductions, so every reduction stays in F32 accumulators.
-
-### Rebased Planes for Block-Scaled Formats
-
-NVFP4 planes hold every element times its UE4M3 block scale, which F32 and even F16 represent exactly, and the pack header keeps both tensor scales.
-MX scales span 254 binades, so each MX plane rebases its elements by the plane's largest finite block exponent less 31 and records that exponent in a small table past the planes.
-A plane whose block exponents span more than 89 binades keeps its raw codes and scale codes instead, and scores against it take the exact dot of raw codes.
-Scores sum each query block in F32 against the rebased key row and add the blocks into a wide sum, so query scales of any spread round once.
-Outputs and query gradients accumulate under one plane base and apply its power of two once per element.
-
-### Apple GPU Tiles and Split Decode
-
-The `metal` baseline gives every query row a SIMD-group, while `apple9` and `apple10` attend 32-row tiles against 64-key panels, on SIMD-group matrices and on the `matmul2d` tensor operations of the Neural Accelerators.
-Decoding up to four rows against 512 keys or more splits each row's keys into 16 partitions, and a merge kernel combines their maxima, sums and weighted values, so short outputs still fill the GPU.
+A decode call has fewer rows than the GPU has cores, so the GPUs split each row's keys and merge the partial maxima, sums and weighted values in a fixed order, keeping results identical between runs.
+Blackwell pairs blocks in a cluster that merges through distributed shared memory when a call has at most half as many items as multiprocessors, and Metal cuts calls of at most four rows against 512 keys or more into 16 partitions.
 
 ### U8-Quantized Probabilities for INT8
 

@@ -26,6 +26,8 @@
  *  @endverbatim
  *
  *  TDPFP16PS: 16 × 16 × 32 = 8192 FP16 MACs per instruction (same throughput as TDPBF16PS).
+ *  E5M2 widens to FP16 at the pack with @c VPMOVZXBW and a left shift by 8, then reuses the FP16
+ *  loop, keeping FP16 precision where Sapphire Rapids truncates it to BF16.
  *
  *  @section ozaki_limitations F32 → F64 via Ozaki Scheme — Attempted and Abandoned
  *

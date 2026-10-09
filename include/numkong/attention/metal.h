@@ -16,6 +16,11 @@
  *  the stream: the other entries trust the pack and the query offsets. Attention checks that the
  *  @c query_token_count rows of the queries and outputs lie in their buffers, and its kernels stay
  *  below that row and inside the bytes the pack and offsets hold past their pointers.
+ *
+ *  The @c metal baseline gives every query row a SIMD-group, while @c apple9 and @c apple10 attend
+ *  32-row tiles against 64-key panels, on SIMD-group matrices and on the @c matmul2d tensor
+ *  operations. Calls of at most four query rows against 512 keys or more split each row's keys into
+ *  16 partitions, whose maxima, sums and weighted values a merge kernel combines in a fixed order.
  */
 #ifndef NUMKONG_ATTENTION_METAL_H
 #define NUMKONG_ATTENTION_METAL_H

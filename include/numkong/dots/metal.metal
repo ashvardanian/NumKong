@@ -13,6 +13,11 @@
  *  in @c int for integer codes, as the serial backends do; Apple GPUs have no F64. The pack and
  *  the launch records live here too, for the other sources to build on, while the dtype classes
  *  they read live in `types.metal`.
+ *
+ *  Block-scaled tiles multiply each block's sum by its two scales and add it into a compensated
+ *  @c float pair carrying its own exponent, so blocks of any spread round once, and the tensor
+ *  scales multiply in the epilogue. Integer distances form ab − d² and a + b − 2d in 64-bit
+ *  integers before a @c float tail, as the CPU finalizers do.
  */
 
 /** The four codes from dimension 4 × @p index of a 16-byte chunk of a row: its 16-bit halves, its

@@ -5,6 +5,9 @@
  *  @brief SIMD-accelerated Batched Dot Products for NEON.
  *
  *  @sa include/numkong/dots.h
+ *
+ *  Block-scaled packs here and in @c neonsdot decode the codes into the integer or F16 values their
+ *  updates read and the scales into F32 or F64, so no row tile decodes B again.
  */
 #ifndef NUMKONG_DOTS_NEON_H
 #define NUMKONG_DOTS_NEON_H

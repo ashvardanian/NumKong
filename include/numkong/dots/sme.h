@@ -37,7 +37,12 @@
  *  flush before the result does. Rows or columns spanning more take exact wide sums, rescaled into
  *  the same relative form.
  *  FP4 packs keep one byte per code and decode B with @c TBL inside the loop, which matches
- *  @c LUTI4 without requiring SME2.
+ *  @c LUTI4 without requiring SME2, while decoding packed nibbles in the loop measured 15–20%
+ *  slower; MXFP6 and MXFP8 packs store the folded BF16 values. Packs store each 16-column tile in
+ *  MOPA operand order, 2 depth steps per 32-bit lane for 16-bit operands and 4 for 8-bit ones, as
+ *  the A panels are. Depth chunks of 2048 dimensions for 16-bit operands and 4096 for 8-bit ones
+ *  keep two panels within 128 KB of stack; longer rows spill their partial sums from ZA and reload
+ *  them before the next chunk, and each chunk pays one pipeline drain per tile group.
  *
  *  Every kernel is vector-length agnostic: tables of up to 16 halfwords or 32 bytes load as
  *  register pairs for the SVE2 two-register @c TBL, which holds them at SVL 128, and vectors wider

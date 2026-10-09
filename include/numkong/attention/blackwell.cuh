@@ -29,6 +29,14 @@
  *  side spans 64 rows or keys, so the four operands fit in shared memory, and dK and dV take two
  *  128-column slices of tensor memory, recomputing Sᵀ and dPᵀ for each. Heads past 256 run the
  *  @c cuda loops.
+ *
+ *  The single-pass backward computes S, dP and dS once per key block and row chunk, 5 products per
+ *  pair where the two passes take 7: dK and dV stay in tensor memory, and the partial dS · K is
+ *  written over the spent dP columns and added into the query gradient by TMA reduce-add of F32
+ *  boxes. It takes BF16 heads of 64 or 128 dimensions whose query head group divides 128, with
+ *  16-byte aligned rows and strides, and needs dO in BF16 and D once per row, which it allocates
+ *  with @c cudaMallocAsync on the caller's stream and frees with @c cudaFreeAsync after the
+ *  kernels. Any other call, or a failed allocation, takes the two passes.
  */
 #ifndef NUMKONG_ATTENTION_BLACKWELL_CUH
 #define NUMKONG_ATTENTION_BLACKWELL_CUH
