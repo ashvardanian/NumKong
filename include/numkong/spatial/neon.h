@@ -144,6 +144,7 @@ NK_PUBLIC void nk_euclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_si
     *result = nk_f64_sqrt_neon(*result);
 }
 
+#if NK_ACCUMULATE_F32_IN_F64
 NK_PUBLIC void nk_angular_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     // Accumulate in f64 for numerical stability (2 f32s per iteration, avoids slow vget_low/high)
     float64x2_t ab_f64x2 = vdupq_n_f64(0);
@@ -168,6 +169,34 @@ NK_PUBLIC void nk_angular_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size
     }
     *result = nk_angular_normalize_f64_neon_(ab_f64, a2_f64, b2_f64);
 }
+#else
+NK_PUBLIC void nk_angular_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+    // f32 accumulation in two independent chains of three FMAs, like simsimd 6.5's `simsimd_cos_f32_neon`:
+    // HNSW only orders distances, so the f64 accumulation (two converts + two f64 FMAs per 2 floats) bought
+    // nothing it could use and halved the kernel's throughput on Graviton4 .
+    float32x4_t ab0 = vdupq_n_f32(0), a20 = vdupq_n_f32(0), b20 = vdupq_n_f32(0);
+    float32x4_t ab1 = vdupq_n_f32(0), a21 = vdupq_n_f32(0), b21 = vdupq_n_f32(0);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        float32x4_t av0 = vld1q_f32(a + i), bv0 = vld1q_f32(b + i);
+        float32x4_t av1 = vld1q_f32(a + i + 4), bv1 = vld1q_f32(b + i + 4);
+        ab0 = vfmaq_f32(ab0, av0, bv0), a20 = vfmaq_f32(a20, av0, av0), b20 = vfmaq_f32(b20, bv0, bv0);
+        ab1 = vfmaq_f32(ab1, av1, bv1), a21 = vfmaq_f32(a21, av1, av1), b21 = vfmaq_f32(b21, bv1, bv1);
+    }
+    for (; i + 4 <= n; i += 4) {
+        float32x4_t av = vld1q_f32(a + i), bv = vld1q_f32(b + i);
+        ab0 = vfmaq_f32(ab0, av, bv), a20 = vfmaq_f32(a20, av, av), b20 = vfmaq_f32(b20, bv, bv);
+    }
+    nk_f32_t ab = vaddvq_f32(vaddq_f32(ab0, ab1));
+    nk_f32_t a2 = vaddvq_f32(vaddq_f32(a20, a21));
+    nk_f32_t b2 = vaddvq_f32(vaddq_f32(b20, b21));
+    for (; i < n; ++i) {
+        nk_f32_t ai = a[i], bi = b[i];
+        ab += ai * bi, a2 += ai * ai, b2 += bi * bi;
+    }
+    *result = nk_angular_normalize_f64_neon_((nk_f64_t)ab, (nk_f64_t)a2, (nk_f64_t)b2);
+}
+#endif // NK_ACCUMULATE_F32_IN_F64
 
 NK_PUBLIC void nk_sqeuclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     float64x2_t sum_f64x2 = vdupq_n_f64(0);

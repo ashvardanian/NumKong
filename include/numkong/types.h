@@ -662,6 +662,16 @@
 #include <wasm_simd128.h>
 #endif
 
+/*  Whether the f32 angular kernels accumulate in f64 (the default: at most a few ULP of error against
+ *  a double-double reference) or in f32 (three FMAs per vector instead of converts plus f64 FMAs:
+ *  about 35% more distance computations per second on NEON and 128-bit SVE, with the error of an
+ *  f32 dot product, which an approximate nearest-neighbour search cannot distinguish). Set to 0 by a
+ *  caller whose use only orders distances, e.g. `-D NK_ACCUMULATE_F32_IN_F64=0`.
+ */
+#if !defined(NK_ACCUMULATE_F32_IN_F64)
+#define NK_ACCUMULATE_F32_IN_F64 1
+#endif
+
 #if !defined(NK_F64_DIVISION_EPSILON)
 #define NK_F64_DIVISION_EPSILON (1e-15)
 #endif

@@ -123,6 +123,7 @@ NK_PUBLIC void nk_euclidean_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_siz
     *result = nk_f64_sqrt_neon(*result);
 }
 
+#if NK_ACCUMULATE_F32_IN_F64
 NK_PUBLIC void nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_size_t i = 0;
     svfloat64_t ab_f64x = svdupq_n_f64(0.0, 0.0);
@@ -155,6 +156,33 @@ NK_PUBLIC void nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_
     nk_f64_t b2_f64 = nk_svaddv_f64_(svptrue_b64(), b2_f64x);
     *result = nk_angular_normalize_f64_neon_(ab_f64, a2_f64, b2_f64);
 }
+#else
+NK_PUBLIC void nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
+    // f32 accumulation in two independent chains of three FMAs (six accumulators), so that the
+    // loop is not bound by the FMA latency on a 128-bit SVE core (Graviton4).
+    svfloat32_t ab0 = svdup_n_f32(0.f), a20 = svdup_n_f32(0.f), b20 = svdup_n_f32(0.f);
+    svfloat32_t ab1 = svdup_n_f32(0.f), a21 = svdup_n_f32(0.f), b21 = svdup_n_f32(0.f);
+    nk_size_t const lanes = svcntw();
+    nk_size_t i = 0;
+    for (; i + 2 * lanes <= n; i += 2 * lanes) {
+        svbool_t pg = svptrue_b32();
+        svfloat32_t av0 = svld1_f32(pg, a + i), bv0 = svld1_f32(pg, b + i);
+        svfloat32_t av1 = svld1_f32(pg, a + i + lanes), bv1 = svld1_f32(pg, b + i + lanes);
+        ab0 = svmla_f32_x(pg, ab0, av0, bv0), a20 = svmla_f32_x(pg, a20, av0, av0), b20 = svmla_f32_x(pg, b20, bv0, bv0);
+        ab1 = svmla_f32_x(pg, ab1, av1, bv1), a21 = svmla_f32_x(pg, a21, av1, av1), b21 = svmla_f32_x(pg, b21, bv1, bv1);
+    }
+    for (; i < n; i += lanes) {
+        svbool_t pg = svwhilelt_b32_u64(i, n);
+        svfloat32_t av = svld1_f32(pg, a + i), bv = svld1_f32(pg, b + i);
+        ab0 = svmla_f32_m(pg, ab0, av, bv), a20 = svmla_f32_m(pg, a20, av, av), b20 = svmla_f32_m(pg, b20, bv, bv);
+    }
+    svbool_t all = svptrue_b32();
+    nk_f32_t ab = svaddv_f32(all, svadd_f32_x(all, ab0, ab1));
+    nk_f32_t a2 = svaddv_f32(all, svadd_f32_x(all, a20, a21));
+    nk_f32_t b2 = svaddv_f32(all, svadd_f32_x(all, b20, b21));
+    *result = nk_angular_normalize_f64_neon_((nk_f64_t)ab, (nk_f64_t)a2, (nk_f64_t)b2);
+}
+#endif // NK_ACCUMULATE_F32_IN_F64
 
 NK_PUBLIC void nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // Neumaier compensated summation for numerical stability
