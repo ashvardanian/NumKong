@@ -214,26 +214,71 @@ NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u4_sme_streaming_(nk_u4x2_t const *
     return (nk_u32_t)nk_svaddv_u32_(svptrue_b32(), accumulator_u32x);
 }
 
-NUMKONG_INLINE svfloat32_t
-nk_angulars_from_dot_f32x_sme_streaming_(svbool_t predicate_b32x, svfloat32_t dots_f32x, svfloat32_t query_norm_sq_f32x,
-                                         svfloat32_t target_norms_sq_f32x) NUMKONG_STREAMING_ {
-    // Separate roots avoid overflowing the product of two finite norms.
-    svfloat32_t const query_rsqrt_f32x = svdiv_f32_x(predicate_b32x, svdup_f32(1),
-                                                     svsqrt_f32_x(predicate_b32x, query_norm_sq_f32x));
-    svfloat32_t const target_rsqrt_f32x = svdiv_f32_x(predicate_b32x, svdup_f32(1),
-                                                      svsqrt_f32_x(predicate_b32x, target_norms_sq_f32x));
-    svfloat32_t const rsqrt_f32x = svmul_f32_x(predicate_b32x, query_rsqrt_f32x, target_rsqrt_f32x);
-    svfloat32_t const angular_f32x = svmax_n_f32_x(
-        predicate_b32x, svsub_f32_x(predicate_b32x, svdup_f32(1), svmul_f32_x(predicate_b32x, dots_f32x, rsqrt_f32x)),
-        0);
-    svbool_t const query_zero_b32x = svcmpeq_n_f32(predicate_b32x, query_norm_sq_f32x, 0);
-    svbool_t const target_zero_b32x = svcmpeq_n_f32(predicate_b32x, target_norms_sq_f32x, 0);
-    // One zero norm or an exactly zero dot gives 1, two zero norms 0, and a NaN dot stays NaN
-    svbool_t const ones_b32x = svorr_b_z(predicate_b32x, svorr_b_z(predicate_b32x, query_zero_b32x, target_zero_b32x),
-                                         svcmpeq_n_f32(predicate_b32x, dots_f32x, 0));
-    svfloat32_t const ruled_f32x = svsel_f32(svand_b_z(predicate_b32x, query_zero_b32x, target_zero_b32x), svdup_f32(0),
-                                             svsel_f32(ones_b32x, svdup_f32(1), angular_f32x));
-    return svsel_f32(svcmpuo_f32(predicate_b32x, dots_f32x, dots_f32x), dots_f32x, ruled_f32x);
+/** @p numerator over the square roots of squared norms, 0 for zero norms. Streaming roots and
+ *  divisions cost about 36 cycles a vector on M5, so finalizers take them once per row and
+ *  column, and block-scaled rows fold their tensor mantissa in as the @p numerator. */
+NUMKONG_INLINE svfloat32_t nk_rsqrt_f32x_sme_streaming_(svbool_t predicate_b32x, svfloat32_t norms_f32x,
+                                                        nk_f32_t numerator) NUMKONG_STREAMING_ {
+    svfloat32_t const rsqrts_f32x = svdiv_f32_x(predicate_b32x, svdup_f32(numerator),
+                                                svsqrt_f32_x(predicate_b32x, norms_f32x));
+    return svsel_f32(svcmpeq_n_f32(predicate_b32x, norms_f32x, 0), svdup_f32(0), rsqrts_f32x);
+}
+
+/** @c nk_rsqrt_f32x_sme_streaming_ of @p count squared norms into @p rsqrts. */
+NUMKONG_INLINE void nk_rsqrts_f32_sme_streaming_(nk_f32_t const *norms, nk_f32_t numerator, nk_f32_t *rsqrts,
+                                                 nk_size_t count) NUMKONG_STREAMING_ {
+    for (nk_size_t index = 0; index < count; index += svcntw()) {
+        svbool_t const predicate_b32x = svwhilelt_b32_u64(index, count);
+        svst1_f32(predicate_b32x, rsqrts + index,
+                  nk_rsqrt_f32x_sme_streaming_(predicate_b32x, svld1_f32(predicate_b32x, norms + index), numerator));
+    }
+}
+
+/*  Row finishers rewrite the dots in [first, end) of a vector-aligned @p row in place, reading
+ *  target norms at the same columns. A row starting mid-vector masks its first vector rather than
+ *  store across cache lines, which made symmetric finishing 1.6x slower. */
+
+/** The lanes of the vector at @p column from @p first up to @p end. */
+NUMKONG_INLINE svbool_t nk_row_lanes_b32x_sme_streaming_(nk_size_t column, nk_size_t first,
+                                                         nk_size_t end) NUMKONG_STREAMING_ {
+    svbool_t const lanes_b32x = svwhilelt_b32_u64(column, end);
+    return column < first ? nk_diagonal_cut_b32x_sme_(lanes_b32x, column, first) : lanes_b32x;
+}
+
+/** Angular distances from @c nk_rsqrts_f32_sme_streaming_ roots: two zero norms give 0, one zero
+ *  norm or an exactly zero dot 1, a NaN dot NaN, and otherwise max(0, 1 − dot · rsqrt(a²) ·
+ *  rsqrt(b²)). A zero column's dot and root are both zero, so it lands on 1 without a compare. A
+ *  zero row, found by its bits as scalar FP compares cost about 30 ns in streaming mode, takes its
+ *  own pass. The row's root comes in a register, as reloading a streaming store's data stalls. */
+NUMKONG_INLINE void nk_angulars_from_rsqrts_sme_streaming_(nk_f32_t *row, nk_size_t first, nk_size_t end,
+                                                           nk_f32_t query_norm, svfloat32_t query_rsqrt_f32x,
+                                                           nk_f32_t const *target_norms,
+                                                           nk_f32_t const *target_rsqrts) NUMKONG_STREAMING_ {
+    nk_size_t const aligned_first = first & ~(svcntw() - 1);
+    nk_fui32_t query_bits;
+    query_bits.f = query_norm;
+    if (query_bits.u == 0) {
+        for (nk_size_t column = aligned_first; column < end; column += svcntw()) {
+            svbool_t const predicate_b32x = nk_row_lanes_b32x_sme_streaming_(column, first, end);
+            svfloat32_t const dots_f32x = svld1_f32(predicate_b32x, row + column);
+            svfloat32_t const ruled_f32x = svsel_f32(
+                svcmpeq_n_f32(predicate_b32x, svld1_f32(predicate_b32x, target_norms + column), 0), svdup_f32(0),
+                svdup_f32(1));
+            svst1_f32(predicate_b32x, row + column,
+                      svsel_f32(svcmpuo_f32(predicate_b32x, dots_f32x, dots_f32x), dots_f32x, ruled_f32x));
+        }
+        return;
+    }
+    for (nk_size_t column = aligned_first; column < end; column += svcntw()) {
+        svbool_t const predicate_b32x = nk_row_lanes_b32x_sme_streaming_(column, first, end);
+        svfloat32_t const rsqrt_f32x = svmul_f32_x(predicate_b32x, query_rsqrt_f32x,
+                                                   svld1_f32(predicate_b32x, target_rsqrts + column));
+        svfloat32_t const scaled_f32x = svmul_f32_x(predicate_b32x, svld1_f32(predicate_b32x, row + column),
+                                                    rsqrt_f32x);
+        // FMAX keeps a NaN dot, which FMAXNM would turn into 0
+        svst1_f32(predicate_b32x, row + column,
+                  svmax_n_f32_x(predicate_b32x, svsubr_n_f32_x(predicate_b32x, scaled_f32x, 1), 0));
+    }
 }
 
 NUMKONG_INLINE svfloat32_t nk_euclideans_from_dot_f32x_sme_streaming_(
@@ -247,117 +292,178 @@ NUMKONG_INLINE svfloat32_t nk_euclideans_from_dot_f32x_sme_streaming_(
     return svsqrt_f32_x(predicate_b32x, dist_sq_f32x);
 }
 
-/** Angular distances of one half of the lanes from 64-bit integer dots d, their squares, the
- *  products ab of the query norm @p query_sumsq and the target norms b, and those target norms, by
- *  the rule of @c nk_angular_through_i32_from_dot_serial_: a positive dot takes the exact
- *  numerator of (ab − d²) / (ab + d · √(ab)), so equal vectors give exactly 0. */
-NUMKONG_INLINE svfloat64_t nk_angulars_from_dot_i64x_sme_streaming_(svint64_t dots_i64x, svuint64_t squares_u64x,
-                                                                    svuint64_t products_u64x, svuint64_t targets_u64x,
-                                                                    nk_u32_t query_sumsq) NUMKONG_STREAMING_ {
-    svbool_t const predicate_all_b64x = svptrue_b64();
-    svfloat64_t const products_f64x = svcvt_f64_u64_x(predicate_all_b64x, products_u64x);
-    svfloat64_t const roots_f64x = svsqrt_f64_x(predicate_all_b64x, products_f64x);
-    svfloat64_t const dots_f64x = svcvt_f64_s64_x(predicate_all_b64x, dots_i64x);
-    svfloat64_t const positive_f64x = svdiv_f64_x(
-        predicate_all_b64x,
-        svcvt_f64_u64_x(predicate_all_b64x, svsub_u64_x(predicate_all_b64x, products_u64x, squares_u64x)),
-        svmla_f64_x(predicate_all_b64x, products_f64x, dots_f64x, roots_f64x));
-    svfloat64_t const other_f64x = svsub_f64_x(predicate_all_b64x, svdup_f64(1),
-                                               svdiv_f64_x(predicate_all_b64x, dots_f64x, roots_f64x));
-    svfloat64_t const angular_f64x = svsel_f64(svcmpgt_n_s64(predicate_all_b64x, dots_i64x, 0), positive_f64x,
-                                               other_f64x);
-    // A zero product means a zero norm: 0 when both are zero, else 1
-    svbool_t const any_norm_b64x = svcmpne_n_u64(predicate_all_b64x,
-                                                 svorr_n_u64_x(predicate_all_b64x, targets_u64x, query_sumsq), 0);
-    return svsel_f64(svcmpeq_n_u64(predicate_all_b64x, products_u64x, 0),
-                     svsel_f64(any_norm_b64x, svdup_f64(1), svdup_f64(0)), angular_f64x);
-}
-
-/** Angular distances of i32 dots against the u32 query norm @p query_sumsq and u32 target norms,
- *  forming ab and d² exactly with SVE2 widening multiplies and rounding once into F32. */
-NUMKONG_INLINE svfloat32_t nk_angulars_from_dot_i32x_sme_streaming_(svint32_t dots_i32x, nk_u32_t query_sumsq,
-                                                                    svuint32_t targets_u32x) NUMKONG_STREAMING_ {
-    svfloat64_t const even_f64x = nk_angulars_from_dot_i64x_sme_streaming_(
-        svmovlb_s64(dots_i32x), svreinterpret_u64_s64(svmullb_s64(dots_i32x, dots_i32x)),
-        svmullb_n_u64(targets_u32x, query_sumsq), svmovlb_u64(targets_u32x), query_sumsq);
-    svfloat64_t const odd_f64x = nk_angulars_from_dot_i64x_sme_streaming_(
-        svmovlt_s64(dots_i32x), svreinterpret_u64_s64(svmullt_s64(dots_i32x, dots_i32x)),
-        svmullt_n_u64(targets_u32x, query_sumsq), svmovlt_u64(targets_u32x), query_sumsq);
-    svbool_t const predicate_all_b64x = svptrue_b64();
-    return svcvtnt_f32_f64_m(svcvt_f32_f64_x(predicate_all_b64x, even_f64x), predicate_all_b64x, odd_f64x);
-}
-
-/** Angular distances of u32 dots against the u32 query norm @p query_sumsq and u32 target norms,
- *  as @c nk_angulars_from_dot_i32x_sme_streaming_ forms them; a zero dot gives exactly 1. */
-NUMKONG_INLINE svfloat32_t nk_angulars_from_dot_u32x_sme_streaming_(svuint32_t dots_u32x, nk_u32_t query_sumsq,
-                                                                    svuint32_t targets_u32x) NUMKONG_STREAMING_ {
-    svfloat64_t const even_f64x = nk_angulars_from_dot_i64x_sme_streaming_(
-        svreinterpret_s64_u64(svmovlb_u64(dots_u32x)), svmullb_u64(dots_u32x, dots_u32x),
-        svmullb_n_u64(targets_u32x, query_sumsq), svmovlb_u64(targets_u32x), query_sumsq);
-    svfloat64_t const odd_f64x = nk_angulars_from_dot_i64x_sme_streaming_(
-        svreinterpret_s64_u64(svmovlt_u64(dots_u32x)), svmullt_u64(dots_u32x, dots_u32x),
-        svmullt_n_u64(targets_u32x, query_sumsq), svmovlt_u64(targets_u32x), query_sumsq);
-    svbool_t const predicate_all_b64x = svptrue_b64();
-    return svcvtnt_f32_f64_m(svcvt_f32_f64_x(predicate_all_b64x, even_f64x), predicate_all_b64x, odd_f64x);
-}
-
-/** Euclidean distances of 64-bit integer dots d against the query norm @p query_sumsq and target
- *  norms b: a + b − 2d is exact in 64 bits and its root rounds once. */
-NUMKONG_INLINE svfloat64_t nk_euclideans_from_dot_i64x_sme_streaming_(svint64_t dots_i64x, svuint64_t targets_u64x,
-                                                                      nk_u32_t query_sumsq) NUMKONG_STREAMING_ {
-    svbool_t const predicate_all_b64x = svptrue_b64();
-    svint64_t const distances_i64x = svsub_s64_x(
-        predicate_all_b64x, svadd_n_s64_x(predicate_all_b64x, svreinterpret_s64_u64(targets_u64x), query_sumsq),
-        svlsl_n_s64_x(predicate_all_b64x, dots_i64x, 1));
-    return svsqrt_f64_x(predicate_all_b64x, svcvt_f64_s64_x(predicate_all_b64x, distances_i64x));
-}
-
-/** Euclidean distances of i32 dots against u32 norms, exact before one rounding into F32. */
-NUMKONG_INLINE svfloat32_t nk_euclideans_from_dot_i32x_sme_streaming_(svint32_t dots_i32x, nk_u32_t query_sumsq,
-                                                                      svuint32_t targets_u32x) NUMKONG_STREAMING_ {
-    svfloat64_t const even_f64x = nk_euclideans_from_dot_i64x_sme_streaming_(svmovlb_s64(dots_i32x),
-                                                                             svmovlb_u64(targets_u32x), query_sumsq);
-    svfloat64_t const odd_f64x = nk_euclideans_from_dot_i64x_sme_streaming_(svmovlt_s64(dots_i32x),
-                                                                            svmovlt_u64(targets_u32x), query_sumsq);
-    svbool_t const predicate_all_b64x = svptrue_b64();
-    return svcvtnt_f32_f64_m(svcvt_f32_f64_x(predicate_all_b64x, even_f64x), predicate_all_b64x, odd_f64x);
-}
-
-/** Euclidean distances of u32 dots against u32 norms, exact before one rounding into F32. */
-NUMKONG_INLINE svfloat32_t nk_euclideans_from_dot_u32x_sme_streaming_(svuint32_t dots_u32x, nk_u32_t query_sumsq,
-                                                                      svuint32_t targets_u32x) NUMKONG_STREAMING_ {
-    svfloat64_t const even_f64x = nk_euclideans_from_dot_i64x_sme_streaming_(
-        svreinterpret_s64_u64(svmovlb_u64(dots_u32x)), svmovlb_u64(targets_u32x), query_sumsq);
-    svfloat64_t const odd_f64x = nk_euclideans_from_dot_i64x_sme_streaming_(
-        svreinterpret_s64_u64(svmovlt_u64(dots_u32x)), svmovlt_u64(targets_u32x), query_sumsq);
-    svbool_t const predicate_all_b64x = svptrue_b64();
-    return svcvtnt_f32_f64_m(svcvt_f32_f64_x(predicate_all_b64x, even_f64x), predicate_all_b64x, odd_f64x);
-}
-
-/** Angular distances in place of @p count relative dots of one row, times @p mantissa, against
- *  the relative squared norms @p row_norm and @p column_norms, whose exponents cancel. */
-NUMKONG_INLINE void nk_angulars_from_relative_sme_streaming_(nk_f32_t *values, nk_size_t count, nk_f32_t mantissa,
-                                                             nk_f32_t row_norm,
-                                                             nk_f32_t const *column_norms) NUMKONG_STREAMING_ {
-    for (nk_size_t column = 0; column < count; column += svcntw()) {
-        svbool_t const predicate_b32x = svwhilelt_b32_u64(column, count);
-        svfloat32_t const dots_f32x = svmul_n_f32_x(predicate_b32x, svld1_f32(predicate_b32x, values + column),
-                                                    mantissa);
-        svst1_f32(predicate_b32x, values + column,
-                  nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, svdup_n_f32(row_norm),
-                                                           svld1_f32(predicate_b32x, column_norms + column)));
+/** Euclidean distances √max(0, a² + b² − 2 · dot) against the squared query norm in every lane of
+ *  @p query_norm_f32x; FSQRT throughput bounds them at about 36 cycles a vector. */
+NUMKONG_INLINE void nk_euclideans_from_norms_sme_streaming_(nk_f32_t *row, nk_size_t first, nk_size_t end,
+                                                            svfloat32_t query_norm_f32x,
+                                                            nk_f32_t const *target_norms) NUMKONG_STREAMING_ {
+    for (nk_size_t column = first & ~(svcntw() - 1); column < end; column += svcntw()) {
+        svbool_t const predicate_b32x = nk_row_lanes_b32x_sme_streaming_(column, first, end);
+        svst1_f32(predicate_b32x, row + column,
+                  nk_euclideans_from_dot_f32x_sme_streaming_(predicate_b32x, svld1_f32(predicate_b32x, row + column),
+                                                             query_norm_f32x,
+                                                             svld1_f32(predicate_b32x, target_norms + column)));
     }
 }
 
-/** Euclidean distances in place of @p count relative dots of one row, times @p mantissa, the row's
- *  squared norm being @p row_norm times 4 to the @p row_exponent and each column's its norm times
- *  4^E; every term scales to the larger exponent before the root, which scales back once. */
-NUMKONG_INLINE void nk_euclideans_from_relative_sme_streaming_(nk_f32_t *values, nk_size_t count, nk_f32_t mantissa,
-                                                               nk_f32_t row_norm, nk_i32_t row_exponent,
-                                                               nk_f32_t const *column_norms,
+/** Square roots of @p count u32 norms in F32. */
+NUMKONG_INLINE void nk_roots_u32_sme_streaming_(nk_u32_t const *norms, nk_f32_t *roots,
+                                                nk_size_t count) NUMKONG_STREAMING_ {
+    for (nk_size_t index = 0; index < count; index += svcntw()) {
+        svbool_t const predicate_b32x = svwhilelt_b32_u64(index, count);
+        svst1_f32(
+            predicate_b32x, roots + index,
+            svsqrt_f32_x(predicate_b32x, svcvt_f32_u32_x(predicate_b32x, svld1_u32(predicate_b32x, norms + index))));
+    }
+}
+
+/** 1 for each of @p count zero u32 norms and 0 for the rest: FMAXNM against these floors turns a
+ *  zero column's 0 / 0 into its angle of 1, and one minus them gives a zero row's angles. */
+NUMKONG_INLINE void nk_floors_u32_sme_streaming_(nk_u32_t const *norms, nk_f32_t *floors,
+                                                 nk_size_t count) NUMKONG_STREAMING_ {
+    for (nk_size_t index = 0; index < count; index += svcntw()) {
+        svbool_t const predicate_b32x = svwhilelt_b32_u64(index, count);
+        svst1_f32(predicate_b32x, floors + index,
+                  svsel_f32(svcmpeq_n_u32(predicate_b32x, svld1_u32(predicate_b32x, norms + index), 0), svdup_f32(1),
+                            svdup_f32(0)));
+    }
+}
+
+/** F32 of the exact U64 values of the even and odd 32-bit lanes, back in those lanes. */
+NUMKONG_INLINE svfloat32_t nk_f32x_from_u64x2_sme_streaming_(svuint64_t even_u64x,
+                                                             svuint64_t odd_u64x) NUMKONG_STREAMING_ {
+    svbool_t const predicate_all_b64x = svptrue_b64();
+    return svtrn1_f32(svcvt_f32_u64_x(predicate_all_b64x, even_u64x), svcvt_f32_u64_x(predicate_all_b64x, odd_u64x));
+}
+
+/** F32 of the exact I64 values of the even and odd 32-bit lanes, back in those lanes. */
+NUMKONG_INLINE svfloat32_t nk_f32x_from_i64x2_sme_streaming_(svint64_t even_i64x,
+                                                             svint64_t odd_i64x) NUMKONG_STREAMING_ {
+    svbool_t const predicate_all_b64x = svptrue_b64();
+    return svtrn1_f32(svcvt_f32_s64_x(predicate_all_b64x, even_i64x), svcvt_f32_s64_x(predicate_all_b64x, odd_i64x));
+}
+
+/** Angular distances from i32 dots d, the u32 query norm a with its F32 root, and u32 target norms
+ *  b with their roots and @c nk_floors_u32_sme_streaming_ floors. With s = √a · √b, a positive dot
+ *  takes 1 − d / s as (ab − d²) / (ab + d · s), whose numerator is exact in 64-bit lanes, so equal
+ *  vectors give exactly 0 and near-parallel ones keep their angle; any other dot takes (ab − d · s)
+ *  / ab, as the NEON helpers do. */
+NUMKONG_INLINE void nk_angulars_from_i32_sme_streaming_(nk_f32_t *row, nk_size_t first, nk_size_t end,
+                                                        nk_u32_t query_norm, svfloat32_t query_root_f32x,
+                                                        nk_u32_t const *target_norms, nk_f32_t const *target_roots,
+                                                        nk_f32_t const *target_floors) NUMKONG_STREAMING_ {
+    nk_size_t const aligned_first = first & ~(svcntw() - 1);
+    if (query_norm == 0) {
+        for (nk_size_t column = aligned_first; column < end; column += svcntw()) {
+            svbool_t const predicate_b32x = nk_row_lanes_b32x_sme_streaming_(column, first, end);
+            svst1_f32(predicate_b32x, row + column,
+                      svsubr_n_f32_x(predicate_b32x, svld1_f32(predicate_b32x, target_floors + column), 1));
+        }
+        return;
+    }
+    svbool_t const predicate_all_b64x = svptrue_b64();
+    for (nk_size_t column = aligned_first; column < end; column += svcntw()) {
+        svbool_t const predicate_b32x = nk_row_lanes_b32x_sme_streaming_(column, first, end);
+        svint32_t const dots_i32x = svld1_s32(predicate_b32x, (nk_i32_t const *)row + column);
+        svuint32_t const targets_u32x = svld1_u32(predicate_b32x, target_norms + column);
+        svuint64_t const products_even_u64x = svmullb_n_u64(targets_u32x, query_norm);
+        svuint64_t const products_odd_u64x = svmullt_n_u64(targets_u32x, query_norm);
+        svfloat32_t const gaps_f32x = nk_f32x_from_u64x2_sme_streaming_(
+            svsub_u64_x(predicate_all_b64x, products_even_u64x,
+                        svreinterpret_u64_s64(svmullb_s64(dots_i32x, dots_i32x))),
+            svsub_u64_x(predicate_all_b64x, products_odd_u64x,
+                        svreinterpret_u64_s64(svmullt_s64(dots_i32x, dots_i32x))));
+        svfloat32_t const products_f32x = nk_f32x_from_u64x2_sme_streaming_(products_even_u64x, products_odd_u64x);
+        svfloat32_t const dots_f32x = svcvt_f32_s32_x(predicate_b32x, dots_i32x);
+        svfloat32_t const roots_f32x = svmul_f32_x(predicate_b32x, svld1_f32(predicate_b32x, target_roots + column),
+                                                   query_root_f32x);
+        svfloat32_t const numerators_f32x = svsel_f32(
+            svcmpgt_n_s32(predicate_b32x, dots_i32x, 0), gaps_f32x,
+            svmls_f32_x(predicate_b32x, products_f32x, dots_f32x, roots_f32x));
+        svfloat32_t const denominators_f32x = svmla_f32_x(predicate_b32x, products_f32x,
+                                                          svmax_n_f32_x(predicate_b32x, dots_f32x, 0), roots_f32x);
+        svst1_f32(predicate_b32x, row + column,
+                  svmaxnm_f32_x(predicate_b32x, svdiv_f32_x(predicate_b32x, numerators_f32x, denominators_f32x),
+                                svld1_f32(predicate_b32x, target_floors + column)));
+    }
+}
+
+/** Angular distances from u32 dots, as @c nk_angulars_from_i32_sme_streaming_ takes positive ones;
+ *  a zero dot gives (ab − 0) / ab, exactly 1. */
+NUMKONG_INLINE void nk_angulars_from_u32_sme_streaming_(nk_f32_t *row, nk_size_t first, nk_size_t end,
+                                                        nk_u32_t query_norm, svfloat32_t query_root_f32x,
+                                                        nk_u32_t const *target_norms, nk_f32_t const *target_roots,
+                                                        nk_f32_t const *target_floors) NUMKONG_STREAMING_ {
+    nk_size_t const aligned_first = first & ~(svcntw() - 1);
+    if (query_norm == 0) {
+        for (nk_size_t column = aligned_first; column < end; column += svcntw()) {
+            svbool_t const predicate_b32x = nk_row_lanes_b32x_sme_streaming_(column, first, end);
+            svst1_f32(predicate_b32x, row + column,
+                      svsubr_n_f32_x(predicate_b32x, svld1_f32(predicate_b32x, target_floors + column), 1));
+        }
+        return;
+    }
+    svbool_t const predicate_all_b64x = svptrue_b64();
+    for (nk_size_t column = aligned_first; column < end; column += svcntw()) {
+        svbool_t const predicate_b32x = nk_row_lanes_b32x_sme_streaming_(column, first, end);
+        svuint32_t const dots_u32x = svld1_u32(predicate_b32x, (nk_u32_t const *)row + column);
+        svuint32_t const targets_u32x = svld1_u32(predicate_b32x, target_norms + column);
+        svuint64_t const products_even_u64x = svmullb_n_u64(targets_u32x, query_norm);
+        svuint64_t const products_odd_u64x = svmullt_n_u64(targets_u32x, query_norm);
+        svfloat32_t const gaps_f32x = nk_f32x_from_u64x2_sme_streaming_(
+            svsub_u64_x(predicate_all_b64x, products_even_u64x, svmullb_u64(dots_u32x, dots_u32x)),
+            svsub_u64_x(predicate_all_b64x, products_odd_u64x, svmullt_u64(dots_u32x, dots_u32x)));
+        svfloat32_t const products_f32x = nk_f32x_from_u64x2_sme_streaming_(products_even_u64x, products_odd_u64x);
+        svfloat32_t const roots_f32x = svmul_f32_x(predicate_b32x, svld1_f32(predicate_b32x, target_roots + column),
+                                                   query_root_f32x);
+        svfloat32_t const denominators_f32x = svmla_f32_x(predicate_b32x, products_f32x,
+                                                          svcvt_f32_u32_x(predicate_b32x, dots_u32x), roots_f32x);
+        svst1_f32(predicate_b32x, row + column,
+                  svmaxnm_f32_x(predicate_b32x, svdiv_f32_x(predicate_b32x, gaps_f32x, denominators_f32x),
+                                svld1_f32(predicate_b32x, target_floors + column)));
+    }
+}
+
+/** Euclidean distances from i32 dots d and u32 norms a, b: a + b − 2d is exact in 64-bit lanes
+ *  and rounds once into F32 before the root. */
+NUMKONG_INLINE void nk_euclideans_from_i32_sme_streaming_(nk_f32_t *row, nk_size_t first, nk_size_t end,
+                                                          nk_u32_t query_norm,
+                                                          nk_u32_t const *target_norms) NUMKONG_STREAMING_ {
+    for (nk_size_t column = first & ~(svcntw() - 1); column < end; column += svcntw()) {
+        svbool_t const predicate_b32x = nk_row_lanes_b32x_sme_streaming_(column, first, end);
+        svint32_t const dots_i32x = svld1_s32(predicate_b32x, (nk_i32_t const *)row + column);
+        svuint32_t const targets_u32x = svld1_u32(predicate_b32x, target_norms + column);
+        svfloat32_t const squares_f32x = nk_f32x_from_i64x2_sme_streaming_(
+            svmlslb_n_s64(svreinterpret_s64_u64(svaddlb_n_u64(targets_u32x, query_norm)), dots_i32x, 2),
+            svmlslt_n_s64(svreinterpret_s64_u64(svaddlt_n_u64(targets_u32x, query_norm)), dots_i32x, 2));
+        svst1_f32(predicate_b32x, row + column, svsqrt_f32_x(predicate_b32x, squares_f32x));
+    }
+}
+
+/** Euclidean distances from u32 dots, as @c nk_euclideans_from_i32_sme_streaming_ forms them. */
+NUMKONG_INLINE void nk_euclideans_from_u32_sme_streaming_(nk_f32_t *row, nk_size_t first, nk_size_t end,
+                                                          nk_u32_t query_norm,
+                                                          nk_u32_t const *target_norms) NUMKONG_STREAMING_ {
+    for (nk_size_t column = first & ~(svcntw() - 1); column < end; column += svcntw()) {
+        svbool_t const predicate_b32x = nk_row_lanes_b32x_sme_streaming_(column, first, end);
+        svuint32_t const dots_u32x = svld1_u32(predicate_b32x, (nk_u32_t const *)row + column);
+        svuint32_t const targets_u32x = svld1_u32(predicate_b32x, target_norms + column);
+        svfloat32_t const squares_f32x = nk_f32x_from_u64x2_sme_streaming_(
+            svmlslb_n_u64(svaddlb_n_u64(targets_u32x, query_norm), dots_u32x, 2),
+            svmlslt_n_u64(svaddlt_n_u64(targets_u32x, query_norm), dots_u32x, 2));
+        svst1_f32(predicate_b32x, row + column, svsqrt_f32_x(predicate_b32x, squares_f32x));
+    }
+}
+
+/** Euclidean distances from relative dots times @p mantissa, the row's squared norm being
+ *  @p row_norm times 4 to the @p row_exponent and each column's its norm times 4^E; every term
+ *  scales to the larger exponent before the root, which scales back once. */
+NUMKONG_INLINE void nk_euclideans_from_relative_sme_streaming_(nk_f32_t *row, nk_size_t first, nk_size_t end,
+                                                               nk_f32_t mantissa, nk_f32_t row_norm,
+                                                               nk_i32_t row_exponent, nk_f32_t const *column_norms,
                                                                nk_i32_t const *column_exponents) NUMKONG_STREAMING_ {
-    for (nk_size_t column = 0; column < count; column += svcntw()) {
-        svbool_t const predicate_b32x = svwhilelt_b32_u64(column, count);
+    for (nk_size_t column = first & ~(svcntw() - 1); column < end; column += svcntw()) {
+        svbool_t const predicate_b32x = nk_row_lanes_b32x_sme_streaming_(column, first, end);
         svint32_t const exponents_i32x = svld1_s32(predicate_b32x, column_exponents + column);
         svint32_t const top_i32x = svmax_n_s32_x(predicate_b32x, exponents_i32x, row_exponent);
         svfloat32_t const row_f32x = svscale_f32_x(
@@ -367,14 +473,14 @@ NUMKONG_INLINE void nk_euclideans_from_relative_sme_streaming_(nk_f32_t *values,
             predicate_b32x, svld1_f32(predicate_b32x, column_norms + column),
             svlsl_n_s32_x(predicate_b32x, svsub_s32_x(predicate_b32x, exponents_i32x, top_i32x), 1));
         svfloat32_t const dots_f32x = svscale_f32_x(
-            predicate_b32x, svmul_n_f32_x(predicate_b32x, svld1_f32(predicate_b32x, values + column), 2 * mantissa),
+            predicate_b32x, svmul_n_f32_x(predicate_b32x, svld1_f32(predicate_b32x, row + column), 2 * mantissa),
             svsub_s32_x(predicate_b32x, svadd_n_s32_x(predicate_b32x, exponents_i32x, row_exponent),
                         svlsl_n_s32_x(predicate_b32x, top_i32x, 1)));
         // FMAX keeps a NaN, which FMAXNM would replace with zero
         svfloat32_t const squares_f32x = svmax_n_f32_x(
             predicate_b32x, svsub_f32_x(predicate_b32x, svadd_f32_x(predicate_b32x, row_f32x, column_f32x), dots_f32x),
             0);
-        svst1_f32(predicate_b32x, values + column,
+        svst1_f32(predicate_b32x, row + column,
                   svscale_f32_x(predicate_b32x, svsqrt_f32_x(predicate_b32x, squares_f32x), top_i32x));
     }
 }
@@ -386,18 +492,19 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_f16_sme_streaming_( //
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_offset);
-    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
-        nk_f16_t const *a_row = a + row_index * a_stride_elements;
-        nk_f32_t *result_row = c + row_index * c_stride_elements;
-        nk_f32_t query_norm_sq_f32 = nk_dots_reduce_sumsq_f16_sme_streaming_(a_row, depth);
-        svfloat32_t query_norm_sq_f32x = svdup_n_f32(query_norm_sq_f32);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-            svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                               target_norms_sq_f32x));
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row)
+            row_norms[row] = nk_dots_reduce_sumsq_f16_sme_streaming_(a + (row_first + row) * a_stride_elements, depth);
+        nk_rsqrts_f32_sme_streaming_(row_norms, 1, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b_norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(c + (row_first + row) * c_stride_elements + column_first, 0,
+                                                       block_columns, row_norms[row], svdup_n_f32(row_rsqrts[row]),
+                                                       b_norms + column_first, column_rsqrts);
         }
     }
 }
@@ -463,25 +570,24 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_f16_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_f16_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_f16_sme_streaming_(vectors + col * stride_elements,
-                                                                                     depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_f16_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
+        nk_align_(64) nk_f32_t rsqrts_cache[256];
+        nk_rsqrts_f32_sme_streaming_(norms_cache, 1, rsqrts_cache, chunk_end - chunk_start);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                   target_norms_sq_f32x));
-            }
+            nk_angulars_from_rsqrts_sme_streaming_(
+                result_row + chunk_start, first - chunk_start, chunk_end - chunk_start, result_row[row_index],
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(result_row[row_index]), 1), norms_cache,
+                rsqrts_cache);
         }
     }
     // zero diagonals
@@ -515,25 +621,21 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_f16_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_f16_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_f16_sme_streaming_(vectors + col * stride_elements,
-                                                                                     depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_f16_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_euclideans_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                     target_norms_sq_f32x));
-            }
+            nk_euclideans_from_norms_sme_streaming_(result_row + chunk_start, first - chunk_start,
+                                                    chunk_end - chunk_start, svdup_n_f32(result_row[row_index]),
+                                                    norms_cache);
         }
     }
     // zero diagonals
@@ -567,18 +669,19 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_bf16_sme_streaming_( //
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_offset);
-    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
-        nk_bf16_t const *a_row = a + row_index * a_stride_elements;
-        nk_f32_t *result_row = c + row_index * c_stride_elements;
-        nk_f32_t query_norm_sq_f32 = nk_dots_reduce_sumsq_bf16_sme_streaming_(a_row, depth);
-        svfloat32_t query_norm_sq_f32x = svdup_n_f32(query_norm_sq_f32);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-            svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                               target_norms_sq_f32x));
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row)
+            row_norms[row] = nk_dots_reduce_sumsq_bf16_sme_streaming_(a + (row_first + row) * a_stride_elements, depth);
+        nk_rsqrts_f32_sme_streaming_(row_norms, 1, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b_norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(c + (row_first + row) * c_stride_elements + column_first, 0,
+                                                       block_columns, row_norms[row], svdup_n_f32(row_rsqrts[row]),
+                                                       b_norms + column_first, column_rsqrts);
         }
     }
 }
@@ -643,25 +746,24 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_bf16_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_bf16_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_bf16_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_bf16_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
+        nk_align_(64) nk_f32_t rsqrts_cache[256];
+        nk_rsqrts_f32_sme_streaming_(norms_cache, 1, rsqrts_cache, chunk_end - chunk_start);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                   target_norms_sq_f32x));
-            }
+            nk_angulars_from_rsqrts_sme_streaming_(
+                result_row + chunk_start, first - chunk_start, chunk_end - chunk_start, result_row[row_index],
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(result_row[row_index]), 1), norms_cache,
+                rsqrts_cache);
         }
     }
     // zero diagonals
@@ -695,25 +797,21 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_bf16_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_bf16_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_bf16_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_bf16_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_euclideans_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                     target_norms_sq_f32x));
-            }
+            nk_euclideans_from_norms_sme_streaming_(result_row + chunk_start, first - chunk_start,
+                                                    chunk_end - chunk_start, svdup_n_f32(result_row[row_index]),
+                                                    norms_cache);
         }
     }
     // zero diagonals
@@ -747,18 +845,19 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_e4m3_sme_streaming_( //
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_offset);
-    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
-        nk_e4m3_t const *a_row = a + row_index * a_stride_elements;
-        nk_f32_t *result_row = c + row_index * c_stride_elements;
-        nk_f32_t query_norm_sq_f32 = nk_dots_reduce_sumsq_e4m3_sme_streaming_(a_row, depth);
-        svfloat32_t query_norm_sq_f32x = svdup_n_f32(query_norm_sq_f32);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-            svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                               target_norms_sq_f32x));
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row)
+            row_norms[row] = nk_dots_reduce_sumsq_e4m3_sme_streaming_(a + (row_first + row) * a_stride_elements, depth);
+        nk_rsqrts_f32_sme_streaming_(row_norms, 1, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b_norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(c + (row_first + row) * c_stride_elements + column_first, 0,
+                                                       block_columns, row_norms[row], svdup_n_f32(row_rsqrts[row]),
+                                                       b_norms + column_first, column_rsqrts);
         }
     }
 }
@@ -823,25 +922,24 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_e4m3_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_e4m3_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e4m3_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_e4m3_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
+        nk_align_(64) nk_f32_t rsqrts_cache[256];
+        nk_rsqrts_f32_sme_streaming_(norms_cache, 1, rsqrts_cache, chunk_end - chunk_start);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                   target_norms_sq_f32x));
-            }
+            nk_angulars_from_rsqrts_sme_streaming_(
+                result_row + chunk_start, first - chunk_start, chunk_end - chunk_start, result_row[row_index],
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(result_row[row_index]), 1), norms_cache,
+                rsqrts_cache);
         }
     }
     // zero diagonals
@@ -875,25 +973,21 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_e4m3_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_e4m3_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e4m3_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_e4m3_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_euclideans_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                     target_norms_sq_f32x));
-            }
+            nk_euclideans_from_norms_sme_streaming_(result_row + chunk_start, first - chunk_start,
+                                                    chunk_end - chunk_start, svdup_n_f32(result_row[row_index]),
+                                                    norms_cache);
         }
     }
     // zero diagonals
@@ -927,18 +1021,19 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_e5m2_sme_streaming_( //
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_offset);
-    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
-        nk_e5m2_t const *a_row = a + row_index * a_stride_elements;
-        nk_f32_t *result_row = c + row_index * c_stride_elements;
-        nk_f32_t query_norm_sq_f32 = nk_dots_reduce_sumsq_e5m2_sme_streaming_(a_row, depth);
-        svfloat32_t query_norm_sq_f32x = svdup_n_f32(query_norm_sq_f32);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-            svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                               target_norms_sq_f32x));
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row)
+            row_norms[row] = nk_dots_reduce_sumsq_e5m2_sme_streaming_(a + (row_first + row) * a_stride_elements, depth);
+        nk_rsqrts_f32_sme_streaming_(row_norms, 1, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b_norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(c + (row_first + row) * c_stride_elements + column_first, 0,
+                                                       block_columns, row_norms[row], svdup_n_f32(row_rsqrts[row]),
+                                                       b_norms + column_first, column_rsqrts);
         }
     }
 }
@@ -1003,25 +1098,24 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_e5m2_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_e5m2_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e5m2_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_e5m2_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
+        nk_align_(64) nk_f32_t rsqrts_cache[256];
+        nk_rsqrts_f32_sme_streaming_(norms_cache, 1, rsqrts_cache, chunk_end - chunk_start);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                   target_norms_sq_f32x));
-            }
+            nk_angulars_from_rsqrts_sme_streaming_(
+                result_row + chunk_start, first - chunk_start, chunk_end - chunk_start, result_row[row_index],
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(result_row[row_index]), 1), norms_cache,
+                rsqrts_cache);
         }
     }
     // zero diagonals
@@ -1055,25 +1149,21 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_e5m2_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_e5m2_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e5m2_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_e5m2_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_euclideans_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                     target_norms_sq_f32x));
-            }
+            nk_euclideans_from_norms_sme_streaming_(result_row + chunk_start, first - chunk_start,
+                                                    chunk_end - chunk_start, svdup_n_f32(result_row[row_index]),
+                                                    norms_cache);
         }
     }
     // zero diagonals
@@ -1107,18 +1197,19 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_e2m3_sme_streaming_( //
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_offset);
-    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
-        nk_e2m3_t const *a_row = a + row_index * a_stride_elements;
-        nk_f32_t *result_row = c + row_index * c_stride_elements;
-        nk_f32_t query_norm_sq_f32 = nk_dots_reduce_sumsq_e2m3_sme_streaming_(a_row, depth);
-        svfloat32_t query_norm_sq_f32x = svdup_n_f32(query_norm_sq_f32);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-            svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                               target_norms_sq_f32x));
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row)
+            row_norms[row] = nk_dots_reduce_sumsq_e2m3_sme_streaming_(a + (row_first + row) * a_stride_elements, depth);
+        nk_rsqrts_f32_sme_streaming_(row_norms, 1, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b_norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(c + (row_first + row) * c_stride_elements + column_first, 0,
+                                                       block_columns, row_norms[row], svdup_n_f32(row_rsqrts[row]),
+                                                       b_norms + column_first, column_rsqrts);
         }
     }
 }
@@ -1183,25 +1274,24 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_e2m3_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_e2m3_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e2m3_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_e2m3_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
+        nk_align_(64) nk_f32_t rsqrts_cache[256];
+        nk_rsqrts_f32_sme_streaming_(norms_cache, 1, rsqrts_cache, chunk_end - chunk_start);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                   target_norms_sq_f32x));
-            }
+            nk_angulars_from_rsqrts_sme_streaming_(
+                result_row + chunk_start, first - chunk_start, chunk_end - chunk_start, result_row[row_index],
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(result_row[row_index]), 1), norms_cache,
+                rsqrts_cache);
         }
     }
     // zero diagonals
@@ -1235,25 +1325,21 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_e2m3_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_e2m3_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e2m3_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_e2m3_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_euclideans_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                     target_norms_sq_f32x));
-            }
+            nk_euclideans_from_norms_sme_streaming_(result_row + chunk_start, first - chunk_start,
+                                                    chunk_end - chunk_start, svdup_n_f32(result_row[row_index]),
+                                                    norms_cache);
         }
     }
     // zero diagonals
@@ -1287,18 +1373,19 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_e2m1_sme_streaming_( //
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_offset);
-    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
-        nk_e2m1x2_t const *a_row = a + row_index * a_stride_elements;
-        nk_f32_t *result_row = c + row_index * c_stride_elements;
-        nk_f32_t query_norm_sq_f32 = nk_dots_reduce_sumsq_e2m1_sme_streaming_(a_row, depth);
-        svfloat32_t query_norm_sq_f32x = svdup_n_f32(query_norm_sq_f32);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-            svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                               target_norms_sq_f32x));
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row)
+            row_norms[row] = nk_dots_reduce_sumsq_e2m1_sme_streaming_(a + (row_first + row) * a_stride_elements, depth);
+        nk_rsqrts_f32_sme_streaming_(row_norms, 1, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b_norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(c + (row_first + row) * c_stride_elements + column_first, 0,
+                                                       block_columns, row_norms[row], svdup_n_f32(row_rsqrts[row]),
+                                                       b_norms + column_first, column_rsqrts);
         }
     }
 }
@@ -1363,25 +1450,24 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_e2m1_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_e2m1_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e2m1_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_e2m1_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
+        nk_align_(64) nk_f32_t rsqrts_cache[256];
+        nk_rsqrts_f32_sme_streaming_(norms_cache, 1, rsqrts_cache, chunk_end - chunk_start);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                   target_norms_sq_f32x));
-            }
+            nk_angulars_from_rsqrts_sme_streaming_(
+                result_row + chunk_start, first - chunk_start, chunk_end - chunk_start, result_row[row_index],
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(result_row[row_index]), 1), norms_cache,
+                rsqrts_cache);
         }
     }
     // zero diagonals
@@ -1415,25 +1501,21 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_e2m1_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_e2m1_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e2m1_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_e2m1_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_euclideans_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                     target_norms_sq_f32x));
-            }
+            nk_euclideans_from_norms_sme_streaming_(result_row + chunk_start, first - chunk_start,
+                                                    chunk_end - chunk_start, svdup_n_f32(result_row[row_index]),
+                                                    norms_cache);
         }
     }
     // zero diagonals
@@ -1467,18 +1549,19 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_e3m2_sme_streaming_( //
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_offset);
-    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
-        nk_e3m2_t const *a_row = a + row_index * a_stride_elements;
-        nk_f32_t *result_row = c + row_index * c_stride_elements;
-        nk_f32_t query_norm_sq_f32 = nk_dots_reduce_sumsq_e3m2_sme_streaming_(a_row, depth);
-        svfloat32_t query_norm_sq_f32x = svdup_n_f32(query_norm_sq_f32);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-            svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                               target_norms_sq_f32x));
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row)
+            row_norms[row] = nk_dots_reduce_sumsq_e3m2_sme_streaming_(a + (row_first + row) * a_stride_elements, depth);
+        nk_rsqrts_f32_sme_streaming_(row_norms, 1, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b_norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(c + (row_first + row) * c_stride_elements + column_first, 0,
+                                                       block_columns, row_norms[row], svdup_n_f32(row_rsqrts[row]),
+                                                       b_norms + column_first, column_rsqrts);
         }
     }
 }
@@ -1543,25 +1626,24 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_e3m2_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_e3m2_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e3m2_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_e3m2_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
+        nk_align_(64) nk_f32_t rsqrts_cache[256];
+        nk_rsqrts_f32_sme_streaming_(norms_cache, 1, rsqrts_cache, chunk_end - chunk_start);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_angulars_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                   target_norms_sq_f32x));
-            }
+            nk_angulars_from_rsqrts_sme_streaming_(
+                result_row + chunk_start, first - chunk_start, chunk_end - chunk_start, result_row[row_index],
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(result_row[row_index]), 1), norms_cache,
+                rsqrts_cache);
         }
     }
     // zero diagonals
@@ -1595,25 +1677,21 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_e3m2_sme_streaming_( //
         result_row[row_index] = nk_dots_reduce_sumsq_e3m2_sme_streaming_(vectors + row_index * stride_elements, depth);
     }
     // column-first post-processing
-    nk_f32_t norms_cache[256];
+    nk_align_(64) nk_f32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e3m2_sme_streaming_(vectors + col * stride_elements,
-                                                                                      depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? result[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_e3m2_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            svfloat32_t query_norm_sq_f32x = svdup_n_f32(result_row[row_index]);
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svfloat32_t dots_f32x = svld1_f32(predicate_b32x, result_row + col_index);
-                svfloat32_t target_norms_sq_f32x = svld1_f32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_euclideans_from_dot_f32x_sme_streaming_(predicate_b32x, dots_f32x, query_norm_sq_f32x,
-                                                                     target_norms_sq_f32x));
-            }
+            nk_euclideans_from_norms_sme_streaming_(result_row + chunk_start, first - chunk_start,
+                                                    chunk_end - chunk_start, svdup_n_f32(result_row[row_index]),
+                                                    norms_cache);
         }
     }
     // zero diagonals
@@ -1646,16 +1724,21 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_i8_sme_streaming_( //
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u32_t const *b_norms = (nk_u32_t const *)((char const *)b_packed + header->norms_offset);
-    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
-        nk_i8_t const *a_row = a + row_index * a_stride_elements;
-        nk_f32_t *result_row = c + row_index * c_stride_elements;
-        nk_u32_t query_norm_sq_u32 = nk_dots_reduce_sumsq_i8_sme_streaming_(a_row, depth);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svint32_t dots_i32x = svld1_s32(predicate_b32x, (nk_i32_t const *)(result_row + col_index));
-            svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_angulars_from_dot_i32x_sme_streaming_(dots_i32x, query_norm_sq_u32, target_norms_sq_u32x));
+    nk_u32_t row_norms[64];
+    nk_align_(64) nk_f32_t row_roots[64], column_roots[256], column_floors[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row)
+            row_norms[row] = nk_dots_reduce_sumsq_i8_sme_streaming_(a + (row_first + row) * a_stride_elements, depth);
+        nk_roots_u32_sme_streaming_(row_norms, row_roots, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_roots_u32_sme_streaming_(b_norms + column_first, column_roots, block_columns);
+            nk_floors_u32_sme_streaming_(b_norms + column_first, column_floors, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_i32_sme_streaming_(c + (row_first + row) * c_stride_elements + column_first, 0,
+                                                    block_columns, row_norms[row], svdup_n_f32(row_roots[row]),
+                                                    b_norms + column_first, column_roots, column_floors);
         }
     }
 }
@@ -1684,13 +1767,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_i8_sme_streaming_( //
         nk_i8_t const *a_row = a + row_index * a_stride_elements;
         nk_f32_t *result_row = c + row_index * c_stride_elements;
         nk_u32_t query_norm_sq_u32 = nk_dots_reduce_sumsq_i8_sme_streaming_(a_row, depth);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svint32_t dots_i32x = svld1_s32(predicate_b32x, (nk_i32_t const *)(result_row + col_index));
-            svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_euclideans_from_dot_i32x_sme_streaming_(dots_i32x, query_norm_sq_u32, target_norms_sq_u32x));
-        }
+        nk_euclideans_from_i32_sme_streaming_(result_row, 0, columns, query_norm_sq_u32, b_norms);
     }
 }
 
@@ -1719,25 +1796,26 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_i8_sme_streaming_( //
         result_row_norms[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
-    nk_u32_t norms_cache[256];
+    nk_align_(64) nk_u32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_i8_sme_streaming_(vectors + col * stride_elements,
-                                                                                    depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? ((nk_u32_t const *)result)[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_i8_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
+        nk_align_(64) nk_f32_t roots_cache[256], floors_cache[256];
+        nk_roots_u32_sme_streaming_(norms_cache, roots_cache, chunk_end - chunk_start);
+        nk_floors_u32_sme_streaming_(norms_cache, floors_cache, chunk_end - chunk_start);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            nk_u32_t const *result_row_norms = (nk_u32_t const *)result_row;
-            nk_u32_t query_sumsq_u32 = result_row_norms[row_index];
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svint32_t dots_i32x = svld1_s32(predicate_b32x, (nk_i32_t *)(result_row + col_index));
-                svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_angulars_from_dot_i32x_sme_streaming_(dots_i32x, query_sumsq_u32, target_norms_sq_u32x));
-            }
+            nk_u32_t const query_norm = ((nk_u32_t const *)result_row)[row_index];
+            svfloat32_t const query_root_f32x = svsqrt_f32_x(svptrue_b32(),
+                                                             svcvt_f32_u32_x(svptrue_b32(), svdup_n_u32(query_norm)));
+            nk_angulars_from_i32_sme_streaming_(result_row + chunk_start, first - chunk_start, chunk_end - chunk_start,
+                                                query_norm, query_root_f32x, norms_cache, roots_cache, floors_cache);
         }
     }
     // zero diagonals
@@ -1772,25 +1850,21 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_i8_sme_streaming_( //
         result_row_norms[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
-    nk_u32_t norms_cache[256];
+    nk_align_(64) nk_u32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_i8_sme_streaming_(vectors + col * stride_elements,
-                                                                                    depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? ((nk_u32_t const *)result)[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_i8_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            nk_u32_t const *result_row_norms = (nk_u32_t const *)result_row;
-            nk_u32_t query_sumsq_u32 = result_row_norms[row_index];
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svint32_t dots_i32x = svld1_s32(predicate_b32x, (nk_i32_t *)(result_row + col_index));
-                svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_euclideans_from_dot_i32x_sme_streaming_(dots_i32x, query_sumsq_u32, target_norms_sq_u32x));
-            }
+            nk_euclideans_from_i32_sme_streaming_(result_row + chunk_start, first - chunk_start,
+                                                  chunk_end - chunk_start, ((nk_u32_t const *)result_row)[row_index],
+                                                  norms_cache);
         }
     }
     // zero diagonals
@@ -1824,16 +1898,21 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_u8_sme_streaming_( //
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u32_t const *b_norms = (nk_u32_t const *)((char const *)b_packed + header->norms_offset);
-    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
-        nk_u8_t const *a_row = a + row_index * a_stride_elements;
-        nk_f32_t *result_row = c + row_index * c_stride_elements;
-        nk_u32_t query_norm_sq_u32 = nk_dots_reduce_sumsq_u8_sme_streaming_(a_row, depth);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svuint32_t dots_u32x = svld1_u32(predicate_b32x, (nk_u32_t const *)(result_row + col_index));
-            svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_angulars_from_dot_u32x_sme_streaming_(dots_u32x, query_norm_sq_u32, target_norms_sq_u32x));
+    nk_u32_t row_norms[64];
+    nk_align_(64) nk_f32_t row_roots[64], column_roots[256], column_floors[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row)
+            row_norms[row] = nk_dots_reduce_sumsq_u8_sme_streaming_(a + (row_first + row) * a_stride_elements, depth);
+        nk_roots_u32_sme_streaming_(row_norms, row_roots, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_roots_u32_sme_streaming_(b_norms + column_first, column_roots, block_columns);
+            nk_floors_u32_sme_streaming_(b_norms + column_first, column_floors, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_u32_sme_streaming_(c + (row_first + row) * c_stride_elements + column_first, 0,
+                                                    block_columns, row_norms[row], svdup_n_f32(row_roots[row]),
+                                                    b_norms + column_first, column_roots, column_floors);
         }
     }
 }
@@ -1862,13 +1941,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_u8_sme_streaming_( //
         nk_u8_t const *a_row = a + row_index * a_stride_elements;
         nk_f32_t *result_row = c + row_index * c_stride_elements;
         nk_u32_t query_norm_sq_u32 = nk_dots_reduce_sumsq_u8_sme_streaming_(a_row, depth);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svuint32_t dots_u32x = svld1_u32(predicate_b32x, (nk_u32_t const *)(result_row + col_index));
-            svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_euclideans_from_dot_u32x_sme_streaming_(dots_u32x, query_norm_sq_u32, target_norms_sq_u32x));
-        }
+        nk_euclideans_from_u32_sme_streaming_(result_row, 0, columns, query_norm_sq_u32, b_norms);
     }
 }
 
@@ -1897,25 +1970,26 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_u8_sme_streaming_( //
         result_row_norms[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
-    nk_u32_t norms_cache[256];
+    nk_align_(64) nk_u32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_u8_sme_streaming_(vectors + col * stride_elements,
-                                                                                    depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? ((nk_u32_t const *)result)[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_u8_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
+        nk_align_(64) nk_f32_t roots_cache[256], floors_cache[256];
+        nk_roots_u32_sme_streaming_(norms_cache, roots_cache, chunk_end - chunk_start);
+        nk_floors_u32_sme_streaming_(norms_cache, floors_cache, chunk_end - chunk_start);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            nk_u32_t const *result_row_norms = (nk_u32_t const *)result_row;
-            nk_u32_t query_sumsq_u32 = result_row_norms[row_index];
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svuint32_t dots_u32x = svld1_u32(predicate_b32x, (nk_u32_t *)(result_row + col_index));
-                svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_angulars_from_dot_u32x_sme_streaming_(dots_u32x, query_sumsq_u32, target_norms_sq_u32x));
-            }
+            nk_u32_t const query_norm = ((nk_u32_t const *)result_row)[row_index];
+            svfloat32_t const query_root_f32x = svsqrt_f32_x(svptrue_b32(),
+                                                             svcvt_f32_u32_x(svptrue_b32(), svdup_n_u32(query_norm)));
+            nk_angulars_from_u32_sme_streaming_(result_row + chunk_start, first - chunk_start, chunk_end - chunk_start,
+                                                query_norm, query_root_f32x, norms_cache, roots_cache, floors_cache);
         }
     }
     // zero diagonals
@@ -1950,25 +2024,21 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_u8_sme_streaming_( //
         result_row_norms[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
-    nk_u32_t norms_cache[256];
+    nk_align_(64) nk_u32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_u8_sme_streaming_(vectors + col * stride_elements,
-                                                                                    depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? ((nk_u32_t const *)result)[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_u8_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            nk_u32_t const *result_row_norms = (nk_u32_t const *)result_row;
-            nk_u32_t query_sumsq_u32 = result_row_norms[row_index];
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svuint32_t dots_u32x = svld1_u32(predicate_b32x, (nk_u32_t *)(result_row + col_index));
-                svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_euclideans_from_dot_u32x_sme_streaming_(dots_u32x, query_sumsq_u32, target_norms_sq_u32x));
-            }
+            nk_euclideans_from_u32_sme_streaming_(result_row + chunk_start, first - chunk_start,
+                                                  chunk_end - chunk_start, ((nk_u32_t const *)result_row)[row_index],
+                                                  norms_cache);
         }
     }
     // zero diagonals
@@ -2002,16 +2072,21 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_i4_sme_streaming_( //
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u32_t const *b_norms = (nk_u32_t const *)((char const *)b_packed + header->norms_offset);
-    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
-        nk_i4x2_t const *a_row = a + row_index * a_stride_elements;
-        nk_f32_t *result_row = c + row_index * c_stride_elements;
-        nk_u32_t query_norm_sq_u32 = nk_dots_reduce_sumsq_i4_sme_streaming_(a_row, depth);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svint32_t dots_i32x = svld1_s32(predicate_b32x, (nk_i32_t const *)(result_row + col_index));
-            svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_angulars_from_dot_i32x_sme_streaming_(dots_i32x, query_norm_sq_u32, target_norms_sq_u32x));
+    nk_u32_t row_norms[64];
+    nk_align_(64) nk_f32_t row_roots[64], column_roots[256], column_floors[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row)
+            row_norms[row] = nk_dots_reduce_sumsq_i4_sme_streaming_(a + (row_first + row) * a_stride_elements, depth);
+        nk_roots_u32_sme_streaming_(row_norms, row_roots, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_roots_u32_sme_streaming_(b_norms + column_first, column_roots, block_columns);
+            nk_floors_u32_sme_streaming_(b_norms + column_first, column_floors, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_i32_sme_streaming_(c + (row_first + row) * c_stride_elements + column_first, 0,
+                                                    block_columns, row_norms[row], svdup_n_f32(row_roots[row]),
+                                                    b_norms + column_first, column_roots, column_floors);
         }
     }
 }
@@ -2040,13 +2115,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_i4_sme_streaming_( //
         nk_i4x2_t const *a_row = a + row_index * a_stride_elements;
         nk_f32_t *result_row = c + row_index * c_stride_elements;
         nk_u32_t query_norm_sq_u32 = nk_dots_reduce_sumsq_i4_sme_streaming_(a_row, depth);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svint32_t dots_i32x = svld1_s32(predicate_b32x, (nk_i32_t const *)(result_row + col_index));
-            svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_euclideans_from_dot_i32x_sme_streaming_(dots_i32x, query_norm_sq_u32, target_norms_sq_u32x));
-        }
+        nk_euclideans_from_i32_sme_streaming_(result_row, 0, columns, query_norm_sq_u32, b_norms);
     }
 }
 
@@ -2075,25 +2144,26 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_i4_sme_streaming_( //
         result_row_norms[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
-    nk_u32_t norms_cache[256];
+    nk_align_(64) nk_u32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_i4_sme_streaming_(vectors + col * stride_elements,
-                                                                                    depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? ((nk_u32_t const *)result)[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_i4_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
+        nk_align_(64) nk_f32_t roots_cache[256], floors_cache[256];
+        nk_roots_u32_sme_streaming_(norms_cache, roots_cache, chunk_end - chunk_start);
+        nk_floors_u32_sme_streaming_(norms_cache, floors_cache, chunk_end - chunk_start);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            nk_u32_t const *result_row_norms = (nk_u32_t const *)result_row;
-            nk_u32_t query_sumsq_u32 = result_row_norms[row_index];
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svint32_t dots_i32x = svld1_s32(predicate_b32x, (nk_i32_t *)(result_row + col_index));
-                svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_angulars_from_dot_i32x_sme_streaming_(dots_i32x, query_sumsq_u32, target_norms_sq_u32x));
-            }
+            nk_u32_t const query_norm = ((nk_u32_t const *)result_row)[row_index];
+            svfloat32_t const query_root_f32x = svsqrt_f32_x(svptrue_b32(),
+                                                             svcvt_f32_u32_x(svptrue_b32(), svdup_n_u32(query_norm)));
+            nk_angulars_from_i32_sme_streaming_(result_row + chunk_start, first - chunk_start, chunk_end - chunk_start,
+                                                query_norm, query_root_f32x, norms_cache, roots_cache, floors_cache);
         }
     }
     // zero diagonals
@@ -2128,25 +2198,21 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_i4_sme_streaming_( //
         result_row_norms[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
-    nk_u32_t norms_cache[256];
+    nk_align_(64) nk_u32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_i4_sme_streaming_(vectors + col * stride_elements,
-                                                                                    depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? ((nk_u32_t const *)result)[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_i4_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            nk_u32_t const *result_row_norms = (nk_u32_t const *)result_row;
-            nk_u32_t query_sumsq_u32 = result_row_norms[row_index];
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svint32_t dots_i32x = svld1_s32(predicate_b32x, (nk_i32_t *)(result_row + col_index));
-                svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_euclideans_from_dot_i32x_sme_streaming_(dots_i32x, query_sumsq_u32, target_norms_sq_u32x));
-            }
+            nk_euclideans_from_i32_sme_streaming_(result_row + chunk_start, first - chunk_start,
+                                                  chunk_end - chunk_start, ((nk_u32_t const *)result_row)[row_index],
+                                                  norms_cache);
         }
     }
     // zero diagonals
@@ -2180,16 +2246,21 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_u4_sme_streaming_( //
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_u32_t const *b_norms = (nk_u32_t const *)((char const *)b_packed + header->norms_offset);
-    for (nk_size_t row_index = 0; row_index < rows; row_index++) {
-        nk_u4x2_t const *a_row = a + row_index * a_stride_elements;
-        nk_f32_t *result_row = c + row_index * c_stride_elements;
-        nk_u32_t query_norm_sq_u32 = nk_dots_reduce_sumsq_u4_sme_streaming_(a_row, depth);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svuint32_t dots_u32x = svld1_u32(predicate_b32x, (nk_u32_t const *)(result_row + col_index));
-            svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_angulars_from_dot_u32x_sme_streaming_(dots_u32x, query_norm_sq_u32, target_norms_sq_u32x));
+    nk_u32_t row_norms[64];
+    nk_align_(64) nk_f32_t row_roots[64], column_roots[256], column_floors[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row)
+            row_norms[row] = nk_dots_reduce_sumsq_u4_sme_streaming_(a + (row_first + row) * a_stride_elements, depth);
+        nk_roots_u32_sme_streaming_(row_norms, row_roots, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_roots_u32_sme_streaming_(b_norms + column_first, column_roots, block_columns);
+            nk_floors_u32_sme_streaming_(b_norms + column_first, column_floors, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_u32_sme_streaming_(c + (row_first + row) * c_stride_elements + column_first, 0,
+                                                    block_columns, row_norms[row], svdup_n_f32(row_roots[row]),
+                                                    b_norms + column_first, column_roots, column_floors);
         }
     }
 }
@@ -2218,13 +2289,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_u4_sme_streaming_( //
         nk_u4x2_t const *a_row = a + row_index * a_stride_elements;
         nk_f32_t *result_row = c + row_index * c_stride_elements;
         nk_u32_t query_norm_sq_u32 = nk_dots_reduce_sumsq_u4_sme_streaming_(a_row, depth);
-        for (nk_size_t col_index = 0; col_index < columns; col_index += svcntw()) {
-            svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, columns);
-            svuint32_t dots_u32x = svld1_u32(predicate_b32x, (nk_u32_t const *)(result_row + col_index));
-            svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, b_norms + col_index);
-            svst1_f32(predicate_b32x, result_row + col_index,
-                      nk_euclideans_from_dot_u32x_sme_streaming_(dots_u32x, query_norm_sq_u32, target_norms_sq_u32x));
-        }
+        nk_euclideans_from_u32_sme_streaming_(result_row, 0, columns, query_norm_sq_u32, b_norms);
     }
 }
 
@@ -2253,25 +2318,26 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_u4_sme_streaming_( //
         result_row_norms[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
-    nk_u32_t norms_cache[256];
+    nk_align_(64) nk_u32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_u4_sme_streaming_(vectors + col * stride_elements,
-                                                                                    depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? ((nk_u32_t const *)result)[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_u4_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
+        nk_align_(64) nk_f32_t roots_cache[256], floors_cache[256];
+        nk_roots_u32_sme_streaming_(norms_cache, roots_cache, chunk_end - chunk_start);
+        nk_floors_u32_sme_streaming_(norms_cache, floors_cache, chunk_end - chunk_start);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            nk_u32_t const *result_row_norms = (nk_u32_t const *)result_row;
-            nk_u32_t query_sumsq_u32 = result_row_norms[row_index];
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svuint32_t dots_u32x = svld1_u32(predicate_b32x, (nk_u32_t *)(result_row + col_index));
-                svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_angulars_from_dot_u32x_sme_streaming_(dots_u32x, query_sumsq_u32, target_norms_sq_u32x));
-            }
+            nk_u32_t const query_norm = ((nk_u32_t const *)result_row)[row_index];
+            svfloat32_t const query_root_f32x = svsqrt_f32_x(svptrue_b32(),
+                                                             svcvt_f32_u32_x(svptrue_b32(), svdup_n_u32(query_norm)));
+            nk_angulars_from_u32_sme_streaming_(result_row + chunk_start, first - chunk_start, chunk_end - chunk_start,
+                                                query_norm, query_root_f32x, norms_cache, roots_cache, floors_cache);
         }
     }
     // zero diagonals
@@ -2306,25 +2372,21 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_u4_sme_streaming_( //
         result_row_norms[row_index] = row_sumsq_u32;
     }
     // column-first post-processing
-    nk_u32_t norms_cache[256];
+    nk_align_(64) nk_u32_t norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vector_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vector_count ? chunk_start + 256 : vector_count;
         for (nk_size_t col = chunk_start; col < chunk_end; ++col)
-            norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_u4_sme_streaming_(vectors + col * stride_elements,
-                                                                                    depth);
+            norms_cache[col - chunk_start] = col >= rows_begin && col < rows_end
+                                                 ? ((nk_u32_t const *)result)[col * result_stride_elements + col]
+                                                 : nk_dots_reduce_sumsq_u4_sme_streaming_(
+                                                       vectors + col * stride_elements, depth);
         for (nk_size_t row_index = rows_begin; row_index < rows_end; ++row_index) {
-            nk_size_t col_start = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
-            if (col_start >= chunk_end) continue;
+            nk_size_t const first = row_index + 1 > chunk_start ? row_index + 1 : chunk_start;
+            if (first >= chunk_end) break;
             nk_f32_t *result_row = result + row_index * result_stride_elements;
-            nk_u32_t const *result_row_norms = (nk_u32_t const *)result_row;
-            nk_u32_t query_sumsq_u32 = result_row_norms[row_index];
-            for (nk_size_t col_index = col_start; col_index < chunk_end; col_index += svcntw()) {
-                svbool_t predicate_b32x = svwhilelt_b32_u64(col_index, chunk_end);
-                svuint32_t dots_u32x = svld1_u32(predicate_b32x, (nk_u32_t *)(result_row + col_index));
-                svuint32_t target_norms_sq_u32x = svld1_u32(predicate_b32x, norms_cache + (col_index - chunk_start));
-                svst1_f32(predicate_b32x, result_row + col_index,
-                          nk_euclideans_from_dot_u32x_sme_streaming_(dots_u32x, query_sumsq_u32, target_norms_sq_u32x));
-            }
+            nk_euclideans_from_u32_sme_streaming_(result_row + chunk_start, first - chunk_start,
+                                                  chunk_end - chunk_start, ((nk_u32_t const *)result_row)[row_index],
+                                                  norms_cache);
         }
     }
     // zero diagonals
@@ -2361,11 +2423,22 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_nvfp4_sme_streaming_(nk_cross
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &tensor_exponent) *
                               b.mantissa;
-    for (nk_size_t row = 0; row < rows; ++row) {
-        nk_i32_t exponent;
-        nk_f32_t const norm = nk_dots_scaled_row_nvfp4_sme_(a, a_stride, row, depth, &exponent);
-        nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
-                                                 b.norms);
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row) {
+            nk_i32_t exponent;
+            row_norms[row] = nk_dots_scaled_row_nvfp4_sme_(a, a_stride, row_first + row, depth, &exponent);
+        }
+        nk_rsqrts_f32_sme_streaming_(row_norms, mantissa, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b.norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(
+                    (nk_f32_t *)((char *)c + (row_first + row) * c_stride) + column_first, 0, block_columns,
+                    row_norms[row], svdup_n_f32(row_rsqrts[row]), b.norms + column_first, column_rsqrts);
+        }
     }
 }
 
@@ -2378,20 +2451,23 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_nvfp4_sme_streaming_(nk_cr
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column)
             norms[column - chunk] = nk_dots_scaled_row_nvfp4_sme_(vectors, stride, column, depth,
                                                                   &exponents[column - chunk]);
+        nk_f32_t const squared_mantissa = mantissa * mantissa;
+        nk_align_(64) nk_f32_t rsqrts[nk_sme_finish_columns_k];
+        nk_rsqrts_f32_sme_streaming_(norms, 1, rsqrts, chunk_end - chunk);
         for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_nvfp4_sme_(vectors, stride, row, depth, &exponent);
-            nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                     chunk_end - first, mantissa * mantissa, norm,
-                                                     norms + (first - chunk));
+            nk_angulars_from_rsqrts_sme_streaming_(
+                (nk_f32_t *)((char *)result + row * result_stride) + chunk, first - chunk, chunk_end - chunk, norm,
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(norm), squared_mantissa), norms, rsqrts);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)
@@ -2411,7 +2487,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_nvfp4_sme_streaming_(nk_cro
     for (nk_size_t row = 0; row < rows; ++row) {
         nk_i32_t exponent;
         nk_f32_t const norm = nk_dots_scaled_row_nvfp4_sme_(a, a_stride, row, depth, &exponent);
-        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
+        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), 0, columns, mantissa, norm,
                                                    exponent, b.norms, b.exponents);
     }
 }
@@ -2423,9 +2499,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_nvfp4_sme_streaming_(
     nk_i32_t tensor_exponent;
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column)
             norms[column - chunk] = nk_dots_scaled_row_nvfp4_sme_(vectors, stride, column, depth,
@@ -2434,9 +2510,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_nvfp4_sme_streaming_(
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_nvfp4_sme_(vectors, stride, row, depth, &exponent);
-            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                       chunk_end - first, mantissa * mantissa, norm, exponent,
-                                                       norms + (first - chunk), exponents + (first - chunk));
+            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + chunk,
+                                                       first - chunk, chunk_end - chunk, mantissa * mantissa, norm,
+                                                       exponent, norms, exponents);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)
@@ -2510,11 +2586,22 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp4_sme_streaming_(nk_cross
                               b.mantissa;
     nk_dots_scaled_exact_mxfp4_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                     depth, c, c_stride);
-    for (nk_size_t row = 0; row < rows; ++row) {
-        nk_i32_t exponent;
-        nk_f32_t const norm = nk_dots_scaled_row_mxfp4_sme_(a, a_stride, row, depth, &exponent);
-        nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
-                                                 b.norms);
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row) {
+            nk_i32_t exponent;
+            row_norms[row] = nk_dots_scaled_row_mxfp4_sme_(a, a_stride, row_first + row, depth, &exponent);
+        }
+        nk_rsqrts_f32_sme_streaming_(row_norms, mantissa, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b.norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(
+                    (nk_f32_t *)((char *)c + (row_first + row) * c_stride) + column_first, 0, block_columns,
+                    row_norms[row], svdup_n_f32(row_rsqrts[row]), b.norms + column_first, column_rsqrts);
+        }
     }
 }
 
@@ -2529,9 +2616,9 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp4_sme_streaming_(nk_cr
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
@@ -2542,13 +2629,16 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp4_sme_streaming_(nk_cr
         }
         nk_dots_scaled_exact_mxfp4_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end, bases,
                                         exponents, 1, depth, result, result_stride);
+        nk_f32_t const squared_mantissa = mantissa * mantissa;
+        nk_align_(64) nk_f32_t rsqrts[nk_sme_finish_columns_k];
+        nk_rsqrts_f32_sme_streaming_(norms, 1, rsqrts, chunk_end - chunk);
         for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp4_sme_(vectors, stride, row, depth, &exponent);
-            nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                     chunk_end - first, mantissa * mantissa, norm,
-                                                     norms + (first - chunk));
+            nk_angulars_from_rsqrts_sme_streaming_(
+                (nk_f32_t *)((char *)result + row * result_stride) + chunk, first - chunk, chunk_end - chunk, norm,
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(norm), squared_mantissa), norms, rsqrts);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)
@@ -2570,7 +2660,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp4_sme_streaming_(nk_cro
     for (nk_size_t row = 0; row < rows; ++row) {
         nk_i32_t exponent;
         nk_f32_t const norm = nk_dots_scaled_row_mxfp4_sme_(a, a_stride, row, depth, &exponent);
-        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
+        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), 0, columns, mantissa, norm,
                                                    exponent, b.norms, b.exponents);
     }
 }
@@ -2584,9 +2674,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp4_sme_streaming_(
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
@@ -2601,9 +2691,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp4_sme_streaming_(
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp4_sme_(vectors, stride, row, depth, &exponent);
-            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                       chunk_end - first, mantissa * mantissa, norm, exponent,
-                                                       norms + (first - chunk), exponents + (first - chunk));
+            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + chunk,
+                                                       first - chunk, chunk_end - chunk, mantissa * mantissa, norm,
+                                                       exponent, norms, exponents);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)
@@ -2677,11 +2767,22 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp6e2m3_sme_streaming_(nk_c
                               b.mantissa;
     nk_dots_scaled_exact_mxfp6e2m3_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
-    for (nk_size_t row = 0; row < rows; ++row) {
-        nk_i32_t exponent;
-        nk_f32_t const norm = nk_dots_scaled_row_mxfp6e2m3_sme_(a, a_stride, row, depth, &exponent);
-        nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
-                                                 b.norms);
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row) {
+            nk_i32_t exponent;
+            row_norms[row] = nk_dots_scaled_row_mxfp6e2m3_sme_(a, a_stride, row_first + row, depth, &exponent);
+        }
+        nk_rsqrts_f32_sme_streaming_(row_norms, mantissa, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b.norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(
+                    (nk_f32_t *)((char *)c + (row_first + row) * c_stride) + column_first, 0, block_columns,
+                    row_norms[row], svdup_n_f32(row_rsqrts[row]), b.norms + column_first, column_rsqrts);
+        }
     }
 }
 
@@ -2694,9 +2795,9 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp6e2m3_sme_streaming_(
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
@@ -2707,13 +2808,16 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp6e2m3_sme_streaming_(
         }
         nk_dots_scaled_exact_mxfp6e2m3_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
+        nk_f32_t const squared_mantissa = mantissa * mantissa;
+        nk_align_(64) nk_f32_t rsqrts[nk_sme_finish_columns_k];
+        nk_rsqrts_f32_sme_streaming_(norms, 1, rsqrts, chunk_end - chunk);
         for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp6e2m3_sme_(vectors, stride, row, depth, &exponent);
-            nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                     chunk_end - first, mantissa * mantissa, norm,
-                                                     norms + (first - chunk));
+            nk_angulars_from_rsqrts_sme_streaming_(
+                (nk_f32_t *)((char *)result + row * result_stride) + chunk, first - chunk, chunk_end - chunk, norm,
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(norm), squared_mantissa), norms, rsqrts);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)
@@ -2735,7 +2839,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp6e2m3_sme_streaming_(nk
     for (nk_size_t row = 0; row < rows; ++row) {
         nk_i32_t exponent;
         nk_f32_t const norm = nk_dots_scaled_row_mxfp6e2m3_sme_(a, a_stride, row, depth, &exponent);
-        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
+        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), 0, columns, mantissa, norm,
                                                    exponent, b.norms, b.exponents);
     }
 }
@@ -2749,9 +2853,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp6e2m3_sme_streaming_
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
@@ -2766,9 +2870,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp6e2m3_sme_streaming_
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp6e2m3_sme_(vectors, stride, row, depth, &exponent);
-            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                       chunk_end - first, mantissa * mantissa, norm, exponent,
-                                                       norms + (first - chunk), exponents + (first - chunk));
+            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + chunk,
+                                                       first - chunk, chunk_end - chunk, mantissa * mantissa, norm,
+                                                       exponent, norms, exponents);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)
@@ -2847,11 +2951,22 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp6e3m2_sme_streaming_(nk_c
                               b.mantissa;
     nk_dots_scaled_exact_mxfp6e3m2_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
-    for (nk_size_t row = 0; row < rows; ++row) {
-        nk_i32_t exponent;
-        nk_f32_t const norm = nk_dots_scaled_row_mxfp6e3m2_sme_(a, a_stride, row, depth, &exponent);
-        nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
-                                                 b.norms);
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row) {
+            nk_i32_t exponent;
+            row_norms[row] = nk_dots_scaled_row_mxfp6e3m2_sme_(a, a_stride, row_first + row, depth, &exponent);
+        }
+        nk_rsqrts_f32_sme_streaming_(row_norms, mantissa, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b.norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(
+                    (nk_f32_t *)((char *)c + (row_first + row) * c_stride) + column_first, 0, block_columns,
+                    row_norms[row], svdup_n_f32(row_rsqrts[row]), b.norms + column_first, column_rsqrts);
+        }
     }
 }
 
@@ -2864,9 +2979,9 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp6e3m2_sme_streaming_(
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
@@ -2877,13 +2992,16 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp6e3m2_sme_streaming_(
         }
         nk_dots_scaled_exact_mxfp6e3m2_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
+        nk_f32_t const squared_mantissa = mantissa * mantissa;
+        nk_align_(64) nk_f32_t rsqrts[nk_sme_finish_columns_k];
+        nk_rsqrts_f32_sme_streaming_(norms, 1, rsqrts, chunk_end - chunk);
         for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp6e3m2_sme_(vectors, stride, row, depth, &exponent);
-            nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                     chunk_end - first, mantissa * mantissa, norm,
-                                                     norms + (first - chunk));
+            nk_angulars_from_rsqrts_sme_streaming_(
+                (nk_f32_t *)((char *)result + row * result_stride) + chunk, first - chunk, chunk_end - chunk, norm,
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(norm), squared_mantissa), norms, rsqrts);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)
@@ -2905,7 +3023,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp6e3m2_sme_streaming_(nk
     for (nk_size_t row = 0; row < rows; ++row) {
         nk_i32_t exponent;
         nk_f32_t const norm = nk_dots_scaled_row_mxfp6e3m2_sme_(a, a_stride, row, depth, &exponent);
-        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
+        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), 0, columns, mantissa, norm,
                                                    exponent, b.norms, b.exponents);
     }
 }
@@ -2919,9 +3037,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp6e3m2_sme_streaming_
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
@@ -2936,9 +3054,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp6e3m2_sme_streaming_
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp6e3m2_sme_(vectors, stride, row, depth, &exponent);
-            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                       chunk_end - first, mantissa * mantissa, norm, exponent,
-                                                       norms + (first - chunk), exponents + (first - chunk));
+            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + chunk,
+                                                       first - chunk, chunk_end - chunk, mantissa * mantissa, norm,
+                                                       exponent, norms, exponents);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)
@@ -3017,11 +3135,22 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp8e4m3_sme_streaming_(nk_c
                               b.mantissa;
     nk_dots_scaled_exact_mxfp8e4m3_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
-    for (nk_size_t row = 0; row < rows; ++row) {
-        nk_i32_t exponent;
-        nk_f32_t const norm = nk_dots_scaled_row_mxfp8e4m3_sme_(a, a_stride, row, depth, &exponent);
-        nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
-                                                 b.norms);
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row) {
+            nk_i32_t exponent;
+            row_norms[row] = nk_dots_scaled_row_mxfp8e4m3_sme_(a, a_stride, row_first + row, depth, &exponent);
+        }
+        nk_rsqrts_f32_sme_streaming_(row_norms, mantissa, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b.norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(
+                    (nk_f32_t *)((char *)c + (row_first + row) * c_stride) + column_first, 0, block_columns,
+                    row_norms[row], svdup_n_f32(row_rsqrts[row]), b.norms + column_first, column_rsqrts);
+        }
     }
 }
 
@@ -3034,9 +3163,9 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp8e4m3_sme_streaming_(
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
@@ -3047,13 +3176,16 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp8e4m3_sme_streaming_(
         }
         nk_dots_scaled_exact_mxfp8e4m3_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
+        nk_f32_t const squared_mantissa = mantissa * mantissa;
+        nk_align_(64) nk_f32_t rsqrts[nk_sme_finish_columns_k];
+        nk_rsqrts_f32_sme_streaming_(norms, 1, rsqrts, chunk_end - chunk);
         for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp8e4m3_sme_(vectors, stride, row, depth, &exponent);
-            nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                     chunk_end - first, mantissa * mantissa, norm,
-                                                     norms + (first - chunk));
+            nk_angulars_from_rsqrts_sme_streaming_(
+                (nk_f32_t *)((char *)result + row * result_stride) + chunk, first - chunk, chunk_end - chunk, norm,
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(norm), squared_mantissa), norms, rsqrts);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)
@@ -3075,7 +3207,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp8e4m3_sme_streaming_(nk
     for (nk_size_t row = 0; row < rows; ++row) {
         nk_i32_t exponent;
         nk_f32_t const norm = nk_dots_scaled_row_mxfp8e4m3_sme_(a, a_stride, row, depth, &exponent);
-        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
+        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), 0, columns, mantissa, norm,
                                                    exponent, b.norms, b.exponents);
     }
 }
@@ -3089,9 +3221,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp8e4m3_sme_streaming_
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
@@ -3106,9 +3238,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp8e4m3_sme_streaming_
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp8e4m3_sme_(vectors, stride, row, depth, &exponent);
-            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                       chunk_end - first, mantissa * mantissa, norm, exponent,
-                                                       norms + (first - chunk), exponents + (first - chunk));
+            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + chunk,
+                                                       first - chunk, chunk_end - chunk, mantissa * mantissa, norm,
+                                                       exponent, norms, exponents);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)
@@ -3187,11 +3319,22 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_mxfp8e5m2_sme_streaming_(nk_c
                               b.mantissa;
     nk_dots_scaled_exact_mxfp8e5m2_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
-    for (nk_size_t row = 0; row < rows; ++row) {
-        nk_i32_t exponent;
-        nk_f32_t const norm = nk_dots_scaled_row_mxfp8e5m2_sme_(a, a_stride, row, depth, &exponent);
-        nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
-                                                 b.norms);
+    nk_f32_t row_norms[64], row_rsqrts[64], column_rsqrts[256];
+    for (nk_size_t row_first = 0; row_first < rows; row_first += 64) {
+        nk_size_t const block_rows = rows - row_first < 64 ? rows - row_first : 64;
+        for (nk_size_t row = 0; row < block_rows; ++row) {
+            nk_i32_t exponent;
+            row_norms[row] = nk_dots_scaled_row_mxfp8e5m2_sme_(a, a_stride, row_first + row, depth, &exponent);
+        }
+        nk_rsqrts_f32_sme_streaming_(row_norms, mantissa, row_rsqrts, block_rows);
+        for (nk_size_t column_first = 0; column_first < columns; column_first += 256) {
+            nk_size_t const block_columns = columns - column_first < 256 ? columns - column_first : 256;
+            nk_rsqrts_f32_sme_streaming_(b.norms + column_first, 1, column_rsqrts, block_columns);
+            for (nk_size_t row = 0; row < block_rows; ++row)
+                nk_angulars_from_rsqrts_sme_streaming_(
+                    (nk_f32_t *)((char *)c + (row_first + row) * c_stride) + column_first, 0, block_columns,
+                    row_norms[row], svdup_n_f32(row_rsqrts[row]), b.norms + column_first, column_rsqrts);
+        }
     }
 }
 
@@ -3204,9 +3347,9 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp8e5m2_sme_streaming_(
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
@@ -3217,13 +3360,16 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_finalize_mxfp8e5m2_sme_streaming_(
         }
         nk_dots_scaled_exact_mxfp8e5m2_sme_(vectors, stride, rows_begin, rows_end, vectors, stride, chunk, chunk_end,
                                             bases, exponents, 1, depth, result, result_stride);
+        nk_f32_t const squared_mantissa = mantissa * mantissa;
+        nk_align_(64) nk_f32_t rsqrts[nk_sme_finish_columns_k];
+        nk_rsqrts_f32_sme_streaming_(norms, 1, rsqrts, chunk_end - chunk);
         for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp8e5m2_sme_(vectors, stride, row, depth, &exponent);
-            nk_angulars_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                     chunk_end - first, mantissa * mantissa, norm,
-                                                     norms + (first - chunk));
+            nk_angulars_from_rsqrts_sme_streaming_(
+                (nk_f32_t *)((char *)result + row * result_stride) + chunk, first - chunk, chunk_end - chunk, norm,
+                nk_rsqrt_f32x_sme_streaming_(svptrue_b32(), svdup_n_f32(norm), squared_mantissa), norms, rsqrts);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)
@@ -3245,7 +3391,7 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_finalize_mxfp8e5m2_sme_streaming_(nk
     for (nk_size_t row = 0; row < rows; ++row) {
         nk_i32_t exponent;
         nk_f32_t const norm = nk_dots_scaled_row_mxfp8e5m2_sme_(a, a_stride, row, depth, &exponent);
-        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, norm,
+        nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), 0, columns, mantissa, norm,
                                                    exponent, b.norms, b.exponents);
     }
 }
@@ -3259,9 +3405,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp8e5m2_sme_streaming_
     nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale),
                                                    &tensor_exponent);
     nk_i8_t bases[nk_sme_finish_columns_k];
-    nk_i32_t exponents[nk_sme_finish_columns_k];
-    nk_f32_t norms[nk_sme_finish_columns_k];
-    for (nk_size_t chunk = rows_begin; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
+    nk_align_(64) nk_i32_t exponents[nk_sme_finish_columns_k];
+    nk_align_(64) nk_f32_t norms[nk_sme_finish_columns_k];
+    for (nk_size_t chunk = rows_begin / 64 * 64; chunk < vector_count; chunk += nk_sme_finish_columns_k) {
         nk_size_t const chunk_end = nk_min_of_two(chunk + nk_sme_finish_columns_k, vector_count);
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
@@ -3276,9 +3422,9 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_finalize_mxfp8e5m2_sme_streaming_
             nk_size_t const first = row > chunk ? row : chunk;
             nk_i32_t exponent;
             nk_f32_t const norm = nk_dots_scaled_row_mxfp8e5m2_sme_(vectors, stride, row, depth, &exponent);
-            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
-                                                       chunk_end - first, mantissa * mantissa, norm, exponent,
-                                                       norms + (first - chunk), exponents + (first - chunk));
+            nk_euclideans_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + chunk,
+                                                       first - chunk, chunk_end - chunk, mantissa * mantissa, norm,
+                                                       exponent, norms, exponents);
         }
     }
     for (nk_size_t row = rows_begin; row < rows_end; ++row)

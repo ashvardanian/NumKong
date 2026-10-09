@@ -75,14 +75,14 @@ Distances finish from the [dots](../dots/README.md#guarantees) and norms, so `nk
 ### Distance-from-Dot Algebraic Reduction
 
 `nk_angulars_packed_f32_haswell`, `nk_angulars_packed_f32_skylake`, `nk_euclideans_packed_f32_haswell`, `nk_euclideans_packed_f32_skylake` derive distance matrices from pre-packed dot product output without materializing an intermediate result matrix.
-Angular distance rewrites as $1 - \text{dot}(a,b) \cdot \text{rsqrt}(\|a\|^2 \cdot \|b\|^2)$, converting two separate square roots and a division into one rsqrt and one multiply.
+Angular distance rewrites as $1 - \text{dot}(a,b) \cdot \text{rsqrt}(\|a\|^2) \cdot \text{rsqrt}(\|b\|^2)$, replacing the division by multiplies, with separate reciprocal roots so the product of two large norms never overflows.
 Euclidean distance expands the identity $\|a - b\|^2 = \|a\|^2 + \|b\|^2 - 2 \cdot \text{dot}(a,b)$, requiring only one final sqrt per output element.
 Both formulas decompose into: (1) a batched GEMM for all M×N dot products, (2) per-vector squared norms precomputed once during packing.
 The singular `spatial/` kernels compute these three sums ($\sum a_i b_i$, $\sum a_i^2$, $\sum b_i^2$) in a single pass with three interleaved accumulators; the batched `spatials/` kernels separate them — norms are computed once per vector during packing, and dots come from the GEMM — trading register pressure for amortized cost across the full M×N output.
 
 ### Serial vs Vectorized Sqrt and Rsqrt Cost
 
-`nk_angular_through_f32_from_dot_serial_` uses the Quake 3 fast inverse square root (magic constant `0x5F375A86`, three Newton-Raphson iterations, ~34.9 correct bits for Float32) to compute `dot * rsqrt(query_norm * target_norm)`.
+`nk_angular_through_f32_from_dot_serial_` uses the Quake 3 fast inverse square root (magic constant `0x5F375A86`, three Newton-Raphson iterations, ~34.9 correct bits for Float32) to compute `dot * rsqrt(query_norm) * rsqrt(target_norm)`.
 `nk_angular_through_f32_from_dot_haswell_` replaces this with hardware `_mm_rsqrt_ps` (~12-bit approximation, 5cy latency, 1/cy on port 0) plus one Newton-Raphson refinement step (~22–24 correct bits).
 `nk_euclidean_through_f32_from_dot_serial_` computes `sqrt(x)` as `x * rsqrt(x)` — reusing the same rsqrt path.
 `nk_euclidean_through_f32_from_dot_haswell_` uses exact `_mm_sqrt_ps` (11cy latency, 7cy throughput for XMM) instead of the rsqrt approximation — the subtraction $\|a\|^2 + \|b\|^2 - 2 \cdot \text{dot}$ can produce values near zero where rsqrt error would be amplified by the subsequent multiply.
@@ -94,6 +94,14 @@ The 4-wide finalizer batching amortizes these costs: one rsqrt or sqrt call proc
 `nk_dots_pack_f32_serial`, `nk_dots_pack_f32_haswell`, `nk_dots_pack_bf16_haswell` compute per-column squared norms $\|b_j\|^2 = \sum_k b_{jk}^2 = \text{dot}(b_j, b_j)$ during the packing step via `nk_reduce_moments_*` primitives.
 The squared norm is a self-dot-product — already a byproduct of touching every element for type conversion and layout transformation.
 Angular and Euclidean finalizers read norms from packed buffer metadata, eliminating a separate O(N·K) norm pass over B.
+
+### SME Finishing in Streaming Mode
+
+The SME kernels finish distances in streaming SVE, where lane compares, predicate logic and selects cost more than the arithmetic: applying the zero-norm rule per lane held `nk_angulars_packed_f16_sme` at a third of its Euclidean twin's rate.
+Reciprocal roots come once per row and per 256-column chunk instead, with zero norms mapped to zero roots, so a zero column lands on 1 like any exactly zero dot without a per-lane compare.
+Symmetric kernels start each row at an aligned column and mask the lanes before it, as vectors straddling cache lines slowed them 1.6x, and reuse the row norms for the columns they cover.
+Integer kernels form the exact $ab - d^2$ and $a + b - 2d$ in 64-bit lanes and round once into F32, as F64 runs at half the lanes and a quarter of the rate in streaming mode.
+`FSQRT` throughput, about 36 cycles a vector on M5, bounds the Euclidean kernels.
 
 ## Performance
 
@@ -709,10 +717,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_bf16_neonbfdot`   |        37.5 gso/s, 0 ulp |      39.6 gso/s, 0.1 ulp |     43.4 gso/s, 0.04 ulp |
 | `nk_euclideans_packed_bf16_neonbfdot`    |      55.7 gso/s, 0.3 ulp |      56.5 gso/s, 2.9 ulp |      62.1 gso/s, 1.9 ulp |
 | `nk_euclideans_symmetric_bf16_neonbfdot` |      39.0 gso/s, 0.3 ulp |      42.1 gso/s, 2.9 ulp |      43.2 gso/s, 1.9 ulp |
-| `nk_angulars_packed_bf16_sme`            |      400 gso/s, 0.04 ulp |      821 gso/s, 0.04 ulp |    1,082 gso/s, 0.04 ulp |
-| `nk_angulars_symmetric_bf16_sme`         |      218 gso/s, 0.03 ulp |      464 gso/s, 0.03 ulp |      442 gso/s, 0.03 ulp |
+| `nk_angulars_packed_bf16_sme`            |      728 gso/s, 0.04 ulp |    1,476 gso/s, 0.04 ulp |    1,451 gso/s, 0.04 ulp |
+| `nk_angulars_symmetric_bf16_sme`         |      471 gso/s, 0.03 ulp |    1,011 gso/s, 0.03 ulp |      993 gso/s, 0.03 ulp |
 | `nk_euclideans_packed_bf16_sme`          |      468 gso/s, 0.54 ulp |      886 gso/s, 0.54 ulp |    1,109 gso/s, 0.54 ulp |
-| `nk_euclideans_symmetric_bf16_sme`       |      207 gso/s, 0.28 ulp |      473 gso/s, 0.28 ulp |      445 gso/s, 0.28 ulp |
+| `nk_euclideans_symmetric_bf16_sme`       |      412 gso/s, 0.28 ulp |      901 gso/s, 0.28 ulp |      924 gso/s, 0.28 ulp |
 | __f16__                                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_f16_serial`          |      12.8 gso/s, 0.1 ulp |      14.4 gso/s, 0.1 ulp |      14.9 gso/s, 0.1 ulp |
 | `nk_angulars_symmetric_f16_serial`       |      21.7 gso/s, 0.1 ulp |     25.2 gso/s, 0.09 ulp |      28.2 gso/s, 0.1 ulp |
@@ -726,10 +734,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_f16_neonfhm`      |      35.4 gso/s, 0.1 ulp |      39.1 gso/s, 0.1 ulp |      42.5 gso/s, 0.1 ulp |
 | `nk_euclideans_packed_f16_neonfhm`       |       100 gso/s, 0.9 ulp |       110 gso/s, 0.7 ulp |       119 gso/s, 5.9 ulp |
 | `nk_euclideans_symmetric_f16_neonfhm`    |      37.2 gso/s, 0.9 ulp |      39.4 gso/s, 0.6 ulp |      42.0 gso/s, 5.8 ulp |
-| `nk_angulars_packed_f16_sme`             |       419 gso/s, 0.1 ulp |       839 gso/s, 0.1 ulp |     1,091 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_f16_sme`          |       241 gso/s, 0.1 ulp |       487 gso/s, 0.1 ulp |       450 gso/s, 0.1 ulp |
+| `nk_angulars_packed_f16_sme`             |       835 gso/s, 0.1 ulp |     1,531 gso/s, 0.1 ulp |     1,750 gso/s, 0.1 ulp |
+| `nk_angulars_symmetric_f16_sme`          |       529 gso/s, 0.1 ulp |     1,081 gso/s, 0.1 ulp |     1,046 gso/s, 0.1 ulp |
 | `nk_euclideans_packed_f16_sme`           |         491 gso/s, 0 ulp |      906 gso/s, 0.06 ulp |     1,118 gso/s, 2.9 ulp |
-| `nk_euclideans_symmetric_f16_sme`        |       227 gso/s, 0.3 ulp |       500 gso/s, 0.6 ulp |       451 gso/s, 0.3 ulp |
+| `nk_euclideans_symmetric_f16_sme`        |       451 gso/s, 0.3 ulp |       970 gso/s, 0.6 ulp |       969 gso/s, 0.3 ulp |
 | __e5m2__                                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_e5m2_serial`         |        15.8 gso/s, 0 ulp |        16.7 gso/s, 0 ulp |        17.2 gso/s, 0 ulp |
 | `nk_angulars_symmetric_e5m2_serial`      |        7.78 gso/s, 0 ulp |        8.37 gso/s, 0 ulp |        8.99 gso/s, 0 ulp |
@@ -739,10 +747,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_e5m2_neonfhm`     |        58.8 gso/s, 0 ulp |        73.2 gso/s, 0 ulp |        79.3 gso/s, 0 ulp |
 | `nk_euclideans_packed_e5m2_neonfhm`      |        88.1 gso/s, 0 ulp |         110 gso/s, 0 ulp |         119 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_e5m2_neonfhm`   |        66.1 gso/s, 0 ulp |        60.3 gso/s, 0 ulp |        64.4 gso/s, 0 ulp |
-| `nk_angulars_packed_e5m2_sme`            |      350 gso/s, 0.01 ulp |      609 gso/s, 0.01 ulp |      744 gso/s, 0.01 ulp |
-| `nk_angulars_symmetric_e5m2_sme`         |      138 gso/s, 0.01 ulp |      204 gso/s, 0.01 ulp |      226 gso/s, 0.01 ulp |
+| `nk_angulars_packed_e5m2_sme`            |      685 gso/s, 0.01 ulp |    1,391 gso/s, 0.01 ulp |    1,705 gso/s, 0.01 ulp |
+| `nk_angulars_symmetric_e5m2_sme`         |      359 gso/s, 0.01 ulp |      766 gso/s, 0.01 ulp |      893 gso/s, 0.01 ulp |
 | `nk_euclideans_packed_e5m2_sme`          |     399 gso/s, 0.005 ulp |     655 gso/s, 0.005 ulp |     762 gso/s, 0.005 ulp |
-| `nk_euclideans_symmetric_e5m2_sme`       |     132 gso/s, 0.004 ulp |     206 gso/s, 0.004 ulp |     227 gso/s, 0.004 ulp |
+| `nk_euclideans_symmetric_e5m2_sme`       |     324 gso/s, 0.004 ulp |     706 gso/s, 0.004 ulp |     811 gso/s, 0.004 ulp |
 | __e4m3__                                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_e4m3_serial`         |        1.15 gso/s, 0 ulp |        1.20 gso/s, 0 ulp |        1.24 gso/s, 0 ulp |
 | `nk_angulars_symmetric_e4m3_serial`      |     1.22 gso/s, 0.03 ulp |     1.24 gso/s, 0.02 ulp |     1.32 gso/s, 0.01 ulp |
@@ -752,28 +760,28 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_e4m3_neonfhm`     |        32.0 gso/s, 0 ulp |        36.6 gso/s, 0 ulp |        38.9 gso/s, 0 ulp |
 | `nk_euclideans_packed_e4m3_neonfhm`      |        30.0 gso/s, 0 ulp |        32.2 gso/s, 0 ulp |      34.1 gso/s, 0.2 ulp |
 | `nk_euclideans_symmetric_e4m3_neonfhm`   |        34.1 gso/s, 0 ulp |        36.6 gso/s, 0 ulp |      38.9 gso/s, 0.2 ulp |
-| `nk_angulars_packed_e4m3_sme`            |      184 gso/s, 0.01 ulp |      272 gso/s, 0.01 ulp |      307 gso/s, 0.01 ulp |
-| `nk_angulars_symmetric_e4m3_sme`         |     56.4 gso/s, 0.01 ulp |     74.6 gso/s, 0.01 ulp |     78.5 gso/s, 0.01 ulp |
+| `nk_angulars_packed_e4m3_sme`            |      621 gso/s, 0.01 ulp |    1,347 gso/s, 0.01 ulp |    1,687 gso/s, 0.01 ulp |
+| `nk_angulars_symmetric_e4m3_sme`         |      303 gso/s, 0.01 ulp |      650 gso/s, 0.01 ulp |      728 gso/s, 0.01 ulp |
 | `nk_euclideans_packed_e4m3_sme`          |      200 gso/s, 0.11 ulp |      279 gso/s, 0.11 ulp |      310 gso/s, 0.11 ulp |
-| `nk_euclideans_symmetric_e4m3_sme`       |     55.5 gso/s, 0.11 ulp |     75.1 gso/s, 0.11 ulp |     78.4 gso/s, 0.11 ulp |
+| `nk_euclideans_symmetric_e4m3_sme`       |      276 gso/s, 0.11 ulp |      600 gso/s, 0.11 ulp |      708 gso/s, 0.11 ulp |
 | __e3m2__                                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_e3m2_serial`         |        14.2 gso/s, 0 ulp |        14.6 gso/s, 0 ulp |        15.5 gso/s, 0 ulp |
 | `nk_angulars_symmetric_e3m2_serial`      |        7.77 gso/s, 0 ulp |        8.10 gso/s, 0 ulp |        9.05 gso/s, 0 ulp |
 | `nk_euclideans_packed_e3m2_serial`       |      13.9 gso/s, 0.5 ulp |      14.6 gso/s, 0.5 ulp |      15.5 gso/s, 0.5 ulp |
 | `nk_euclideans_symmetric_e3m2_serial`    |      8.08 gso/s, 0.5 ulp |      8.10 gso/s, 0.5 ulp |      9.05 gso/s, 0.5 ulp |
-| `nk_angulars_packed_e3m2_sme`            |      327 gso/s, 0.01 ulp |      573 gso/s, 0.01 ulp |      690 gso/s, 0.01 ulp |
-| `nk_angulars_symmetric_e3m2_sme`         |      124 gso/s, 0.01 ulp |      184 gso/s, 0.01 ulp |      204 gso/s, 0.01 ulp |
+| `nk_angulars_packed_e3m2_sme`            |      715 gso/s, 0.01 ulp |    1,421 gso/s, 0.01 ulp |    1,727 gso/s, 0.01 ulp |
+| `nk_angulars_symmetric_e3m2_sme`         |      382 gso/s, 0.01 ulp |      806 gso/s, 0.01 ulp |      908 gso/s, 0.01 ulp |
 | `nk_euclideans_packed_e3m2_sme`          |         379 gso/s, 0 ulp |         604 gso/s, 0 ulp |         702 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e3m2_sme`       |         119 gso/s, 0 ulp |         186 gso/s, 0 ulp |         205 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e3m2_sme`       |         341 gso/s, 0 ulp |         743 gso/s, 0 ulp |         835 gso/s, 0 ulp |
 | __e2m3__                                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_e2m3_serial`         |        14.1 gso/s, 0 ulp |        14.8 gso/s, 0 ulp |        15.5 gso/s, 0 ulp |
 | `nk_angulars_symmetric_e2m3_serial`      |        7.89 gso/s, 0 ulp |        8.21 gso/s, 0 ulp |        9.09 gso/s, 0 ulp |
 | `nk_euclideans_packed_e2m3_serial`       |      13.6 gso/s, 0.5 ulp |      14.8 gso/s, 0.5 ulp |      15.7 gso/s, 0.5 ulp |
 | `nk_euclideans_symmetric_e2m3_serial`    |      7.93 gso/s, 0.5 ulp |      8.21 gso/s, 0.5 ulp |      9.09 gso/s, 0.5 ulp |
-| `nk_angulars_packed_e2m3_sme`            |      415 gso/s, 0.01 ulp |      926 gso/s, 0.01 ulp |    1,216 gso/s, 0.01 ulp |
-| `nk_angulars_symmetric_e2m3_sme`         |      170 gso/s, 0.01 ulp |      342 gso/s, 0.01 ulp |      404 gso/s, 0.01 ulp |
+| `nk_angulars_packed_e2m3_sme`            |    1,005 gso/s, 0.01 ulp |    2,347 gso/s, 0.01 ulp |    3,353 gso/s, 0.01 ulp |
+| `nk_angulars_symmetric_e2m3_sme`         |      387 gso/s, 0.01 ulp |      940 gso/s, 0.01 ulp |    1,406 gso/s, 0.01 ulp |
 | `nk_euclideans_packed_e2m3_sme`          |         470 gso/s, 0 ulp |       1,011 gso/s, 0 ulp |       1,269 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e2m3_sme`       |         163 gso/s, 0 ulp |         348 gso/s, 0 ulp |         408 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m3_sme`       |         345 gso/s, 0 ulp |         851 gso/s, 0 ulp |       1,393 gso/s, 0 ulp |
 | __i8__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_i8_serial`           |        18.3 gso/s, 0 ulp |        20.0 gso/s, 0 ulp |        20.2 gso/s, 0 ulp |
 | `nk_angulars_symmetric_i8_serial`        |        13.5 gso/s, 0 ulp |        13.9 gso/s, 0 ulp |        14.8 gso/s, 0 ulp |
@@ -783,10 +791,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_i8_neonsdot`      |        74.0 gso/s, 0 ulp |        86.9 gso/s, 0 ulp |        87.2 gso/s, 0 ulp |
 | `nk_euclideans_packed_i8_neonsdot`       |         305 gso/s, 0 ulp |         419 gso/s, 0 ulp |         477 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_i8_neonsdot`    |        73.4 gso/s, 0 ulp |        87.0 gso/s, 0 ulp |        87.2 gso/s, 0 ulp |
-| `nk_angulars_packed_i8_sme`              |      492 gso/s, 0.01 ulp |    1,356 gso/s, 0.01 ulp |    2,166 gso/s, 0.01 ulp |
-| `nk_angulars_symmetric_i8_sme`           |      200 gso/s, 0.01 ulp |      873 gso/s, 0.01 ulp |    1,214 gso/s, 0.01 ulp |
-| `nk_euclideans_packed_i8_sme`            |         584 gso/s, 0 ulp |       1,546 gso/s, 0 ulp |       2,263 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_i8_sme`         |         201 gso/s, 0 ulp |         917 gso/s, 0 ulp |       1,256 gso/s, 0 ulp |
+| `nk_angulars_packed_i8_sme`              |      558 gso/s, 0.31 ulp |    1,612 gso/s, 0.29 ulp |    2,826 gso/s, 0.30 ulp |
+| `nk_angulars_symmetric_i8_sme`           |      450 gso/s, 0.32 ulp |    1,467 gso/s, 0.28 ulp |    1,761 gso/s, 0.30 ulp |
+| `nk_euclideans_packed_i8_sme`            |         823 gso/s, 0 ulp |       2,096 gso/s, 0 ulp |    3,198 gso/s, 0.15 ulp |
+| `nk_euclideans_symmetric_i8_sme`         |         717 gso/s, 0 ulp |       1,738 gso/s, 0 ulp |    2,012 gso/s, 0.15 ulp |
 | __u8__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_u8_serial`           |      15.5 gso/s, 0.3 ulp |      16.3 gso/s, 0.3 ulp |      17.4 gso/s, 0.3 ulp |
 | `nk_angulars_symmetric_u8_serial`        |      15.7 gso/s, 0.3 ulp |      16.2 gso/s, 0.3 ulp |      17.5 gso/s, 0.3 ulp |
@@ -796,10 +804,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_u8_neonsdot`      |      72.4 gso/s, 0.3 ulp |      87.4 gso/s, 0.3 ulp |      87.7 gso/s, 0.3 ulp |
 | `nk_euclideans_packed_u8_neonsdot`       |         302 gso/s, 0 ulp |         419 gso/s, 0 ulp |         470 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_u8_neonsdot`    |        72.0 gso/s, 0 ulp |        87.0 gso/s, 0 ulp |        87.7 gso/s, 0 ulp |
-| `nk_angulars_packed_u8_sme`              |      492 gso/s, 0.32 ulp |    1,369 gso/s, 0.32 ulp |    2,169 gso/s, 0.32 ulp |
-| `nk_angulars_symmetric_u8_sme`           |      201 gso/s, 0.32 ulp |      874 gso/s, 0.32 ulp |    1,217 gso/s, 0.32 ulp |
-| `nk_euclideans_packed_u8_sme`            |         584 gso/s, 0 ulp |       1,545 gso/s, 0 ulp |       2,260 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_u8_sme`         |         199 gso/s, 0 ulp |         905 gso/s, 0 ulp |       1,248 gso/s, 0 ulp |
+| `nk_angulars_packed_u8_sme`              |      619 gso/s, 0.38 ulp |    1,726 gso/s, 0.41 ulp |    2,909 gso/s, 0.40 ulp |
+| `nk_angulars_symmetric_u8_sme`           |      490 gso/s, 0.40 ulp |    1,538 gso/s, 0.43 ulp |    1,930 gso/s, 0.41 ulp |
+| `nk_euclideans_packed_u8_sme`            |         817 gso/s, 0 ulp |       2,101 gso/s, 0 ulp |    3,123 gso/s, 0.15 ulp |
+| `nk_euclideans_symmetric_u8_sme`         |         706 gso/s, 0 ulp |       1,763 gso/s, 0 ulp |    2,008 gso/s, 0.15 ulp |
 | __i4__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_i4_serial`           |      17.3 gso/s, 0.3 ulp |      18.2 gso/s, 0.3 ulp |      19.6 gso/s, 0.3 ulp |
 | `nk_angulars_symmetric_i4_serial`        |      14.3 gso/s, 0.3 ulp |      14.9 gso/s, 0.3 ulp |      15.6 gso/s, 0.3 ulp |
@@ -809,10 +817,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_i4_neonsdot`      |       104 gso/s, 0.3 ulp |       162 gso/s, 0.3 ulp |       171 gso/s, 0.3 ulp |
 | `nk_euclideans_packed_i4_neonsdot`       |         225 gso/s, 0 ulp |         284 gso/s, 0 ulp |         291 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_i4_neonsdot`    |         105 gso/s, 0 ulp |         162 gso/s, 0 ulp |         171 gso/s, 0 ulp |
-| `nk_angulars_packed_i4_sme`              |      486 gso/s, 0.32 ulp |    1,309 gso/s, 0.32 ulp |    2,041 gso/s, 0.32 ulp |
-| `nk_angulars_symmetric_i4_sme`           |      201 gso/s, 0.32 ulp |      913 gso/s, 0.32 ulp |    1,488 gso/s, 0.32 ulp |
-| `nk_euclideans_packed_i4_sme`            |         576 gso/s, 0 ulp |       1,453 gso/s, 0 ulp |       2,126 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_i4_sme`         |         200 gso/s, 0 ulp |         948 gso/s, 0 ulp |       1,527 gso/s, 0 ulp |
+| `nk_angulars_packed_i4_sme`              |      557 gso/s, 0.34 ulp |    1,599 gso/s, 0.33 ulp |    2,705 gso/s, 0.37 ulp |
+| `nk_angulars_symmetric_i4_sme`           |      442 gso/s, 0.32 ulp |    1,417 gso/s, 0.33 ulp |    1,880 gso/s, 0.36 ulp |
+| `nk_euclideans_packed_i4_sme`            |         825 gso/s, 0 ulp |       2,095 gso/s, 0 ulp |       3,178 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_i4_sme`         |         696 gso/s, 0 ulp |       1,697 gso/s, 0 ulp |       1,990 gso/s, 0 ulp |
 | __u4__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_angulars_packed_u4_serial`           |      18.0 gso/s, 0.3 ulp |      19.4 gso/s, 0.3 ulp |      20.6 gso/s, 0.3 ulp |
 | `nk_angulars_symmetric_u4_serial`        |      15.5 gso/s, 0.3 ulp |      16.4 gso/s, 0.3 ulp |      17.4 gso/s, 0.3 ulp |
@@ -822,10 +830,10 @@ Measured with Wasmtime v42 (Cranelift backend).
 | `nk_angulars_symmetric_u4_neonsdot`      |       107 gso/s, 0.3 ulp |       166 gso/s, 0.3 ulp |       173 gso/s, 0.3 ulp |
 | `nk_euclideans_packed_u4_neonsdot`       |         250 gso/s, 0 ulp |         340 gso/s, 0 ulp |         340 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_u4_neonsdot`    |         105 gso/s, 0 ulp |         173 gso/s, 0 ulp |         173 gso/s, 0 ulp |
-| `nk_angulars_packed_u4_sme`              |      490 gso/s, 0.32 ulp |    1,322 gso/s, 0.32 ulp |    2,081 gso/s, 0.32 ulp |
-| `nk_angulars_symmetric_u4_sme`           |      205 gso/s, 0.32 ulp |      974 gso/s, 0.32 ulp |    1,682 gso/s, 0.32 ulp |
-| `nk_euclideans_packed_u4_sme`            |         582 gso/s, 0 ulp |       1,487 gso/s, 0 ulp |       2,162 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_u4_sme`         |         205 gso/s, 0 ulp |       1,013 gso/s, 0 ulp |       1,734 gso/s, 0 ulp |
+| `nk_angulars_packed_u4_sme`              |      622 gso/s, 0.38 ulp |    1,741 gso/s, 0.35 ulp |    2,925 gso/s, 0.34 ulp |
+| `nk_angulars_symmetric_u4_sme`           |      496 gso/s, 0.39 ulp |    1,562 gso/s, 0.35 ulp |    2,029 gso/s, 0.33 ulp |
+| `nk_euclideans_packed_u4_sme`            |         827 gso/s, 0 ulp |       2,103 gso/s, 0 ulp |       3,165 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_u4_sme`         |         729 gso/s, 0 ulp |       1,782 gso/s, 0 ulp |       2,135 gso/s, 0 ulp |
 
 #### WASM
 
