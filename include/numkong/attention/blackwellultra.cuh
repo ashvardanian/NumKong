@@ -77,7 +77,8 @@ nk_define_attention_tma_blackwell_(bf16, blackwellultra, bf16, 2, 0, nk_attentio
 static __global__ void __launch_bounds__(nk_attention_backward_threads_blackwell_k, 1)
     nk_attention_backward_keys_bf16_blackwellultra_kernel_(
         __grid_constant__ nk_attention_backward_maps_blackwell_t const maps) {
-    if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_keys_blackwell_(&maps);
+    if (maps.single) nk_attention_backward_single_blackwell_(&maps);
+    else if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_keys_blackwell_(&maps);
     else nk_attention_backward_keys_bf16_cuda_(&maps.arguments);
 }
 static __global__ void __launch_bounds__(nk_attention_backward_threads_blackwell_k, 1)

@@ -63,10 +63,20 @@ dV = P^\top dO, \quad dS = P \circ (dO\,V^\top - D), \quad dQ = \text{scale} \cd
 $$
 
 Here $D = \text{rowsum}(dO \circ O)$.
-The backward's task grid is segments × key-value heads, each task owning one key-value head of one segment with every query head sharing it, so the gradients need no atomics and every sum runs in a fixed order.
+The backward's task grid is segments × key-value heads, each task owning one key-value head of one segment with every query head sharing it, so the gradients need no atomics and, outside the Blackwell single pass below, every sum runs in a fixed order.
 Query gradient rows take their own `query_gradient_stride`, and key and value gradient rows past a segment's live keys, the gaps and tails before the next segment, are never written, so callers zero them when they matter.
 The BF16 backward runs on tensor cores for heads of up to 256 dimensions: FlashAttention-2 on `mma.sync` from Ampere on, and `tcgen05.mma` accumulating in tensor memory on Blackwell.
 Gradients accumulate 128 columns at a time, so heads past 128 dimensions recompute the scores for a second slice.
+
+### Two Backward Paths on Blackwell
+
+The two-pass backward walks every 128-key block once for $dK$ and $dV$, then every 128-row chunk once more for $dQ$, so it recomputes $S$, $dP$ and $dS$ twice: 7 products per pair where 5 suffice.
+The single pass computes them once per block and chunk, keeps $dK$ and $dV$ in tensor memory, writes the partial $dS\,K$ over the spent $dP$ columns, and adds it into `query_gradient` with TMA reduce-add of F32 boxes.
+It runs for BF16 heads of 64 or 128 dimensions when the query head group divides 128 and every row and stride is 16-byte aligned; any other call takes the two-pass path.
+It needs $dO$ as BF16 and $D$ once per row, so it allocates a workspace of `query_token_count` × `head_count` × (2 × `depth` + 4) bytes with `cudaMallocAsync` on the caller's stream and frees it with `cudaFreeAsync` after the kernels, which keeps graph capture working and never synchronizes.
+If that allocation fails, the call falls back to the two-pass path.
+A caller that synchronizes between calls lets the default memory pool return the workspace to the driver, so the next call maps it again for about a millisecond; raising that pool's `cudaMemPoolAttrReleaseThreshold` keeps it mapped.
+Different blocks add their $dQ$ partials in whatever order they finish, so the low bits of $dQ$ may differ from run to run, as with any F32 accumulation of BF16 products; $dK$ and $dV$ stay deterministic.
 
 ## Optimizations
 
@@ -190,6 +200,76 @@ Measured with Wasmtime v24 (Cranelift backend).
 | causal `nk_attention_packed_i8_sapphireamx`           |         1,136 gflop/s |         1,521 gflop/s |         1,516 gflop/s |
 | bidirectional `nk_attention_packed_i8_ampere`         |                     ⋯ |       290,967 gflop/s |                     ⋯ |
 | causal `nk_attention_packed_i8_ampere`                |                     ⋯ |       407,579 gflop/s |                     ⋯ |
+
+### Intel Xeon 6 with B300
+
+#### Native
+
+| Kernel                                               |        1024² |        4096² |       16384² |
+| :--------------------------------------------------- | -----------: | -----------: | -----------: |
+| __bf16__                                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_bf16_serial`      |  2.3 gflop/s |  2.1 gflop/s |            ⋯ |
+| causal `nk_attention_packed_bf16_serial`             |  2.4 gflop/s |  2.2 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_bf16_haswell`     | 23.6 gflop/s | 22.5 gflop/s | 19.7 gflop/s |
+| causal `nk_attention_packed_bf16_haswell`            | 23.1 gflop/s | 22.9 gflop/s | 19.7 gflop/s |
+| bidirectional `nk_attention_packed_bf16_skylake`     | 29.1 gflop/s | 27.2 gflop/s | 23.2 gflop/s |
+| causal `nk_attention_packed_bf16_skylake`            | 28.6 gflop/s | 28.4 gflop/s | 23.9 gflop/s |
+| bidirectional `nk_attention_packed_bf16_genoa`       | 31.7 gflop/s | 30.4 gflop/s | 25.6 gflop/s |
+| causal `nk_attention_packed_bf16_genoa`              | 32.2 gflop/s | 31.5 gflop/s | 26.0 gflop/s |
+| bidirectional `nk_attention_packed_bf16_sapphireamx` |  418 gflop/s |  447 gflop/s |  450 gflop/s |
+| causal `nk_attention_packed_bf16_sapphireamx`        |  306 gflop/s |  411 gflop/s |  437 gflop/s |
+| __e4m3__                                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_e4m3_serial`      |  1.1 gflop/s |  1.1 gflop/s |            ⋯ |
+| causal `nk_attention_packed_e4m3_serial`             |  1.2 gflop/s |  1.1 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_e4m3_haswell`     |  9.6 gflop/s |  9.7 gflop/s |  9.8 gflop/s |
+| causal `nk_attention_packed_e4m3_haswell`            |  9.7 gflop/s |  9.9 gflop/s |  9.7 gflop/s |
+| bidirectional `nk_attention_packed_e4m3_skylake`     | 29.9 gflop/s | 28.6 gflop/s | 23.9 gflop/s |
+| causal `nk_attention_packed_e4m3_skylake`            | 29.6 gflop/s | 29.3 gflop/s | 24.3 gflop/s |
+| bidirectional `nk_attention_packed_e4m3_genoa`       | 32.3 gflop/s | 29.8 gflop/s | 25.4 gflop/s |
+| causal `nk_attention_packed_e4m3_genoa`              | 32.4 gflop/s | 31.7 gflop/s | 26.1 gflop/s |
+| bidirectional `nk_attention_packed_e4m3_sapphireamx` |  419 gflop/s |  447 gflop/s |  451 gflop/s |
+| causal `nk_attention_packed_e4m3_sapphireamx`        |  306 gflop/s |  415 gflop/s |  439 gflop/s |
+| __i8__                                               | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_i8_serial`        |  5.0 gflop/s |  5.0 gflop/s |            ⋯ |
+| causal `nk_attention_packed_i8_serial`               |  4.8 gflop/s |  4.9 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_i8_haswell`       |  130 gflop/s |  136 gflop/s |  140 gflop/s |
+| causal `nk_attention_packed_i8_haswell`              |  122 gflop/s |  134 gflop/s |  139 gflop/s |
+| bidirectional `nk_attention_packed_i8_icelake`       |  143 gflop/s |  142 gflop/s |  136 gflop/s |
+| causal `nk_attention_packed_i8_icelake`              |  138 gflop/s |  142 gflop/s |  139 gflop/s |
+| bidirectional `nk_attention_packed_i8_sapphireamx`   |  546 gflop/s |  616 gflop/s |  606 gflop/s |
+| causal `nk_attention_packed_i8_sapphireamx`          |  425 gflop/s |  570 gflop/s |  601 gflop/s |
+
+#### CUDA
+
+Rows ran on one `1g.34gb` MIG slice of a B300 with 18 SMs, for 32 query heads sharing 8 key-value heads at depth 128 over 4096 keys, with 4096 queries in the first column and one in the second.
+They count only the visible pairs, so causal rows compare directly with bidirectional ones.
+Gradient rows time the backward alone at 10 · depth operations per pair, and cuDNN rows time its fused attention over the same inputs.
+
+| Kernel                                                            |    4096 queries |       1 query |
+| :---------------------------------------------------------------- | --------------: | ------------: |
+| __bf16__                                                          | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_bf16_blackwell`                | 159,100 gflop/s | 1,152 gflop/s |
+| causal `nk_attention_packed_bf16_blackwell`                       | 136,100 gflop/s | 1,137 gflop/s |
+| bidirectional `nk_attention_packed_bf16_blackwellultra`           | 169,500 gflop/s | 1,155 gflop/s |
+| causal `nk_attention_packed_bf16_blackwellultra`                  | 145,200 gflop/s | 1,143 gflop/s |
+| bidirectional `nk_attention_packed_gradients_bf16_blackwell`      |  75,350 gflop/s |   456 gflop/s |
+| causal `nk_attention_packed_gradients_bf16_blackwell`             |  61,090 gflop/s |   456 gflop/s |
+| bidirectional `nk_attention_packed_gradients_bf16_blackwellultra` |  77,710 gflop/s |   444 gflop/s |
+| causal `nk_attention_packed_gradients_bf16_blackwellultra`        |  55,650 gflop/s |   500 gflop/s |
+| bidirectional cuDNN 9.27                                          | 239,800 gflop/s |   979 gflop/s |
+| causal cuDNN 9.27                                                 | 206,200 gflop/s |   978 gflop/s |
+| __e4m3__                                                          | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_e4m3_blackwell`                | 165,300 gflop/s | 1,208 gflop/s |
+| causal `nk_attention_packed_e4m3_blackwell`                       | 138,300 gflop/s | 1,191 gflop/s |
+| bidirectional `nk_attention_packed_e4m3_blackwellultra`           | 175,100 gflop/s | 1,226 gflop/s |
+| causal `nk_attention_packed_e4m3_blackwellultra`                  | 145,900 gflop/s | 1,192 gflop/s |
+| bidirectional cuDNN 9.27                                          | 338,300 gflop/s |             ⋯ |
+| causal cuDNN 9.27                                                 | 243,900 gflop/s |             ⋯ |
+| __i8__                                                            | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_i8_blackwell`                  |  94,960 gflop/s |   840 gflop/s |
+| causal `nk_attention_packed_i8_blackwell`                         |  79,660 gflop/s |   832 gflop/s |
+| bidirectional `nk_attention_packed_i8_blackwellultra`             | 101,000 gflop/s |   842 gflop/s |
+| causal `nk_attention_packed_i8_blackwellultra`                    |  83,850 gflop/s |   838 gflop/s |
 
 ### AWS Graviton 4
 

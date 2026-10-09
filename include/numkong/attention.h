@@ -320,8 +320,13 @@ NUMKONG_API nk_status_t nk_attention_packed_bf16_best(
  *  token @c t of segment @c s at row `key_offsets[s] + t`, with the offsets the pack stored. Rows
  *  past a segment's key count, the gaps and tails before the next segment's first key, are never
  *  written, so callers zero them when they matter. Tasks cover the segments × key-value heads grid,
- * each owning one KV head of one segment together with the query heads sharing it, so tasks write
- * disjoint gradients and each sums in a fixed order.
+ *  each owning one KV head of one segment together with the query heads sharing it, so tasks write
+ *  disjoint gradients and each sums in a fixed order. The Blackwell kernels run a single pass for
+ *  BF16 heads of 64 or 128 dimensions with 16-byte aligned rows: it allocates a workspace of
+ *  @p query_token_count × @p head_count × (2 × @p depth + 4) bytes with @c cudaMallocAsync on
+ *  @p stream and frees it the same way, never synchronizing, and adds the @p query_gradient
+ *  partials of different key blocks in F32 in any order, so its low bits may vary run to run. Other
+ *  calls, or a failed allocation, take the two-pass path.
  *
  *  @param[in] output The forward's output for these queries and pack.
  *  @param[in] output_gradient Gradient of the loss with respect to @p output, laid out like it.
