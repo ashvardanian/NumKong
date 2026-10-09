@@ -1722,7 +1722,9 @@ void expect_log_sum_exp(settings_t const &settings, error_stats_t &stats, actual
  *  queries differently. The main, pad and five-key segments keep spare rows in their key slots,
  *  which the pack must leave out. The pack runs in two task windows, and random windows of the
  *  query tokens × heads grid, run in shuffled order and clipped to it, must match one call over
- *  the grid bit for bit. Block-scaled formats round each depth up to a whole block. */
+ *  the grid bit for bit. Block-scaled formats round each depth up to a whole block, and MX
+ *  queries, keys and values of two blocks or more spread their first two scales past the window
+ *  an MX plane rebases across. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           attention_weights_t weights_ = attention_weights_t::unquantized_k, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename attention_kernel_type_>
@@ -1764,12 +1766,18 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
             fill_random(settings, generator, queries), fill_random(settings, generator, keys),
                 fill_random(settings, generator, values);
             // NVFP4 tensor scales keep scores near 1, as UE4M3 block scales reach 448
-            auto const query_scales = random_scales<scalar_type_>(backend, generator, query_tokens,
-                                                                  layout.query_width(), query_stride, 0x1.8p-8f);
-            auto const key_scales = random_scales<scalar_type_>(backend, generator, key_tokens,
-                                                                layout.key_value_width(), key_value_stride, 0x1.8p-9f),
-                       value_scales = random_scales<scalar_type_>(backend, generator, key_tokens,
-                                                                  layout.key_value_width(), key_value_stride, 1.25f);
+            auto query_scales = random_scales<scalar_type_>(backend, generator, query_tokens, layout.query_width(),
+                                                            query_stride, 0x1.8p-8f);
+            auto key_scales = random_scales<scalar_type_>(backend, generator, key_tokens, layout.key_value_width(),
+                                                          key_value_stride, 0x1.8p-9f),
+                 value_scales = random_scales<scalar_type_>(backend, generator, key_tokens, layout.key_value_width(),
+                                                            key_value_stride, 1.25f);
+            // 2⁻⁹⁰ and 2³ blocks keep the first query row, K plane and V plane past the window
+            if constexpr (format.scale_dtype == nk_ue8m0_k)
+                if (layout.depth >= 2 * format.block_size)
+                    for (auto *scales : {&query_scales, &key_scales, &value_scales})
+                        scales->blocks.data()[0] = ue8m0_t::from_raw(127 - 90),
+                        scales->blocks.data()[1] = ue8m0_t::from_raw(127 + 3);
             auto key_value_packed = make_vector<char>(
                 backend, pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth, key_tokens,
                                          segments.count()));

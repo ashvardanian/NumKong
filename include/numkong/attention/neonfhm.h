@@ -27,7 +27,6 @@
 #include "numkong/types.h"
 #include "numkong/attention/serial.h" // `nk_attention_packed_header_t`, `nk_attention_pack_directory_serial_`
 #include "numkong/attention/neon.h"   // `nk_attention_softmax_panel_neon_`, `nk_attention_e4m3_row_to_f16_neon_`
-#include "numkong/cast/neon.h"        // `nk_e4m3x8_to_f16x8_neon_`
 #include "numkong/each/neon.h"        // `nk_exp2_f32x4_neon_`
 
 #if defined(__cplusplus)
@@ -49,28 +48,6 @@ enum {
     /** Deepest head this backend handles in scratch; deeper heads route to the serial kernel. */
     nk_attention_max_depth_neonfhm_k_ = 256,
 };
-
-/** Decodes an NVFP4 row of @p depth elements, a multiple of 16, times their UE4M3 block scales
- *  into @p destination, exactly in F16. */
-NUMKONG_INLINE void nk_attention_nvfp4_row_to_f16_neonfhm_(nk_u8_t const *codes, nk_u8_t const *scales,
-                                                           nk_u16_t *destination, nk_size_t depth) {
-    // E2M1 magnitudes as the high bytes of their F16 encodings, whose low bytes are all zero
-    nk_u8_t const high_bytes_u8[16] = {0x00, 0x38, 0x3C, 0x3E, 0x40, 0x42, 0x44, 0x46,
-                                       0x80, 0xB8, 0xBC, 0xBE, 0xC0, 0xC2, 0xC4, 0xC6};
-    uint8x16_t const high_bytes_u8x16 = vld1q_u8(high_bytes_u8);
-    for (nk_size_t block = 0; block * 16 < depth; block++) {
-        uint8x8_t const codes_u8x8 = vld1_u8(codes + block * 8);
-        // Even elements sit in the high nibbles
-        uint8x8x2_t const nibbles_u8x8x2 = vzip_u8(vshr_n_u8(codes_u8x8, 4), vand_u8(codes_u8x8, vdup_n_u8(0x0F)));
-        uint8x16_t const elements_u8x16 = vqtbl1q_u8(high_bytes_u8x16,
-                                                     vcombine_u8(nibbles_u8x8x2.val[0], nibbles_u8x8x2.val[1]));
-        float16x8_t const scale_f16x8 = nk_e4m3x8_to_f16x8_neon_(vdup_n_u8(scales[block] & 0x7F));
-        float16x8_t const low_f16x8 = vreinterpretq_f16_u16(vshll_n_u8(vget_low_u8(elements_u8x16), 8));
-        float16x8_t const high_f16x8 = vreinterpretq_f16_u16(vshll_high_n_u8(elements_u8x16, 8));
-        vst1q_u16(destination + block * 16, vreinterpretq_u16_f16(vmulq_f16(low_f16x8, scale_f16x8)));
-        vst1q_u16(destination + block * 16 + 8, vreinterpretq_u16_f16(vmulq_f16(high_f16x8, scale_f16x8)));
-    }
-}
 
 /** Scores of one panel of F16 keys against the F16 query, four KV rows in flight through widening
  *  @c FMLAL and @c FMLAL2 pairs into F32. */
@@ -496,6 +473,7 @@ NUMKONG_API nk_status_t nk_attention_pack_nvfp4_neonfhm(                   //
     nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride, //
     void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
+    if (depth % 16 != 0) return nk_unexpected_dimensions_k;
     nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
                                                                       key_lengths, segment_count);
     if (validation != nk_success_k) return validation;
@@ -505,50 +483,8 @@ NUMKONG_API nk_status_t nk_attention_pack_nvfp4_neonfhm(                   //
                                         tasks_end, nk_cap_neonfhm_k);
         return nk_success_k;
     }
-    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
-    nk_size_t const padded_row_bytes = depth_padded * sizeof(nk_f16_t);
-    nk_attention_pack_directory_serial_(key_value_packed, key_value_head_count, depth, key_offsets, key_lengths,
-                                        segment_count, tasks_begin, 1, padded_row_bytes, nk_cap_neonfhm_k);
-    if (tasks_begin == 0) {
-        nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
-        header->key_tensor_scale = nk_cross_tensor_scale_serial_(keys->tensor_scale);
-        header->value_tensor_scale = nk_cross_tensor_scale_serial_(values->tensor_scale);
-    }
-    char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
-                         nk_attention_pack_directory_size_serial_(segment_count);
-    nk_size_t const key_scales_stride = key_stride / 8, value_scales_stride = value_stride / 8;
-
-    nk_size_t const total_tasks = segment_count * key_value_head_count;
-    if (tasks_begin >= total_tasks) return nk_success_k;
-    if (tasks_end > total_tasks) tasks_end = total_tasks;
-
-    nk_size_t payload_segment = 0;
-    nk_u64_t payload_offset = 0;
-    for (nk_size_t task_idx = tasks_begin; task_idx < tasks_end; task_idx++) {
-        nk_size_t const segment_idx = task_idx / key_value_head_count;
-        nk_size_t const key_value_head_idx = task_idx % key_value_head_count;
-        for (; payload_segment < segment_idx; payload_segment++)
-            payload_offset += nk_attention_pack_segment_bytes_serial_(
-                nk_attention_pack_key_count_serial_(key_offsets, key_lengths, payload_segment), key_value_head_count, 1,
-                padded_row_bytes);
-        nk_size_t const position_count = nk_attention_pack_key_count_serial_(key_offsets, key_lengths, segment_idx);
-        if (position_count == 0) continue;
-        nk_size_t const position_first = key_offsets[segment_idx];
-        nk_size_t const plane_bytes = position_count * padded_row_bytes;
-        char *keys_plane = payload_base + payload_offset + key_value_head_idx * plane_bytes;
-        char *values_plane = keys_plane + key_value_head_count * plane_bytes;
-        for (nk_size_t position_idx = 0; position_idx < position_count; position_idx++) {
-            nk_size_t const position = position_first + position_idx;
-            nk_attention_nvfp4_row_to_f16_neonfhm_(
-                (nk_u8_t const *)keys->elements + position * key_stride + key_value_head_idx * depth / 2,
-                (nk_u8_t const *)keys->scales + position * key_scales_stride + key_value_head_idx * depth / 16,
-                (nk_u16_t *)(keys_plane + position_idx * padded_row_bytes), depth);
-            nk_attention_nvfp4_row_to_f16_neonfhm_(
-                (nk_u8_t const *)values->elements + position * value_stride + key_value_head_idx * depth / 2,
-                (nk_u8_t const *)values->scales + position * value_scales_stride + key_value_head_idx * depth / 16,
-                (nk_u16_t *)(values_plane + position_idx * padded_row_bytes), depth);
-        }
-    }
+    nk_attention_pack_nvfp4_neon_(keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count,
+                                  key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, nk_cap_neonfhm_k);
     return nk_success_k;
 }
 
@@ -613,9 +549,9 @@ NUMKONG_API nk_status_t nk_attention_packed_nvfp4_neonfhm(                      
 
             for (nk_size_t row_idx = row_begin; row_idx < row_end; row_idx++) {
                 nk_size_t const token = query_first + row_idx;
-                nk_attention_nvfp4_row_to_f16_neonfhm_(
-                    query_codes + token * query_stride + head_idx * depth / 2,
-                    query_scales + token * query_scales_stride + head_idx * depth / 16, query_row, depth);
+                nk_attention_nvfp4_row_to_f16_neon_(query_codes + token * query_stride + head_idx * depth / 2,
+                                                    query_scales + token * query_scales_stride + head_idx * depth / 16,
+                                                    query_row, depth);
                 nk_attention_zero_row_neon_(output_row, depth_padded);
                 nk_f32_t running_max2 = NUMKONG_F32_MIN, running_sum = 0;
                 nk_size_t key_begin, key_end;

@@ -122,7 +122,7 @@ Scores stay exact in `i32` integer arithmetic; only the probabilities round.
 ## Performance
 
 The tables below follow the [benchmark methodology](../../../bench/README.md#methodology) on one core pinned with `numactl --membind=0 taskset -c <core>`, counting `4 \cdot h \cdot n_q \cdot n_{kv} \cdot d` FLOPs.
-Rows are kernels under the mask they measured, columns are square self-attention shapes at `depth = 128`, 8 heads; accuracy is the maximum absolute error against an `f64` reference over dtype-rounded inputs.
+Rows are kernels under the mask they measured, columns are square self-attention shapes at `depth = 128`, 32 query heads over 8 key-value heads; accuracy is the maximum absolute error against an `f64` reference over dtype-rounded inputs.
 Bidirectional rows ran `keys_before = keys_after = NUMKONG_SIZE_MAX`, and causal rows `keys_after = 0`.
 Cells marked `⋯` await measurement on the corresponding platform.
 
@@ -232,24 +232,36 @@ Measured with Wasmtime v24 (Cranelift backend).
 
 #### Native
 
-| Kernel                                             |        1024² |        4096² |       16384² |
-| :------------------------------------------------- | -----------: | -----------: | -----------: |
-| __bf16__                                           | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_bf16_serial`    |  2.8 gflop/s |            ⋯ |            ⋯ |
-| bidirectional `nk_attention_packed_bf16_neon`      |   44 gflop/s |   45 gflop/s |            ⋯ |
-| bidirectional `nk_attention_packed_bf16_neonbfdot` |   46 gflop/s |   47 gflop/s |   46 gflop/s |
-| bidirectional `nk_attention_packed_bf16_sme`       |  789 gflop/s |  800 gflop/s |  802 gflop/s |
-| __f16__                                            | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_f16_neon`       |   44 gflop/s |   44 gflop/s |            ⋯ |
-| bidirectional `nk_attention_packed_f16_neonfhm`    |   51 gflop/s |   51 gflop/s |            ⋯ |
-| bidirectional `nk_attention_packed_f16_sme`        |  796 gflop/s |  815 gflop/s |  820 gflop/s |
-| __e4m3__                                           | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_e4m3_serial`    |  1.5 gflop/s |            ⋯ |            ⋯ |
-| bidirectional `nk_attention_packed_e4m3_neon`      |   44 gflop/s |   44 gflop/s |            ⋯ |
-| bidirectional `nk_attention_packed_e4m3_neonfhm`   |   51 gflop/s |   51 gflop/s |   50 gflop/s |
-| bidirectional `nk_attention_packed_e4m3_sme`       |  722 gflop/s |  777 gflop/s |  797 gflop/s |
-| __i8__                                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_i8_serial`      |  133 gflop/s |            ⋯ |            ⋯ |
-| bidirectional `nk_attention_packed_i8_neon`        |  188 gflop/s |  192 gflop/s |            ⋯ |
-| bidirectional `nk_attention_packed_i8_neonsdot`    |  310 gflop/s |  305 gflop/s |  285 gflop/s |
-| bidirectional `nk_attention_packed_i8_sme`         |  815 gflop/s |  825 gflop/s |  827 gflop/s |
+| Kernel                                             |         1024² |         4096² |        16384² |
+| :------------------------------------------------- | ------------: | ------------: | ------------: |
+| __bf16__                                           | ░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_bf16_serial`    |   2.2 gflop/s |             ⋯ |             ⋯ |
+| bidirectional `nk_attention_packed_bf16_neon`      |    44 gflop/s |    44 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_bf16_neonbfdot` |    46 gflop/s |    47 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_bf16_sme`       |   780 gflop/s |   811 gflop/s |   790 gflop/s |
+| bidirectional `nk_attention_packed_bf16_metal`     |   245 gflop/s |   241 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_bf16_apple9`    | 1,011 gflop/s |   891 gflop/s |   786 gflop/s |
+| bidirectional `nk_attention_packed_bf16_apple10`   | 1,034 gflop/s |   896 gflop/s |   790 gflop/s |
+| __f16__                                            | ░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_f16_serial`     |   2.0 gflop/s |             ⋯ |             ⋯ |
+| bidirectional `nk_attention_packed_f16_neon`       |    44 gflop/s |    44 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_f16_neonfhm`    |    50 gflop/s |    51 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_f16_sme`        |   784 gflop/s |   816 gflop/s |   699 gflop/s |
+| bidirectional `nk_attention_packed_f16_metal`      |   244 gflop/s |   244 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_f16_apple9`     | 1,011 gflop/s |   895 gflop/s |   781 gflop/s |
+| bidirectional `nk_attention_packed_f16_apple10`    | 1,054 gflop/s |   903 gflop/s |   753 gflop/s |
+| __e4m3__                                           | ░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_e4m3_serial`    |   2.1 gflop/s |             ⋯ |             ⋯ |
+| bidirectional `nk_attention_packed_e4m3_neon`      |    44 gflop/s |    44 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_e4m3_neonfhm`   |    51 gflop/s |    51 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_e4m3_sme`       |   752 gflop/s |   802 gflop/s |   787 gflop/s |
+| bidirectional `nk_attention_packed_e4m3_metal`     |   238 gflop/s |   265 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_e4m3_apple9`    | 1,011 gflop/s |   914 gflop/s |   818 gflop/s |
+| bidirectional `nk_attention_packed_e4m3_apple10`   | 1,000 gflop/s |   896 gflop/s |   803 gflop/s |
+| __i8__                                             | ░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_i8_serial`      |   7.1 gflop/s |   7.2 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_i8_neon`        |   185 gflop/s |   190 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_i8_neonsdot`    |   333 gflop/s |   353 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_i8_sme`         |   829 gflop/s |   883 gflop/s |   797 gflop/s |
+| bidirectional `nk_attention_packed_i8_metal`       |   216 gflop/s |   223 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_i8_apple10`     |   588 gflop/s |   549 gflop/s |   474 gflop/s |

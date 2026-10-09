@@ -148,6 +148,18 @@ void test_cross_arm64([[maybe_unused]] error_stats_section_t &check) {
           nk_attention_pack_e4m3_neon, nk_attention_packed_e4m3_neon);
     check("attention_packed_i8_neon", test_attention_packed<i8_t>, nk_attention_pack_size_i8_neon,
           nk_attention_pack_i8_neon, nk_attention_packed_i8_neon);
+    check("attention_packed_nvfp4_neon", test_attention_packed<nvfp4_t>, nk_attention_pack_size_nvfp4_neon,
+          nk_attention_pack_nvfp4_neon, nk_attention_packed_nvfp4_neon);
+    check("attention_packed_mxfp4_neon", test_attention_packed<mxfp4_t>, nk_attention_pack_size_mxfp4_neon,
+          nk_attention_pack_mxfp4_neon, nk_attention_packed_mxfp4_neon);
+    check("attention_packed_mxfp6e2m3_neon", test_attention_packed<mxfp6e2m3_t>, nk_attention_pack_size_mxfp6e2m3_neon,
+          nk_attention_pack_mxfp6e2m3_neon, nk_attention_packed_mxfp6e2m3_neon);
+    check("attention_packed_mxfp6e3m2_neon", test_attention_packed<mxfp6e3m2_t>, nk_attention_pack_size_mxfp6e3m2_neon,
+          nk_attention_pack_mxfp6e3m2_neon, nk_attention_packed_mxfp6e3m2_neon);
+    check("attention_packed_mxfp8e4m3_neon", test_attention_packed<mxfp8e4m3_t>, nk_attention_pack_size_mxfp8e4m3_neon,
+          nk_attention_pack_mxfp8e4m3_neon, nk_attention_packed_mxfp8e4m3_neon);
+    check("attention_packed_mxfp8e5m2_neon", test_attention_packed<mxfp8e5m2_t>, nk_attention_pack_size_mxfp8e5m2_neon,
+          nk_attention_pack_mxfp8e5m2_neon, nk_attention_packed_mxfp8e5m2_neon);
     check("attention_rope_f32_neon", test_attention_rope<f32_t>, nk_attention_rope_f32_neon);
     check("attention_rope_bf16_neon", test_attention_rope<bf16_t>, nk_attention_rope_bf16_neon);
     check("attention_rope_e4m3_neon", test_attention_rope<e4m3_t>, nk_attention_rope_e4m3_neon);
@@ -174,6 +186,20 @@ void test_cross_arm64([[maybe_unused]] error_stats_section_t &check) {
 
     check("attention_packed_bf16_neonbfdot", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_neonbfdot,
           nk_attention_pack_bf16_neonbfdot, nk_attention_packed_bf16_neonbfdot);
+    check("attention_packed_mxfp4_neonbfdot", test_attention_packed<mxfp4_t>, nk_attention_pack_size_mxfp4_neonbfdot,
+          nk_attention_pack_mxfp4_neonbfdot, nk_attention_packed_mxfp4_neonbfdot);
+    check("attention_packed_mxfp6e2m3_neonbfdot", test_attention_packed<mxfp6e2m3_t>,
+          nk_attention_pack_size_mxfp6e2m3_neonbfdot, nk_attention_pack_mxfp6e2m3_neonbfdot,
+          nk_attention_packed_mxfp6e2m3_neonbfdot);
+    check("attention_packed_mxfp6e3m2_neonbfdot", test_attention_packed<mxfp6e3m2_t>,
+          nk_attention_pack_size_mxfp6e3m2_neonbfdot, nk_attention_pack_mxfp6e3m2_neonbfdot,
+          nk_attention_packed_mxfp6e3m2_neonbfdot);
+    check("attention_packed_mxfp8e4m3_neonbfdot", test_attention_packed<mxfp8e4m3_t>,
+          nk_attention_pack_size_mxfp8e4m3_neonbfdot, nk_attention_pack_mxfp8e4m3_neonbfdot,
+          nk_attention_packed_mxfp8e4m3_neonbfdot);
+    check("attention_packed_mxfp8e5m2_neonbfdot", test_attention_packed<mxfp8e5m2_t>,
+          nk_attention_pack_size_mxfp8e5m2_neonbfdot, nk_attention_pack_mxfp8e5m2_neonbfdot,
+          nk_attention_packed_mxfp8e5m2_neonbfdot);
 #endif // NUMKONG_TARGET_NEONBFDOT
 
 #if NUMKONG_TARGET_NEONFHM

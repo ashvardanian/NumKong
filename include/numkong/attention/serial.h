@@ -291,28 +291,30 @@ enum {
 /** Bytes of an MX pack's plane-exponent table, 64-byte padded: one entry per K plane and per V
  *  plane, each segment's K planes first. */
 NUMKONG_INLINE nk_size_t nk_attention_plane_exponents_size_serial_(nk_size_t key_value_head_count,
-                                                                   nk_size_t segment_count) {
+                                                                   nk_size_t segment_count) NUMKONG_STREAMABLE_ {
     return nk_size_round_up_to_multiple_(2 * key_value_head_count * segment_count, 64);
 }
 
-/** Where an MX pack's plane-exponent table starts: at the bound of its F32 planes over the keys of
- *  @p key_offsets and @p key_lengths, past the slack the directory zeroes. */
-NUMKONG_INLINE nk_size_t nk_attention_plane_exponents_offset_serial_(nk_size_t key_value_head_count, nk_size_t depth,
+/** Where an MX pack's plane-exponent table starts: at the bound of its planes, padded to
+ *  @p position_multiple positions of @p unit_bytes, over the keys of @p key_offsets and
+ *  @p key_lengths, past the slack the directory zeroes. */
+NUMKONG_INLINE nk_size_t nk_attention_plane_exponents_offset_serial_(nk_size_t key_value_head_count,
+                                                                     nk_size_t position_multiple, nk_size_t unit_bytes,
                                                                      nk_u32_t const *key_offsets,
                                                                      nk_u32_t const *key_lengths,
-                                                                     nk_size_t segment_count) {
+                                                                     nk_size_t segment_count) NUMKONG_STREAMABLE_ {
     nk_size_t token_count = 0;
     for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
         token_count += nk_attention_pack_key_count_serial_(key_offsets, key_lengths, segment_idx);
-    return nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
-                                           depth * sizeof(nk_f32_t));
+    return nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, position_multiple,
+                                           unit_bytes);
 }
 
 /** The plane-exponent entry of @p rows rows of @p blocks UE8M0 scale codes, @p stride bytes apart:
  *  their largest finite exponent, 0 when none is, or @c nk_attention_raw_plane_k_ when they span
  *  more than @c nk_attention_plane_window_k_ binades. */
 NUMKONG_INLINE nk_i8_t nk_attention_plane_exponent_ue8m0_serial_(nk_u8_t const *scales, nk_size_t stride,
-                                                                 nk_size_t rows, nk_size_t blocks) {
+                                                                 nk_size_t rows, nk_size_t blocks) NUMKONG_STREAMABLE_ {
     nk_i32_t low = 255, high = 0;
     for (nk_size_t row = 0; row < rows; row++)
         for (nk_size_t block = 0; block < blocks; block++) {
@@ -325,7 +327,7 @@ NUMKONG_INLINE nk_i8_t nk_attention_plane_exponent_ue8m0_serial_(nk_u8_t const *
 }
 
 /** The power of two an MX plane's F32 values sit under: its entry less 31, or 0 for raw planes. */
-NUMKONG_INLINE nk_i32_t nk_attention_plane_base_serial_(nk_i8_t exponent) {
+NUMKONG_INLINE nk_i32_t nk_attention_plane_base_serial_(nk_i8_t exponent) NUMKONG_STREAMABLE_ {
     return exponent == nk_attention_raw_plane_k_ ? 0 : exponent - nk_cross_scaled_headroom_k;
 }
 
@@ -1090,9 +1092,9 @@ NUMKONG_INLINE void nk_attention_pack_mxfp4_serial_(nk_mxfp4_cref_t const *keys,
                                         segment_count, tasks_begin, 1, depth * sizeof(nk_f32_t), capability);
     char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
                          nk_attention_pack_directory_size_serial_(segment_count);
-    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed +
-                               nk_attention_plane_exponents_offset_serial_(key_value_head_count, depth, key_offsets,
-                                                                           key_lengths, segment_count);
+    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                 key_value_head_count, 1, depth * sizeof(nk_f32_t),
+                                                                 key_offsets, key_lengths, segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
     nk_size_t const plane_exponents_size = nk_attention_plane_exponents_size_serial_(key_value_head_count,
@@ -1134,9 +1136,9 @@ NUMKONG_INLINE void nk_attention_pack_mxfp6e2m3_serial_(
                                         segment_count, tasks_begin, 1, depth * sizeof(nk_f32_t), capability);
     char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
                          nk_attention_pack_directory_size_serial_(segment_count);
-    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed +
-                               nk_attention_plane_exponents_offset_serial_(key_value_head_count, depth, key_offsets,
-                                                                           key_lengths, segment_count);
+    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                 key_value_head_count, 1, depth * sizeof(nk_f32_t),
+                                                                 key_offsets, key_lengths, segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
     nk_size_t const plane_exponents_size = nk_attention_plane_exponents_size_serial_(key_value_head_count,
@@ -1178,9 +1180,9 @@ NUMKONG_INLINE void nk_attention_pack_mxfp6e3m2_serial_(
                                         segment_count, tasks_begin, 1, depth * sizeof(nk_f32_t), capability);
     char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
                          nk_attention_pack_directory_size_serial_(segment_count);
-    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed +
-                               nk_attention_plane_exponents_offset_serial_(key_value_head_count, depth, key_offsets,
-                                                                           key_lengths, segment_count);
+    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                 key_value_head_count, 1, depth * sizeof(nk_f32_t),
+                                                                 key_offsets, key_lengths, segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
     nk_size_t const plane_exponents_size = nk_attention_plane_exponents_size_serial_(key_value_head_count,
@@ -1222,9 +1224,9 @@ NUMKONG_INLINE void nk_attention_pack_mxfp8e4m3_serial_(
                                         segment_count, tasks_begin, 1, depth * sizeof(nk_f32_t), capability);
     char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
                          nk_attention_pack_directory_size_serial_(segment_count);
-    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed +
-                               nk_attention_plane_exponents_offset_serial_(key_value_head_count, depth, key_offsets,
-                                                                           key_lengths, segment_count);
+    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                 key_value_head_count, 1, depth * sizeof(nk_f32_t),
+                                                                 key_offsets, key_lengths, segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
     nk_size_t const plane_exponents_size = nk_attention_plane_exponents_size_serial_(key_value_head_count,
@@ -1266,9 +1268,9 @@ NUMKONG_INLINE void nk_attention_pack_mxfp8e5m2_serial_(
                                         segment_count, tasks_begin, 1, depth * sizeof(nk_f32_t), capability);
     char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
                          nk_attention_pack_directory_size_serial_(segment_count);
-    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed +
-                               nk_attention_plane_exponents_offset_serial_(key_value_head_count, depth, key_offsets,
-                                                                           key_lengths, segment_count);
+    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                 key_value_head_count, 1, depth * sizeof(nk_f32_t),
+                                                                 key_offsets, key_lengths, segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
     nk_size_t const plane_exponents_size = nk_attention_plane_exponents_size_serial_(key_value_head_count,
@@ -1918,8 +1920,9 @@ NUMKONG_INLINE void nk_attention_packed_mxfp4_serial_(nk_mxfp4_cref_t const *que
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
                                nk_attention_pack_directory_size_serial_(segment_count);
     nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
-                                     nk_attention_plane_exponents_offset_serial_(
-                                         key_value_head_count, depth, key_offsets, key_lengths, segment_count);
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, 1,
+                                                                                 depth * sizeof(nk_f32_t), key_offsets,
+                                                                                 key_lengths, segment_count);
     nk_u8_t const *query_codes = (nk_u8_t const *)queries->elements, *query_scales = (nk_u8_t const *)queries->scales;
     nk_size_t const query_scales_stride = query_stride / 16, row_bytes = depth * sizeof(nk_f32_t);
     nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
@@ -2007,8 +2010,9 @@ NUMKONG_INLINE void nk_attention_packed_mxfp6e2m3_serial_(
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
                                nk_attention_pack_directory_size_serial_(segment_count);
     nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
-                                     nk_attention_plane_exponents_offset_serial_(
-                                         key_value_head_count, depth, key_offsets, key_lengths, segment_count);
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, 1,
+                                                                                 depth * sizeof(nk_f32_t), key_offsets,
+                                                                                 key_lengths, segment_count);
     nk_u8_t const *query_codes = (nk_u8_t const *)queries->elements, *query_scales = (nk_u8_t const *)queries->scales;
     nk_size_t const query_scales_stride = query_stride / 32, row_bytes = depth * sizeof(nk_f32_t);
     nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
@@ -2096,8 +2100,9 @@ NUMKONG_INLINE void nk_attention_packed_mxfp6e3m2_serial_(
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
                                nk_attention_pack_directory_size_serial_(segment_count);
     nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
-                                     nk_attention_plane_exponents_offset_serial_(
-                                         key_value_head_count, depth, key_offsets, key_lengths, segment_count);
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, 1,
+                                                                                 depth * sizeof(nk_f32_t), key_offsets,
+                                                                                 key_lengths, segment_count);
     nk_u8_t const *query_codes = (nk_u8_t const *)queries->elements, *query_scales = (nk_u8_t const *)queries->scales;
     nk_size_t const query_scales_stride = query_stride / 32, row_bytes = depth * sizeof(nk_f32_t);
     nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
@@ -2185,8 +2190,9 @@ NUMKONG_INLINE void nk_attention_packed_mxfp8e4m3_serial_(
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
                                nk_attention_pack_directory_size_serial_(segment_count);
     nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
-                                     nk_attention_plane_exponents_offset_serial_(
-                                         key_value_head_count, depth, key_offsets, key_lengths, segment_count);
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, 1,
+                                                                                 depth * sizeof(nk_f32_t), key_offsets,
+                                                                                 key_lengths, segment_count);
     nk_u8_t const *query_codes = (nk_u8_t const *)queries->elements, *query_scales = (nk_u8_t const *)queries->scales;
     nk_size_t const query_scales_stride = query_stride / 32, row_bytes = depth * sizeof(nk_f32_t);
     nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
@@ -2274,8 +2280,9 @@ NUMKONG_INLINE void nk_attention_packed_mxfp8e5m2_serial_(
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
                                nk_attention_pack_directory_size_serial_(segment_count);
     nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
-                                     nk_attention_plane_exponents_offset_serial_(
-                                         key_value_head_count, depth, key_offsets, key_lengths, segment_count);
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, 1,
+                                                                                 depth * sizeof(nk_f32_t), key_offsets,
+                                                                                 key_lengths, segment_count);
     nk_u8_t const *query_codes = (nk_u8_t const *)queries->elements, *query_scales = (nk_u8_t const *)queries->scales;
     nk_size_t const query_scales_stride = query_stride / 32, row_bytes = depth * sizeof(nk_f32_t);
     nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
@@ -2753,8 +2760,9 @@ NUMKONG_INLINE void nk_attention_backward_mxfp4_serial_(
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
                                nk_attention_pack_directory_size_serial_(segment_count);
     nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
-                                     nk_attention_plane_exponents_offset_serial_(
-                                         key_value_head_count, depth, key_offsets, key_lengths, segment_count);
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, 1,
+                                                                                 depth * sizeof(nk_f32_t), key_offsets,
+                                                                                 key_lengths, segment_count);
     nk_u8_t const *query_codes = (nk_u8_t const *)queries->elements, *query_scales = (nk_u8_t const *)queries->scales;
     nk_size_t const query_scales_stride = query_stride / 16, row_bytes = depth * sizeof(nk_f32_t);
     nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
@@ -2858,8 +2866,9 @@ NUMKONG_INLINE void nk_attention_backward_mxfp6e2m3_serial_(
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
                                nk_attention_pack_directory_size_serial_(segment_count);
     nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
-                                     nk_attention_plane_exponents_offset_serial_(
-                                         key_value_head_count, depth, key_offsets, key_lengths, segment_count);
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, 1,
+                                                                                 depth * sizeof(nk_f32_t), key_offsets,
+                                                                                 key_lengths, segment_count);
     nk_u8_t const *query_codes = (nk_u8_t const *)queries->elements, *query_scales = (nk_u8_t const *)queries->scales;
     nk_size_t const query_scales_stride = query_stride / 32, row_bytes = depth * sizeof(nk_f32_t);
     nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
@@ -2963,8 +2972,9 @@ NUMKONG_INLINE void nk_attention_backward_mxfp6e3m2_serial_(
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
                                nk_attention_pack_directory_size_serial_(segment_count);
     nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
-                                     nk_attention_plane_exponents_offset_serial_(
-                                         key_value_head_count, depth, key_offsets, key_lengths, segment_count);
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, 1,
+                                                                                 depth * sizeof(nk_f32_t), key_offsets,
+                                                                                 key_lengths, segment_count);
     nk_u8_t const *query_codes = (nk_u8_t const *)queries->elements, *query_scales = (nk_u8_t const *)queries->scales;
     nk_size_t const query_scales_stride = query_stride / 32, row_bytes = depth * sizeof(nk_f32_t);
     nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
@@ -3068,8 +3078,9 @@ NUMKONG_INLINE void nk_attention_backward_mxfp8e4m3_serial_(
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
                                nk_attention_pack_directory_size_serial_(segment_count);
     nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
-                                     nk_attention_plane_exponents_offset_serial_(
-                                         key_value_head_count, depth, key_offsets, key_lengths, segment_count);
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, 1,
+                                                                                 depth * sizeof(nk_f32_t), key_offsets,
+                                                                                 key_lengths, segment_count);
     nk_u8_t const *query_codes = (nk_u8_t const *)queries->elements, *query_scales = (nk_u8_t const *)queries->scales;
     nk_size_t const query_scales_stride = query_stride / 32, row_bytes = depth * sizeof(nk_f32_t);
     nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
@@ -3173,8 +3184,9 @@ NUMKONG_INLINE void nk_attention_backward_mxfp8e5m2_serial_(
     char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
                                nk_attention_pack_directory_size_serial_(segment_count);
     nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
-                                     nk_attention_plane_exponents_offset_serial_(
-                                         key_value_head_count, depth, key_offsets, key_lengths, segment_count);
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, 1,
+                                                                                 depth * sizeof(nk_f32_t), key_offsets,
+                                                                                 key_lengths, segment_count);
     nk_u8_t const *query_codes = (nk_u8_t const *)queries->elements, *query_scales = (nk_u8_t const *)queries->scales;
     nk_size_t const query_scales_stride = query_stride / 32, row_bytes = depth * sizeof(nk_f32_t);
     nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
