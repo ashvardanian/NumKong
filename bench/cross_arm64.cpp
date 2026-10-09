@@ -472,6 +472,16 @@ void bench_cross_arm64(environment_t const &env) {
                             nk_attention_packed_i8_sme);
         run_attention<nk_nvfp4_k>(env, "attention_packed_nvfp4_sme", nk_attention_pack_size_nvfp4_sme,
                                   nk_attention_pack_nvfp4_sme, nk_attention_packed_nvfp4_sme);
+        run_attention<nk_mxfp4_k>(env, "attention_packed_mxfp4_sme", nk_attention_pack_size_mxfp4_sme,
+                                  nk_attention_pack_mxfp4_sme, nk_attention_packed_mxfp4_sme);
+        run_attention<nk_mxfp6e2m3_k>(env, "attention_packed_mxfp6e2m3_sme", nk_attention_pack_size_mxfp6e2m3_sme,
+                                      nk_attention_pack_mxfp6e2m3_sme, nk_attention_packed_mxfp6e2m3_sme);
+        run_attention<nk_mxfp6e3m2_k>(env, "attention_packed_mxfp6e3m2_sme", nk_attention_pack_size_mxfp6e3m2_sme,
+                                      nk_attention_pack_mxfp6e3m2_sme, nk_attention_packed_mxfp6e3m2_sme);
+        run_attention<nk_mxfp8e4m3_k>(env, "attention_packed_mxfp8e4m3_sme", nk_attention_pack_size_mxfp8e4m3_sme,
+                                      nk_attention_pack_mxfp8e4m3_sme, nk_attention_packed_mxfp8e4m3_sme);
+        run_attention<nk_mxfp8e5m2_k>(env, "attention_packed_mxfp8e5m2_sme", nk_attention_pack_size_mxfp8e5m2_sme,
+                                      nk_attention_pack_mxfp8e5m2_sme, nk_attention_packed_mxfp8e5m2_sme);
 
         run_dots_packed<bf16_k>(env, "dots_packed_bf16_sme", nk_dots_pack_size_bf16_sme, nk_dots_pack_bf16_sme,
                                 nk_dots_packed_bf16_sme);

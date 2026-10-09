@@ -664,6 +664,16 @@ void test_cross_arm64([[maybe_unused]] error_stats_section_t &check) {
           nk_attention_pack_i8_sme, nk_attention_packed_i8_sme);
     check("attention_packed_nvfp4_sme", test_attention_packed<nvfp4_t>, nk_attention_pack_size_nvfp4_sme,
           nk_attention_pack_nvfp4_sme, nk_attention_packed_nvfp4_sme);
+    check("attention_packed_mxfp4_sme", test_attention_packed<mxfp4_t>, nk_attention_pack_size_mxfp4_sme,
+          nk_attention_pack_mxfp4_sme, nk_attention_packed_mxfp4_sme);
+    check("attention_packed_mxfp6e2m3_sme", test_attention_packed<mxfp6e2m3_t>, nk_attention_pack_size_mxfp6e2m3_sme,
+          nk_attention_pack_mxfp6e2m3_sme, nk_attention_packed_mxfp6e2m3_sme);
+    check("attention_packed_mxfp6e3m2_sme", test_attention_packed<mxfp6e3m2_t>, nk_attention_pack_size_mxfp6e3m2_sme,
+          nk_attention_pack_mxfp6e3m2_sme, nk_attention_packed_mxfp6e3m2_sme);
+    check("attention_packed_mxfp8e4m3_sme", test_attention_packed<mxfp8e4m3_t>, nk_attention_pack_size_mxfp8e4m3_sme,
+          nk_attention_pack_mxfp8e4m3_sme, nk_attention_packed_mxfp8e4m3_sme);
+    check("attention_packed_mxfp8e5m2_sme", test_attention_packed<mxfp8e5m2_t>, nk_attention_pack_size_mxfp8e5m2_sme,
+          nk_attention_pack_mxfp8e5m2_sme, nk_attention_packed_mxfp8e5m2_sme);
 #endif // NUMKONG_TARGET_SME
 
 #if NUMKONG_TARGET_SMEBI32

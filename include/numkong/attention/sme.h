@@ -37,6 +37,11 @@
  *  F16 and NVFP4 run the same sweep on widening F16 MOPAs with F16 weights. NVFP4 elements times
  *  their UE4M3 block scales are exact F16 tiles; both tensor scales fold into the score multiplier
  *  and the value one into the normalization.
+ *
+ *  The MX formats run the BF16 sweep over rebased planes, exact in BF16, with the plane-exponent
+ *  table after them. Each query block rebases by its own largest block exponent. A block whose
+ *  planes are raw, whose exponents span past the window, or whose score multiplier is not a normal
+ *  F32 is skipped in streaming mode and recomputed after it by the serial exact helpers.
  */
 #ifndef NUMKONG_ATTENTION_SME_H
 #define NUMKONG_ATTENTION_SME_H
@@ -1222,6 +1227,1782 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_nvfp4_sme_streaming_(
     }
 }
 
+/** BF16 bits of @p count E2M1 elements from dim @p first of one row of @p codes, moved by
+ *  @p exponent_shift binades either way: the shift adds to the nonzero table entries, where the
+ *  saturating decrement of @c nk_load_mx_e2m1_sme_ would zero the blocks a plane base raises. */
+NUMKONG_INLINE svuint16_t nk_attention_load_mx_e2m1_sme_(nk_u8_t const *codes, nk_size_t first, nk_size_t count,
+                                                         nk_i32_t exponent_shift) NUMKONG_STREAMING_ {
+    svbool_t const predicate_all_b8x = svptrue_b8(), predicate_all_b16x = svptrue_b16();
+    nk_u16_t const shift_bits = (nk_u16_t)(exponent_shift * 128);
+    svuint16x2_t const table_u16x = nk_table16_u16_sme_(nk_mxfp4_table_data_sme_);
+    svuint16_t const first_entries_u16x = svget2_u16(table_u16x, 0);
+    svuint16_t const second_entries_u16x = svget2_u16(table_u16x, 1);
+    svuint16x2_t const shifted_u16x = svcreate2_u16(
+        svadd_n_u16_m(svcmpne_n_u16(predicate_all_b16x, first_entries_u16x, 0), first_entries_u16x, shift_bits),
+        svadd_n_u16_m(svcmpne_n_u16(predicate_all_b16x, second_entries_u16x, 0), second_entries_u16x, shift_bits));
+    svuint8_t const pairs_u8x = svld1_u8(svwhilelt_b8_u64(0, count / 2), codes + first / 2);
+    svuint8_t const nibbles_u8x = svzip1_u8(svlsr_n_u8_x(predicate_all_b8x, pairs_u8x, 4),
+                                            svand_n_u8_x(predicate_all_b8x, pairs_u8x, 0x0F));
+    return svtbl2_u16(shifted_u16x, svunpklo_u16(nibbles_u8x));
+}
+
+/** MXFP4 dims as BF16 rebased by @p base, as @c nk_decode_row_mxfp4_sme_ decodes them through
+ *  @c nk_attention_load_mx_e2m1_sme_. */
+NUMKONG_INLINE svuint16_t nk_attention_decode_row_mxfp4_sme_(nk_u8_t const *codes, nk_u8_t const *scales,
+                                                             nk_size_t first, nk_size_t count,
+                                                             nk_i32_t base) NUMKONG_STREAMING_ {
+    svuint16_t row_u16x = svdup_n_u16(0);
+    for (nk_size_t piece = 0; piece < count; piece += 32) {
+        nk_size_t const piece_count = count - piece < 32 ? count - piece : 32;
+        nk_u8_t const scale = scales[(first + piece) / 32];
+        svuint16_t const piece_u16x = nk_mx_block_sme_(
+            nk_attention_load_mx_e2m1_sme_(codes, first + piece, piece_count, nk_mx_shift_sme_(scale, base)), scale,
+            piece_count);
+        row_u16x = svsplice_u16(svwhilelt_b16_u64(0, piece), row_u16x, piece_u16x);
+    }
+    return row_u16x;
+}
+
+/** Stages MXFP4 rows as @c nk_stage_panel_mxfp4_sme_ does, decoding through
+ *  @c nk_attention_decode_row_mxfp4_sme_. */
+NUMKONG_OUTLINED_ void nk_attention_stage_panel_mxfp4_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
+                                                           nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
+                                                           nk_size_t depth, nk_i32_t const *bases,
+                                                           nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
+    nk_size_t const vector_elements = svcnth();
+    svbool_t const predicate_all_b32x = svptrue_b32();
+    for (nk_size_t dims = 0; dims < depth; dims += vector_elements) {
+        nk_size_t const count = depth - dims < vector_elements ? depth - dims : vector_elements;
+        svzero_mask_za(nk_sme_zero_za32_tile_0_k);
+        for (nk_size_t row = 0; row < rows; ++row) {
+            nk_size_t const row_index = row_first + row;
+            svuint16_t const row_u16x = nk_attention_decode_row_mxfp4_sme_(
+                (nk_u8_t const *)operand.elements + row_index * row_stride,
+                operand.scales + row_index * operand.scales_stride, depth_first + dims, count, bases[row]);
+            svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_u16(row_u16x));
+        }
+        nk_store_panel_steps_sme_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
+    }
+}
+
+/** Writes @p positions_padded rows of a raw MX plane, each @p row_bytes long, as
+ *  @c nk_attention_raw_row_serial_ fills them: each of the first @p positions rows takes
+ *  @p codes_bytes codes from @p codes, then @p blocks scale codes from @p scales, sources
+ *  @p codes_stride and @p scales_stride bytes apart, and every other byte is zero. */
+NUMKONG_INLINE void nk_attention_raw_plane_sme_streaming_(nk_u8_t const *codes, nk_size_t codes_stride,
+                                                          nk_u8_t const *scales, nk_size_t scales_stride,
+                                                          nk_size_t codes_bytes, nk_size_t blocks, nk_size_t positions,
+                                                          nk_size_t positions_padded, nk_size_t row_bytes,
+                                                          nk_u8_t *plane) NUMKONG_STREAMING_ {
+    nk_size_t const vector_bytes = svcntb();
+    for (nk_size_t position_idx = 0; position_idx < positions_padded; position_idx++) {
+        nk_u8_t *row = plane + position_idx * row_bytes;
+        for (nk_size_t byte_index = 0; byte_index < row_bytes; byte_index += vector_bytes)
+            svst1_u8(svwhilelt_b8_u64(byte_index, row_bytes), row + byte_index, svdup_n_u8(0));
+        if (position_idx >= positions) continue;
+        for (nk_size_t byte_index = 0; byte_index < codes_bytes; byte_index += vector_bytes) {
+            svbool_t const predicate_b8x = svwhilelt_b8_u64(byte_index, codes_bytes);
+            svst1_u8(predicate_b8x, row + byte_index,
+                     svld1_u8(predicate_b8x, codes + position_idx * codes_stride + byte_index));
+        }
+        for (nk_size_t block = 0; block < blocks; block += vector_bytes) {
+            svbool_t const predicate_b8x = svwhilelt_b8_u64(block, blocks);
+            svst1_u8(predicate_b8x, row + codes_bytes + block,
+                     svld1_u8(predicate_b8x, scales + position_idx * scales_stride + block));
+        }
+    }
+}
+
+/** The base-2 score multiplier of @p block_rows MX query rows, of @p blocks UE8M0 scale codes each,
+ *  @p scales_stride bytes apart, over planes at @p key_exponent and @p value_exponent: @p scale2
+ *  times 2 to the block's base, stored to @p query_base, plus the key plane's. Zero sends the block
+ *  to the exact path, for a raw plane, a block wider than the window or an abnormal multiplier. */
+NUMKONG_INLINE nk_f32_t nk_attention_block_scale2_sme_(nk_u8_t const *scales, nk_size_t scales_stride,
+                                                       nk_size_t block_rows, nk_size_t blocks, nk_i8_t key_exponent,
+                                                       nk_i8_t value_exponent, nk_f32_t scale2,
+                                                       nk_i32_t *query_base) NUMKONG_STREAMABLE_ {
+    if (key_exponent == nk_attention_raw_plane_k_ || value_exponent == nk_attention_raw_plane_k_) return 0;
+    nk_i8_t const query_exponent = nk_attention_plane_exponent_ue8m0_serial_(scales, scales_stride, block_rows, blocks);
+    if (query_exponent == nk_attention_raw_plane_k_) return 0;
+    *query_base = nk_attention_plane_base_serial_(query_exponent);
+    nk_fui32_t multiplier;
+    multiplier.f = nk_scale_f32_serial_(scale2, *query_base + nk_attention_plane_base_serial_(key_exponent));
+    nk_u32_t const biased_exponent = (multiplier.u >> 23) & 0xFF;
+    return biased_exponent != 0 && biased_exponent != 0xFF ? multiplier.f : 0;
+}
+
+/** Row @p position of an MX K plane at @p key_exponent, as the serial score helpers read it: raw
+ *  rows in place, tile rows of @c nk_attention_pack_b16_sme_streaming_ widened into @p scratch as
+ *  F32. Runs outside streaming mode, so @p tile_dimension stands in for `svcntw()`. */
+NUMKONG_INLINE nk_u8_t const *nk_attention_key_row_sme_(char const *keys_plane, nk_i8_t key_exponent,
+                                                        nk_size_t tile_dimension, nk_size_t depth, nk_size_t position,
+                                                        nk_f32_t *scratch) {
+    if (key_exponent == nk_attention_raw_plane_k_)
+        return (nk_u8_t const *)keys_plane + position * depth * sizeof(nk_bf16_t);
+    nk_size_t const vector_elements = 2 * tile_dimension;
+    nk_bf16_t const *pairs = (nk_bf16_t const *)keys_plane + (position / tile_dimension * depth / 2) * vector_elements +
+                             position % tile_dimension * 2;
+    for (nk_size_t dimension = 0; dimension < depth; dimension++)
+        nk_bf16_to_f32_serial_(pairs + dimension / 2 * vector_elements + dimension % 2, scratch + dimension);
+    return (nk_u8_t const *)scratch;
+}
+
+/** Row @p position of an MX V plane at @p value_exponent, as the serial plane helpers read it, like
+ *  @c nk_attention_key_row_sme_: tile rows come from the transposed layout of
+ *  @c nk_attention_pack_b16_sme_streaming_, @p position_pairs pairs per channel tile. */
+NUMKONG_INLINE nk_u8_t const *nk_attention_value_row_sme_(char const *values_plane, nk_i8_t value_exponent,
+                                                          nk_size_t tile_dimension, nk_size_t depth,
+                                                          nk_size_t position_pairs, nk_size_t position,
+                                                          nk_f32_t *scratch) {
+    if (value_exponent == nk_attention_raw_plane_k_)
+        return (nk_u8_t const *)values_plane + position * depth * sizeof(nk_bf16_t);
+    nk_size_t const vector_elements = 2 * tile_dimension;
+    nk_bf16_t const *pairs = (nk_bf16_t const *)values_plane + position / 2 * vector_elements + position % 2;
+    for (nk_size_t channel = 0; channel < depth; channel++)
+        nk_bf16_to_f32_serial_(
+            pairs + channel / tile_dimension * position_pairs * vector_elements + channel % tile_dimension * 2,
+            scratch + channel);
+    return (nk_u8_t const *)scratch;
+}
+
+/**
+ *  @brief Streaming pack core for MXFP4 K/V planes: elements times their block scales under the
+ *      plane's base as exact BF16, in the tile layout of @c nk_attention_pack_b16_sme_streaming_,
+ *      and each plane's entry in the plane-exponent table.
+ *
+ *  K position tiles stage through ZA0 and V position pairs decode per channel tile, as for NVFP4.
+ *  Raw planes keep serial's rows of codes, then scale codes, which the exact path reads in place.
+ */
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp4_sme_streaming_(                           //
+    nk_cross_operand_t keys, nk_cross_operand_t values, nk_size_t key_value_head_count, nk_size_t depth, //
+    nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,                   //
+    nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin,         //
+    nk_size_t tasks_end) NUMKONG_STREAMING_ {
+
+    nk_size_t const tile_dimension = svcntw();
+    nk_size_t const vector_elements = svcnth();
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
+    nk_size_t const depth_pairs = depth_padded / 2, row_bytes = depth_padded * sizeof(nk_u16_t);
+    nk_size_t const blocks = depth / 32, codes_bytes = depth / 2;
+
+    char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
+                         nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                 key_value_head_count, vector_elements, row_bytes,
+                                                                 key_offsets, key_lengths, segment_count);
+
+    nk_size_t const total_tasks = segment_count * key_value_head_count;
+    nk_size_t const plane_exponents_size = nk_attention_plane_exponents_size_serial_(key_value_head_count,
+                                                                                     segment_count);
+    if (tasks_begin == 0)
+        for (nk_size_t entry = 2 * total_tasks; entry < plane_exponents_size; entry++) plane_exponents[entry] = 0;
+    if (tasks_begin >= total_tasks) return;
+    if (tasks_end > total_tasks) tasks_end = total_tasks;
+
+    nk_i32_t bases[nk_attention_max_tile_sme_k_];
+    nk_size_t payload_segment = 0;
+    nk_u64_t payload_offset = 0;
+    for (nk_size_t task_idx = tasks_begin; task_idx < tasks_end; task_idx++) {
+        nk_size_t const segment_idx = task_idx / key_value_head_count,
+                        key_value_head_idx = task_idx % key_value_head_count;
+        for (; payload_segment < segment_idx; payload_segment++)
+            payload_offset += nk_attention_pack_segment_bytes_serial_(
+                nk_attention_pack_key_count_serial_(key_offsets, key_lengths, payload_segment), key_value_head_count,
+                vector_elements, row_bytes);
+        nk_size_t const position_count = nk_attention_pack_key_count_serial_(key_offsets, key_lengths, segment_idx);
+        nk_size_t const position_first = key_offsets[segment_idx];
+        nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, vector_elements);
+        nk_size_t const plane_bytes = position_count_padded * row_bytes;
+        nk_u16_t *keys_plane = (nk_u16_t *)(payload_base + payload_offset + key_value_head_idx * plane_bytes);
+        nk_u16_t *values_plane = (nk_u16_t *)(payload_base + payload_offset +
+                                              (key_value_head_count + key_value_head_idx) * plane_bytes);
+        nk_u8_t const *key_scales = keys.scales + position_first * keys.scales_stride + key_value_head_idx * blocks;
+        nk_u8_t const *value_scales = values.scales + position_first * values.scales_stride +
+                                      key_value_head_idx * blocks;
+        nk_i8_t const key_exponent = nk_attention_plane_exponent_ue8m0_serial_(key_scales, keys.scales_stride,
+                                                                               position_count, blocks);
+        nk_i8_t const value_exponent = nk_attention_plane_exponent_ue8m0_serial_(value_scales, values.scales_stride,
+                                                                                 position_count, blocks);
+        plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx] = key_exponent;
+        plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx] = value_exponent;
+
+        if (key_exponent == nk_attention_raw_plane_k_)
+            nk_attention_raw_plane_sme_streaming_(
+                (nk_u8_t const *)keys.elements + position_first * key_stride + key_value_head_idx * codes_bytes,
+                key_stride, key_scales, keys.scales_stride, codes_bytes, blocks, position_count, position_count_padded,
+                row_bytes, (nk_u8_t *)keys_plane);
+        else {
+            nk_i32_t const key_base = nk_attention_plane_base_serial_(key_exponent);
+            for (nk_size_t lane_idx = 0; lane_idx < tile_dimension; lane_idx++) bases[lane_idx] = key_base;
+            // Fully padded tiles still run and store the zeros the score stage expects
+            for (nk_size_t position_tile_idx = 0; position_tile_idx < position_count_padded / tile_dimension;
+                 position_tile_idx++) {
+                nk_size_t const position_start = position_tile_idx * tile_dimension;
+                nk_size_t const rows_to_pack = position_start >= position_count ? 0
+                                               : position_count - position_start < tile_dimension
+                                                   ? position_count - position_start
+                                                   : tile_dimension;
+                nk_attention_stage_panel_mxfp4_sme_(keys, key_stride, position_first + position_start, rows_to_pack,
+                                                    key_value_head_idx * depth, depth, bases,
+                                                    keys_plane + position_tile_idx * depth_pairs * vector_elements);
+            }
+        }
+
+        if (value_exponent == nk_attention_raw_plane_k_)
+            nk_attention_raw_plane_sme_streaming_(
+                (nk_u8_t const *)values.elements + position_first * value_stride + key_value_head_idx * codes_bytes,
+                value_stride, value_scales, values.scales_stride, codes_bytes, blocks, position_count,
+                position_count_padded, row_bytes, (nk_u8_t *)values_plane);
+        else {
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+            for (nk_size_t channel_tile_idx = 0; channel_tile_idx < depth_padded / tile_dimension; channel_tile_idx++) {
+                nk_size_t const channel_start = channel_tile_idx * tile_dimension;
+                nk_size_t const channels = depth - channel_start < tile_dimension ? depth - channel_start
+                                                                                  : tile_dimension;
+                nk_size_t const channel_first = key_value_head_idx * depth + channel_start;
+                nk_u16_t *tile_output = values_plane + channel_tile_idx * (position_count_padded / 2) * vector_elements;
+                for (nk_size_t position_pair_idx = 0; position_pair_idx < position_count_padded / 2;
+                     position_pair_idx++) {
+                    nk_size_t const position_even = position_pair_idx * 2, position_odd = position_even + 1;
+                    svuint16_t even_u16x = svdup_u16(0), odd_u16x = svdup_u16(0);
+                    if (position_even < position_count) {
+                        nk_size_t const row = position_first + position_even;
+                        even_u16x = nk_attention_decode_row_mxfp4_sme_(
+                            (nk_u8_t const *)values.elements + row * value_stride,
+                            values.scales + row * values.scales_stride, channel_first, channels, value_base);
+                    }
+                    if (position_odd < position_count) {
+                        nk_size_t const row = position_first + position_odd;
+                        odd_u16x = nk_attention_decode_row_mxfp4_sme_(
+                            (nk_u8_t const *)values.elements + row * value_stride,
+                            values.scales + row * values.scales_stride, channel_first, channels, value_base);
+                    }
+                    svst1_u16(svptrue_b16(), tile_output + position_pair_idx * vector_elements,
+                              svzip1_u16(even_u16x, odd_u16x));
+                }
+            }
+        }
+    }
+}
+
+/** The MXFP4 twin of @c nk_attention_packed_nvfp4_sme_streaming_: each query block stages as BF16
+ *  under its own base, and @c nk_attention_block_scale2_sme_ folds both bases into the score
+ *  multiplier, or leaves the block to @c nk_attention_packed_exact_mxfp4_sme_; the value base
+ *  scales the normalization. */
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp4_sme_streaming_(                       //
+    nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
+    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
+    nk_diagonal_band_t band, nk_size_t tasks_begin, nk_size_t tasks_end) NUMKONG_STREAMING_ {
+
+    nk_size_t const tile_dimension = svcntw();
+    nk_size_t const vector_elements = svcnth();
+    nk_size_t const block_rows_capacity = 2 * tile_dimension;
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
+    nk_size_t const row_bytes = depth_padded * sizeof(nk_u16_t), blocks = depth / 32;
+
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
+    nk_assert_(header->depth == depth && header->key_value_head_count == key_value_head_count &&
+               key_value_head_count != 0 && head_count % key_value_head_count == 0 && depth % 32 == 0);
+    nk_size_t const segment_count = header->segments;
+    nk_u64_t const *payload_offsets = nk_attention_packed_payload_offsets_serial_(key_value_packed);
+    nk_u32_t const *key_offsets = nk_attention_packed_key_offsets_serial_(key_value_packed, segment_count);
+    nk_u32_t const *key_lengths = nk_attention_packed_key_lengths_serial_(key_value_packed, segment_count);
+    char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
+                               nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, vector_elements,
+                                                                                 row_bytes, key_offsets, key_lengths,
+                                                                                 segment_count);
+    nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
+    nk_size_t const head_group_size = head_count / key_value_head_count;
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+
+    nk_align_(64) nk_u16_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 2) * 2 * nk_attention_max_tile_sme_k_];
+    nk_i32_t bases[nk_attention_max_tile_sme_k_];
+
+    for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
+        nk_size_t const key_value_head_idx = head_idx / head_group_size;
+        for (nk_size_t segment_idx = nk_attention_segment_of_serial_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = key_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_serial_(query_end - query_first,
+                                                                                position_count);
+            nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, vector_elements);
+            nk_size_t const plane_bytes = position_count_padded * row_bytes;
+            nk_u16_t const *keys_plane = (nk_u16_t const *)(payload_base + payload_offsets[segment_idx] +
+                                                            key_value_head_idx * plane_bytes);
+            nk_u16_t const *values_plane = (nk_u16_t const *)(payload_base + payload_offsets[segment_idx] +
+                                                              (key_value_head_count + key_value_head_idx) *
+                                                                  plane_bytes);
+            nk_i8_t const key_exponent = plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx];
+            nk_i8_t const value_exponent =
+                plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx];
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+
+            nk_size_t const row_count = query_end - query_first;
+            for (nk_size_t row_block_start = row_begin / block_rows_capacity * block_rows_capacity;
+                 row_block_start < row_end; row_block_start += block_rows_capacity) {
+                nk_size_t const block_rows = (row_count - row_block_start < block_rows_capacity)
+                                                 ? row_count - row_block_start
+                                                 : block_rows_capacity;
+                nk_size_t const block_token = query_first + row_block_start;
+                nk_i32_t query_base = 0;
+                nk_f32_t const block_scale2 = nk_attention_block_scale2_sme_(
+                    queries.scales + block_token * queries.scales_stride + head_idx * blocks, queries.scales_stride,
+                    block_rows, blocks, key_exponent, value_exponent, scale2, &query_base);
+                if (block_scale2 == 0) continue;
+                for (nk_size_t lane_idx = 0; lane_idx < tile_dimension; lane_idx++) bases[lane_idx] = query_base;
+                for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++) {
+                    nk_size_t const tile_row_start = row_tile_idx * tile_dimension;
+                    nk_size_t const rows_to_stage = block_rows <= tile_row_start ? 0
+                                                    : block_rows - tile_row_start < tile_dimension
+                                                        ? block_rows - tile_row_start
+                                                        : tile_dimension;
+                    nk_attention_stage_panel_mxfp4_sme_(queries, query_stride, block_token + tile_row_start,
+                                                        rows_to_stage, head_idx * depth, depth, bases,
+                                                        queries_packed[row_tile_idx]);
+                }
+                nk_attention_block_bf16_sme_streaming_(
+                    queries_packed[0], queries_packed[1], keys_plane, values_plane, depth, position_count, band,
+                    first_position + (nk_i64_t)row_block_start, block_rows,
+                    row_begin > row_block_start ? row_begin - row_block_start : 0, row_end - row_block_start,
+                    block_scale2, 1.0f, value_base, output + block_token * output_stride_floats + head_idx * depth,
+                    output_stride_floats,
+                    log_sum_exp ? log_sum_exp + block_token * head_count + head_idx : NUMKONG_NULL, head_count);
+            }
+        }
+    }
+}
+
+/**
+ *  @brief Recomputes outside streaming mode the MXFP4 query blocks that
+ *      @c nk_attention_block_scale2_sme_ sends to the exact path, each row as
+ *      @c nk_attention_packed_mxfp4_serial_ computes it.
+ *
+ *  Raw planes serve their rows in place and tile planes through @c nk_attention_key_row_sme_ and
+ *  @c nk_attention_value_row_sme_, so the serial score and plane helpers read serial's rows.
+ */
+NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp4_sme_(                                           //
+    nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
+    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
+    nk_diagonal_band_t band, nk_size_t tile_dimension, nk_size_t tasks_begin, nk_size_t tasks_end) {
+
+    nk_size_t const block_rows_capacity = 2 * tile_dimension;
+    nk_size_t const row_bytes = depth * sizeof(nk_bf16_t), blocks = depth / 32;
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
+    nk_size_t const segment_count = header->segments;
+    nk_u64_t const *payload_offsets = nk_attention_packed_payload_offsets_serial_(key_value_packed);
+    nk_u32_t const *key_offsets = nk_attention_packed_key_offsets_serial_(key_value_packed, segment_count);
+    nk_u32_t const *key_lengths = nk_attention_packed_key_lengths_serial_(key_value_packed, segment_count);
+    char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
+                               nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                             key_value_head_count, block_rows_capacity,
+                                                                             row_bytes, key_offsets, key_lengths,
+                                                                             segment_count);
+    nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
+    nk_size_t const head_group_size = head_count / key_value_head_count;
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+
+    nk_align_(64) nk_f32_t key_row[nk_attention_max_depth_sme_k_];
+    nk_align_(64) nk_f32_t value_row[nk_attention_max_depth_sme_k_];
+
+    for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
+        nk_size_t const key_value_head_idx = head_idx / head_group_size;
+        for (nk_size_t segment_idx = nk_attention_segment_of_serial_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = key_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_serial_(query_end - query_first,
+                                                                                position_count);
+            nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, block_rows_capacity);
+            nk_size_t const plane_bytes = position_count_padded * row_bytes;
+            char const *keys_plane = payload_base + payload_offsets[segment_idx] + key_value_head_idx * plane_bytes;
+            char const *values_plane = payload_base + payload_offsets[segment_idx] +
+                                       (key_value_head_count + key_value_head_idx) * plane_bytes;
+            nk_i8_t const key_exponent = plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx];
+            nk_i8_t const value_exponent =
+                plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx];
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+
+            nk_size_t const row_count = query_end - query_first;
+            for (nk_size_t row_block_start = row_begin / block_rows_capacity * block_rows_capacity;
+                 row_block_start < row_end; row_block_start += block_rows_capacity) {
+                nk_size_t const block_rows = (row_count - row_block_start < block_rows_capacity)
+                                                 ? row_count - row_block_start
+                                                 : block_rows_capacity;
+                nk_i32_t block_base = 0;
+                if (nk_attention_block_scale2_sme_(
+                        queries.scales + (query_first + row_block_start) * queries.scales_stride + head_idx * blocks,
+                        queries.scales_stride, block_rows, blocks, key_exponent, value_exponent, scale2,
+                        &block_base) != 0)
+                    continue;
+                nk_size_t const block_end = row_block_start + block_rows < row_end ? row_block_start + block_rows
+                                                                                   : row_end;
+                for (nk_size_t row = row_begin > row_block_start ? row_begin : row_block_start; row < block_end;
+                     row++) {
+                    nk_size_t const token = query_first + row;
+                    nk_u8_t const *query_row = (nk_u8_t const *)queries.elements + token * query_stride +
+                                               head_idx * depth / 2;
+                    nk_u8_t const *query_row_scales = queries.scales + token * queries.scales_stride +
+                                                      head_idx * blocks;
+                    nk_f32_t *output_row = output + token * output_stride_floats + head_idx * depth;
+                    nk_size_t key_begin, key_end;
+                    nk_diagonal_band_row_range_(band, first_position + (nk_i64_t)row, position_count, &key_begin,
+                                                &key_end);
+
+                    nk_f32_t max2 = NUMKONG_F32_MIN;
+                    for (nk_size_t position = key_begin; position < key_end; position++) {
+                        nk_f32_t const scaled2 = nk_attention_score_mxfp4_serial_(
+                            query_row, query_row_scales,
+                            nk_attention_key_row_sme_(keys_plane, key_exponent, tile_dimension, depth, position,
+                                                      key_row),
+                            key_exponent, depth, scale2);
+                        if (scaled2 > max2) max2 = scaled2;
+                    }
+                    for (nk_size_t channel = 0; channel < depth; channel++) output_row[channel] = 0;
+                    nk_f32_t weights_sum = 0;
+                    for (nk_size_t position = key_begin; position < key_end; position++) {
+                        nk_f32_t const weight = nk_f32_exp2_serial_(
+                            nk_attention_score_mxfp4_serial_(
+                                query_row, query_row_scales,
+                                nk_attention_key_row_sme_(keys_plane, key_exponent, tile_dimension, depth, position,
+                                                          key_row),
+                                key_exponent, depth, scale2) -
+                            max2);
+                        nk_u8_t const *value_bytes = nk_attention_value_row_sme_(
+                            values_plane, value_exponent, tile_dimension, depth, position_count_padded / 2, position,
+                            value_row);
+                        weights_sum += weight;
+                        for (nk_size_t channel = 0; channel < depth; channel++)
+                            output_row[channel] += weight * nk_attention_plane_mxfp4_serial_(
+                                                                value_bytes, value_exponent, depth, channel);
+                    }
+                    nk_f32_t const inverse_sum = weights_sum > 0 ? 1 / weights_sum : 0;
+                    for (nk_size_t channel = 0; channel < depth; channel++)
+                        output_row[channel] = nk_scale_f32_serial_(output_row[channel] * inverse_sum, value_base);
+                    if (log_sum_exp)
+                        log_sum_exp[token * head_count + head_idx] = nk_attention_log_sum_exp_serial_(max2,
+                                                                                                      weights_sum);
+                }
+            }
+        }
+    }
+}
+
+/** @c nk_attention_pack_mxfp4_sme_streaming_ for MXFP6 E2M3, over the dots stager and decoder. */
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp6e2m3_sme_streaming_(                       //
+    nk_cross_operand_t keys, nk_cross_operand_t values, nk_size_t key_value_head_count, nk_size_t depth, //
+    nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,                   //
+    nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin,         //
+    nk_size_t tasks_end) NUMKONG_STREAMING_ {
+
+    nk_size_t const tile_dimension = svcntw();
+    nk_size_t const vector_elements = svcnth();
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
+    nk_size_t const depth_pairs = depth_padded / 2, row_bytes = depth_padded * sizeof(nk_u16_t);
+    nk_size_t const blocks = depth / 32, codes_bytes = depth;
+
+    char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
+                         nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                 key_value_head_count, vector_elements, row_bytes,
+                                                                 key_offsets, key_lengths, segment_count);
+
+    nk_size_t const total_tasks = segment_count * key_value_head_count;
+    nk_size_t const plane_exponents_size = nk_attention_plane_exponents_size_serial_(key_value_head_count,
+                                                                                     segment_count);
+    if (tasks_begin == 0)
+        for (nk_size_t entry = 2 * total_tasks; entry < plane_exponents_size; entry++) plane_exponents[entry] = 0;
+    if (tasks_begin >= total_tasks) return;
+    if (tasks_end > total_tasks) tasks_end = total_tasks;
+
+    nk_i32_t bases[nk_attention_max_tile_sme_k_];
+    nk_size_t payload_segment = 0;
+    nk_u64_t payload_offset = 0;
+    for (nk_size_t task_idx = tasks_begin; task_idx < tasks_end; task_idx++) {
+        nk_size_t const segment_idx = task_idx / key_value_head_count,
+                        key_value_head_idx = task_idx % key_value_head_count;
+        for (; payload_segment < segment_idx; payload_segment++)
+            payload_offset += nk_attention_pack_segment_bytes_serial_(
+                nk_attention_pack_key_count_serial_(key_offsets, key_lengths, payload_segment), key_value_head_count,
+                vector_elements, row_bytes);
+        nk_size_t const position_count = nk_attention_pack_key_count_serial_(key_offsets, key_lengths, segment_idx);
+        nk_size_t const position_first = key_offsets[segment_idx];
+        nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, vector_elements);
+        nk_size_t const plane_bytes = position_count_padded * row_bytes;
+        nk_u16_t *keys_plane = (nk_u16_t *)(payload_base + payload_offset + key_value_head_idx * plane_bytes);
+        nk_u16_t *values_plane = (nk_u16_t *)(payload_base + payload_offset +
+                                              (key_value_head_count + key_value_head_idx) * plane_bytes);
+        nk_u8_t const *key_scales = keys.scales + position_first * keys.scales_stride + key_value_head_idx * blocks;
+        nk_u8_t const *value_scales = values.scales + position_first * values.scales_stride +
+                                      key_value_head_idx * blocks;
+        nk_i8_t const key_exponent = nk_attention_plane_exponent_ue8m0_serial_(key_scales, keys.scales_stride,
+                                                                               position_count, blocks);
+        nk_i8_t const value_exponent = nk_attention_plane_exponent_ue8m0_serial_(value_scales, values.scales_stride,
+                                                                                 position_count, blocks);
+        plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx] = key_exponent;
+        plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx] = value_exponent;
+
+        if (key_exponent == nk_attention_raw_plane_k_)
+            nk_attention_raw_plane_sme_streaming_(
+                (nk_u8_t const *)keys.elements + position_first * key_stride + key_value_head_idx * codes_bytes,
+                key_stride, key_scales, keys.scales_stride, codes_bytes, blocks, position_count, position_count_padded,
+                row_bytes, (nk_u8_t *)keys_plane);
+        else {
+            nk_i32_t const key_base = nk_attention_plane_base_serial_(key_exponent);
+            for (nk_size_t lane_idx = 0; lane_idx < tile_dimension; lane_idx++) bases[lane_idx] = key_base;
+            // Fully padded tiles still run and store the zeros the score stage expects
+            for (nk_size_t position_tile_idx = 0; position_tile_idx < position_count_padded / tile_dimension;
+                 position_tile_idx++) {
+                nk_size_t const position_start = position_tile_idx * tile_dimension;
+                nk_size_t const rows_to_pack = position_start >= position_count ? 0
+                                               : position_count - position_start < tile_dimension
+                                                   ? position_count - position_start
+                                                   : tile_dimension;
+                nk_stage_panel_mxfp6e2m3_sme_(keys, key_stride, position_first + position_start, rows_to_pack,
+                                              key_value_head_idx * depth, depth, bases,
+                                              keys_plane + position_tile_idx * depth_pairs * vector_elements);
+            }
+        }
+
+        if (value_exponent == nk_attention_raw_plane_k_)
+            nk_attention_raw_plane_sme_streaming_(
+                (nk_u8_t const *)values.elements + position_first * value_stride + key_value_head_idx * codes_bytes,
+                value_stride, value_scales, values.scales_stride, codes_bytes, blocks, position_count,
+                position_count_padded, row_bytes, (nk_u8_t *)values_plane);
+        else {
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+            for (nk_size_t channel_tile_idx = 0; channel_tile_idx < depth_padded / tile_dimension; channel_tile_idx++) {
+                nk_size_t const channel_start = channel_tile_idx * tile_dimension;
+                nk_size_t const channels = depth - channel_start < tile_dimension ? depth - channel_start
+                                                                                  : tile_dimension;
+                nk_size_t const channel_first = key_value_head_idx * depth + channel_start;
+                nk_u16_t *tile_output = values_plane + channel_tile_idx * (position_count_padded / 2) * vector_elements;
+                for (nk_size_t position_pair_idx = 0; position_pair_idx < position_count_padded / 2;
+                     position_pair_idx++) {
+                    nk_size_t const position_even = position_pair_idx * 2, position_odd = position_even + 1;
+                    svuint16_t even_u16x = svdup_u16(0), odd_u16x = svdup_u16(0);
+                    if (position_even < position_count) {
+                        nk_size_t const row = position_first + position_even;
+                        even_u16x = nk_decode_row_mxfp6e2m3_sme_((nk_u8_t const *)values.elements + row * value_stride,
+                                                                 values.scales + row * values.scales_stride,
+                                                                 channel_first, channels, value_base);
+                    }
+                    if (position_odd < position_count) {
+                        nk_size_t const row = position_first + position_odd;
+                        odd_u16x = nk_decode_row_mxfp6e2m3_sme_((nk_u8_t const *)values.elements + row * value_stride,
+                                                                values.scales + row * values.scales_stride,
+                                                                channel_first, channels, value_base);
+                    }
+                    svst1_u16(svptrue_b16(), tile_output + position_pair_idx * vector_elements,
+                              svzip1_u16(even_u16x, odd_u16x));
+                }
+            }
+        }
+    }
+}
+
+/** @c nk_attention_packed_mxfp4_sme_streaming_ for MXFP6 E2M3, over the dots stager. */
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp6e2m3_sme_streaming_(                   //
+    nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
+    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
+    nk_diagonal_band_t band, nk_size_t tasks_begin, nk_size_t tasks_end) NUMKONG_STREAMING_ {
+
+    nk_size_t const tile_dimension = svcntw();
+    nk_size_t const vector_elements = svcnth();
+    nk_size_t const block_rows_capacity = 2 * tile_dimension;
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
+    nk_size_t const row_bytes = depth_padded * sizeof(nk_u16_t), blocks = depth / 32;
+
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
+    nk_assert_(header->depth == depth && header->key_value_head_count == key_value_head_count &&
+               key_value_head_count != 0 && head_count % key_value_head_count == 0 && depth % 32 == 0);
+    nk_size_t const segment_count = header->segments;
+    nk_u64_t const *payload_offsets = nk_attention_packed_payload_offsets_serial_(key_value_packed);
+    nk_u32_t const *key_offsets = nk_attention_packed_key_offsets_serial_(key_value_packed, segment_count);
+    nk_u32_t const *key_lengths = nk_attention_packed_key_lengths_serial_(key_value_packed, segment_count);
+    char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
+                               nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, vector_elements,
+                                                                                 row_bytes, key_offsets, key_lengths,
+                                                                                 segment_count);
+    nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
+    nk_size_t const head_group_size = head_count / key_value_head_count;
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+
+    nk_align_(64) nk_u16_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 2) * 2 * nk_attention_max_tile_sme_k_];
+    nk_i32_t bases[nk_attention_max_tile_sme_k_];
+
+    for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
+        nk_size_t const key_value_head_idx = head_idx / head_group_size;
+        for (nk_size_t segment_idx = nk_attention_segment_of_serial_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = key_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_serial_(query_end - query_first,
+                                                                                position_count);
+            nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, vector_elements);
+            nk_size_t const plane_bytes = position_count_padded * row_bytes;
+            nk_u16_t const *keys_plane = (nk_u16_t const *)(payload_base + payload_offsets[segment_idx] +
+                                                            key_value_head_idx * plane_bytes);
+            nk_u16_t const *values_plane = (nk_u16_t const *)(payload_base + payload_offsets[segment_idx] +
+                                                              (key_value_head_count + key_value_head_idx) *
+                                                                  plane_bytes);
+            nk_i8_t const key_exponent = plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx];
+            nk_i8_t const value_exponent =
+                plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx];
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+
+            nk_size_t const row_count = query_end - query_first;
+            for (nk_size_t row_block_start = row_begin / block_rows_capacity * block_rows_capacity;
+                 row_block_start < row_end; row_block_start += block_rows_capacity) {
+                nk_size_t const block_rows = (row_count - row_block_start < block_rows_capacity)
+                                                 ? row_count - row_block_start
+                                                 : block_rows_capacity;
+                nk_size_t const block_token = query_first + row_block_start;
+                nk_i32_t query_base = 0;
+                nk_f32_t const block_scale2 = nk_attention_block_scale2_sme_(
+                    queries.scales + block_token * queries.scales_stride + head_idx * blocks, queries.scales_stride,
+                    block_rows, blocks, key_exponent, value_exponent, scale2, &query_base);
+                if (block_scale2 == 0) continue;
+                for (nk_size_t lane_idx = 0; lane_idx < tile_dimension; lane_idx++) bases[lane_idx] = query_base;
+                for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++) {
+                    nk_size_t const tile_row_start = row_tile_idx * tile_dimension;
+                    nk_size_t const rows_to_stage = block_rows <= tile_row_start ? 0
+                                                    : block_rows - tile_row_start < tile_dimension
+                                                        ? block_rows - tile_row_start
+                                                        : tile_dimension;
+                    nk_stage_panel_mxfp6e2m3_sme_(queries, query_stride, block_token + tile_row_start, rows_to_stage,
+                                                  head_idx * depth, depth, bases, queries_packed[row_tile_idx]);
+                }
+                nk_attention_block_bf16_sme_streaming_(
+                    queries_packed[0], queries_packed[1], keys_plane, values_plane, depth, position_count, band,
+                    first_position + (nk_i64_t)row_block_start, block_rows,
+                    row_begin > row_block_start ? row_begin - row_block_start : 0, row_end - row_block_start,
+                    block_scale2, 1.0f, value_base, output + block_token * output_stride_floats + head_idx * depth,
+                    output_stride_floats,
+                    log_sum_exp ? log_sum_exp + block_token * head_count + head_idx : NUMKONG_NULL, head_count);
+            }
+        }
+    }
+}
+
+/** @c nk_attention_packed_exact_mxfp4_sme_ for MXFP6 E2M3. */
+NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp6e2m3_sme_(                                       //
+    nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
+    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
+    nk_diagonal_band_t band, nk_size_t tile_dimension, nk_size_t tasks_begin, nk_size_t tasks_end) {
+
+    nk_size_t const block_rows_capacity = 2 * tile_dimension;
+    nk_size_t const row_bytes = depth * sizeof(nk_bf16_t), blocks = depth / 32;
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
+    nk_size_t const segment_count = header->segments;
+    nk_u64_t const *payload_offsets = nk_attention_packed_payload_offsets_serial_(key_value_packed);
+    nk_u32_t const *key_offsets = nk_attention_packed_key_offsets_serial_(key_value_packed, segment_count);
+    nk_u32_t const *key_lengths = nk_attention_packed_key_lengths_serial_(key_value_packed, segment_count);
+    char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
+                               nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                             key_value_head_count, block_rows_capacity,
+                                                                             row_bytes, key_offsets, key_lengths,
+                                                                             segment_count);
+    nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
+    nk_size_t const head_group_size = head_count / key_value_head_count;
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+
+    nk_align_(64) nk_f32_t key_row[nk_attention_max_depth_sme_k_];
+    nk_align_(64) nk_f32_t value_row[nk_attention_max_depth_sme_k_];
+
+    for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
+        nk_size_t const key_value_head_idx = head_idx / head_group_size;
+        for (nk_size_t segment_idx = nk_attention_segment_of_serial_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = key_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_serial_(query_end - query_first,
+                                                                                position_count);
+            nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, block_rows_capacity);
+            nk_size_t const plane_bytes = position_count_padded * row_bytes;
+            char const *keys_plane = payload_base + payload_offsets[segment_idx] + key_value_head_idx * plane_bytes;
+            char const *values_plane = payload_base + payload_offsets[segment_idx] +
+                                       (key_value_head_count + key_value_head_idx) * plane_bytes;
+            nk_i8_t const key_exponent = plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx];
+            nk_i8_t const value_exponent =
+                plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx];
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+
+            nk_size_t const row_count = query_end - query_first;
+            for (nk_size_t row_block_start = row_begin / block_rows_capacity * block_rows_capacity;
+                 row_block_start < row_end; row_block_start += block_rows_capacity) {
+                nk_size_t const block_rows = (row_count - row_block_start < block_rows_capacity)
+                                                 ? row_count - row_block_start
+                                                 : block_rows_capacity;
+                nk_i32_t block_base = 0;
+                if (nk_attention_block_scale2_sme_(
+                        queries.scales + (query_first + row_block_start) * queries.scales_stride + head_idx * blocks,
+                        queries.scales_stride, block_rows, blocks, key_exponent, value_exponent, scale2,
+                        &block_base) != 0)
+                    continue;
+                nk_size_t const block_end = row_block_start + block_rows < row_end ? row_block_start + block_rows
+                                                                                   : row_end;
+                for (nk_size_t row = row_begin > row_block_start ? row_begin : row_block_start; row < block_end;
+                     row++) {
+                    nk_size_t const token = query_first + row;
+                    nk_u8_t const *query_row = (nk_u8_t const *)queries.elements + token * query_stride +
+                                               head_idx * depth;
+                    nk_u8_t const *query_row_scales = queries.scales + token * queries.scales_stride +
+                                                      head_idx * blocks;
+                    nk_f32_t *output_row = output + token * output_stride_floats + head_idx * depth;
+                    nk_size_t key_begin, key_end;
+                    nk_diagonal_band_row_range_(band, first_position + (nk_i64_t)row, position_count, &key_begin,
+                                                &key_end);
+
+                    nk_f32_t max2 = NUMKONG_F32_MIN;
+                    for (nk_size_t position = key_begin; position < key_end; position++) {
+                        nk_f32_t const scaled2 = nk_attention_score_mxfp6e2m3_serial_(
+                            query_row, query_row_scales,
+                            nk_attention_key_row_sme_(keys_plane, key_exponent, tile_dimension, depth, position,
+                                                      key_row),
+                            key_exponent, depth, scale2);
+                        if (scaled2 > max2) max2 = scaled2;
+                    }
+                    for (nk_size_t channel = 0; channel < depth; channel++) output_row[channel] = 0;
+                    nk_f32_t weights_sum = 0;
+                    for (nk_size_t position = key_begin; position < key_end; position++) {
+                        nk_f32_t const weight = nk_f32_exp2_serial_(
+                            nk_attention_score_mxfp6e2m3_serial_(
+                                query_row, query_row_scales,
+                                nk_attention_key_row_sme_(keys_plane, key_exponent, tile_dimension, depth, position,
+                                                          key_row),
+                                key_exponent, depth, scale2) -
+                            max2);
+                        nk_u8_t const *value_bytes = nk_attention_value_row_sme_(
+                            values_plane, value_exponent, tile_dimension, depth, position_count_padded / 2, position,
+                            value_row);
+                        weights_sum += weight;
+                        for (nk_size_t channel = 0; channel < depth; channel++)
+                            output_row[channel] += weight * nk_attention_plane_mxfp6e2m3_serial_(
+                                                                value_bytes, value_exponent, depth, channel);
+                    }
+                    nk_f32_t const inverse_sum = weights_sum > 0 ? 1 / weights_sum : 0;
+                    for (nk_size_t channel = 0; channel < depth; channel++)
+                        output_row[channel] = nk_scale_f32_serial_(output_row[channel] * inverse_sum, value_base);
+                    if (log_sum_exp)
+                        log_sum_exp[token * head_count + head_idx] = nk_attention_log_sum_exp_serial_(max2,
+                                                                                                      weights_sum);
+                }
+            }
+        }
+    }
+}
+
+/** @c nk_attention_pack_mxfp4_sme_streaming_ for MXFP6 E3M2, over the dots stager and decoder. */
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp6e3m2_sme_streaming_(                       //
+    nk_cross_operand_t keys, nk_cross_operand_t values, nk_size_t key_value_head_count, nk_size_t depth, //
+    nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,                   //
+    nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin,         //
+    nk_size_t tasks_end) NUMKONG_STREAMING_ {
+
+    nk_size_t const tile_dimension = svcntw();
+    nk_size_t const vector_elements = svcnth();
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
+    nk_size_t const depth_pairs = depth_padded / 2, row_bytes = depth_padded * sizeof(nk_u16_t);
+    nk_size_t const blocks = depth / 32, codes_bytes = depth;
+
+    char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
+                         nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                 key_value_head_count, vector_elements, row_bytes,
+                                                                 key_offsets, key_lengths, segment_count);
+
+    nk_size_t const total_tasks = segment_count * key_value_head_count;
+    nk_size_t const plane_exponents_size = nk_attention_plane_exponents_size_serial_(key_value_head_count,
+                                                                                     segment_count);
+    if (tasks_begin == 0)
+        for (nk_size_t entry = 2 * total_tasks; entry < plane_exponents_size; entry++) plane_exponents[entry] = 0;
+    if (tasks_begin >= total_tasks) return;
+    if (tasks_end > total_tasks) tasks_end = total_tasks;
+
+    nk_i32_t bases[nk_attention_max_tile_sme_k_];
+    nk_size_t payload_segment = 0;
+    nk_u64_t payload_offset = 0;
+    for (nk_size_t task_idx = tasks_begin; task_idx < tasks_end; task_idx++) {
+        nk_size_t const segment_idx = task_idx / key_value_head_count,
+                        key_value_head_idx = task_idx % key_value_head_count;
+        for (; payload_segment < segment_idx; payload_segment++)
+            payload_offset += nk_attention_pack_segment_bytes_serial_(
+                nk_attention_pack_key_count_serial_(key_offsets, key_lengths, payload_segment), key_value_head_count,
+                vector_elements, row_bytes);
+        nk_size_t const position_count = nk_attention_pack_key_count_serial_(key_offsets, key_lengths, segment_idx);
+        nk_size_t const position_first = key_offsets[segment_idx];
+        nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, vector_elements);
+        nk_size_t const plane_bytes = position_count_padded * row_bytes;
+        nk_u16_t *keys_plane = (nk_u16_t *)(payload_base + payload_offset + key_value_head_idx * plane_bytes);
+        nk_u16_t *values_plane = (nk_u16_t *)(payload_base + payload_offset +
+                                              (key_value_head_count + key_value_head_idx) * plane_bytes);
+        nk_u8_t const *key_scales = keys.scales + position_first * keys.scales_stride + key_value_head_idx * blocks;
+        nk_u8_t const *value_scales = values.scales + position_first * values.scales_stride +
+                                      key_value_head_idx * blocks;
+        nk_i8_t const key_exponent = nk_attention_plane_exponent_ue8m0_serial_(key_scales, keys.scales_stride,
+                                                                               position_count, blocks);
+        nk_i8_t const value_exponent = nk_attention_plane_exponent_ue8m0_serial_(value_scales, values.scales_stride,
+                                                                                 position_count, blocks);
+        plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx] = key_exponent;
+        plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx] = value_exponent;
+
+        if (key_exponent == nk_attention_raw_plane_k_)
+            nk_attention_raw_plane_sme_streaming_(
+                (nk_u8_t const *)keys.elements + position_first * key_stride + key_value_head_idx * codes_bytes,
+                key_stride, key_scales, keys.scales_stride, codes_bytes, blocks, position_count, position_count_padded,
+                row_bytes, (nk_u8_t *)keys_plane);
+        else {
+            nk_i32_t const key_base = nk_attention_plane_base_serial_(key_exponent);
+            for (nk_size_t lane_idx = 0; lane_idx < tile_dimension; lane_idx++) bases[lane_idx] = key_base;
+            // Fully padded tiles still run and store the zeros the score stage expects
+            for (nk_size_t position_tile_idx = 0; position_tile_idx < position_count_padded / tile_dimension;
+                 position_tile_idx++) {
+                nk_size_t const position_start = position_tile_idx * tile_dimension;
+                nk_size_t const rows_to_pack = position_start >= position_count ? 0
+                                               : position_count - position_start < tile_dimension
+                                                   ? position_count - position_start
+                                                   : tile_dimension;
+                nk_stage_panel_mxfp6e3m2_sme_(keys, key_stride, position_first + position_start, rows_to_pack,
+                                              key_value_head_idx * depth, depth, bases,
+                                              keys_plane + position_tile_idx * depth_pairs * vector_elements);
+            }
+        }
+
+        if (value_exponent == nk_attention_raw_plane_k_)
+            nk_attention_raw_plane_sme_streaming_(
+                (nk_u8_t const *)values.elements + position_first * value_stride + key_value_head_idx * codes_bytes,
+                value_stride, value_scales, values.scales_stride, codes_bytes, blocks, position_count,
+                position_count_padded, row_bytes, (nk_u8_t *)values_plane);
+        else {
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+            for (nk_size_t channel_tile_idx = 0; channel_tile_idx < depth_padded / tile_dimension; channel_tile_idx++) {
+                nk_size_t const channel_start = channel_tile_idx * tile_dimension;
+                nk_size_t const channels = depth - channel_start < tile_dimension ? depth - channel_start
+                                                                                  : tile_dimension;
+                nk_size_t const channel_first = key_value_head_idx * depth + channel_start;
+                nk_u16_t *tile_output = values_plane + channel_tile_idx * (position_count_padded / 2) * vector_elements;
+                for (nk_size_t position_pair_idx = 0; position_pair_idx < position_count_padded / 2;
+                     position_pair_idx++) {
+                    nk_size_t const position_even = position_pair_idx * 2, position_odd = position_even + 1;
+                    svuint16_t even_u16x = svdup_u16(0), odd_u16x = svdup_u16(0);
+                    if (position_even < position_count) {
+                        nk_size_t const row = position_first + position_even;
+                        even_u16x = nk_decode_row_mxfp6e3m2_sme_((nk_u8_t const *)values.elements + row * value_stride,
+                                                                 values.scales + row * values.scales_stride,
+                                                                 channel_first, channels, value_base);
+                    }
+                    if (position_odd < position_count) {
+                        nk_size_t const row = position_first + position_odd;
+                        odd_u16x = nk_decode_row_mxfp6e3m2_sme_((nk_u8_t const *)values.elements + row * value_stride,
+                                                                values.scales + row * values.scales_stride,
+                                                                channel_first, channels, value_base);
+                    }
+                    svst1_u16(svptrue_b16(), tile_output + position_pair_idx * vector_elements,
+                              svzip1_u16(even_u16x, odd_u16x));
+                }
+            }
+        }
+    }
+}
+
+/** @c nk_attention_packed_mxfp4_sme_streaming_ for MXFP6 E3M2, over the dots stager. */
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp6e3m2_sme_streaming_(                   //
+    nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
+    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
+    nk_diagonal_band_t band, nk_size_t tasks_begin, nk_size_t tasks_end) NUMKONG_STREAMING_ {
+
+    nk_size_t const tile_dimension = svcntw();
+    nk_size_t const vector_elements = svcnth();
+    nk_size_t const block_rows_capacity = 2 * tile_dimension;
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
+    nk_size_t const row_bytes = depth_padded * sizeof(nk_u16_t), blocks = depth / 32;
+
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
+    nk_assert_(header->depth == depth && header->key_value_head_count == key_value_head_count &&
+               key_value_head_count != 0 && head_count % key_value_head_count == 0 && depth % 32 == 0);
+    nk_size_t const segment_count = header->segments;
+    nk_u64_t const *payload_offsets = nk_attention_packed_payload_offsets_serial_(key_value_packed);
+    nk_u32_t const *key_offsets = nk_attention_packed_key_offsets_serial_(key_value_packed, segment_count);
+    nk_u32_t const *key_lengths = nk_attention_packed_key_lengths_serial_(key_value_packed, segment_count);
+    char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
+                               nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, vector_elements,
+                                                                                 row_bytes, key_offsets, key_lengths,
+                                                                                 segment_count);
+    nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
+    nk_size_t const head_group_size = head_count / key_value_head_count;
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+
+    nk_align_(64) nk_u16_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 2) * 2 * nk_attention_max_tile_sme_k_];
+    nk_i32_t bases[nk_attention_max_tile_sme_k_];
+
+    for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
+        nk_size_t const key_value_head_idx = head_idx / head_group_size;
+        for (nk_size_t segment_idx = nk_attention_segment_of_serial_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = key_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_serial_(query_end - query_first,
+                                                                                position_count);
+            nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, vector_elements);
+            nk_size_t const plane_bytes = position_count_padded * row_bytes;
+            nk_u16_t const *keys_plane = (nk_u16_t const *)(payload_base + payload_offsets[segment_idx] +
+                                                            key_value_head_idx * plane_bytes);
+            nk_u16_t const *values_plane = (nk_u16_t const *)(payload_base + payload_offsets[segment_idx] +
+                                                              (key_value_head_count + key_value_head_idx) *
+                                                                  plane_bytes);
+            nk_i8_t const key_exponent = plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx];
+            nk_i8_t const value_exponent =
+                plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx];
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+
+            nk_size_t const row_count = query_end - query_first;
+            for (nk_size_t row_block_start = row_begin / block_rows_capacity * block_rows_capacity;
+                 row_block_start < row_end; row_block_start += block_rows_capacity) {
+                nk_size_t const block_rows = (row_count - row_block_start < block_rows_capacity)
+                                                 ? row_count - row_block_start
+                                                 : block_rows_capacity;
+                nk_size_t const block_token = query_first + row_block_start;
+                nk_i32_t query_base = 0;
+                nk_f32_t const block_scale2 = nk_attention_block_scale2_sme_(
+                    queries.scales + block_token * queries.scales_stride + head_idx * blocks, queries.scales_stride,
+                    block_rows, blocks, key_exponent, value_exponent, scale2, &query_base);
+                if (block_scale2 == 0) continue;
+                for (nk_size_t lane_idx = 0; lane_idx < tile_dimension; lane_idx++) bases[lane_idx] = query_base;
+                for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++) {
+                    nk_size_t const tile_row_start = row_tile_idx * tile_dimension;
+                    nk_size_t const rows_to_stage = block_rows <= tile_row_start ? 0
+                                                    : block_rows - tile_row_start < tile_dimension
+                                                        ? block_rows - tile_row_start
+                                                        : tile_dimension;
+                    nk_stage_panel_mxfp6e3m2_sme_(queries, query_stride, block_token + tile_row_start, rows_to_stage,
+                                                  head_idx * depth, depth, bases, queries_packed[row_tile_idx]);
+                }
+                nk_attention_block_bf16_sme_streaming_(
+                    queries_packed[0], queries_packed[1], keys_plane, values_plane, depth, position_count, band,
+                    first_position + (nk_i64_t)row_block_start, block_rows,
+                    row_begin > row_block_start ? row_begin - row_block_start : 0, row_end - row_block_start,
+                    block_scale2, 1.0f, value_base, output + block_token * output_stride_floats + head_idx * depth,
+                    output_stride_floats,
+                    log_sum_exp ? log_sum_exp + block_token * head_count + head_idx : NUMKONG_NULL, head_count);
+            }
+        }
+    }
+}
+
+/** @c nk_attention_packed_exact_mxfp4_sme_ for MXFP6 E3M2. */
+NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp6e3m2_sme_(                                       //
+    nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
+    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
+    nk_diagonal_band_t band, nk_size_t tile_dimension, nk_size_t tasks_begin, nk_size_t tasks_end) {
+
+    nk_size_t const block_rows_capacity = 2 * tile_dimension;
+    nk_size_t const row_bytes = depth * sizeof(nk_bf16_t), blocks = depth / 32;
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
+    nk_size_t const segment_count = header->segments;
+    nk_u64_t const *payload_offsets = nk_attention_packed_payload_offsets_serial_(key_value_packed);
+    nk_u32_t const *key_offsets = nk_attention_packed_key_offsets_serial_(key_value_packed, segment_count);
+    nk_u32_t const *key_lengths = nk_attention_packed_key_lengths_serial_(key_value_packed, segment_count);
+    char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
+                               nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                             key_value_head_count, block_rows_capacity,
+                                                                             row_bytes, key_offsets, key_lengths,
+                                                                             segment_count);
+    nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
+    nk_size_t const head_group_size = head_count / key_value_head_count;
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+
+    nk_align_(64) nk_f32_t key_row[nk_attention_max_depth_sme_k_];
+    nk_align_(64) nk_f32_t value_row[nk_attention_max_depth_sme_k_];
+
+    for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
+        nk_size_t const key_value_head_idx = head_idx / head_group_size;
+        for (nk_size_t segment_idx = nk_attention_segment_of_serial_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = key_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_serial_(query_end - query_first,
+                                                                                position_count);
+            nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, block_rows_capacity);
+            nk_size_t const plane_bytes = position_count_padded * row_bytes;
+            char const *keys_plane = payload_base + payload_offsets[segment_idx] + key_value_head_idx * plane_bytes;
+            char const *values_plane = payload_base + payload_offsets[segment_idx] +
+                                       (key_value_head_count + key_value_head_idx) * plane_bytes;
+            nk_i8_t const key_exponent = plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx];
+            nk_i8_t const value_exponent =
+                plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx];
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+
+            nk_size_t const row_count = query_end - query_first;
+            for (nk_size_t row_block_start = row_begin / block_rows_capacity * block_rows_capacity;
+                 row_block_start < row_end; row_block_start += block_rows_capacity) {
+                nk_size_t const block_rows = (row_count - row_block_start < block_rows_capacity)
+                                                 ? row_count - row_block_start
+                                                 : block_rows_capacity;
+                nk_i32_t block_base = 0;
+                if (nk_attention_block_scale2_sme_(
+                        queries.scales + (query_first + row_block_start) * queries.scales_stride + head_idx * blocks,
+                        queries.scales_stride, block_rows, blocks, key_exponent, value_exponent, scale2,
+                        &block_base) != 0)
+                    continue;
+                nk_size_t const block_end = row_block_start + block_rows < row_end ? row_block_start + block_rows
+                                                                                   : row_end;
+                for (nk_size_t row = row_begin > row_block_start ? row_begin : row_block_start; row < block_end;
+                     row++) {
+                    nk_size_t const token = query_first + row;
+                    nk_u8_t const *query_row = (nk_u8_t const *)queries.elements + token * query_stride +
+                                               head_idx * depth;
+                    nk_u8_t const *query_row_scales = queries.scales + token * queries.scales_stride +
+                                                      head_idx * blocks;
+                    nk_f32_t *output_row = output + token * output_stride_floats + head_idx * depth;
+                    nk_size_t key_begin, key_end;
+                    nk_diagonal_band_row_range_(band, first_position + (nk_i64_t)row, position_count, &key_begin,
+                                                &key_end);
+
+                    nk_f32_t max2 = NUMKONG_F32_MIN;
+                    for (nk_size_t position = key_begin; position < key_end; position++) {
+                        nk_f32_t const scaled2 = nk_attention_score_mxfp6e3m2_serial_(
+                            query_row, query_row_scales,
+                            nk_attention_key_row_sme_(keys_plane, key_exponent, tile_dimension, depth, position,
+                                                      key_row),
+                            key_exponent, depth, scale2);
+                        if (scaled2 > max2) max2 = scaled2;
+                    }
+                    for (nk_size_t channel = 0; channel < depth; channel++) output_row[channel] = 0;
+                    nk_f32_t weights_sum = 0;
+                    for (nk_size_t position = key_begin; position < key_end; position++) {
+                        nk_f32_t const weight = nk_f32_exp2_serial_(
+                            nk_attention_score_mxfp6e3m2_serial_(
+                                query_row, query_row_scales,
+                                nk_attention_key_row_sme_(keys_plane, key_exponent, tile_dimension, depth, position,
+                                                          key_row),
+                                key_exponent, depth, scale2) -
+                            max2);
+                        nk_u8_t const *value_bytes = nk_attention_value_row_sme_(
+                            values_plane, value_exponent, tile_dimension, depth, position_count_padded / 2, position,
+                            value_row);
+                        weights_sum += weight;
+                        for (nk_size_t channel = 0; channel < depth; channel++)
+                            output_row[channel] += weight * nk_attention_plane_mxfp6e3m2_serial_(
+                                                                value_bytes, value_exponent, depth, channel);
+                    }
+                    nk_f32_t const inverse_sum = weights_sum > 0 ? 1 / weights_sum : 0;
+                    for (nk_size_t channel = 0; channel < depth; channel++)
+                        output_row[channel] = nk_scale_f32_serial_(output_row[channel] * inverse_sum, value_base);
+                    if (log_sum_exp)
+                        log_sum_exp[token * head_count + head_idx] = nk_attention_log_sum_exp_serial_(max2,
+                                                                                                      weights_sum);
+                }
+            }
+        }
+    }
+}
+
+/** @c nk_attention_pack_mxfp4_sme_streaming_ for MXFP8 E4M3, over the dots stager and decoder. */
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp8e4m3_sme_streaming_(                       //
+    nk_cross_operand_t keys, nk_cross_operand_t values, nk_size_t key_value_head_count, nk_size_t depth, //
+    nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,                   //
+    nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin,         //
+    nk_size_t tasks_end) NUMKONG_STREAMING_ {
+
+    nk_size_t const tile_dimension = svcntw();
+    nk_size_t const vector_elements = svcnth();
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
+    nk_size_t const depth_pairs = depth_padded / 2, row_bytes = depth_padded * sizeof(nk_u16_t);
+    nk_size_t const blocks = depth / 32, codes_bytes = depth;
+
+    char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
+                         nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                 key_value_head_count, vector_elements, row_bytes,
+                                                                 key_offsets, key_lengths, segment_count);
+
+    nk_size_t const total_tasks = segment_count * key_value_head_count;
+    nk_size_t const plane_exponents_size = nk_attention_plane_exponents_size_serial_(key_value_head_count,
+                                                                                     segment_count);
+    if (tasks_begin == 0)
+        for (nk_size_t entry = 2 * total_tasks; entry < plane_exponents_size; entry++) plane_exponents[entry] = 0;
+    if (tasks_begin >= total_tasks) return;
+    if (tasks_end > total_tasks) tasks_end = total_tasks;
+
+    nk_i32_t bases[nk_attention_max_tile_sme_k_];
+    nk_size_t payload_segment = 0;
+    nk_u64_t payload_offset = 0;
+    for (nk_size_t task_idx = tasks_begin; task_idx < tasks_end; task_idx++) {
+        nk_size_t const segment_idx = task_idx / key_value_head_count,
+                        key_value_head_idx = task_idx % key_value_head_count;
+        for (; payload_segment < segment_idx; payload_segment++)
+            payload_offset += nk_attention_pack_segment_bytes_serial_(
+                nk_attention_pack_key_count_serial_(key_offsets, key_lengths, payload_segment), key_value_head_count,
+                vector_elements, row_bytes);
+        nk_size_t const position_count = nk_attention_pack_key_count_serial_(key_offsets, key_lengths, segment_idx);
+        nk_size_t const position_first = key_offsets[segment_idx];
+        nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, vector_elements);
+        nk_size_t const plane_bytes = position_count_padded * row_bytes;
+        nk_u16_t *keys_plane = (nk_u16_t *)(payload_base + payload_offset + key_value_head_idx * plane_bytes);
+        nk_u16_t *values_plane = (nk_u16_t *)(payload_base + payload_offset +
+                                              (key_value_head_count + key_value_head_idx) * plane_bytes);
+        nk_u8_t const *key_scales = keys.scales + position_first * keys.scales_stride + key_value_head_idx * blocks;
+        nk_u8_t const *value_scales = values.scales + position_first * values.scales_stride +
+                                      key_value_head_idx * blocks;
+        nk_i8_t const key_exponent = nk_attention_plane_exponent_ue8m0_serial_(key_scales, keys.scales_stride,
+                                                                               position_count, blocks);
+        nk_i8_t const value_exponent = nk_attention_plane_exponent_ue8m0_serial_(value_scales, values.scales_stride,
+                                                                                 position_count, blocks);
+        plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx] = key_exponent;
+        plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx] = value_exponent;
+
+        if (key_exponent == nk_attention_raw_plane_k_)
+            nk_attention_raw_plane_sme_streaming_(
+                (nk_u8_t const *)keys.elements + position_first * key_stride + key_value_head_idx * codes_bytes,
+                key_stride, key_scales, keys.scales_stride, codes_bytes, blocks, position_count, position_count_padded,
+                row_bytes, (nk_u8_t *)keys_plane);
+        else {
+            nk_i32_t const key_base = nk_attention_plane_base_serial_(key_exponent);
+            for (nk_size_t lane_idx = 0; lane_idx < tile_dimension; lane_idx++) bases[lane_idx] = key_base;
+            // Fully padded tiles still run and store the zeros the score stage expects
+            for (nk_size_t position_tile_idx = 0; position_tile_idx < position_count_padded / tile_dimension;
+                 position_tile_idx++) {
+                nk_size_t const position_start = position_tile_idx * tile_dimension;
+                nk_size_t const rows_to_pack = position_start >= position_count ? 0
+                                               : position_count - position_start < tile_dimension
+                                                   ? position_count - position_start
+                                                   : tile_dimension;
+                nk_stage_panel_mxfp8e4m3_sme_(keys, key_stride, position_first + position_start, rows_to_pack,
+                                              key_value_head_idx * depth, depth, bases,
+                                              keys_plane + position_tile_idx * depth_pairs * vector_elements);
+            }
+        }
+
+        if (value_exponent == nk_attention_raw_plane_k_)
+            nk_attention_raw_plane_sme_streaming_(
+                (nk_u8_t const *)values.elements + position_first * value_stride + key_value_head_idx * codes_bytes,
+                value_stride, value_scales, values.scales_stride, codes_bytes, blocks, position_count,
+                position_count_padded, row_bytes, (nk_u8_t *)values_plane);
+        else {
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+            for (nk_size_t channel_tile_idx = 0; channel_tile_idx < depth_padded / tile_dimension; channel_tile_idx++) {
+                nk_size_t const channel_start = channel_tile_idx * tile_dimension;
+                nk_size_t const channels = depth - channel_start < tile_dimension ? depth - channel_start
+                                                                                  : tile_dimension;
+                nk_size_t const channel_first = key_value_head_idx * depth + channel_start;
+                nk_u16_t *tile_output = values_plane + channel_tile_idx * (position_count_padded / 2) * vector_elements;
+                for (nk_size_t position_pair_idx = 0; position_pair_idx < position_count_padded / 2;
+                     position_pair_idx++) {
+                    nk_size_t const position_even = position_pair_idx * 2, position_odd = position_even + 1;
+                    svuint16_t even_u16x = svdup_u16(0), odd_u16x = svdup_u16(0);
+                    if (position_even < position_count) {
+                        nk_size_t const row = position_first + position_even;
+                        even_u16x = nk_decode_row_mxfp8e4m3_sme_((nk_u8_t const *)values.elements + row * value_stride,
+                                                                 values.scales + row * values.scales_stride,
+                                                                 channel_first, channels, value_base);
+                    }
+                    if (position_odd < position_count) {
+                        nk_size_t const row = position_first + position_odd;
+                        odd_u16x = nk_decode_row_mxfp8e4m3_sme_((nk_u8_t const *)values.elements + row * value_stride,
+                                                                values.scales + row * values.scales_stride,
+                                                                channel_first, channels, value_base);
+                    }
+                    svst1_u16(svptrue_b16(), tile_output + position_pair_idx * vector_elements,
+                              svzip1_u16(even_u16x, odd_u16x));
+                }
+            }
+        }
+    }
+}
+
+/** @c nk_attention_packed_mxfp4_sme_streaming_ for MXFP8 E4M3, over the dots stager. */
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp8e4m3_sme_streaming_(                   //
+    nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
+    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
+    nk_diagonal_band_t band, nk_size_t tasks_begin, nk_size_t tasks_end) NUMKONG_STREAMING_ {
+
+    nk_size_t const tile_dimension = svcntw();
+    nk_size_t const vector_elements = svcnth();
+    nk_size_t const block_rows_capacity = 2 * tile_dimension;
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
+    nk_size_t const row_bytes = depth_padded * sizeof(nk_u16_t), blocks = depth / 32;
+
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
+    nk_assert_(header->depth == depth && header->key_value_head_count == key_value_head_count &&
+               key_value_head_count != 0 && head_count % key_value_head_count == 0 && depth % 32 == 0);
+    nk_size_t const segment_count = header->segments;
+    nk_u64_t const *payload_offsets = nk_attention_packed_payload_offsets_serial_(key_value_packed);
+    nk_u32_t const *key_offsets = nk_attention_packed_key_offsets_serial_(key_value_packed, segment_count);
+    nk_u32_t const *key_lengths = nk_attention_packed_key_lengths_serial_(key_value_packed, segment_count);
+    char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
+                               nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, vector_elements,
+                                                                                 row_bytes, key_offsets, key_lengths,
+                                                                                 segment_count);
+    nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
+    nk_size_t const head_group_size = head_count / key_value_head_count;
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+
+    nk_align_(64) nk_u16_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 2) * 2 * nk_attention_max_tile_sme_k_];
+    nk_i32_t bases[nk_attention_max_tile_sme_k_];
+
+    for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
+        nk_size_t const key_value_head_idx = head_idx / head_group_size;
+        for (nk_size_t segment_idx = nk_attention_segment_of_serial_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = key_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_serial_(query_end - query_first,
+                                                                                position_count);
+            nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, vector_elements);
+            nk_size_t const plane_bytes = position_count_padded * row_bytes;
+            nk_u16_t const *keys_plane = (nk_u16_t const *)(payload_base + payload_offsets[segment_idx] +
+                                                            key_value_head_idx * plane_bytes);
+            nk_u16_t const *values_plane = (nk_u16_t const *)(payload_base + payload_offsets[segment_idx] +
+                                                              (key_value_head_count + key_value_head_idx) *
+                                                                  plane_bytes);
+            nk_i8_t const key_exponent = plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx];
+            nk_i8_t const value_exponent =
+                plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx];
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+
+            nk_size_t const row_count = query_end - query_first;
+            for (nk_size_t row_block_start = row_begin / block_rows_capacity * block_rows_capacity;
+                 row_block_start < row_end; row_block_start += block_rows_capacity) {
+                nk_size_t const block_rows = (row_count - row_block_start < block_rows_capacity)
+                                                 ? row_count - row_block_start
+                                                 : block_rows_capacity;
+                nk_size_t const block_token = query_first + row_block_start;
+                nk_i32_t query_base = 0;
+                nk_f32_t const block_scale2 = nk_attention_block_scale2_sme_(
+                    queries.scales + block_token * queries.scales_stride + head_idx * blocks, queries.scales_stride,
+                    block_rows, blocks, key_exponent, value_exponent, scale2, &query_base);
+                if (block_scale2 == 0) continue;
+                for (nk_size_t lane_idx = 0; lane_idx < tile_dimension; lane_idx++) bases[lane_idx] = query_base;
+                for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++) {
+                    nk_size_t const tile_row_start = row_tile_idx * tile_dimension;
+                    nk_size_t const rows_to_stage = block_rows <= tile_row_start ? 0
+                                                    : block_rows - tile_row_start < tile_dimension
+                                                        ? block_rows - tile_row_start
+                                                        : tile_dimension;
+                    nk_stage_panel_mxfp8e4m3_sme_(queries, query_stride, block_token + tile_row_start, rows_to_stage,
+                                                  head_idx * depth, depth, bases, queries_packed[row_tile_idx]);
+                }
+                nk_attention_block_bf16_sme_streaming_(
+                    queries_packed[0], queries_packed[1], keys_plane, values_plane, depth, position_count, band,
+                    first_position + (nk_i64_t)row_block_start, block_rows,
+                    row_begin > row_block_start ? row_begin - row_block_start : 0, row_end - row_block_start,
+                    block_scale2, 1.0f, value_base, output + block_token * output_stride_floats + head_idx * depth,
+                    output_stride_floats,
+                    log_sum_exp ? log_sum_exp + block_token * head_count + head_idx : NUMKONG_NULL, head_count);
+            }
+        }
+    }
+}
+
+/** @c nk_attention_packed_exact_mxfp4_sme_ for MXFP8 E4M3. */
+NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp8e4m3_sme_(                                       //
+    nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
+    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
+    nk_diagonal_band_t band, nk_size_t tile_dimension, nk_size_t tasks_begin, nk_size_t tasks_end) {
+
+    nk_size_t const block_rows_capacity = 2 * tile_dimension;
+    nk_size_t const row_bytes = depth * sizeof(nk_bf16_t), blocks = depth / 32;
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
+    nk_size_t const segment_count = header->segments;
+    nk_u64_t const *payload_offsets = nk_attention_packed_payload_offsets_serial_(key_value_packed);
+    nk_u32_t const *key_offsets = nk_attention_packed_key_offsets_serial_(key_value_packed, segment_count);
+    nk_u32_t const *key_lengths = nk_attention_packed_key_lengths_serial_(key_value_packed, segment_count);
+    char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
+                               nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                             key_value_head_count, block_rows_capacity,
+                                                                             row_bytes, key_offsets, key_lengths,
+                                                                             segment_count);
+    nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
+    nk_size_t const head_group_size = head_count / key_value_head_count;
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+
+    nk_align_(64) nk_f32_t key_row[nk_attention_max_depth_sme_k_];
+    nk_align_(64) nk_f32_t value_row[nk_attention_max_depth_sme_k_];
+
+    for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
+        nk_size_t const key_value_head_idx = head_idx / head_group_size;
+        for (nk_size_t segment_idx = nk_attention_segment_of_serial_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = key_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_serial_(query_end - query_first,
+                                                                                position_count);
+            nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, block_rows_capacity);
+            nk_size_t const plane_bytes = position_count_padded * row_bytes;
+            char const *keys_plane = payload_base + payload_offsets[segment_idx] + key_value_head_idx * plane_bytes;
+            char const *values_plane = payload_base + payload_offsets[segment_idx] +
+                                       (key_value_head_count + key_value_head_idx) * plane_bytes;
+            nk_i8_t const key_exponent = plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx];
+            nk_i8_t const value_exponent =
+                plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx];
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+
+            nk_size_t const row_count = query_end - query_first;
+            for (nk_size_t row_block_start = row_begin / block_rows_capacity * block_rows_capacity;
+                 row_block_start < row_end; row_block_start += block_rows_capacity) {
+                nk_size_t const block_rows = (row_count - row_block_start < block_rows_capacity)
+                                                 ? row_count - row_block_start
+                                                 : block_rows_capacity;
+                nk_i32_t block_base = 0;
+                if (nk_attention_block_scale2_sme_(
+                        queries.scales + (query_first + row_block_start) * queries.scales_stride + head_idx * blocks,
+                        queries.scales_stride, block_rows, blocks, key_exponent, value_exponent, scale2,
+                        &block_base) != 0)
+                    continue;
+                nk_size_t const block_end = row_block_start + block_rows < row_end ? row_block_start + block_rows
+                                                                                   : row_end;
+                for (nk_size_t row = row_begin > row_block_start ? row_begin : row_block_start; row < block_end;
+                     row++) {
+                    nk_size_t const token = query_first + row;
+                    nk_u8_t const *query_row = (nk_u8_t const *)queries.elements + token * query_stride +
+                                               head_idx * depth;
+                    nk_u8_t const *query_row_scales = queries.scales + token * queries.scales_stride +
+                                                      head_idx * blocks;
+                    nk_f32_t *output_row = output + token * output_stride_floats + head_idx * depth;
+                    nk_size_t key_begin, key_end;
+                    nk_diagonal_band_row_range_(band, first_position + (nk_i64_t)row, position_count, &key_begin,
+                                                &key_end);
+
+                    nk_f32_t max2 = NUMKONG_F32_MIN;
+                    for (nk_size_t position = key_begin; position < key_end; position++) {
+                        nk_f32_t const scaled2 = nk_attention_score_mxfp8e4m3_serial_(
+                            query_row, query_row_scales,
+                            nk_attention_key_row_sme_(keys_plane, key_exponent, tile_dimension, depth, position,
+                                                      key_row),
+                            key_exponent, depth, scale2);
+                        if (scaled2 > max2) max2 = scaled2;
+                    }
+                    for (nk_size_t channel = 0; channel < depth; channel++) output_row[channel] = 0;
+                    nk_f32_t weights_sum = 0;
+                    for (nk_size_t position = key_begin; position < key_end; position++) {
+                        nk_f32_t const weight = nk_f32_exp2_serial_(
+                            nk_attention_score_mxfp8e4m3_serial_(
+                                query_row, query_row_scales,
+                                nk_attention_key_row_sme_(keys_plane, key_exponent, tile_dimension, depth, position,
+                                                          key_row),
+                                key_exponent, depth, scale2) -
+                            max2);
+                        nk_u8_t const *value_bytes = nk_attention_value_row_sme_(
+                            values_plane, value_exponent, tile_dimension, depth, position_count_padded / 2, position,
+                            value_row);
+                        weights_sum += weight;
+                        for (nk_size_t channel = 0; channel < depth; channel++)
+                            output_row[channel] += weight * nk_attention_plane_mxfp8e4m3_serial_(
+                                                                value_bytes, value_exponent, depth, channel);
+                    }
+                    nk_f32_t const inverse_sum = weights_sum > 0 ? 1 / weights_sum : 0;
+                    for (nk_size_t channel = 0; channel < depth; channel++)
+                        output_row[channel] = nk_scale_f32_serial_(output_row[channel] * inverse_sum, value_base);
+                    if (log_sum_exp)
+                        log_sum_exp[token * head_count + head_idx] = nk_attention_log_sum_exp_serial_(max2,
+                                                                                                      weights_sum);
+                }
+            }
+        }
+    }
+}
+
+/** @c nk_attention_pack_mxfp4_sme_streaming_ for MXFP8 E5M2, over the dots stager and decoder. */
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_mxfp8e5m2_sme_streaming_(                       //
+    nk_cross_operand_t keys, nk_cross_operand_t values, nk_size_t key_value_head_count, nk_size_t depth, //
+    nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,                   //
+    nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin,         //
+    nk_size_t tasks_end) NUMKONG_STREAMING_ {
+
+    nk_size_t const tile_dimension = svcntw();
+    nk_size_t const vector_elements = svcnth();
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
+    nk_size_t const depth_pairs = depth_padded / 2, row_bytes = depth_padded * sizeof(nk_u16_t);
+    nk_size_t const blocks = depth / 32, codes_bytes = depth;
+
+    char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
+                         nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t *plane_exponents = (nk_i8_t *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                 key_value_head_count, vector_elements, row_bytes,
+                                                                 key_offsets, key_lengths, segment_count);
+
+    nk_size_t const total_tasks = segment_count * key_value_head_count;
+    nk_size_t const plane_exponents_size = nk_attention_plane_exponents_size_serial_(key_value_head_count,
+                                                                                     segment_count);
+    if (tasks_begin == 0)
+        for (nk_size_t entry = 2 * total_tasks; entry < plane_exponents_size; entry++) plane_exponents[entry] = 0;
+    if (tasks_begin >= total_tasks) return;
+    if (tasks_end > total_tasks) tasks_end = total_tasks;
+
+    nk_i32_t bases[nk_attention_max_tile_sme_k_];
+    nk_size_t payload_segment = 0;
+    nk_u64_t payload_offset = 0;
+    for (nk_size_t task_idx = tasks_begin; task_idx < tasks_end; task_idx++) {
+        nk_size_t const segment_idx = task_idx / key_value_head_count,
+                        key_value_head_idx = task_idx % key_value_head_count;
+        for (; payload_segment < segment_idx; payload_segment++)
+            payload_offset += nk_attention_pack_segment_bytes_serial_(
+                nk_attention_pack_key_count_serial_(key_offsets, key_lengths, payload_segment), key_value_head_count,
+                vector_elements, row_bytes);
+        nk_size_t const position_count = nk_attention_pack_key_count_serial_(key_offsets, key_lengths, segment_idx);
+        nk_size_t const position_first = key_offsets[segment_idx];
+        nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, vector_elements);
+        nk_size_t const plane_bytes = position_count_padded * row_bytes;
+        nk_u16_t *keys_plane = (nk_u16_t *)(payload_base + payload_offset + key_value_head_idx * plane_bytes);
+        nk_u16_t *values_plane = (nk_u16_t *)(payload_base + payload_offset +
+                                              (key_value_head_count + key_value_head_idx) * plane_bytes);
+        nk_u8_t const *key_scales = keys.scales + position_first * keys.scales_stride + key_value_head_idx * blocks;
+        nk_u8_t const *value_scales = values.scales + position_first * values.scales_stride +
+                                      key_value_head_idx * blocks;
+        nk_i8_t const key_exponent = nk_attention_plane_exponent_ue8m0_serial_(key_scales, keys.scales_stride,
+                                                                               position_count, blocks);
+        nk_i8_t const value_exponent = nk_attention_plane_exponent_ue8m0_serial_(value_scales, values.scales_stride,
+                                                                                 position_count, blocks);
+        plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx] = key_exponent;
+        plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx] = value_exponent;
+
+        if (key_exponent == nk_attention_raw_plane_k_)
+            nk_attention_raw_plane_sme_streaming_(
+                (nk_u8_t const *)keys.elements + position_first * key_stride + key_value_head_idx * codes_bytes,
+                key_stride, key_scales, keys.scales_stride, codes_bytes, blocks, position_count, position_count_padded,
+                row_bytes, (nk_u8_t *)keys_plane);
+        else {
+            nk_i32_t const key_base = nk_attention_plane_base_serial_(key_exponent);
+            for (nk_size_t lane_idx = 0; lane_idx < tile_dimension; lane_idx++) bases[lane_idx] = key_base;
+            // Fully padded tiles still run and store the zeros the score stage expects
+            for (nk_size_t position_tile_idx = 0; position_tile_idx < position_count_padded / tile_dimension;
+                 position_tile_idx++) {
+                nk_size_t const position_start = position_tile_idx * tile_dimension;
+                nk_size_t const rows_to_pack = position_start >= position_count ? 0
+                                               : position_count - position_start < tile_dimension
+                                                   ? position_count - position_start
+                                                   : tile_dimension;
+                nk_stage_panel_mxfp8e5m2_sme_(keys, key_stride, position_first + position_start, rows_to_pack,
+                                              key_value_head_idx * depth, depth, bases,
+                                              keys_plane + position_tile_idx * depth_pairs * vector_elements);
+            }
+        }
+
+        if (value_exponent == nk_attention_raw_plane_k_)
+            nk_attention_raw_plane_sme_streaming_(
+                (nk_u8_t const *)values.elements + position_first * value_stride + key_value_head_idx * codes_bytes,
+                value_stride, value_scales, values.scales_stride, codes_bytes, blocks, position_count,
+                position_count_padded, row_bytes, (nk_u8_t *)values_plane);
+        else {
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+            for (nk_size_t channel_tile_idx = 0; channel_tile_idx < depth_padded / tile_dimension; channel_tile_idx++) {
+                nk_size_t const channel_start = channel_tile_idx * tile_dimension;
+                nk_size_t const channels = depth - channel_start < tile_dimension ? depth - channel_start
+                                                                                  : tile_dimension;
+                nk_size_t const channel_first = key_value_head_idx * depth + channel_start;
+                nk_u16_t *tile_output = values_plane + channel_tile_idx * (position_count_padded / 2) * vector_elements;
+                for (nk_size_t position_pair_idx = 0; position_pair_idx < position_count_padded / 2;
+                     position_pair_idx++) {
+                    nk_size_t const position_even = position_pair_idx * 2, position_odd = position_even + 1;
+                    svuint16_t even_u16x = svdup_u16(0), odd_u16x = svdup_u16(0);
+                    if (position_even < position_count) {
+                        nk_size_t const row = position_first + position_even;
+                        even_u16x = nk_decode_row_mxfp8e5m2_sme_((nk_u8_t const *)values.elements + row * value_stride,
+                                                                 values.scales + row * values.scales_stride,
+                                                                 channel_first, channels, value_base);
+                    }
+                    if (position_odd < position_count) {
+                        nk_size_t const row = position_first + position_odd;
+                        odd_u16x = nk_decode_row_mxfp8e5m2_sme_((nk_u8_t const *)values.elements + row * value_stride,
+                                                                values.scales + row * values.scales_stride,
+                                                                channel_first, channels, value_base);
+                    }
+                    svst1_u16(svptrue_b16(), tile_output + position_pair_idx * vector_elements,
+                              svzip1_u16(even_u16x, odd_u16x));
+                }
+            }
+        }
+    }
+}
+
+/** @c nk_attention_packed_mxfp4_sme_streaming_ for MXFP8 E5M2, over the dots stager. */
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_mxfp8e5m2_sme_streaming_(                   //
+    nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
+    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
+    nk_diagonal_band_t band, nk_size_t tasks_begin, nk_size_t tasks_end) NUMKONG_STREAMING_ {
+
+    nk_size_t const tile_dimension = svcntw();
+    nk_size_t const vector_elements = svcnth();
+    nk_size_t const block_rows_capacity = 2 * tile_dimension;
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
+    nk_size_t const row_bytes = depth_padded * sizeof(nk_u16_t), blocks = depth / 32;
+
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
+    nk_assert_(header->depth == depth && header->key_value_head_count == key_value_head_count &&
+               key_value_head_count != 0 && head_count % key_value_head_count == 0 && depth % 32 == 0);
+    nk_size_t const segment_count = header->segments;
+    nk_u64_t const *payload_offsets = nk_attention_packed_payload_offsets_serial_(key_value_packed);
+    nk_u32_t const *key_offsets = nk_attention_packed_key_offsets_serial_(key_value_packed, segment_count);
+    nk_u32_t const *key_lengths = nk_attention_packed_key_lengths_serial_(key_value_packed, segment_count);
+    char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
+                               nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed +
+                                     nk_attention_plane_exponents_offset_serial_(key_value_head_count, vector_elements,
+                                                                                 row_bytes, key_offsets, key_lengths,
+                                                                                 segment_count);
+    nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
+    nk_size_t const head_group_size = head_count / key_value_head_count;
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+
+    nk_align_(64) nk_u16_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 2) * 2 * nk_attention_max_tile_sme_k_];
+    nk_i32_t bases[nk_attention_max_tile_sme_k_];
+
+    for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
+        nk_size_t const key_value_head_idx = head_idx / head_group_size;
+        for (nk_size_t segment_idx = nk_attention_segment_of_serial_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = key_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_serial_(query_end - query_first,
+                                                                                position_count);
+            nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, vector_elements);
+            nk_size_t const plane_bytes = position_count_padded * row_bytes;
+            nk_u16_t const *keys_plane = (nk_u16_t const *)(payload_base + payload_offsets[segment_idx] +
+                                                            key_value_head_idx * plane_bytes);
+            nk_u16_t const *values_plane = (nk_u16_t const *)(payload_base + payload_offsets[segment_idx] +
+                                                              (key_value_head_count + key_value_head_idx) *
+                                                                  plane_bytes);
+            nk_i8_t const key_exponent = plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx];
+            nk_i8_t const value_exponent =
+                plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx];
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+
+            nk_size_t const row_count = query_end - query_first;
+            for (nk_size_t row_block_start = row_begin / block_rows_capacity * block_rows_capacity;
+                 row_block_start < row_end; row_block_start += block_rows_capacity) {
+                nk_size_t const block_rows = (row_count - row_block_start < block_rows_capacity)
+                                                 ? row_count - row_block_start
+                                                 : block_rows_capacity;
+                nk_size_t const block_token = query_first + row_block_start;
+                nk_i32_t query_base = 0;
+                nk_f32_t const block_scale2 = nk_attention_block_scale2_sme_(
+                    queries.scales + block_token * queries.scales_stride + head_idx * blocks, queries.scales_stride,
+                    block_rows, blocks, key_exponent, value_exponent, scale2, &query_base);
+                if (block_scale2 == 0) continue;
+                for (nk_size_t lane_idx = 0; lane_idx < tile_dimension; lane_idx++) bases[lane_idx] = query_base;
+                for (nk_size_t row_tile_idx = 0; row_tile_idx < 2; row_tile_idx++) {
+                    nk_size_t const tile_row_start = row_tile_idx * tile_dimension;
+                    nk_size_t const rows_to_stage = block_rows <= tile_row_start ? 0
+                                                    : block_rows - tile_row_start < tile_dimension
+                                                        ? block_rows - tile_row_start
+                                                        : tile_dimension;
+                    nk_stage_panel_mxfp8e5m2_sme_(queries, query_stride, block_token + tile_row_start, rows_to_stage,
+                                                  head_idx * depth, depth, bases, queries_packed[row_tile_idx]);
+                }
+                nk_attention_block_bf16_sme_streaming_(
+                    queries_packed[0], queries_packed[1], keys_plane, values_plane, depth, position_count, band,
+                    first_position + (nk_i64_t)row_block_start, block_rows,
+                    row_begin > row_block_start ? row_begin - row_block_start : 0, row_end - row_block_start,
+                    block_scale2, 1.0f, value_base, output + block_token * output_stride_floats + head_idx * depth,
+                    output_stride_floats,
+                    log_sum_exp ? log_sum_exp + block_token * head_count + head_idx : NUMKONG_NULL, head_count);
+            }
+        }
+    }
+}
+
+/** @c nk_attention_packed_exact_mxfp4_sme_ for MXFP8 E5M2. */
+NUMKONG_OUTLINED_ void nk_attention_packed_exact_mxfp8e5m2_sme_(                                       //
+    nk_cross_operand_t queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                             //
+    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2,   //
+    nk_diagonal_band_t band, nk_size_t tile_dimension, nk_size_t tasks_begin, nk_size_t tasks_end) {
+
+    nk_size_t const block_rows_capacity = 2 * tile_dimension;
+    nk_size_t const row_bytes = depth * sizeof(nk_bf16_t), blocks = depth / 32;
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
+    nk_size_t const segment_count = header->segments;
+    nk_u64_t const *payload_offsets = nk_attention_packed_payload_offsets_serial_(key_value_packed);
+    nk_u32_t const *key_offsets = nk_attention_packed_key_offsets_serial_(key_value_packed, segment_count);
+    nk_u32_t const *key_lengths = nk_attention_packed_key_lengths_serial_(key_value_packed, segment_count);
+    char const *payload_base = (char const *)key_value_packed + sizeof(*header) +
+                               nk_attention_pack_directory_size_serial_(segment_count);
+    nk_i8_t const *plane_exponents = (nk_i8_t const *)key_value_packed + nk_attention_plane_exponents_offset_serial_(
+                                                                             key_value_head_count, block_rows_capacity,
+                                                                             row_bytes, key_offsets, key_lengths,
+                                                                             segment_count);
+    nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
+    nk_size_t const head_group_size = head_count / key_value_head_count;
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (tasks_begin < grid_begin) tasks_begin = grid_begin;
+    if (tasks_end > grid_end) tasks_end = grid_end;
+
+    nk_align_(64) nk_f32_t key_row[nk_attention_max_depth_sme_k_];
+    nk_align_(64) nk_f32_t value_row[nk_attention_max_depth_sme_k_];
+
+    for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
+        nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
+        nk_size_t const key_value_head_idx = head_idx / head_group_size;
+        for (nk_size_t segment_idx = nk_attention_segment_of_serial_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = key_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_serial_(query_end - query_first,
+                                                                                position_count);
+            nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, block_rows_capacity);
+            nk_size_t const plane_bytes = position_count_padded * row_bytes;
+            char const *keys_plane = payload_base + payload_offsets[segment_idx] + key_value_head_idx * plane_bytes;
+            char const *values_plane = payload_base + payload_offsets[segment_idx] +
+                                       (key_value_head_count + key_value_head_idx) * plane_bytes;
+            nk_i8_t const key_exponent = plane_exponents[2 * segment_idx * key_value_head_count + key_value_head_idx];
+            nk_i8_t const value_exponent =
+                plane_exponents[(2 * segment_idx + 1) * key_value_head_count + key_value_head_idx];
+            nk_i32_t const value_base = nk_attention_plane_base_serial_(value_exponent);
+
+            nk_size_t const row_count = query_end - query_first;
+            for (nk_size_t row_block_start = row_begin / block_rows_capacity * block_rows_capacity;
+                 row_block_start < row_end; row_block_start += block_rows_capacity) {
+                nk_size_t const block_rows = (row_count - row_block_start < block_rows_capacity)
+                                                 ? row_count - row_block_start
+                                                 : block_rows_capacity;
+                nk_i32_t block_base = 0;
+                if (nk_attention_block_scale2_sme_(
+                        queries.scales + (query_first + row_block_start) * queries.scales_stride + head_idx * blocks,
+                        queries.scales_stride, block_rows, blocks, key_exponent, value_exponent, scale2,
+                        &block_base) != 0)
+                    continue;
+                nk_size_t const block_end = row_block_start + block_rows < row_end ? row_block_start + block_rows
+                                                                                   : row_end;
+                for (nk_size_t row = row_begin > row_block_start ? row_begin : row_block_start; row < block_end;
+                     row++) {
+                    nk_size_t const token = query_first + row;
+                    nk_u8_t const *query_row = (nk_u8_t const *)queries.elements + token * query_stride +
+                                               head_idx * depth;
+                    nk_u8_t const *query_row_scales = queries.scales + token * queries.scales_stride +
+                                                      head_idx * blocks;
+                    nk_f32_t *output_row = output + token * output_stride_floats + head_idx * depth;
+                    nk_size_t key_begin, key_end;
+                    nk_diagonal_band_row_range_(band, first_position + (nk_i64_t)row, position_count, &key_begin,
+                                                &key_end);
+
+                    nk_f32_t max2 = NUMKONG_F32_MIN;
+                    for (nk_size_t position = key_begin; position < key_end; position++) {
+                        nk_f32_t const scaled2 = nk_attention_score_mxfp8e5m2_serial_(
+                            query_row, query_row_scales,
+                            nk_attention_key_row_sme_(keys_plane, key_exponent, tile_dimension, depth, position,
+                                                      key_row),
+                            key_exponent, depth, scale2);
+                        if (scaled2 > max2) max2 = scaled2;
+                    }
+                    for (nk_size_t channel = 0; channel < depth; channel++) output_row[channel] = 0;
+                    nk_f32_t weights_sum = 0;
+                    for (nk_size_t position = key_begin; position < key_end; position++) {
+                        nk_f32_t const weight = nk_f32_exp2_serial_(
+                            nk_attention_score_mxfp8e5m2_serial_(
+                                query_row, query_row_scales,
+                                nk_attention_key_row_sme_(keys_plane, key_exponent, tile_dimension, depth, position,
+                                                          key_row),
+                                key_exponent, depth, scale2) -
+                            max2);
+                        nk_u8_t const *value_bytes = nk_attention_value_row_sme_(
+                            values_plane, value_exponent, tile_dimension, depth, position_count_padded / 2, position,
+                            value_row);
+                        weights_sum += weight;
+                        for (nk_size_t channel = 0; channel < depth; channel++)
+                            output_row[channel] += weight * nk_attention_plane_mxfp8e5m2_serial_(
+                                                                value_bytes, value_exponent, depth, channel);
+                    }
+                    nk_f32_t const inverse_sum = weights_sum > 0 ? 1 / weights_sum : 0;
+                    for (nk_size_t channel = 0; channel < depth; channel++)
+                        output_row[channel] = nk_scale_f32_serial_(output_row[channel] * inverse_sum, value_base);
+                    if (log_sum_exp)
+                        log_sum_exp[token * head_count + head_idx] = nk_attention_log_sum_exp_serial_(max2,
+                                                                                                      weights_sum);
+                }
+            }
+        }
+    }
+}
+
 /** Bytes of a pack of raw I8 planes, positions padded like the 16-bit ones. */
 NUMKONG_INLINE nk_size_t nk_attention_pack_size_b8_sme_(nk_size_t key_value_head_count, nk_size_t depth,
                                                         nk_size_t token_count, nk_size_t segment_count) {
@@ -2065,6 +3846,394 @@ NUMKONG_API nk_status_t nk_attention_packed_nvfp4_sme(
                                              key_value_head_count, depth, query_offsets, query_stride, output_stride,
                                              scale2, header->value_tensor_scale, band, tasks_begin, tasks_end);
     nk_stop_sme_streaming_();
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_size_mxfp4_sme(nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_size_t token_count, nk_size_t segment_count,
+                                                         nk_size_t *bytes) {
+    // Tile planes and their exponent table, or serial's F32 planes and table past the tile envelope
+    *bytes = (depth > nk_attention_max_depth_sme_k_ || nk_cntw_sme_() > nk_attention_max_tile_sme_k_
+                  ? nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
+                                                    depth * sizeof(nk_f32_t))
+                  : nk_attention_pack_size_b16_sme_(key_value_head_count, depth, token_count, segment_count)) +
+             nk_attention_plane_exponents_size_serial_(key_value_head_count, segment_count);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_shape_mxfp4_sme(void const *key_value_packed,
+                                                            nk_size_t *key_value_head_count, nk_size_t *depth,
+                                                            nk_size_t *segments, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_sme_k)) return nk_pack_mismatch_k;
+    nk_attention_packed_shape_serial_(key_value_packed, key_value_head_count, depth, segments);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_mxfp4_sme(nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                                    nk_size_t segment_count, nk_mxfp4_cref_t const *keys,
+                                                    nk_size_t key_stride, nk_mxfp4_cref_t const *values,
+                                                    nk_size_t value_stride, void *key_value_packed,
+                                                    nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (depth % 32 != 0) return nk_unexpected_dimensions_k;
+    nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
+                                                                      key_lengths, segment_count);
+    if (validation != nk_success_k) return validation;
+    if (depth > nk_attention_max_depth_sme_k_ || nk_cntw_sme_() > nk_attention_max_tile_sme_k_) {
+        nk_attention_pack_mxfp4_serial_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
+                                        segment_count, key_stride, value_stride, key_value_packed, tasks_begin,
+                                        tasks_end, nk_cap_sme_k);
+        return nk_success_k;
+    }
+    nk_attention_pack_directory_serial_(
+        key_value_packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count, tasks_begin,
+        nk_cnth_sme_(), nk_size_round_up_to_multiple_(depth, nk_cntw_sme_()) * sizeof(nk_u16_t), nk_cap_sme_k);
+    nk_cross_operand_t const key_operand = nk_cross_operand_serial_(nk_mxfp4_k, keys, key_stride);
+    nk_cross_operand_t const value_operand = nk_cross_operand_serial_(nk_mxfp4_k, values, value_stride);
+    nk_start_sme_streaming_();
+    nk_attention_pack_mxfp4_sme_streaming_(key_operand, value_operand, key_value_head_count, depth, key_offsets,
+                                           key_lengths, segment_count, key_stride, value_stride, key_value_packed,
+                                           tasks_begin, tasks_end);
+    nk_stop_sme_streaming_();
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_mxfp4_sme(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_mxfp4_cref_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,
+    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_sme_k)) return nk_pack_mismatch_k;
+    nk_assert_(query_token_count == nk_attention_query_end_serial_(key_value_packed, query_offsets));
+    nk_diagonal_band_t const band = {keys_before, keys_after};
+    nk_size_t const tile_dimension = nk_cntw_sme_();
+    if (depth > nk_attention_max_depth_sme_k_ || tile_dimension > nk_attention_max_tile_sme_k_) {
+        nk_attention_packed_mxfp4_serial_(queries, key_value_packed, output, log_sum_exp, head_count,
+                                          key_value_head_count, depth, query_offsets, query_stride, output_stride,
+                                          scale, band, tasks_begin, tasks_end);
+        return nk_success_k;
+    }
+    nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_;
+    nk_cross_operand_t const query_operand = nk_cross_operand_serial_(nk_mxfp4_k, queries, query_stride);
+    nk_start_sme_streaming_();
+    nk_attention_packed_mxfp4_sme_streaming_(query_operand, key_value_packed, output, log_sum_exp, head_count,
+                                             key_value_head_count, depth, query_offsets, query_stride, output_stride,
+                                             scale2, band, tasks_begin, tasks_end);
+    nk_stop_sme_streaming_();
+    nk_attention_packed_exact_mxfp4_sme_(query_operand, key_value_packed, output, log_sum_exp, head_count,
+                                         key_value_head_count, depth, query_offsets, query_stride, output_stride,
+                                         scale2, band, tile_dimension, tasks_begin, tasks_end);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_size_mxfp6e2m3_sme(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_size_t token_count, nk_size_t segment_count,
+                                                             nk_size_t *bytes) {
+    *bytes = (depth > nk_attention_max_depth_sme_k_ || nk_cntw_sme_() > nk_attention_max_tile_sme_k_
+                  ? nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
+                                                    depth * sizeof(nk_f32_t))
+                  : nk_attention_pack_size_b16_sme_(key_value_head_count, depth, token_count, segment_count)) +
+             nk_attention_plane_exponents_size_serial_(key_value_head_count, segment_count);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_shape_mxfp6e2m3_sme(void const *key_value_packed,
+                                                                nk_size_t *key_value_head_count, nk_size_t *depth,
+                                                                nk_size_t *segments, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_sme_k)) return nk_pack_mismatch_k;
+    nk_attention_packed_shape_serial_(key_value_packed, key_value_head_count, depth, segments);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_mxfp6e2m3_sme(
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+    nk_size_t segment_count, nk_mxfp6e2m3_cref_t const *keys, nk_size_t key_stride, nk_mxfp6e2m3_cref_t const *values,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (depth % 32 != 0) return nk_unexpected_dimensions_k;
+    nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
+                                                                      key_lengths, segment_count);
+    if (validation != nk_success_k) return validation;
+    if (depth > nk_attention_max_depth_sme_k_ || nk_cntw_sme_() > nk_attention_max_tile_sme_k_) {
+        nk_attention_pack_mxfp6e2m3_serial_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
+                                            segment_count, key_stride, value_stride, key_value_packed, tasks_begin,
+                                            tasks_end, nk_cap_sme_k);
+        return nk_success_k;
+    }
+    nk_attention_pack_directory_serial_(
+        key_value_packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count, tasks_begin,
+        nk_cnth_sme_(), nk_size_round_up_to_multiple_(depth, nk_cntw_sme_()) * sizeof(nk_u16_t), nk_cap_sme_k);
+    nk_cross_operand_t const key_operand = nk_cross_operand_serial_(nk_mxfp6e2m3_k, keys, key_stride);
+    nk_cross_operand_t const value_operand = nk_cross_operand_serial_(nk_mxfp6e2m3_k, values, value_stride);
+    nk_start_sme_streaming_();
+    nk_attention_pack_mxfp6e2m3_sme_streaming_(key_operand, value_operand, key_value_head_count, depth, key_offsets,
+                                               key_lengths, segment_count, key_stride, value_stride, key_value_packed,
+                                               tasks_begin, tasks_end);
+    nk_stop_sme_streaming_();
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_mxfp6e2m3_sme(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_mxfp6e2m3_cref_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,
+    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_sme_k)) return nk_pack_mismatch_k;
+    nk_assert_(query_token_count == nk_attention_query_end_serial_(key_value_packed, query_offsets));
+    nk_diagonal_band_t const band = {keys_before, keys_after};
+    nk_size_t const tile_dimension = nk_cntw_sme_();
+    if (depth > nk_attention_max_depth_sme_k_ || tile_dimension > nk_attention_max_tile_sme_k_) {
+        nk_attention_packed_mxfp6e2m3_serial_(queries, key_value_packed, output, log_sum_exp, head_count,
+                                              key_value_head_count, depth, query_offsets, query_stride, output_stride,
+                                              scale, band, tasks_begin, tasks_end);
+        return nk_success_k;
+    }
+    nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_;
+    nk_cross_operand_t const query_operand = nk_cross_operand_serial_(nk_mxfp6e2m3_k, queries, query_stride);
+    nk_start_sme_streaming_();
+    nk_attention_packed_mxfp6e2m3_sme_streaming_(query_operand, key_value_packed, output, log_sum_exp, head_count,
+                                                 key_value_head_count, depth, query_offsets, query_stride,
+                                                 output_stride, scale2, band, tasks_begin, tasks_end);
+    nk_stop_sme_streaming_();
+    nk_attention_packed_exact_mxfp6e2m3_sme_(query_operand, key_value_packed, output, log_sum_exp, head_count,
+                                             key_value_head_count, depth, query_offsets, query_stride, output_stride,
+                                             scale2, band, tile_dimension, tasks_begin, tasks_end);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_size_mxfp6e3m2_sme(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_size_t token_count, nk_size_t segment_count,
+                                                             nk_size_t *bytes) {
+    *bytes = (depth > nk_attention_max_depth_sme_k_ || nk_cntw_sme_() > nk_attention_max_tile_sme_k_
+                  ? nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
+                                                    depth * sizeof(nk_f32_t))
+                  : nk_attention_pack_size_b16_sme_(key_value_head_count, depth, token_count, segment_count)) +
+             nk_attention_plane_exponents_size_serial_(key_value_head_count, segment_count);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_shape_mxfp6e3m2_sme(void const *key_value_packed,
+                                                                nk_size_t *key_value_head_count, nk_size_t *depth,
+                                                                nk_size_t *segments, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_sme_k)) return nk_pack_mismatch_k;
+    nk_attention_packed_shape_serial_(key_value_packed, key_value_head_count, depth, segments);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_mxfp6e3m2_sme(
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+    nk_size_t segment_count, nk_mxfp6e3m2_cref_t const *keys, nk_size_t key_stride, nk_mxfp6e3m2_cref_t const *values,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (depth % 32 != 0) return nk_unexpected_dimensions_k;
+    nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
+                                                                      key_lengths, segment_count);
+    if (validation != nk_success_k) return validation;
+    if (depth > nk_attention_max_depth_sme_k_ || nk_cntw_sme_() > nk_attention_max_tile_sme_k_) {
+        nk_attention_pack_mxfp6e3m2_serial_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
+                                            segment_count, key_stride, value_stride, key_value_packed, tasks_begin,
+                                            tasks_end, nk_cap_sme_k);
+        return nk_success_k;
+    }
+    nk_attention_pack_directory_serial_(
+        key_value_packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count, tasks_begin,
+        nk_cnth_sme_(), nk_size_round_up_to_multiple_(depth, nk_cntw_sme_()) * sizeof(nk_u16_t), nk_cap_sme_k);
+    nk_cross_operand_t const key_operand = nk_cross_operand_serial_(nk_mxfp6e3m2_k, keys, key_stride);
+    nk_cross_operand_t const value_operand = nk_cross_operand_serial_(nk_mxfp6e3m2_k, values, value_stride);
+    nk_start_sme_streaming_();
+    nk_attention_pack_mxfp6e3m2_sme_streaming_(key_operand, value_operand, key_value_head_count, depth, key_offsets,
+                                               key_lengths, segment_count, key_stride, value_stride, key_value_packed,
+                                               tasks_begin, tasks_end);
+    nk_stop_sme_streaming_();
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_mxfp6e3m2_sme(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_mxfp6e3m2_cref_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,
+    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_sme_k)) return nk_pack_mismatch_k;
+    nk_assert_(query_token_count == nk_attention_query_end_serial_(key_value_packed, query_offsets));
+    nk_diagonal_band_t const band = {keys_before, keys_after};
+    nk_size_t const tile_dimension = nk_cntw_sme_();
+    if (depth > nk_attention_max_depth_sme_k_ || tile_dimension > nk_attention_max_tile_sme_k_) {
+        nk_attention_packed_mxfp6e3m2_serial_(queries, key_value_packed, output, log_sum_exp, head_count,
+                                              key_value_head_count, depth, query_offsets, query_stride, output_stride,
+                                              scale, band, tasks_begin, tasks_end);
+        return nk_success_k;
+    }
+    nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_;
+    nk_cross_operand_t const query_operand = nk_cross_operand_serial_(nk_mxfp6e3m2_k, queries, query_stride);
+    nk_start_sme_streaming_();
+    nk_attention_packed_mxfp6e3m2_sme_streaming_(query_operand, key_value_packed, output, log_sum_exp, head_count,
+                                                 key_value_head_count, depth, query_offsets, query_stride,
+                                                 output_stride, scale2, band, tasks_begin, tasks_end);
+    nk_stop_sme_streaming_();
+    nk_attention_packed_exact_mxfp6e3m2_sme_(query_operand, key_value_packed, output, log_sum_exp, head_count,
+                                             key_value_head_count, depth, query_offsets, query_stride, output_stride,
+                                             scale2, band, tile_dimension, tasks_begin, tasks_end);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_size_mxfp8e4m3_sme(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_size_t token_count, nk_size_t segment_count,
+                                                             nk_size_t *bytes) {
+    *bytes = (depth > nk_attention_max_depth_sme_k_ || nk_cntw_sme_() > nk_attention_max_tile_sme_k_
+                  ? nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
+                                                    depth * sizeof(nk_f32_t))
+                  : nk_attention_pack_size_b16_sme_(key_value_head_count, depth, token_count, segment_count)) +
+             nk_attention_plane_exponents_size_serial_(key_value_head_count, segment_count);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_shape_mxfp8e4m3_sme(void const *key_value_packed,
+                                                                nk_size_t *key_value_head_count, nk_size_t *depth,
+                                                                nk_size_t *segments, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_sme_k)) return nk_pack_mismatch_k;
+    nk_attention_packed_shape_serial_(key_value_packed, key_value_head_count, depth, segments);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_mxfp8e4m3_sme(
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+    nk_size_t segment_count, nk_mxfp8e4m3_cref_t const *keys, nk_size_t key_stride, nk_mxfp8e4m3_cref_t const *values,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (depth % 32 != 0) return nk_unexpected_dimensions_k;
+    nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
+                                                                      key_lengths, segment_count);
+    if (validation != nk_success_k) return validation;
+    if (depth > nk_attention_max_depth_sme_k_ || nk_cntw_sme_() > nk_attention_max_tile_sme_k_) {
+        nk_attention_pack_mxfp8e4m3_serial_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
+                                            segment_count, key_stride, value_stride, key_value_packed, tasks_begin,
+                                            tasks_end, nk_cap_sme_k);
+        return nk_success_k;
+    }
+    nk_attention_pack_directory_serial_(
+        key_value_packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count, tasks_begin,
+        nk_cnth_sme_(), nk_size_round_up_to_multiple_(depth, nk_cntw_sme_()) * sizeof(nk_u16_t), nk_cap_sme_k);
+    nk_cross_operand_t const key_operand = nk_cross_operand_serial_(nk_mxfp8e4m3_k, keys, key_stride);
+    nk_cross_operand_t const value_operand = nk_cross_operand_serial_(nk_mxfp8e4m3_k, values, value_stride);
+    nk_start_sme_streaming_();
+    nk_attention_pack_mxfp8e4m3_sme_streaming_(key_operand, value_operand, key_value_head_count, depth, key_offsets,
+                                               key_lengths, segment_count, key_stride, value_stride, key_value_packed,
+                                               tasks_begin, tasks_end);
+    nk_stop_sme_streaming_();
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_mxfp8e4m3_sme(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_mxfp8e4m3_cref_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,
+    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_sme_k)) return nk_pack_mismatch_k;
+    nk_assert_(query_token_count == nk_attention_query_end_serial_(key_value_packed, query_offsets));
+    nk_diagonal_band_t const band = {keys_before, keys_after};
+    nk_size_t const tile_dimension = nk_cntw_sme_();
+    if (depth > nk_attention_max_depth_sme_k_ || tile_dimension > nk_attention_max_tile_sme_k_) {
+        nk_attention_packed_mxfp8e4m3_serial_(queries, key_value_packed, output, log_sum_exp, head_count,
+                                              key_value_head_count, depth, query_offsets, query_stride, output_stride,
+                                              scale, band, tasks_begin, tasks_end);
+        return nk_success_k;
+    }
+    nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_;
+    nk_cross_operand_t const query_operand = nk_cross_operand_serial_(nk_mxfp8e4m3_k, queries, query_stride);
+    nk_start_sme_streaming_();
+    nk_attention_packed_mxfp8e4m3_sme_streaming_(query_operand, key_value_packed, output, log_sum_exp, head_count,
+                                                 key_value_head_count, depth, query_offsets, query_stride,
+                                                 output_stride, scale2, band, tasks_begin, tasks_end);
+    nk_stop_sme_streaming_();
+    nk_attention_packed_exact_mxfp8e4m3_sme_(query_operand, key_value_packed, output, log_sum_exp, head_count,
+                                             key_value_head_count, depth, query_offsets, query_stride, output_stride,
+                                             scale2, band, tile_dimension, tasks_begin, tasks_end);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_size_mxfp8e5m2_sme(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_size_t token_count, nk_size_t segment_count,
+                                                             nk_size_t *bytes) {
+    *bytes = (depth > nk_attention_max_depth_sme_k_ || nk_cntw_sme_() > nk_attention_max_tile_sme_k_
+                  ? nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
+                                                    depth * sizeof(nk_f32_t))
+                  : nk_attention_pack_size_b16_sme_(key_value_head_count, depth, token_count, segment_count)) +
+             nk_attention_plane_exponents_size_serial_(key_value_head_count, segment_count);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_shape_mxfp8e5m2_sme(void const *key_value_packed,
+                                                                nk_size_t *key_value_head_count, nk_size_t *depth,
+                                                                nk_size_t *segments, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_sme_k)) return nk_pack_mismatch_k;
+    nk_attention_packed_shape_serial_(key_value_packed, key_value_head_count, depth, segments);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_mxfp8e5m2_sme(
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+    nk_size_t segment_count, nk_mxfp8e5m2_cref_t const *keys, nk_size_t key_stride, nk_mxfp8e5m2_cref_t const *values,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (depth % 32 != 0) return nk_unexpected_dimensions_k;
+    nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
+                                                                      key_lengths, segment_count);
+    if (validation != nk_success_k) return validation;
+    if (depth > nk_attention_max_depth_sme_k_ || nk_cntw_sme_() > nk_attention_max_tile_sme_k_) {
+        nk_attention_pack_mxfp8e5m2_serial_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
+                                            segment_count, key_stride, value_stride, key_value_packed, tasks_begin,
+                                            tasks_end, nk_cap_sme_k);
+        return nk_success_k;
+    }
+    nk_attention_pack_directory_serial_(
+        key_value_packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count, tasks_begin,
+        nk_cnth_sme_(), nk_size_round_up_to_multiple_(depth, nk_cntw_sme_()) * sizeof(nk_u16_t), nk_cap_sme_k);
+    nk_cross_operand_t const key_operand = nk_cross_operand_serial_(nk_mxfp8e5m2_k, keys, key_stride);
+    nk_cross_operand_t const value_operand = nk_cross_operand_serial_(nk_mxfp8e5m2_k, values, value_stride);
+    nk_start_sme_streaming_();
+    nk_attention_pack_mxfp8e5m2_sme_streaming_(key_operand, value_operand, key_value_head_count, depth, key_offsets,
+                                               key_lengths, segment_count, key_stride, value_stride, key_value_packed,
+                                               tasks_begin, tasks_end);
+    nk_stop_sme_streaming_();
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_mxfp8e5m2_sme(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_mxfp8e5m2_cref_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,
+    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_sme_k)) return nk_pack_mismatch_k;
+    nk_assert_(query_token_count == nk_attention_query_end_serial_(key_value_packed, query_offsets));
+    nk_diagonal_band_t const band = {keys_before, keys_after};
+    nk_size_t const tile_dimension = nk_cntw_sme_();
+    if (depth > nk_attention_max_depth_sme_k_ || tile_dimension > nk_attention_max_tile_sme_k_) {
+        nk_attention_packed_mxfp8e5m2_serial_(queries, key_value_packed, output, log_sum_exp, head_count,
+                                              key_value_head_count, depth, query_offsets, query_stride, output_stride,
+                                              scale, band, tasks_begin, tasks_end);
+        return nk_success_k;
+    }
+    nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_;
+    nk_cross_operand_t const query_operand = nk_cross_operand_serial_(nk_mxfp8e5m2_k, queries, query_stride);
+    nk_start_sme_streaming_();
+    nk_attention_packed_mxfp8e5m2_sme_streaming_(query_operand, key_value_packed, output, log_sum_exp, head_count,
+                                                 key_value_head_count, depth, query_offsets, query_stride,
+                                                 output_stride, scale2, band, tasks_begin, tasks_end);
+    nk_stop_sme_streaming_();
+    nk_attention_packed_exact_mxfp8e5m2_sme_(query_operand, key_value_packed, output, log_sum_exp, head_count,
+                                             key_value_head_count, depth, query_offsets, query_stride, output_stride,
+                                             scale2, band, tile_dimension, tasks_begin, tasks_end);
     return nk_success_k;
 }
 
