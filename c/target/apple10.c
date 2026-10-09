@@ -8,5 +8,6 @@
 #define NUMKONG_TARGET_METAL 0
 #include "numkong/numkong.h"
 
+#include "numkong/attention/apple10.h"
 #include "numkong/dots/apple10.h"
 #include "numkong/spatials/apple10.h"

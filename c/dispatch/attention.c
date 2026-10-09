@@ -72,6 +72,18 @@ static nk_capability_kernels_t const *nk_attention_pack_size_bf16_capabilities(v
         (nk_kernel_punned_t)&nk_attention_pack_size_bf16_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -86,7 +98,9 @@ static nk_capability_kernels_t const *nk_attention_pack_size_bf16_capabilities(v
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
              nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -128,6 +142,18 @@ static nk_capability_kernels_t const *nk_attention_pack_size_f16_capabilities(vo
         (nk_kernel_punned_t)&nk_attention_pack_size_f16_blackwellultra,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_pack_size_f16_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_pack_size_f16_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_pack_size_f16_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME,
@@ -136,7 +162,9 @@ static nk_capability_kernels_t const *nk_attention_pack_size_f16_capabilities(vo
              nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -217,6 +245,18 @@ static nk_capability_kernels_t const *nk_attention_pack_size_e4m3_capabilities(v
         (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -232,7 +272,9 @@ static nk_capability_kernels_t const *nk_attention_pack_size_e4m3_capabilities(v
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -307,6 +349,15 @@ static nk_capability_kernels_t const *nk_attention_pack_size_i8_capabilities(voi
         (nk_kernel_punned_t)&nk_attention_pack_size_i8_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_metal,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -320,7 +371,7 @@ static nk_capability_kernels_t const *nk_attention_pack_size_i8_capabilities(voi
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
              nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -536,6 +587,18 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_bf16_capabilitie
         (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -550,7 +613,9 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_bf16_capabilitie
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
              nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -593,6 +658,18 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_f16_capabilities
         (nk_kernel_punned_t)&nk_attention_packed_shape_f16_blackwellultra,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_packed_shape_f16_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_packed_shape_f16_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_packed_shape_f16_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME,
@@ -601,7 +678,9 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_f16_capabilities
              nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -683,6 +762,18 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_e4m3_capabilitie
         (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -698,7 +789,9 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_e4m3_capabilitie
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -774,6 +867,15 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_i8_capabilities(
         (nk_kernel_punned_t)&nk_attention_packed_shape_i8_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_metal,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -787,7 +889,7 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_i8_capabilities(
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
              nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -1009,6 +1111,18 @@ static nk_capability_kernels_t const *nk_attention_pack_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_attention_pack_bf16_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -1023,7 +1137,9 @@ static nk_capability_kernels_t const *nk_attention_pack_bf16_capabilities(void) 
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
              nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -1071,6 +1187,18 @@ static nk_capability_kernels_t const *nk_attention_pack_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_attention_pack_f16_blackwellultra,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_pack_f16_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_pack_f16_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_pack_f16_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME,
@@ -1079,7 +1207,9 @@ static nk_capability_kernels_t const *nk_attention_pack_f16_capabilities(void) {
              nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -1166,6 +1296,18 @@ static nk_capability_kernels_t const *nk_attention_pack_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_attention_pack_e4m3_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_pack_e4m3_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -1181,7 +1323,9 @@ static nk_capability_kernels_t const *nk_attention_pack_e4m3_capabilities(void) 
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -1262,6 +1406,15 @@ static nk_capability_kernels_t const *nk_attention_pack_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_attention_pack_i8_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_pack_i8_metal,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_pack_i8_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -1275,7 +1428,7 @@ static nk_capability_kernels_t const *nk_attention_pack_i8_capabilities(void) {
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
              nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -1524,6 +1677,18 @@ static nk_capability_kernels_t const *nk_attention_packed_bf16_capabilities(void
         (nk_kernel_punned_t)&nk_attention_packed_bf16_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_packed_bf16_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_packed_bf16_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_packed_bf16_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -1538,7 +1703,9 @@ static nk_capability_kernels_t const *nk_attention_packed_bf16_capabilities(void
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
              nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -1587,6 +1754,18 @@ static nk_capability_kernels_t const *nk_attention_packed_f16_capabilities(void)
         (nk_kernel_punned_t)&nk_attention_packed_f16_blackwellultra,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_packed_f16_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_packed_f16_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_packed_f16_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME,
@@ -1595,7 +1774,9 @@ static nk_capability_kernels_t const *nk_attention_packed_f16_capabilities(void)
              nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -1931,6 +2112,18 @@ static nk_capability_kernels_t const *nk_attention_packed_e4m3_capabilities(void
         (nk_kernel_punned_t)&nk_attention_packed_e4m3_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_packed_e4m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_attention_packed_e4m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_packed_e4m3_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -1946,7 +2139,9 @@ static nk_capability_kernels_t const *nk_attention_packed_e4m3_capabilities(void
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -2028,6 +2223,15 @@ static nk_capability_kernels_t const *nk_attention_packed_i8_capabilities(void) 
         (nk_kernel_punned_t)&nk_attention_packed_i8_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_packed_i8_metal,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_attention_packed_i8_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -2041,7 +2245,7 @@ static nk_capability_kernels_t const *nk_attention_packed_i8_capabilities(void) 
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
              nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -2253,13 +2457,19 @@ static nk_capability_kernels_t const *nk_attention_rope_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_attention_rope_f32_cuda,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_rope_f32_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -2293,13 +2503,19 @@ static nk_capability_kernels_t const *nk_attention_rope_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_attention_rope_bf16_cuda,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_rope_bf16_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -2333,13 +2549,19 @@ static nk_capability_kernels_t const *nk_attention_rope_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_attention_rope_e4m3_cuda,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_rope_e4m3_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }

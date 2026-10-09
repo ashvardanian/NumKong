@@ -210,6 +210,17 @@ nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
                                          nk_dots_pack_e2m1_metal, nk_euclideans_packed_e2m1_metal, backend);
         run_euclideans_symmetric<nk_e2m1_k>(env, "euclideans_symmetric_e2m1_metal", nk_euclideans_symmetric_e2m1_metal,
                                             backend);
+        run_attention<nk_bf16_k>(env, "attention_packed_bf16_metal", nk_attention_pack_size_bf16_metal,
+                                 nk_attention_pack_bf16_metal, nk_attention_packed_bf16_metal, backend);
+        run_attention<nk_f16_k>(env, "attention_packed_f16_metal", nk_attention_pack_size_f16_metal,
+                                nk_attention_pack_f16_metal, nk_attention_packed_f16_metal, backend);
+        run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_metal", nk_attention_pack_size_e4m3_metal,
+                                 nk_attention_pack_e4m3_metal, nk_attention_packed_e4m3_metal, backend);
+        run_attention<nk_i8_k>(env, "attention_packed_i8_metal", nk_attention_pack_size_i8_metal,
+                               nk_attention_pack_i8_metal, nk_attention_packed_i8_metal, backend);
+        run_attention_rope<nk_f32_k>(env, "attention_rope_f32_metal", nk_attention_rope_f32_metal, backend);
+        run_attention_rope<nk_bf16_k>(env, "attention_rope_bf16_metal", nk_attention_rope_bf16_metal, backend);
+        run_attention_rope<nk_e4m3_k>(env, "attention_rope_e4m3_metal", nk_attention_rope_e4m3_metal, backend);
     }
 #if NUMKONG_TARGET_APPLE9
     if (enabled & nk_cap_apple9_k) {
@@ -365,6 +376,12 @@ nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
                                          nk_dots_pack_e2m1_apple9, nk_euclideans_packed_e2m1_apple9, backend);
         run_euclideans_symmetric<nk_e2m1_k>(env, "euclideans_symmetric_e2m1_apple9",
                                             nk_euclideans_symmetric_e2m1_apple9, backend);
+        run_attention<nk_bf16_k>(env, "attention_packed_bf16_apple9", nk_attention_pack_size_bf16_apple9,
+                                 nk_attention_pack_bf16_apple9, nk_attention_packed_bf16_apple9, backend);
+        run_attention<nk_f16_k>(env, "attention_packed_f16_apple9", nk_attention_pack_size_f16_apple9,
+                                nk_attention_pack_f16_apple9, nk_attention_packed_f16_apple9, backend);
+        run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_apple9", nk_attention_pack_size_e4m3_apple9,
+                                 nk_attention_pack_e4m3_apple9, nk_attention_packed_e4m3_apple9, backend);
     }
 #endif // NUMKONG_TARGET_APPLE9
 #if NUMKONG_TARGET_APPLE10
@@ -555,6 +572,14 @@ nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
                                      nk_dots_pack_e2m1_apple10, nk_euclideans_packed_e2m1_apple10, backend);
     run_euclideans_symmetric<nk_e2m1_k>(env, "euclideans_symmetric_e2m1_apple10", nk_euclideans_symmetric_e2m1_apple10,
                                         backend);
+    run_attention<nk_bf16_k>(env, "attention_packed_bf16_apple10", nk_attention_pack_size_bf16_apple10,
+                             nk_attention_pack_bf16_apple10, nk_attention_packed_bf16_apple10, backend);
+    run_attention<nk_f16_k>(env, "attention_packed_f16_apple10", nk_attention_pack_size_f16_apple10,
+                            nk_attention_pack_f16_apple10, nk_attention_packed_f16_apple10, backend);
+    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_apple10", nk_attention_pack_size_e4m3_apple10,
+                             nk_attention_pack_e4m3_apple10, nk_attention_packed_e4m3_apple10, backend);
+    run_attention<nk_i8_k>(env, "attention_packed_i8_apple10", nk_attention_pack_size_i8_apple10,
+                           nk_attention_pack_i8_apple10, nk_attention_packed_i8_apple10, backend);
 #endif // NUMKONG_TARGET_APPLE10
 #else  // !NUMKONG_ARCH_METAL_
     return nk::status_t::missing_gpu_k;

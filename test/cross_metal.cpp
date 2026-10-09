@@ -331,6 +331,17 @@ static void test_cross_metal_baseline(error_stats_section_t &check) {
           nk_dots_pack_size_e2m1_metal, nk_dots_pack_e2m1_metal, nk_euclideans_packed_e2m1_metal);
     check("euclideans_symmetric_e2m1_metal", test_euclideans_symmetric<e2m1x2_t, metal_backend_t>,
           nk_euclideans_symmetric_e2m1_metal);
+    check("attention_packed_bf16_metal", test_attention_packed<bf16_t, metal_backend_t>,
+          nk_attention_pack_size_bf16_metal, nk_attention_pack_bf16_metal, nk_attention_packed_bf16_metal);
+    check("attention_packed_f16_metal", test_attention_packed<f16_t, metal_backend_t>, nk_attention_pack_size_f16_metal,
+          nk_attention_pack_f16_metal, nk_attention_packed_f16_metal);
+    check("attention_packed_e4m3_metal", test_attention_packed<e4m3_t, metal_backend_t>,
+          nk_attention_pack_size_e4m3_metal, nk_attention_pack_e4m3_metal, nk_attention_packed_e4m3_metal);
+    check("attention_packed_i8_metal", test_attention_packed<i8_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_i8_metal, nk_attention_pack_i8_metal, nk_attention_packed_i8_metal);
+    check("attention_rope_f32_metal", test_attention_rope<f32_t, metal_backend_t>, nk_attention_rope_f32_metal);
+    check("attention_rope_bf16_metal", test_attention_rope<bf16_t, metal_backend_t>, nk_attention_rope_bf16_metal);
+    check("attention_rope_e4m3_metal", test_attention_rope<e4m3_t, metal_backend_t>, nk_attention_rope_e4m3_metal);
 }
 
 /** Every Apple9 entry point, on devices whose families include it. */
@@ -550,6 +561,13 @@ static void test_cross_apple9([[maybe_unused]] error_stats_section_t &check) {
           nk_dots_pack_size_e2m1_apple9, nk_dots_pack_e2m1_apple9, nk_euclideans_packed_e2m1_apple9);
     check("euclideans_symmetric_e2m1_apple9", test_euclideans_symmetric<e2m1x2_t, metal_backend_t>,
           nk_euclideans_symmetric_e2m1_apple9);
+    check("attention_packed_bf16_apple9", test_attention_packed<bf16_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_bf16_apple9, nk_attention_pack_bf16_apple9, nk_attention_packed_bf16_apple9);
+    check("attention_packed_f16_apple9", test_attention_packed<f16_t, metal_backend_t, attention_weights_t::bits_11_k>,
+          nk_attention_pack_size_f16_apple9, nk_attention_pack_f16_apple9, nk_attention_packed_f16_apple9);
+    check("attention_packed_e4m3_apple9",
+          test_attention_packed<e4m3_t, metal_backend_t, attention_weights_t::bits_11_k>,
+          nk_attention_pack_size_e4m3_apple9, nk_attention_pack_e4m3_apple9, nk_attention_packed_e4m3_apple9);
 #endif // NUMKONG_TARGET_APPLE9
 }
 
@@ -850,6 +868,16 @@ static void test_cross_apple10([[maybe_unused]] error_stats_section_t &check) {
           nk_dots_pack_size_e2m1_apple10, nk_dots_pack_e2m1_apple10, nk_euclideans_packed_e2m1_apple10);
     check("euclideans_symmetric_e2m1_apple10", test_euclideans_symmetric<e2m1x2_t, metal_backend_t>,
           nk_euclideans_symmetric_e2m1_apple10);
+    check("attention_packed_bf16_apple10",
+          test_attention_packed<bf16_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_bf16_apple10, nk_attention_pack_bf16_apple10, nk_attention_packed_bf16_apple10);
+    check("attention_packed_f16_apple10", test_attention_packed<f16_t, metal_backend_t, attention_weights_t::bits_11_k>,
+          nk_attention_pack_size_f16_apple10, nk_attention_pack_f16_apple10, nk_attention_packed_f16_apple10);
+    check("attention_packed_e4m3_apple10",
+          test_attention_packed<e4m3_t, metal_backend_t, attention_weights_t::bits_11_k>,
+          nk_attention_pack_size_e4m3_apple10, nk_attention_pack_e4m3_apple10, nk_attention_packed_e4m3_apple10);
+    check("attention_packed_i8_apple10", test_attention_packed<i8_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_i8_apple10, nk_attention_pack_i8_apple10, nk_attention_packed_i8_apple10);
 #endif // NUMKONG_TARGET_APPLE10
 }
 

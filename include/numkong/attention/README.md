@@ -108,6 +108,11 @@ A plane whose block exponents span more than 89 binades keeps its raw codes and 
 Scores sum each query block in F32 against the rebased key row and add the blocks into a wide sum, so query scales of any spread round once.
 Outputs and query gradients accumulate under one plane base and apply its power of two once per element.
 
+### Apple GPU Tiles and Split Decode
+
+The `metal` baseline gives every query row a SIMD-group, while `apple9` and `apple10` attend 32-row tiles against 64-key panels, on SIMD-group matrices and on the `matmul2d` tensor operations of the Neural Accelerators.
+Decoding up to four rows against 512 keys or more splits each row's keys into 16 partitions, and a merge kernel combines their maxima, sums and weighted values, so short outputs still fill the GPU.
+
 ### U8-Quantized Probabilities for INT8
 
 The `i8` kernels quantize softmax weights as $\tilde{w} = \text{round}(255 \cdot 2^{s_2 - m_2})$ and normalize by $\sum \tilde{w}$, so the 255 cancels and no descale constant survives.

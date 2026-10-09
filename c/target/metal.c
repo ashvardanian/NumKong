@@ -7,6 +7,7 @@
 #include "numkong/numkong.h"
 
 #include "numkong/metal.h"
+#include "numkong/attention/metal.h"
 #include "numkong/dots/metal.h"
 #include "numkong/each/metal.h"
 #include "numkong/spatials/metal.h"
