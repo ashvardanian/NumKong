@@ -1196,7 +1196,7 @@ void run_attention_row_with_cudnn(environment_t const &env, std::string const &n
  *  window clips. */
 template <nk_dtype_t input_dtype_>
 void run_attention_with_cudnn(environment_t const &env, std::string const &name, cuda_backend_t const &backend) {
-    for (attention_shape_t const shape : backend.attention_shapes(env)) {
+    for (attention_shape_t const shape : attention_shapes(env)) {
         run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::bidirectional_k>(env, name, shape, backend);
         run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::causal_k>(env, name, shape, backend);
         if (attention_window_clips(shape))

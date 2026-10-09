@@ -636,7 +636,7 @@ template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, type
           typename pack_kernel_type_, typename attention_kernel_type_>
 void run_attention(environment_t const &env, std::string const &name, pack_size_kernel_type_ packed_size_fn,
                    pack_kernel_type_ pack_fn, attention_kernel_type_ attention_fn, backend_type_ backend = {}) {
-    for (attention_shape_t const shape : backend.attention_shapes(env)) {
+    for (attention_shape_t const shape : attention_shapes(env)) {
         run_attention_row<input_dtype_, attention_visibility_t::bidirectional_k, backend_type_>(
             env, name, packed_size_fn, pack_fn, attention_fn, shape, backend);
         run_attention_row<input_dtype_, attention_visibility_t::causal_k, backend_type_>(
@@ -746,7 +746,7 @@ template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, type
 void run_attention_gradients(environment_t const &env, std::string const &name, pack_size_kernel_type_ packed_size_fn,
                              pack_kernel_type_ pack_fn, attention_kernel_type_ attention_fn,
                              gradients_kernel_type_ gradients_fn, backend_type_ backend = {}) {
-    for (attention_shape_t const shape : backend.attention_shapes(env)) {
+    for (attention_shape_t const shape : attention_shapes(env)) {
         run_benchmark(env, attention_row_name(name, attention_visibility_t::bidirectional_k, shape),
                       measure_attention_gradients<input_dtype_, attention_visibility_t::bidirectional_k, backend_type_,
                                                   pack_size_kernel_type_, pack_kernel_type_, attention_kernel_type_,

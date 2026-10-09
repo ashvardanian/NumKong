@@ -28,10 +28,6 @@ namespace ashvardanian::numkong::bench {
 struct metal_backend_t : device_backend_t {
     static std::size_t token_rows(environment_t const &) noexcept { return 4096; }
 
-    static std::vector<attention_shape_t> attention_shapes(environment_t const &) {
-        return {{"prefill", 32, 8, 128, 4096, 4096}, {"decode", 32, 8, 128, 1, 4096}};
-    }
-
     /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes the A contract requires. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept {
         return nk_size_round_up_to_multiple_(row_bytes, 16);

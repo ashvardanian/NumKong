@@ -604,6 +604,14 @@ struct attention_shape_t {
     std::size_t keys;
 };
 
+/** The prefill and decode segments every backend times: 32 query heads over 8 key-value heads of
+ *  @c NUMWARS_DIMS_WIDTH dimensions, @c NUMWARS_DIMS_DEPTH queries or one, against
+ *  @c NUMWARS_DIMS_HEIGHT keys. */
+inline std::vector<attention_shape_t> attention_shapes(environment_t const &env) {
+    std::size_t const depth = env.settings.matrix_width, keys = env.settings.matrix_height;
+    return {{"prefill", 32, 8, depth, env.settings.matrix_depth, keys}, {"decode", 32, 8, depth, 1, keys}};
+}
+
 struct device_backend_t {
     nk::device_t device;
     nk_capability_t capabilities;

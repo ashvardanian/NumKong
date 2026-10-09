@@ -33,12 +33,6 @@ struct host_backend_t {
      *  caches. */
     static std::size_t token_rows(environment_t const &) noexcept { return 1; }
 
-    /** One shape from the matrix config: keys from its height, head depth from its width, queries
-     *  from its depth. */
-    static std::vector<attention_shape_t> attention_shapes(environment_t const &env) {
-        return {{"", 8, 8, env.settings.matrix_width, env.settings.matrix_depth, env.settings.matrix_height}};
-    }
-
     nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
         std::memcpy(destination, source, bytes);
         return nk_success_k;

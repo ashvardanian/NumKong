@@ -42,11 +42,6 @@ struct rocm_backend_t : device_backend_t {
     /** Rows a token-row benchmark batches: a 4096-token prefill. */
     static std::size_t token_rows(environment_t const &) noexcept { return 4096; }
 
-    /** Prefill and decode segments at the end of a 4096-key cache, Llama-style heads. */
-    static std::vector<attention_shape_t> attention_shapes(environment_t const &) {
-        return {{"prefill", 32, 8, 128, 4096, 4096}, {"decode", 32, 8, 128, 1, 4096}};
-    }
-
     nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
         return hipMemcpy(destination, source, bytes, hipMemcpyDefault) == hipSuccess ? nk_success_k
                                                                                      : nk_device_code_mismatch_k;
