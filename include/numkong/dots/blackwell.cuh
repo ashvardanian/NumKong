@@ -3240,10 +3240,12 @@ NUMKONG_INLINE int nk_cross_map_blackwell_(CUtensorMap *map, void const *base, n
                   CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE) == CUDA_SUCCESS;
 }
 
-/** Launches as many clusters of two blocks of @p kernel as stay resident, at most @p pairs_wanted,
- *  passing the one argument struct at @p arguments by value. */
-NUMKONG_INLINE nk_status_t nk_cross_launch_pairs_blackwell_(void const *kernel, nk_size_t pairs_wanted, void *arguments,
-                                                            nk_stream_t stream) {
+/** Launches as many clusters of two blocks of @p kernel, @p threads threads and @p shared_bytes of
+ *  dynamic shared memory each, as stay resident, at most @p pairs_wanted, passing the one argument
+ *  struct at @p arguments by value. */
+NUMKONG_INLINE nk_status_t nk_cross_launch_pairs_blackwell_(void const *kernel, unsigned threads,
+                                                            nk_size_t shared_bytes, nk_size_t pairs_wanted,
+                                                            void *arguments, nk_stream_t stream) {
     int caller = 0;
     nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
     if (entered != nk_success_k) return entered;
@@ -3252,14 +3254,12 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_pairs_blackwell_(void const *kernel, 
     attribute.val.clusterDim.x = 2, attribute.val.clusterDim.y = 1, attribute.val.clusterDim.z = 1;
     cudaLaunchConfig_t configuration;
     configuration.gridDim.x = 2, configuration.gridDim.y = 1, configuration.gridDim.z = 1;
-    configuration.blockDim.x = nk_cross_threads_blackwell_k, configuration.blockDim.y = 1;
-    configuration.blockDim.z = 1;
-    configuration.dynamicSmemBytes = nk_cross_shared_bytes_blackwell_k;
+    configuration.blockDim.x = threads, configuration.blockDim.y = 1, configuration.blockDim.z = 1;
+    configuration.dynamicSmemBytes = shared_bytes;
     configuration.stream = (cudaStream_t)stream;
     configuration.attrs = &attribute, configuration.numAttrs = 1;
     int clusters = 0;
-    if (cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, nk_cross_shared_bytes_blackwell_k) !=
-            cudaSuccess ||
+    if (cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, (int)shared_bytes) != cudaSuccess ||
         cudaOccupancyMaxActiveClusters(&clusters, kernel, &configuration) != cudaSuccess || clusters == 0) {
         nk_device_leave_cuda_(caller);
         return nk_device_code_mismatch_k;
@@ -3352,7 +3352,9 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
     nk_size_t group_rows = 1;
     while (group_rows * group_rows < resident_tiles && group_rows < 16) ++group_rows;
     arguments.group_rows = group_rows;
-    if (paired) return nk_cross_launch_pairs_blackwell_(kernel, tiles, &arguments, stream);
+    if (paired)
+        return nk_cross_launch_pairs_blackwell_(kernel, nk_cross_threads_blackwell_k, nk_cross_shared_bytes_blackwell_k,
+                                                tiles, &arguments, stream);
     return nk_launch_resident_cuda_(kernel, nk_cross_threads_blackwell_k, nk_cross_shared_bytes_blackwell_k,
                                     nk_cross_shared_bytes_blackwell_k, tiles, &arguments, stream);
 }

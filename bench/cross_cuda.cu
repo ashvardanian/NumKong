@@ -212,14 +212,14 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
                              nk_attention_pack_bf16_ampere, nk_attention_packed_bf16_ampere, backend);
     run_attention<nk_f16_k>(env, "attention_packed_f16_ampere", nk_attention_pack_size_f16_ampere,
                             nk_attention_pack_f16_ampere, nk_attention_packed_f16_ampere, backend);
-    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_ampere",
-                                       nk_attention_pack_size_bf16_ampere, nk_attention_pack_bf16_ampere,
-                                       nk_attention_packed_bf16_ampere, nk_attention_packed_gradients_bf16_ampere,
-                                       backend);
     run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_ampere", nk_attention_pack_size_e4m3_ampere,
                              nk_attention_pack_e4m3_ampere, nk_attention_packed_e4m3_ampere, backend);
     run_attention<nk_i8_k>(env, "attention_packed_i8_ampere", nk_attention_pack_size_i8_ampere,
                            nk_attention_pack_i8_ampere, nk_attention_packed_i8_ampere, backend);
+    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_ampere",
+                                       nk_attention_pack_size_bf16_ampere, nk_attention_pack_bf16_ampere,
+                                       nk_attention_packed_bf16_ampere, nk_attention_packed_gradients_bf16_ampere,
+                                       backend);
 #endif // NUMKONG_TARGET_AMPERE
 }
 
@@ -319,14 +319,14 @@ void bench_cross_hopper([[maybe_unused]] environment_t const &env, [[maybe_unuse
 
     run_attention<nk_bf16_k>(env, "attention_packed_bf16_hopper", nk_attention_pack_size_bf16_hopper,
                              nk_attention_pack_bf16_hopper, nk_attention_packed_bf16_hopper, backend);
-    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_hopper",
-                                       nk_attention_pack_size_bf16_hopper, nk_attention_pack_bf16_hopper,
-                                       nk_attention_packed_bf16_hopper, nk_attention_packed_gradients_bf16_hopper,
-                                       backend);
     run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_hopper", nk_attention_pack_size_e4m3_hopper,
                              nk_attention_pack_e4m3_hopper, nk_attention_packed_e4m3_hopper, backend);
     run_attention<nk_i8_k>(env, "attention_packed_i8_hopper", nk_attention_pack_size_i8_hopper,
                            nk_attention_pack_i8_hopper, nk_attention_packed_i8_hopper, backend);
+    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_hopper",
+                                       nk_attention_pack_size_bf16_hopper, nk_attention_pack_bf16_hopper,
+                                       nk_attention_packed_bf16_hopper, nk_attention_packed_gradients_bf16_hopper,
+                                       backend);
 #endif // NUMKONG_TARGET_HOPPER
 }
 
@@ -515,14 +515,14 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                              nk_attention_pack_bf16_blackwell, nk_attention_packed_bf16_blackwell, backend);
     run_attention<nk_f16_k>(env, "attention_packed_f16_blackwell", nk_attention_pack_size_f16_blackwell,
                             nk_attention_pack_f16_blackwell, nk_attention_packed_f16_blackwell, backend);
+    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_blackwell", nk_attention_pack_size_e4m3_blackwell,
+                             nk_attention_pack_e4m3_blackwell, nk_attention_packed_e4m3_blackwell, backend);
+    run_attention<nk_i8_k>(env, "attention_packed_i8_blackwell", nk_attention_pack_size_i8_blackwell,
+                           nk_attention_pack_i8_blackwell, nk_attention_packed_i8_blackwell, backend);
     run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_blackwell",
                                        nk_attention_pack_size_bf16_blackwell, nk_attention_pack_bf16_blackwell,
                                        nk_attention_packed_bf16_blackwell, nk_attention_packed_gradients_bf16_blackwell,
                                        backend);
-    run_attention<nk_i8_k>(env, "attention_packed_i8_blackwell", nk_attention_pack_size_i8_blackwell,
-                           nk_attention_pack_i8_blackwell, nk_attention_packed_i8_blackwell, backend);
-    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_blackwell", nk_attention_pack_size_e4m3_blackwell,
-                             nk_attention_pack_e4m3_blackwell, nk_attention_packed_e4m3_blackwell, backend);
 #endif // NUMKONG_TARGET_BLACKWELL
 }
 
@@ -612,14 +612,14 @@ void bench_cross_blackwellultra([[maybe_unused]] environment_t const &env,
                              nk_attention_pack_bf16_blackwellultra, nk_attention_packed_bf16_blackwellultra, backend);
     run_attention<nk_f16_k>(env, "attention_packed_f16_blackwellultra", nk_attention_pack_size_f16_blackwellultra,
                             nk_attention_pack_f16_blackwellultra, nk_attention_packed_f16_blackwellultra, backend);
+    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_blackwellultra", nk_attention_pack_size_e4m3_blackwellultra,
+                             nk_attention_pack_e4m3_blackwellultra, nk_attention_packed_e4m3_blackwellultra, backend);
+    run_attention<nk_i8_k>(env, "attention_packed_i8_blackwellultra", nk_attention_pack_size_i8_blackwellultra,
+                           nk_attention_pack_i8_blackwellultra, nk_attention_packed_i8_blackwellultra, backend);
     run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_blackwellultra",
                                        nk_attention_pack_size_bf16_blackwellultra,
                                        nk_attention_pack_bf16_blackwellultra, nk_attention_packed_bf16_blackwellultra,
                                        nk_attention_packed_gradients_bf16_blackwellultra, backend);
-    run_attention<nk_i8_k>(env, "attention_packed_i8_blackwellultra", nk_attention_pack_size_i8_blackwellultra,
-                           nk_attention_pack_i8_blackwellultra, nk_attention_packed_i8_blackwellultra, backend);
-    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_blackwellultra", nk_attention_pack_size_e4m3_blackwellultra,
-                             nk_attention_pack_e4m3_blackwellultra, nk_attention_packed_e4m3_blackwellultra, backend);
 #endif // NUMKONG_TARGET_BLACKWELLULTRA
 }
 
@@ -664,9 +664,9 @@ void run_unpacked(environment_t const &env, std::string const &name, expected_me
 #pragma region cuBLAS
 #if NUMKONG_COMPARE_TO_CUBLAS
 
-/** cuBLASLt's storage type for @p dtype. */
+/** cuBLASLt's storage type for the elements of @p dtype. */
 cudaDataType_t cublaslt_input_type(nk_dtype_t dtype) noexcept {
-    switch (dtype) {
+    switch (nk_dtype_element(dtype)) {
     case nk_f64_k: return CUDA_R_64F;
     case nk_f32_k: return CUDA_R_32F;
     case nk_bf16_k: return CUDA_R_16BF;
@@ -696,9 +696,10 @@ cudaDataType_t cublaslt_output_type(nk_dtype_t dtype) noexcept {
     }
 }
 
-/** Elements per block scale cuBLASLt requires of @p dtype: 32 for 6-bit floats, 16 for 4-bit ones,
- *  0 for none. */
+/** Elements per block scale cuBLASLt requires of @p dtype: a block-scaled format's own block, 32
+ *  for plain 6-bit floats, 16 for plain 4-bit ones, 0 for none. */
 std::size_t cublaslt_scale_block(nk_dtype_t dtype) noexcept {
+    if (std::size_t const block = nk_block_scaled_format_of_dtype(dtype).block_size) return block;
     switch (dtype) {
     case nk_e3m2_k:
     case nk_e2m3_k: return 32;
@@ -861,6 +862,10 @@ void bench_cross_cublas([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_dots_with_cublaslt<nk_e3m2_k>(env, "dots_packed_e3m2_with_cublaslt", backend);
     run_dots_with_cublaslt<nk_e2m3_k>(env, "dots_packed_e2m3_with_cublaslt", backend);
     run_dots_with_cublaslt<nk_e2m1_k>(env, "dots_packed_e2m1_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_nvfp4_k>(env, "dots_packed_nvfp4_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_mxfp4_k>(env, "dots_packed_mxfp4_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_mxfp8e4m3_k>(env, "dots_packed_mxfp8e4m3_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_with_cublaslt", backend);
     run_dots_with_cublaslt<nk_i8_k>(env, "dots_packed_i8_with_cublaslt", backend);
     run_dots_with_cublaslt<nk_i4_k>(env, "dots_packed_i4_with_cublaslt", backend);
     run_dots_with_cublaslt<nk_u8_k>(env, "dots_packed_u8_with_cublaslt", backend);
@@ -876,6 +881,7 @@ void bench_cross_cublas([[maybe_unused]] environment_t const &env, [[maybe_unuse
 cudnnDataType_t cudnn_data_type(nk_dtype_t dtype) noexcept {
     switch (dtype) {
     case nk_bf16_k: return CUDNN_DATA_BFLOAT16;
+    case nk_f16_k: return CUDNN_DATA_HALF;
     case nk_e4m3_k: return CUDNN_DATA_FP8_E4M3;
     default: return CUDNN_DATA_FLOAT;
     }
@@ -1207,11 +1213,12 @@ void run_attention_with_cudnn(environment_t const &env, std::string const &name,
 
 #endif // NUMKONG_COMPARE_TO_CUDNN
 
-/** Every cuDNN row: BF16 and E4M3 attention, bidirectional, causal, and windowed where the window
- *  clips. */
+/** Every cuDNN row: BF16, F16 and E4M3 attention, bidirectional, causal, and windowed where the
+ *  window clips. */
 void bench_cross_cudnn([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
 #if NUMKONG_COMPARE_TO_CUDNN
     run_attention_with_cudnn<nk_bf16_k>(env, "attention_packed_bf16_with_cudnn", backend);
+    run_attention_with_cudnn<nk_f16_k>(env, "attention_packed_f16_with_cudnn", backend);
     run_attention_with_cudnn<nk_e4m3_k>(env, "attention_packed_e4m3_with_cudnn", backend);
 #endif // NUMKONG_COMPARE_TO_CUDNN
 }

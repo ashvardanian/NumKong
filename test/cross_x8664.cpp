@@ -60,10 +60,18 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
           nk_dots_packed_i8_haswell);
     check("dots_pack_i8_haswell", test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_haswell,
                                                         nk_dots_packed_shape_i8_haswell, nk_dots_pack_i8_haswell>);
+    check("dots_packed_i4_haswell", test_dots_packed<i4x2_t>, nk_dots_pack_size_i4_haswell, nk_dots_pack_i4_haswell,
+          nk_dots_packed_i4_haswell);
+    check("dots_pack_i4_haswell", test_dots_pack_layout<i4x2_t, host_backend_t, nk_dots_pack_size_i4_haswell,
+                                                        nk_dots_packed_shape_i4_haswell, nk_dots_pack_i4_haswell>);
     check("dots_packed_u8_haswell", test_dots_packed<u8_t>, nk_dots_pack_size_u8_haswell, nk_dots_pack_u8_haswell,
           nk_dots_packed_u8_haswell);
     check("dots_pack_u8_haswell", test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_haswell,
                                                         nk_dots_packed_shape_u8_haswell, nk_dots_pack_u8_haswell>);
+    check("dots_packed_u4_haswell", test_dots_packed<u4x2_t>, nk_dots_pack_size_u4_haswell, nk_dots_pack_u4_haswell,
+          nk_dots_packed_u4_haswell);
+    check("dots_pack_u4_haswell", test_dots_pack_layout<u4x2_t, host_backend_t, nk_dots_pack_size_u4_haswell,
+                                                        nk_dots_packed_shape_u4_haswell, nk_dots_pack_u4_haswell>);
     check("dots_packed_u1_haswell", test_dots_packed<u1x8_t>, nk_dots_pack_size_u1_haswell, nk_dots_pack_u1_haswell,
           nk_dots_packed_u1_haswell);
 
@@ -77,7 +85,9 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
     check("dots_symmetric_e2m3_haswell", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_haswell);
     check("dots_symmetric_e2m1_haswell", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_haswell);
     check("dots_symmetric_i8_haswell", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_haswell);
+    check("dots_symmetric_i4_haswell", test_dots_symmetric<i4x2_t>, nk_dots_symmetric_i4_haswell);
     check("dots_symmetric_u8_haswell", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_haswell);
+    check("dots_symmetric_u4_haswell", test_dots_symmetric<u4x2_t>, nk_dots_symmetric_u4_haswell);
     check("dots_symmetric_u1_haswell", test_dots_symmetric<u1x8_t>, nk_dots_symmetric_u1_haswell);
 
     check("hammings_packed_u1_haswell", test_hammings_packed<u1x8_t>, nk_dots_pack_size_u1_haswell,

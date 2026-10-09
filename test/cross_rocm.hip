@@ -209,12 +209,12 @@ void test_cross_rocm(error_stats_section_t &check) {
           nk_euclideans_symmetric_u4_rocm);
     check("attention_packed_bf16_rocm", test_attention_packed<bf16_t, rocm_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_bf16_rocm, nk_attention_pack_bf16_rocm, nk_attention_packed_bf16_rocm);
-    check("attention_packed_gradients_bf16_rocm", test_attention_packed_gradients<bf16_t, rocm_backend_t>,
-          nk_attention_pack_size_bf16_rocm, nk_attention_pack_bf16_rocm, nk_attention_packed_gradients_bf16_rocm);
     check("attention_packed_e4m3_rocm", test_attention_packed<e4m3_t, rocm_backend_t, attention_weights_t::bits_11_k>,
           nk_attention_pack_size_e4m3_rocm, nk_attention_pack_e4m3_rocm, nk_attention_packed_e4m3_rocm);
     check("attention_packed_i8_rocm", test_attention_packed<i8_t, rocm_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_rocm, nk_attention_pack_i8_rocm, nk_attention_packed_i8_rocm);
+    check("attention_packed_gradients_bf16_rocm", test_attention_packed_gradients<bf16_t, rocm_backend_t>,
+          nk_attention_pack_size_bf16_rocm, nk_attention_pack_bf16_rocm, nk_attention_packed_gradients_bf16_rocm);
 
     check.section("Reductions ROCm", nk_cap_rocm_k);
     check("reduce_moments_f32_rocm", test_reduce_moments<f32_t, rocm_backend_t>, nk_reduce_moments_f32_rocm);
@@ -430,10 +430,10 @@ void test_cross_rocm(error_stats_section_t &check) {
           nk_euclideans_symmetric_u4_cdna3);
     check("attention_packed_bf16_cdna3", test_attention_packed<bf16_t, rocm_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_bf16_cdna3, nk_attention_pack_bf16_cdna3, nk_attention_packed_bf16_cdna3);
-    check("attention_packed_gradients_bf16_cdna3", test_attention_packed_gradients<bf16_t, rocm_backend_t>,
-          nk_attention_pack_size_bf16_cdna3, nk_attention_pack_bf16_cdna3, nk_attention_packed_gradients_bf16_cdna3);
     check("attention_packed_i8_cdna3", test_attention_packed<i8_t, rocm_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_cdna3, nk_attention_pack_i8_cdna3, nk_attention_packed_i8_cdna3);
+    check("attention_packed_gradients_bf16_cdna3", test_attention_packed_gradients<bf16_t, rocm_backend_t>,
+          nk_attention_pack_size_bf16_cdna3, nk_attention_pack_bf16_cdna3, nk_attention_packed_gradients_bf16_cdna3);
 #endif // NUMKONG_TARGET_CDNA3
 
 #if NUMKONG_TARGET_CDNA4
@@ -609,12 +609,12 @@ void test_cross_rocm(error_stats_section_t &check) {
           nk_euclideans_symmetric_u4_cdna4);
     check("attention_packed_bf16_cdna4", test_attention_packed<bf16_t, rocm_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_bf16_cdna4, nk_attention_pack_bf16_cdna4, nk_attention_packed_bf16_cdna4);
-    check("attention_packed_gradients_bf16_cdna4", test_attention_packed_gradients<bf16_t, rocm_backend_t>,
-          nk_attention_pack_size_bf16_cdna4, nk_attention_pack_bf16_cdna4, nk_attention_packed_gradients_bf16_cdna4);
     check("attention_packed_e4m3_cdna4", test_attention_packed<e4m3_t, rocm_backend_t, attention_weights_t::bits_11_k>,
           nk_attention_pack_size_e4m3_cdna4, nk_attention_pack_e4m3_cdna4, nk_attention_packed_e4m3_cdna4);
     check("attention_packed_i8_cdna4", test_attention_packed<i8_t, rocm_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_cdna4, nk_attention_pack_i8_cdna4, nk_attention_packed_i8_cdna4);
+    check("attention_packed_gradients_bf16_cdna4", test_attention_packed_gradients<bf16_t, rocm_backend_t>,
+          nk_attention_pack_size_bf16_cdna4, nk_attention_pack_bf16_cdna4, nk_attention_packed_gradients_bf16_cdna4);
 #endif // NUMKONG_TARGET_CDNA4
 
 #if NUMKONG_TARGET_CDNA5
@@ -790,12 +790,12 @@ void test_cross_rocm(error_stats_section_t &check) {
           nk_euclideans_symmetric_u4_cdna5);
     check("attention_packed_bf16_cdna5", test_attention_packed<bf16_t, rocm_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_bf16_cdna5, nk_attention_pack_bf16_cdna5, nk_attention_packed_bf16_cdna5);
-    check("attention_packed_gradients_bf16_cdna5", test_attention_packed_gradients<bf16_t, rocm_backend_t>,
-          nk_attention_pack_size_bf16_cdna5, nk_attention_pack_bf16_cdna5, nk_attention_packed_gradients_bf16_cdna5);
     check("attention_packed_e4m3_cdna5", test_attention_packed<e4m3_t, rocm_backend_t, attention_weights_t::bits_11_k>,
           nk_attention_pack_size_e4m3_cdna5, nk_attention_pack_e4m3_cdna5, nk_attention_packed_e4m3_cdna5);
     check("attention_packed_i8_cdna5", test_attention_packed<i8_t, rocm_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_cdna5, nk_attention_pack_i8_cdna5, nk_attention_packed_i8_cdna5);
+    check("attention_packed_gradients_bf16_cdna5", test_attention_packed_gradients<bf16_t, rocm_backend_t>,
+          nk_attention_pack_size_bf16_cdna5, nk_attention_pack_bf16_cdna5, nk_attention_packed_gradients_bf16_cdna5);
 #endif // NUMKONG_TARGET_CDNA5
 
     test_cross_dispatch<rocm_backend_t>(check);

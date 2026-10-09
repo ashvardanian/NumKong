@@ -79,7 +79,8 @@ enum {
  *  @c sums_read with the correction warps' read of them. Single-tile items alternate S between both
  *  tiles' columns, the second with the barriers and factors of slot 2, which tile 1's warps never
  *  see, as they may already wait on slot 1 for a later item; such items signal @c multiplied with
- *  each P · V but the last. */
+ *  each P · V but the last. A shared item's correction warps complete @c exchanged in the other
+ *  block with each row's log-sum-exp, and rank 0's complete @c merged in rank 1 once O lands. */
 typedef struct {
     nk_u64_t loaded[nk_attention_stages_blackwell_k];
     nk_u64_t widened[nk_attention_stages_blackwell_k];
@@ -97,20 +98,25 @@ typedef struct {
     nk_u64_t multiplied;
     nk_u64_t summed[2];
     nk_u64_t sums_read[2];
+    nk_u64_t exchanged[2][2];
+    nk_u64_t merged[2];
     nk_attention_work_t works[2];
     nk_f32_t factors[3][nk_attention_tile_rows_blackwell_k];
     nk_f32_t sums[2][nk_attention_tile_rows_blackwell_k];
+    nk_f32_t log_sum_exps[2][nk_attention_tile_rows_blackwell_k];
+    nk_f32_t pair_log_sum_exps[2][2][nk_attention_tile_rows_blackwell_k];
     nk_u32_t tensor_memory;
 } nk_attention_control_blackwell_t;
 
 /** Everything one launch shares: the attention arguments, the tensor map of the packed buffer as
- *  rows of a K or V plane, whose payload starts a whole number of rows in, and the map of Q as
- *  tokens of heads of head rows, which reaches @c query_tokens tokens, or none when zero. Passed as
- *  a grid constant, so the maps keep an address. */
+ *  rows of a K or V plane, whose payload starts a whole number of rows in, the map of Q as tokens
+ *  of heads of head rows, which reaches @c query_tokens tokens, or none when zero, and whether
+ *  clusters of two blocks split each item's keys. A grid constant, so the maps keep an address. */
 typedef struct {
     CUtensorMap map;
     CUtensorMap queries_map;
     nk_size_t query_tokens;
+    int paired;
     nk_attention_arguments_t attention;
 } nk_attention_tile_arguments_blackwell_t;
 
@@ -174,6 +180,11 @@ typedef struct {
 
     /** Whether the load warp copies Q tiles starting on a whole token through the map of Q. */
     int queries_mapped;
+
+    /** Whether a pair of blocks shares each item, rank 0 taking the first half of its panels and
+     *  rank 1 the rest, and this block's rank in it. */
+    int paired;
+    nk_u32_t pair_rank;
 } nk_attention_schedule_blackwell_t;
 
 /** One work item as every role sees it: its panels of keys, and where its planes start. */
@@ -191,6 +202,9 @@ typedef struct {
 
     /** Map rows of the item's first K and first V position. */
     nk_size_t keys_row, values_row;
+
+    /** Whether both blocks of a pair take a share of the item's panels and merge their rows. */
+    int shared;
 } nk_attention_item_blackwell_t;
 
 /** Bytes of one operand element as the products read it: 1 for E4M3 codes, else 2, as 16-bit
@@ -359,6 +373,30 @@ NUMKONG_DEVICE void nk_tmem_store_x32_blackwell_(nk_u32_t address, nk_u32_t cons
                  : "memory");
 }
 
+/* Writes @p value to cluster address @p address, in any block of the cluster. */
+NUMKONG_DEVICE void nk_store_shared_cluster_f32_blackwell_(nk_u32_t address, nk_f32_t value) {
+    asm volatile("st.shared::cluster.f32 [%0], %1;\n" ::"r"(address), "f"(value) : "memory");
+}
+
+/* Arrives on the barrier at cluster address @p barrier, releasing this thread's writes to the
+ *  cluster. */
+NUMKONG_DEVICE void nk_mbarrier_arrive_release_cluster_blackwell_(nk_u32_t barrier) {
+    asm volatile("mbarrier.arrive.release.cluster.shared::cluster.b64 _, [%0];\n" ::"r"(barrier) : "memory");
+}
+
+/* Spins until the phase of parity @p parity completes, acquiring what the cluster released. */
+NUMKONG_DEVICE void nk_mbarrier_wait_acquire_cluster_blackwell_(nk_u32_t barrier, nk_u32_t parity) {
+    nk_u32_t done;
+    do {
+        asm volatile("{\n.reg .pred ready;\n"                                                      //
+                     "mbarrier.try_wait.parity.acquire.cluster.shared::cta.b64 ready, [%1], %2;\n" //
+                     "selp.u32 %0, 1, 0, ready;\n}\n"
+                     : "=r"(done)
+                     : "r"(barrier), "r"(parity)
+                     : "memory");
+    } while (!done);
+}
+
 #pragma endregion Instructions
 
 #pragma region Fragments
@@ -521,6 +559,12 @@ NUMKONG_DEVICE void nk_attention_item_blackwell_(nk_attention_arguments_t const 
     item->panels = begin < end
                        ? (unsigned)nk_size_divide_round_up_(end, nk_attention_panel_blackwell_k) - item->panel_first
                        : 0;
+    item->shared = schedule->paired && item->panels >= 2;
+    if (schedule->paired && !item->shared && schedule->pair_rank) item->panels = 0;
+    if (!item->shared) return;
+    unsigned const leading = nk_u32_divide_round_up_(item->panels, 2);
+    item->panel_first += schedule->pair_rank * leading;
+    item->panels = schedule->pair_rank ? item->panels - leading : leading;
 }
 
 #pragma endregion Schedule
@@ -566,6 +610,8 @@ NUMKONG_DEVICE nk_attention_schedule_blackwell_t nk_attention_schedule_blackwell
     schedule.payload_row = nk_attention_payload_offset_simt_(segments, schedule.row_bytes) / schedule.row_bytes;
     schedule.band = nk_attention_kernel_band_simt_(kernel->mask, arguments);
     schedule.queries_mapped = tile_arguments->query_tokens != 0;
+    schedule.paired = tile_arguments->paired;
+    schedule.pair_rank = schedule.paired ? nk_cluster_rank_blackwell_() : 0;
     return schedule;
 }
 
@@ -591,6 +637,12 @@ NUMKONG_DEVICE nk_u32_t nk_attention_initialize_blackwell_(nk_attention_schedule
             nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->accumulated[index]), 1);
             nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->summed[index]), 4);
             nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->sums_read[index]), 4);
+            nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->exchanged[0][index]),
+                                        nk_attention_tile_rows_blackwell_k);
+            nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->exchanged[1][index]),
+                                        nk_attention_tile_rows_blackwell_k);
+            nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->merged[index]),
+                                        nk_attention_tile_rows_blackwell_k);
         }
         for (unsigned slot = 0; slot < 3; ++slot) {
             nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->scored[slot]), 1);
@@ -606,6 +658,8 @@ NUMKONG_DEVICE nk_u32_t nk_attention_initialize_blackwell_(nk_attention_schedule
                                  nk_attention_tensor_columns_blackwell_k);
     nk_tmem_fence_before_blackwell_();
     __syncthreads();
+    // The pair arrives on each other's barriers only once both are initialized.
+    if (schedule->paired) nk_cluster_sync_blackwell_();
     nk_tmem_fence_after_blackwell_();
     return control->tensor_memory;
 }
@@ -707,7 +761,8 @@ NUMKONG_DEVICE void nk_attention_load_blackwell_(nk_attention_schedule_blackwell
     if (lane == 0) nk_prefetch_map_blackwell_(map);
     if (lane == 1 && schedule->queries_mapped) nk_prefetch_map_blackwell_(&arguments->queries_map);
     nk_u32_t stage = 0, phase = 0, sequence = 0, query_items[2] = {0, 0};
-    for (nk_size_t index = blockIdx.x;; index += gridDim.x, ++sequence) {
+    unsigned const item_blocks = schedule->paired ? 2 : 1;
+    for (nk_size_t index = blockIdx.x / item_blocks;; index += gridDim.x / item_blocks, ++sequence) {
         nk_attention_work_t work;
         int const found = started && nk_attention_next_work_blackwell_(&tasks, schedule->item_rows, index, &work);
         if (!found) work.row_count = 0;
@@ -886,21 +941,22 @@ NUMKONG_DEVICE void nk_attention_rescale_blackwell_(nk_attention_schedule_blackw
     nk_tmem_wait_store_blackwell_();
 }
 
-/** Stores this thread's row of O at tensor-memory address @p output, divided by @p row_sum, or
- *  zeros and a −∞ log-sum-exp for an item whose rows see no keys, skipping rows past the item. */
+/** Stores this thread's row of O at tensor-memory address @p output times @p multiplier, or zeros
+ *  and a −∞ log-sum-exp for an item whose rows see no keys, skipping rows past the item. With
+ *  @p adds, adds the row to the one stored instead, leaving the log-sum-exp. */
 NUMKONG_DEVICE void nk_attention_store_output_blackwell_(nk_attention_arguments_t const *arguments,
                                                          nk_attention_work_t const *work, nk_u32_t output,
-                                                         unsigned tile, int seen, nk_f32_t row_sum) {
+                                                         unsigned tile, int seen, nk_f32_t multiplier, int adds) {
     nk_size_t const local = tile * nk_attention_tile_rows_blackwell_k +
                             threadIdx.x % nk_attention_tile_rows_blackwell_k;
     nk_size_t const depth = arguments->depth;
     int const inside = local < work->row_count;
-    nk_f32_t *const log_sum_exp_slot = !seen && inside ? nk_attention_log_sum_exp_slot_simt_(arguments, work, local)
-                                                       : NUMKONG_NULL;
+    nk_f32_t *const log_sum_exp_slot = !seen && inside && !adds
+                                           ? nk_attention_log_sum_exp_slot_simt_(arguments, work, local)
+                                           : NUMKONG_NULL;
     if (log_sum_exp_slot) *log_sum_exp_slot = nk_attention_negative_infinity_simt_();
     nk_f32_t *const destination = inside ? nk_attention_output_row_simt_(arguments, work, local) : arguments->output;
     int const aligned = ((nk_size_t)destination & 15) == 0;
-    nk_f32_t const inverse = row_sum > 0 ? 1.0f / row_sum : 0.0f;
 #pragma unroll 1
     for (unsigned column = 0; column < depth; column += 32) {
         nk_u32_t bits[32];
@@ -911,7 +967,12 @@ NUMKONG_DEVICE void nk_attention_store_output_blackwell_(nk_attention_arguments_
         if (!inside) continue;
 #pragma unroll
         for (unsigned offset = 0; offset < 32; ++offset)
-            bits[offset] = __float_as_uint(__uint_as_float(bits[offset]) * inverse);
+            bits[offset] = __float_as_uint(__uint_as_float(bits[offset]) * multiplier);
+        if (adds)
+#pragma unroll
+            for (unsigned offset = 0; offset < 32; ++offset)
+                if (column + offset < depth)
+                    bits[offset] = __float_as_uint(__uint_as_float(bits[offset]) + destination[column + offset]);
         if (aligned && column + 32 <= depth) {
             uint4 *destination_quartets = (uint4 *)(destination + column);
 #pragma unroll
@@ -926,6 +987,49 @@ NUMKONG_DEVICE void nk_attention_store_output_blackwell_(nk_attention_arguments_
     }
 }
 
+/** Stores this thread's row of O at tensor-memory address @p output as its block's share of a
+ *  paired item, of the keys whose weights sum to @p row_sum and log-sum-exp is @p log_sum_exp:
+ *  swaps log-sum-exps with the pair, then rank 0 stores its weighted row and the joint
+ *  log-sum-exp, and rank 1 adds its own once rank 0's lands, so rows sum in rank order. @p merge
+ *  counts the tile's paired items before. */
+NUMKONG_DEVICE void nk_attention_merge_output_blackwell_(nk_attention_schedule_blackwell_t const *schedule,
+                                                         nk_attention_control_blackwell_t *control,
+                                                         nk_attention_arguments_t const *arguments,
+                                                         nk_attention_work_t const *work, nk_u32_t output,
+                                                         unsigned tile, int seen, nk_f32_t row_sum,
+                                                         nk_f32_t log_sum_exp, nk_u32_t merge) {
+    unsigned const tile_row = threadIdx.x % nk_attention_tile_rows_blackwell_k;
+    nk_f32_t *const pair_slot = &control->pair_log_sum_exps[merge & 1][tile][tile_row];
+    // Alternate merges take alternate barriers, so a block one merge ahead never completes two.
+    nk_u32_t const exchanged = nk_shared_address_ampere_(&control->exchanged[merge & 1][tile]);
+    nk_u32_t const merged = nk_shared_address_ampere_(&control->merged[tile]);
+    nk_u32_t const pair_rank = schedule->pair_rank ^ 1;
+    nk_store_shared_cluster_f32_blackwell_(
+        nk_cluster_address_blackwell_(nk_shared_address_ampere_(pair_slot), pair_rank), log_sum_exp);
+    nk_mbarrier_arrive_release_cluster_blackwell_(nk_cluster_address_blackwell_(exchanged, pair_rank));
+    nk_mbarrier_wait_acquire_cluster_blackwell_(exchanged, (merge >> 1) & 1);
+    nk_f32_t const pair_log_sum_exp = *pair_slot;
+    nk_f32_t const negative_infinity = nk_attention_negative_infinity_simt_();
+    nk_f32_t const maximum = fmaxf(log_sum_exp, pair_log_sum_exp);
+    nk_f32_t const joint = maximum == negative_infinity
+                               ? maximum
+                               : maximum + logf(expf(log_sum_exp - maximum) + expf(pair_log_sum_exp - maximum));
+    nk_f32_t const share = joint == negative_infinity ? 0.0f : expf(log_sum_exp - joint);
+    nk_f32_t const multiplier = row_sum > 0 ? share / row_sum : 0.0f;
+    if (schedule->pair_rank) {
+        nk_mbarrier_wait_acquire_cluster_blackwell_(merged, merge & 1);
+        if (seen) nk_attention_store_output_blackwell_(arguments, work, output, tile, 1, multiplier, 1);
+        return;
+    }
+    nk_attention_store_output_blackwell_(arguments, work, output, tile, seen, multiplier, 0);
+    nk_size_t const local = tile * nk_attention_tile_rows_blackwell_k + tile_row;
+    nk_f32_t *const log_sum_exp_slot = local < work->row_count
+                                           ? nk_attention_log_sum_exp_slot_simt_(arguments, work, local)
+                                           : NUMKONG_NULL;
+    if (log_sum_exp_slot) *log_sum_exp_slot = joint;
+    nk_mbarrier_arrive_release_cluster_blackwell_(nk_cluster_address_blackwell_(merged, 1));
+}
+
 /** Rescales every tile's O as its maximum moves, between its products, then normalizes and stores
  *  it, one row per thread, from the correction warpgroup. */
 NUMKONG_DEVICE void nk_attention_correct_blackwell_(nk_attention_schedule_blackwell_t const *schedule,
@@ -936,7 +1040,8 @@ NUMKONG_DEVICE void nk_attention_correct_blackwell_(nk_attention_schedule_blackw
                                                        nk_attention_output_column_blackwell_k);
     // The last tile's S of a panel follows every product reading the previous panel's V.
     int const releaser = tile_row == 0 && schedule->ring_stages > 1;
-    nk_u32_t rescalings[3] = {0, 0, 0}, panels[2] = {0, 0}, items[2] = {0, 0}, uses = 0, multiplications = 0;
+    nk_u32_t rescalings[3] = {0, 0, 0}, panels[2] = {0, 0}, items[2] = {0, 0}, merges[2] = {0, 0}, uses = 0,
+             multiplications = 0;
     for (nk_u32_t sequence = 0;; ++sequence) {
         nk_attention_work_t work;
         nk_attention_take_work_blackwell_(control, sequence, &work);
@@ -976,18 +1081,26 @@ NUMKONG_DEVICE void nk_attention_correct_blackwell_(nk_attention_schedule_blackw
             for (unsigned tile = 0; tile < item.tiles; ++tile) panels[tile] += item.panels;
         for (unsigned tile = 0; tile < item.tiles; ++tile) {
             nk_u32_t const output = outputs + tile * nk_attention_tile_rows_blackwell_k;
-            if (!item.panels) {
-                nk_attention_store_output_blackwell_(&arguments->attention, &work, output, tile, 0, 0);
-                continue;
-            }
+            if (!item.panels && item.shared)
+                nk_attention_merge_output_blackwell_(schedule, control, &arguments->attention, &work, output, tile, 0,
+                                                     0, nk_attention_negative_infinity_simt_(), merges[tile]++);
+            else if (!item.panels && !schedule->pair_rank)
+                nk_attention_store_output_blackwell_(&arguments->attention, &work, output, tile, 0, 0, 0);
+            if (!item.panels) continue;
             nk_attention_wait_blackwell_(&control->accumulated[tile], items[tile] & 1);
             nk_attention_wait_blackwell_(&control->summed[tile], items[tile]++ & 1);
             nk_f32_t const row_sum = control->sums[tile][tile_row];
+            nk_f32_t const log_sum_exp = control->log_sum_exps[tile][tile_row];
             nk_attention_warp_arrive_blackwell_(&control->sums_read[tile]);
             nk_tmem_fence_after_blackwell_();
             if (releaser && tile + 1 == item.tiles)
                 nk_attention_release_stage_blackwell_(schedule, control, first_use + 2 * item.panels - 1);
-            nk_attention_store_output_blackwell_(&arguments->attention, &work, output, tile, 1, row_sum);
+            if (item.shared)
+                nk_attention_merge_output_blackwell_(schedule, control, &arguments->attention, &work, output, tile, 1,
+                                                     row_sum, log_sum_exp, merges[tile]++);
+            else
+                nk_attention_store_output_blackwell_(&arguments->attention, &work, output, tile, 1,
+                                                     row_sum > 0 ? 1.0f / row_sum : 0.0f, 0);
             nk_tmem_fence_before_blackwell_();
             nk_attention_warp_arrive_blackwell_(&control->corrected[tile]);
         }
@@ -1703,12 +1816,12 @@ typedef struct {
 
 /** A single-pass block's state: the rows of the chunk the compute warps weigh next, both slots'
  *  staged partials, the products' barrier, the slots' full barriers, the drained ones the compute
- *  warps arrive on once a partial is staged, the one they arrive on once a chunk is weighed, and
- *  the tensor-memory address. */
+ *  warps arrive on once a partial is staged, the one they arrive on once a chunk is weighed, the
+ *  item's K and V planes landing, its last products leaving them, and the tensor-memory address. */
 typedef struct {
     nk_attention_backward_window_blackwell_t rows;
     nk_attention_backward_reduction_blackwell_t reductions[2];
-    nk_u64_t done, weighed, full[2], drained[2];
+    nk_u64_t done, weighed, full[2], drained[2], planes, spent;
     nk_u32_t tensor_memory;
 } nk_attention_backward_single_control_blackwell_t;
 
@@ -1724,41 +1837,92 @@ NUMKONG_CONSTEXPR nk_size_t nk_attention_backward_single_shared_bytes_blackwell_
            sizeof(nk_attention_backward_single_control_blackwell_t);
 }
 
+enum { nk_attention_backward_prepared_loads_blackwell_k = 8 };
+
+/** Sums this lane's share of @p row_lanes' D in the order of float2 loads at 2 · lane and 64 more,
+ *  from the float4 at 4 · lane that the half warp from @p row_lanes holds. */
+NUMKONG_DEVICE nk_f32_t nk_attention_backward_prepared_dot_blackwell_(float4 gradient, float4 output,
+                                                                      unsigned row_lanes, int second_half) {
+    unsigned const lane = threadIdx.x & 31, source = row_lanes + (lane >> 1);
+    int const odd = lane & 1;
+    nk_f32_t const even_sum = fmaf(gradient.y, output.y, fmaf(gradient.x, output.x, 0.0f));
+    nk_f32_t const odd_sum = fmaf(gradient.w, output.w, fmaf(gradient.z, output.z, 0.0f));
+    nk_f32_t const even_first = __shfl_sync(0xFFFFFFFFu, even_sum, source);
+    nk_f32_t const odd_first = __shfl_sync(0xFFFFFFFFu, odd_sum, source);
+    nk_f32_t dot = odd ? odd_first : even_first;
+    if (second_half) {
+        unsigned const second = 16 + (lane >> 1);
+        float4 const gradient_second = make_float4(
+            __shfl_sync(0xFFFFFFFFu, gradient.x, second), __shfl_sync(0xFFFFFFFFu, gradient.y, second),
+            __shfl_sync(0xFFFFFFFFu, gradient.z, second), __shfl_sync(0xFFFFFFFFu, gradient.w, second));
+        float4 const output_second = make_float4(
+            __shfl_sync(0xFFFFFFFFu, output.x, second), __shfl_sync(0xFFFFFFFFu, output.y, second),
+            __shfl_sync(0xFFFFFFFFu, output.z, second), __shfl_sync(0xFFFFFFFFu, output.w, second));
+        dot = odd ? fmaf(gradient_second.w, output_second.w, fmaf(gradient_second.z, output_second.z, dot))
+                  : fmaf(gradient_second.y, output_second.y, fmaf(gradient_second.x, output_second.x, dot));
+    }
+    for (unsigned offset = 16; offset != 0; offset >>= 1) dot += __shfl_xor_sync(0xFFFFFFFFu, dot, offset);
+    return dot;
+}
+
 /** Writes each folded row's dO as BF16 and D = dO · O into the workspace the maps name, rows of
  *  @c head_count × depth values per token, and zeroes its dQ, which the single pass accumulates
- *  into, a warp per row. */
+ *  into. A warp takes runs of folded rows, a float4 per lane, so heads of 64 dimensions fill it
+ *  with two rows at once, and issues every row's loads before the first sum. */
 NUMKONG_DEVICE void nk_attention_backward_prepare_single_blackwell_(
     nk_attention_backward_maps_blackwell_t const *maps) {
     nk_attention_backward_arguments_t const *arguments = &maps->arguments;
     unsigned const lane = threadIdx.x & 31;
     nk_size_t const depth = arguments->depth, group = arguments->head_count / arguments->key_value_head_count;
+    unsigned const group32 = (unsigned)group, lanes_per_row = (unsigned)depth / 4;
+    unsigned const rows_per_load = 32 / lanes_per_row, row_in_load = lane / lanes_per_row;
+    unsigned const rows = nk_attention_backward_prepared_loads_blackwell_k * rows_per_load;
+    nk_size_t const element = (lane % lanes_per_row) * 4;
     nk_size_t const warp = (blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x) >> 5;
     nk_size_t const warps = (gridDim.x * (nk_size_t)blockDim.x) >> 5;
-    nk_size_t segment_first = arguments->tasks_begin / arguments->key_value_head_count, items_before = 0, task, folded;
+    nk_size_t segment_first = arguments->tasks_begin / arguments->key_value_head_count, items_before = 0, task, run;
     for (nk_size_t item = warp;
-         nk_attention_backward_next_cuda_(arguments, 0, 1, &segment_first, &items_before, item, &task, &folded);
+         nk_attention_backward_next_cuda_(arguments, 0, rows, &segment_first, &items_before, item, &task, &run);
          item += warps) {
         nk_size_t const segment = task / arguments->key_value_head_count;
-        nk_size_t const head = task % arguments->key_value_head_count * group + folded % group;
-        nk_size_t const token = arguments->query_offsets[segment] + folded / group;
-        nk_size_t const row = token * arguments->head_count + head, offset = token * arguments->output_stride;
-        nk_f32_t const *output_row = (nk_f32_t const *)((unsigned char const *)arguments->output + offset) +
-                                     head * depth;
-        nk_f32_t const *gradient_row = (nk_f32_t const *)((unsigned char const *)arguments->output_gradient + offset) +
-                                       head * depth;
-        nk_u32_t *prepared_pairs = (nk_u32_t *)(maps->prepared_gradients + row * depth * 2);
-        nk_f32_t *sum_row = (nk_f32_t *)((unsigned char *)arguments->query_gradient +
-                                         token * arguments->query_gradient_stride) +
-                            head * depth;
-        nk_f32_t dot = 0;
-        for (nk_size_t element = lane * 2; element < depth; element += 64) {
-            nk_f32_t const low = gradient_row[element], high = gradient_row[element + 1];
-            dot = fmaf(high, output_row[element + 1], fmaf(low, output_row[element], dot));
-            prepared_pairs[element / 2] = nk_f32x2_to_bf16x2_ampere_(low, high);
-            *(float2 *)(sum_row + element) = make_float2(0.0f, 0.0f);
+        nk_size_t const head_first = task % arguments->key_value_head_count * group;
+        nk_size_t const token_first = arguments->query_offsets[segment];
+        unsigned const folded_first = (unsigned)run * rows;
+        unsigned const folded_end = (unsigned)(group * (arguments->query_offsets[segment + 1] - token_first));
+        unsigned const live = folded_end - folded_first < rows ? folded_end - folded_first : rows;
+        float4 gradients[nk_attention_backward_prepared_loads_blackwell_k],
+            outputs[nk_attention_backward_prepared_loads_blackwell_k];
+#pragma unroll
+        for (unsigned load = 0; load < nk_attention_backward_prepared_loads_blackwell_k; ++load) {
+            unsigned const row = load * rows_per_load + row_in_load;
+            unsigned const folded = folded_first + (row < live ? row : 0);
+            nk_size_t const offset = (token_first + folded / group32) * arguments->output_stride;
+            nk_size_t const column = (head_first + folded % group32) * depth + element;
+            nk_f32_t const *output_row = (nk_f32_t const *)((unsigned char const *)arguments->output + offset);
+            nk_f32_t const *gradient_row = (nk_f32_t const *)((unsigned char const *)arguments->output_gradient +
+                                                              offset);
+            gradients[load] = *(float4 const *)(gradient_row + column);
+            outputs[load] = *(float4 const *)(output_row + column);
         }
-        for (unsigned offset = 16; offset != 0; offset >>= 1) dot += __shfl_xor_sync(0xFFFFFFFFu, dot, offset);
-        if (lane == 0) maps->prepared_dots[row] = dot;
+#pragma unroll
+        for (unsigned load = 0; load < nk_attention_backward_prepared_loads_blackwell_k; ++load) {
+            float4 const gradient = gradients[load], output = outputs[load];
+            unsigned const row = load * rows_per_load + row_in_load, folded = folded_first + row;
+            nk_size_t const token = token_first + folded / group32, head = head_first + folded % group32;
+            nk_size_t const prepared = token * arguments->head_count + head;
+            nk_f32_t const first_dot = nk_attention_backward_prepared_dot_blackwell_(gradient, output, 0,
+                                                                                     rows_per_load == 1);
+            nk_f32_t const second_dot = rows_per_load == 2
+                                            ? nk_attention_backward_prepared_dot_blackwell_(gradient, output, 16, 0)
+                                            : 0.0f;
+            if (row >= live) continue;
+            *(uint2 *)(maps->prepared_gradients + (prepared * depth + element) * 2) = make_uint2(
+                nk_f32x2_to_bf16x2_ampere_(gradient.x, gradient.y), nk_f32x2_to_bf16x2_ampere_(gradient.z, gradient.w));
+            *(float4 *)((nk_f32_t *)((unsigned char *)arguments->query_gradient +
+                                     token * arguments->query_gradient_stride) +
+                        head * depth + element) = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+            if (lane % lanes_per_row == 0) maps->prepared_dots[prepared] = row_in_load ? second_dot : first_dot;
+        }
     }
 }
 
@@ -1798,6 +1962,8 @@ nk_attention_backward_initialize_single_blackwell_(nk_attention_backward_single_
     if (threadIdx.x == 0) {
         nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->done), 1);
         nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->weighed), compute_warps);
+        nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->planes), 1);
+        nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->spent), 1);
         for (unsigned slot = 0; slot < 2; ++slot) {
             nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->full[slot]), producers);
             nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->drained[slot]), compute_warps);
@@ -2195,7 +2361,8 @@ NUMKONG_DEVICE void nk_attention_backward_single_blackwell_(nk_attention_backwar
     unsigned const producers = nk_attention_backward_single_threads_blackwell_k - compute_threads;
     int const producer = threadIdx.x >= compute_threads;
     unsigned const lane = (threadIdx.x >> 5 & 3) * 32 + (threadIdx.x & 31), local = threadIdx.x - compute_threads;
-    nk_u32_t phase = 0, sequence = 0;
+    nk_u32_t phase = 0, sequence = 0, planes_phase = 0;
+    nk_u32_t items_done = 0;
 
     nk_size_t segment_first = arguments->tasks_begin / arguments->key_value_head_count, items_before = 0;
     nk_size_t task_index, block;
@@ -2208,13 +2375,8 @@ NUMKONG_DEVICE void nk_attention_backward_single_blackwell_(nk_attention_backwar
         nk_size_t const folded_rows = group * task.rows;
         unsigned const key_first = (unsigned)block * nk_attention_backward_rows_blackwell_k;
         if (!producer) {
-            nk_attention_backward_copy_plane_blackwell_(keys_shared, task.keys_plane, key_first, positions_padded,
-                                                        inner, row_bytes, chunks, threadIdx.x, compute_threads);
-            nk_attention_backward_copy_plane_blackwell_(values_shared, task.values_plane, key_first, positions_padded,
-                                                        inner, row_bytes, chunks, threadIdx.x, compute_threads);
-            nk_commit_async_ampere_();
-            nk_wait_async_ampere_(0);
-            nk_attention_backward_publish_single_blackwell_();
+            nk_mbarrier_wait_blackwell_(nk_shared_address_ampere_(&control->planes), planes_phase);
+            planes_phase ^= 1;
         }
         int accumulated = 0, scored = 0;
         unsigned chunk_begin, chunk_end;
@@ -2224,6 +2386,18 @@ NUMKONG_DEVICE void nk_attention_backward_single_blackwell_(nk_attention_backwar
                                                                               : folded_rows;
         nk_size_t query_first = (nk_size_t)chunk_begin * inner / group;
         unsigned remainder = (unsigned)((nk_size_t)chunk_begin * inner % group);
+        // A producer loads this item's planes once the previous item's products are done with them.
+        if (producer && local == 0) {
+            if (items_done != 0)
+                nk_mbarrier_wait_blackwell_(nk_shared_address_ampere_(&control->spent), (items_done - 1) & 1);
+            nk_attention_backward_load_planes_blackwell_(
+                maps, (nk_size_t)(task.keys_plane - arguments->packed) / row_bytes,
+                (nk_size_t)(task.values_plane - arguments->packed) / row_bytes, key_first, positions_padded,
+                staged_bytes, inner, keys_shared, values_shared, &control->planes);
+        }
+        ++items_done;
+        if (!producer && threadIdx.x == 0 && (nk_size_t)chunk_begin * inner >= rows_end)
+            nk_mbarrier_arrive_blackwell_(nk_shared_address_ampere_(&control->spent));
         for (nk_size_t first = (nk_size_t)chunk_begin * inner; first < rows_end;
              first += inner, remainder += inner, query_first += remainder / group32, remainder %= group32) {
             unsigned const count = folded_rows - first < inner ? (unsigned)(folded_rows - first) : inner;
@@ -2304,6 +2478,8 @@ NUMKONG_DEVICE void nk_attention_backward_single_blackwell_(nk_attention_backwar
             nk_attention_backward_wait_single_blackwell_(&control->done, &phase);
             // The next chunk's S overwrites the spent Pᵀ while this chunk's dQ drains from dP.
             scored = first + inner < rows_end;
+            // The products are done with K and V, so the next item's planes load during the stores.
+            if (!scored && threadIdx.x == 0) nk_mbarrier_arrive_blackwell_(nk_shared_address_ampere_(&control->spent));
             if (scored && threadIdx.x < 32) {
                 unsigned const next = sequence % 2;
                 nk_mbarrier_wait_blackwell_(nk_shared_address_ampere_(&control->full[next]), (sequence / 2) & 1);
@@ -2416,8 +2592,16 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_tma_blackwell_(
                                             query_stride, group))
         arguments.query_tokens = query_token_count;
     unsigned const shared_bytes = nk_attention_shared_bytes_blackwell_(element_bytes, widens, width);
-    return nk_launch_resident_cuda_(width == nk_attention_width_128_k ? narrow_kernel : wide_kernel, threads,
-                                    shared_bytes, shared_bytes, NUMKONG_SIZE_MAX, &arguments, stream);
+    void const *kernel = width == nk_attention_width_128_k ? narrow_kernel : wide_kernel;
+    // Too few items to fill half the multiprocessors split their keys across clusters of two.
+    nk_size_t const items_most = key_value_head_count * (query_token_count - tasks_begin / head_count);
+    int multiprocessors = 0;
+    nk_status_t const status = nk_device_attribute_cuda_(cudaDevAttrMultiProcessorCount, &multiprocessors, stream);
+    if (status != nk_success_k) return status;
+    arguments.paired = items_most != 0 && 2 * items_most <= (nk_size_t)multiprocessors;
+    if (arguments.paired)
+        return nk_cross_launch_pairs_blackwell_(kernel, threads, shared_bytes, items_most, &arguments, stream);
+    return nk_launch_resident_cuda_(kernel, threads, shared_bytes, shared_bytes, NUMKONG_SIZE_MAX, &arguments, stream);
 }
 
 /** The launch for BF16. */
@@ -2543,11 +2727,12 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_blackwell_(void const *k
                                                       arguments.query_gradient_stride, group) &&
                   nk_cross_map_blackwell_(&maps.planes_map, arguments.packed, 0x7FFFFFFF, depth * 2, depth * 2, 128,
                                           nk_attention_box_rows_blackwell_k);
-    // The single pass reduces dQ through TMA, which needs 16-byte rows.
+    // The single pass reads O and dO by float4 and reduces dQ through TMA, both on 16-byte rows.
     maps.single = maps.mapped && nk_attention_backward_single_depth_blackwell_(depth) &&
                   arguments.query_token_count != 0 &&
                   (((nk_size_t)arguments.key_gradient | (nk_size_t)arguments.value_gradient |
-                    arguments.key_value_gradient_stride) &
+                    arguments.key_value_gradient_stride | (nk_size_t)arguments.output |
+                    (nk_size_t)arguments.output_gradient | arguments.output_stride) &
                    15) == 0 &&
                   nk_attention_sums_map_blackwell_(&maps.sums_map, arguments.query_gradient, arguments.head_count,
                                                    depth, arguments.query_gradient_stride, group);
@@ -2597,7 +2782,10 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
     unsigned char *payload = packed + nk_attention_payload_offset_simt_(segment_count, row_bytes);
     // Planes start on 16 bytes, so 16-byte chunks move whenever every source head row does too.
     int const chunked = (((nk_size_t)keys | (nk_size_t)values | key_stride | value_stride | depth_bytes) & 15) == 0;
-    nk_size_t const row_chunks = row_bytes / 16;
+    // Each thread keeps one 16-byte column and walks rows, so no index divides per chunk.
+    unsigned const row_chunks = (unsigned)(row_bytes / 16), depth_chunks = (unsigned)(depth_bytes / 16);
+    unsigned const rows_per_pass = blockDim.x / row_chunks, lane_row = threadIdx.x / row_chunks;
+    unsigned const chunk = threadIdx.x % row_chunks;
     uint4 const zero = make_uint4(0, 0, 0, 0);
     nk_size_t cursor_segment = 0;
     nk_u64_t payload_offset = 0;
@@ -2612,16 +2800,30 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
         unsigned char *values_plane = keys_plane + key_value_head_count * plane_bytes;
         unsigned char const *keys_first = keys + key_offsets[segment] * key_stride + head * depth_bytes;
         unsigned char const *values_first = values + key_offsets[segment] * value_stride + head * depth_bytes;
-        uint4 *keys_quartets = (uint4 *)keys_plane;
-        uint4 *values_quartets = (uint4 *)values_plane;
-        if (chunked)
-            for (nk_size_t index = threadIdx.x; index < plane_bytes / 16; index += blockDim.x) {
-                nk_size_t const position = index / row_chunks, byte = index % row_chunks * 16;
-                int const inside = position < length && byte < depth_bytes;
-                keys_quartets[index] = inside ? *(uint4 const *)(keys_first + position * key_stride + byte) : zero;
-                values_quartets[index] = inside ? *(uint4 const *)(values_first + position * value_stride + byte)
-                                                : zero;
+        if (chunked) {
+            if (lane_row >= rows_per_pass) continue;
+            unsigned const padded = (unsigned)(plane_bytes / row_bytes);
+            int const live_column = chunk < depth_chunks;
+            unsigned char *keys_column = keys_plane + chunk * 16, *values_column = values_plane + chunk * 16;
+            unsigned char const *keys_source = keys_first + chunk * 16, *values_source = values_first + chunk * 16;
+            for (unsigned position = lane_row; position < padded; position += 4 * rows_per_pass) {
+                uint4 keys_quartets[4], values_quartets[4];
+#pragma unroll
+                for (unsigned step = 0; step < 4; ++step) {
+                    nk_size_t const row = position + step * rows_per_pass;
+                    int const inside = live_column && row < length;
+                    keys_quartets[step] = inside ? __ldg((uint4 const *)(keys_source + row * key_stride)) : zero;
+                    values_quartets[step] = inside ? __ldg((uint4 const *)(values_source + row * value_stride)) : zero;
+                }
+#pragma unroll
+                for (unsigned step = 0; step < 4; ++step) {
+                    nk_size_t const row = position + step * rows_per_pass;
+                    if (row >= padded) break;
+                    *(uint4 *)(keys_column + row * row_bytes) = keys_quartets[step];
+                    *(uint4 *)(values_column + row * row_bytes) = values_quartets[step];
+                }
             }
+        }
         else
             for (nk_size_t index = threadIdx.x; index < plane_bytes; index += blockDim.x) {
                 nk_size_t const position = index / row_bytes, byte = index % row_bytes;
@@ -2967,22 +3169,24 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
                     kernel, schedule, control, scores + (slot ? nk_attention_tile_rows_blackwell_k : 0), slot, masked, \
                     visible, panel != 0, &row_max, &row_sum);                                                          \
             }                                                                                                          \
-            /* A one-panel item may finish before correction warps read the last sums */                               \
-            nk_attention_wait_blackwell_(&control->sums_read[tile], items & 1);                                        \
-            control->sums[tile][tile_row] = row_sum;                                                                   \
-            nk_attention_warp_arrive_blackwell_(&control->summed[tile]);                                               \
-            nk_f32_t *const log_sum_exp_slot = local < work.row_count                                                  \
-                                                   ? nk_attention_log_sum_exp_slot_simt_(attention, &work, local)      \
-                                                   : NUMKONG_NULL;                                                     \
-            if (!log_sum_exp_slot) continue;                                                                           \
             /* A row's weights sum in units of the weights a probability of one takes */                               \
             nk_f32_t const unit = kernel->element_bytes == 1 && !kernel->widens ? 256.0f : 1.0f;                       \
             nk_f32_t const unit_probabilities[4] = {unit, 0, 0, 0};                                                    \
             nk_u32_t unit_packed[2];                                                                                   \
             nk_u64_t unit_sums = 0;                                                                                    \
             weights_fn(unit_probabilities, unit_packed, &unit_sums);                                                   \
-            *log_sum_exp_slot = nk_attention_log_sum_exp_simt_(                                                        \
-                row_max, row_sum, nk_f32x2_low_blackwell_(unit_sums) + nk_f32x2_high_blackwell_(unit_sums));           \
+            nk_f32_t const unit_sum = nk_f32x2_low_blackwell_(unit_sums) + nk_f32x2_high_blackwell_(unit_sums);        \
+            /* A one-panel item may finish before correction warps read the last sums */                               \
+            nk_attention_wait_blackwell_(&control->sums_read[tile], items & 1);                                        \
+            control->sums[tile][tile_row] = row_sum;                                                                   \
+            /* A paired item's correction warps store the joint log-sum-exp */                                         \
+            if (item.shared)                                                                                           \
+                control->log_sum_exps[tile][tile_row] = nk_attention_log_sum_exp_simt_(row_max, row_sum, unit_sum);    \
+            nk_attention_warp_arrive_blackwell_(&control->summed[tile]);                                               \
+            nk_f32_t *const log_sum_exp_slot = local < work.row_count && !item.shared                                  \
+                                                   ? nk_attention_log_sum_exp_slot_simt_(attention, &work, local)      \
+                                                   : NUMKONG_NULL;                                                     \
+            if (log_sum_exp_slot) *log_sum_exp_slot = nk_attention_log_sum_exp_simt_(row_max, row_sum, unit_sum);      \
         }                                                                                                              \
     }                                                                                                                  \
     /* Every work item of one launch: the roles above, the loads, the widening and corrections. */                     \

@@ -242,34 +242,55 @@ Measured with Wasmtime v24 (Cranelift backend).
 #### CUDA
 
 Rows ran on one `1g.34gb` MIG slice of a B300 with 18 SMs, for 32 query heads sharing 8 key-value heads at depth 128 over 4096 keys, with 4096 queries in the first column and one in the second.
-They count only the visible pairs, so causal rows compare directly with bidirectional ones.
-Gradient rows time the backward alone at 10 · depth operations per pair, and cuDNN rows time its fused attention over the same inputs.
+They count only the visible pairs, so causal and windowed rows compare directly with bidirectional ones.
+Gradient rows time the backward alone at 10 · depth operations per pair.
+The `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR` rows time cuDNN 9.27's fused forward over the same inputs; its backward descriptor has no engine on this GPU.
 
 | Kernel                                                            |    4096 queries |       1 query |
 | :---------------------------------------------------------------- | --------------: | ------------: |
 | __bf16__                                                          | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_bf16_blackwell`                | 159,100 gflop/s | 1,152 gflop/s |
-| causal `nk_attention_packed_bf16_blackwell`                       | 136,100 gflop/s | 1,137 gflop/s |
-| bidirectional `nk_attention_packed_bf16_blackwellultra`           | 169,500 gflop/s | 1,155 gflop/s |
-| causal `nk_attention_packed_bf16_blackwellultra`                  | 145,200 gflop/s | 1,143 gflop/s |
-| bidirectional `nk_attention_packed_gradients_bf16_blackwell`      |  75,350 gflop/s |   456 gflop/s |
-| causal `nk_attention_packed_gradients_bf16_blackwell`             |  61,090 gflop/s |   456 gflop/s |
-| bidirectional `nk_attention_packed_gradients_bf16_blackwellultra` |  77,710 gflop/s |   444 gflop/s |
-| causal `nk_attention_packed_gradients_bf16_blackwellultra`        |  55,650 gflop/s |   500 gflop/s |
-| bidirectional cuDNN 9.27                                          | 239,800 gflop/s |   979 gflop/s |
-| causal cuDNN 9.27                                                 | 206,200 gflop/s |   978 gflop/s |
+| bidirectional `nk_attention_packed_bf16_blackwell`                | 160,000 gflop/s | 1,743 gflop/s |
+| causal `nk_attention_packed_bf16_blackwell`                       | 134,700 gflop/s | 1,701 gflop/s |
+| window 1024 `nk_attention_packed_bf16_blackwell`                  |  93,000 gflop/s |   931 gflop/s |
+| bidirectional `nk_attention_packed_bf16_blackwellultra`           | 173,000 gflop/s | 1,768 gflop/s |
+| causal `nk_attention_packed_bf16_blackwellultra`                  | 144,200 gflop/s | 1,714 gflop/s |
+| window 1024 `nk_attention_packed_bf16_blackwellultra`             |  95,040 gflop/s |   936 gflop/s |
+| bidirectional `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`       | 240,300 gflop/s |   981 gflop/s |
+| causal `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`              | 206,400 gflop/s |   982 gflop/s |
+| window 1024 `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`         | 143,200 gflop/s |   881 gflop/s |
+| bidirectional `nk_attention_packed_gradients_bf16_blackwell`      |  88,400 gflop/s |   479 gflop/s |
+| causal `nk_attention_packed_gradients_bf16_blackwell`             |  75,500 gflop/s |   536 gflop/s |
+| window 1024 `nk_attention_packed_gradients_bf16_blackwell`        |  63,090 gflop/s |   226 gflop/s |
+| bidirectional `nk_attention_packed_gradients_bf16_blackwellultra` |  87,830 gflop/s |   582 gflop/s |
+| causal `nk_attention_packed_gradients_bf16_blackwellultra`        |  72,480 gflop/s |   535 gflop/s |
+| window 1024 `nk_attention_packed_gradients_bf16_blackwellultra`   |  50,740 gflop/s |   215 gflop/s |
+| __f16__                                                           | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_f16_blackwell`                 | 154,100 gflop/s | 1,770 gflop/s |
+| causal `nk_attention_packed_f16_blackwell`                        | 132,200 gflop/s | 1,697 gflop/s |
+| window 1024 `nk_attention_packed_f16_blackwell`                   |  92,740 gflop/s |   927 gflop/s |
+| bidirectional `nk_attention_packed_f16_blackwellultra`            | 160,400 gflop/s | 1,769 gflop/s |
+| causal `nk_attention_packed_f16_blackwellultra`                   | 141,100 gflop/s | 1,699 gflop/s |
+| window 1024 `nk_attention_packed_f16_blackwellultra`              |  94,720 gflop/s |   933 gflop/s |
+| bidirectional `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`       | 240,400 gflop/s |   982 gflop/s |
+| causal `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`              | 206,400 gflop/s |   981 gflop/s |
+| window 1024 `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`         | 137,100 gflop/s |   883 gflop/s |
 | __e4m3__                                                          | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_e4m3_blackwell`                | 165,300 gflop/s | 1,208 gflop/s |
-| causal `nk_attention_packed_e4m3_blackwell`                       | 138,300 gflop/s | 1,191 gflop/s |
-| bidirectional `nk_attention_packed_e4m3_blackwellultra`           | 175,100 gflop/s | 1,226 gflop/s |
-| causal `nk_attention_packed_e4m3_blackwellultra`                  | 145,900 gflop/s | 1,192 gflop/s |
-| bidirectional cuDNN 9.27                                          | 338,300 gflop/s |             ⋯ |
-| causal cuDNN 9.27                                                 | 243,900 gflop/s |             ⋯ |
+| bidirectional `nk_attention_packed_e4m3_blackwell`                | 167,200 gflop/s | 1,864 gflop/s |
+| causal `nk_attention_packed_e4m3_blackwell`                       | 136,400 gflop/s | 1,831 gflop/s |
+| window 1024 `nk_attention_packed_e4m3_blackwell`                  |  99,720 gflop/s |   964 gflop/s |
+| bidirectional `nk_attention_packed_e4m3_blackwellultra`           | 173,900 gflop/s | 1,864 gflop/s |
+| causal `nk_attention_packed_e4m3_blackwellultra`                  | 143,700 gflop/s | 1,835 gflop/s |
+| window 1024 `nk_attention_packed_e4m3_blackwellultra`             | 101,000 gflop/s |   973 gflop/s |
+| bidirectional `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`       | 323,300 gflop/s |             ⋯ |
+| causal `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`              | 243,700 gflop/s |             ⋯ |
+| window 1024 `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`         | 166,100 gflop/s |             ⋯ |
 | __i8__                                                            | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_i8_blackwell`                  |  94,960 gflop/s |   840 gflop/s |
-| causal `nk_attention_packed_i8_blackwell`                         |  79,660 gflop/s |   832 gflop/s |
-| bidirectional `nk_attention_packed_i8_blackwellultra`             | 101,000 gflop/s |   842 gflop/s |
-| causal `nk_attention_packed_i8_blackwellultra`                    |  83,850 gflop/s |   838 gflop/s |
+| bidirectional `nk_attention_packed_i8_blackwell`                  |  96,430 gflop/s | 1,359 gflop/s |
+| causal `nk_attention_packed_i8_blackwell`                         |  78,090 gflop/s | 1,320 gflop/s |
+| window 1024 `nk_attention_packed_i8_blackwell`                    |  53,710 gflop/s |   768 gflop/s |
+| bidirectional `nk_attention_packed_i8_blackwellultra`             | 101,700 gflop/s | 1,358 gflop/s |
+| causal `nk_attention_packed_i8_blackwellultra`                    |  82,320 gflop/s | 1,321 gflop/s |
+| window 1024 `nk_attention_packed_i8_blackwellultra`               |  55,130 gflop/s |   767 gflop/s |
 
 ### AWS Graviton 4
 

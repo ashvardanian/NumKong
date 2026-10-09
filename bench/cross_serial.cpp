@@ -229,10 +229,15 @@ void bench_cross_serial(environment_t const &env) {
 
     run_attention<bf16_k>(env, "attention_packed_bf16_serial", nk_attention_pack_size_bf16_serial,
                           nk_attention_pack_bf16_serial, nk_attention_packed_bf16_serial);
+    run_attention<f16_k>(env, "attention_packed_f16_serial", nk_attention_pack_size_f16_serial,
+                         nk_attention_pack_f16_serial, nk_attention_packed_f16_serial);
     run_attention<e4m3_k>(env, "attention_packed_e4m3_serial", nk_attention_pack_size_e4m3_serial,
                           nk_attention_pack_e4m3_serial, nk_attention_packed_e4m3_serial);
     run_attention<i8_k>(env, "attention_packed_i8_serial", nk_attention_pack_size_i8_serial,
                         nk_attention_pack_i8_serial, nk_attention_packed_i8_serial);
+    run_attention_gradients<bf16_k>(env, "attention_packed_gradients_bf16_serial", nk_attention_pack_size_bf16_serial,
+                                    nk_attention_pack_bf16_serial, nk_attention_packed_bf16_serial,
+                                    nk_attention_packed_gradients_bf16_serial);
     run_attention_rope<f32_k>(env, "attention_rope_f32_serial", nk_attention_rope_f32_serial);
     run_attention_rope<bf16_k>(env, "attention_rope_bf16_serial", nk_attention_rope_bf16_serial);
     run_attention_rope<e4m3_k>(env, "attention_rope_e4m3_serial", nk_attention_rope_e4m3_serial);
