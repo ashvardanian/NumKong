@@ -11,7 +11,7 @@ kernel void nk_angulars_i8_metal_kernel_(device uchar const *a [[buffer(0)]], de
                                          constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                          uint2 group [[threadgroup_position_in_grid]],
                                          uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::i8_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::i8_t>(a, b, arguments, group, thread_index, norms);
     threadgroup nk::i8_t::dot_result_t a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
@@ -24,7 +24,7 @@ kernel void nk_angulars_u8_metal_kernel_(device uchar const *a [[buffer(0)]], de
                                          constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                          uint2 group [[threadgroup_position_in_grid]],
                                          uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::u8_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::u8_t>(a, b, arguments, group, thread_index, norms);
     threadgroup nk::u8_t::dot_result_t a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
@@ -37,7 +37,7 @@ kernel void nk_angulars_i4_metal_kernel_(device uchar const *a [[buffer(0)]], de
                                          constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                          uint2 group [[threadgroup_position_in_grid]],
                                          uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::i4x2_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::i4x2_t>(a, b, arguments, group, thread_index, norms);
     threadgroup nk::i4x2_t::dot_result_t a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
@@ -50,7 +50,7 @@ kernel void nk_angulars_u4_metal_kernel_(device uchar const *a [[buffer(0)]], de
                                          constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                          uint2 group [[threadgroup_position_in_grid]],
                                          uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::u4x2_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::u4x2_t>(a, b, arguments, group, thread_index, norms);
     threadgroup nk::u4x2_t::dot_result_t a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
@@ -154,7 +154,7 @@ kernel void nk_euclideans_i8_metal_kernel_(device uchar const *a [[buffer(0)]], 
                                            constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                            uint2 group [[threadgroup_position_in_grid]],
                                            uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::i8_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::i8_t>(a, b, arguments, group, thread_index, norms);
     threadgroup nk::i8_t::dot_result_t a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
@@ -167,7 +167,7 @@ kernel void nk_euclideans_u8_metal_kernel_(device uchar const *a [[buffer(0)]], 
                                            constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                            uint2 group [[threadgroup_position_in_grid]],
                                            uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::u8_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::u8_t>(a, b, arguments, group, thread_index, norms);
     threadgroup nk::u8_t::dot_result_t a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
@@ -180,7 +180,7 @@ kernel void nk_euclideans_i4_metal_kernel_(device uchar const *a [[buffer(0)]], 
                                            constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                            uint2 group [[threadgroup_position_in_grid]],
                                            uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::i4x2_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::i4x2_t>(a, b, arguments, group, thread_index, norms);
     threadgroup nk::i4x2_t::dot_result_t a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
@@ -193,7 +193,7 @@ kernel void nk_euclideans_u4_metal_kernel_(device uchar const *a [[buffer(0)]], 
                                            constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                            uint2 group [[threadgroup_position_in_grid]],
                                            uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::u4x2_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::u4x2_t>(a, b, arguments, group, thread_index, norms);
     threadgroup nk::u4x2_t::dot_result_t a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];

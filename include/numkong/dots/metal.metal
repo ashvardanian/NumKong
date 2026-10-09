@@ -138,9 +138,26 @@ float nk_cross_distance_metal_(float dot, float a_norm, float b_norm) {
     return squared > 0 ? sqrt(squared) : 0.0f;
 }
 
+/** A distance from an exact integer dot and squared norms, as @c nk_cross_integer_metric_simt_ in
+ *  `dots/simt.cuh`: ab − d² and a + b − 2d stay exact in 64 bits, so equal rows are exactly 0 apart
+ *  and only the correctly rounded F32 tail rounds. */
+template <nk_cross_metric_metal_t metric_>
+float nk_cross_distance_metal_(long dot, uint a_norm, uint b_norm) {
+    if (metric_ == nk_cross_euclidean_metal_k) {
+        long const distance_squared = long(a_norm) + long(b_norm) - 2 * dot;
+        return distance_squared > 0 ? precise::sqrt(float(distance_squared)) : 0.0f;
+    }
+    ulong const product = ulong(a_norm) * b_norm;
+    if (product == 0) return (a_norm | b_norm) != 0 ? 1.0f : 0.0f;
+    float const root = precise::sqrt(float(product));
+    if (dot <= 0) return 1.0f - precise::divide(float(dot), root);
+    ulong const dot_squared = ulong(dot) * ulong(dot);
+    return precise::divide(float(product - dot_squared), float(product) + float(dot) * root);
+}
+
 template <typename dtype_, uint side_ = nk_cross_tile_metal_k>
 void nk_cross_norms_metal_(device uchar const *a, device uchar const *b, constant nk_cross_arguments_metal_t &arguments,
-                           uint2 group, uint thread_index, threadgroup float (*norms)[side_]) {
+                           uint2 group, uint thread_index, threadgroup typename dtype_::norm_t (*norms)[side_]) {
     if (thread_index < side_) {
         uint const row = arguments.rows_begin + group.y * side_ + thread_index;
         uint const column = group.x * side_ + thread_index;
@@ -158,8 +175,8 @@ void nk_cross_norms_metal_(device uchar const *a, device uchar const *b, constan
         if (!arguments.upper_triangle && column < arguments.column_count)
             b_norm = ((device
                        typename dtype_::norm_t const *)(b + arguments.column_count * arguments.b_stride))[column];
-        norms[0][thread_index] = float(a_norm);
-        norms[1][thread_index] = float(b_norm);
+        norms[0][thread_index] = a_norm;
+        norms[1][thread_index] = b_norm;
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
 }
@@ -172,7 +189,7 @@ void nk_cross_tile_metal_(device uchar const *a, device uchar const *b, device r
                           constant nk_cross_arguments_metal_t &arguments, uint2 group, uint thread_index,
                           threadgroup typename dtype_::dot_result_t (*a_slab)[nk_cross_tile_metal_k + 1],
                           threadgroup typename dtype_::dot_result_t (*b_slab)[nk_cross_tile_metal_k + 1],
-                          threadgroup float const (*norms)[nk_cross_tile_metal_k] = nullptr) {
+                          threadgroup typename dtype_::norm_t const (*norms)[nk_cross_tile_metal_k] = nullptr) {
     using accumulator_t = typename dtype_::dot_result_t;
     constexpr uint side = nk_cross_tile_metal_k, slab_depth = nk_cross_slab_metal_k;
     uint const first_row = arguments.rows_begin + group.y * side, first_column = group.x * side;
@@ -218,7 +235,7 @@ void nk_cross_tile_metal_(device uchar const *a, device uchar const *b, device r
             if (metric_ != nk_cross_dot_metal_k)
                 value = arguments.upper_triangle && row == column
                             ? 0.0f
-                            : nk_cross_distance_metal_<metric_>(float(value), norms[0][row - first_row],
+                            : nk_cross_distance_metal_<metric_>(sums[row_step][column_step], norms[0][row - first_row],
                                                                 norms[1][column - first_column]);
             c[row * arguments.c_stride + column] = value;
         }

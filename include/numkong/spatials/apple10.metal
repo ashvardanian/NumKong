@@ -11,9 +11,9 @@ kernel void nk_angulars_i8_apple10_kernel_(device uchar const *a [[buffer(0)]], 
                                            constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                            uint2 group [[threadgroup_position_in_grid]],
                                            uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::i8_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::i8_t>(a, b, arguments, group, thread_index, norms);
-    nk_cross_tile_apple10_<int8_t, int, nk_cross_angular_metal_k, float>(
+    nk_cross_tile_apple10_<nk::i8_t, int, nk_cross_angular_metal_k, float>(
         (device int8_t const *)a, (device int8_t const *)b, c, arguments, group, norms);
 }
 
@@ -22,9 +22,9 @@ kernel void nk_angulars_u8_apple10_kernel_(device uchar const *a [[buffer(0)]], 
                                            constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                            uint2 group [[threadgroup_position_in_grid]],
                                            uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::u8_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::u8_t>(a, b, arguments, group, thread_index, norms);
-    nk_cross_tile_apple10_<uchar, int, nk_cross_angular_metal_k, float>(
+    nk_cross_tile_apple10_<nk::u8_t, int, nk_cross_angular_metal_k, float>(
         (device uchar const *)a, (device uchar const *)b, c, arguments, group, norms);
 }
 
@@ -35,8 +35,8 @@ kernel void nk_angulars_f16_apple10_kernel_(device uchar const *a [[buffer(0)]],
                                             uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup float norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::f16_t>(a, b, arguments, group, thread_index, norms);
-    nk_cross_tile_apple10_<half, float, nk_cross_angular_metal_k, float>((device half const *)a, (device half const *)b,
-                                                                         c, arguments, group, norms);
+    nk_cross_tile_apple10_<nk::f16_t, float, nk_cross_angular_metal_k, float>(
+        (device half const *)a, (device half const *)b, c, arguments, group, norms);
 }
 
 kernel void nk_angulars_bf16_apple10_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
@@ -46,7 +46,7 @@ kernel void nk_angulars_bf16_apple10_kernel_(device uchar const *a [[buffer(0)]]
                                              uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup float norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::bf16_t>(a, b, arguments, group, thread_index, norms);
-    nk_cross_tile_apple10_<bfloat, float, nk_cross_angular_metal_k, float>(
+    nk_cross_tile_apple10_<nk::bf16_t, float, nk_cross_angular_metal_k, float>(
         (device bfloat const *)a, (device bfloat const *)b, c, arguments, group, norms);
 }
 
@@ -120,9 +120,9 @@ kernel void nk_euclideans_i8_apple10_kernel_(device uchar const *a [[buffer(0)]]
                                              constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                              uint2 group [[threadgroup_position_in_grid]],
                                              uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::i8_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::i8_t>(a, b, arguments, group, thread_index, norms);
-    nk_cross_tile_apple10_<int8_t, int, nk_cross_euclidean_metal_k, float>(
+    nk_cross_tile_apple10_<nk::i8_t, int, nk_cross_euclidean_metal_k, float>(
         (device int8_t const *)a, (device int8_t const *)b, c, arguments, group, norms);
 }
 
@@ -131,9 +131,9 @@ kernel void nk_euclideans_u8_apple10_kernel_(device uchar const *a [[buffer(0)]]
                                              constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                              uint2 group [[threadgroup_position_in_grid]],
                                              uint thread_index [[thread_index_in_threadgroup]]) {
-    threadgroup float norms[2][nk_cross_tile_metal_k];
+    threadgroup nk::u8_t::norm_t norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::u8_t>(a, b, arguments, group, thread_index, norms);
-    nk_cross_tile_apple10_<uchar, int, nk_cross_euclidean_metal_k, float>(
+    nk_cross_tile_apple10_<nk::u8_t, int, nk_cross_euclidean_metal_k, float>(
         (device uchar const *)a, (device uchar const *)b, c, arguments, group, norms);
 }
 
@@ -144,7 +144,7 @@ kernel void nk_euclideans_f16_apple10_kernel_(device uchar const *a [[buffer(0)]
                                               uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup float norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::f16_t>(a, b, arguments, group, thread_index, norms);
-    nk_cross_tile_apple10_<half, float, nk_cross_euclidean_metal_k, float>(
+    nk_cross_tile_apple10_<nk::f16_t, float, nk_cross_euclidean_metal_k, float>(
         (device half const *)a, (device half const *)b, c, arguments, group, norms);
 }
 
@@ -155,7 +155,7 @@ kernel void nk_euclideans_bf16_apple10_kernel_(device uchar const *a [[buffer(0)
                                                uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup float norms[2][nk_cross_tile_metal_k];
     nk_cross_norms_metal_<nk::bf16_t>(a, b, arguments, group, thread_index, norms);
-    nk_cross_tile_apple10_<bfloat, float, nk_cross_euclidean_metal_k, float>(
+    nk_cross_tile_apple10_<nk::bf16_t, float, nk_cross_euclidean_metal_k, float>(
         (device bfloat const *)a, (device bfloat const *)b, c, arguments, group, norms);
 }
 
@@ -423,7 +423,7 @@ kernel void nk_angulars_i4_apple10_kernel_(device uchar const *a [[buffer(0)]], 
                                            uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup int8_t a_stage[64][64];
     alignas(128) threadgroup nk_i4_storage_apple10_t b_stage[64][nk_cross_int4_pitch_apple10_k];
-    threadgroup float norms[2][64];
+    threadgroup nk::i4x2_t::norm_t norms[2][64];
     nk_cross_norms_metal_<nk::i4x2_t, 64>(a, b, arguments, group, thread_index, norms);
     nk_cross_int4_tile_apple10_<nk::i4x2_t, int8_t, nk_i4_operand_apple10_t, nk_cross_angular_metal_k, 64>(
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);
@@ -436,7 +436,7 @@ kernel void nk_angulars_u4_apple10_kernel_(device uchar const *a [[buffer(0)]], 
                                            uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup uchar a_stage[64][64];
     alignas(128) threadgroup nk_u4_storage_apple10_t b_stage[64][nk_cross_int4_pitch_apple10_k];
-    threadgroup float norms[2][64];
+    threadgroup nk::u4x2_t::norm_t norms[2][64];
     nk_cross_norms_metal_<nk::u4x2_t, 64>(a, b, arguments, group, thread_index, norms);
     nk_cross_int4_tile_apple10_<nk::u4x2_t, uchar, nk_u4_operand_apple10_t, nk_cross_angular_metal_k, 64>(
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);
@@ -449,7 +449,7 @@ kernel void nk_euclideans_i4_apple10_kernel_(device uchar const *a [[buffer(0)]]
                                              uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup int8_t a_stage[64][64];
     alignas(128) threadgroup nk_i4_storage_apple10_t b_stage[64][nk_cross_int4_pitch_apple10_k];
-    threadgroup float norms[2][64];
+    threadgroup nk::i4x2_t::norm_t norms[2][64];
     nk_cross_norms_metal_<nk::i4x2_t, 64>(a, b, arguments, group, thread_index, norms);
     nk_cross_int4_tile_apple10_<nk::i4x2_t, int8_t, nk_i4_operand_apple10_t, nk_cross_euclidean_metal_k, 64>(
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);
@@ -462,7 +462,7 @@ kernel void nk_euclideans_u4_apple10_kernel_(device uchar const *a [[buffer(0)]]
                                              uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup uchar a_stage[64][64];
     alignas(128) threadgroup nk_u4_storage_apple10_t b_stage[64][nk_cross_int4_pitch_apple10_k];
-    threadgroup float norms[2][64];
+    threadgroup nk::u4x2_t::norm_t norms[2][64];
     nk_cross_norms_metal_<nk::u4x2_t, 64>(a, b, arguments, group, thread_index, norms);
     nk_cross_int4_tile_apple10_<nk::u4x2_t, uchar, nk_u4_operand_apple10_t, nk_cross_euclidean_metal_k, 64>(
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);
@@ -475,7 +475,7 @@ kernel void nk_angulars_small_i4_apple10_kernel_(device uchar const *a [[buffer(
                                                  uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup int8_t a_stage[32][64];
     alignas(128) threadgroup nk_i4_storage_apple10_t b_stage[32][nk_cross_int4_pitch_apple10_k];
-    threadgroup float norms[2][32];
+    threadgroup nk::i4x2_t::norm_t norms[2][32];
     nk_cross_norms_metal_<nk::i4x2_t, 32>(a, b, arguments, group, thread_index, norms);
     nk_cross_int4_tile_apple10_<nk::i4x2_t, int8_t, nk_i4_operand_apple10_t, nk_cross_angular_metal_k, 32>(
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);
@@ -488,7 +488,7 @@ kernel void nk_angulars_small_u4_apple10_kernel_(device uchar const *a [[buffer(
                                                  uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup uchar a_stage[32][64];
     alignas(128) threadgroup nk_u4_storage_apple10_t b_stage[32][nk_cross_int4_pitch_apple10_k];
-    threadgroup float norms[2][32];
+    threadgroup nk::u4x2_t::norm_t norms[2][32];
     nk_cross_norms_metal_<nk::u4x2_t, 32>(a, b, arguments, group, thread_index, norms);
     nk_cross_int4_tile_apple10_<nk::u4x2_t, uchar, nk_u4_operand_apple10_t, nk_cross_angular_metal_k, 32>(
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);
@@ -501,7 +501,7 @@ kernel void nk_euclideans_small_i4_apple10_kernel_(device uchar const *a [[buffe
                                                    uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup int8_t a_stage[32][64];
     alignas(128) threadgroup nk_i4_storage_apple10_t b_stage[32][nk_cross_int4_pitch_apple10_k];
-    threadgroup float norms[2][32];
+    threadgroup nk::i4x2_t::norm_t norms[2][32];
     nk_cross_norms_metal_<nk::i4x2_t, 32>(a, b, arguments, group, thread_index, norms);
     nk_cross_int4_tile_apple10_<nk::i4x2_t, int8_t, nk_i4_operand_apple10_t, nk_cross_euclidean_metal_k, 32>(
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);
@@ -514,7 +514,7 @@ kernel void nk_euclideans_small_u4_apple10_kernel_(device uchar const *a [[buffe
                                                    uint thread_index [[thread_index_in_threadgroup]]) {
     threadgroup uchar a_stage[32][64];
     alignas(128) threadgroup nk_u4_storage_apple10_t b_stage[32][nk_cross_int4_pitch_apple10_k];
-    threadgroup float norms[2][32];
+    threadgroup nk::u4x2_t::norm_t norms[2][32];
     nk_cross_norms_metal_<nk::u4x2_t, 32>(a, b, arguments, group, thread_index, norms);
     nk_cross_int4_tile_apple10_<nk::u4x2_t, uchar, nk_u4_operand_apple10_t, nk_cross_euclidean_metal_k, 32>(
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);

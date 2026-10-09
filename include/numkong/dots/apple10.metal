@@ -30,10 +30,10 @@ static_assert(nk_cross_tile_apple10_k == nk_cross_tile_metal_k, "unscaled kernel
 
 /** Stores one accumulated tile: through the bounded tensor store off the diagonal, and cell by cell
  *  on and above it, where the symmetric kernels' tiles cross it. */
-template <nk_cross_metric_metal_t metric_ = nk_cross_dot_metal_k, typename tile_type_, typename result_type_>
+template <typename dtype_, nk_cross_metric_metal_t metric_, typename tile_type_, typename result_type_>
 void nk_cross_store_apple10_(thread tile_type_ &tile, device result_type_ *c,
                              constant nk_cross_arguments_metal_t &arguments, uint first_row, uint first_column,
-                             threadgroup float const (*norms)[nk_cross_tile_metal_k] = nullptr) {
+                             threadgroup typename dtype_::norm_t const (*norms)[nk_cross_tile_metal_k]) {
     bool const on_diagonal = arguments.upper_triangle != 0 && first_row + nk_cross_tile_apple10_k > first_column;
     if constexpr (metric_ == nk_cross_dot_metal_k) {
         if (!on_diagonal) {
@@ -56,33 +56,34 @@ void nk_cross_store_apple10_(thread tile_type_ &tile, device result_type_ *c,
         if constexpr (metric_ != nk_cross_dot_metal_k)
             value = arguments.upper_triangle && row == column
                         ? 0
-                        : nk_cross_distance_metal_<metric_>(float(value), norms[0][row - first_row],
-                                                            norms[1][column - first_column]);
+                        : nk_cross_distance_metal_<metric_>(typename dtype_::dot_result_t(tile[index]),
+                                                            norms[0][row - first_row], norms[1][column - first_column]);
         c[row * arguments.c_stride + column] = value;
     }
 }
 
 /**
  *  @brief One @b [64,64] tile of C = A × Bᵀ, with B given row-major as @b [columns,depth].
- *  @tparam input_type_ The operands' element type, as @c matmul2d names it.
+ *  @tparam dtype_ The operands' dtype, whose @c raw_t is the element type @c matmul2d reads.
  *  @tparam result_type_ The accumulator the cooperative tensor holds; stored bit for bit.
  */
-template <typename input_type_, typename result_type_, nk_cross_metric_metal_t metric_ = nk_cross_dot_metal_k,
+template <typename dtype_, typename result_type_, nk_cross_metric_metal_t metric_ = nk_cross_dot_metal_k,
           typename output_type_ = result_type_>
-void nk_cross_tile_apple10_(device input_type_ const *a, device input_type_ const *b, device output_type_ *c,
-                            constant nk_cross_arguments_metal_t &arguments, uint2 group,
-                            threadgroup float const (*norms)[nk_cross_tile_metal_k] = nullptr) {
+void nk_cross_tile_apple10_(device typename dtype_::raw_t const *a, device typename dtype_::raw_t const *b,
+                            device output_type_ *c, constant nk_cross_arguments_metal_t &arguments, uint2 group,
+                            threadgroup typename dtype_::norm_t const (*norms)[nk_cross_tile_metal_k] = nullptr) {
+    using raw_t = typename dtype_::raw_t;
     uint const first_row = arguments.rows_begin + group.y * nk_cross_tile_apple10_k;
     uint const first_column = group.x * nk_cross_tile_apple10_k;
     if (arguments.upper_triangle && first_column + nk_cross_tile_apple10_k <= first_row) return; // below the diagonal
 
     // `matmul2d` rejects `const` element types, so the operands shed it; neither is ever written.
-    tensor<device input_type_, dextents<int32_t, 2>, tensor_inline> a_rows(
-        const_cast<device input_type_ *>(a), dextents<int32_t, 2>(arguments.depth, arguments.rows_end),
-        array<int32_t, 2> {1, (int32_t)(arguments.a_stride / sizeof(input_type_))});
-    tensor<device input_type_, dextents<int32_t, 2>, tensor_inline> b_columns(
-        const_cast<device input_type_ *>(b), dextents<int32_t, 2>(arguments.depth, arguments.column_count),
-        array<int32_t, 2> {1, (int32_t)(arguments.b_stride / sizeof(input_type_))});
+    tensor<device raw_t, dextents<int32_t, 2>, tensor_inline> a_rows(
+        const_cast<device raw_t *>(a), dextents<int32_t, 2>(arguments.depth, arguments.rows_end),
+        array<int32_t, 2> {1, (int32_t)(arguments.a_stride / sizeof(raw_t))});
+    tensor<device raw_t, dextents<int32_t, 2>, tensor_inline> b_columns(
+        const_cast<device raw_t *>(b), dextents<int32_t, 2>(arguments.depth, arguments.column_count),
+        array<int32_t, 2> {1, (int32_t)(arguments.b_stride / sizeof(raw_t))});
     auto a_tile = a_rows.slice(0, first_row);
     auto b_tile = b_columns.slice(0, first_column);
 
@@ -96,7 +97,7 @@ void nk_cross_tile_apple10_(device input_type_ const *a, device input_type_ cons
     for (uint16_t index = 0; index < tile.get_capacity(); ++index)
         if (tile.is_valid_element(index)) tile[index] = 0;
     multiply.run(a_tile, b_tile, tile);
-    nk_cross_store_apple10_<metric_>(tile, c, arguments, first_row, first_column, norms);
+    nk_cross_store_apple10_<dtype_, metric_>(tile, c, arguments, first_row, first_column, norms);
 }
 
 /**
@@ -159,7 +160,7 @@ void nk_cross_widened_tile_apple10_(device uchar const *a, device uchar const *b
         multiply.run(a_tile, b_tile, tile);
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
-    nk_cross_store_apple10_<metric_>(tile, c, arguments, first_row, first_column, norms);
+    nk_cross_store_apple10_<dtype_, metric_>(tile, c, arguments, first_row, first_column, norms);
 }
 
 #if __HAVE_INT4B_FORMAT_TYPE__
@@ -182,7 +183,7 @@ void nk_cross_int4_tile_apple10_(device uchar const *a, device uchar const *b, d
                                  constant nk_cross_arguments_metal_t &arguments, uint2 group, uint thread_index,
                                  threadgroup input_type_ (*a_stage)[64],
                                  threadgroup storage_type_ (*b_stage)[nk_cross_int4_pitch_apple10_k],
-                                 threadgroup float const (*norms)[side_] = nullptr) {
+                                 threadgroup typename dtype_::norm_t const (*norms)[side_] = nullptr) {
     constexpr uint side = side_, step = 64, threads = 128;
     constexpr bool native_packing = !is_same_v<input_type_, packed_type_>;
     uint const first_row = arguments.rows_begin + group.y * side, first_column = group.x * side;
@@ -238,7 +239,7 @@ void nk_cross_int4_tile_apple10_(device uchar const *a, device uchar const *b, d
         if constexpr (metric_ != nk_cross_dot_metal_k)
             value = arguments.upper_triangle && row == column
                         ? 0
-                        : nk_cross_distance_metal_<metric_>(float(dot), norms[0][row - first_row],
+                        : nk_cross_distance_metal_<metric_>(dot, norms[0][row - first_row],
                                                             norms[1][column - first_column]);
         c[row * arguments.c_stride + column] = value;
     }
@@ -250,25 +251,25 @@ kernel void nk_dots_i8_apple10_kernel_(device int8_t const *a [[buffer(0)]], dev
                                        device int *c [[buffer(2)]],
                                        constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                        uint2 group [[threadgroup_position_in_grid]]) {
-    nk_cross_tile_apple10_<int8_t, int>(a, b, c, arguments, group);
+    nk_cross_tile_apple10_<nk::i8_t, int>(a, b, c, arguments, group);
 }
 kernel void nk_dots_u8_apple10_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
                                        device int *c [[buffer(2)]],
                                        constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                        uint2 group [[threadgroup_position_in_grid]]) {
-    nk_cross_tile_apple10_<uchar, int>(a, b, c, arguments, group);
+    nk_cross_tile_apple10_<nk::u8_t, int>(a, b, c, arguments, group);
 }
 kernel void nk_dots_f16_apple10_kernel_(device half const *a [[buffer(0)]], device half const *b [[buffer(1)]],
                                         device float *c [[buffer(2)]],
                                         constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                         uint2 group [[threadgroup_position_in_grid]]) {
-    nk_cross_tile_apple10_<half, float>(a, b, c, arguments, group);
+    nk_cross_tile_apple10_<nk::f16_t, float>(a, b, c, arguments, group);
 }
 kernel void nk_dots_bf16_apple10_kernel_(device bfloat const *a [[buffer(0)]], device bfloat const *b [[buffer(1)]],
                                          device float *c [[buffer(2)]],
                                          constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                          uint2 group [[threadgroup_position_in_grid]]) {
-    nk_cross_tile_apple10_<bfloat, float>(a, b, c, arguments, group);
+    nk_cross_tile_apple10_<nk::bf16_t, float>(a, b, c, arguments, group);
 }
 kernel void nk_dots_e4m3_apple10_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
                                          device float *c [[buffer(2)]],

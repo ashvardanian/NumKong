@@ -335,7 +335,7 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_metal_(char const *kernel, nk_cross_o
                                                 offsetof(nk_cross_packed_buffer_header_t, tensor_scale));             \
         }                                                                                                             \
         return nk_cross_launch_##isa##_(nk_cross_small_int4_metal_(nk_##dtype##_k, nk_cap_##isa##_k, rows, columns)   \
-                                            ? "nk_dots_" #dtype "_" #isa "_small_kernel_"                             \
+                                            ? "nk_dots_small_" #dtype "_" #isa "_kernel_"                             \
                                             : "nk_dots_" #dtype "_" #isa "_kernel_",                                  \
                                         nk_cross_operand_serial_(nk_##dtype##_k, a, a_stride), b,                     \
                                         sizeof(nk_cross_packed_buffer_header_t), c, sizeof(nk_##result_type##_t), 0,  \
@@ -357,7 +357,7 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_metal_(char const *kernel, nk_cross_o
         nk_cross_operand_t const a = nk_cross_operand_serial_(nk_##dtype##_k, vectors, stride);                       \
         return nk_cross_launch_##isa##_(                                                                              \
             nk_cross_small_int4_metal_(nk_##dtype##_k, nk_cap_##isa##_k, window_rows, vector_count)                   \
-                ? "nk_dots_" #dtype "_" #isa "_small_kernel_"                                                         \
+                ? "nk_dots_small_" #dtype "_" #isa "_kernel_"                                                         \
                 : "nk_dots_" #dtype "_" #isa "_kernel_",                                                              \
             a, a, 0, result, sizeof(nk_##result_type##_t), rows_begin, rows_end, vector_count, depth,                 \
             depth / per_value * sizeof(nk_##raw_type##_t), 0, stride, stride, result_stride, 1,                       \

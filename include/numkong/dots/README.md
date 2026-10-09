@@ -122,6 +122,13 @@ The 13 grid products with index sums up to 4 add up exactly in 5 ZA tiles for 40
 Streaming mode issues Float64 arithmetic only every 4 cycles, so the unpacked side is split with exponent-field additions, `FRINTN`, conversions and shifts, leaving 3 multiplies per vector.
 Packed B stores the 5 slices in Float64, 40 bytes per element or 5× the input, plus an exponent and a norm per column.
 
+### Apple GPU Tiles
+
+Each threadgroup of four SIMD-groups owns a 64 × 64 output tile: the `metal` baseline on the SIMT cores, each thread holding a 4 × 4 grid strided by 16, `apple9` on SIMD-group matrices, sixteen 8 × 8 `float` accumulators per quadrant, and `apple10` on the `matmul2d` tensor operations of the M5 Neural Accelerators.
+The 8-, 6- and 4-bit floats widen to `half` exactly as they are staged, so every product of two staged values is exact in `float` and only the sums round.
+Block-scaled tiles multiply each block's sum by its two scales and add it into a compensated `float` pair carrying its own exponent, so blocks of any spread round once, and the tensor scales multiply in the epilogue.
+Integer angular and Euclidean epilogues form q · t − d² and q + t − 2d in 64-bit integers before a `float` tail, as the CPU finalizers do.
+
 ### Compensated Integer GEMM
 
 `nk_dots_packed_i8_icelake`, `nk_dots_packed_u8_icelake`, `nk_dots_packed_i8_haswell` work around the unsigned×signed operand requirement of integer dot-product instructions.

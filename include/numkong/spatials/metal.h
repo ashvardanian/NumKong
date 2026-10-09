@@ -40,7 +40,7 @@ extern "C" {
         return nk_cross_encode_metal_(nk_dots_source_##isa##_, language, nk_cross_threads_##isa##_k,                  \
                                       nk_cross_tile_side_metal_(nk_##dtype##_k, nk_cap_##isa##_k, rows, columns),     \
                                       nk_cross_small_int4_metal_(nk_##dtype##_k, nk_cap_##isa##_k, rows, columns)     \
-                                          ? "nk_" #metric "s_" #dtype "_" #isa "_small_kernel_"                       \
+                                          ? "nk_" #metric "s_small_" #dtype "_" #isa "_kernel_"                       \
                                           : "nk_" #metric "s_" #dtype "_" #isa "_kernel_",                            \
                                       nk_cross_operand_serial_(nk_##dtype##_k, a, a_stride), b,                       \
                                       sizeof(nk_cross_packed_buffer_header_t), c, sizeof(nk_f32_t), 0, rows, columns, \
@@ -60,7 +60,7 @@ extern "C" {
             nk_dots_source_##isa##_, language, nk_cross_threads_##isa##_k,                                            \
             nk_cross_tile_side_metal_(nk_##dtype##_k, nk_cap_##isa##_k, window_rows, vector_count),                   \
             nk_cross_small_int4_metal_(nk_##dtype##_k, nk_cap_##isa##_k, window_rows, vector_count)                   \
-                ? "nk_" #metric "s_" #dtype "_" #isa "_small_kernel_"                                                 \
+                ? "nk_" #metric "s_small_" #dtype "_" #isa "_kernel_"                                                 \
                 : "nk_" #metric "s_" #dtype "_" #isa "_kernel_",                                                      \
             a, a, 0, result, sizeof(nk_f32_t), rows_begin, rows_end, vector_count, depth,                             \
             depth / per_value * sizeof(nk_##raw_type##_t), 0, stride, stride, result_stride, 1,                       \
