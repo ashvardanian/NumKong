@@ -92,9 +92,9 @@ nk_define_cross_tma_blackwell_(euclidean, e2m1, blackwell, e2m1x2, e2m1x2, f32, 
 
 #pragma region I8
 
-nk_define_cross_tma_blackwell_(angular, i8, blackwell, i8, i8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_tma_blackwell_(angular, i8, blackwell, i8, f16, f32, /*depth_simd_dimensions=*/64,
                                /*dimensions_per_value=*/1, /*box_bytes=*/64, /*paired_dot=*/0)
-nk_define_cross_tma_blackwell_(euclidean, i8, blackwell, i8, i8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_tma_blackwell_(euclidean, i8, blackwell, i8, f16, f32, /*depth_simd_dimensions=*/64,
                                /*dimensions_per_value=*/1, /*box_bytes=*/64, /*paired_dot=*/0)
 
 #pragma endregion I8
@@ -110,9 +110,9 @@ nk_define_cross_tma_blackwell_(euclidean, i4, blackwell, i4x2, i4x2, f32, /*dept
 
 #pragma region U8
 
-nk_define_cross_tma_blackwell_(angular, u8, blackwell, u8, u8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_tma_blackwell_(angular, u8, blackwell, u8, f16, f32, /*depth_simd_dimensions=*/64,
                                /*dimensions_per_value=*/1, /*box_bytes=*/64, /*paired_dot=*/0)
-nk_define_cross_tma_blackwell_(euclidean, u8, blackwell, u8, u8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_tma_blackwell_(euclidean, u8, blackwell, u8, f16, f32, /*depth_simd_dimensions=*/64,
                                /*dimensions_per_value=*/1, /*box_bytes=*/64, /*paired_dot=*/0)
 
 #pragma endregion U8
