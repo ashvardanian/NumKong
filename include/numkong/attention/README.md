@@ -266,6 +266,7 @@ Rows ran on one `1g.34gb` MIG slice of a B300 with 18 SMs, for 32 query heads sh
 They count only the visible pairs, so causal and windowed rows compare directly with bidirectional ones.
 Gradient rows time the backward alone at 10 · depth operations per pair.
 The `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR` rows time cuDNN 9.27's fused forward over the same inputs; its backward descriptor has no engine on this GPU.
+Cells marked `✗` are shapes the library rejects: cuDNN returns `CUDNN_STATUS_NOT_SUPPORTED` for E4M3 decode.
 
 | Kernel                                                            |    4096 queries |       1 query |
 | :---------------------------------------------------------------- | --------------: | ------------: |
@@ -302,16 +303,16 @@ The `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR` rows time cuDNN 9.27's fused f
 | bidirectional `nk_attention_packed_e4m3_blackwellultra`           | 173,900 gflop/s | 1,864 gflop/s |
 | causal `nk_attention_packed_e4m3_blackwellultra`                  | 143,700 gflop/s | 1,835 gflop/s |
 | window 1024 `nk_attention_packed_e4m3_blackwellultra`             | 101,000 gflop/s |   973 gflop/s |
-| bidirectional `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`       | 323,300 gflop/s |             ⋯ |
-| causal `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`              | 243,700 gflop/s |             ⋯ |
-| window 1024 `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`         | 166,100 gflop/s |             ⋯ |
+| bidirectional `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`       | 323,300 gflop/s |             ✗ |
+| causal `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`              | 243,700 gflop/s |             ✗ |
+| window 1024 `CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR`         | 166,100 gflop/s |             ✗ |
 | __i8__                                                            | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_i8_blackwell`                  |  96,430 gflop/s | 1,359 gflop/s |
-| causal `nk_attention_packed_i8_blackwell`                         |  78,090 gflop/s | 1,320 gflop/s |
-| window 1024 `nk_attention_packed_i8_blackwell`                    |  53,710 gflop/s |   768 gflop/s |
-| bidirectional `nk_attention_packed_i8_blackwellultra`             | 101,700 gflop/s | 1,358 gflop/s |
-| causal `nk_attention_packed_i8_blackwellultra`                    |  82,320 gflop/s | 1,321 gflop/s |
-| window 1024 `nk_attention_packed_i8_blackwellultra`               |  55,130 gflop/s |   767 gflop/s |
+| bidirectional `nk_attention_packed_i8_blackwell`                  | 127,300 gflop/s | 1,621 gflop/s |
+| causal `nk_attention_packed_i8_blackwell`                         |  97,240 gflop/s | 1,550 gflop/s |
+| window 1024 `nk_attention_packed_i8_blackwell`                    |  62,120 gflop/s |   822 gflop/s |
+| bidirectional `nk_attention_packed_i8_blackwellultra`             | 134,100 gflop/s | 1,622 gflop/s |
+| causal `nk_attention_packed_i8_blackwellultra`                    | 100,900 gflop/s | 1,601 gflop/s |
+| window 1024 `nk_attention_packed_i8_blackwellultra`               |  63,380 gflop/s |   836 gflop/s |
 
 ### AWS Graviton 4
 

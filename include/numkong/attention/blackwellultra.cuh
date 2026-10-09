@@ -68,8 +68,7 @@ NUMKONG_DEVICE nk_f32_t nk_tmem_load_extreme_x32_blackwellultra_(nk_u32_t addres
 nk_define_attention_pack_size_simt_(bf16, blackwellultra, 2)
 nk_define_attention_packed_shape_cuda_(bf16, blackwellultra)
 nk_define_attention_pack_blackwell_(bf16, blackwellultra, bf16)
-nk_define_attention_tma_blackwell_(bf16, blackwellultra, bf16, 2, 0, nk_attention_float_threads_blackwell_k,
-                                   nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
+nk_define_attention_tma_blackwell_(bf16, blackwellultra, bf16, 2, 0, nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
                                    nk_attention_weights_bf16_blackwell_, /*format=*/1)
 
 /** Both BF16 backward kernels, on the Blackwell tensor-core passes when the launch gives them
@@ -96,8 +95,7 @@ nk_define_attention_backward_cuda_(bf16, blackwellultra, bf16, nk_attention_back
 nk_define_attention_pack_size_simt_(f16, blackwellultra, 2)
 nk_define_attention_packed_shape_cuda_(f16, blackwellultra)
 nk_define_attention_pack_blackwell_(f16, blackwellultra, f16)
-nk_define_attention_tma_blackwell_(f16, blackwellultra, f16, 2, 0, nk_attention_float_threads_blackwell_k,
-                                   nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
+nk_define_attention_tma_blackwell_(f16, blackwellultra, f16, 2, 0, nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
                                    nk_attention_weights_f16_blackwell_, /*format=*/0)
 
 #pragma endregion F16
@@ -107,19 +105,41 @@ nk_define_attention_tma_blackwell_(f16, blackwellultra, f16, 2, 0, nk_attention_
 nk_define_attention_pack_size_simt_(e4m3, blackwellultra, 1)
 nk_define_attention_packed_shape_cuda_(e4m3, blackwellultra)
 nk_define_attention_pack_blackwell_(e4m3, blackwellultra, e4m3)
-nk_define_attention_tma_blackwell_(e4m3, blackwellultra, e4m3, 1, 0, nk_attention_float_threads_blackwell_k,
-                                   nk_mma_f8f6f4_blackwell_, nk_mma_f8f6f4_tmem_blackwell_,
-                                   nk_attention_weights_e4m3_blackwell_, /*format=*/0)
+nk_define_attention_tma_blackwell_(e4m3, blackwellultra, e4m3, 1, 0, nk_mma_f8f6f4_blackwell_,
+                                   nk_mma_f8f6f4_tmem_blackwell_, nk_attention_weights_e4m3_blackwell_, /*format=*/0)
 
 #pragma endregion E4M3
 
 #pragma region I8
 
-nk_define_attention_pack_size_simt_(i8, blackwellultra, 1)
+NUMKONG_API nk_status_t nk_attention_pack_size_i8_blackwellultra(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                 nk_size_t token_count, nk_size_t segment_count,
+                                                                 nk_size_t *bytes) {
+    *bytes = nk_attention_pack_size_simt_(key_value_head_count, depth, token_count, segment_count,
+                                          nk_attention_pack_element_bytes_i8_blackwell_(depth));
+    return nk_success_k;
+}
+
+static __global__ void nk_attention_pack_i8_blackwellultra_kernel_(
+    unsigned char const *keys, unsigned char const *values, nk_size_t key_value_head_count, nk_size_t depth,
+    nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride,
+    nk_size_t value_stride, unsigned char *packed, nk_size_t tasks_begin, nk_size_t tasks_end) {
+    nk_attention_pack_payload_i8_blackwell_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
+                                            segment_count, key_stride, value_stride, packed, tasks_begin, tasks_end);
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_i8_blackwellultra(
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+    nk_size_t segment_count, nk_i8_t const *keys, nk_size_t key_stride, nk_i8_t const *values, nk_size_t value_stride,
+    void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    return nk_attention_pack_launch_cuda_(
+        (void const *)nk_attention_pack_i8_blackwellultra_kernel_, nk_cap_blackwellultra_k,
+        nk_attention_pack_element_bytes_i8_blackwell_(depth), keys, values, key_value_head_count, depth, key_offsets,
+        key_lengths, segment_count, key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, stream);
+}
+
 nk_define_attention_packed_shape_cuda_(i8, blackwellultra)
-nk_define_attention_pack_blackwell_(i8, blackwellultra, i8)
-nk_define_attention_tma_blackwell_(i8, blackwellultra, i8, 1, 1, nk_attention_integer_threads_blackwell_k,
-                                   nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
+nk_define_attention_tma_blackwell_(i8, blackwellultra, i8, 1, 1, nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
                                    nk_attention_weights_u8_blackwell_, /*format=*/0)
 
 #pragma endregion I8

@@ -16,10 +16,11 @@
  *  stays in tensor memory too. A correction warpgroup rescales a row of O only when its maximum
  *  moved, which BF16 lets it do only past 2⁸, and finally normalizes and stores it. BF16 multiplies
  *  as @c kind::f16, E4M3 as @c kind::f8f6f4 with weights e4m3(256 · p), and I8, which this family
- *  has no tensor-core kind for, as exact F16 widened by a converter warpgroup, under the U8 weights
- *  of the serial contract. The pack keeps V position-major, which P · V reads MN-major, so one
- *  tensor map reaches every plane; depths above 256 keep the @c cuda layout and kernel. Only the
- *  "100f" family code carries these instructions, so every other device pass traps.
+ *  has no tensor-core kind for, as exact F16: its pack stores K and V widened and the softmax warps
+ *  widen Q as they stage it, under the U8 weights of the serial contract. The pack keeps V
+ *  position-major, which P · V reads MN-major, so one tensor map reaches every plane; depths above
+ *  256 keep the @c cuda layout and kernel. Only the "100f" family code carries these instructions,
+ *  so every other device pass traps.
  *
  *  The BF16 backward stages K, V, Q and dO once each in the same swizzled rows, which the products
  *  read K-major or MN-major as each needs. Blocks of 128 keys take Sᵀ and dPᵀ into tensor memory,
@@ -58,32 +59,29 @@ enum {
     // 256 + 128 t, which a wide head's only tile extends to the last column.
     nk_attention_scores_column_blackwell_k = 0,
     nk_attention_output_column_blackwell_k = 256,
-    // Warps 0 to 7 run the softmax of tiles 0 and 1, 8 to 11 correct O, 12 multiplies, 13 loads,
-    // and 14 to 17 widen integer stages.
+    // Warps 0 to 7 run the softmax of tiles 0 and 1, 8 to 11 correct O, 12 multiplies, 13 loads.
     nk_attention_correct_warp_blackwell_k = 8,
     nk_attention_multiply_warp_blackwell_k = 12,
     nk_attention_load_warp_blackwell_k = 13,
-    nk_attention_float_threads_blackwell_k = 14 * 32,
-    nk_attention_integer_threads_blackwell_k = 18 * 32,
+    nk_attention_threads_blackwell_k = 14 * 32,
     nk_attention_shared_limit_blackwell_k = 232448,
 };
 
 /** Barriers and the warps' exchange, past the Q tiles and the ring of stages. Per stage, @c loaded
- *  completes with the copies, @c widened with the converter warps, and @c consumed once a later S
- *  shows the products done with it, which the softmax warps see for K and the correction warps for
- *  V; per work slot, @c scheduled with the load warp and @c taken with every consumer warp; per
- *  tile, @c queries_staged with its softmax warps and @c queries_read with its last S, @c scored
- *  with each S, @c weighed_half with the first half of each P and @c weighed with all of it,
- *  @c rescaling with each factor past an item's first panel, @c corrected with each rescaled or
- *  stored O, @c accumulated with an item's last P · V, @c summed with the item's row sums and
- *  @c sums_read with the correction warps' read of them. Single-tile items alternate S between both
- *  tiles' columns, the second with the barriers and factors of slot 2, which tile 1's warps never
- *  see, as they may already wait on slot 1 for a later item; such items signal @c multiplied with
- *  each P · V but the last. A shared item's correction warps complete @c exchanged in the other
- *  block with each row's log-sum-exp, and rank 0's complete @c merged in rank 1 once O lands. */
+ *  completes with the copies and @c consumed once a later S shows the products done with it, which
+ *  the softmax warps see for K and the correction warps for V; per work slot, @c scheduled with the
+ *  load warp and @c taken with every consumer warp; per tile, @c queries_staged with its softmax
+ *  warps and @c queries_read with its last S, @c scored with each S, @c weighed_half with the first
+ *  half of each P and @c weighed with all of it, @c rescaling with each factor past an item's first
+ *  panel, @c corrected with each rescaled or stored O, @c accumulated with an item's last P · V,
+ *  @c summed with the item's row sums and @c sums_read with the correction warps' read of them.
+ *  Single-tile items alternate S between both tiles' columns, the second with the barriers and
+ *  factors of slot 2, which tile 1's warps never see, as they may already wait on slot 1 for a
+ *  later item; such items signal @c multiplied with each P · V but the last. A shared item's
+ *  correction warps complete @c exchanged in the other block with each row's log-sum-exp, and rank
+ *  0's complete @c merged in rank 1 once O lands. */
 typedef struct {
     nk_u64_t loaded[nk_attention_stages_blackwell_k];
-    nk_u64_t widened[nk_attention_stages_blackwell_k];
     nk_u64_t consumed[nk_attention_stages_blackwell_k];
     nk_u64_t scheduled[2];
     nk_u64_t taken[2];
@@ -121,9 +119,9 @@ typedef struct {
 } nk_attention_tile_arguments_blackwell_t;
 
 /** What one kernel computes, fixed at compile time: the bytes of its input element, and whether its
- *  stages and Q widen to F16, as I8's do; up to 128 depths in two Q tiles per item, or up to 256 in
- *  one; whether panels crossing the band's edges mask their scores, while panels past the segment's
- *  keys always do; and the operand format code of both products. */
+ *  Q widens to F16, as I8's does against the F16 K and V its pack holds; up to 128 depths in two Q
+ *  tiles per item, or up to 256 in one; whether panels crossing the band's edges mask their scores,
+ *  while panels past the segment's keys always do; and the operand format code of both products. */
 typedef struct {
     unsigned element_bytes;
     int widens;
@@ -132,19 +130,11 @@ typedef struct {
     nk_u32_t format;
 } nk_attention_kernel_blackwell_t;
 
-/** How a stage reaches the products. */
-typedef enum {
-
-    /** The products read the copies as they land. */
-    nk_attention_staging_none_k = 0,
-
-    /** Boxes of I8 codes widen into F16 rows ahead of them. */
-    nk_attention_staging_widen_k,
-} nk_attention_staging_t;
-
 /** What a kernel and its launch make of the tiles, the ring and the products. */
 typedef struct {
-    nk_attention_staging_t staging;
+
+    /** Whether Q widens from I8 codes to the F16 the products read. */
+    int widens;
 
     /** Q tiles an item takes at most, and its rows. */
     unsigned tiles, item_rows;
@@ -159,8 +149,8 @@ typedef struct {
     /** The columns of O, the steps of P · V per panel and the bytes each moves along V. */
     unsigned value_columns, value_steps, value_step_bytes;
 
-    /** Bytes of a Q tile, of a stage, where in a stage the I8 codes land, and the ring's stages. */
-    unsigned queries_bytes, stage_bytes, raw_offset, ring_stages;
+    /** Bytes of a Q tile, of a stage, and the ring's stages. */
+    unsigned queries_bytes, stage_bytes, ring_stages;
 
     nk_u32_t scores_instruction, values_instruction;
 
@@ -225,12 +215,10 @@ NUMKONG_CONSTEXPR unsigned nk_attention_tiles_blackwell_(nk_attention_width_t wi
     return width == nk_attention_width_128_k ? 2u : 1u;
 }
 
-/** Bytes of one stage: the rows the products read, then for I8 the codes they widen from. */
+/** Bytes of one stage: a panel of the rows the products read. */
 NUMKONG_CONSTEXPR unsigned nk_attention_stage_bytes_blackwell_(unsigned element_bytes, int widens,
                                                                nk_attention_width_t width) {
-    return nk_attention_panel_blackwell_k *
-           (nk_attention_staged_bytes_blackwell_(element_bytes, widens, width) +
-            (widens ? nk_attention_staged_bytes_blackwell_(element_bytes, widens, width) / 2 : 0u));
+    return nk_attention_panel_blackwell_k * nk_attention_staged_bytes_blackwell_(element_bytes, widens, width);
 }
 
 /** Stages fitting beside the Q tiles and barriers, at most @c nk_attention_stages_blackwell_k. */
@@ -576,15 +564,15 @@ NUMKONG_DEVICE nk_attention_schedule_blackwell_t nk_attention_schedule_blackwell
     nk_attention_arguments_t const *const arguments = &tile_arguments->attention;
     nk_attention_schedule_blackwell_t schedule;
     unsigned const operand_bytes = nk_attention_operand_bytes_blackwell_(kernel->element_bytes, kernel->widens);
-    schedule.staging = kernel->widens ? nk_attention_staging_widen_k : nk_attention_staging_none_k;
+    schedule.widens = kernel->widens;
     schedule.tiles = nk_attention_tiles_blackwell_(kernel->width);
     schedule.item_rows = schedule.tiles * nk_attention_tile_rows_blackwell_k;
     schedule.element_bytes = kernel->element_bytes;
-    schedule.row_bytes = (unsigned)nk_size_round_up_to_multiple_(arguments->depth * schedule.element_bytes,
+    schedule.row_bytes = (unsigned)nk_size_round_up_to_multiple_(arguments->depth * operand_bytes,
                                                                  nk_attention_step_bytes_k);
-    schedule.box_bytes = schedule.staging == nk_attention_staging_widen_k ? 64 : 128;
+    schedule.box_bytes = 128;
     schedule.boxes = nk_u32_divide_round_up_(schedule.row_bytes, schedule.box_bytes);
-    schedule.staged_bytes = schedule.row_bytes * (schedule.staging == nk_attention_staging_widen_k ? 2 : 1);
+    schedule.staged_bytes = schedule.row_bytes;
     schedule.depth_steps = schedule.staged_bytes / 32;
     schedule.value_columns = schedule.staged_bytes / operand_bytes;
     schedule.value_steps = nk_attention_panel_blackwell_k * operand_bytes / 32;
@@ -592,11 +580,6 @@ NUMKONG_DEVICE nk_attention_schedule_blackwell_t nk_attention_schedule_blackwell
     schedule.queries_bytes = nk_attention_tile_rows_blackwell_k *
                              nk_attention_staged_bytes_blackwell_(kernel->element_bytes, kernel->widens, kernel->width);
     schedule.stage_bytes = nk_attention_stage_bytes_blackwell_(kernel->element_bytes, kernel->widens, kernel->width);
-    schedule.raw_offset = schedule.staging == nk_attention_staging_widen_k
-                              ? nk_attention_panel_blackwell_k *
-                                    nk_attention_staged_bytes_blackwell_(kernel->element_bytes, kernel->widens,
-                                                                         kernel->width)
-                              : 0;
     schedule.ring_stages = nk_attention_ring_stages_blackwell_(kernel->element_bytes, kernel->widens, kernel->width);
     schedule.scores_instruction = nk_mma_instruction_blackwell_(
         kernel->format, kernel->format, nk_attention_tile_rows_blackwell_k, nk_attention_panel_blackwell_k,
@@ -621,11 +604,9 @@ NUMKONG_DEVICE nk_u32_t nk_attention_initialize_blackwell_(nk_attention_schedule
                                                            nk_attention_control_blackwell_t *control) {
     if (threadIdx.x == 0) {
         // Every warp but the load warp takes each work item.
-        unsigned const consumers = nk_attention_load_warp_blackwell_k +
-                                   4 * (schedule->staging == nk_attention_staging_widen_k);
+        unsigned const consumers = nk_attention_load_warp_blackwell_k;
         for (unsigned stage = 0; stage < schedule->ring_stages; ++stage) {
             nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->loaded[stage]), 1);
-            nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->widened[stage]), 4);
             nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&control->consumed[stage]), 1);
         }
         for (unsigned index = 0; index < 2; ++index) {
@@ -690,7 +671,7 @@ NUMKONG_DEVICE void nk_attention_load_panel_blackwell_(nk_attention_schedule_bla
                                                        nk_attention_item_blackwell_t const *item, nk_size_t plane_row,
                                                        nk_size_t position, nk_u32_t *stage, nk_u32_t *phase) {
     nk_u32_t const loaded = nk_shared_address_ampere_(&control->loaded[*stage]);
-    nk_u32_t const raw = stages_address + *stage * schedule->stage_bytes + schedule->raw_offset;
+    nk_u32_t const destination = stages_address + *stage * schedule->stage_bytes;
     nk_attention_wait_blackwell_(&control->consumed[*stage], *phase ^ 1);
     nk_mbarrier_expect_bytes_blackwell_(loaded, schedule->boxes * nk_attention_panel_blackwell_k * schedule->box_bytes);
     for (unsigned box = 0; box < schedule->boxes; ++box)
@@ -700,8 +681,8 @@ NUMKONG_DEVICE void nk_attention_load_panel_blackwell_(nk_attention_schedule_bla
                                       ? first
                                       : item->positions_padded - nk_attention_box_rows_blackwell_k;
             nk_load_box_blackwell_(
-                raw + (box * nk_attention_panel_blackwell_k + half * nk_attention_box_rows_blackwell_k) *
-                          schedule->box_bytes,
+                destination + (box * nk_attention_panel_blackwell_k + half * nk_attention_box_rows_blackwell_k) *
+                                  schedule->box_bytes,
                 map, loaded, (nk_i32_t)(box * schedule->box_bytes), (nk_i32_t)(plane_row + row));
         }
     nk_attention_advance_blackwell_(schedule, stage, phase);
@@ -788,40 +769,6 @@ NUMKONG_DEVICE void nk_attention_load_blackwell_(nk_attention_schedule_blackwell
     }
 }
 
-/** Widens this thread's K or V row of a landed stage, each 64-byte box of I8 codes into a 128-byte
- *  row of F16 values, so P · V and S read them as @c kind::f16. */
-NUMKONG_DEVICE void nk_attention_widen_stage_blackwell_(nk_attention_schedule_blackwell_t const *schedule,
-                                                        unsigned char *stage) {
-    unsigned const row = threadIdx.x % nk_attention_panel_blackwell_k;
-    nk_u32_t integer_sum = 0;
-    nk_f32_t real_sum = 0;
-    for (unsigned box = 0; box < schedule->boxes; ++box)
-        nk_cross_expand_row_i8_blackwell_(
-            stage + schedule->raw_offset + box * nk_attention_panel_blackwell_k * schedule->box_bytes,
-            stage + box * nk_attention_block_bytes_blackwell_k, row, 0, &integer_sum, &real_sum);
-    nk_fence_async_shared_blackwell_();
-}
-
-/** Widens every stage of every item, one row per thread, from the converter warps. */
-NUMKONG_DEVICE void nk_attention_widen_blackwell_(nk_attention_schedule_blackwell_t const *schedule,
-                                                  nk_attention_control_blackwell_t *control, unsigned char *stages,
-                                                  nk_attention_tile_arguments_blackwell_t const *arguments) {
-    nk_u32_t stage = 0, phase = 0;
-    for (nk_u32_t sequence = 0;; ++sequence) {
-        nk_attention_work_t work;
-        nk_attention_take_work_blackwell_(control, sequence, &work);
-        if (!work.row_count) return;
-        nk_attention_item_blackwell_t item;
-        nk_attention_item_blackwell_(&arguments->attention, schedule, &work, &item);
-        for (unsigned copy = 0; copy < 2 * item.panels; ++copy) {
-            nk_attention_wait_blackwell_(&control->loaded[stage], phase);
-            nk_attention_widen_stage_blackwell_(schedule, stages + stage * schedule->stage_bytes);
-            nk_attention_warp_arrive_blackwell_(&control->widened[stage]);
-            nk_attention_advance_blackwell_(schedule, &stage, &phase);
-        }
-    }
-}
-
 /** Per-tile counts a role keeps across items, which pick the parities its barriers wait on. */
 typedef struct {
 
@@ -837,9 +784,7 @@ NUMKONG_DEVICE nk_u32_t nk_attention_acquire_stage_blackwell_(nk_attention_sched
                                                               nk_attention_control_blackwell_t *control,
                                                               nk_u32_t stages_address,
                                                               nk_attention_progress_blackwell_t *progress) {
-    nk_u64_t *const arrival = schedule->staging == nk_attention_staging_widen_k ? &control->widened[progress->stage]
-                                                                                : &control->loaded[progress->stage];
-    nk_attention_wait_blackwell_(arrival, progress->phase);
+    nk_attention_wait_blackwell_(&control->loaded[progress->stage], progress->phase);
     nk_tmem_fence_after_blackwell_();
     nk_u32_t const address = stages_address + progress->stage * schedule->stage_bytes;
     nk_attention_advance_blackwell_(schedule, &progress->stage, &progress->phase);
@@ -884,7 +829,7 @@ NUMKONG_DEVICE void nk_attention_stage_queries_blackwell_(nk_attention_schedule_
                                                           nk_attention_arguments_t const *arguments,
                                                           nk_attention_work_t const *work, unsigned char *queries,
                                                           unsigned tile) {
-    int const widen = schedule->staging == nk_attention_staging_widen_k;
+    int const widen = schedule->widens;
     nk_size_t const row_bytes = arguments->depth * schedule->element_bytes;
     int const aligned = ((((nk_size_t)arguments->queries) | arguments->query_stride | row_bytes) & 15) == 0;
     unsigned const chunks = schedule->staged_bytes / 16;
@@ -2555,18 +2500,17 @@ NUMKONG_INLINE int nk_attention_sums_map_blackwell_(CUtensorMap *map, void *sums
  *  @brief Validates the contract, describes the packed buffer to the Tensor Memory Accelerator and
  *      launches the kernel for the depth's width, one block per multiprocessor.
  *  @param[in] element_bytes Bytes of one input element.
- *  @param[in] widens Whether the stages widen to F16 first, as I8's do.
- *  @param[in] threads Threads of the narrow and wide kernels: 14 warps, or 18 with I8's converters.
+ *  @param[in] widens Whether Q widens to F16, as I8's does against the F16 K and V of its pack.
  *
  *  The payload starts a whole number of rows past the pack's start, wherever the directory the host
  *  cannot see ends, so one map at the start reaches every plane.
  */
 NUMKONG_INLINE nk_status_t nk_attention_launch_tma_blackwell_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, unsigned element_bytes, int widens,
-    unsigned threads, void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp,
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
-    nk_size_t query_token_count, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
-    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
     if (tasks_begin >= tasks_end || depth == 0) return nk_success_k;
@@ -2579,8 +2523,9 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_tma_blackwell_(
                                         &arguments.attention, stream);
     nk_attention_width_t const width = depth <= nk_attention_narrow_depth_blackwell_k ? nk_attention_width_128_k
                                                                                       : nk_attention_width_256_k;
-    nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
-    if (!nk_cross_map_blackwell_(&arguments.map, packed, 0x7FFFFFFF, row_bytes, row_bytes, widens ? 64 : 128,
+    nk_size_t const row_bytes = nk_size_round_up_to_multiple_(
+        depth * nk_attention_operand_bytes_blackwell_(element_bytes, widens), nk_attention_step_bytes_k);
+    if (!nk_cross_map_blackwell_(&arguments.map, packed, 0x7FFFFFFF, row_bytes, row_bytes, 128,
                                  nk_attention_box_rows_blackwell_k))
         return nk_device_memory_mismatch_k;
     // Q tiles copy as whole head-group tokens when 16-byte strides reach every head of every token.
@@ -2600,8 +2545,10 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_tma_blackwell_(
     if (status != nk_success_k) return status;
     arguments.paired = items_most != 0 && 2 * items_most <= (nk_size_t)multiprocessors;
     if (arguments.paired)
-        return nk_cross_launch_pairs_blackwell_(kernel, threads, shared_bytes, items_most, &arguments, stream);
-    return nk_launch_resident_cuda_(kernel, threads, shared_bytes, shared_bytes, NUMKONG_SIZE_MAX, &arguments, stream);
+        return nk_cross_launch_pairs_blackwell_(kernel, nk_attention_threads_blackwell_k, shared_bytes, items_most,
+                                                &arguments, stream);
+    return nk_launch_resident_cuda_(kernel, nk_attention_threads_blackwell_k, shared_bytes, shared_bytes,
+                                    NUMKONG_SIZE_MAX, &arguments, stream);
 }
 
 /** The launch for BF16. */
@@ -2611,10 +2558,10 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_bf16_blackwell_(
     nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count, nk_size_t query_stride,
     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin,
     nk_size_t tasks_end, nk_stream_t stream) {
-    return nk_attention_launch_tma_blackwell_(
-        narrow_kernel, wide_kernel, fallback_kernel, 2, 0, nk_attention_float_threads_blackwell_k, queries, packed,
-        output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_token_count, query_stride,
-        output_stride, scale, keys_before, keys_after, tasks_begin, tasks_end, stream);
+    return nk_attention_launch_tma_blackwell_(narrow_kernel, wide_kernel, fallback_kernel, 2, 0, queries, packed,
+                                              output, log_sum_exp, head_count, key_value_head_count, depth,
+                                              query_offsets, query_token_count, query_stride, output_stride, scale,
+                                              keys_before, keys_after, tasks_begin, tasks_end, stream);
 }
 
 /** The launch for F16. */
@@ -2624,10 +2571,10 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_f16_blackwell_(
     nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count, nk_size_t query_stride,
     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin,
     nk_size_t tasks_end, nk_stream_t stream) {
-    return nk_attention_launch_tma_blackwell_(
-        narrow_kernel, wide_kernel, fallback_kernel, 2, 0, nk_attention_float_threads_blackwell_k, queries, packed,
-        output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_token_count, query_stride,
-        output_stride, scale, keys_before, keys_after, tasks_begin, tasks_end, stream);
+    return nk_attention_launch_tma_blackwell_(narrow_kernel, wide_kernel, fallback_kernel, 2, 0, queries, packed,
+                                              output, log_sum_exp, head_count, key_value_head_count, depth,
+                                              query_offsets, query_token_count, query_stride, output_stride, scale,
+                                              keys_before, keys_after, tasks_begin, tasks_end, stream);
 }
 
 /** The launch for E4M3. */
@@ -2637,23 +2584,23 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_e4m3_blackwell_(
     nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count, nk_size_t query_stride,
     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin,
     nk_size_t tasks_end, nk_stream_t stream) {
-    return nk_attention_launch_tma_blackwell_(
-        narrow_kernel, wide_kernel, fallback_kernel, 1, 0, nk_attention_float_threads_blackwell_k, queries, packed,
-        output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_token_count, query_stride,
-        output_stride, scale, keys_before, keys_after, tasks_begin, tasks_end, stream);
+    return nk_attention_launch_tma_blackwell_(narrow_kernel, wide_kernel, fallback_kernel, 1, 0, queries, packed,
+                                              output, log_sum_exp, head_count, key_value_head_count, depth,
+                                              query_offsets, query_token_count, query_stride, output_stride, scale,
+                                              keys_before, keys_after, tasks_begin, tasks_end, stream);
 }
 
-/** The launch for I8, whose stages widen to F16. */
+/** The launch for I8, whose Q widens to F16 against the F16 K and V of its pack. */
 NUMKONG_INLINE nk_status_t nk_attention_launch_i8_blackwell_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, void const *queries,
     void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count,
     nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count, nk_size_t query_stride,
     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin,
     nk_size_t tasks_end, nk_stream_t stream) {
-    return nk_attention_launch_tma_blackwell_(
-        narrow_kernel, wide_kernel, fallback_kernel, 1, 1, nk_attention_integer_threads_blackwell_k, queries, packed,
-        output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_token_count, query_stride,
-        output_stride, scale, keys_before, keys_after, tasks_begin, tasks_end, stream);
+    return nk_attention_launch_tma_blackwell_(narrow_kernel, wide_kernel, fallback_kernel, 1, 1, queries, packed,
+                                              output, log_sum_exp, head_count, key_value_head_count, depth,
+                                              query_offsets, query_token_count, query_stride, output_stride, scale,
+                                              keys_before, keys_after, tasks_begin, tasks_end, stream);
 }
 
 static __global__ void __launch_bounds__(nk_attention_threads_k)
@@ -2834,6 +2781,112 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
     }
 }
 
+/** Writes the K and V planes of each @b (segment,kv_head) task as F16 rows of I8 codes, laid out as
+ *  @c nk_attention_pack_rows_blackwell_ lays out F16, so the products read them as they land. */
+NUMKONG_DEVICE void nk_attention_pack_rows_i8_blackwell_(unsigned char const *keys, unsigned char const *values,
+                                                         nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                                         nk_size_t segment_count, nk_size_t key_stride,
+                                                         nk_size_t value_stride, unsigned char *packed,
+                                                         nk_size_t tasks_begin, nk_size_t tasks_end) {
+    nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * 2, nk_attention_step_bytes_k);
+    unsigned char *payload = packed + nk_attention_payload_offset_simt_(segment_count, row_bytes);
+    // Each thread widens one 16-byte column of codes into 32 bytes of a row, four rows at a time.
+    int const chunked = (((nk_size_t)keys | (nk_size_t)values | key_stride | value_stride | depth) & 15) == 0;
+    unsigned const row_chunks = (unsigned)(row_bytes / 32), depth_chunks = (unsigned)(depth / 16);
+    unsigned const rows_per_pass = blockDim.x / row_chunks, lane_row = threadIdx.x / row_chunks;
+    unsigned const chunk = threadIdx.x % row_chunks;
+    nk_u32_t const subtrahend = (0x6400u | 128u) * 0x00010001u;
+    nk_size_t cursor_segment = 0;
+    nk_u64_t payload_offset = 0;
+    for (nk_size_t task = tasks_begin + blockIdx.x; task < tasks_end; task += gridDim.x) {
+        nk_size_t const segment = task / key_value_head_count, head = task % key_value_head_count;
+        nk_attention_pack_advance_simt_(key_offsets, key_lengths, key_value_head_count, row_bytes, segment,
+                                        &cursor_segment, &payload_offset);
+        nk_size_t const length = nk_attention_pack_key_count_simt_(key_offsets, key_lengths, segment);
+        if (length == 0) continue;
+        nk_size_t const plane_bytes = nk_size_round_up_to_multiple_(length, nk_attention_panel_k) * row_bytes;
+        unsigned char *keys_plane = payload + payload_offset + head * plane_bytes;
+        unsigned char *values_plane = keys_plane + key_value_head_count * plane_bytes;
+        unsigned char const *keys_first = keys + key_offsets[segment] * key_stride + head * depth;
+        unsigned char const *values_first = values + key_offsets[segment] * value_stride + head * depth;
+        if (chunked) {
+            if (lane_row >= rows_per_pass) continue;
+            unsigned const padded = (unsigned)(plane_bytes / row_bytes);
+            int const live_column = chunk < depth_chunks;
+            unsigned char *keys_column = keys_plane + chunk * 32, *values_column = values_plane + chunk * 32;
+            unsigned char const *keys_source = keys_first + chunk * 16, *values_source = values_first + chunk * 16;
+            uint4 const zero = make_uint4(0, 0, 0, 0);
+            for (unsigned position = lane_row; position < padded; position += 4 * rows_per_pass) {
+                uint4 keys_codes[4], values_codes[4];
+#pragma unroll
+                for (unsigned step = 0; step < 4; ++step) {
+                    nk_size_t const row = position + step * rows_per_pass;
+                    int const inside = live_column && row < length;
+                    keys_codes[step] = inside ? __ldg((uint4 const *)(keys_source + row * key_stride)) : zero;
+                    values_codes[step] = inside ? __ldg((uint4 const *)(values_source + row * value_stride)) : zero;
+                }
+#pragma unroll
+                for (unsigned step = 0; step < 4; ++step) {
+                    nk_size_t const row = position + step * rows_per_pass;
+                    if (row >= padded) break;
+                    nk_u32_t const key_words[4] = {keys_codes[step].x, keys_codes[step].y, keys_codes[step].z,
+                                                   keys_codes[step].w};
+                    nk_u32_t const value_words[4] = {values_codes[step].x, values_codes[step].y, values_codes[step].z,
+                                                     values_codes[step].w};
+                    nk_u32_t key_halves[8], value_halves[8];
+#pragma unroll
+                    for (unsigned word = 0; word < 4; ++word) {
+                        nk_u8x4_to_f16x4_blackwell_(key_words[word] ^ 0x80808080u, subtrahend, &key_halves[2 * word],
+                                                    &key_halves[2 * word + 1]);
+                        nk_u8x4_to_f16x4_blackwell_(value_words[word] ^ 0x80808080u, subtrahend,
+                                                    &value_halves[2 * word], &value_halves[2 * word + 1]);
+                    }
+                    uint4 *const keys_row = (uint4 *)(keys_column + row * row_bytes);
+                    uint4 *const values_row = (uint4 *)(values_column + row * row_bytes);
+                    keys_row[0] = make_uint4(key_halves[0], key_halves[1], key_halves[2], key_halves[3]);
+                    keys_row[1] = make_uint4(key_halves[4], key_halves[5], key_halves[6], key_halves[7]);
+                    values_row[0] = make_uint4(value_halves[0], value_halves[1], value_halves[2], value_halves[3]);
+                    values_row[1] = make_uint4(value_halves[4], value_halves[5], value_halves[6], value_halves[7]);
+                }
+            }
+        }
+        else {
+            __half *const keys_halves = (__half *)keys_plane, *const values_halves = (__half *)values_plane;
+            nk_i8_t const *const keys_codes = (nk_i8_t const *)keys_first;
+            nk_i8_t const *const values_codes = (nk_i8_t const *)values_first;
+            for (nk_size_t index = threadIdx.x; index < plane_bytes / 2; index += blockDim.x) {
+                nk_size_t const position = index / (row_bytes / 2), element = index % (row_bytes / 2);
+                int const inside = position < length && element < depth;
+                keys_halves[index] = __int2half_rn(inside ? keys_codes[position * key_stride + element] : 0);
+                values_halves[index] = __int2half_rn(inside ? values_codes[position * value_stride + element] : 0);
+            }
+        }
+    }
+}
+
+/** Writes an I8 pack's payload: F16 rows for the tile's depths, the @c cuda layout of codes past
+ *  them for the fallback kernel. */
+NUMKONG_DEVICE void nk_attention_pack_payload_i8_blackwell_(unsigned char const *keys, unsigned char const *values,
+                                                            nk_size_t key_value_head_count, nk_size_t depth,
+                                                            nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                                            nk_size_t segment_count, nk_size_t key_stride,
+                                                            nk_size_t value_stride, unsigned char *packed,
+                                                            nk_size_t tasks_begin, nk_size_t tasks_end) {
+    if (depth <= nk_attention_wide_depth_blackwell_k)
+        nk_attention_pack_rows_i8_blackwell_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
+                                             segment_count, key_stride, value_stride, packed, tasks_begin, tasks_end);
+    else
+        nk_attention_pack_payload_i8_simt_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
+                                           segment_count, key_stride, value_stride, packed, tasks_begin, tasks_end);
+}
+
+/** Bytes per element of an I8 pack's rows: 2 where the tile reads F16, 1 where the fallback reads
+ *  codes. */
+NUMKONG_CONSTEXPR nk_size_t nk_attention_pack_element_bytes_i8_blackwell_(nk_size_t depth) {
+    return depth <= nk_attention_wide_depth_blackwell_k ? 2 : 1;
+}
+
 #pragma endregion Pack
 
 #pragma region Attention Macros
@@ -2869,7 +2922,6 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
  *  @brief Generates one dtype's tile roles, kernels and public entry point for the TMA attention.
  *  @param[in] isa_suffix The capability the roles, kernels and entry point are named for, whose
  *      @c nk_tmem_load_extreme_x32_ helper finds each row's maximum.
- *  @param[in] threads Threads of the narrow and wide kernels.
  *  @param[in] scores_fn Issues one 32-byte depth step of S = Q · Kᵀ from shared-memory
  *      descriptors of both operands.
  *  @param[in] values_fn Issues one step of O += P · V, with P at a tensor-memory address.
@@ -2883,11 +2935,11 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
  *  kernel. The entry point picks the masked pair unless the band reaches every key, and passes
  *  them to @c nk_attention_launch_tma_blackwell_.
  *
- *  Warps 0 to 7 run the softmax of the two tiles, 8 to 11 correct and store O, 12 multiplies, 13
- *  schedules and loads, and 14 to 17 widen I8 stages.
+ *  Warps 0 to 7 run the softmax of the two tiles, 8 to 11 correct and store O, 12 multiplies,
+ *  and 13 schedules and loads.
  */
 #define nk_define_attention_tma_blackwell_(input_type_name, isa_suffix, input_value_type, input_bytes, input_widens,   \
-                                           threads, scores_fn, values_fn, weights_fn, format)                          \
+                                           scores_fn, values_fn, weights_fn, format)                                   \
     /* Issues S = Q · Kᵀ of a tile against the K panel at keys into slot's S columns and barrier,                   \
      * from the elected lane of the converged MMA warp. */                                                             \
     NUMKONG_DEVICE void nk_attention_issue_scores_##input_type_name##_##isa_suffix##_(                                 \
@@ -3189,7 +3241,7 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
             if (log_sum_exp_slot) *log_sum_exp_slot = nk_attention_log_sum_exp_simt_(row_max, row_sum, unit_sum);      \
         }                                                                                                              \
     }                                                                                                                  \
-    /* Every work item of one launch: the roles above, the loads, the widening and corrections. */                     \
+    /* Every work item of one launch: the roles above, the loads and the corrections. */                               \
     NUMKONG_DEVICE void nk_attention_tile_##input_type_name##_##isa_suffix##_(                                         \
         nk_attention_width_t width, nk_attention_mask_t mask,                                                          \
         nk_attention_tile_arguments_blackwell_t const *arguments) {                                                    \
@@ -3211,30 +3263,28 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
         else if (warp == nk_attention_multiply_warp_blackwell_k)                                                       \
             nk_attention_multiply_##input_type_name##_##isa_suffix##_(&kernel, &schedule, control, queries, stages,    \
                                                                       tensor_memory, arguments);                       \
-        else if (warp == nk_attention_load_warp_blackwell_k)                                                           \
-            nk_attention_load_blackwell_(&schedule, control, queries, stages, arguments);                              \
-        else nk_attention_widen_blackwell_(&schedule, control, stages, arguments);                                     \
+        else nk_attention_load_blackwell_(&schedule, control, queries, stages, arguments);                             \
         nk_attention_release_blackwell_(tensor_memory);                                                                \
     }                                                                                                                  \
-    static __global__ void __launch_bounds__(threads, 1)                                                               \
+    static __global__ void __launch_bounds__(nk_attention_threads_blackwell_k, 1)                                      \
         nk_attention_packed_##input_type_name##_narrow_##isa_suffix##_kernel_(                                         \
             __grid_constant__ nk_attention_tile_arguments_blackwell_t const arguments) {                               \
         nk_attention_tile_##input_type_name##_##isa_suffix##_(nk_attention_width_128_k, nk_attention_mask_none_k,      \
                                                               &arguments);                                             \
     }                                                                                                                  \
-    static __global__ void __launch_bounds__(threads, 1)                                                               \
+    static __global__ void __launch_bounds__(nk_attention_threads_blackwell_k, 1)                                      \
         nk_attention_packed_##input_type_name##_wide_##isa_suffix##_kernel_(                                           \
             __grid_constant__ nk_attention_tile_arguments_blackwell_t const arguments) {                               \
         nk_attention_tile_##input_type_name##_##isa_suffix##_(nk_attention_width_256_k, nk_attention_mask_none_k,      \
                                                               &arguments);                                             \
     }                                                                                                                  \
-    static __global__ void __launch_bounds__(threads, 1)                                                               \
+    static __global__ void __launch_bounds__(nk_attention_threads_blackwell_k, 1)                                      \
         nk_attention_packed_##input_type_name##_narrow_masked_##isa_suffix##_kernel_(                                  \
             __grid_constant__ nk_attention_tile_arguments_blackwell_t const arguments) {                               \
         nk_attention_tile_##input_type_name##_##isa_suffix##_(nk_attention_width_128_k,                                \
                                                               nk_attention_mask_diagonal_band_k, &arguments);          \
     }                                                                                                                  \
-    static __global__ void __launch_bounds__(threads, 1)                                                               \
+    static __global__ void __launch_bounds__(nk_attention_threads_blackwell_k, 1)                                      \
         nk_attention_packed_##input_type_name##_wide_masked_##isa_suffix##_kernel_(                                    \
             __grid_constant__ nk_attention_tile_arguments_blackwell_t const arguments) {                               \
         nk_attention_tile_##input_type_name##_##isa_suffix##_(nk_attention_width_256_k,                                \
@@ -3272,8 +3322,7 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
 nk_define_attention_pack_size_simt_(bf16, blackwell, 2)
 nk_define_attention_packed_shape_cuda_(bf16, blackwell)
 nk_define_attention_pack_blackwell_(bf16, blackwell, bf16)
-nk_define_attention_tma_blackwell_(bf16, blackwell, bf16, 2, 0, nk_attention_float_threads_blackwell_k,
-                                   nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
+nk_define_attention_tma_blackwell_(bf16, blackwell, bf16, 2, 0, nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
                                    nk_attention_weights_bf16_blackwell_, /*format=*/1)
 
 /** Both BF16 backward kernels: tensor cores when the launch gives them shared memory, the
@@ -3300,8 +3349,7 @@ nk_define_attention_backward_cuda_(bf16, blackwell, bf16, nk_attention_backward_
 nk_define_attention_pack_size_simt_(f16, blackwell, 2)
 nk_define_attention_packed_shape_cuda_(f16, blackwell)
 nk_define_attention_pack_blackwell_(f16, blackwell, f16)
-nk_define_attention_tma_blackwell_(f16, blackwell, f16, 2, 0, nk_attention_float_threads_blackwell_k,
-                                   nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
+nk_define_attention_tma_blackwell_(f16, blackwell, f16, 2, 0, nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
                                    nk_attention_weights_f16_blackwell_, /*format=*/0)
 
 #pragma endregion F16
@@ -3311,19 +3359,45 @@ nk_define_attention_tma_blackwell_(f16, blackwell, f16, 2, 0, nk_attention_float
 nk_define_attention_pack_size_simt_(e4m3, blackwell, 1)
 nk_define_attention_packed_shape_cuda_(e4m3, blackwell)
 nk_define_attention_pack_blackwell_(e4m3, blackwell, e4m3)
-nk_define_attention_tma_blackwell_(e4m3, blackwell, e4m3, 1, 0, nk_attention_float_threads_blackwell_k,
-                                   nk_mma_f8f6f4_blackwell_, nk_mma_f8f6f4_tmem_blackwell_,
+nk_define_attention_tma_blackwell_(e4m3, blackwell, e4m3, 1, 0, nk_mma_f8f6f4_blackwell_, nk_mma_f8f6f4_tmem_blackwell_,
                                    nk_attention_weights_e4m3_blackwell_, /*format=*/0)
 
 #pragma endregion E4M3
 
 #pragma region I8
 
-nk_define_attention_pack_size_simt_(i8, blackwell, 1)
+NUMKONG_API nk_status_t nk_attention_pack_size_i8_blackwell(nk_size_t key_value_head_count, nk_size_t depth,
+                                                            nk_size_t token_count, nk_size_t segment_count,
+                                                            nk_size_t *bytes) {
+    *bytes = nk_attention_pack_size_simt_(key_value_head_count, depth, token_count, segment_count,
+                                          nk_attention_pack_element_bytes_i8_blackwell_(depth));
+    return nk_success_k;
+}
+
+static __global__ void nk_attention_pack_i8_blackwell_kernel_(unsigned char const *keys, unsigned char const *values,
+                                                              nk_size_t key_value_head_count, nk_size_t depth,
+                                                              nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                                              nk_size_t segment_count, nk_size_t key_stride,
+                                                              nk_size_t value_stride, unsigned char *packed,
+                                                              nk_size_t tasks_begin, nk_size_t tasks_end) {
+    nk_attention_pack_payload_i8_blackwell_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
+                                            segment_count, key_stride, value_stride, packed, tasks_begin, tasks_end);
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_i8_blackwell(nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                                       nk_size_t segment_count, nk_i8_t const *keys,
+                                                       nk_size_t key_stride, nk_i8_t const *values,
+                                                       nk_size_t value_stride, void *key_value_packed,
+                                                       nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    return nk_attention_pack_launch_cuda_((void const *)nk_attention_pack_i8_blackwell_kernel_, nk_cap_blackwell_k,
+                                          nk_attention_pack_element_bytes_i8_blackwell_(depth), keys, values,
+                                          key_value_head_count, depth, key_offsets, key_lengths, segment_count,
+                                          key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, stream);
+}
+
 nk_define_attention_packed_shape_cuda_(i8, blackwell)
-nk_define_attention_pack_blackwell_(i8, blackwell, i8)
-nk_define_attention_tma_blackwell_(i8, blackwell, i8, 1, 1, nk_attention_integer_threads_blackwell_k,
-                                   nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
+nk_define_attention_tma_blackwell_(i8, blackwell, i8, 1, 1, nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
                                    nk_attention_weights_u8_blackwell_, /*format=*/0)
 
 #pragma endregion I8
