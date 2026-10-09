@@ -154,6 +154,18 @@ void bench_cross_arm64(environment_t const &env) {
                                               nk_dots_pack_mxfp8e5m2_neon, nk_euclideans_packed_mxfp8e5m2_neon);
         run_euclideans_symmetric<nk_mxfp8e5m2_k>(env, "euclideans_symmetric_mxfp8e5m2_neon",
                                                  nk_euclideans_symmetric_mxfp8e5m2_neon);
+
+        run_attention<bf16_k>(env, "attention_packed_bf16_neon", nk_attention_pack_size_bf16_neon,
+                              nk_attention_pack_bf16_neon, nk_attention_packed_bf16_neon);
+        run_attention<f16_k>(env, "attention_packed_f16_neon", nk_attention_pack_size_f16_neon,
+                             nk_attention_pack_f16_neon, nk_attention_packed_f16_neon);
+        run_attention<e4m3_k>(env, "attention_packed_e4m3_neon", nk_attention_pack_size_e4m3_neon,
+                              nk_attention_pack_e4m3_neon, nk_attention_packed_e4m3_neon);
+        run_attention<i8_k>(env, "attention_packed_i8_neon", nk_attention_pack_size_i8_neon, nk_attention_pack_i8_neon,
+                            nk_attention_packed_i8_neon);
+        run_attention_rope<f32_k>(env, "attention_rope_f32_neon", nk_attention_rope_f32_neon);
+        run_attention_rope<bf16_k>(env, "attention_rope_bf16_neon", nk_attention_rope_bf16_neon);
+        run_attention_rope<e4m3_k>(env, "attention_rope_e4m3_neon", nk_attention_rope_e4m3_neon);
     }
 
 #endif // NUMKONG_TARGET_NEON
@@ -225,6 +237,8 @@ void bench_cross_arm64(environment_t const &env) {
 
         run_attention<e4m3_k>(env, "attention_packed_e4m3_neonfhm", nk_attention_pack_size_e4m3_neonfhm,
                               nk_attention_pack_e4m3_neonfhm, nk_attention_packed_e4m3_neonfhm);
+        run_attention<f16_k>(env, "attention_packed_f16_neonfhm", nk_attention_pack_size_f16_neonfhm,
+                             nk_attention_pack_f16_neonfhm, nk_attention_packed_f16_neonfhm);
     }
 #endif // NUMKONG_TARGET_NEONFHM
 
@@ -424,6 +438,8 @@ void bench_cross_arm64(environment_t const &env) {
                               nk_attention_pack_bf16_sme, nk_attention_packed_bf16_sme);
         run_attention<e4m3_k>(env, "attention_packed_e4m3_sme", nk_attention_pack_size_e4m3_sme,
                               nk_attention_pack_e4m3_sme, nk_attention_packed_e4m3_sme);
+        run_attention<f16_k>(env, "attention_packed_f16_sme", nk_attention_pack_size_f16_sme, nk_attention_pack_f16_sme,
+                             nk_attention_packed_f16_sme);
         run_attention<i8_k>(env, "attention_packed_i8_sme", nk_attention_pack_size_i8_sme, nk_attention_pack_i8_sme,
                             nk_attention_packed_i8_sme);
 

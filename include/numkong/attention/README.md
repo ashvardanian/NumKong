@@ -42,16 +42,23 @@ Internally every backend uses the streaming base-2 softmax: the scale folds $\lo
 
 ## Input & Output Types
 
-| Input Type | Output Type | Description                                                                |
-| :--------- | :---------- | :------------------------------------------------------------------------- |
-| `bf16`     | `f32`       | 16-bit brain float; native AMX tiles and `VDPBF16PS` lanes                 |
-| `f16`      | `f32`       | 16-bit IEEE half; F16 tensor cores and F16 weights from Ampere on          |
-| `e4m3`     | `f32`       | 8-bit Float8; widened to the ISA's compute format at the pack boundary     |
-| `i8`       | `f32`       | 8-bit signed integers; exact `i32` scores, probabilities quantized to `u8` |
+| Input Type  | Output Type | Description                                                                |
+| :---------- | :---------- | :------------------------------------------------------------------------- |
+| `bf16`      | `f32`       | 16-bit brain float; native AMX tiles and `VDPBF16PS` lanes                 |
+| `f16`       | `f32`       | 16-bit IEEE half; F16 tensor cores and F16 weights from Ampere on          |
+| `e4m3`      | `f32`       | 8-bit Float8; widened to the ISA's compute format at the pack boundary     |
+| `i8`        | `f32`       | 8-bit signed integers; exact `i32` scores, probabilities quantized to `u8` |
+| `nvfp4`     | `f32`       | E2M1 codes in blocks of 16 under UE4M3 scales and an F32 tensor scale      |
+| `mxfp4`     | `f32`       | E2M1 codes in blocks of 32 under UE8M0 power-of-two scales                 |
+| `mxfp6e2m3` | `f32`       | E2M3 codes in blocks of 32 under UE8M0 scales                              |
+| `mxfp6e3m2` | `f32`       | E3M2 codes in blocks of 32 under UE8M0 scales                              |
+| `mxfp8e4m3` | `f32`       | E4M3 codes in blocks of 32 under UE8M0 scales                              |
+| `mxfp8e5m2` | `f32`       | E5M2 codes in blocks of 32 under UE8M0 scales                              |
 
 Shape envelope: any `depth ≥ 1` (SIMD fast paths cover 1…256 with zero-padded channels; wider heads route to the width-agnostic serial kernel), arbitrary segment lengths including empty PAD segments, and any integer GQA ratio.
 Quantization scales fold into the `scale` argument for `i8` queries and keys, or stay with the caller for values, so every dtype shares one signature.
 Plain `e4m3` is unscaled, as in the `dots` family.
+Block-scaled formats take their codes, block scales and NVFP4 tensor scale by reference, as in the `dots` family, with `depth` a whole number of blocks.
 
 ## Training
 
@@ -67,6 +74,7 @@ The backward's task grid is segments × key-value heads, each task owning one ke
 Query gradient rows take their own `query_gradient_stride`, and key and value gradient rows past a segment's live keys, the gaps and tails before the next segment, are never written, so callers zero them when they matter.
 The BF16 backward runs on tensor cores for heads of up to 256 dimensions: FlashAttention-2 on `mma.sync` from Ampere on, and `tcgen05.mma` accumulating in tensor memory on Blackwell.
 Gradients accumulate 128 columns at a time, so heads past 128 dimensions recompute the scores for a second slice.
+Block-scaled gradients are taken with respect to the decoded values.
 
 ## Optimizations
 
@@ -91,6 +99,14 @@ KV planes are the streamed operand, so at-rest bytes are memory bandwidth.
 The Arm SME backend enters streaming mode once per call and never leaves it: scores accumulate as 2×2 widening MOPA outer products, drain through vertical ZA stores into a position-major panel with one query per lane, and the running maxima, corrections, weight sums, output rescaling, and normalization all run as plain lane-parallel vector operations with no horizontal reductions or scalar broadcasts.
 Probabilities round to pair-interleaved BF16 MOPA operands in registers with one `TRN2` per position pair, and the Q staging plus the final output transpose reuse the ZA horizontal-write/vertical-read idiom from the `dots` packer.
 Non-widening ZA16 tiles measure about twice the MOPA rate but lose ~12% relative accuracy on signed depth-256 reductions, so every reduction stays in F32 accumulators.
+
+### Rebased Planes for Block-Scaled Formats
+
+NVFP4 planes hold every element times its UE4M3 block scale, which F32 and even F16 represent exactly, and the pack header keeps both tensor scales.
+MX scales span 254 binades, so each MX plane rebases its elements by the plane's largest finite block exponent less 31 and records that exponent in a small table past the planes.
+A plane whose block exponents span more than 89 binades keeps its raw codes and scale codes instead, and scores against it take the exact dot of raw codes.
+Scores sum each query block in F32 against the rebased key row and add the blocks into a wide sum, so query scales of any spread round once.
+Outputs and query gradients accumulate under one plane base and apply its power of two once per element.
 
 ### U8-Quantized Probabilities for INT8
 
@@ -215,13 +231,20 @@ Measured with Wasmtime v24 (Cranelift backend).
 | :------------------------------------------------- | -----------: | -----------: | -----------: |
 | __bf16__                                           | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
 | bidirectional `nk_attention_packed_bf16_serial`    |  2.8 gflop/s |            ⋯ |            ⋯ |
+| bidirectional `nk_attention_packed_bf16_neon`      |   44 gflop/s |   45 gflop/s |            ⋯ |
 | bidirectional `nk_attention_packed_bf16_neonbfdot` |   46 gflop/s |   47 gflop/s |   46 gflop/s |
 | bidirectional `nk_attention_packed_bf16_sme`       |  789 gflop/s |  800 gflop/s |  802 gflop/s |
+| __f16__                                            | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_f16_neon`       |   44 gflop/s |   44 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_f16_neonfhm`    |   51 gflop/s |   51 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_f16_sme`        |  796 gflop/s |  815 gflop/s |  820 gflop/s |
 | __e4m3__                                           | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
 | bidirectional `nk_attention_packed_e4m3_serial`    |  1.5 gflop/s |            ⋯ |            ⋯ |
+| bidirectional `nk_attention_packed_e4m3_neon`      |   44 gflop/s |   44 gflop/s |            ⋯ |
 | bidirectional `nk_attention_packed_e4m3_neonfhm`   |   51 gflop/s |   51 gflop/s |   50 gflop/s |
 | bidirectional `nk_attention_packed_e4m3_sme`       |  722 gflop/s |  777 gflop/s |  797 gflop/s |
 | __i8__                                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
 | bidirectional `nk_attention_packed_i8_serial`      |  133 gflop/s |            ⋯ |            ⋯ |
+| bidirectional `nk_attention_packed_i8_neon`        |  188 gflop/s |  192 gflop/s |            ⋯ |
 | bidirectional `nk_attention_packed_i8_neonsdot`    |  310 gflop/s |  305 gflop/s |  285 gflop/s |
 | bidirectional `nk_attention_packed_i8_sme`         |  815 gflop/s |  825 gflop/s |  827 gflop/s |

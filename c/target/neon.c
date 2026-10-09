@@ -22,3 +22,4 @@
 #include "numkong/dots/neon.h"
 #include "numkong/sets/neon.h"
 #include "numkong/spatials/neon.h"
+#include "numkong/attention/neon.h"
