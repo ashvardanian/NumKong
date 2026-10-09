@@ -15,12 +15,14 @@
  *  first with @c bfloat. Only the shape reader reads device memory on the host, after waiting on
  *  the stream: the other entries trust the pack and the query offsets. Attention checks that the
  *  @c query_token_count rows of the queries and outputs lie in their buffers, and its kernels stay
- *  below that row and inside the bytes the pack and offsets hold past their pointers.
+ *  below that row and inside the bytes the pack and offsets hold past their pointers. Gradients
+ *  also keep the key and value gradient rows inside the bytes their buffers hold.
  *
  *  The @c metal baseline gives every query row a SIMD-group, while @c apple9 and @c apple10 attend
  *  32-row tiles against 64-key panels, on SIMD-group matrices and on the @c matmul2d tensor
  *  operations. Calls of at most four query rows against 512 keys or more split each row's keys into
  *  16 partitions, whose maxima, sums and weighted values a merge kernel combines in a fixed order.
+ *  The baseline's gradients take a SIMD-group per key for dK and dV, then one per query row for dQ.
  */
 #ifndef NUMKONG_ATTENTION_METAL_H
 #define NUMKONG_ATTENTION_METAL_H
@@ -68,11 +70,20 @@ typedef struct {
     nk_f32_t scale2;
 } nk_attention_arguments_metal_t;
 
+/** The launch record of the backward kernels, laid out as the kernels' record of the same name. */
+typedef struct {
+    nk_attention_arguments_metal_t attention;
+    nk_u64_t query_gradient_stride, key_value_gradient_stride, key_value_gradient_bytes;
+    nk_f32_t scale;
+} nk_attention_backward_arguments_metal_t;
+
 nk_static_assert_(sizeof(nk_attention_rope_arguments_metal_t) == 40,
                   nk_attention_rope_arguments_metal_must_be_40_bytes);
 nk_static_assert_(sizeof(nk_attention_pack_arguments_metal_t) == 104,
                   nk_attention_pack_arguments_metal_must_be_104_bytes);
 nk_static_assert_(sizeof(nk_attention_arguments_metal_t) == 120, nk_attention_arguments_metal_must_be_120_bytes);
+nk_static_assert_(sizeof(nk_attention_backward_arguments_metal_t) == 152,
+                  nk_attention_backward_arguments_metal_must_be_152_bytes);
 
 /** Encodes @p groups threadgroups of @p threads each and a barrier after them, without committing,
  *  for calls that chain kernels. */
@@ -326,6 +337,105 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_metal_(
     return nk_dispatch_metal_(&call, grid, threads);
 }
 
+/**
+ *  @brief Validates the contract and encodes the gradients of one dtype: @p keys_kernel for the key
+ *      and value gradients, then @p queries_kernel for the query ones.
+ *
+ *  Key and value gradient rows lie wherever the pack's key offsets put them, so the kernels keep
+ *  them inside the bytes both buffers hold past their pointers.
+ */
+NUMKONG_INLINE nk_status_t nk_attention_backward_launch_metal_(
+    char const *source, nk_size_t language_version, nk_capability_t capability, char const *keys_kernel,
+    char const *queries_kernel, nk_size_t element_bytes, nk_size_t head_count, nk_size_t key_value_head_count,
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before,
+    nk_size_t keys_after, void const *queries, nk_size_t query_stride, void const *packed, nk_f32_t const *output,
+    nk_f32_t const *output_gradient, nk_size_t output_stride, nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient,
+    nk_size_t query_gradient_stride, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t key_value_gradient_stride, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    if (((nk_size_t)packed & 15) || ((((nk_size_t)queries) | query_stride) & (element_bytes - 1)) ||
+        ((((nk_size_t)output) | ((nk_size_t)output_gradient) | output_stride | ((nk_size_t)log_sum_exp) |
+          ((nk_size_t)query_gradient) | query_gradient_stride | ((nk_size_t)key_gradient) |
+          ((nk_size_t)value_gradient) | key_value_gradient_stride | ((nk_size_t)query_offsets)) &
+         3))
+        return nk_misaligned_k;
+    nk_size_t rows;
+    if (!key_value_head_count || head_count % key_value_head_count || head_count > NUMKONG_U32_MAX ||
+        depth > NUMKONG_U32_MAX || !nk_size_mul_checked_(query_token_count, head_count, &rows))
+        return nk_unexpected_dimensions_k;
+    if (tasks_begin >= tasks_end || !depth) return nk_success_k;
+    nk_size_t query_row_bytes, output_row_bytes, gradient_row_bytes, query_bytes, output_bytes, query_gradient_bytes,
+        log_sum_exp_bytes;
+    if (!nk_size_mul_checked_(head_count * depth, element_bytes, &query_row_bytes) ||
+        !nk_size_mul_checked_(head_count * depth, sizeof(nk_f32_t), &output_row_bytes) ||
+        !nk_size_mul_checked_(key_value_head_count * depth, sizeof(nk_f32_t), &gradient_row_bytes) ||
+        !nk_size_span_checked_(query_token_count, query_stride, query_row_bytes, &query_bytes) ||
+        !nk_size_span_checked_(query_token_count, output_stride, output_row_bytes, &output_bytes) ||
+        !nk_size_span_checked_(query_token_count, query_gradient_stride, output_row_bytes, &query_gradient_bytes) ||
+        !nk_size_mul_checked_(rows, sizeof(nk_f32_t), &log_sum_exp_bytes))
+        return nk_unexpected_dimensions_k;
+
+    nk_metal_call_t call;
+    nk_status_t const status = nk_enter_metal_(stream, &call);
+    if (status != nk_success_k) return status;
+    nk_size_t offsets[10] = {0};
+    void *buffers[10];
+    buffers[0] = nk_resolve_metal_(&call, queries, query_bytes, offsets);
+    buffers[1] = nk_resolve_metal_(&call, packed, sizeof(nk_attention_packed_header_t), offsets + 1);
+    buffers[2] = nk_resolve_metal_(&call, output, output_bytes, offsets + 2);
+    buffers[3] = nk_resolve_metal_(&call, query_offsets, 2 * sizeof(nk_u32_t), offsets + 3);
+    buffers[5] = nk_resolve_metal_(&call, log_sum_exp, log_sum_exp_bytes, offsets + 5);
+    buffers[6] = nk_resolve_metal_(&call, output_gradient, output_bytes, offsets + 6);
+    buffers[7] = nk_resolve_metal_(&call, query_gradient, query_gradient_bytes, offsets + 7);
+    buffers[8] = nk_resolve_metal_(&call, key_gradient, gradient_row_bytes, offsets + 8);
+    buffers[9] = nk_resolve_metal_(&call, value_gradient, gradient_row_bytes, offsets + 9);
+    for (nk_size_t index = 0; index != 10; ++index)
+        if (index != 4 && !buffers[index]) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
+    nk_size_t const packed_bytes = nk_count_metal_(buffers[1], "length") - offsets[1];
+    nk_size_t const offsets_bytes = nk_count_metal_(buffers[3], "length") - offsets[3];
+    nk_size_t const key_gradient_bytes = nk_count_metal_(buffers[8], "length") - offsets[8];
+    nk_size_t const value_gradient_bytes = nk_count_metal_(buffers[9], "length") - offsets[9];
+    nk_size_t tasks;
+    if (!nk_size_mul_checked_(offsets_bytes / sizeof(nk_u32_t) - 1, key_value_head_count, &tasks))
+        tasks = NUMKONG_SIZE_MAX;
+    if (tasks_end > tasks) tasks_end = tasks;
+    if (tasks_begin >= tasks_end) return nk_abort_metal_(&call, nk_success_k);
+
+    nk_attention_backward_arguments_metal_t arguments;
+    nk_attention_arguments_metal_t *const attention = &arguments.attention;
+    attention->heads = head_count, attention->kv_heads = key_value_head_count, attention->depth = depth;
+    attention->query_tokens = query_token_count, attention->query_stride = query_stride;
+    attention->output_stride = output_stride, attention->keys_before = keys_before, attention->keys_after = keys_after;
+    attention->tasks_begin = tasks_begin, attention->tasks_end = tasks_end;
+    attention->packed_bytes = packed_bytes, attention->offsets_bytes = offsets_bytes;
+    attention->log_sum_exp_bytes = log_sum_exp_bytes, attention->capability = capability;
+    attention->scale2 = scale * NUMKONG_F32_LOG2E_;
+    arguments.query_gradient_stride = query_gradient_stride;
+    arguments.key_value_gradient_stride = key_value_gradient_stride;
+    arguments.key_value_gradient_bytes = nk_min_of_two(key_gradient_bytes, value_gradient_bytes);
+    arguments.scale = scale;
+    for (nk_size_t index = 0; index != 10; ++index)
+        if (index != 4) nk_bind_metal_(call.encoder, buffers[index], offsets[index], index);
+    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 4);
+
+    void *const keys_pipeline = nk_pipeline_metal_(call.context, source, keys_kernel, language_version);
+    void *const queries_pipeline = nk_pipeline_metal_(call.context, source, queries_kernel, language_version);
+    if (!keys_pipeline || !queries_pipeline) return nk_abort_metal_(&call, nk_device_code_mismatch_k);
+    // Threadgroups walk the window's tasks along x and eight keys or folded query rows along y
+    nk_size_t const key_value_bytes = gradient_row_bytes / sizeof(nk_f32_t) * 2 * element_bytes;
+    nk_size_t const key_blocks = nk_size_divide_round_up_(packed_bytes / key_value_bytes, 8);
+    nk_size_t const query_blocks = nk_size_divide_round_up_(rows / key_value_head_count, 8);
+    nk_size_t const key_groups = nk_max_of_two(1, nk_min_of_two(64, key_blocks));
+    nk_size_t const query_groups = nk_max_of_two(1, nk_min_of_two(64, query_blocks));
+    nk_size_t const window = tasks_end - tasks_begin;
+    nk_metal_size_t const threads = {256, 1, 1};
+    nk_metal_size_t const keys_grid = {nk_min_of_two(window, 65535 / key_groups), key_groups, 1};
+    nk_metal_size_t const queries_grid = {nk_min_of_two(window, 65535 / query_groups), query_groups, 1};
+    nk_encoder_metal_(&call, keys_pipeline);
+    nk_attention_encode_metal_(&call, keys_grid, threads);
+    nk_encoder_metal_(&call, queries_pipeline);
+    return nk_dispatch_metal_(&call, queries_grid, threads);
+}
+
 #pragma endregion Launchers
 
 #if NUMKONG_TARGET_METAL
@@ -389,6 +499,22 @@ NUMKONG_API nk_status_t nk_attention_packed_bf16_metal(
                                       head_count, key_value_head_count, depth, query_offsets, query_token_count, scale,
                                       keys_before, keys_after, queries, query_stride, key_value_packed, output,
                                       output_stride, log_sum_exp, tasks_begin, tasks_end, stream);
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_metal(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_bf16_t const *queries,
+    nk_size_t query_stride, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_size_t output_stride, nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_size_t query_gradient_stride,
+    nk_f32_t *key_gradient, nk_f32_t *value_gradient, nk_size_t key_value_gradient_stride, nk_size_t tasks_begin,
+    nk_size_t tasks_end, nk_stream_t stream) {
+    return nk_attention_backward_launch_metal_(
+        nk_attention_source_metal_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cap_metal_k,
+        "nk_attention_backward_keys_bf16_metal_kernel_", "nk_attention_backward_queries_bf16_metal_kernel_",
+        sizeof(nk_bf16_t), head_count, key_value_head_count, depth, query_offsets, query_token_count, scale,
+        keys_before, keys_after, queries, query_stride, key_value_packed, output, output_gradient, output_stride,
+        log_sum_exp, query_gradient, query_gradient_stride, key_gradient, value_gradient, key_value_gradient_stride,
+        tasks_begin, tasks_end, stream);
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_f16_metal(nk_size_t key_value_head_count, nk_size_t depth,

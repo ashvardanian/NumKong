@@ -2767,6 +2767,14 @@ NUMKONG_API nk_status_t nk_attention_packed_bf16_metal(
     nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_bf16_t const *queries,
     nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output, nk_size_t output_stride,
     nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream);
+/** @copydoc nk_attention_packed_gradients_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_metal(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_bf16_t const *queries,
+    nk_size_t query_stride, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_size_t output_stride, nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_size_t query_gradient_stride,
+    nk_f32_t *key_gradient, nk_f32_t *value_gradient, nk_size_t key_value_gradient_stride, nk_size_t tasks_begin,
+    nk_size_t tasks_end, nk_stream_t stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_f16_metal(nk_size_t key_value_head_count, nk_size_t depth,
                                                          nk_size_t token_count, nk_size_t segment_count,

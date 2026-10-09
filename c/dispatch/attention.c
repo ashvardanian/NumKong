@@ -2021,6 +2021,12 @@ static nk_capability_kernels_t const *nk_attention_packed_gradients_bf16_capabil
         (nk_kernel_punned_t)&nk_attention_packed_gradients_bf16_cdna5,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_attention_packed_gradients_bf16_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k, cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
@@ -2030,7 +2036,7 @@ static nk_capability_kernels_t const *nk_attention_packed_gradients_bf16_capabil
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
              nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }

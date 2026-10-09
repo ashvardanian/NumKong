@@ -678,6 +678,28 @@ check_formula_not_in_backticks() {
         "            or as a @verbatim block when it needs more than one line:"
 }
 
+# Rejects TeX inside a Markdown code span, like `4 \cdot h` or `n_{kv}`, because a code span renders its
+# backslashes and braces literally, while TeX between $ signs renders as math on GitHub.
+check_markdown_tex_not_in_code_spans() {
+    local spans
+    spans=$(scan_staged_file_marking_added_lines '
+        /^[[:space:]]*```/ { fenced = !fenced; next }
+        fenced || !(FNR in added) { next }
+        {
+            line = $0
+            while (match(line, /`[^`]+`/)) {
+                span = substr(line, RSTART, RLENGTH); line = substr(line, RSTART + RLENGTH)
+                if (span ~ /\\(cdot|times|frac|sum|prod|sqrt|log|ln|exp|text|mathrm|mathbf|left|right|leq?|geq?|neq?|approx|infty|varepsilon|epsilon|alpha|beta|gamma|delta|sigma|lambda|theta|top|circ|bar|hat|ldots|cdots|lfloor|rfloor|lceil|rceil)([^A-Za-z]|$)/ ||
+                    span ~ /(^|[^A-Za-z0-9_])[A-Za-z][_^]\{/) {
+                    printf "line %d: %s\n", FNR, span
+                    break
+                }
+            }
+        }')
+    [ -z "$spans" ] || reject_with_reason "$spans" \
+        "$staged_path puts TeX inside a Markdown code span, which renders it literally; write it between \$ signs:"
+}
+
 # Rejects a `/**` with no empty line above it, because a docblock reads as the start of something only with
 # air above it. A lone `/** @copydoc ... */` line may stack, and an access specifier is exempt, since
 # clang-format strips the blank line after it.
@@ -2882,6 +2904,9 @@ run_shared_checks() {
     esac
     case "$staged_path" in
     *.hpp | *.cpp | *.cc) check_memcpy_qualified ;;
+    esac
+    case "$staged_path" in
+    *.md) check_markdown_tex_not_in_code_spans ;;
     esac
     case "$staged_path" in
     test/*.hpp | test/*.cuh | test/*.h | bench/*.hpp | bench/*.cuh | bench/*.h) check_harness_namespace_matches_directory ;;

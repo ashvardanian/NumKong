@@ -218,6 +218,10 @@ nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
                                  nk_attention_pack_e4m3_metal, nk_attention_packed_e4m3_metal, backend);
         run_attention<nk_i8_k>(env, "attention_packed_i8_metal", nk_attention_pack_size_i8_metal,
                                nk_attention_pack_i8_metal, nk_attention_packed_i8_metal, backend);
+        run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_metal",
+                                           nk_attention_pack_size_bf16_metal, nk_attention_pack_bf16_metal,
+                                           nk_attention_packed_bf16_metal, nk_attention_packed_gradients_bf16_metal,
+                                           backend);
         run_attention_rope<nk_f32_k>(env, "attention_rope_f32_metal", nk_attention_rope_f32_metal, backend);
         run_attention_rope<nk_bf16_k>(env, "attention_rope_bf16_metal", nk_attention_rope_bf16_metal, backend);
         run_attention_rope<nk_e4m3_k>(env, "attention_rope_e4m3_metal", nk_attention_rope_e4m3_metal, backend);

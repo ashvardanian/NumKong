@@ -339,6 +339,8 @@ static void test_cross_metal_baseline(error_stats_section_t &check) {
           nk_attention_pack_size_e4m3_metal, nk_attention_pack_e4m3_metal, nk_attention_packed_e4m3_metal);
     check("attention_packed_i8_metal", test_attention_packed<i8_t, metal_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_metal, nk_attention_pack_i8_metal, nk_attention_packed_i8_metal);
+    check("attention_packed_gradients_bf16_metal", test_attention_packed_gradients<bf16_t, metal_backend_t>,
+          nk_attention_pack_size_bf16_metal, nk_attention_pack_bf16_metal, nk_attention_packed_gradients_bf16_metal);
     check("attention_rope_f32_metal", test_attention_rope<f32_t, metal_backend_t>, nk_attention_rope_f32_metal);
     check("attention_rope_bf16_metal", test_attention_rope<bf16_t, metal_backend_t>, nk_attention_rope_bf16_metal);
     check("attention_rope_e4m3_metal", test_attention_rope<e4m3_t, metal_backend_t>, nk_attention_rope_e4m3_metal);

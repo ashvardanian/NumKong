@@ -1963,6 +1963,18 @@ git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
 run_precommit --all-lines include/numkong/probe.hpp
 expect_rejection "whole-file mode reads members of an aligned struct" "writes an arrow as"
 
+assert_rejects "TeX command inside a Markdown code span" "TeX inside a Markdown code span" README.md <<'FIXTURE'
+Rows count `4 \cdot h \cdot n_q` operations.
+FIXTURE
+
+assert_rejects "TeX subscript inside a Markdown code span" "TeX inside a Markdown code span" README.md <<'FIXTURE'
+Each head reads `n_{kv}` keys.
+FIXTURE
+
+assert_accepts "TeX between dollar signs and escapes in code spans" README.md <<'FIXTURE'
+Rows count $4 \cdot h \cdot n_{kv}$ operations, and `printf("\n")`, `"\x41"` or `nk_{operation}_{type}` stay code.
+FIXTURE
+
 assert_accepts "arrows inside HTML code spans holding a less-than" README.md <<'FIXTURE'
 * The binding reads <code>x <- y</code> and <code>a < b->c</code> as code.
 FIXTURE

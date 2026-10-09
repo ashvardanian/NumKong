@@ -14,6 +14,12 @@
  *  kernel's two sweeps. The tiled @c apple9 and @c apple10 kernels build on the online softmax
  *  here, over 32-row tiles cut at multiples of 32 within each segment, so every window computes a
  *  row alike. I8 scores stay exact and their weights quantize to U8, as in the serial kernel.
+ *
+ *  The BF16 gradients recompute each weight from its row's log-sum-exp in the CUDA kernels' two
+ *  passes over segments × K and V heads: a simdgroup per key sums dK and dV over the query rows of
+ *  every head of its group, then a simdgroup per query row sums dQ over its keys. A threadgroup
+ *  shares eight staged rows of the other side at a time and keeps its sums in registers up to
+ *  depth 256, and every gradient sums in one order whatever the window.
  */
 
 /** The launch record of a RoPE kernel, laid out as @c nk_attention_rope_arguments_metal_t. */
@@ -102,6 +108,16 @@ struct nk_attention_arguments_metal_t {
 };
 
 static_assert(sizeof(nk_attention_arguments_metal_t) == 120, "mirrors the C record in attention/metal.h");
+
+/** The launch record of the backward kernels, laid out as the C record of the same name: the
+ *  attention record, its window over segments × K and V heads, then the gradients' own fields. */
+struct nk_attention_backward_arguments_metal_t {
+    nk_attention_arguments_metal_t attention;
+    ulong query_gradient_stride, key_value_gradient_stride, key_value_gradient_bytes;
+    float scale;
+};
+
+static_assert(sizeof(nk_attention_backward_arguments_metal_t) == 152, "mirrors the C record in attention/metal.h");
 
 /** Bytes from the start of a pack of @p segments segments to its payload: the header and the
  *  directory, padded as @c nk_attention_pack_directory_size_serial_ pads it. */
@@ -241,6 +257,28 @@ inline ulong nk_attention_segments_metal_(device uchar const *packed, constant n
     return segments;
 }
 
+/** Fills the keys, first position and planes of @p work for @p key_value_head of @p segment, whose
+ *  queries it already holds, returning false when the planes run past the pack. */
+template <typename element_type_>
+inline bool nk_attention_planes_metal_(device uchar const *packed, constant nk_attention_arguments_metal_t &a,
+                                       ulong segments, ulong segment, ulong key_value_head,
+                                       thread nk_attention_work_metal_t &work) {
+    ulong const payload_offset = nk_attention_payload_offset_metal_(segments);
+    device ulong const *payload_offsets = (device ulong const *)(packed + 64);
+    device uint const *lengths = (device uint const *)(payload_offsets + segments) + segments + 1;
+    ulong const length = lengths[segment], row_bytes = a.depth * sizeof(typename element_type_::raw_t);
+    ulong const payload_bytes = a.packed_bytes - payload_offset;
+    if (length > payload_bytes / row_bytes / a.kv_heads / 2) return false;
+    ulong const plane_bytes = length * row_bytes;
+    if (payload_offsets[segment] > payload_bytes ||
+        2 * a.kv_heads * plane_bytes > payload_bytes - payload_offsets[segment])
+        return false;
+    work.length = length, work.first_position = long(length) - long(work.queries);
+    work.keys = packed + payload_offset + payload_offsets[segment] + key_value_head * plane_bytes;
+    work.values = work.keys + a.kv_heads * plane_bytes;
+    return true;
+}
+
 /** Fills @p work for @p pair, segment × heads + head, returning false when the window holds none of
  *  its rows, its queries run past the rows the call addresses, or its planes run past the pack. */
 template <typename element_type_>
@@ -256,23 +294,9 @@ inline bool nk_attention_work_metal_(device uchar const *packed, device uint con
     ulong const token_end = min((tasks_end + a.heads - 1 - head) / a.heads, query_end);
     work.row_begin = token_first > query_first ? token_first - query_first : 0;
     work.row_end = token_end > query_first ? token_end - query_first : 0;
-    if (work.row_begin >= work.row_end) return false;
-
-    ulong const payload_offset = nk_attention_payload_offset_metal_(segments);
-    device ulong const *payload_offsets = (device ulong const *)(packed + 64);
-    device uint const *lengths = (device uint const *)(payload_offsets + segments) + segments + 1;
-    ulong const length = lengths[segment], row_bytes = a.depth * sizeof(typename element_type_::raw_t);
-    ulong const payload_bytes = a.packed_bytes - payload_offset;
-    if (length > payload_bytes / row_bytes / a.kv_heads / 2) return false;
-    ulong const plane_bytes = length * row_bytes;
-    if (payload_offsets[segment] > payload_bytes ||
-        2 * a.kv_heads * plane_bytes > payload_bytes - payload_offsets[segment])
-        return false;
-    work.query_first = query_first, work.queries = query_end - query_first, work.length = length;
-    work.first_position = long(length) - long(work.queries);
-    work.keys = packed + payload_offset + payload_offsets[segment] + head / (a.heads / a.kv_heads) * plane_bytes;
-    work.values = work.keys + a.kv_heads * plane_bytes;
-    return true;
+    work.query_first = query_first, work.queries = query_end - query_first;
+    return work.row_begin < work.row_end &&
+           nk_attention_planes_metal_<element_type_>(packed, a, segments, segment, head / (a.heads / a.kv_heads), work);
 }
 
 /** Stores the log-sum-exp of query token @p row and @p head, when the launch takes them. */
@@ -964,4 +988,343 @@ inline void nk_attention_matrix_metal_(device uchar const *queries, device uchar
             threadgroup_barrier(mem_flags::mem_threadgroup | mem_flags::mem_device);
         }
     }
+}
+
+/** Fills @p work with every query row of @p task, segment × K and V heads + K and V head, and that
+ *  head's planes, returning false when the queries run past the rows the call addresses or the
+ *  planes run past the pack. */
+template <typename element_type_>
+inline bool nk_attention_backward_work_metal_(device uchar const *packed, device uint const *query_offsets,
+                                              constant nk_attention_arguments_metal_t &a, ulong segments, ulong task,
+                                              thread nk_attention_work_metal_t &work) {
+    ulong const segment = task / a.kv_heads;
+    ulong const query_first = query_offsets[segment], query_end = query_offsets[segment + 1];
+    if (query_first > query_end || query_end > a.query_tokens) return false;
+    work.query_first = query_first, work.queries = query_end - query_first;
+    return nk_attention_planes_metal_<element_type_>(packed, a, segments, segment, task % a.kv_heads, work);
+}
+
+/** Writes the rows of @p work whose band shows a key from @p key_begin to @p key_end: from the
+ *  first whose keys end past @p key_begin to the last whose keys begin before @p key_end. */
+inline void nk_attention_panel_rows_metal_(constant nk_attention_arguments_metal_t &a,
+                                           thread nk_attention_work_metal_t const &work, ulong key_begin, ulong key_end,
+                                           thread ulong &row_begin, thread ulong &row_end) {
+    // Bands past the segment's keys and queries together show the same keys
+    long const reach = long(work.length + work.queries), rows = long(work.queries);
+    long const before = long(min(a.keys_before, ulong(reach))), after = long(min(a.keys_after, ulong(reach)));
+    row_begin = ulong(min(max(long(key_begin) - after - work.first_position, 0l), rows));
+    row_end = ulong(min(max(long(key_end) + before - work.first_position, 0l), rows));
+}
+
+/** D = dO · O of the query row and head at @p offset, shared by the 32 lanes of a simdgroup and
+ *  returned in each. */
+inline float nk_attention_backward_row_dot_metal_(device uchar const *output, device uchar const *output_gradient,
+                                                  ulong offset, uint depth, uint lane) {
+    device float const *output_row = (device float const *)(output + offset);
+    device float const *gradient_row = (device float const *)(output_gradient + offset);
+    float sum = 0;
+    for (uint channel = lane; channel < depth; channel = depth - channel <= 32 ? depth : channel + 32)
+        sum = fma(gradient_row[channel], output_row[channel], sum);
+    return simd_sum(sum);
+}
+
+/** What the key pass keeps of each of the eight folded query rows it stages: where its Q and dO
+ *  lie, its base-2 log-sum-exp and D, and the keys the band shows it. */
+struct nk_attention_backward_rows_metal_t {
+    ulong query_offset[8], output_offset[8];
+    float log_sum_exp2[8], dots[8];
+    uint key_begin[8], key_end[8];
+};
+
+/**
+ *  @brief The key and value gradients of every task of the window: a simdgroup per key and eight
+ *      keys per threadgroup along y, each summing over the folded query rows, row × group + head.
+ *
+ *  The threadgroup stages the folded rows its keys' band shows eight at a time with their
+ *  statistics, then each simdgroup takes P = 2^(score₂ − lse₂) and dS = P · (dO · V − D) · scale,
+ *  and adds P · dO to dV and dS · Q to dK. Up to depth 256 it stages Q and dO too and sums in
+ *  registers, while deeper heads read the rows and sum straight into the gradient rows.
+ */
+template <nk_attention_accumulation_metal_t accumulation_>
+inline void nk_attention_backward_keys_bf16_metal_(device uchar const *queries, device uchar const *packed,
+                                                   device uchar const *output, device uint const *query_offsets,
+                                                   constant nk_attention_backward_arguments_metal_t &b,
+                                                   device float const *log_sum_exp, device uchar const *output_gradient,
+                                                   device uchar *key_gradient, device uchar *value_gradient,
+                                                   uint2 group, uint2 groups, uint warp, uint lane,
+                                                   threadgroup float *queries_tile, threadgroup float *gradients_tile,
+                                                   threadgroup nk_attention_backward_rows_metal_t &rows) {
+#pragma clang fp contract(off) reassociate(off)
+    constexpr bool resident = accumulation_ == nk_attention_accumulate_registers_metal_k;
+    constant nk_attention_arguments_metal_t &a = b.attention;
+    ulong const segments = nk_attention_segments_metal_(packed, a), tasks_end = min(a.tasks_end, segments * a.kv_heads);
+    ulong const group_size = a.heads / a.kv_heads, row_bytes = a.depth * sizeof(bfloat);
+    ulong const gradient_bytes = b.key_value_gradient_bytes, gradient_stride = b.key_value_gradient_stride;
+    ulong const gradient_row_bytes = a.kv_heads * a.depth * sizeof(float);
+    device uint const *key_offsets = (device uint const *)(packed + 64 + segments * 8);
+    uint const depth = uint(a.depth);
+    for (ulong task = a.tasks_begin + group.x; task < tasks_end; task += groups.x) {
+        nk_attention_work_metal_t work;
+        if (!nk_attention_backward_work_metal_<nk::bf16_t>(packed, query_offsets, a, segments, task, work)) continue;
+        ulong const key_first = key_offsets[task / a.kv_heads], key_value_head = task % a.kv_heads;
+        if (!work.length || gradient_row_bytes > gradient_bytes ||
+            (gradient_stride && key_first + work.length - 1 > (gradient_bytes - gradient_row_bytes) / gradient_stride))
+            continue;
+        for (ulong block = ulong(group.y) * 8; block < work.length; block += ulong(groups.y) * 8) {
+            ulong const position = block + warp;
+            ulong const gradient_offset = (key_first + position) * gradient_stride +
+                                          key_value_head * a.depth * sizeof(float);
+            bool const live = position < work.length;
+            device uchar const *key = work.keys + position * row_bytes, *value = work.values + position * row_bytes;
+            device float *key_gradient_row = (device float *)(key_gradient + gradient_offset);
+            device float *value_gradient_row = (device float *)(value_gradient + gradient_offset);
+            float key_cached[8] = {0}, value_cached[8] = {0}, key_sums[8] = {0}, value_sums[8] = {0};
+            if constexpr (resident) {
+#pragma unroll
+                for (uint index = 0; index < 8; ++index) {
+                    uint const channel = lane + index * 32;
+                    if (live && channel < depth) {
+                        key_cached[index] = nk::bf16_t::load(key, channel);
+                        value_cached[index] = nk::bf16_t::load(value, channel);
+                    }
+                }
+            }
+            else if (live)
+                for (uint channel = lane; channel < depth; channel = depth - channel <= 32 ? depth : channel + 32)
+                    key_gradient_row[channel] = 0, value_gradient_row[channel] = 0;
+
+            ulong row_begin, row_end;
+            nk_attention_panel_rows_metal_(a, work, block, min(block + 8, work.length), row_begin, row_end);
+            for (ulong first = row_begin * group_size; first < row_end * group_size; first += 8) {
+                uint const count = uint(min(8ul, row_end * group_size - first));
+                if (warp < count) {
+                    ulong const entry = first + warp, row = entry / group_size, token = work.query_first + row;
+                    ulong const head = key_value_head * group_size + entry % group_size;
+                    ulong const query_offset = token * a.query_stride + head * row_bytes;
+                    ulong const output_offset = token * a.output_stride + head * a.depth * sizeof(float);
+                    device float const *gradient = (device float const *)(output_gradient + output_offset);
+                    float const dot = nk_attention_backward_row_dot_metal_(output, output_gradient, output_offset,
+                                                                           depth, lane);
+                    if constexpr (resident)
+                        for (uint channel = lane; channel < depth; channel += 32) {
+                            queries_tile[warp * 256 + channel] = nk::bf16_t::load(queries + query_offset, channel);
+                            gradients_tile[warp * 256 + channel] = gradient[channel];
+                        }
+                    if (!lane) {
+                        ulong begin, end;
+                        nk_attention_row_range_metal_(a, work.first_position + long(row), work.length, begin, end);
+                        rows.query_offset[warp] = query_offset, rows.output_offset[warp] = output_offset;
+                        rows.log_sum_exp2[warp] = log_sum_exp[token * a.heads + head] * M_LOG2E_F;
+                        rows.dots[warp] = dot, rows.key_begin[warp] = uint(begin), rows.key_end[warp] = uint(end);
+                    }
+                }
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+                for (uint staged = 0; live && staged < count; ++staged) {
+                    if (position < rows.key_begin[staged] || position >= rows.key_end[staged]) continue;
+                    threadgroup float const *query_tile = queries_tile + staged * 256;
+                    threadgroup float const *gradient_tile = gradients_tile + staged * 256;
+                    device uchar const *query = queries + rows.query_offset[staged];
+                    device float const *gradient = (device float const *)(output_gradient + rows.output_offset[staged]);
+                    float2 dots = 0;
+                    if constexpr (resident) {
+#pragma unroll
+                        for (uint index = 0; index < 8; ++index) {
+                            uint const channel = lane + index * 32;
+                            if (channel < depth)
+                                dots = fma(float2(query_tile[channel], gradient_tile[channel]),
+                                           float2(key_cached[index], value_cached[index]), dots);
+                        }
+                    }
+                    else
+                        for (uint channel = lane; channel < depth;
+                             channel = depth - channel <= 32 ? depth : channel + 32)
+                            dots = fma(float2(nk::bf16_t::load(query, channel), gradient[channel]),
+                                       float2(nk::bf16_t::load(key, channel), nk::bf16_t::load(value, channel)), dots);
+                    dots = simd_sum(dots);
+                    float const weight = nk_exp2_metal_(dots.x * a.scale2 - rows.log_sum_exp2[staged]);
+                    float const score_gradient = weight * (dots.y - rows.dots[staged]) * b.scale;
+                    if constexpr (resident) {
+#pragma unroll
+                        for (uint index = 0; index < 8; ++index) {
+                            uint const channel = lane + index * 32;
+                            if (channel < depth) {
+                                value_sums[index] = fma(weight, gradient_tile[channel], value_sums[index]);
+                                key_sums[index] = fma(score_gradient, query_tile[channel], key_sums[index]);
+                            }
+                        }
+                    }
+                    else
+                        for (uint channel = lane; channel < depth;
+                             channel = depth - channel <= 32 ? depth : channel + 32) {
+                            float const query_value = nk::bf16_t::load(query, channel);
+                            value_gradient_row[channel] = fma(weight, gradient[channel], value_gradient_row[channel]);
+                            key_gradient_row[channel] = fma(score_gradient, query_value, key_gradient_row[channel]);
+                        }
+                }
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+            }
+            if constexpr (resident) {
+#pragma unroll
+                for (uint index = 0; index < 8; ++index) {
+                    uint const channel = lane + index * 32;
+                    if (live && channel < depth) {
+                        key_gradient_row[channel] = key_sums[index];
+                        value_gradient_row[channel] = value_sums[index];
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ *  @brief The query gradients of every task of the window: a simdgroup per folded query row,
+ *      eight per threadgroup along y, each summing dS · K over its keys.
+ *
+ *  Up to depth 256 the threadgroup stages the K and V rows its rows' band shows eight at a time and
+ *  sums in registers, while deeper heads read the rows and sum straight into the gradient row.
+ */
+template <nk_attention_accumulation_metal_t accumulation_>
+inline void nk_attention_backward_queries_bf16_metal_(device uchar const *queries, device uchar const *packed,
+                                                      device uchar const *output, device uint const *query_offsets,
+                                                      constant nk_attention_backward_arguments_metal_t &b,
+                                                      device float const *log_sum_exp,
+                                                      device uchar const *output_gradient, device uchar *query_gradient,
+                                                      uint2 group, uint2 groups, uint warp, uint lane,
+                                                      threadgroup float *keys_tile, threadgroup float *values_tile) {
+#pragma clang fp contract(off) reassociate(off)
+    constexpr bool resident = accumulation_ == nk_attention_accumulate_registers_metal_k;
+    constant nk_attention_arguments_metal_t &a = b.attention;
+    ulong const segments = nk_attention_segments_metal_(packed, a), tasks_end = min(a.tasks_end, segments * a.kv_heads);
+    ulong const group_size = a.heads / a.kv_heads, row_bytes = a.depth * sizeof(bfloat);
+    uint const depth = uint(a.depth);
+    for (ulong task = a.tasks_begin + group.x; task < tasks_end; task += groups.x) {
+        nk_attention_work_metal_t work;
+        if (!nk_attention_backward_work_metal_<nk::bf16_t>(packed, query_offsets, a, segments, task, work)) continue;
+        ulong const entries = work.queries * group_size, key_value_head = task % a.kv_heads;
+        for (ulong block = ulong(group.y) * 8; block < entries; block += ulong(groups.y) * 8) {
+            ulong const entry = block + warp, row = entry / group_size, token = work.query_first + row;
+            ulong const head = key_value_head * group_size + entry % group_size;
+            ulong const output_offset = token * a.output_stride + head * a.depth * sizeof(float);
+            bool const live = entry < entries;
+            device uchar const *query = queries + token * a.query_stride + head * row_bytes;
+            device float const *gradient = (device float const *)(output_gradient + output_offset);
+            device float *query_gradient_row = (device float *)(query_gradient + token * b.query_gradient_stride) +
+                                               head * a.depth;
+            ulong begin = 0, end = 0;
+            float dot = 0, log_sum_exp2 = 0;
+            if (live) {
+                nk_attention_row_range_metal_(a, work.first_position + long(row), work.length, begin, end);
+                dot = nk_attention_backward_row_dot_metal_(output, output_gradient, output_offset, depth, lane);
+                log_sum_exp2 = log_sum_exp[token * a.heads + head] * M_LOG2E_F;
+            }
+            if constexpr (resident) {
+                float query_cached[8] = {0}, gradient_cached[8] = {0}, sums[8] = {0};
+#pragma unroll
+                for (uint index = 0; index < 8; ++index) {
+                    uint const channel = lane + index * 32;
+                    if (live && channel < depth) {
+                        query_cached[index] = nk::bf16_t::load(query, channel);
+                        gradient_cached[index] = gradient[channel];
+                    }
+                }
+                ulong panel_begin, panel_end;
+                nk_attention_tile_keys_metal_(a, work.first_position + long(block / group_size),
+                                              work.first_position + long((min(block + 8, entries) - 1) / group_size),
+                                              work.length, panel_begin, panel_end);
+                for (ulong panel = panel_begin; panel < panel_end; panel += 8) {
+                    device uchar const *key = work.keys + (panel + warp) * row_bytes;
+                    device uchar const *value = work.values + (panel + warp) * row_bytes;
+                    for (uint channel = lane; panel + warp < panel_end && channel < depth; channel += 32) {
+                        keys_tile[warp * 256 + channel] = nk::bf16_t::load(key, channel);
+                        values_tile[warp * 256 + channel] = nk::bf16_t::load(value, channel);
+                    }
+                    threadgroup_barrier(mem_flags::mem_threadgroup);
+                    for (uint staged = 0; live && staged < 8; ++staged) {
+                        if (panel + staged < begin || panel + staged >= end) continue;
+                        threadgroup float const *key_tile = keys_tile + staged * 256;
+                        threadgroup float const *value_tile = values_tile + staged * 256;
+                        float2 dots = 0;
+#pragma unroll
+                        for (uint index = 0; index < 8; ++index) {
+                            uint const channel = lane + index * 32;
+                            if (channel < depth)
+                                dots = fma(float2(query_cached[index], gradient_cached[index]),
+                                           float2(key_tile[channel], value_tile[channel]), dots);
+                        }
+                        dots = simd_sum(dots);
+                        float const weight = nk_exp2_metal_(dots.x * a.scale2 - log_sum_exp2);
+                        float const score_gradient = weight * (dots.y - dot) * b.scale;
+#pragma unroll
+                        for (uint index = 0; index < 8; ++index) {
+                            uint const channel = lane + index * 32;
+                            if (channel < depth) sums[index] = fma(score_gradient, key_tile[channel], sums[index]);
+                        }
+                    }
+                    threadgroup_barrier(mem_flags::mem_threadgroup);
+                }
+#pragma unroll
+                for (uint index = 0; index < 8; ++index) {
+                    uint const channel = lane + index * 32;
+                    if (live && channel < depth) query_gradient_row[channel] = sums[index];
+                }
+            }
+            else if (live) {
+                for (uint channel = lane; channel < depth; channel = depth - channel <= 32 ? depth : channel + 32)
+                    query_gradient_row[channel] = 0;
+                for (ulong position = begin; position < end; ++position) {
+                    device uchar const *key = work.keys + position * row_bytes;
+                    device uchar const *value = work.values + position * row_bytes;
+                    float2 dots = 0;
+                    for (uint channel = lane; channel < depth; channel = depth - channel <= 32 ? depth : channel + 32)
+                        dots = fma(float2(nk::bf16_t::load(query, channel), gradient[channel]),
+                                   float2(nk::bf16_t::load(key, channel), nk::bf16_t::load(value, channel)), dots);
+                    dots = simd_sum(dots);
+                    float const weight = nk_exp2_metal_(dots.x * a.scale2 - log_sum_exp2);
+                    float const score_gradient = weight * (dots.y - dot) * b.scale;
+                    for (uint channel = lane; channel < depth; channel = depth - channel <= 32 ? depth : channel + 32)
+                        query_gradient_row[channel] = fma(score_gradient, nk::bf16_t::load(key, channel),
+                                                          query_gradient_row[channel]);
+                }
+            }
+        }
+    }
+}
+
+kernel void nk_attention_backward_keys_bf16_metal_kernel_(
+    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
+    device uchar const *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
+    constant nk_attention_backward_arguments_metal_t &b [[buffer(4)]], device float const *log_sum_exp [[buffer(5)]],
+    device uchar const *output_gradient [[buffer(6)]], device uchar *key_gradient [[buffer(8)]],
+    device uchar *value_gradient [[buffer(9)]], uint2 group [[threadgroup_position_in_grid]],
+    uint2 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
+    uint lane [[thread_index_in_simdgroup]]) {
+    threadgroup float queries_tile[8 * 256], gradients_tile[8 * 256];
+    threadgroup nk_attention_backward_rows_metal_t rows;
+    if (b.attention.depth <= 256)
+        nk_attention_backward_keys_bf16_metal_<nk_attention_accumulate_registers_metal_k>(
+            queries, packed, output, query_offsets, b, log_sum_exp, output_gradient, key_gradient, value_gradient,
+            group, groups, warp, lane, queries_tile, gradients_tile, rows);
+    else
+        nk_attention_backward_keys_bf16_metal_<nk_attention_accumulate_device_metal_k>(
+            queries, packed, output, query_offsets, b, log_sum_exp, output_gradient, key_gradient, value_gradient,
+            group, groups, warp, lane, queries_tile, gradients_tile, rows);
+}
+
+kernel void nk_attention_backward_queries_bf16_metal_kernel_(
+    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
+    device uchar const *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
+    constant nk_attention_backward_arguments_metal_t &b [[buffer(4)]], device float const *log_sum_exp [[buffer(5)]],
+    device uchar const *output_gradient [[buffer(6)]], device uchar *query_gradient [[buffer(7)]],
+    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
+    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+    threadgroup float keys_tile[8 * 256], values_tile[8 * 256];
+    if (b.attention.depth <= 256)
+        nk_attention_backward_queries_bf16_metal_<nk_attention_accumulate_registers_metal_k>(
+            queries, packed, output, query_offsets, b, log_sum_exp, output_gradient, query_gradient, group, groups,
+            warp, lane, keys_tile, values_tile);
+    else
+        nk_attention_backward_queries_bf16_metal_<nk_attention_accumulate_device_metal_k>(
+            queries, packed, output, query_offsets, b, log_sum_exp, output_gradient, query_gradient, group, groups,
+            warp, lane, keys_tile, values_tile);
 }
