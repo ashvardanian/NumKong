@@ -75,14 +75,16 @@ nk_define_attention_tma_blackwell_(bf16, blackwellultra, bf16, 2, 0, nk_attentio
 /** Both BF16 backward kernels, on the Blackwell tensor-core passes when the launch gives them
  *  shared memory and the @c cuda kernels' loops when it does not. */
 static __global__ void __launch_bounds__(nk_attention_backward_threads_blackwell_k, 1)
-    nk_attention_backward_keys_bf16_blackwellultra_kernel_(nk_attention_backward_arguments_t arguments) {
-    if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_keys_blackwell_(&arguments);
-    else nk_attention_backward_keys_bf16_cuda_(&arguments);
+    nk_attention_backward_keys_bf16_blackwellultra_kernel_(
+        __grid_constant__ nk_attention_backward_maps_blackwell_t const maps) {
+    if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_keys_blackwell_(&maps);
+    else nk_attention_backward_keys_bf16_cuda_(&maps.arguments);
 }
 static __global__ void __launch_bounds__(nk_attention_backward_threads_blackwell_k, 1)
-    nk_attention_backward_queries_bf16_blackwellultra_kernel_(nk_attention_backward_arguments_t arguments) {
-    if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_queries_blackwell_(&arguments);
-    else nk_attention_backward_queries_bf16_cuda_(&arguments);
+    nk_attention_backward_queries_bf16_blackwellultra_kernel_(
+        __grid_constant__ nk_attention_backward_maps_blackwell_t const maps) {
+    if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_queries_blackwell_(&maps);
+    else nk_attention_backward_queries_bf16_cuda_(&maps.arguments);
 }
 nk_define_attention_backward_cuda_(bf16, blackwellultra, bf16, nk_attention_backward_launch_blackwell_)
 

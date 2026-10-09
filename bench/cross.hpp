@@ -532,9 +532,9 @@ template <typename backend_type_, typename pack_kernel_type_, typename raw_type_
 nk_status_t attention_pack(backend_type_ &backend, pack_kernel_type_ pack_fn, attention_shape_t shape,
                            raw_type_ const *keys, raw_type_ const *values, nk_u32_t const *directory, void *packed) {
     std::size_t const key_stride = shape.key_value_head_count * shape.depth * sizeof(raw_type_);
-    return backend.call(pack_fn, keys, values, shape.key_value_head_count, shape.depth, directory,
-                        static_cast<nk_u32_t const *>(nullptr), std::size_t(1), key_stride, key_stride, packed,
-                        std::size_t(0), shape.key_value_head_count);
+    return backend.call(pack_fn, shape.key_value_head_count, shape.depth, directory,
+                        static_cast<nk_u32_t const *>(nullptr), std::size_t(1), keys, key_stride, values, key_stride,
+                        packed, std::size_t(0), shape.key_value_head_count);
 }
 
 /** Runs @p attention_fn over the one segment of @p shape under @p visibility_, queries aligned to
@@ -547,9 +547,9 @@ nk_status_t attend(backend_type_ &backend, attention_kernel_type_ attention_fn, 
     std::size_t const query_stride = shape.head_count * shape.depth * sizeof(raw_type_);
     std::size_t const output_stride = shape.head_count * shape.depth * sizeof(nk_f32_t);
     nk_f32_t const scale = 1.0f / std::sqrt(float(shape.depth));
-    return backend.call(attention_fn, queries, packed, output, log_sum_exp, shape.head_count,
-                        shape.key_value_head_count, shape.depth, directory + 2, query_stride, output_stride, scale,
-                        attention_keys_before(visibility_), attention_keys_after(visibility_), std::size_t(0),
+    return backend.call(attention_fn, shape.head_count, shape.key_value_head_count, shape.depth, directory + 2,
+                        shape.queries, scale, attention_keys_before(visibility_), attention_keys_after(visibility_),
+                        queries, query_stride, packed, output, output_stride, log_sum_exp, std::size_t(0),
                         shape.queries * shape.head_count);
 }
 
@@ -728,13 +728,13 @@ void measure_attention_gradients(loop_t &loop, environment_t const &env, backend
     nk_u32_t const *key_offsets = directory.raw_values_data(), *query_offsets = key_offsets + 2;
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         set_t &set = sets[index];
-        return backend.call(gradients_fn, set.queries.raw_values_data(), set.packed.raw_values_data(),
-                            set.output.raw_values_data(), set.output_gradient.raw_values_data(),
-                            set.log_sum_exp.raw_values_data(), set.query_gradient.raw_values_data(),
-                            set.key_gradient.raw_values_data(), set.value_gradient.raw_values_data(), shape.head_count,
-                            shape.key_value_head_count, shape.depth, query_offsets, query_stride, output_stride,
-                            output_stride, gradient_stride, scale, attention_keys_before(visibility_),
-                            attention_keys_after(visibility_), std::size_t(0), shape.key_value_head_count);
+        return backend.call(gradients_fn, shape.head_count, shape.key_value_head_count, shape.depth, query_offsets,
+                            shape.queries, scale, attention_keys_before(visibility_), attention_keys_after(visibility_),
+                            set.queries.raw_values_data(), query_stride, set.packed.raw_values_data(),
+                            set.output.raw_values_data(), set.output_gradient.raw_values_data(), output_stride,
+                            set.log_sum_exp.raw_values_data(), set.query_gradient.raw_values_data(), output_stride,
+                            set.key_gradient.raw_values_data(), set.value_gradient.raw_values_data(), gradient_stride,
+                            std::size_t(0), shape.key_value_head_count);
     });
     if (timed) report_attention(loop, visibility_, shape, 10.0);
 }

@@ -575,16 +575,16 @@ NUMKONG_INLINE nk_status_t nk_attention_pack_launch_rocm_(void const *payload_ke
 NUMKONG_INLINE nk_status_t nk_attention_launch_rocm_(void const *kernel, void const *queries, void const *packed,
                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
                                                      nk_size_t key_value_head_count, nk_size_t depth,
-                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
-                                                     nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end,
-                                                     nk_stream_t stream) {
+                                                     nk_u32_t const *query_offsets, nk_size_t query_token_count,
+                                                     nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
+                                                     nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin,
+                                                     nk_size_t tasks_end, nk_stream_t stream) {
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
     if (tasks_begin >= tasks_end || depth == 0) return nk_success_k;
     nk_attention_arguments_t arguments = nk_attention_arguments_init_simt_(
-        queries, packed, output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
-        output_stride, scale, 1, 1, keys_before, keys_after, tasks_begin, tasks_end);
+        queries, packed, output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_token_count,
+        query_stride, output_stride, scale, 1, 1, keys_before, keys_after, tasks_begin, tasks_end);
     return nk_launch_resident_rocm_(kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments, stream);
 }
 
@@ -642,9 +642,9 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_rocm_(void const *keys_k
                                                              packed, tasks_begin, tasks_end);                        \
     }                                                                                                                \
     NUMKONG_API nk_status_t nk_attention_pack_##input_type_name##_##isa_suffix(                                      \
-        nk_##input_value_type##_t const *keys, nk_##input_value_type##_t const *values,                              \
         nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,   \
-        nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed,               \
+        nk_size_t segment_count, nk_##input_value_type##_t const *keys, nk_size_t key_stride,                        \
+        nk_##input_value_type##_t const *values, nk_size_t value_stride, void *key_value_packed,                     \
         nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {                                            \
         return nk_attention_pack_launch_rocm_(                                                                       \
             (void const *)nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_, nk_cap_##isa_suffix##_k,     \
@@ -660,54 +660,55 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_rocm_(void const *keys_k
  *  The pack must come from the same capability's pack kernel: the host can't read its device header
  *  without waiting on the stream, so the entry point trusts it.
  */
-#define nk_define_attention_baseline_rocm_(input_type_name, isa_suffix, input_value_type, element_bytes)               \
-    nk_define_attention_pack_size_simt_(input_type_name, isa_suffix, element_bytes)                                    \
-    nk_define_attention_packed_shape_rocm_(input_type_name, isa_suffix)                                                \
-    nk_define_attention_pack_rocm_(input_type_name, isa_suffix, input_value_type)                                      \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                   \
-        nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {           \
-        nk_attention_fallback_##input_value_type##_rocm_(&arguments);                                                  \
-    }                                                                                                                  \
-    NUMKONG_API nk_status_t nk_attention_packed_##input_type_name##_##isa_suffix(                                      \
-        nk_##input_value_type##_t const *queries, void const *key_value_packed, nk_f32_t *output,                      \
-        nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                  \
-        nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,                \
-        nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) { \
-        return nk_attention_launch_rocm_((void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_, \
-                                         queries, key_value_packed, output, log_sum_exp, head_count,                   \
-                                         key_value_head_count, depth, query_offsets, query_stride, output_stride,      \
-                                         scale, keys_before, keys_after, tasks_begin, tasks_end, stream);              \
+#define nk_define_attention_baseline_rocm_(input_type_name, isa_suffix, input_value_type, element_bytes)              \
+    nk_define_attention_pack_size_simt_(input_type_name, isa_suffix, element_bytes)                                   \
+    nk_define_attention_packed_shape_rocm_(input_type_name, isa_suffix)                                               \
+    nk_define_attention_pack_rocm_(input_type_name, isa_suffix, input_value_type)                                     \
+    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+        nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {          \
+        nk_attention_fallback_##input_value_type##_rocm_(&arguments);                                                 \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_attention_packed_##input_type_name##_##isa_suffix(                                     \
+        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,         \
+        nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,                     \
+        nk_##input_value_type##_t const *queries, nk_size_t query_stride, void const *key_value_packed,               \
+        nk_f32_t *output, nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, \
+        nk_stream_t stream) {                                                                                         \
+        return nk_attention_launch_rocm_(                                                                             \
+            (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_, queries, key_value_packed,  \
+            output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_token_count,           \
+            query_stride, output_stride, scale, keys_before, keys_after, tasks_begin, tasks_end, stream);             \
     }
 
 /** Generates the two backward kernels of one dtype, keys and values first, which read any
  *  capability's pack of the shared device layout, and the gradients entry point over them. */
-#define nk_define_attention_backward_rocm_(input_type_name, isa_suffix, input_value_type)                            \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                 \
-        nk_attention_backward_keys_##input_type_name##_##isa_suffix##_kernel_(                                       \
-            nk_attention_backward_arguments_t arguments) {                                                           \
-        nk_attention_backward_keys_##input_value_type##_rocm_(&arguments);                                           \
-    }                                                                                                                \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                 \
-        nk_attention_backward_queries_##input_type_name##_##isa_suffix##_kernel_(                                    \
-            nk_attention_backward_arguments_t arguments) {                                                           \
-        nk_attention_backward_queries_##input_value_type##_rocm_(&arguments);                                        \
-    }                                                                                                                \
-    NUMKONG_API nk_status_t nk_attention_packed_gradients_##input_type_name##_##isa_suffix(                          \
-        nk_##input_value_type##_t const *queries, void const *key_value_packed, nk_f32_t const *output,              \
-        nk_f32_t const *output_gradient, nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient,                      \
-        nk_f32_t *key_gradient, nk_f32_t *value_gradient, nk_size_t head_count, nk_size_t key_value_head_count,      \
-        nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride,             \
-        nk_size_t query_gradient_stride, nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, \
-        nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {                      \
-        return nk_attention_backward_launch_rocm_(                                                                   \
-            (void const *)nk_attention_backward_keys_##input_type_name##_##isa_suffix##_kernel_,                     \
-            (void const *)nk_attention_backward_queries_##input_type_name##_##isa_suffix##_kernel_,                  \
-            nk_attention_backward_arguments_init_simt_(                                                              \
-                queries, key_value_packed, output, output_gradient, log_sum_exp, query_gradient, key_gradient,       \
-                value_gradient, head_count, key_value_head_count, depth, query_offsets, query_stride, output_stride, \
-                query_gradient_stride, key_value_gradient_stride, scale, keys_before, keys_after, tasks_begin,       \
-                tasks_end),                                                                                          \
-            stream);                                                                                                 \
+#define nk_define_attention_backward_rocm_(input_type_name, isa_suffix, input_value_type)                              \
+    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                   \
+        nk_attention_backward_keys_##input_type_name##_##isa_suffix##_kernel_(                                         \
+            nk_attention_backward_arguments_t arguments) {                                                             \
+        nk_attention_backward_keys_##input_value_type##_rocm_(&arguments);                                             \
+    }                                                                                                                  \
+    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                   \
+        nk_attention_backward_queries_##input_type_name##_##isa_suffix##_kernel_(                                      \
+            nk_attention_backward_arguments_t arguments) {                                                             \
+        nk_attention_backward_queries_##input_value_type##_rocm_(&arguments);                                          \
+    }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_attention_packed_gradients_##input_type_name##_##isa_suffix(                            \
+        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,          \
+        nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,                      \
+        nk_##input_value_type##_t const *queries, nk_size_t query_stride, void const *key_value_packed,                \
+        nk_f32_t const *output, nk_f32_t const *output_gradient, nk_size_t output_stride, nk_f32_t const *log_sum_exp, \
+        nk_f32_t *query_gradient, nk_size_t query_gradient_stride, nk_f32_t *key_gradient, nk_f32_t *value_gradient,   \
+        nk_size_t key_value_gradient_stride, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {         \
+        return nk_attention_backward_launch_rocm_(                                                                     \
+            (void const *)nk_attention_backward_keys_##input_type_name##_##isa_suffix##_kernel_,                       \
+            (void const *)nk_attention_backward_queries_##input_type_name##_##isa_suffix##_kernel_,                    \
+            nk_attention_backward_arguments_init_simt_(                                                                \
+                queries, key_value_packed, output, output_gradient, log_sum_exp, query_gradient, key_gradient,         \
+                value_gradient, head_count, key_value_head_count, depth, query_offsets, query_token_count,             \
+                query_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale, keys_before,     \
+                keys_after, tasks_begin, tasks_end),                                                                   \
+            stream);                                                                                                   \
     }
 
 #pragma endregion Attention Macros

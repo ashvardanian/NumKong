@@ -93,10 +93,41 @@ paragraph_room_awk='
     }
 '
 
+# A function's name as the sorted set of its words without `nk`, `serial`, `streaming` or the capability in
+# ENVIRON["capability"], so a guard keyed by it survives renames that only move or add the capability.
+rename_proof_stem_awk='
+    function stem(name, parts, count, position, kept, words, inner, result) {
+        count = split(name, parts, "_")
+        for (position = 1; position <= count; ++position) {
+            if (parts[position] ~ /^(|nk|serial|streaming)$/ || parts[position] == ENVIRON["capability"]) continue
+            for (inner = ++kept; inner > 1 && words[inner - 1] > parts[position]; --inner) words[inner] = words[inner - 1]
+            words[inner] = parts[position]
+        }
+        for (position = 1; position <= kept; ++position) result = result "_" words[position]
+        return result
+    }'
+
 # Runs an awk program over the staged file with `added[line]` preloaded, so a structural check sees the
 # whole file as context and still reports only what this commit added; code checks use the comment-free copy.
 scan_staged_file_marking_added_lines() { # scan_staged_file_marking_added_lines <awk-program> [source]
     awk "$comment_structure_awk"'FILENAME == ARGV[1] { added[$1 + 0]; next } '"$1" "$staged_lines_path" "${2:-$staged_text_path}"
+}
+
+# Runs a signature-listing awk program, whose reports start with `name<TAB>`, over the staged file and keeps
+# the reports of functions HEAD's copy did not report when listed with `listing` set, keyed by their stems.
+report_signatures_new_since_head() { # report_signatures_new_since_head <awk-program>
+    local capability previous
+    capability=${staged_path##*/}
+    capability=${capability%.*}
+    previous=$(git show "HEAD:$staged_path" 2> /dev/null | blank_c_comments_preserving_columns |
+        awk -v listing=1 "$1" | cut -f1)
+    scan_staged_file_marking_added_lines "$1" "$staged_code_path" |
+        previous="$previous" capability="$capability" awk -F '\t' "$rename_proof_stem_awk"'
+            BEGIN {
+                count = split(ENVIRON["previous"], names, "\n")
+                for (position = 1; position <= count; ++position) seen[stem(names[position])] = 1
+            }
+            !(stem($1) in seen) { print $2 }'
 }
 
 # Blanks C-family comments to spaces, keeping every line and column in place, so a code check never fires
@@ -360,38 +391,40 @@ check_kernels_call_no_public_kernels() {
 # helper may fold the lookup. Touching an older signature, as a parameter rename does, never fires.
 check_kernels_take_no_runtime_dtype() {
     case "$staged_path" in include/numkong/*/*.h | include/numkong/*/*.cuh) ;; *) return 0 ;; esac
-    local signatures previous_names runtime_dtypes
-    signatures='
+    local runtime_dtypes
+    runtime_dtypes=$(report_signatures_new_since_head '
         !in_signature && /^[[:space:]]*(NUMKONG_INLINE|NUMKONG_OUTLINED_|NUMKONG_API|NUMKONG_DEVICE|__global__|static[[:space:]])/ {
             in_signature = 1; touched = 0; constexpr = 0; typed_line = 0; name = ""
         }
         in_signature {
             if (FNR in added) touched = 1
             if ($0 ~ /NUMKONG_CONSTEXPR/) constexpr = 1
-            line = $0; gsub(/__launch_bounds__[[:space:]]*\([^)]*\)/, "", line)
-            if (name == "" && match(line, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(/)) { name = substr(line, RSTART, RLENGTH); sub(/[[:space:]]*\($/, "", name) }
+            line = $0
+            gsub(/__launch_bounds__[[:space:]]*\([^)]*\)/, "", line)
+            if (name == "" && match(line, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(/)) {
+                name = substr(line, RSTART, RLENGTH)
+                sub(/[[:space:]]*\($/, "", name)
+            }
             if (!typed_line && $0 ~ /(^|[^A-Za-z0-9_])nk_dtype_t[[:space:]]+(const[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[,)]/) {
                 typed_line = FNR; typed_text = $0
             }
             if ($0 ~ /[{;]/) {
-                if ((touched || listing) && typed_line && !constexpr) printf "%s\tline %d: %s\n", name, typed_line, typed_text
+                if ((touched || listing) && typed_line && !constexpr)
+                    printf "%s\tline %d: %s\n", name, typed_line, typed_text
                 in_signature = 0
             }
-        }'
-    previous_names=$(git show "HEAD:$staged_path" 2> /dev/null | blank_c_comments_preserving_columns |
-        awk -v listing=1 "$signatures" | cut -f1)
-    runtime_dtypes=$(scan_staged_file_marking_added_lines "$signatures" "$staged_code_path" |
-        awk -F '\t' -v previous="$previous_names" 'BEGIN { split(previous, names, "\n"); for (position in names) existing[names[position]] } !($1 in existing) { print $2 }')
+        }')
     [ -z "$runtime_dtypes" ] || reject_with_reason "$runtime_dtypes" \
         "$staged_path gives a kernel a runtime nk_dtype_t parameter;" \
         "            kernels take typed function arguments, generated per dtype by a macro:"
 }
 
-# Rejects an added function-pointer typedef or struct field in a kernel header, because a stored callback
-# defeats inlining; a function-pointer parameter stays allowed.
+# Rejects a function pointer in a kernel header, as a typedef, struct field or parameter, because one body per
+# dtype and ISA calls its helpers directly, and a stored pointer survives as an indirect call per element. A
+# parameter fires only in a function HEAD did not already declare with one, so a rename never forces it.
 check_kernels_store_no_function_pointers() {
     case "$staged_path" in include/numkong/*/*.h | include/numkong/*/*.cuh) ;; *) return 0 ;; esac
-    local stored
+    local stored pointer_types taken
     stored=$(scan_staged_file_marking_added_lines '
         function names_function_pointer(text) { return text ~ /\(\*[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\)[[:space:]]*\(/ }
         struct_depth == 0 && (FNR in added) && /^[[:space:]]*typedef[^;]*\(\*/ && names_function_pointer($0) { print "line " FNR ": " $0; next }
@@ -402,9 +435,87 @@ check_kernels_store_no_function_pointers() {
             if (struct_depth <= 0) { struct_depth = 0; next }
             if ((FNR in added) && names_function_pointer($0)) print "line " FNR ": " $0
         }' "$staged_code_path")
+    pointer_types=${kernel_function_pointer_types:=$(
+        git grep --cached -h -o -E 'typedef[^;]*\(\*[[:space:]]*nk_[a-z0-9_]+_t_?[[:space:]]*\)' -- \
+            'include/numkong/*/*.h' 'include/numkong/*/*.cuh' |
+            sed -E 's/.*\(\*[[:space:]]*//; s/[[:space:]]*\)$//' | sort -u | tr '\n' ' '
+    )}
+    taken=$(pointer_types="$pointer_types" report_signatures_new_since_head '
+        BEGIN {
+            count = split(ENVIRON["pointer_types"], names, " ")
+            for (position = 1; position <= count; ++position) pointer_type[names[position]] = 1
+        }
+        !in_signature && /^[[:space:]]*(NUMKONG_INLINE|NUMKONG_OUTLINED_|NUMKONG_API|NUMKONG_DEVICE|__global__|static[[:space:]])/ {
+            in_signature = 1; touched = 0; pointer_line = 0; name = ""; opened = 0
+        }
+        in_signature {
+            if (FNR in added) touched = 1
+            line = $0
+            gsub(/__launch_bounds__[[:space:]]*\([^)]*\)/, "", line)
+            if (name == "" && match(line, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(/)) {
+                name = substr(line, RSTART, RLENGTH)
+                sub(/[[:space:]]*\($/, "", name)
+                line = substr(line, RSTART + RLENGTH)
+                opened = 1
+            }
+            if (opened && !pointer_line) {
+                if (line ~ /\(\*[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\)[[:space:]]*\(/) pointer_line = FNR
+                while (!pointer_line && match(line, /nk_[a-z0-9_]+_t_?/)) {
+                    if (substr(line, RSTART, RLENGTH) in pointer_type) pointer_line = FNR
+                    line = substr(line, RSTART + RLENGTH)
+                }
+                if (pointer_line) pointer_text = $0
+            }
+            if ($0 ~ /[{;]/) {
+                if ((touched || listing) && pointer_line) printf "%s\tline %d: %s\n", name, pointer_line, pointer_text
+                in_signature = 0
+            }
+        }')
     [ -z "$stored" ] || reject_with_reason "$stored" \
         "$staged_path stores a function pointer in a kernel header;" \
-        "            pass the function to a per-dtype macro or an always-inline body instead of storing it:"
+        "            write the body per dtype and call its helpers directly:"
+    [ -z "$taken" ] || reject_with_reason "$taken" \
+        "$staged_path takes a function pointer in a kernel header;" \
+        "            write the body per dtype and call its helpers directly:"
+}
+
+# Rejects indexing through a cast, `((T *)pointer)[index]`, because the element type and the offset hide inside
+# one expression; name a typed pointer first and index that.
+check_no_cast_indexing() {
+    local chains
+    chains=$(scan_staged_file_marking_added_lines '
+        (FNR in added) && /\(\([[:space:]]*[A-Za-z_][A-Za-z0-9_ ]*\*+[[:space:]]*\)[^()]*(\([^()]*\))?[^()]*\)[[:space:]]*\[/ {
+            print "line " FNR ": " $0
+        }' "$staged_code_path")
+    [ -z "$chains" ] || reject_with_reason "$chains" \
+        "$staged_path indexes through a cast;" \
+        "            bind a typed pointer to a named local and index it:"
+}
+
+# Rejects a new helper in a capability header whose name does not end in that capability, because a name says
+# which dtype and capability it covers: `nk_<operation>_<dtype>_<capability>_`, with only `kernel_` or
+# `streaming_` allowed after the capability. Helpers HEAD already had keep their names until renamed.
+check_helpers_end_in_capability() {
+    case "$staged_path" in include/numkong/*/*.h | include/numkong/*/*.cuh) ;; *) return 0 ;; esac
+    local capability previous misnamed
+    capability=${staged_path##*/}
+    capability=${capability%.*}
+    previous=$(git show "HEAD:$staged_path" 2> /dev/null | grep -oE '\bnk_[a-z0-9_]+_\(' | tr -d '(' | sort -u)
+    misnamed=$(previous="$previous" capability="$capability" scan_staged_file_marking_added_lines '
+        BEGIN {
+            count = split(ENVIRON["previous"], names, "\n")
+            for (position = 1; position <= count; ++position) seen[names[position]] = 1
+            ending = "_" ENVIRON["capability"] "_((kernel|streaming)_)?$"
+        }
+        (FNR in added) && /^[[:space:]]*(static[[:space:]]+)?(NUMKONG_INLINE|NUMKONG_OUTLINED_|NUMKONG_DEVICE|NUMKONG_CONSTEXPR|__global__)/ {
+            if (!match($0, /nk_[a-z0-9_]+_[[:space:]]*\(/)) next
+            name = substr($0, RSTART, RLENGTH)
+            sub(/[[:space:]]*\($/, "", name)
+            if (!(name in seen) && name !~ ending) print "line " FNR ": " name
+        }' "$staged_code_path")
+    [ -z "$misnamed" ] || reject_with_reason "$misnamed" \
+        "$staged_path defines a helper whose name does not end in its capability, $capability;" \
+        "            name it nk_<operation>_<dtype>_${capability}_, a role like kernel_ or streaming_ after it at most:"
 }
 
 # Rejects F64 in the body of a block-scaled kernel, because those kernels rebase into F32 and fall back to
@@ -2765,6 +2876,8 @@ run_shared_checks() {
         check_kernels_store_no_function_pointers
         check_scaled_kernels_avoid_f64
         check_codegen_macros_are_approved
+        check_no_cast_indexing
+        check_helpers_end_in_capability
         ;;
     esac
     case "$staged_path" in

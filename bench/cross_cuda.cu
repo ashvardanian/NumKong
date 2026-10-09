@@ -1176,8 +1176,8 @@ void run_attention_row_with_cudnn(environment_t const &env, std::string const &n
         *bytes = 2 * token_count * key_value_heads * depth * nk_dtype_bits(input_dtype_) / 8;
         return nk_success_k;
     };
-    auto const pack = [key_bytes = plan->key_bytes](void const *keys, void const *values, std::size_t, std::size_t,
-                                                    nk_u32_t const *, nk_u32_t const *, std::size_t, std::size_t,
+    auto const pack = [key_bytes = plan->key_bytes](std::size_t, std::size_t, nk_u32_t const *, nk_u32_t const *,
+                                                    std::size_t, void const *keys, std::size_t, void const *values,
                                                     std::size_t, void *packed, std::size_t, std::size_t,
                                                     nk_stream_t stream) {
         cudaMemcpyAsync(packed, keys, key_bytes, cudaMemcpyDeviceToDevice, (cudaStream_t)stream);
@@ -1186,9 +1186,9 @@ void run_attention_row_with_cudnn(environment_t const &env, std::string const &n
     };
     run_attention_row<input_dtype_, visibility_, cuda_backend_t>(
         env, name, packed_size, pack,
-        [plan](void const *queries, void const *packed, void *output, auto...) {
-            return plan->launch(queries, packed, output);
-        },
+        [plan](std::size_t, std::size_t, std::size_t, nk_u32_t const *, std::size_t, nk_f32_t, nk_size_t, nk_size_t,
+               void const *queries, std::size_t, void const *packed, void *output,
+               auto...) { return plan->launch(queries, packed, output); },
         shape, backend);
 }
 

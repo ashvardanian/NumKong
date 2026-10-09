@@ -1546,16 +1546,16 @@ error_stats_t test_tensor_attention_for_type(settings_t const &settings) {
     std::size_t const key_value_stride = key_value_heads * depth * sizeof(value_type_),
                       query_stride = heads * depth * sizeof(value_type_),
                       output_stride = heads * depth * sizeof(result_t);
-    stats.expect(nk::attention_pack<value_type_>(keys.value.data(), values.value.data(), key_value_heads, depth,
-                                                 offsets, lengths, 2, key_value_stride, key_value_stride,
+    stats.expect(nk::attention_pack<value_type_>(key_value_heads, depth, offsets, lengths, 2, keys.value.data(),
+                                                 key_value_stride, values.value.data(), key_value_stride,
                                                  raw_packed.values_data()));
     auto expect_equal = [&](nk::tensor_view<result_t> actual) {
         for (std::size_t i = 0; i < actual.numel(); ++i) stats.accumulate(actual[i], reference.value[i]);
     };
 
-    stats.expect(nk::attention_packed<value_type_>(queries.value.data(), raw_packed.values_data(),
-                                                   reference.value.data(), nullptr, heads, key_value_heads, depth,
-                                                   offsets, query_stride, output_stride, scale));
+    stats.expect(nk::attention_packed<value_type_>(
+        heads, key_value_heads, depth, offsets, tokens, scale, NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX, queries.value.data(),
+        query_stride, raw_packed.values_data(), reference.value.data(), output_stride, nullptr));
     stats.expect(nk::attention_packed<value_type_>(queries.value.view(), packed.value, output.value.span(), scale));
     expect_equal(output.value.view());
     auto bidirectional = nk::attention_packed<value_type_>(queries.value.view(), packed.value, scale);
@@ -1565,8 +1565,8 @@ error_stats_t test_tensor_attention_for_type(settings_t const &settings) {
     // A sliding window of three keys, causal
     std::size_t const keys_before = 2, keys_after = 0;
     stats.expect(nk::attention_packed<value_type_>(
-        queries.value.data(), raw_packed.values_data(), reference.value.data(), nullptr, heads, key_value_heads, depth,
-        offsets, query_stride, output_stride, scale, keys_before, keys_after));
+        heads, key_value_heads, depth, offsets, tokens, scale, keys_before, keys_after, queries.value.data(),
+        query_stride, raw_packed.values_data(), reference.value.data(), output_stride, nullptr));
     stats.expect(nk::attention_packed<value_type_>(queries.value.view(), packed.value, output.value.span(), scale,
                                                    keys_before, keys_after));
     expect_equal(output.value.view());

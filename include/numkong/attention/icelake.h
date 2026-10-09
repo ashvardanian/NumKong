@@ -501,10 +501,12 @@ NUMKONG_API nk_status_t nk_attention_packed_shape_i8_icelake(void const *key_val
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_pack_i8_icelake(                                            //
-    nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
-    nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride,
-    nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+NUMKONG_API nk_status_t nk_attention_pack_i8_icelake(nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                                     nk_size_t segment_count, nk_i8_t const *keys, nk_size_t key_stride,
+                                                     nk_i8_t const *values, nk_size_t value_stride,
+                                                     void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end,
+                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
                                                                       key_lengths, segment_count);
@@ -615,14 +617,14 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_icelake(                           
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_packed_i8_icelake(                          //
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,      //
-    nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, //
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,      //
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,              //
-    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+NUMKONG_API nk_status_t nk_attention_packed_i8_icelake(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_i8_t const *queries,
+    nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output, nk_size_t output_stride,
+    nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_icelake_k)) return nk_pack_mismatch_k;
+    nk_assert_(query_token_count == nk_attention_query_end_serial_(key_value_packed, query_offsets));
     nk_diagonal_band_t const band = {keys_before, keys_after};
     nk_attention_packed_i8_icelake_(queries, key_value_packed, output, log_sum_exp, head_count, key_value_head_count,
                                     depth, query_offsets, query_stride, output_stride, scale, band, tasks_begin,
