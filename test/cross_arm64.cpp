@@ -254,10 +254,10 @@ void test_cross_arm64([[maybe_unused]] error_stats_section_t &check) {
     check("euclideans_symmetric_mxfp8e5m2_neonfhm", test_euclideans_symmetric<mxfp8e5m2_t>,
           nk_euclideans_symmetric_mxfp8e5m2_neonfhm);
 
-    check("attention_packed_e4m3_neonfhm", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_neonfhm,
-          nk_attention_pack_e4m3_neonfhm, nk_attention_packed_e4m3_neonfhm);
     check("attention_packed_f16_neonfhm", test_attention_packed<f16_t>, nk_attention_pack_size_f16_neonfhm,
           nk_attention_pack_f16_neonfhm, nk_attention_packed_f16_neonfhm);
+    check("attention_packed_e4m3_neonfhm", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_neonfhm,
+          nk_attention_pack_e4m3_neonfhm, nk_attention_packed_e4m3_neonfhm);
     check("attention_packed_nvfp4_neonfhm", test_attention_packed<nvfp4_t>, nk_attention_pack_size_nvfp4_neonfhm,
           nk_attention_pack_nvfp4_neonfhm, nk_attention_packed_nvfp4_neonfhm);
 #endif // NUMKONG_TARGET_NEONFHM
@@ -656,14 +656,14 @@ void test_cross_arm64([[maybe_unused]] error_stats_section_t &check) {
 
     check("attention_packed_bf16_sme", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_sme,
           nk_attention_pack_bf16_sme, nk_attention_packed_bf16_sme);
-    check("attention_packed_e4m3_sme", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_sme,
-          nk_attention_pack_e4m3_sme, nk_attention_packed_e4m3_sme);
     check("attention_packed_f16_sme", test_attention_packed<f16_t>, nk_attention_pack_size_f16_sme,
           nk_attention_pack_f16_sme, nk_attention_packed_f16_sme);
-    check("attention_packed_nvfp4_sme", test_attention_packed<nvfp4_t>, nk_attention_pack_size_nvfp4_sme,
-          nk_attention_pack_nvfp4_sme, nk_attention_packed_nvfp4_sme);
+    check("attention_packed_e4m3_sme", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_sme,
+          nk_attention_pack_e4m3_sme, nk_attention_packed_e4m3_sme);
     check("attention_packed_i8_sme", test_attention_packed<i8_t>, nk_attention_pack_size_i8_sme,
           nk_attention_pack_i8_sme, nk_attention_packed_i8_sme);
+    check("attention_packed_nvfp4_sme", test_attention_packed<nvfp4_t>, nk_attention_pack_size_nvfp4_sme,
+          nk_attention_pack_nvfp4_sme, nk_attention_packed_nvfp4_sme);
 #endif // NUMKONG_TARGET_SME
 
 #if NUMKONG_TARGET_SMEBI32

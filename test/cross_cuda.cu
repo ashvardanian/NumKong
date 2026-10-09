@@ -312,12 +312,12 @@ void test_cross_cuda(error_stats_section_t &check) {
           nk_attention_pack_size_bf16_cuda, nk_attention_pack_bf16_cuda, nk_attention_packed_bf16_cuda);
     check("attention_packed_f16_cuda", test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>,
           nk_attention_pack_size_f16_cuda, nk_attention_pack_f16_cuda, nk_attention_packed_f16_cuda);
-    check("attention_packed_gradients_bf16_cuda", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
-          nk_attention_pack_size_bf16_cuda, nk_attention_pack_bf16_cuda, nk_attention_packed_gradients_bf16_cuda);
     check("attention_packed_e4m3_cuda", test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_11_k>,
           nk_attention_pack_size_e4m3_cuda, nk_attention_pack_e4m3_cuda, nk_attention_packed_e4m3_cuda);
     check("attention_packed_i8_cuda", test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_cuda, nk_attention_pack_i8_cuda, nk_attention_packed_i8_cuda);
+    check("attention_packed_gradients_bf16_cuda", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
+          nk_attention_pack_size_bf16_cuda, nk_attention_pack_bf16_cuda, nk_attention_packed_gradients_bf16_cuda);
     check("attention_rope_f32_cuda", test_attention_rope<f32_t, cuda_backend_t>, nk_attention_rope_f32_cuda);
     check("attention_rope_bf16_cuda", test_attention_rope<bf16_t, cuda_backend_t>, nk_attention_rope_bf16_cuda);
     check("attention_rope_e4m3_cuda", test_attention_rope<e4m3_t, cuda_backend_t>, nk_attention_rope_e4m3_cuda);
@@ -503,12 +503,12 @@ void test_cross_cuda(error_stats_section_t &check) {
           nk_attention_pack_size_bf16_ampere, nk_attention_pack_bf16_ampere, nk_attention_packed_bf16_ampere);
     check("attention_packed_f16_ampere", test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>,
           nk_attention_pack_size_f16_ampere, nk_attention_pack_f16_ampere, nk_attention_packed_f16_ampere);
-    check("attention_packed_gradients_bf16_ampere", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
-          nk_attention_pack_size_bf16_ampere, nk_attention_pack_bf16_ampere, nk_attention_packed_gradients_bf16_ampere);
     check("attention_packed_e4m3_ampere", test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_11_k>,
           nk_attention_pack_size_e4m3_ampere, nk_attention_pack_e4m3_ampere, nk_attention_packed_e4m3_ampere);
     check("attention_packed_i8_ampere", test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_ampere, nk_attention_pack_i8_ampere, nk_attention_packed_i8_ampere);
+    check("attention_packed_gradients_bf16_ampere", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
+          nk_attention_pack_size_bf16_ampere, nk_attention_pack_bf16_ampere, nk_attention_packed_gradients_bf16_ampere);
 #endif // NUMKONG_TARGET_AMPERE
 
 #if NUMKONG_TARGET_HOPPER
@@ -639,12 +639,12 @@ void test_cross_cuda(error_stats_section_t &check) {
           nk_euclideans_symmetric_u4_hopper);
     check("attention_packed_bf16_hopper", test_attention_packed<bf16_t, cuda_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_bf16_hopper, nk_attention_pack_bf16_hopper, nk_attention_packed_bf16_hopper);
-    check("attention_packed_gradients_bf16_hopper", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
-          nk_attention_pack_size_bf16_hopper, nk_attention_pack_bf16_hopper, nk_attention_packed_gradients_bf16_hopper);
     check("attention_packed_e4m3_hopper", test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>,
           nk_attention_pack_size_e4m3_hopper, nk_attention_pack_e4m3_hopper, nk_attention_packed_e4m3_hopper);
     check("attention_packed_i8_hopper", test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_hopper, nk_attention_pack_i8_hopper, nk_attention_packed_i8_hopper);
+    check("attention_packed_gradients_bf16_hopper", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
+          nk_attention_pack_size_bf16_hopper, nk_attention_pack_bf16_hopper, nk_attention_packed_gradients_bf16_hopper);
 #endif // NUMKONG_TARGET_HOPPER
 
 #if NUMKONG_TARGET_BLACKWELL
@@ -927,14 +927,14 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("attention_packed_f16_blackwell",
           test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>,
           nk_attention_pack_size_f16_blackwell, nk_attention_pack_f16_blackwell, nk_attention_packed_f16_blackwell);
-    check("attention_packed_gradients_bf16_blackwell", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
-          nk_attention_pack_size_bf16_blackwell, nk_attention_pack_bf16_blackwell,
-          nk_attention_packed_gradients_bf16_blackwell);
-    check("attention_packed_i8_blackwell", test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_i8_blackwell, nk_attention_pack_i8_blackwell, nk_attention_packed_i8_blackwell);
     check("attention_packed_e4m3_blackwell",
           test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>,
           nk_attention_pack_size_e4m3_blackwell, nk_attention_pack_e4m3_blackwell, nk_attention_packed_e4m3_blackwell);
+    check("attention_packed_i8_blackwell", test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_i8_blackwell, nk_attention_pack_i8_blackwell, nk_attention_packed_i8_blackwell);
+    check("attention_packed_gradients_bf16_blackwell", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
+          nk_attention_pack_size_bf16_blackwell, nk_attention_pack_bf16_blackwell,
+          nk_attention_packed_gradients_bf16_blackwell);
 #endif // NUMKONG_TARGET_BLACKWELL
 
 #if NUMKONG_TARGET_BLACKWELLRTX
@@ -1048,17 +1048,17 @@ void test_cross_cuda(error_stats_section_t &check) {
           test_attention_packed<f16_t, cuda_backend_t, attention_weights_t::bits_11_k>,
           nk_attention_pack_size_f16_blackwellultra, nk_attention_pack_f16_blackwellultra,
           nk_attention_packed_f16_blackwellultra);
-    check("attention_packed_gradients_bf16_blackwellultra", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
-          nk_attention_pack_size_bf16_blackwellultra, nk_attention_pack_bf16_blackwellultra,
-          nk_attention_packed_gradients_bf16_blackwellultra);
-    check("attention_packed_i8_blackwellultra",
-          test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
-          nk_attention_pack_size_i8_blackwellultra, nk_attention_pack_i8_blackwellultra,
-          nk_attention_packed_i8_blackwellultra);
     check("attention_packed_e4m3_blackwellultra",
           test_attention_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>,
           nk_attention_pack_size_e4m3_blackwellultra, nk_attention_pack_e4m3_blackwellultra,
           nk_attention_packed_e4m3_blackwellultra);
+    check("attention_packed_i8_blackwellultra",
+          test_attention_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_i8_blackwellultra, nk_attention_pack_i8_blackwellultra,
+          nk_attention_packed_i8_blackwellultra);
+    check("attention_packed_gradients_bf16_blackwellultra", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
+          nk_attention_pack_size_bf16_blackwellultra, nk_attention_pack_bf16_blackwellultra,
+          nk_attention_packed_gradients_bf16_blackwellultra);
 #endif // NUMKONG_TARGET_BLACKWELLULTRA
 
     test_cross_dispatch<cuda_backend_t>(check);

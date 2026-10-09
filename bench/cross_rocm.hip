@@ -158,11 +158,11 @@ void bench_cross_cdna3([[maybe_unused]] environment_t const &env, [[maybe_unused
     run_euclideans_symmetric<nk_u4_k>(env, "euclideans_symmetric_u4_cdna3", nk_euclideans_symmetric_u4_cdna3, backend);
     run_attention<nk_bf16_k>(env, "attention_packed_bf16_cdna3", nk_attention_pack_size_bf16_cdna3,
                              nk_attention_pack_bf16_cdna3, nk_attention_packed_bf16_cdna3, backend);
+    run_attention<nk_i8_k>(env, "attention_packed_i8_cdna3", nk_attention_pack_size_i8_cdna3,
+                           nk_attention_pack_i8_cdna3, nk_attention_packed_i8_cdna3, backend);
     run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_cdna3", nk_attention_pack_size_bf16_cdna3,
                                        nk_attention_pack_bf16_cdna3, nk_attention_packed_bf16_cdna3,
                                        nk_attention_packed_gradients_bf16_cdna3, backend);
-    run_attention<nk_i8_k>(env, "attention_packed_i8_cdna3", nk_attention_pack_size_i8_cdna3,
-                           nk_attention_pack_i8_cdna3, nk_attention_packed_i8_cdna3, backend);
 #endif // NUMKONG_TARGET_CDNA3
 }
 
@@ -278,13 +278,13 @@ void bench_cross_cdna4([[maybe_unused]] environment_t const &env, [[maybe_unused
     run_euclideans_symmetric<nk_u4_k>(env, "euclideans_symmetric_u4_cdna4", nk_euclideans_symmetric_u4_cdna4, backend);
     run_attention<nk_bf16_k>(env, "attention_packed_bf16_cdna4", nk_attention_pack_size_bf16_cdna4,
                              nk_attention_pack_bf16_cdna4, nk_attention_packed_bf16_cdna4, backend);
-    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_cdna4", nk_attention_pack_size_bf16_cdna4,
-                                       nk_attention_pack_bf16_cdna4, nk_attention_packed_bf16_cdna4,
-                                       nk_attention_packed_gradients_bf16_cdna4, backend);
     run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_cdna4", nk_attention_pack_size_e4m3_cdna4,
                              nk_attention_pack_e4m3_cdna4, nk_attention_packed_e4m3_cdna4, backend);
     run_attention<nk_i8_k>(env, "attention_packed_i8_cdna4", nk_attention_pack_size_i8_cdna4,
                            nk_attention_pack_i8_cdna4, nk_attention_packed_i8_cdna4, backend);
+    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_cdna4", nk_attention_pack_size_bf16_cdna4,
+                                       nk_attention_pack_bf16_cdna4, nk_attention_packed_bf16_cdna4,
+                                       nk_attention_packed_gradients_bf16_cdna4, backend);
 #endif // NUMKONG_TARGET_CDNA4
 }
 void bench_cross_cdna5([[maybe_unused]] environment_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
@@ -399,13 +399,13 @@ void bench_cross_cdna5([[maybe_unused]] environment_t const &env, [[maybe_unused
     run_euclideans_symmetric<nk_u4_k>(env, "euclideans_symmetric_u4_cdna5", nk_euclideans_symmetric_u4_cdna5, backend);
     run_attention<nk_bf16_k>(env, "attention_packed_bf16_cdna5", nk_attention_pack_size_bf16_cdna5,
                              nk_attention_pack_bf16_cdna5, nk_attention_packed_bf16_cdna5, backend);
-    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_cdna5", nk_attention_pack_size_bf16_cdna5,
-                                       nk_attention_pack_bf16_cdna5, nk_attention_packed_bf16_cdna5,
-                                       nk_attention_packed_gradients_bf16_cdna5, backend);
     run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_cdna5", nk_attention_pack_size_e4m3_cdna5,
                              nk_attention_pack_e4m3_cdna5, nk_attention_packed_e4m3_cdna5, backend);
     run_attention<nk_i8_k>(env, "attention_packed_i8_cdna5", nk_attention_pack_size_i8_cdna5,
                            nk_attention_pack_i8_cdna5, nk_attention_packed_i8_cdna5, backend);
+    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_cdna5", nk_attention_pack_size_bf16_cdna5,
+                                       nk_attention_pack_bf16_cdna5, nk_attention_packed_bf16_cdna5,
+                                       nk_attention_packed_gradients_bf16_cdna5, backend);
 #endif // NUMKONG_TARGET_CDNA5
 }
 } // namespace ashvardanian::numkong::bench

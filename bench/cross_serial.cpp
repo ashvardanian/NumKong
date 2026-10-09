@@ -235,6 +235,43 @@ void bench_cross_serial(environment_t const &env) {
                           nk_attention_pack_e4m3_serial, nk_attention_packed_e4m3_serial);
     run_attention<i8_k>(env, "attention_packed_i8_serial", nk_attention_pack_size_i8_serial,
                         nk_attention_pack_i8_serial, nk_attention_packed_i8_serial);
+    run_attention<nk_nvfp4_k>(env, "attention_packed_nvfp4_serial", nk_attention_pack_size_nvfp4_serial,
+                              nk_attention_pack_nvfp4_serial, nk_attention_packed_nvfp4_serial);
+    run_attention<nk_mxfp4_k>(env, "attention_packed_mxfp4_serial", nk_attention_pack_size_mxfp4_serial,
+                              nk_attention_pack_mxfp4_serial, nk_attention_packed_mxfp4_serial);
+    run_attention<nk_mxfp6e2m3_k>(env, "attention_packed_mxfp6e2m3_serial", nk_attention_pack_size_mxfp6e2m3_serial,
+                                  nk_attention_pack_mxfp6e2m3_serial, nk_attention_packed_mxfp6e2m3_serial);
+    run_attention<nk_mxfp6e3m2_k>(env, "attention_packed_mxfp6e3m2_serial", nk_attention_pack_size_mxfp6e3m2_serial,
+                                  nk_attention_pack_mxfp6e3m2_serial, nk_attention_packed_mxfp6e3m2_serial);
+    run_attention<nk_mxfp8e4m3_k>(env, "attention_packed_mxfp8e4m3_serial", nk_attention_pack_size_mxfp8e4m3_serial,
+                                  nk_attention_pack_mxfp8e4m3_serial, nk_attention_packed_mxfp8e4m3_serial);
+    run_attention<nk_mxfp8e5m2_k>(env, "attention_packed_mxfp8e5m2_serial", nk_attention_pack_size_mxfp8e5m2_serial,
+                                  nk_attention_pack_mxfp8e5m2_serial, nk_attention_packed_mxfp8e5m2_serial);
+    run_attention_gradients<bf16_k>(env, "attention_packed_gradients_bf16_serial", nk_attention_pack_size_bf16_serial,
+                                    nk_attention_pack_bf16_serial, nk_attention_packed_bf16_serial,
+                                    nk_attention_packed_gradients_bf16_serial);
+    run_attention_gradients<nk_nvfp4_k>(env, "attention_packed_gradients_nvfp4_serial",
+                                        nk_attention_pack_size_nvfp4_serial, nk_attention_pack_nvfp4_serial,
+                                        nk_attention_packed_nvfp4_serial, nk_attention_packed_gradients_nvfp4_serial);
+    run_attention_gradients<nk_mxfp4_k>(env, "attention_packed_gradients_mxfp4_serial",
+                                        nk_attention_pack_size_mxfp4_serial, nk_attention_pack_mxfp4_serial,
+                                        nk_attention_packed_mxfp4_serial, nk_attention_packed_gradients_mxfp4_serial);
+    run_attention_gradients<nk_mxfp6e2m3_k>(env, "attention_packed_gradients_mxfp6e2m3_serial",
+                                            nk_attention_pack_size_mxfp6e2m3_serial, nk_attention_pack_mxfp6e2m3_serial,
+                                            nk_attention_packed_mxfp6e2m3_serial,
+                                            nk_attention_packed_gradients_mxfp6e2m3_serial);
+    run_attention_gradients<nk_mxfp6e3m2_k>(env, "attention_packed_gradients_mxfp6e3m2_serial",
+                                            nk_attention_pack_size_mxfp6e3m2_serial, nk_attention_pack_mxfp6e3m2_serial,
+                                            nk_attention_packed_mxfp6e3m2_serial,
+                                            nk_attention_packed_gradients_mxfp6e3m2_serial);
+    run_attention_gradients<nk_mxfp8e4m3_k>(env, "attention_packed_gradients_mxfp8e4m3_serial",
+                                            nk_attention_pack_size_mxfp8e4m3_serial, nk_attention_pack_mxfp8e4m3_serial,
+                                            nk_attention_packed_mxfp8e4m3_serial,
+                                            nk_attention_packed_gradients_mxfp8e4m3_serial);
+    run_attention_gradients<nk_mxfp8e5m2_k>(env, "attention_packed_gradients_mxfp8e5m2_serial",
+                                            nk_attention_pack_size_mxfp8e5m2_serial, nk_attention_pack_mxfp8e5m2_serial,
+                                            nk_attention_packed_mxfp8e5m2_serial,
+                                            nk_attention_packed_gradients_mxfp8e5m2_serial);
     run_attention_rope<f32_k>(env, "attention_rope_f32_serial", nk_attention_rope_f32_serial);
     run_attention_rope<bf16_k>(env, "attention_rope_bf16_serial", nk_attention_rope_bf16_serial);
     run_attention_rope<e4m3_k>(env, "attention_rope_e4m3_serial", nk_attention_rope_e4m3_serial);

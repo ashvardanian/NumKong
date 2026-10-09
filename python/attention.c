@@ -21,41 +21,43 @@
  *  `nk_attention_pack_*`. */
 typedef struct attention_pack_task_t {
     nk_attention_pack_punned_t kernel;
-    void const *keys;
-    void const *values;
     nk_size_t key_value_head_count;
     nk_size_t depth;
     nk_u32_t const *key_offsets;
     nk_u32_t const *key_lengths;
     nk_size_t segment_count;
-    nk_size_t key_stride, value_stride;
+    void const *keys;
+    nk_size_t key_stride;
+    void const *values;
+    nk_size_t value_stride;
     void *key_value_packed;
     nk_stream_t stream;
 } attention_pack_task_t;
 
 static nk_status_t attention_pack_tile_(nk_size_t tile_index, void *context) {
     attention_pack_task_t const *task = (attention_pack_task_t const *)context;
-    return task->kernel(task->keys, task->values, task->key_value_head_count, task->depth, task->key_offsets,
-                        task->key_lengths, task->segment_count, task->key_stride, task->value_stride,
+    return task->kernel(task->key_value_head_count, task->depth, task->key_offsets, task->key_lengths,
+                        task->segment_count, task->keys, task->key_stride, task->values, task->value_stride,
                         task->key_value_packed, tile_index, tile_index + 1, task->stream);
 }
 
 /** Arguments of the attention kernels, named as in `nk_attention_packed_*`; the gradients write
  *  the query gradient to @c output and read @c log_sum_exp. */
 typedef struct attention_arguments_t {
-    void const *queries;
-    void const *key_value_packed;
-    void *output;
-    nk_f32_t *log_sum_exp;
     nk_size_t head_count;
     nk_size_t key_value_head_count;
     nk_size_t depth;
     nk_u32_t const *query_offsets;
-    nk_size_t query_stride;
-    nk_size_t output_stride;
+    nk_size_t query_token_count;
     nk_f32_t scale;
     nk_size_t keys_before;
     nk_size_t keys_after;
+    void const *queries;
+    nk_size_t query_stride;
+    void const *key_value_packed;
+    void *output;
+    nk_size_t output_stride;
+    nk_f32_t *log_sum_exp;
     nk_stream_t stream;
 } attention_arguments_t;
 
@@ -73,11 +75,12 @@ typedef struct attention_task_t {
 static nk_status_t attention_tile_(nk_size_t tile_index, void *context) {
     attention_task_t const *task = (attention_task_t const *)context;
     attention_arguments_t const *arguments = &task->arguments;
-    return task->kernel(arguments->queries, arguments->key_value_packed, arguments->output, arguments->log_sum_exp,
-                        arguments->head_count, arguments->key_value_head_count, arguments->depth,
-                        arguments->query_offsets, arguments->query_stride, arguments->output_stride, arguments->scale,
-                        arguments->keys_before, arguments->keys_after, task->window_bounds[tile_index],
-                        task->window_bounds[tile_index + 1], arguments->stream);
+    return task->kernel(arguments->head_count, arguments->key_value_head_count, arguments->depth,
+                        arguments->query_offsets, arguments->query_token_count, arguments->scale,
+                        arguments->keys_before, arguments->keys_after, arguments->queries, arguments->query_stride,
+                        arguments->key_value_packed, arguments->output, arguments->output_stride,
+                        arguments->log_sum_exp, task->window_bounds[tile_index], task->window_bounds[tile_index + 1],
+                        arguments->stream);
 }
 
 /** The cost of one head of query @p row of a segment of @p queries queries and @p keys keys: the
@@ -134,12 +137,13 @@ typedef struct attention_gradients_task_t {
 static nk_status_t attention_gradients_tile_(nk_size_t tile_index, void *context) {
     attention_gradients_task_t const *task = (attention_gradients_task_t const *)context;
     attention_arguments_t const *arguments = &task->arguments;
-    return task->kernel(arguments->queries, arguments->key_value_packed, task->output, task->output_gradient,
-                        arguments->log_sum_exp, (nk_f32_t *)arguments->output, task->key_gradient, task->value_gradient,
-                        arguments->head_count, arguments->key_value_head_count, arguments->depth,
-                        arguments->query_offsets, arguments->query_stride, arguments->output_stride,
-                        task->query_gradient_stride, task->key_value_gradient_stride, arguments->scale,
-                        arguments->keys_before, arguments->keys_after, tile_index, tile_index + 1, arguments->stream);
+    return task->kernel(arguments->head_count, arguments->key_value_head_count, arguments->depth,
+                        arguments->query_offsets, arguments->query_token_count, arguments->scale,
+                        arguments->keys_before, arguments->keys_after, arguments->queries, arguments->query_stride,
+                        arguments->key_value_packed, task->output, task->output_gradient, arguments->output_stride,
+                        arguments->log_sum_exp, (nk_f32_t *)arguments->output, task->query_gradient_stride,
+                        task->key_gradient, task->value_gradient, task->key_value_gradient_stride, tile_index,
+                        tile_index + 1, arguments->stream);
 }
 
 static void AttentionPackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }
@@ -632,6 +636,7 @@ static int attention_arguments_parse_(char const *name, PyObject *queries_object
     arguments->key_value_head_count = packed->key_value_head_count;
     arguments->depth = packed->depth;
     arguments->query_offsets = query_offsets;
+    arguments->query_token_count = query_offsets[packed->segment_count];
     arguments->query_stride = query_stride;
     arguments->output_stride = row_values * sizeof(nk_f32_t);
     arguments->scale = scale;

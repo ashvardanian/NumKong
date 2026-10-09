@@ -530,11 +530,11 @@ NUMKONG_INLINE void nk_probe_haswell_(nk_size_t count,
 FIXTURE
 
 assert_accepts "constexpr helper taking a dtype, kernel with a dtype local" include/numkong/probe/haswell.h <<'FIXTURE'
-NUMKONG_CONSTEXPR nk_size_t nk_probe_size_(nk_dtype_t dtype) { return dtype == nk_f32_k ? 4 : 2; }
+NUMKONG_CONSTEXPR nk_size_t nk_probe_size_haswell_(nk_dtype_t dtype) { return dtype == nk_f32_k ? 4 : 2; }
 
 NUMKONG_INLINE void nk_probe_haswell_(nk_size_t count) {
     nk_dtype_t dtype = nk_f32_k;
-    nk_probe_serial_(count, nk_probe_size_(dtype));
+    nk_probe_serial_(count, nk_probe_size_haswell_(dtype));
 }
 FIXTURE
 
@@ -548,7 +548,7 @@ typedef struct {
 } nk_probe_haswell_t_;
 FIXTURE
 
-assert_accepts "function pointer parameter in a kernel" include/numkong/probe/haswell.h <<'FIXTURE'
+assert_rejects "function pointer parameter in a kernel" "takes a function pointer in a kernel header" include/numkong/probe/haswell.h <<'FIXTURE'
 NUMKONG_INLINE void nk_probe_haswell_(void (*load)(void const *source), void const *source) { load(source); }
 FIXTURE
 

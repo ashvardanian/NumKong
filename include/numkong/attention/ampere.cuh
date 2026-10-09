@@ -1695,15 +1695,15 @@ NUMKONG_INLINE nk_size_t nk_attention_shared_ceiling_ampere_(nk_size_t element_b
 NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_size_t element_bytes,
     int native, void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
-    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale,
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
     if (tasks_begin >= tasks_end || depth == 0) return nk_success_k;
     nk_attention_arguments_t arguments = nk_attention_arguments_init_simt_(
-        queries, packed, output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
-        output_stride, scale, score_scale, output_scale, keys_before, keys_after, tasks_begin, tasks_end);
+        queries, packed, output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_token_count,
+        query_stride, output_stride, scale, score_scale, output_scale, keys_before, keys_after, tasks_begin, tasks_end);
     if (depth > nk_attention_wide_depth_ampere_k)
         return nk_launch_resident_cuda_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments,
                                         stream);
@@ -1719,48 +1719,52 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_(
 NUMKONG_INLINE nk_status_t nk_attention_launch_bf16_ampere_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, void const *queries,
     void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin,
+    nk_size_t tasks_end, nk_stream_t stream) {
     return nk_attention_launch_ampere_(narrow_kernel, wide_kernel, fallback_kernel, 2, 1, queries, packed, output,
                                        log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
-                                       query_stride, output_stride, scale, 1.0f, 1.0f, keys_before, keys_after,
-                                       tasks_begin, tasks_end, stream);
+                                       query_token_count, query_stride, output_stride, scale, 1.0f, 1.0f, keys_before,
+                                       keys_after, tasks_begin, tasks_end, stream);
 }
 
 /** The launch for F16: native F16 MMAs. */
 NUMKONG_INLINE nk_status_t nk_attention_launch_f16_ampere_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, void const *queries,
     void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin,
+    nk_size_t tasks_end, nk_stream_t stream) {
     return nk_attention_launch_ampere_(narrow_kernel, wide_kernel, fallback_kernel, 2, 1, queries, packed, output,
                                        log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
-                                       query_stride, output_stride, scale, 1.0f, 1.0f, keys_before, keys_after,
-                                       tasks_begin, tasks_end, stream);
+                                       query_token_count, query_stride, output_stride, scale, 1.0f, 1.0f, keys_before,
+                                       keys_after, tasks_begin, tasks_end, stream);
 }
 
 /** The launch for E4M3: F16 MMAs on E4M3 converted first. */
 NUMKONG_INLINE nk_status_t nk_attention_launch_e4m3_ampere_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, void const *queries,
     void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin,
+    nk_size_t tasks_end, nk_stream_t stream) {
     return nk_attention_launch_ampere_(narrow_kernel, wide_kernel, fallback_kernel, 1, 0, queries, packed, output,
                                        log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
-                                       query_stride, output_stride, scale, 65536.0f, 256.0f, keys_before, keys_after,
-                                       tasks_begin, tasks_end, stream);
+                                       query_token_count, query_stride, output_stride, scale, 65536.0f, 256.0f,
+                                       keys_before, keys_after, tasks_begin, tasks_end, stream);
 }
 
 /** The launch for I8: exact integer MMAs. */
 NUMKONG_INLINE nk_status_t nk_attention_launch_i8_ampere_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, void const *queries,
     void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin,
+    nk_size_t tasks_end, nk_stream_t stream) {
     return nk_attention_launch_ampere_(narrow_kernel, wide_kernel, fallback_kernel, 1, 1, queries, packed, output,
                                        log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
-                                       query_stride, output_stride, scale, 1.0f, 1.0f, keys_before, keys_after,
-                                       tasks_begin, tasks_end, stream);
+                                       query_token_count, query_stride, output_stride, scale, 1.0f, 1.0f, keys_before,
+                                       keys_after, tasks_begin, tasks_end, stream);
 }
 
 /** Launches the BF16 backward kernels of Ampere and later with as many blocks as stay resident,

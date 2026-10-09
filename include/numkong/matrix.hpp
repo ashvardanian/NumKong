@@ -299,12 +299,12 @@ expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std:
 
 /**
  *  @brief Packs ragged K/V token matrices into a backend-opaque KV-cache blob.
- *  @param[in] keys,values Token-major matrices, element (token, head, d) of @p keys at @p keys
- *      + token × @p key_stride + (head × depth + d) elements, likewise for @p values. Packing
- *      fuses no transposition, so depth-major K or V is transposed in a separate pass first.
  *  @param[in] key_offsets The @p segment_count + 1 slot boundaries, which must not decrease.
  *  @param[in] key_lengths Keys each segment holds, at most its slot's width; zeros mark padding
  *      slots. Null means every slot is full.
+ *  @param[in] keys,values Token-major matrices, element (token, head, d) of @p keys at @p keys
+ *      + token × @p key_stride + (head × depth + d) elements, likewise for @p values. Packing
+ *      fuses no transposition, so depth-major K or V is transposed in a separate pass first.
  *  @param[in] key_stride Bytes between tokens of @p keys.
  *  @param[in] value_stride Bytes between tokens of @p values.
  *  @param[out] key_value_packed 64-byte-aligned buffer of @c attention_pack_size bytes.
@@ -317,10 +317,10 @@ expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std:
  *      whose operands are @c operand_pointer references.
  */
 template <numeric_dtype in_type_>
-status_t attention_pack(operand_pointer<in_type_> keys, operand_pointer<in_type_> values,
-                        std::size_t key_value_head_count, std::size_t depth, std::uint32_t const *key_offsets,
-                        std::uint32_t const *key_lengths, std::size_t segment_count, std::size_t key_stride,
-                        std::size_t value_stride, void *key_value_packed, std::size_t tasks_begin = 0,
+status_t attention_pack(std::size_t key_value_head_count, std::size_t depth, std::uint32_t const *key_offsets,
+                        std::uint32_t const *key_lengths, std::size_t segment_count, operand_pointer<in_type_> keys,
+                        std::size_t key_stride, operand_pointer<in_type_> values, std::size_t value_stride,
+                        void *key_value_packed, std::size_t tasks_begin = 0,
                         std::size_t tasks_end = std::numeric_limits<std::size_t>::max(),
                         nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
@@ -329,84 +329,84 @@ status_t attention_pack(operand_pointer<in_type_> keys, operand_pointer<in_type_
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_pack_bf16_best(
-                keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys_raw, key_stride, values_raw,
                 value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t>)
             return static_cast<status_t>(nk_attention_pack_f16_best(
-                keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys_raw, key_stride, values_raw,
                 value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_pack_e4m3_best(
-                keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys_raw, key_stride, values_raw,
                 value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
             return static_cast<status_t>(nk_attention_pack_i8_best(
-                keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys_raw, key_stride, values_raw,
                 value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
             return static_cast<status_t>(nk_attention_pack_nvfp4_best(
-                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
                 value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
             return static_cast<status_t>(nk_attention_pack_mxfp4_best(
-                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
                 value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
             return static_cast<status_t>(nk_attention_pack_mxfp6e2m3_best(
-                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
                 value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
             return static_cast<status_t>(nk_attention_pack_mxfp6e3m2_best(
-                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
                 value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
             return static_cast<status_t>(nk_attention_pack_mxfp8e4m3_best(
-                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
                 value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
             return static_cast<status_t>(nk_attention_pack_mxfp8e5m2_best(
-                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
                 value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_pack_bf16_serial(
-            keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys_raw, key_stride, values_raw,
             value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, f16_t>)
         return static_cast<status_t>(nk_attention_pack_f16_serial(
-            keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys_raw, key_stride, values_raw,
             value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
         return static_cast<status_t>(nk_attention_pack_e4m3_serial(
-            keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys_raw, key_stride, values_raw,
             value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         return static_cast<status_t>(nk_attention_pack_i8_serial(
-            keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys_raw, key_stride, values_raw,
             value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
         return static_cast<status_t>(nk_attention_pack_nvfp4_serial(
-            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
             value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
         return static_cast<status_t>(nk_attention_pack_mxfp4_serial(
-            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
             value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
         return static_cast<status_t>(nk_attention_pack_mxfp6e2m3_serial(
-            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
             value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
         return static_cast<status_t>(nk_attention_pack_mxfp6e3m2_serial(
-            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
             value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
         return static_cast<status_t>(nk_attention_pack_mxfp8e4m3_serial(
-            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
             value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
         return static_cast<status_t>(nk_attention_pack_mxfp8e5m2_serial(
-            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            key_value_head_count, depth, key_offsets, key_lengths, segment_count, keys, key_stride, values,
             value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else return status_t::missing_kernel_k;
 }
@@ -690,9 +690,9 @@ class packed_attention {
         pa.data_ = alloc_traits::allocate(pa.alloc_, pa.size_bytes_);
         if (!pa.data_) return {packed_attention(alloc), status_t::bad_alloc_k};
 
-        if (status_t status = attention_pack<value_type_>(keys.data(), values.data(), pa.key_value_head_count_,
-                                                          pa.depth_, key_offsets.data(), key_lengths.data(),
-                                                          segment_count, static_cast<std::size_t>(keys.stride_bytes(0)),
+        if (status_t status = attention_pack<value_type_>(pa.key_value_head_count_, pa.depth_, key_offsets.data(),
+                                                          key_lengths.data(), segment_count, keys.data(),
+                                                          static_cast<std::size_t>(keys.stride_bytes(0)), values.data(),
                                                           static_cast<std::size_t>(values.stride_bytes(0)), pa.data_, 0,
                                                           static_cast<std::size_t>(-1), capabilities);
             failed(status))

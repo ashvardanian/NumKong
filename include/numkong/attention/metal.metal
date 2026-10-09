@@ -21,6 +21,8 @@ struct nk_attention_rope_arguments_metal_t {
     ulong rows, heads, depth, x_stride, y_stride;
 };
 
+static_assert(sizeof(nk_attention_rope_arguments_metal_t) == 40, "mirrors the C record in attention/metal.h");
+
 /** Rotates every head of every row as @c nk_attention_rope_f32_serial does, a simdgroup each. */
 template <typename element_type_>
 inline void nk_attention_rope_metal_(device uchar const *x, device float const *cosine, device float const *sine,
@@ -90,13 +92,16 @@ struct nk_attention_pack_arguments_metal_t {
     ulong key_bytes, value_bytes, packed_bytes, lengths_bytes, capability;
 };
 
+static_assert(sizeof(nk_attention_pack_arguments_metal_t) == 104, "mirrors the C record in attention/metal.h");
+
 /** The launch record of the attention kernels, laid out as @c nk_attention_arguments_metal_t. */
 struct nk_attention_arguments_metal_t {
-    ulong heads, kv_heads, depth, query_stride, output_stride, keys_before, keys_after, tasks_begin, tasks_end;
-    ulong query_bytes, packed_bytes, output_bytes, offsets_bytes, log_sum_exp_bytes;
-    ulong capability;
+    ulong heads, kv_heads, depth, query_tokens, query_stride, output_stride, keys_before, keys_after;
+    ulong tasks_begin, tasks_end, packed_bytes, offsets_bytes, log_sum_exp_bytes, capability;
     float scale2;
 };
+
+static_assert(sizeof(nk_attention_arguments_metal_t) == 120, "mirrors the C record in attention/metal.h");
 
 /** Bytes from the start of a pack of @p segments segments to its payload: the header and the
  *  directory, padded as @c nk_attention_pack_directory_size_serial_ pads it. */
@@ -237,7 +242,7 @@ inline ulong nk_attention_segments_metal_(device uchar const *packed, constant n
 }
 
 /** Fills @p work for @p pair, segment × heads + head, returning false when the window holds none of
- *  its rows or its planes run past the pack. */
+ *  its rows, its queries run past the rows the call addresses, or its planes run past the pack. */
 template <typename element_type_>
 inline bool nk_attention_work_metal_(device uchar const *packed, device uint const *query_offsets,
                                      constant nk_attention_arguments_metal_t &a, ulong segments, ulong pair,
@@ -246,7 +251,7 @@ inline bool nk_attention_work_metal_(device uchar const *packed, device uint con
     ulong const tasks_begin = max(a.tasks_begin, ulong(query_offsets[0]) * a.heads);
     ulong const tasks_end = min(a.tasks_end, ulong(query_offsets[segments]) * a.heads);
     ulong const query_first = query_offsets[segment], query_end = query_offsets[segment + 1];
-    if (tasks_begin >= tasks_end || query_first > query_end) return false;
+    if (tasks_begin >= tasks_end || query_first > query_end || query_end > a.query_tokens) return false;
     ulong const token_first = (tasks_begin + a.heads - 1 - head) / a.heads;
     ulong const token_end = min((tasks_end + a.heads - 1 - head) / a.heads, query_end);
     work.row_begin = token_first > query_first ? token_first - query_first : 0;
@@ -268,16 +273,6 @@ inline bool nk_attention_work_metal_(device uchar const *packed, device uint con
     work.keys = packed + payload_offset + payload_offsets[segment] + head / (a.heads / a.kv_heads) * plane_bytes;
     work.values = work.keys + a.kv_heads * plane_bytes;
     return true;
-}
-
-/** Whether query token @p row has a whole query row and output row inside their buffers. */
-template <typename element_type_>
-inline bool nk_attention_row_valid_metal_(constant nk_attention_arguments_metal_t &a, ulong row) {
-    ulong const query_bytes = a.heads * a.depth * sizeof(typename element_type_::raw_t),
-                output_bytes = a.heads * a.depth * 4;
-    return query_bytes <= a.query_bytes && output_bytes <= a.output_bytes &&
-           (!a.query_stride || row <= (a.query_bytes - query_bytes) / a.query_stride) &&
-           (!a.output_stride || row <= (a.output_bytes - output_bytes) / a.output_stride);
 }
 
 /** Stores the log-sum-exp of query token @p row and @p head, when the launch takes them. */
@@ -359,7 +354,6 @@ inline void nk_attention_rows_metal_(device uchar const *queries, device uchar *
     for (ulong local = work.row_begin + (cooperative ? row_group : row_group * 4 + warp); local < work.row_end;
          local += cooperative ? row_groups : row_groups * 4) {
         ulong const row = work.query_first + local;
-        if (!nk_attention_row_valid_metal_<element_type_>(a, row)) continue;
         device uchar const *query = queries + row * a.query_stride + head * row_bytes;
         ulong begin, end;
         nk_attention_row_range_metal_(a, work.first_position + long(local), work.length, begin, end);
@@ -515,7 +509,6 @@ inline void nk_attention_merge_metal_(device uchar const *packed, device uchar *
         if (!nk_attention_work_metal_<element_type_>(packed, query_offsets, a, segments, pair, work)) continue;
         for (ulong local = work.row_begin + group.y; local < work.row_end; local += groups.y) {
             ulong const row = work.query_first + local;
-            if (!nk_attention_row_valid_metal_<element_type_>(a, row)) continue;
             device float const *parts = split + (row * a.heads + head) * partitions * (a.depth + 2);
             float const local_maximum = lane < partitions ? parts[lane * (a.depth + 2)] : -INFINITY;
             float const local_sum = lane < partitions ? parts[lane * (a.depth + 2) + 1] : 0;
@@ -572,7 +565,6 @@ inline void nk_attention_fallback_metal_(device uchar const *queries, device uch
         for (ulong local = work.row_begin + ulong(group.y) * 4 + warp; local < work.row_end;
              local += ulong(groups.y) * 4) {
             ulong const row = work.query_first + local;
-            if (!nk_attention_row_valid_metal_<element_type_>(a, row)) continue;
             device uchar const *query = queries + row * a.query_stride + head * row_bytes;
             device float *result = (device float *)(output + row * a.output_stride) + head * a.depth;
             ulong begin, end;
@@ -755,8 +747,7 @@ inline void nk_attention_stage_qk_metal_(device uchar const *queries, thread nk_
         float value = 0;
         if (row < 32) {
             ulong const local = row_first + row;
-            if (local < work.queries && depth_first + channel < a.depth &&
-                nk_attention_row_valid_metal_<element_type_>(a, work.query_first + local))
+            if (local < work.queries && depth_first + channel < a.depth)
                 value = float(element_type_::load(
                     queries + (work.query_first + local) * a.query_stride + head * row_bytes, depth_first + channel));
             left[cell] = stage_type_(value);
@@ -891,9 +882,8 @@ inline void nk_attention_matrix_metal_(device uchar const *queries, device uchar
                 for (ulong cell = thread_index; cell < 32 * a.depth; cell += 128) {
                     ulong const local = row_first + cell / a.depth, channel = cell % a.depth,
                                 row = work.query_first + local;
-                    if (local >= work.row_begin && local < work.row_end &&
-                        nk_attention_row_valid_metal_<element_type_>(a, row))
-                        ((device float *)(output + row * a.output_stride))[head * a.depth + channel] = 0;
+                    device float *destination = (device float *)(output + row * a.output_stride) + head * a.depth;
+                    if (local >= work.row_begin && local < work.row_end) destination[channel] = 0;
                 }
             threadgroup_barrier(mem_flags::mem_threadgroup | mem_flags::mem_device);
             if constexpr (sizeof(stage_t) == 1) {
@@ -934,11 +924,10 @@ inline void nk_attention_matrix_metal_(device uchar const *queries, device uchar
                             uint const slot = uint(depth_first / 32) * 8 + index;
                             accumulation[slot] = accumulation[slot] * corrections[cell / 32] + scores[cell];
                         }
-                        else if (local >= work.row_begin && local < work.row_end && channel < a.depth &&
-                                 nk_attention_row_valid_metal_<element_type_>(a, row)) {
-                            device float &value =
-                                ((device float *)(output + row * a.output_stride))[head * a.depth + channel];
-                            value = value * corrections[cell / 32] + scores[cell];
+                        else if (local >= work.row_begin && local < work.row_end && channel < a.depth) {
+                            device float *destination = (device float *)(output + row * a.output_stride) +
+                                                        head * a.depth;
+                            destination[channel] = destination[channel] * corrections[cell / 32] + scores[cell];
                         }
                     }
                     threadgroup_barrier(resident ? mem_flags::mem_threadgroup
@@ -952,11 +941,9 @@ inline void nk_attention_matrix_metal_(device uchar const *queries, device uchar
                     ulong const local = row_first + cell / 32, row = work.query_first + local;
                     ulong const channel = slot / 8 * 32 + cell % 32;
                     float const sum = sums[cell / 32];
-                    if (local < work.row_begin || local >= work.row_end || channel >= a.depth ||
-                        !nk_attention_row_valid_metal_<element_type_>(a, row))
-                        continue;
-                    ((device float *)(output + row * a.output_stride))[head * a.depth + channel] =
-                        accumulation[slot] * (sum > 0 ? precise::divide(1.0f, sum) : 0);
+                    if (local < work.row_begin || local >= work.row_end || channel >= a.depth) continue;
+                    device float *destination = (device float *)(output + row * a.output_stride) + head * a.depth;
+                    destination[channel] = accumulation[slot] * (sum > 0 ? precise::divide(1.0f, sum) : 0);
                 }
             }
             else
@@ -964,10 +951,9 @@ inline void nk_attention_matrix_metal_(device uchar const *queries, device uchar
                     ulong const local = row_first + cell / a.depth, channel = cell % a.depth,
                                 row = work.query_first + local;
                     float const sum = sums[cell / a.depth];
-                    if (local >= work.row_begin && local < work.row_end &&
-                        nk_attention_row_valid_metal_<element_type_>(a, row))
-                        ((device float *)(output + row * a.output_stride))[head * a.depth + channel] *=
-                            sum > 0 ? precise::divide(1.0f, sum) : 0;
+                    device float *destination = (device float *)(output + row * a.output_stride) + head * a.depth;
+                    if (local >= work.row_begin && local < work.row_end)
+                        destination[channel] *= sum > 0 ? precise::divide(1.0f, sum) : 0;
                 }
             if (thread_index < 32 && row_first + thread_index >= work.row_begin &&
                 row_first + thread_index < work.row_end)

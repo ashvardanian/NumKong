@@ -250,12 +250,13 @@ NUMKONG_DEVICE void nk_attention_tile_e4m3_blackwellrtx_(nk_attention_width_t wi
 NUMKONG_INLINE nk_status_t nk_attention_launch_e4m3_blackwellrtx_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, void const *queries,
     void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin,
+    nk_size_t tasks_end, nk_stream_t stream) {
     return nk_attention_launch_ampere_(narrow_kernel, wide_kernel, fallback_kernel, 1, 1, queries, packed, output,
                                        log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
-                                       query_stride, output_stride, scale, 1.0f, 1.0f, keys_before, keys_after,
-                                       tasks_begin, tasks_end, stream);
+                                       query_token_count, query_stride, output_stride, scale, 1.0f, 1.0f, keys_before,
+                                       keys_after, tasks_begin, tasks_end, stream);
 }
 
 #pragma endregion Tile

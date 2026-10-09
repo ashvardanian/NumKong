@@ -72,6 +72,9 @@ typedef struct {
     /** First query row of each segment, with segments + 1 entries. */
     nk_u32_t const *query_offsets;
 
+    /** Query rows the call addresses, `query_offsets[segments]`. */
+    nk_size_t query_token_count;
+
     /** Query heads. */
     nk_size_t head_count;
 
@@ -705,6 +708,9 @@ typedef struct {
     /** First query token of each segment. */
     nk_u32_t const *query_offsets;
 
+    /** Query rows the call addresses, `query_offsets[segments]`. */
+    nk_size_t query_token_count;
+
     nk_size_t head_count;
     nk_size_t key_value_head_count;
     nk_size_t depth;
@@ -772,7 +778,7 @@ NUMKONG_INLINE nk_attention_backward_arguments_t nk_attention_backward_arguments
     void const *queries, void const *packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
     nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
-    nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t query_token_count, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
     nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
     nk_size_t tasks_begin, nk_size_t tasks_end) {
     nk_attention_backward_arguments_t arguments;
@@ -780,7 +786,7 @@ NUMKONG_INLINE nk_attention_backward_arguments_t nk_attention_backward_arguments
     arguments.output = output, arguments.output_gradient = output_gradient, arguments.log_sum_exp = log_sum_exp;
     arguments.query_gradient = query_gradient, arguments.key_gradient = key_gradient;
     arguments.value_gradient = value_gradient;
-    arguments.query_offsets = query_offsets;
+    arguments.query_offsets = query_offsets, arguments.query_token_count = query_token_count;
     arguments.head_count = head_count, arguments.key_value_head_count = key_value_head_count, arguments.depth = depth;
     arguments.query_stride = query_stride, arguments.output_stride = output_stride;
     arguments.query_gradient_stride = query_gradient_stride;
@@ -800,12 +806,13 @@ NUMKONG_INLINE nk_attention_backward_arguments_t nk_attention_backward_arguments
  *  @p tasks_end left for the device to clip. */
 NUMKONG_INLINE nk_attention_arguments_t nk_attention_arguments_init_simt_(
     void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
-    nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end) {
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_token_count,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale,
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end) {
     nk_attention_arguments_t arguments;
     arguments.queries = (unsigned char const *)queries, arguments.packed = (unsigned char const *)packed;
     arguments.output = output, arguments.log_sum_exp = log_sum_exp, arguments.query_offsets = query_offsets;
+    arguments.query_token_count = query_token_count;
     arguments.head_count = head_count, arguments.key_value_head_count = key_value_head_count;
     arguments.depth = depth, arguments.query_stride = query_stride, arguments.output_stride = output_stride;
     arguments.band.subdiagonals = keys_before, arguments.band.superdiagonals = keys_after;
@@ -873,10 +880,11 @@ NUMKONG_INLINE nk_attention_arguments_t nk_attention_arguments_init_simt_(
         nk_attention_fallback_##input_type##_##vendor##_(&arguments);                                                 \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_attention_packed_##input_type##_##isa_suffix(                                          \
-        nk_##input_type##_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,    \
         nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,         \
-        nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, \
-        nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {                                             \
+        nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,                     \
+        nk_##input_type##_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,   \
+        nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end,                   \
+        nk_stream_t stream) {                                                                                         \
         int const masked = keys_before != NUMKONG_SIZE_MAX || keys_after != NUMKONG_SIZE_MAX;                         \
         return nk_attention_launch_##input_type##_##isa_suffix##_(                                                    \
             masked ? (void const *)nk_attention_packed_##input_type##_narrow_masked_##isa_suffix##_kernel_            \
@@ -885,7 +893,8 @@ NUMKONG_INLINE nk_attention_arguments_t nk_attention_arguments_init_simt_(
                    : (void const *)nk_attention_packed_##input_type##_wide_##isa_suffix##_kernel_,                    \
             (void const *)nk_attention_packed_##input_type##_fallback_##isa_suffix##_kernel_, queries,                \
             key_value_packed, output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets,            \
-            query_stride, output_stride, scale, keys_before, keys_after, tasks_begin, tasks_end, stream);             \
+            query_token_count, query_stride, output_stride, scale, keys_before, keys_after, tasks_begin, tasks_end,   \
+            stream);                                                                                                  \
     }
 
 #pragma endregion Attention Macros

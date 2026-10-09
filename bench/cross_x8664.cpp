@@ -56,8 +56,12 @@ void bench_cross_x8664(environment_t const &env) {
                                 nk_dots_pack_e2m1_haswell, nk_dots_packed_e2m1_haswell);
         run_dots_packed<i8_k>(env, "dots_packed_i8_haswell", nk_dots_pack_size_i8_haswell, nk_dots_pack_i8_haswell,
                               nk_dots_packed_i8_haswell);
+        run_dots_packed<i4_k>(env, "dots_packed_i4_haswell", nk_dots_pack_size_i4_haswell, nk_dots_pack_i4_haswell,
+                              nk_dots_packed_i4_haswell);
         run_dots_packed<u8_k>(env, "dots_packed_u8_haswell", nk_dots_pack_size_u8_haswell, nk_dots_pack_u8_haswell,
                               nk_dots_packed_u8_haswell);
+        run_dots_packed<u4_k>(env, "dots_packed_u4_haswell", nk_dots_pack_size_u4_haswell, nk_dots_pack_u4_haswell,
+                              nk_dots_packed_u4_haswell);
         run_dots_packed<u1_k>(env, "dots_packed_u1_haswell", nk_dots_pack_size_u1_haswell, nk_dots_pack_u1_haswell,
                               nk_dots_packed_u1_haswell);
 
@@ -71,7 +75,9 @@ void bench_cross_x8664(environment_t const &env) {
         run_dots_symmetric<e2m3_k>(env, "dots_symmetric_e2m3_haswell", nk_dots_symmetric_e2m3_haswell);
         run_dots_symmetric<e2m1_k>(env, "dots_symmetric_e2m1_haswell", nk_dots_symmetric_e2m1_haswell);
         run_dots_symmetric<i8_k>(env, "dots_symmetric_i8_haswell", nk_dots_symmetric_i8_haswell);
+        run_dots_symmetric<i4_k>(env, "dots_symmetric_i4_haswell", nk_dots_symmetric_i4_haswell);
         run_dots_symmetric<u8_k>(env, "dots_symmetric_u8_haswell", nk_dots_symmetric_u8_haswell);
+        run_dots_symmetric<u4_k>(env, "dots_symmetric_u4_haswell", nk_dots_symmetric_u4_haswell);
         run_dots_symmetric<u1_k>(env, "dots_symmetric_u1_haswell", nk_dots_symmetric_u1_haswell);
 
         run_angulars_packed<f64_k>(env, "angulars_packed_f64_haswell", nk_dots_pack_size_f64_haswell,
@@ -94,8 +100,12 @@ void bench_cross_x8664(environment_t const &env) {
                                     nk_dots_pack_e2m1_haswell, nk_angulars_packed_e2m1_haswell);
         run_angulars_packed<i8_k>(env, "angulars_packed_i8_haswell", nk_dots_pack_size_i8_haswell,
                                   nk_dots_pack_i8_haswell, nk_angulars_packed_i8_haswell);
+        run_angulars_packed<i4_k>(env, "angulars_packed_i4_haswell", nk_dots_pack_size_i4_haswell,
+                                  nk_dots_pack_i4_haswell, nk_angulars_packed_i4_haswell);
         run_angulars_packed<u8_k>(env, "angulars_packed_u8_haswell", nk_dots_pack_size_u8_haswell,
                                   nk_dots_pack_u8_haswell, nk_angulars_packed_u8_haswell);
+        run_angulars_packed<u4_k>(env, "angulars_packed_u4_haswell", nk_dots_pack_size_u4_haswell,
+                                  nk_dots_pack_u4_haswell, nk_angulars_packed_u4_haswell);
 
         run_angulars_symmetric<f64_k>(env, "angulars_symmetric_f64_haswell", nk_angulars_symmetric_f64_haswell);
         run_angulars_symmetric<f32_k>(env, "angulars_symmetric_f32_haswell", nk_angulars_symmetric_f32_haswell);
@@ -107,7 +117,9 @@ void bench_cross_x8664(environment_t const &env) {
         run_angulars_symmetric<e2m3_k>(env, "angulars_symmetric_e2m3_haswell", nk_angulars_symmetric_e2m3_haswell);
         run_angulars_symmetric<e2m1_k>(env, "angulars_symmetric_e2m1_haswell", nk_angulars_symmetric_e2m1_haswell);
         run_angulars_symmetric<i8_k>(env, "angulars_symmetric_i8_haswell", nk_angulars_symmetric_i8_haswell);
+        run_angulars_symmetric<i4_k>(env, "angulars_symmetric_i4_haswell", nk_angulars_symmetric_i4_haswell);
         run_angulars_symmetric<u8_k>(env, "angulars_symmetric_u8_haswell", nk_angulars_symmetric_u8_haswell);
+        run_angulars_symmetric<u4_k>(env, "angulars_symmetric_u4_haswell", nk_angulars_symmetric_u4_haswell);
 
         run_euclideans_packed<f64_k>(env, "euclideans_packed_f64_haswell", nk_dots_pack_size_f64_haswell,
                                      nk_dots_pack_f64_haswell, nk_euclideans_packed_f64_haswell);
@@ -129,8 +141,12 @@ void bench_cross_x8664(environment_t const &env) {
                                       nk_dots_pack_e2m1_haswell, nk_euclideans_packed_e2m1_haswell);
         run_euclideans_packed<i8_k>(env, "euclideans_packed_i8_haswell", nk_dots_pack_size_i8_haswell,
                                     nk_dots_pack_i8_haswell, nk_euclideans_packed_i8_haswell);
+        run_euclideans_packed<i4_k>(env, "euclideans_packed_i4_haswell", nk_dots_pack_size_i4_haswell,
+                                    nk_dots_pack_i4_haswell, nk_euclideans_packed_i4_haswell);
         run_euclideans_packed<u8_k>(env, "euclideans_packed_u8_haswell", nk_dots_pack_size_u8_haswell,
                                     nk_dots_pack_u8_haswell, nk_euclideans_packed_u8_haswell);
+        run_euclideans_packed<u4_k>(env, "euclideans_packed_u4_haswell", nk_dots_pack_size_u4_haswell,
+                                    nk_dots_pack_u4_haswell, nk_euclideans_packed_u4_haswell);
 
         run_euclideans_symmetric<f64_k>(env, "euclideans_symmetric_f64_haswell", nk_euclideans_symmetric_f64_haswell);
         run_euclideans_symmetric<f32_k>(env, "euclideans_symmetric_f32_haswell", nk_euclideans_symmetric_f32_haswell);
@@ -148,7 +164,9 @@ void bench_cross_x8664(environment_t const &env) {
         run_euclideans_symmetric<e2m1_k>(env, "euclideans_symmetric_e2m1_haswell",
                                          nk_euclideans_symmetric_e2m1_haswell);
         run_euclideans_symmetric<i8_k>(env, "euclideans_symmetric_i8_haswell", nk_euclideans_symmetric_i8_haswell);
+        run_euclideans_symmetric<i4_k>(env, "euclideans_symmetric_i4_haswell", nk_euclideans_symmetric_i4_haswell);
         run_euclideans_symmetric<u8_k>(env, "euclideans_symmetric_u8_haswell", nk_euclideans_symmetric_u8_haswell);
+        run_euclideans_symmetric<u4_k>(env, "euclideans_symmetric_u4_haswell", nk_euclideans_symmetric_u4_haswell);
 
         run_hammings_packed<u1_k>(env, "hammings_packed_u1_haswell", nk_dots_pack_size_u1_haswell,
                                   nk_dots_pack_u1_haswell, nk_hammings_packed_u1_haswell);

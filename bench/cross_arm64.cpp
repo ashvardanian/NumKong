@@ -163,6 +163,18 @@ void bench_cross_arm64(environment_t const &env) {
                               nk_attention_pack_e4m3_neon, nk_attention_packed_e4m3_neon);
         run_attention<i8_k>(env, "attention_packed_i8_neon", nk_attention_pack_size_i8_neon, nk_attention_pack_i8_neon,
                             nk_attention_packed_i8_neon);
+        run_attention<nk_nvfp4_k>(env, "attention_packed_nvfp4_neon", nk_attention_pack_size_nvfp4_neon,
+                                  nk_attention_pack_nvfp4_neon, nk_attention_packed_nvfp4_neon);
+        run_attention<nk_mxfp4_k>(env, "attention_packed_mxfp4_neon", nk_attention_pack_size_mxfp4_neon,
+                                  nk_attention_pack_mxfp4_neon, nk_attention_packed_mxfp4_neon);
+        run_attention<nk_mxfp6e2m3_k>(env, "attention_packed_mxfp6e2m3_neon", nk_attention_pack_size_mxfp6e2m3_neon,
+                                      nk_attention_pack_mxfp6e2m3_neon, nk_attention_packed_mxfp6e2m3_neon);
+        run_attention<nk_mxfp6e3m2_k>(env, "attention_packed_mxfp6e3m2_neon", nk_attention_pack_size_mxfp6e3m2_neon,
+                                      nk_attention_pack_mxfp6e3m2_neon, nk_attention_packed_mxfp6e3m2_neon);
+        run_attention<nk_mxfp8e4m3_k>(env, "attention_packed_mxfp8e4m3_neon", nk_attention_pack_size_mxfp8e4m3_neon,
+                                      nk_attention_pack_mxfp8e4m3_neon, nk_attention_packed_mxfp8e4m3_neon);
+        run_attention<nk_mxfp8e5m2_k>(env, "attention_packed_mxfp8e5m2_neon", nk_attention_pack_size_mxfp8e5m2_neon,
+                                      nk_attention_pack_mxfp8e5m2_neon, nk_attention_packed_mxfp8e5m2_neon);
         run_attention_rope<f32_k>(env, "attention_rope_f32_neon", nk_attention_rope_f32_neon);
         run_attention_rope<bf16_k>(env, "attention_rope_bf16_neon", nk_attention_rope_bf16_neon);
         run_attention_rope<e4m3_k>(env, "attention_rope_e4m3_neon", nk_attention_rope_e4m3_neon);
@@ -235,10 +247,12 @@ void bench_cross_arm64(environment_t const &env) {
         run_euclideans_symmetric<nk_mxfp8e5m2_k>(env, "euclideans_symmetric_mxfp8e5m2_neonfhm",
                                                  nk_euclideans_symmetric_mxfp8e5m2_neonfhm);
 
-        run_attention<e4m3_k>(env, "attention_packed_e4m3_neonfhm", nk_attention_pack_size_e4m3_neonfhm,
-                              nk_attention_pack_e4m3_neonfhm, nk_attention_packed_e4m3_neonfhm);
         run_attention<f16_k>(env, "attention_packed_f16_neonfhm", nk_attention_pack_size_f16_neonfhm,
                              nk_attention_pack_f16_neonfhm, nk_attention_packed_f16_neonfhm);
+        run_attention<e4m3_k>(env, "attention_packed_e4m3_neonfhm", nk_attention_pack_size_e4m3_neonfhm,
+                              nk_attention_pack_e4m3_neonfhm, nk_attention_packed_e4m3_neonfhm);
+        run_attention<nk_nvfp4_k>(env, "attention_packed_nvfp4_neonfhm", nk_attention_pack_size_nvfp4_neonfhm,
+                                  nk_attention_pack_nvfp4_neonfhm, nk_attention_packed_nvfp4_neonfhm);
     }
 #endif // NUMKONG_TARGET_NEONFHM
 
@@ -258,6 +272,20 @@ void bench_cross_arm64(environment_t const &env) {
 
         run_attention<bf16_k>(env, "attention_packed_bf16_neonbfdot", nk_attention_pack_size_bf16_neonbfdot,
                               nk_attention_pack_bf16_neonbfdot, nk_attention_packed_bf16_neonbfdot);
+        run_attention<nk_mxfp4_k>(env, "attention_packed_mxfp4_neonbfdot", nk_attention_pack_size_mxfp4_neonbfdot,
+                                  nk_attention_pack_mxfp4_neonbfdot, nk_attention_packed_mxfp4_neonbfdot);
+        run_attention<nk_mxfp6e2m3_k>(env, "attention_packed_mxfp6e2m3_neonbfdot",
+                                      nk_attention_pack_size_mxfp6e2m3_neonbfdot, nk_attention_pack_mxfp6e2m3_neonbfdot,
+                                      nk_attention_packed_mxfp6e2m3_neonbfdot);
+        run_attention<nk_mxfp6e3m2_k>(env, "attention_packed_mxfp6e3m2_neonbfdot",
+                                      nk_attention_pack_size_mxfp6e3m2_neonbfdot, nk_attention_pack_mxfp6e3m2_neonbfdot,
+                                      nk_attention_packed_mxfp6e3m2_neonbfdot);
+        run_attention<nk_mxfp8e4m3_k>(env, "attention_packed_mxfp8e4m3_neonbfdot",
+                                      nk_attention_pack_size_mxfp8e4m3_neonbfdot, nk_attention_pack_mxfp8e4m3_neonbfdot,
+                                      nk_attention_packed_mxfp8e4m3_neonbfdot);
+        run_attention<nk_mxfp8e5m2_k>(env, "attention_packed_mxfp8e5m2_neonbfdot",
+                                      nk_attention_pack_size_mxfp8e5m2_neonbfdot, nk_attention_pack_mxfp8e5m2_neonbfdot,
+                                      nk_attention_packed_mxfp8e5m2_neonbfdot);
     }
 #endif // NUMKONG_TARGET_NEONBFDOT
 
@@ -436,12 +464,14 @@ void bench_cross_arm64(environment_t const &env) {
     if (section(env, "Cross SME", nk_cap_sme_k)) {
         run_attention<bf16_k>(env, "attention_packed_bf16_sme", nk_attention_pack_size_bf16_sme,
                               nk_attention_pack_bf16_sme, nk_attention_packed_bf16_sme);
-        run_attention<e4m3_k>(env, "attention_packed_e4m3_sme", nk_attention_pack_size_e4m3_sme,
-                              nk_attention_pack_e4m3_sme, nk_attention_packed_e4m3_sme);
         run_attention<f16_k>(env, "attention_packed_f16_sme", nk_attention_pack_size_f16_sme, nk_attention_pack_f16_sme,
                              nk_attention_packed_f16_sme);
+        run_attention<e4m3_k>(env, "attention_packed_e4m3_sme", nk_attention_pack_size_e4m3_sme,
+                              nk_attention_pack_e4m3_sme, nk_attention_packed_e4m3_sme);
         run_attention<i8_k>(env, "attention_packed_i8_sme", nk_attention_pack_size_i8_sme, nk_attention_pack_i8_sme,
                             nk_attention_packed_i8_sme);
+        run_attention<nk_nvfp4_k>(env, "attention_packed_nvfp4_sme", nk_attention_pack_size_nvfp4_sme,
+                                  nk_attention_pack_nvfp4_sme, nk_attention_packed_nvfp4_sme);
 
         run_dots_packed<bf16_k>(env, "dots_packed_bf16_sme", nk_dots_pack_size_bf16_sme, nk_dots_pack_bf16_sme,
                                 nk_dots_packed_bf16_sme);

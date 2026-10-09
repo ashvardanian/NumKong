@@ -526,30 +526,36 @@ std::array<nk::vector<typename nk::type_for<input_dtype_>::type>, 3> random_atte
     return inputs;
 }
 
+/** Bytes of a row of @p dimensions values of @p element_type_. */
+template <typename element_type_>
+constexpr std::size_t attention_row_bytes(std::size_t dimensions) noexcept {
+    return dimensions / nk::dimensions_per_value<element_type_>() * sizeof(typename element_type_::raw_t);
+}
+
 /** Packs the keys and values of the one segment of @p shape, whose @p directory holds key offsets
- *  then query offsets. */
-template <typename backend_type_, typename pack_kernel_type_, typename raw_type_>
+ *  then query offsets, from rows of @p element_type_ codes wrapped as the kernel takes them. */
+template <typename element_type_, typename backend_type_, typename pack_kernel_type_, typename operand_type_>
 nk_status_t attention_pack(backend_type_ &backend, pack_kernel_type_ pack_fn, attention_shape_t shape,
-                           raw_type_ const *keys, raw_type_ const *values, nk_u32_t const *directory, void *packed) {
-    std::size_t const key_stride = shape.key_value_head_count * shape.depth * sizeof(raw_type_);
-    return backend.call(pack_fn, keys, values, shape.key_value_head_count, shape.depth, directory,
-                        static_cast<nk_u32_t const *>(nullptr), std::size_t(1), key_stride, key_stride, packed,
-                        std::size_t(0), shape.key_value_head_count);
+                           operand_type_ keys, operand_type_ values, nk_u32_t const *directory, void *packed) {
+    std::size_t const key_stride = attention_row_bytes<element_type_>(shape.key_value_head_count * shape.depth);
+    return backend.call(pack_fn, shape.key_value_head_count, shape.depth, directory,
+                        static_cast<nk_u32_t const *>(nullptr), std::size_t(1), keys, key_stride, values, key_stride,
+                        packed, std::size_t(0), shape.key_value_head_count);
 }
 
 /** Runs @p attention_fn over the one segment of @p shape under @p visibility_, queries aligned to
  *  the keys' end, writing the log-sum-exps too unless @p log_sum_exp is null. */
-template <attention_visibility_t visibility_, typename backend_type_, typename attention_kernel_type_,
-          typename raw_type_>
+template <attention_visibility_t visibility_, typename element_type_, typename backend_type_,
+          typename attention_kernel_type_, typename operand_type_>
 nk_status_t attend(backend_type_ &backend, attention_kernel_type_ attention_fn, attention_shape_t shape,
-                   nk_u32_t const *directory, raw_type_ const *queries, void const *packed, nk_f32_t *output,
+                   nk_u32_t const *directory, operand_type_ queries, void const *packed, nk_f32_t *output,
                    nk_f32_t *log_sum_exp = nullptr) {
-    std::size_t const query_stride = shape.head_count * shape.depth * sizeof(raw_type_);
+    std::size_t const query_stride = attention_row_bytes<element_type_>(shape.head_count * shape.depth);
     std::size_t const output_stride = shape.head_count * shape.depth * sizeof(nk_f32_t);
     nk_f32_t const scale = 1.0f / std::sqrt(float(shape.depth));
-    return backend.call(attention_fn, queries, packed, output, log_sum_exp, shape.head_count,
-                        shape.key_value_head_count, shape.depth, directory + 2, query_stride, output_stride, scale,
-                        attention_keys_before(visibility_), attention_keys_after(visibility_), std::size_t(0),
+    return backend.call(attention_fn, shape.head_count, shape.key_value_head_count, shape.depth, directory + 2,
+                        shape.queries, scale, attention_keys_before(visibility_), attention_keys_after(visibility_),
+                        queries, query_stride, packed, output, output_stride, log_sum_exp, std::size_t(0),
                         shape.queries * shape.head_count);
 }
 
@@ -579,9 +585,17 @@ template <nk_dtype_t input_dtype_, attention_visibility_t visibility_, typename 
 void measure_attention(loop_t &loop, environment_t const &env, backend_type_ backend,
                        pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
                        attention_kernel_type_ attention_fn, attention_shape_t shape) {
-    using input_t = typename nk::type_for<input_dtype_>::type;
+    constexpr nk_dtype_t element_dtype_ = nk_block_scaled_format_of_dtype(input_dtype_).element_dtype;
+    using input_t = typename nk::type_for<element_dtype_>::type;
     using set_t = attention_set<backend_type_, input_t>;
-    auto const [queries, keys, values] = random_attention<input_dtype_>(shape, env.settings.seed);
+    auto const [queries, keys, values] = random_attention<element_dtype_>(shape, env.settings.seed);
+    unit_block_scales<input_dtype_, backend_type_> query_scales, key_scales, value_scales;
+    std::size_t const key_stride = attention_row_bytes<input_t>(shape.key_value_head_count * shape.depth);
+    if (!succeeded(loop, query_scales.initialize(backend, shape.queries,
+                                                 attention_row_bytes<input_t>(shape.head_count * shape.depth))) ||
+        !succeeded(loop, key_scales.initialize(backend, shape.keys, key_stride)) ||
+        !succeeded(loop, value_scales.initialize(backend, shape.keys, key_stride)))
+        return;
     auto const [keys_uploaded, keys_uploaded_status] = upload(backend, keys.values_data(), keys.size());
     if (!nk::succeeded(keys_uploaded_status)) return loop.skip(nk::status_name(keys_uploaded_status));
     auto const [values_uploaded, values_uploaded_status] = upload(backend, values.values_data(), values.size());
@@ -604,17 +618,18 @@ void measure_attention(loop_t &loop, environment_t const &env, backend_type_ bac
         if (set.queries.empty() || set.packed.empty() || set.output.empty()) return loop.skip("set allocation failed");
         if (!succeeded(loop, backend.zero(set.packed.raw_values_data(), packed_bytes))) return;
         if (!succeeded(loop, backend.zero(set.output.raw_values_data(), set.output.size_bytes()))) return;
-        nk_status_t const submission_status = attention_pack(backend, pack_fn, shape, keys_uploaded.raw_values_data(),
-                                                             values_uploaded.raw_values_data(),
-                                                             directory.raw_values_data(), set.packed.raw_values_data());
+        nk_status_t const submission_status = attention_pack<input_t>(
+            backend, pack_fn, shape, key_scales.operand(keys_uploaded.raw_values_data()),
+            value_scales.operand(values_uploaded.raw_values_data()), directory.raw_values_data(),
+            set.packed.raw_values_data());
         nk_status_t const completion_status = backend.synchronize();
         if (!succeeded(loop, submission_status) || !succeeded(loop, completion_status)) return;
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         set_t &set = sets[index];
-        return attend<visibility_>(backend, attention_fn, shape, directory.raw_values_data(),
-                                   set.queries.raw_values_data(), set.packed.raw_values_data(),
-                                   set.output.raw_values_data());
+        return attend<visibility_, input_t>(backend, attention_fn, shape, directory.raw_values_data(),
+                                            query_scales.operand(set.queries.raw_values_data()),
+                                            set.packed.raw_values_data(), set.output.raw_values_data());
     });
     if (timed) report_attention(loop, visibility_, shape);
 }
@@ -631,7 +646,8 @@ void run_attention_row(environment_t const &env, std::string const &name, pack_s
                   backend, packed_size_fn, pack_fn, attention_fn, shape);
 }
 
-/** Bidirectional and causal rows per backend shape, plus a 1024-key window where it hides keys. */
+/** Bidirectional and causal rows per @c attention_shapes entry, plus a 1024-key window where it
+ *  hides keys. */
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename attention_kernel_type_>
 void run_attention(environment_t const &env, std::string const &name, pack_size_kernel_type_ packed_size_fn,
@@ -669,11 +685,18 @@ void measure_attention_gradients(loop_t &loop, environment_t const &env, backend
                                  pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
                                  attention_kernel_type_ attention_fn, gradients_kernel_type_ gradients_fn,
                                  attention_shape_t shape) {
-    using input_t = typename nk::type_for<input_dtype_>::type;
-    using raw_t = typename input_t::raw_t;
+    constexpr nk_dtype_t element_dtype_ = nk_block_scaled_format_of_dtype(input_dtype_).element_dtype;
+    using input_t = typename nk::type_for<element_dtype_>::type;
     using set_t = attention_gradients_set<backend_type_, input_t>;
     using floats_t = typename set_t::floats_t;
-    auto const [queries, keys, values] = random_attention<input_dtype_>(shape, env.settings.seed);
+    auto const [queries, keys, values] = random_attention<element_dtype_>(shape, env.settings.seed);
+    unit_block_scales<input_dtype_, backend_type_> query_scales, key_scales, value_scales;
+    std::size_t const query_stride = attention_row_bytes<input_t>(shape.head_count * shape.depth);
+    std::size_t const key_stride = attention_row_bytes<input_t>(shape.key_value_head_count * shape.depth);
+    if (!succeeded(loop, query_scales.initialize(backend, shape.queries, query_stride)) ||
+        !succeeded(loop, key_scales.initialize(backend, shape.keys, key_stride)) ||
+        !succeeded(loop, value_scales.initialize(backend, shape.keys, key_stride)))
+        return;
     auto const [keys_uploaded, keys_uploaded_status] = upload(backend, keys.values_data(), keys.size());
     if (!nk::succeeded(keys_uploaded_status)) return loop.skip(nk::status_name(keys_uploaded_status));
     auto const [values_uploaded, values_uploaded_status] = upload(backend, values.values_data(), values.size());
@@ -711,52 +734,65 @@ void measure_attention_gradients(loop_t &loop, environment_t const &env, backend
             set.value_gradient.empty())
             return loop.skip("set allocation failed");
         if (!succeeded(loop, backend.zero(set.packed.raw_values_data(), packed_bytes))) return;
-        nk_status_t submission_status = attention_pack(backend, pack_fn, shape, keys_uploaded.raw_values_data(),
-                                                       values_uploaded.raw_values_data(), directory.raw_values_data(),
-                                                       set.packed.raw_values_data());
+        nk_status_t submission_status = attention_pack<input_t>(
+            backend, pack_fn, shape, key_scales.operand(keys_uploaded.raw_values_data()),
+            value_scales.operand(values_uploaded.raw_values_data()), directory.raw_values_data(),
+            set.packed.raw_values_data());
         if (submission_status == nk_success_k)
-            submission_status = attend<visibility_>(backend, attention_fn, shape, directory.raw_values_data(),
-                                                    set.queries.raw_values_data(), set.packed.raw_values_data(),
-                                                    set.output.raw_values_data(), set.log_sum_exp.raw_values_data());
+            submission_status = attend<visibility_, input_t>(backend, attention_fn, shape, directory.raw_values_data(),
+                                                             query_scales.operand(set.queries.raw_values_data()),
+                                                             set.packed.raw_values_data(), set.output.raw_values_data(),
+                                                             set.log_sum_exp.raw_values_data());
         nk_status_t const completion_status = backend.synchronize();
         if (!succeeded(loop, submission_status) || !succeeded(loop, completion_status)) return;
     }
-    std::size_t const query_stride = shape.head_count * shape.depth * sizeof(raw_t);
     std::size_t const output_stride = shape.head_count * shape.depth * sizeof(nk_f32_t);
     std::size_t const gradient_stride = shape.key_value_head_count * shape.depth * sizeof(nk_f32_t);
     nk_f32_t const scale = 1.0f / std::sqrt(float(shape.depth));
     nk_u32_t const *key_offsets = directory.raw_values_data(), *query_offsets = key_offsets + 2;
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         set_t &set = sets[index];
-        return backend.call(gradients_fn, set.queries.raw_values_data(), set.packed.raw_values_data(),
-                            set.output.raw_values_data(), set.output_gradient.raw_values_data(),
-                            set.log_sum_exp.raw_values_data(), set.query_gradient.raw_values_data(),
-                            set.key_gradient.raw_values_data(), set.value_gradient.raw_values_data(), shape.head_count,
-                            shape.key_value_head_count, shape.depth, query_offsets, query_stride, output_stride,
-                            output_stride, gradient_stride, scale, attention_keys_before(visibility_),
-                            attention_keys_after(visibility_), std::size_t(0), shape.key_value_head_count);
+        return backend.call(gradients_fn, shape.head_count, shape.key_value_head_count, shape.depth, query_offsets,
+                            shape.queries, scale, attention_keys_before(visibility_), attention_keys_after(visibility_),
+                            query_scales.operand(set.queries.raw_values_data()), query_stride,
+                            set.packed.raw_values_data(), set.output.raw_values_data(),
+                            set.output_gradient.raw_values_data(), output_stride, set.log_sum_exp.raw_values_data(),
+                            set.query_gradient.raw_values_data(), output_stride, set.key_gradient.raw_values_data(),
+                            set.value_gradient.raw_values_data(), gradient_stride, std::size_t(0),
+                            shape.key_value_head_count);
     });
     if (timed) report_attention(loop, visibility_, shape, 10.0);
 }
 
-/** Bidirectional and causal gradient rows per backend shape, named @p name, the forward of the
- *  same mask providing O and the log-sum-exps. */
+/** Runs one gradients row of @p shape under @p visibility_ on @p backend. */
+template <nk_dtype_t input_dtype_, attention_visibility_t visibility_, typename backend_type_,
+          typename pack_size_kernel_type_, typename pack_kernel_type_, typename attention_kernel_type_,
+          typename gradients_kernel_type_>
+void run_attention_gradients_row(environment_t const &env, std::string const &name,
+                                 pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn,
+                                 attention_kernel_type_ attention_fn, gradients_kernel_type_ gradients_fn,
+                                 attention_shape_t shape, backend_type_ backend) {
+    run_benchmark(env, attention_row_name(name, visibility_, shape),
+                  measure_attention_gradients<input_dtype_, visibility_, backend_type_, pack_size_kernel_type_,
+                                              pack_kernel_type_, attention_kernel_type_, gradients_kernel_type_>,
+                  backend, packed_size_fn, pack_fn, attention_fn, gradients_fn, shape);
+}
+
+/** Bidirectional and causal gradient rows per @c attention_shapes entry, plus a 1024-key window
+ *  where it hides keys, the forward of the same mask providing O and the log-sum-exps. */
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename attention_kernel_type_, typename gradients_kernel_type_>
 void run_attention_gradients(environment_t const &env, std::string const &name, pack_size_kernel_type_ packed_size_fn,
                              pack_kernel_type_ pack_fn, attention_kernel_type_ attention_fn,
                              gradients_kernel_type_ gradients_fn, backend_type_ backend = {}) {
     for (attention_shape_t const shape : attention_shapes(env)) {
-        run_benchmark(env, attention_row_name(name, attention_visibility_t::bidirectional_k, shape),
-                      measure_attention_gradients<input_dtype_, attention_visibility_t::bidirectional_k, backend_type_,
-                                                  pack_size_kernel_type_, pack_kernel_type_, attention_kernel_type_,
-                                                  gradients_kernel_type_>,
-                      backend, packed_size_fn, pack_fn, attention_fn, gradients_fn, shape);
-        run_benchmark(env, attention_row_name(name, attention_visibility_t::causal_k, shape),
-                      measure_attention_gradients<input_dtype_, attention_visibility_t::causal_k, backend_type_,
-                                                  pack_size_kernel_type_, pack_kernel_type_, attention_kernel_type_,
-                                                  gradients_kernel_type_>,
-                      backend, packed_size_fn, pack_fn, attention_fn, gradients_fn, shape);
+        run_attention_gradients_row<input_dtype_, attention_visibility_t::bidirectional_k, backend_type_>(
+            env, name, packed_size_fn, pack_fn, attention_fn, gradients_fn, shape, backend);
+        run_attention_gradients_row<input_dtype_, attention_visibility_t::causal_k, backend_type_>(
+            env, name, packed_size_fn, pack_fn, attention_fn, gradients_fn, shape, backend);
+        if (attention_window_clips(shape))
+            run_attention_gradients_row<input_dtype_, attention_visibility_t::causal_window_1024_k, backend_type_>(
+                env, name, packed_size_fn, pack_fn, attention_fn, gradients_fn, shape, backend);
     }
 }
 

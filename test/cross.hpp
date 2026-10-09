@@ -268,21 +268,37 @@ struct attention_segments {
  *  @p spare_rows, as a decode cache with room to grow is. */
 template <typename backend_type_>
 attention_segments<backend_type_> make_attention_segments(backend_type_ const &backend,
-                                                          std::initializer_list<nk_u32_t> lengths,
-                                                          std::initializer_list<nk_u32_t> query_counts,
-                                                          std::initializer_list<nk_u32_t> spare_rows = {}) {
+                                                          std::vector<nk_u32_t> const &lengths,
+                                                          std::vector<nk_u32_t> const &query_counts,
+                                                          std::vector<nk_u32_t> const &spare_rows = {}) {
     attention_segments<backend_type_> segments {make_vector<nk_u32_t>(backend, lengths.size()),
                                                 make_vector<nk_u32_t>(backend, lengths.size() + 1),
                                                 make_vector<nk_u32_t>(backend, lengths.size() + 1)};
     std::size_t segment = 0;
     for (auto length = lengths.begin(), queries = query_counts.begin(); length != lengths.end();
          ++length, ++queries, ++segment) {
-        nk_u32_t const spare = segment < spare_rows.size() ? spare_rows.begin()[segment] : 0;
+        nk_u32_t const spare = segment < spare_rows.size() ? spare_rows[segment] : 0;
         segments.lengths.values_data()[segment] = *length;
         segments.key_offsets.values_data()[segment + 1] = segments.key_offsets.values_data()[segment] + *length + spare;
         segments.query_offsets.values_data()[segment + 1] = segments.query_offsets.values_data()[segment] + *queries;
     }
     return segments;
+}
+
+/** A hundred and fifty segments in runs of random length, of 17 keys and queries, then of 9 queries
+ *  over 9 or 130 keys, so with a group of 8 two-tile items alternate unevenly within every block's
+ *  schedule with single-tile items of one or two panels, whose second S shares tile 1's columns. */
+template <typename backend_type_>
+attention_segments<backend_type_> make_many_attention_segments(backend_type_ const &backend, std::mt19937 &generator) {
+    std::vector<nk_u32_t> lengths, query_counts;
+    std::uniform_int_distribution<int> run_distribution(1, 4);
+    std::bernoulli_distribution long_distribution(0.5);
+    for (bool wide = true; lengths.size() < 150; wide = !wide)
+        for (int run = run_distribution(generator); run > 0; --run) {
+            lengths.push_back(wide ? 17 : long_distribution(generator) ? 130 : 9);
+            query_counts.push_back(wide ? 17 : 9);
+        }
+    return make_attention_segments(backend, lengths, query_counts);
 }
 
 /** Head counts, depth, and softmax scale of one attention call. */
@@ -333,6 +349,9 @@ struct attention_case_t {
     /** Keys visible after each query's position. */
     std::size_t keys_after;
 
+    /** Whether the batch is @c make_many_attention_segments instead of the five fixed segments. */
+    bool many_segments = false;
+
     /** Whether every key of a segment is visible to all of its queries. */
     bool unmasked() const noexcept { return keys_before == attention_all_keys_k && keys_after == attention_all_keys_k; }
 };
@@ -359,6 +378,7 @@ inline std::vector<attention_case_t> attention_cases() {
                 cases.push_back({main_length, 2, depth, band.subdiagonals, band.superdiagonals});
     for (std::size_t group : {1ul, 4ul, 8ul})
         for (std::size_t keys_before : {all, std::size_t(64)}) cases.push_back({1000, group, 128, keys_before, 0});
+    for (std::size_t keys_after : {all, std::size_t(0)}) cases.push_back({17, 8, 32, all, keys_after, true});
     return cases;
 }
 
@@ -382,11 +402,11 @@ nk_status_t pack_attention_in_two_windows(backend_type_ &backend, pack_kernel_ty
     std::size_t const tasks = segments.count() * layout.key_value_head_count;
     std::size_t const windows[2][2] = {{1, tasks + 7}, {0, 1}};
     for (auto const &window : windows) {
-        nk_status_t const status = backend.call(
-            pack_fn, key_scales.operand(keys.raw_values_data()), value_scales.operand(values.raw_values_data()),
-            layout.key_value_head_count, layout.depth, segments.key_offsets.values_data(),
-            segments.lengths.values_data(), segments.count(), stride, stride, key_value_packed.raw_values_data(),
-            window[0], window[1]);
+        nk_status_t const status = backend.call(pack_fn, layout.key_value_head_count, layout.depth,
+                                                segments.key_offsets.values_data(), segments.lengths.values_data(),
+                                                segments.count(), key_scales.operand(keys.raw_values_data()), stride,
+                                                value_scales.operand(values.raw_values_data()), stride,
+                                                key_value_packed.raw_values_data(), window[0], window[1]);
         if (status != nk_success_k) return status;
     }
     return nk_success_k;
@@ -426,10 +446,10 @@ nk::vector<char> serial_attention_pack(error_stats_t &stats, nk::vector<scalar_t
                                                             count, 0);
     stats.expect(size.status);
     auto packed = make_vector<char>(size.value);
-    stats.expect(nk::attention_pack<format_type_>(
-        key_scales.operand(keys.values_data()), value_scales.operand(values.values_data()), layout.key_value_head_count,
-        layout.depth, key_offsets, lengths, count, stride, stride, packed.raw_values_data(), 0,
-        static_cast<std::size_t>(-1), 0));
+    stats.expect(nk::attention_pack<format_type_>(layout.key_value_head_count, layout.depth, key_offsets, lengths,
+                                                  count, key_scales.operand(keys.values_data()), stride,
+                                                  value_scales.operand(values.values_data()), stride,
+                                                  packed.raw_values_data(), 0, static_cast<std::size_t>(-1), 0));
     return packed;
 }
 
@@ -456,10 +476,11 @@ attention_reference_t reference_attention_unmasked(
         stats, keys, values, key_scales, value_scales, layout, segments.key_offsets.values_data(),
         segments.lengths.values_data(), segments.count());
     stats.expect(nk::attention_packed<format_type_, f32_t>(
-        query_scales.operand(queries.values_data()), key_value_packed_reference.raw_values_data(),
-        reference.output.values_data(), reference.log_sum_exp.values_data(), layout.head_count,
-        layout.key_value_head_count, layout.depth, segments.query_offsets.values_data(), query_stride, output_stride,
-        layout.scale, attention_all_keys_k, attention_all_keys_k, 0, attention_all_keys_k, 0));
+        layout.head_count, layout.key_value_head_count, layout.depth, segments.query_offsets.values_data(),
+        segments.query_tokens(), layout.scale, attention_all_keys_k, attention_all_keys_k,
+        query_scales.operand(queries.values_data()), query_stride, key_value_packed_reference.raw_values_data(),
+        reference.output.values_data(), output_stride, reference.log_sum_exp.values_data(), 0, attention_all_keys_k,
+        0));
     return reference;
 }
 
@@ -498,12 +519,12 @@ attention_reference_t reference_attention_masked(
                 stats, keys, values, key_scales, value_scales, layout, visible_offsets, &visible_length, 1);
             std::size_t const query_row = segments.query_offsets.values_data()[segment] + row;
             stats.expect(nk::attention_packed<format_type_, f32_t>(
-                query_scales.operand(queries.values_data() + query_row * query_values, query_row),
+                layout.head_count, layout.key_value_head_count, layout.depth, single_query_offsets, 1, layout.scale,
+                attention_all_keys_k, attention_all_keys_k,
+                query_scales.operand(queries.values_data() + query_row * query_values, query_row), query_stride,
                 key_value_packed_reference.raw_values_data(),
-                reference.output.values_data() + query_row * layout.query_width(),
-                reference.log_sum_exp.values_data() + query_row * layout.head_count, layout.head_count,
-                layout.key_value_head_count, layout.depth, single_query_offsets, query_stride, output_stride,
-                layout.scale, attention_all_keys_k, attention_all_keys_k, 0, attention_all_keys_k, 0));
+                reference.output.values_data() + query_row * layout.query_width(), output_stride,
+                reference.log_sum_exp.values_data() + query_row * layout.head_count, 0, attention_all_keys_k, 0));
         }
     }
     return reference;
@@ -1744,9 +1765,12 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;) {
         for (attention_case_t const &test_case : cases) {
-            auto const segments = make_attention_segments(backend, {test_case.main_length, 0, 33, 5, 60},
-                                                          {attention_main_queries(test_case.main_length), 2, 1, 9, 60},
-                                                          {5, 2, 0, 3, 0});
+            auto const segments = test_case.many_segments
+                                      ? make_many_attention_segments(backend, generator)
+                                      : make_attention_segments(
+                                            backend, {test_case.main_length, 0, 33, 5, 60},
+                                            {attention_main_queries(test_case.main_length), 2, 1, 9, 60},
+                                            {5, 2, 0, 3, 0});
             attention_layout_t const layout {attention_key_value_heads_k * test_case.group, attention_key_value_heads_k,
                                              nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple,
                                              0.05f};
@@ -1791,11 +1815,12 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
                                                                segments, layout, key_value_packed);
             auto const attend = [&](auto &into, auto &into_log_sum_exp, std::size_t tasks_begin,
                                     std::size_t tasks_end) {
-                return backend.call(attention_fn, query_scales.operand(queries.raw_values_data()),
-                                    key_value_packed.raw_values_data(), into.raw_values_data(),
-                                    into_log_sum_exp.raw_values_data(), layout.head_count, layout.key_value_head_count,
-                                    layout.depth, segments.query_offsets.values_data(), query_stride, output_stride,
-                                    layout.scale, test_case.keys_before, test_case.keys_after, tasks_begin, tasks_end);
+                return backend.call(attention_fn, layout.head_count, layout.key_value_head_count, layout.depth,
+                                    segments.query_offsets.values_data(), query_tokens, layout.scale,
+                                    test_case.keys_before, test_case.keys_after,
+                                    query_scales.operand(queries.raw_values_data()), query_stride,
+                                    key_value_packed.raw_values_data(), into.raw_values_data(), output_stride,
+                                    into_log_sum_exp.raw_values_data(), tasks_begin, tasks_end);
             };
             if (status == nk_success_k) status = attend(output, log_sum_exp, 0, NUMKONG_SIZE_MAX);
             for (std::size_t window : windows)
@@ -1933,13 +1958,13 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
             for (auto const &window : windows)
                 if (status == nk_success_k)
                     status = backend.call(
-                        gradients_fn, query_scales.operand(queries.raw_values_data()),
+                        gradients_fn, layout.head_count, layout.key_value_head_count, layout.depth,
+                        segments.query_offsets.values_data(), query_tokens, layout.scale, test_case.keys_before,
+                        test_case.keys_after, query_scales.operand(queries.raw_values_data()), query_stride,
                         key_value_packed.raw_values_data(), output.raw_values_data(), output_gradient.raw_values_data(),
-                        log_sum_exp.raw_values_data(), query_gradient.raw_values_data(), key_gradient.raw_values_data(),
-                        value_gradient.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
-                        segments.query_offsets.values_data(), query_stride, output_stride, query_gradient_stride,
-                        gradient_stride, layout.scale, test_case.keys_before, test_case.keys_after, window[0],
-                        window[1]);
+                        output_stride, log_sum_exp.raw_values_data(), query_gradient.raw_values_data(),
+                        query_gradient_stride, key_gradient.raw_values_data(), value_gradient.raw_values_data(),
+                        gradient_stride, window[0], window[1]);
             if (!expect_completed(stats, backend, status)) return stats;
 
             auto const accumulate_gradient = [&](backend_vector<f32_t, backend_type_> const &actual,

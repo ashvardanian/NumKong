@@ -500,7 +500,9 @@ To add a new operation family, for example `foo`:
    Each opens the guards of its capability's shape, listed under [Macro Naming](#macro-naming).
    A kernel never calls another public kernel: logic two kernels share lives in a helper named for what it computes.
    A kernel takes typed arguments from a per-dtype macro, never a runtime `nk_dtype_t`.
-   A kernel never stores a function pointer: pass it to a per-dtype macro or an inline body.
+   Each dtype on each capability has its own body, calling typed helpers directly: never a function pointer, whether a parameter, a typedef or a struct field.
+   Compilers inline a pointer argument but not one stored in a struct whose address escapes, which then costs an indirect call per element.
+   The public punned kernel types and the `_best` capability lists are the only function pointers.
    Block-scaled kernels rebase into F32 and fall back to the exact F32 path, never F64.
    SME kernels finish in predicated streaming SVE, never NEON, which faults in streaming mode.
    A new `nk_define_*` macro needs approval: add it to `approved_codegen_macros` in the same commit.
@@ -608,7 +610,9 @@ Kernels: `nk_<operation>_<dtype>_<capability>` — e.g. `nk_dot_f32_sve`, `nk_do
 Dispatch points replace the capability with `best` — e.g. `nk_dot_f32_best` — and the static lists of their kernels in every capability group add `capabilities` — e.g. `nk_dot_f32_capabilities`.
 Internal helpers use a trailing underscore: `nk_reduce_add_f32x16_skylake_`.
 Conversions: `nk_<src>x<count>_to_<dst>x<count>_<isa>_` — e.g. `nk_e4m3x8_to_f32x8_haswell_`.
-Helpers, types and constants put the capability last as well, and only a role suffix may follow it: `_t` for a type, `_k` for a constant, `_kernel_` for a GPU entry point, or the trailing `_` of an internal name, like `nk_attention_pack_directory_cuda_kernel_`.
+Helpers, types and constants put the capability last as well, and only a role suffix may follow it: `_t` for a type, `_k` for a constant, `_kernel_` for a GPU entry point, `_streaming_` for SME streaming-mode code, or the trailing `_` of an internal name, like `nk_attention_pack_directory_cuda_kernel_`.
+Descriptors precede the dtype, as in `nk_reduce_minmax_strided_u16_neon_`, so every name reads operation, dtype, then capability.
+Index through a typed pointer bound to a named local, never through a cast: `nk_f32_t const *norms = (nk_f32_t const *)arguments->b_norms;` then `norms[column]`.
 
 Code that several capabilities share belongs to one of three layers, named in the capability's place:
 
