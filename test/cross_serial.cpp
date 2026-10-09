@@ -256,8 +256,42 @@ void test_cross_serial(error_stats_section_t &check) {
           nk_attention_pack_e4m3_serial, nk_attention_packed_e4m3_serial);
     check("attention_packed_i8_serial", test_attention_packed<i8_t>, nk_attention_pack_size_i8_serial,
           nk_attention_pack_i8_serial, nk_attention_packed_i8_serial);
+    check("attention_packed_nvfp4_serial", test_attention_packed<nvfp4_t>, nk_attention_pack_size_nvfp4_serial,
+          nk_attention_pack_nvfp4_serial, nk_attention_packed_nvfp4_serial);
+    check("attention_packed_mxfp4_serial", test_attention_packed<mxfp4_t>, nk_attention_pack_size_mxfp4_serial,
+          nk_attention_pack_mxfp4_serial, nk_attention_packed_mxfp4_serial);
+    check("attention_packed_mxfp6e2m3_serial", test_attention_packed<mxfp6e2m3_t>,
+          nk_attention_pack_size_mxfp6e2m3_serial, nk_attention_pack_mxfp6e2m3_serial,
+          nk_attention_packed_mxfp6e2m3_serial);
+    check("attention_packed_mxfp6e3m2_serial", test_attention_packed<mxfp6e3m2_t>,
+          nk_attention_pack_size_mxfp6e3m2_serial, nk_attention_pack_mxfp6e3m2_serial,
+          nk_attention_packed_mxfp6e3m2_serial);
+    check("attention_packed_mxfp8e4m3_serial", test_attention_packed<mxfp8e4m3_t>,
+          nk_attention_pack_size_mxfp8e4m3_serial, nk_attention_pack_mxfp8e4m3_serial,
+          nk_attention_packed_mxfp8e4m3_serial);
+    check("attention_packed_mxfp8e5m2_serial", test_attention_packed<mxfp8e5m2_t>,
+          nk_attention_pack_size_mxfp8e5m2_serial, nk_attention_pack_mxfp8e5m2_serial,
+          nk_attention_packed_mxfp8e5m2_serial);
     check("attention_packed_gradients_bf16_serial", test_attention_packed_gradients<bf16_t>,
           nk_attention_pack_size_bf16_serial, nk_attention_pack_bf16_serial, nk_attention_packed_gradients_bf16_serial);
+    check("attention_packed_gradients_nvfp4_serial", test_attention_packed_gradients<nvfp4_t>,
+          nk_attention_pack_size_nvfp4_serial, nk_attention_pack_nvfp4_serial,
+          nk_attention_packed_gradients_nvfp4_serial);
+    check("attention_packed_gradients_mxfp4_serial", test_attention_packed_gradients<mxfp4_t>,
+          nk_attention_pack_size_mxfp4_serial, nk_attention_pack_mxfp4_serial,
+          nk_attention_packed_gradients_mxfp4_serial);
+    check("attention_packed_gradients_mxfp6e2m3_serial", test_attention_packed_gradients<mxfp6e2m3_t>,
+          nk_attention_pack_size_mxfp6e2m3_serial, nk_attention_pack_mxfp6e2m3_serial,
+          nk_attention_packed_gradients_mxfp6e2m3_serial);
+    check("attention_packed_gradients_mxfp6e3m2_serial", test_attention_packed_gradients<mxfp6e3m2_t>,
+          nk_attention_pack_size_mxfp6e3m2_serial, nk_attention_pack_mxfp6e3m2_serial,
+          nk_attention_packed_gradients_mxfp6e3m2_serial);
+    check("attention_packed_gradients_mxfp8e4m3_serial", test_attention_packed_gradients<mxfp8e4m3_t>,
+          nk_attention_pack_size_mxfp8e4m3_serial, nk_attention_pack_mxfp8e4m3_serial,
+          nk_attention_packed_gradients_mxfp8e4m3_serial);
+    check("attention_packed_gradients_mxfp8e5m2_serial", test_attention_packed_gradients<mxfp8e5m2_t>,
+          nk_attention_pack_size_mxfp8e5m2_serial, nk_attention_pack_mxfp8e5m2_serial,
+          nk_attention_packed_gradients_mxfp8e5m2_serial);
     check("attention_rope_f32_serial", test_attention_rope<f32_t>, nk_attention_rope_f32_serial);
     check("attention_rope_bf16_serial", test_attention_rope<bf16_t>, nk_attention_rope_bf16_serial);
     check("attention_rope_e4m3_serial", test_attention_rope<e4m3_t>, nk_attention_rope_e4m3_serial);

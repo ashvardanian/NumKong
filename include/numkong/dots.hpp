@@ -21,23 +21,6 @@
 
 namespace ashvardanian::numkong {
 
-template <typename in_type_>
-struct operand_pointer_ {
-    using type = in_type_ const *;
-};
-
-template <typename in_type_>
-    requires requires { typename in_type_::cref_t; }
-struct operand_pointer_<in_type_> {
-    using type = typename in_type_::cref_t const *;
-};
-
-/** What a dots kernel takes for a matrix of @p in_type_: a pointer to its values, or for a
- *  block-scaled format a pointer to its @c cref_t, which holds the codes, their scales and the
- *  tensor scale the kernel reads. */
-template <typename in_type_>
-using operand_pointer = typename operand_pointer_<in_type_>::type;
-
 /**
  *  @brief Reference unpacked GEMM: C = A × Bᵀ (row-major A and B, B transposed).
  *

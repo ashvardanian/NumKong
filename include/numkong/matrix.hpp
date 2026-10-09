@@ -230,7 +230,7 @@ status_t maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector
  *  @return The size in bytes, or @c missing_kernel_k when no capability in @p capabilities packs
  *      @p in_type_.
  *
- *  @tparam in_type_ Input element type (bf16_t, f16_t, e4m3_t, i8_t).
+ *  @tparam in_type_ Input element type (bf16_t, f16_t, e4m3_t, i8_t), or a block-scaled format.
  */
 template <numeric_dtype in_type_>
 expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std::size_t depth, std::size_t token_count,
@@ -251,6 +251,24 @@ expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std:
         else if constexpr (std::is_same_v<in_type_, i8_t>)
             status = nk_attention_pack_size_i8_best(key_value_head_count, depth, token_count, segment_count,
                                                     capabilities, &bytes);
+        else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
+            status = nk_attention_pack_size_nvfp4_best(key_value_head_count, depth, token_count, segment_count,
+                                                       capabilities, &bytes);
+        else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
+            status = nk_attention_pack_size_mxfp4_best(key_value_head_count, depth, token_count, segment_count,
+                                                       capabilities, &bytes);
+        else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
+            status = nk_attention_pack_size_mxfp6e2m3_best(key_value_head_count, depth, token_count, segment_count,
+                                                           capabilities, &bytes);
+        else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
+            status = nk_attention_pack_size_mxfp6e3m2_best(key_value_head_count, depth, token_count, segment_count,
+                                                           capabilities, &bytes);
+        else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
+            status = nk_attention_pack_size_mxfp8e4m3_best(key_value_head_count, depth, token_count, segment_count,
+                                                           capabilities, &bytes);
+        else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
+            status = nk_attention_pack_size_mxfp8e5m2_best(key_value_head_count, depth, token_count, segment_count,
+                                                           capabilities, &bytes);
     }
     else if constexpr (std::is_same_v<in_type_, bf16_t>)
         status = nk_attention_pack_size_bf16_serial(key_value_head_count, depth, token_count, segment_count, &bytes);
@@ -260,6 +278,22 @@ expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std:
         status = nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, token_count, segment_count, &bytes);
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         status = nk_attention_pack_size_i8_serial(key_value_head_count, depth, token_count, segment_count, &bytes);
+    else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
+        status = nk_attention_pack_size_nvfp4_serial(key_value_head_count, depth, token_count, segment_count, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
+        status = nk_attention_pack_size_mxfp4_serial(key_value_head_count, depth, token_count, segment_count, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
+        status = nk_attention_pack_size_mxfp6e2m3_serial(key_value_head_count, depth, token_count, segment_count,
+                                                         &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
+        status = nk_attention_pack_size_mxfp6e3m2_serial(key_value_head_count, depth, token_count, segment_count,
+                                                         &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
+        status = nk_attention_pack_size_mxfp8e4m3_serial(key_value_head_count, depth, token_count, segment_count,
+                                                         &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
+        status = nk_attention_pack_size_mxfp8e5m2_serial(key_value_head_count, depth, token_count, segment_count,
+                                                         &bytes);
     return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
 }
 
@@ -279,13 +313,14 @@ expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std:
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *
- *  @tparam in_type_ Input element type (bf16_t, f16_t, e4m3_t, i8_t).
+ *  @tparam in_type_ Input element type (bf16_t, f16_t, e4m3_t, i8_t), or a block-scaled format
+ *      whose operands are @c operand_pointer references.
  */
 template <numeric_dtype in_type_>
-status_t attention_pack(in_type_ const *keys, in_type_ const *values, std::size_t key_value_head_count,
-                        std::size_t depth, std::uint32_t const *key_offsets, std::uint32_t const *key_lengths,
-                        std::size_t segment_count, std::size_t key_stride, std::size_t value_stride,
-                        void *key_value_packed, std::size_t tasks_begin = 0,
+status_t attention_pack(operand_pointer<in_type_> keys, operand_pointer<in_type_> values,
+                        std::size_t key_value_head_count, std::size_t depth, std::uint32_t const *key_offsets,
+                        std::uint32_t const *key_lengths, std::size_t segment_count, std::size_t key_stride,
+                        std::size_t value_stride, void *key_value_packed, std::size_t tasks_begin = 0,
                         std::size_t tasks_end = std::numeric_limits<std::size_t>::max(),
                         nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
@@ -308,6 +343,30 @@ status_t attention_pack(in_type_ const *keys, in_type_ const *values, std::size_
             return static_cast<status_t>(nk_attention_pack_i8_best(
                 keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
                 value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
+            return static_cast<status_t>(nk_attention_pack_nvfp4_best(
+                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
+            return static_cast<status_t>(nk_attention_pack_mxfp4_best(
+                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
+            return static_cast<status_t>(nk_attention_pack_mxfp6e2m3_best(
+                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
+            return static_cast<status_t>(nk_attention_pack_mxfp6e3m2_best(
+                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
+            return static_cast<status_t>(nk_attention_pack_mxfp8e4m3_best(
+                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
+            return static_cast<status_t>(nk_attention_pack_mxfp8e5m2_best(
+                keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_pack_bf16_serial(
@@ -324,6 +383,30 @@ status_t attention_pack(in_type_ const *keys, in_type_ const *values, std::size_
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         return static_cast<status_t>(nk_attention_pack_i8_serial(
             keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            value_stride, key_value_packed, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
+        return static_cast<status_t>(nk_attention_pack_nvfp4_serial(
+            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            value_stride, key_value_packed, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
+        return static_cast<status_t>(nk_attention_pack_mxfp4_serial(
+            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            value_stride, key_value_packed, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
+        return static_cast<status_t>(nk_attention_pack_mxfp6e2m3_serial(
+            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            value_stride, key_value_packed, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
+        return static_cast<status_t>(nk_attention_pack_mxfp6e3m2_serial(
+            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            value_stride, key_value_packed, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
+        return static_cast<status_t>(nk_attention_pack_mxfp8e4m3_serial(
+            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            value_stride, key_value_packed, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
+        return static_cast<status_t>(nk_attention_pack_mxfp8e5m2_serial(
+            keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
             value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else return status_t::missing_kernel_k;
 }

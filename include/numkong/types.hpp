@@ -6175,6 +6175,9 @@ struct nvfp4_t {
 
     /** Output of @c nk_euclideans_packed_nvfp4. */
     using euclidean_result_t = f32_t;
+
+    /** Output of @c nk_attention_packed_nvfp4. */
+    using attention_result_t = f32_t;
     using sub_byte_ref_t = sub_byte_ref<nvfp4_t>;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_nvfp4_k; }
@@ -6233,6 +6236,9 @@ struct mxfp4_t {
 
     /** Output of @c nk_euclideans_packed_mxfp4. */
     using euclidean_result_t = f32_t;
+
+    /** Output of @c nk_attention_packed_mxfp4. */
+    using attention_result_t = f32_t;
     using sub_byte_ref_t = sub_byte_ref<mxfp4_t>;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp4_k; }
@@ -6284,6 +6290,7 @@ struct mxfp6e2m3_t {
     using dot_result_t = f32_t;
     using angular_result_t = f32_t;
     using euclidean_result_t = f32_t;
+    using attention_result_t = f32_t;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp6e2m3_k; }
     static constexpr char const *dtype_name() noexcept { return "mxfp6e2m3"; }
@@ -6334,6 +6341,7 @@ struct mxfp6e3m2_t {
     using dot_result_t = f32_t;
     using angular_result_t = f32_t;
     using euclidean_result_t = f32_t;
+    using attention_result_t = f32_t;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp6e3m2_k; }
     static constexpr char const *dtype_name() noexcept { return "mxfp6e3m2"; }
@@ -6389,6 +6397,9 @@ struct mxfp8e4m3_t {
 
     /** Output of @c nk_euclideans_packed_mxfp8e4m3. */
     using euclidean_result_t = f32_t;
+
+    /** Output of @c nk_attention_packed_mxfp8e4m3. */
+    using attention_result_t = f32_t;
     using sub_byte_ref_t = sub_byte_ref<mxfp8e4m3_t>;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp8e4m3_k; }
@@ -6445,6 +6456,9 @@ struct mxfp8e5m2_t {
 
     /** Output of @c nk_euclideans_packed_mxfp8e5m2. */
     using euclidean_result_t = f32_t;
+
+    /** Output of @c nk_attention_packed_mxfp8e5m2. */
+    using attention_result_t = f32_t;
     using sub_byte_ref_t = sub_byte_ref<mxfp8e5m2_t>;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp8e5m2_k; }
@@ -6675,6 +6689,22 @@ template <typename value_type_>
 struct raw_pod_type<value_type_, std::void_t<typename value_type_::raw_t>> {
     using type = typename value_type_::raw_t;
 };
+
+template <typename in_type_>
+struct operand_pointer_ {
+    using type = in_type_ const *;
+};
+
+template <typename in_type_>
+    requires requires { typename in_type_::cref_t; }
+struct operand_pointer_<in_type_> {
+    using type = typename in_type_::cref_t const *;
+};
+
+/** What a kernel takes for a matrix of @p in_type_: a pointer to its values, or for a block-scaled
+ *  format a pointer to its @c cref_t, holding the codes, their scales and the tensor scale. */
+template <typename in_type_>
+using operand_pointer = typename operand_pointer_<in_type_>::type;
 
 /**
  *  @brief Trait: is `memset(ptr, 0, n * sizeof(T))` equivalent to value-initialization?

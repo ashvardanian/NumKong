@@ -362,23 +362,31 @@ inline std::vector<attention_case_t> attention_cases() {
     return cases;
 }
 
+/** Bytes of a tight row of @p width values of @p scalar_type_, sub-byte codes included. */
+template <typename scalar_type_>
+constexpr std::size_t attention_row_bytes(std::size_t width) noexcept {
+    return width / nk::dimensions_per_value<scalar_type_>() * sizeof(scalar_type_);
+}
+
 /** Packs every segment through @p pack_fn in two task windows, the later one first so neither may
  *  rely on the other, that one clipped from past the grid. */
-template <typename backend_type_, typename pack_kernel_type_, typename scalar_vector_type_,
+template <typename backend_type_, typename pack_kernel_type_, typename scalar_vector_type_, typename scales_type_,
           typename packed_vector_type_>
 nk_status_t pack_attention_in_two_windows(backend_type_ &backend, pack_kernel_type_ pack_fn,
                                           scalar_vector_type_ const &keys, scalar_vector_type_ const &values,
+                                          scales_type_ const &key_scales, scales_type_ const &value_scales,
                                           attention_segments<backend_type_> const &segments,
                                           attention_layout_t const &layout, packed_vector_type_ &key_value_packed) {
     using scalar_t = typename scalar_vector_type_::value_type;
-    std::size_t const stride = layout.key_value_width() * sizeof(scalar_t);
+    std::size_t const stride = attention_row_bytes<scalar_t>(layout.key_value_width());
     std::size_t const tasks = segments.count() * layout.key_value_head_count;
     std::size_t const windows[2][2] = {{1, tasks + 7}, {0, 1}};
     for (auto const &window : windows) {
         nk_status_t const status = backend.call(
-            pack_fn, keys.raw_values_data(), values.raw_values_data(), layout.key_value_head_count, layout.depth,
-            segments.key_offsets.values_data(), segments.lengths.values_data(), segments.count(), stride, stride,
-            key_value_packed.raw_values_data(), window[0], window[1]);
+            pack_fn, key_scales.operand(keys.raw_values_data()), value_scales.operand(values.raw_values_data()),
+            layout.key_value_head_count, layout.depth, segments.key_offsets.values_data(),
+            segments.lengths.values_data(), segments.count(), stride, stride, key_value_packed.raw_values_data(),
+            window[0], window[1]);
         if (status != nk_success_k) return status;
     }
     return nk_success_k;
@@ -404,22 +412,24 @@ inline attention_key_range_t attention_visible_keys(std::size_t row, std::size_t
 }
 
 /** K and V of the @p count segments of @p lengths keys from the rows at @p key_offsets, packed into
- *  host memory by the serial `nk::` wrappers. */
-template <typename scalar_type_, typename allocator_type_>
+ *  host memory by the serial `nk::` wrappers for @p format_type_. */
+template <typename format_type_, typename scalar_type_, typename allocator_type_, typename scales_type_>
 nk::vector<char> serial_attention_pack(error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &keys,
                                        nk::vector<scalar_type_, allocator_type_> const &values,
+                                       scales_type_ const &key_scales, scales_type_ const &value_scales,
                                        attention_layout_t const &layout, nk_u32_t const *key_offsets,
                                        nk_u32_t const *lengths, std::size_t count) {
-    std::size_t const stride = layout.key_value_width() * sizeof(scalar_type_);
+    std::size_t const stride = attention_row_bytes<scalar_type_>(layout.key_value_width());
     std::size_t key_tokens = 0;
     for (std::size_t segment = 0; segment < count; segment++) key_tokens += lengths[segment];
-    auto const size = nk::attention_pack_size<scalar_type_>(layout.key_value_head_count, layout.depth, key_tokens,
+    auto const size = nk::attention_pack_size<format_type_>(layout.key_value_head_count, layout.depth, key_tokens,
                                                             count, 0);
     stats.expect(size.status);
     auto packed = make_vector<char>(size.value);
-    stats.expect(nk::attention_pack<scalar_type_>(keys.values_data(), values.values_data(), layout.key_value_head_count,
-                                                  layout.depth, key_offsets, lengths, count, stride, stride,
-                                                  packed.raw_values_data(), 0, static_cast<std::size_t>(-1), 0));
+    stats.expect(nk::attention_pack<format_type_>(
+        key_scales.operand(keys.values_data()), value_scales.operand(values.values_data()), layout.key_value_head_count,
+        layout.depth, key_offsets, lengths, count, stride, stride, packed.raw_values_data(), 0,
+        static_cast<std::size_t>(-1), 0));
     return packed;
 }
 
@@ -429,43 +439,44 @@ struct attention_reference_t {
 };
 
 /** Unmasked reference: the serial kernel over a serial pack of every segment, every key visible. */
-template <typename scalar_type_, typename allocator_type_, typename backend_type_>
-attention_reference_t reference_attention_unmasked(error_stats_t &stats,
-                                                   nk::vector<scalar_type_, allocator_type_> const &queries,
-                                                   nk::vector<scalar_type_, allocator_type_> const &keys,
-                                                   nk::vector<scalar_type_, allocator_type_> const &values,
-                                                   attention_segments<backend_type_> const &segments,
-                                                   attention_layout_t const &layout) {
-    std::size_t const query_stride = layout.query_width() * sizeof(scalar_type_),
+template <typename format_type_, typename scalar_type_, typename allocator_type_, typename scales_type_,
+          typename backend_type_>
+attention_reference_t reference_attention_unmasked(
+    error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &queries,
+    nk::vector<scalar_type_, allocator_type_> const &keys, nk::vector<scalar_type_, allocator_type_> const &values,
+    scales_type_ const &query_scales, scales_type_ const &key_scales, scales_type_ const &value_scales,
+    attention_segments<backend_type_> const &segments, attention_layout_t const &layout) {
+    std::size_t const query_stride = attention_row_bytes<scalar_type_>(layout.query_width()),
                       output_stride = layout.query_width() * sizeof(f32_t);
     attention_reference_t reference {
         .output = make_vector<f32_t>(segments.query_tokens() * layout.query_width()),
         .log_sum_exp = make_vector<f32_t>(segments.query_tokens() * layout.head_count),
     };
-    auto const key_value_packed_reference = serial_attention_pack(stats, keys, values, layout,
-                                                                  segments.key_offsets.values_data(),
-                                                                  segments.lengths.values_data(), segments.count());
-    stats.expect(nk::attention_packed<scalar_type_, f32_t>(
-        queries.values_data(), key_value_packed_reference.raw_values_data(), reference.output.values_data(),
-        reference.log_sum_exp.values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
-        segments.query_offsets.values_data(), query_stride, output_stride, layout.scale, attention_all_keys_k,
-        attention_all_keys_k, 0, attention_all_keys_k, 0));
+    auto const key_value_packed_reference = serial_attention_pack<format_type_>(
+        stats, keys, values, key_scales, value_scales, layout, segments.key_offsets.values_data(),
+        segments.lengths.values_data(), segments.count());
+    stats.expect(nk::attention_packed<format_type_, f32_t>(
+        query_scales.operand(queries.values_data()), key_value_packed_reference.raw_values_data(),
+        reference.output.values_data(), reference.log_sum_exp.values_data(), layout.head_count,
+        layout.key_value_head_count, layout.depth, segments.query_offsets.values_data(), query_stride, output_stride,
+        layout.scale, attention_all_keys_k, attention_all_keys_k, 0, attention_all_keys_k, 0));
     return reference;
 }
 
 /** Masked reference: the serial kernel per query row with every key visible, over a serial pack of
  *  exactly the keys @c attention_visible_keys admits, leaving zeros and −∞ on every row that sees
  *  no key at all. */
-template <typename scalar_type_, typename allocator_type_, typename backend_type_>
-attention_reference_t reference_attention_masked(error_stats_t &stats,
-                                                 nk::vector<scalar_type_, allocator_type_> const &queries,
-                                                 nk::vector<scalar_type_, allocator_type_> const &keys,
-                                                 nk::vector<scalar_type_, allocator_type_> const &values,
-                                                 attention_segments<backend_type_> const &segments,
-                                                 attention_layout_t const &layout, std::size_t keys_before,
-                                                 std::size_t keys_after) {
-    std::size_t const query_stride = layout.query_width() * sizeof(scalar_type_),
+template <typename format_type_, typename scalar_type_, typename allocator_type_, typename scales_type_,
+          typename backend_type_>
+attention_reference_t reference_attention_masked(
+    error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &queries,
+    nk::vector<scalar_type_, allocator_type_> const &keys, nk::vector<scalar_type_, allocator_type_> const &values,
+    scales_type_ const &query_scales, scales_type_ const &key_scales, scales_type_ const &value_scales,
+    attention_segments<backend_type_> const &segments, attention_layout_t const &layout, std::size_t keys_before,
+    std::size_t keys_after) {
+    std::size_t const query_stride = attention_row_bytes<scalar_type_>(layout.query_width()),
                       output_stride = layout.query_width() * sizeof(f32_t);
+    std::size_t const query_values = layout.query_width() / nk::dimensions_per_value<scalar_type_>();
     nk_u32_t const single_query_offsets[2] = {0, 1};
     attention_reference_t reference {
         .output = make_vector<f32_t>(segments.query_tokens() * layout.query_width()),
@@ -483,11 +494,12 @@ attention_reference_t reference_attention_masked(error_stats_t &stats,
             nk_u32_t const visible_offsets[2] = {static_cast<nk_u32_t>(first_key + key_begin),
                                                  static_cast<nk_u32_t>(first_key + key_end)};
             nk_u32_t const visible_length = static_cast<nk_u32_t>(key_end - key_begin);
-            auto const key_value_packed_reference = serial_attention_pack(stats, keys, values, layout, visible_offsets,
-                                                                          &visible_length, 1);
+            auto const key_value_packed_reference = serial_attention_pack<format_type_>(
+                stats, keys, values, key_scales, value_scales, layout, visible_offsets, &visible_length, 1);
             std::size_t const query_row = segments.query_offsets.values_data()[segment] + row;
-            stats.expect(nk::attention_packed<scalar_type_, f32_t>(
-                queries.values_data() + query_row * layout.query_width(), key_value_packed_reference.raw_values_data(),
+            stats.expect(nk::attention_packed<format_type_, f32_t>(
+                query_scales.operand(queries.values_data() + query_row * query_values, query_row),
+                key_value_packed_reference.raw_values_data(),
                 reference.output.values_data() + query_row * layout.query_width(),
                 reference.log_sum_exp.values_data() + query_row * layout.head_count, layout.head_count,
                 layout.key_value_head_count, layout.depth, single_query_offsets, query_stride, output_stride,
@@ -1709,14 +1721,16 @@ void expect_log_sum_exp(settings_t const &settings, error_stats_t &stats, actual
  *  queries differently. The main, pad and five-key segments keep spare rows in their key slots,
  *  which the pack must leave out. The pack runs in two task windows, and random windows of the
  *  query tokens × heads grid, run in shuffled order and clipped to it, must match one call over
- *  the grid bit for bit. */
+ *  the grid bit for bit. Block-scaled formats round each depth up to a whole block. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           attention_weights_t weights_ = attention_weights_t::unquantized_k, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename attention_kernel_type_>
 error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel_type_ packed_size_fn,
                                     pack_kernel_type_ pack_fn, attention_kernel_type_ attention_fn) {
-    using scalar_t = scalar_type_;
-    using result_t = typename scalar_t::attention_result_t;
+    constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
+    using scalar_t = typename nk::type_for<format.element_dtype>::type;
+    using result_t = typename scalar_type_::attention_result_t;
+    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, 1);
 
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(attention_family(weights_));
@@ -1731,9 +1745,11 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
                                                           {attention_main_queries(test_case.main_length), 2, 1, 9, 60},
                                                           {5, 2, 0, 3, 0});
             attention_layout_t const layout {attention_key_value_heads_k * test_case.group, attention_key_value_heads_k,
-                                             test_case.depth, 0.05f};
+                                             nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple,
+                                             0.05f};
             std::size_t const query_tokens = segments.query_tokens(), key_tokens = segments.key_tokens();
-            std::size_t const query_stride = layout.query_width() * sizeof(scalar_t),
+            std::size_t const query_stride = attention_row_bytes<scalar_t>(layout.query_width()),
+                              key_value_stride = attention_row_bytes<scalar_t>(layout.key_value_width()),
                               output_stride = layout.query_width() * sizeof(result_t);
             std::vector<std::size_t> bounds {0, NUMKONG_SIZE_MAX}, windows {0, 1, 2, 3, 4, 5};
             std::uniform_int_distribution<std::size_t> bound_distribution(0, query_tokens * layout.head_count);
@@ -1746,6 +1762,13 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
                  values = make_vector<scalar_t>(backend, key_tokens * layout.key_value_width());
             fill_random(settings, generator, queries), fill_random(settings, generator, keys),
                 fill_random(settings, generator, values);
+            // NVFP4 tensor scales keep scores near 1, as UE4M3 block scales reach 448
+            auto const query_scales = random_scales<scalar_type_>(backend, generator, query_tokens,
+                                                                  layout.query_width(), query_stride, 0x1.8p-8f);
+            auto const key_scales = random_scales<scalar_type_>(backend, generator, key_tokens,
+                                                                layout.key_value_width(), key_value_stride, 0x1.8p-9f),
+                       value_scales = random_scales<scalar_type_>(backend, generator, key_tokens,
+                                                                  layout.key_value_width(), key_value_stride, 1.25f);
             auto key_value_packed = make_vector<char>(
                 backend, pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth, key_tokens,
                                          segments.count()));
@@ -1755,15 +1778,15 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
             auto log_sum_exp = make_vector<result_t>(backend, query_tokens * layout.head_count),
                  windowed_log_sum_exp = make_vector<result_t>(backend, query_tokens * layout.head_count);
 
-            nk_status_t status = pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout,
-                                                               key_value_packed);
+            nk_status_t status = pack_attention_in_two_windows(backend, pack_fn, keys, values, key_scales, value_scales,
+                                                               segments, layout, key_value_packed);
             auto const attend = [&](auto &into, auto &into_log_sum_exp, std::size_t tasks_begin,
                                     std::size_t tasks_end) {
-                return backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
-                                    into.raw_values_data(), into_log_sum_exp.raw_values_data(), layout.head_count,
-                                    layout.key_value_head_count, layout.depth, segments.query_offsets.values_data(),
-                                    query_stride, output_stride, layout.scale, test_case.keys_before,
-                                    test_case.keys_after, tasks_begin, tasks_end);
+                return backend.call(attention_fn, query_scales.operand(queries.raw_values_data()),
+                                    key_value_packed.raw_values_data(), into.raw_values_data(),
+                                    into_log_sum_exp.raw_values_data(), layout.head_count, layout.key_value_head_count,
+                                    layout.depth, segments.query_offsets.values_data(), query_stride, output_stride,
+                                    layout.scale, test_case.keys_before, test_case.keys_after, tasks_begin, tasks_end);
             };
             if (status == nk_success_k) status = attend(output, log_sum_exp, 0, NUMKONG_SIZE_MAX);
             for (std::size_t window : windows)
@@ -1778,9 +1801,12 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
                          "random task windows log-sum-exp differently from one call over the grid");
 
             auto const reference = test_case.unmasked()
-                                       ? reference_attention_unmasked(stats, queries, keys, values, segments, layout)
-                                       : reference_attention_masked(stats, queries, keys, values, segments, layout,
-                                                                    test_case.keys_before, test_case.keys_after);
+                                       ? reference_attention_unmasked<scalar_type_>(stats, queries, keys, values,
+                                                                                    query_scales, key_scales,
+                                                                                    value_scales, segments, layout)
+                                       : reference_attention_masked<scalar_type_>(
+                                             stats, queries, keys, values, query_scales, key_scales, value_scales,
+                                             segments, layout, test_case.keys_before, test_case.keys_after);
             accumulate_attention<weights_>(settings, stats, output, reference.output, values);
             expect_log_sum_exp<weights_>(settings, stats, log_sum_exp, reference.log_sum_exp);
         }
@@ -1792,12 +1818,16 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
  *  and log-sum-exp, over ragged segments that offset their queries differently, one without keys.
  *  Unmasked cases cross panel-edge depths and GQA groups; masked ones cross causal, sliding-window,
  *  diagonal and two-sided bands. Gradients start as canaries, the query ones in rows wider than the
- *  output's, and two task windows cover the grid, the second relying on @c tasks_end clipping. */
+ *  output's, and two task windows cover the grid, the second relying on @c tasks_end clipping.
+ *  Block-scaled formats round each depth up to a whole block, and MX keys and values of two blocks
+ *  or more spread their first two scales past the window an MX plane rebases across. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename gradients_kernel_type_>
 error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_size_kernel_type_ packed_size_fn,
                                               pack_kernel_type_ pack_fn, gradients_kernel_type_ gradients_fn) {
-    using scalar_t = scalar_type_;
+    constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
+    using scalar_t = typename nk::type_for<format.element_dtype>::type;
+    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, 1);
 
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(comparison_family_t::bounded_k);
@@ -1818,10 +1848,12 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
          steady_clock_t::now() < deadline;) {
         for (attention_case_t const &test_case : cases) {
             attention_layout_t const layout {attention_key_value_heads_k * test_case.group, attention_key_value_heads_k,
-                                             test_case.depth, 0.05f};
+                                             nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple,
+                                             0.05f};
             // Query gradient rows sit in a wider buffer, so their stride differs from the output's
             std::size_t const query_gradient_width = layout.query_width() + 4;
-            std::size_t const query_stride = layout.query_width() * sizeof(scalar_t),
+            std::size_t const query_stride = attention_row_bytes<scalar_t>(layout.query_width()),
+                              key_value_stride = attention_row_bytes<scalar_t>(layout.key_value_width()),
                               output_stride = layout.query_width() * sizeof(f32_t),
                               query_gradient_stride = query_gradient_width * sizeof(f32_t),
                               gradient_stride = layout.key_value_width() * sizeof(f32_t);
@@ -1832,19 +1864,45 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
             auto output_gradient = make_vector<f32_t>(backend, query_tokens * layout.query_width());
             fill_random(settings, generator, queries), fill_random(settings, generator, keys),
                 fill_random(settings, generator, values), fill_random(settings, generator, output_gradient);
+            // NVFP4 tensor scales keep scores near 1, as UE4M3 block scales reach 448
+            auto const query_scales = random_scales<scalar_type_>(backend, generator, query_tokens,
+                                                                  layout.query_width(), query_stride, 0x1.8p-8f);
+            auto key_scales = random_scales<scalar_type_>(backend, generator, key_tokens, layout.key_value_width(),
+                                                          key_value_stride, 0x1.8p-9f),
+                 value_scales = random_scales<scalar_type_>(backend, generator, key_tokens, layout.key_value_width(),
+                                                            key_value_stride, 1.25f);
+            // 2⁻⁹⁰ and 2³ blocks keep the first K and V planes raw at magnitudes like the others
+            if constexpr (format.scale_dtype == nk_ue8m0_k)
+                if (layout.depth >= 2 * format.block_size)
+                    for (auto *scales : {&key_scales, &value_scales})
+                        scales->blocks.data()[0] = ue8m0_t::from_raw(127 - 90),
+                        scales->blocks.data()[1] = ue8m0_t::from_raw(127 + 3);
+            auto const decode = [](auto const &codes, auto const &scales) {
+                std::vector<double> decoded(codes.size());
+                if (nk_cast_serial(scales.operand(codes.raw_values_data()), scalar_type_::dtype(), decoded.data(),
+                                   nk_f64_k, decoded.size(), nullptr) != nk_success_k)
+                    std::fill(decoded.begin(), decoded.end(), std::numeric_limits<double>::quiet_NaN());
+                return decoded;
+            };
             attention_gradients_t const reference = reference_attention_gradients(
-                decode_rows(queries, query_tokens, layout.query_width(), layout.query_width()),
-                decode_rows(keys, key_tokens, layout.key_value_width(), layout.key_value_width()),
-                decode_rows(values, key_tokens, layout.key_value_width(), layout.key_value_width()),
+                decode(queries, query_scales), decode(keys, key_scales), decode(values, value_scales),
                 decode_rows(output_gradient, query_tokens, layout.query_width(), layout.query_width()), segments,
                 layout, test_case.keys_before, test_case.keys_after);
 
-            // The serial forward's log-sum-exps, the bar for every other tier, against the F64 ones
+            // The serial forward, the bar for every other tier, against the F64 one
             attention_reference_t const serial =
-                test_case.unmasked() ? reference_attention_unmasked(stats, queries, keys, values, segments, layout)
-                                     : reference_attention_masked(stats, queries, keys, values, segments, layout,
-                                                                  test_case.keys_before, test_case.keys_after);
+                test_case.unmasked()
+                    ? reference_attention_unmasked<scalar_type_>(stats, queries, keys, values, query_scales, key_scales,
+                                                                 value_scales, segments, layout)
+                    : reference_attention_masked<scalar_type_>(stats, queries, keys, values, query_scales, key_scales,
+                                                               value_scales, segments, layout, test_case.keys_before,
+                                                               test_case.keys_after);
             expect_log_sum_exp(settings, stats, serial.log_sum_exp, reference.log_sum_exp);
+            double largest_output = 0;
+            for (double value : reference.output) largest_output = std::max(largest_output, std::fabs(value));
+            for (std::size_t index = 0; index < reference.output.size(); index++)
+                stats.accumulate_bounded(serial.output[index], reference.output[index],
+                                         settings.scale_threshold * largest_output);
 
             auto output = make_vector<f32_t>(backend, query_tokens * layout.query_width());
             auto log_sum_exp = make_vector<f32_t>(backend, query_tokens * layout.head_count);
@@ -1860,19 +1918,19 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                 backend, pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth, key_tokens,
                                          segments.count()));
 
-            nk_status_t status = pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout,
-                                                               key_value_packed);
+            nk_status_t status = pack_attention_in_two_windows(backend, pack_fn, keys, values, key_scales, value_scales,
+                                                               segments, layout, key_value_packed);
             std::size_t const windows[2][2] = {{0, 1}, {1, NUMKONG_SIZE_MAX}};
             for (auto const &window : windows)
                 if (status == nk_success_k)
-                    status = backend.call(gradients_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
-                                          output.raw_values_data(), output_gradient.raw_values_data(),
-                                          log_sum_exp.raw_values_data(), query_gradient.raw_values_data(),
-                                          key_gradient.raw_values_data(), value_gradient.raw_values_data(),
-                                          layout.head_count, layout.key_value_head_count, layout.depth,
-                                          segments.query_offsets.values_data(), query_stride, output_stride,
-                                          query_gradient_stride, gradient_stride, layout.scale, test_case.keys_before,
-                                          test_case.keys_after, window[0], window[1]);
+                    status = backend.call(
+                        gradients_fn, query_scales.operand(queries.raw_values_data()),
+                        key_value_packed.raw_values_data(), output.raw_values_data(), output_gradient.raw_values_data(),
+                        log_sum_exp.raw_values_data(), query_gradient.raw_values_data(), key_gradient.raw_values_data(),
+                        value_gradient.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
+                        segments.query_offsets.values_data(), query_stride, output_stride, query_gradient_stride,
+                        gradient_stride, layout.scale, test_case.keys_before, test_case.keys_after, window[0],
+                        window[1]);
             if (!expect_completed(stats, backend, status)) return stats;
 
             auto const accumulate_gradient = [&](backend_vector<f32_t, backend_type_> const &actual,

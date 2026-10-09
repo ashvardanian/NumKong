@@ -378,8 +378,11 @@ static __global__ void nk_attention_pack_directory_cuda_kernel_(unsigned char *p
         header->key_value_head_count = (nk_u32_t)key_value_head_count;
         header->depth = (nk_u32_t)depth;
         header->segments = (nk_u32_t)segment_count;
+        header->key_tensor_scale = 0, header->value_tensor_scale = 0;
         header->capability = capability;
-        for (unsigned reserved_index = 0; reserved_index < 11; ++reserved_index) header->reserved[reserved_index] = 0;
+        for (unsigned reserved_index = 0; reserved_index < sizeof(header->reserved) / sizeof(header->reserved[0]);
+             ++reserved_index)
+            header->reserved[reserved_index] = 0;
     }
     nk_u64_t *payload_offsets = (nk_u64_t *)(packed + sizeof(nk_attention_packed_header_t));
     nk_u32_t *offsets_copy = (nk_u32_t *)(payload_offsets + segment_count);

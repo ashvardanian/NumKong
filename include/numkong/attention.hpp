@@ -48,10 +48,11 @@ namespace ashvardanian::numkong {
  *  Queries align to the end of each segment's keys, as @c nk_attention_packed_bf16_best describes:
  *  causal sets @p keys_after to 0, and a sliding window of @c w keys sets @p keys_before to w − 1.
  *
- *  @tparam in_type_ Input element type (bf16_t, f16_t, e4m3_t, i8_t).
+ *  @tparam in_type_ Input element type (bf16_t, f16_t, e4m3_t, i8_t), or a block-scaled format
+ *      whose queries are an @c operand_pointer reference.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::attention_result_t>
-status_t attention_packed(in_type_ const *queries, void const *key_value_packed, result_type_ *output,
+status_t attention_packed(operand_pointer<in_type_> queries, void const *key_value_packed, result_type_ *output,
                           f32_t *log_sum_exp, std::size_t head_count, std::size_t key_value_head_count,
                           std::size_t depth, std::uint32_t const *query_offsets, std::size_t queries_stride,
                           std::size_t output_stride, f32_t scale,
@@ -86,6 +87,36 @@ status_t attention_packed(in_type_ const *queries, void const *key_value_packed,
                 queries_raw, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
                 query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin,
                 tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
+            return static_cast<status_t>(nk_attention_packed_nvfp4_best(
+                queries, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin,
+                tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
+            return static_cast<status_t>(nk_attention_packed_mxfp4_best(
+                queries, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin,
+                tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
+            return static_cast<status_t>(nk_attention_packed_mxfp6e2m3_best(
+                queries, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin,
+                tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
+            return static_cast<status_t>(nk_attention_packed_mxfp6e3m2_best(
+                queries, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin,
+                tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
+            return static_cast<status_t>(nk_attention_packed_mxfp8e4m3_best(
+                queries, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin,
+                tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
+            return static_cast<status_t>(nk_attention_packed_mxfp8e5m2_best(
+                queries, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin,
+                tasks_end, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(
@@ -107,6 +138,36 @@ status_t attention_packed(in_type_ const *queries, void const *key_value_packed,
             nk_attention_packed_i8_serial(queries_raw, key_value_packed, output_raw, log_sum_exp_raw, head_count,
                                           key_value_head_count, depth, query_offsets, queries_stride, output_stride,
                                           scale.raw_, keys_before, keys_after, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
+        return static_cast<status_t>(
+            nk_attention_packed_nvfp4_serial(queries, key_value_packed, output_raw, log_sum_exp_raw, head_count,
+                                             key_value_head_count, depth, query_offsets, queries_stride, output_stride,
+                                             scale.raw_, keys_before, keys_after, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
+        return static_cast<status_t>(
+            nk_attention_packed_mxfp4_serial(queries, key_value_packed, output_raw, log_sum_exp_raw, head_count,
+                                             key_value_head_count, depth, query_offsets, queries_stride, output_stride,
+                                             scale.raw_, keys_before, keys_after, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
+        return static_cast<status_t>(nk_attention_packed_mxfp6e2m3_serial(
+            queries, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
+            query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin, tasks_end,
+            stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
+        return static_cast<status_t>(nk_attention_packed_mxfp6e3m2_serial(
+            queries, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
+            query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin, tasks_end,
+            stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
+        return static_cast<status_t>(nk_attention_packed_mxfp8e4m3_serial(
+            queries, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
+            query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin, tasks_end,
+            stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
+        return static_cast<status_t>(nk_attention_packed_mxfp8e5m2_serial(
+            queries, key_value_packed, output_raw, log_sum_exp_raw, head_count, key_value_head_count, depth,
+            query_offsets, queries_stride, output_stride, scale.raw_, keys_before, keys_after, tasks_begin, tasks_end,
+            stream));
     else return status_t::missing_kernel_k;
 }
 
@@ -128,11 +189,12 @@ status_t attention_packed(in_type_ const *queries, void const *key_value_packed,
  *
  *  Every other parameter follows @c attention_packed; the band must be the forward's.
  *
- *  @tparam in_type_ Input element type, bf16_t.
+ *  @tparam in_type_ Input element type, bf16_t, or a block-scaled format whose queries are an
+ *      @c operand_pointer reference.
  */
 template <numeric_dtype in_type_>
 status_t attention_packed_gradients(
-    in_type_ const *queries, void const *key_value_packed, f32_t const *output, f32_t const *output_gradient,
+    operand_pointer<in_type_> queries, void const *key_value_packed, f32_t const *output, f32_t const *output_gradient,
     f32_t const *log_sum_exp, f32_t *query_gradient, f32_t *key_gradient, f32_t *value_gradient, std::size_t head_count,
     std::size_t key_value_head_count, std::size_t depth, std::uint32_t const *query_offsets, std::size_t queries_stride,
     std::size_t output_stride, std::size_t query_gradient_stride, std::size_t key_value_gradient_stride, f32_t scale,
@@ -140,26 +202,99 @@ status_t attention_packed_gradients(
     std::size_t keys_after = std::numeric_limits<std::size_t>::max(), std::size_t tasks_begin = 0,
     std::size_t tasks_end = std::numeric_limits<std::size_t>::max(),
     nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) {
-    if constexpr (std::is_same_v<in_type_, bf16_t>) {
-        auto const *queries_raw = reinterpret_cast<nk_bf16_t const *>(queries);
-        auto const *output_raw = reinterpret_cast<nk_f32_t const *>(output);
-        auto const *output_gradient_raw = reinterpret_cast<nk_f32_t const *>(output_gradient);
-        auto const *log_sum_exp_raw = reinterpret_cast<nk_f32_t const *>(log_sum_exp);
-        auto *query_gradient_raw = reinterpret_cast<nk_f32_t *>(query_gradient);
-        auto *key_gradient_raw = reinterpret_cast<nk_f32_t *>(key_gradient);
-        auto *value_gradient_raw = reinterpret_cast<nk_f32_t *>(value_gradient);
-        if (capabilities)
+    auto const *output_raw = reinterpret_cast<nk_f32_t const *>(output);
+    auto const *output_gradient_raw = reinterpret_cast<nk_f32_t const *>(output_gradient);
+    auto const *log_sum_exp_raw = reinterpret_cast<nk_f32_t const *>(log_sum_exp);
+    auto *query_gradient_raw = reinterpret_cast<nk_f32_t *>(query_gradient);
+    auto *key_gradient_raw = reinterpret_cast<nk_f32_t *>(key_gradient);
+    auto *value_gradient_raw = reinterpret_cast<nk_f32_t *>(value_gradient);
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_packed_gradients_bf16_best(
-                queries_raw, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+                reinterpret_cast<nk_bf16_t const *>(queries), key_value_packed, output_raw, output_gradient_raw,
+                log_sum_exp_raw, query_gradient_raw, key_gradient_raw, value_gradient_raw, head_count,
+                key_value_head_count, depth, query_offsets, queries_stride, output_stride, query_gradient_stride,
+                key_value_gradient_stride, scale.raw_, keys_before, keys_after, tasks_begin, tasks_end, capabilities,
+                stream));
+        else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
+            return static_cast<status_t>(nk_attention_packed_gradients_nvfp4_best(
+                queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
                 key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
                 queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_,
                 keys_before, keys_after, tasks_begin, tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
+            return static_cast<status_t>(nk_attention_packed_gradients_mxfp4_best(
+                queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+                key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_,
+                keys_before, keys_after, tasks_begin, tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
+            return static_cast<status_t>(nk_attention_packed_gradients_mxfp6e2m3_best(
+                queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+                key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_,
+                keys_before, keys_after, tasks_begin, tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
+            return static_cast<status_t>(nk_attention_packed_gradients_mxfp6e3m2_best(
+                queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+                key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_,
+                keys_before, keys_after, tasks_begin, tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
+            return static_cast<status_t>(nk_attention_packed_gradients_mxfp8e4m3_best(
+                queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+                key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_,
+                keys_before, keys_after, tasks_begin, tasks_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
+            return static_cast<status_t>(nk_attention_packed_gradients_mxfp8e5m2_best(
+                queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+                key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_,
+                keys_before, keys_after, tasks_begin, tasks_end, capabilities, stream));
+    }
+    if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_packed_gradients_bf16_serial(
-            queries_raw, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+            reinterpret_cast<nk_bf16_t const *>(queries), key_value_packed, output_raw, output_gradient_raw,
+            log_sum_exp_raw, query_gradient_raw, key_gradient_raw, value_gradient_raw, head_count, key_value_head_count,
+            depth, query_offsets, queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride,
+            scale.raw_, keys_before, keys_after, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
+        return static_cast<status_t>(nk_attention_packed_gradients_nvfp4_serial(
+            queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
             key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
             queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_, keys_before,
             keys_after, tasks_begin, tasks_end, stream));
-    }
+    else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
+        return static_cast<status_t>(nk_attention_packed_gradients_mxfp4_serial(
+            queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+            key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_, keys_before,
+            keys_after, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
+        return static_cast<status_t>(nk_attention_packed_gradients_mxfp6e2m3_serial(
+            queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+            key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_, keys_before,
+            keys_after, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
+        return static_cast<status_t>(nk_attention_packed_gradients_mxfp6e3m2_serial(
+            queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+            key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_, keys_before,
+            keys_after, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
+        return static_cast<status_t>(nk_attention_packed_gradients_mxfp8e4m3_serial(
+            queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+            key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_, keys_before,
+            keys_after, tasks_begin, tasks_end, stream));
+    else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
+        return static_cast<status_t>(nk_attention_packed_gradients_mxfp8e5m2_serial(
+            queries, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
+            key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_, keys_before,
+            keys_after, tasks_begin, tasks_end, stream));
     else return status_t::missing_kernel_k;
 }
 
