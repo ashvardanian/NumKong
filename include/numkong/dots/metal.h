@@ -97,17 +97,6 @@ NUMKONG_INLINE nk_size_t nk_cross_pack_size_metal_(nk_size_t columns, nk_size_t 
     return sizeof(nk_cross_packed_buffer_header_t) + body_bytes + norms_bytes;
 }
 
-NUMKONG_INLINE int nk_cross_span_metal_(nk_size_t count, nk_size_t stride, nk_size_t row_bytes, nk_size_t *bytes) {
-    if (!count) {
-        *bytes = 0;
-        return 1;
-    }
-    nk_size_t prefix;
-    if (!nk_size_mul_checked_(count - 1, stride, &prefix) || row_bytes > NUMKONG_SIZE_MAX - prefix) return 0;
-    *bytes = prefix + row_bytes;
-    return 1;
-}
-
 /** Synchronizes, then reads the columns and depth out of a packed B's header, if @p capability
  *  packed it. */
 NUMKONG_INLINE nk_status_t nk_cross_packed_shape_metal_(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
@@ -152,10 +141,10 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_metal_(char const *kernel, nk_cr
     nk_size_t const packed_bytes = nk_cross_pack_size_metal_(columns, depth, depth_simd_dimensions, value_bytes,
                                                              norm_bytes, dimensions_per_value, scales_stride);
     if (!packed_bytes || !nk_size_mul_checked_(depth / dimensions_per_value, value_bytes, &row_bytes) ||
-        !nk_cross_span_metal_(row_bytes ? columns_end : 0, b_stride, row_bytes, &b_bytes))
+        !nk_size_span_checked_(row_bytes ? columns_end : 0, b_stride, row_bytes, &b_bytes))
         return nk_abort_metal_(&call, nk_unexpected_dimensions_k);
     nk_size_t scales_bytes;
-    if (!nk_cross_span_metal_(scale_blocks ? columns_end : 0, b.scales_stride, scale_blocks, &scales_bytes))
+    if (!nk_size_span_checked_(scale_blocks ? columns_end : 0, b.scales_stride, scale_blocks, &scales_bytes))
         return nk_abort_metal_(&call, nk_unexpected_dimensions_k);
     void *const b_buffer = b_bytes && columns_end > columns_begin
                                ? nk_resolve_metal_(&call, b.elements, b_bytes, &b_offset)
@@ -222,11 +211,11 @@ NUMKONG_INLINE nk_status_t nk_cross_encode_metal_(char const *source, nk_size_t 
     if (status != nk_success_k) return status;
     nk_size_t a_offset = 0, b_offset = 0, c_offset = 0;
     nk_size_t a_bytes, b_bytes, c_bytes, result_row_bytes;
-    if (!nk_cross_span_metal_(input_row_bytes ? rows_end : 0, a_stride, input_row_bytes, &a_bytes) ||
-        !nk_cross_span_metal_(input_row_bytes ? column_count : 0, b_stride, b_extra_offset ? b_stride : input_row_bytes,
-                              &b_bytes) ||
+    if (!nk_size_span_checked_(input_row_bytes ? rows_end : 0, a_stride, input_row_bytes, &a_bytes) ||
+        !nk_size_span_checked_(input_row_bytes ? column_count : 0, b_stride,
+                               b_extra_offset ? b_stride : input_row_bytes, &b_bytes) ||
         !nk_size_mul_checked_(column_count, result_bytes, &result_row_bytes) ||
-        !nk_cross_span_metal_(rows_end, c_stride, result_row_bytes, &c_bytes) ||
+        !nk_size_span_checked_(rows_end, c_stride, result_row_bytes, &c_bytes) ||
         b_bytes > NUMKONG_SIZE_MAX - b_extra_offset || b_tail_bytes > NUMKONG_SIZE_MAX - b_extra_offset - b_bytes)
         return nk_abort_metal_(&call, nk_unexpected_dimensions_k);
     b_bytes += b_extra_offset + b_tail_bytes;
@@ -237,8 +226,8 @@ NUMKONG_INLINE nk_status_t nk_cross_encode_metal_(char const *source, nk_size_t 
     if (!b_bytes) b_offset = c_offset;
     if (!a_buffer || !b_buffer || !c_buffer) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
     nk_size_t a_scales_bytes, b_scales_bytes;
-    if (!nk_cross_span_metal_(scale_blocks ? rows_end : 0, a.scales_stride, scale_blocks, &a_scales_bytes) ||
-        !nk_cross_span_metal_(scale_blocks ? column_count : 0, b.scales_stride, scale_blocks, &b_scales_bytes))
+    if (!nk_size_span_checked_(scale_blocks ? rows_end : 0, a.scales_stride, scale_blocks, &a_scales_bytes) ||
+        !nk_size_span_checked_(scale_blocks ? column_count : 0, b.scales_stride, scale_blocks, &b_scales_bytes))
         return nk_abort_metal_(&call, nk_unexpected_dimensions_k);
     nk_size_t a_scales_offset = 0, b_scales_offset = 0, a_tensor_offset = 0, b_tensor_offset = 0;
     void *const a_scales_buffer = a.scales && a_scales_bytes

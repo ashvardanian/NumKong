@@ -8,6 +8,7 @@
 
 #include "numkong/metal.h"
 #include "numkong/dots/metal.h"
+#include "numkong/each/metal.h"
 #include "numkong/spatials/metal.h"
 
 NUMKONG_API nk_metal_context_t *nk_contexts_metal_(os_unfair_lock_t *contexts_lock) {

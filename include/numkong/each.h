@@ -2397,6 +2397,84 @@ NUMKONG_API nk_status_t nk_each_rmscast_u8_rocm(nk_u32_t const *x, nk_f32_t cons
                                                 nk_size_t y_stride, nk_f32_t epsilon, nk_stream_t stream);
 #endif // NUMKONG_TARGET_ROCM
 
+#if NUMKONG_TARGET_METAL
+/** @copydoc nk_each_swiglu_f32_best */
+NUMKONG_API nk_status_t nk_each_swiglu_f32_metal(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y, nk_size_t rows,
+                                                 nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride,
+                                                 nk_size_t y_stride, nk_f32_t gate_scale, nk_f32_t output_scale,
+                                                 nk_stream_t stream);
+/** @copydoc nk_each_swiglu_f16_best */
+NUMKONG_API nk_status_t nk_each_swiglu_f16_metal(nk_f16_t const *gate, nk_f16_t const *up, nk_f16_t *y, nk_size_t rows,
+                                                 nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride,
+                                                 nk_size_t y_stride, nk_f32_t gate_scale, nk_f32_t output_scale,
+                                                 nk_stream_t stream);
+/** @copydoc nk_each_swiglu_bf16_best */
+NUMKONG_API nk_status_t nk_each_swiglu_bf16_metal(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
+                                                  nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
+                                                  nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
+                                                  nk_f32_t output_scale, nk_stream_t stream);
+/** @copydoc nk_each_swiglu_e4m3_best */
+NUMKONG_API nk_status_t nk_each_swiglu_e4m3_metal(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
+                                                  nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
+                                                  nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
+                                                  nk_f32_t output_scale, nk_stream_t stream);
+/** @copydoc nk_each_rmsnorm_f32_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_f32_metal(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
+                                                  nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
+                                                  nk_size_t y_stride, nk_f32_t epsilon, nk_stream_t stream);
+/** @copydoc nk_each_rmsnorm_f16_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_f16_metal(nk_f16_t const *x, nk_f32_t const *gamma, nk_f16_t *y, nk_size_t rows,
+                                                  nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
+                                                  nk_size_t y_stride, nk_f32_t epsilon, nk_stream_t stream);
+/** @copydoc nk_each_rmsnorm_bf16_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_metal(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
+                                                   nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                   nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                   nk_stream_t stream);
+/** @copydoc nk_each_rmsnorm_e4m3_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_metal(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
+                                                   nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                   nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                   nk_stream_t stream);
+/** @copydoc nk_each_rmscast_bf16_best */
+NUMKONG_API nk_status_t nk_each_rmscast_bf16_metal(nk_f32_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
+                                                   nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                   nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                   nk_stream_t stream);
+/** @copydoc nk_each_rmscast_bf16_best */
+NUMKONG_API nk_status_t nk_each_rmscast_f16_metal(nk_f32_t const *x, nk_f32_t const *gamma, nk_f16_t *y, nk_size_t rows,
+                                                  nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
+                                                  nk_size_t y_stride, nk_f32_t epsilon, nk_stream_t stream);
+/** @copydoc nk_each_rmscast_bf16_best */
+NUMKONG_API nk_status_t nk_each_rmscast_e4m3_metal(nk_f32_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
+                                                   nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                   nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                   nk_stream_t stream);
+/** @copydoc nk_each_rmscast_bf16_best */
+NUMKONG_API nk_status_t nk_each_rmscast_e5m2_metal(nk_f32_t const *x, nk_f32_t const *gamma, nk_e5m2_t *y,
+                                                   nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                   nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                   nk_stream_t stream);
+/** @copydoc nk_each_rmscast_bf16_best */
+NUMKONG_API nk_status_t nk_each_rmscast_e2m3_metal(nk_f32_t const *x, nk_f32_t const *gamma, nk_e2m3_t *y,
+                                                   nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                   nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                   nk_stream_t stream);
+/** @copydoc nk_each_rmscast_bf16_best */
+NUMKONG_API nk_status_t nk_each_rmscast_e3m2_metal(nk_f32_t const *x, nk_f32_t const *gamma, nk_e3m2_t *y,
+                                                   nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                   nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                   nk_stream_t stream);
+/** @copydoc nk_each_rmscast_bf16_best */
+NUMKONG_API nk_status_t nk_each_rmscast_i8_metal(nk_i32_t const *x, nk_f32_t const *gamma, nk_i8_t *y, nk_size_t rows,
+                                                 nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
+                                                 nk_size_t y_stride, nk_f32_t epsilon, nk_stream_t stream);
+/** @copydoc nk_each_rmscast_bf16_best */
+NUMKONG_API nk_status_t nk_each_rmscast_u8_metal(nk_u32_t const *x, nk_f32_t const *gamma, nk_u8_t *y, nk_size_t rows,
+                                                 nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
+                                                 nk_size_t y_stride, nk_f32_t epsilon, nk_stream_t stream);
+#endif // NUMKONG_TARGET_METAL
+
 /** Returns the scalar parameter dtype for elementwise scale/blend/fma operations. */
 NUMKONG_INLINE nk_dtype_t nk_each_scale_input_dtype(nk_dtype_t dtype) {
     switch (dtype) {
@@ -2475,6 +2553,7 @@ NUMKONG_API nk_status_t nk_each_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
 #include "numkong/each/rocm.cuh"
 #include "numkong/each/ampere.cuh"
 #include "numkong/each/ada.cuh"
+#include "numkong/each/metal.h"
 
 #if defined(__cplusplus)
 extern "C" {

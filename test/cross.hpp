@@ -852,7 +852,8 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
     if constexpr (format.block_size != 0) {
         using scale_t = typename nk::type_for<format.scale_dtype>::type;
         std::size_t const depth = 2 * format.block_size, columns = 3, row_bytes = 2 * format.block_bytes;
-        auto codes = make_vector<scalar_t>(backend, 4 * row_bytes / sizeof(scalar_t));
+        auto codes = make_vector<scalar_t>(backend,
+                                           4 * row_bytes / sizeof(scalar_t) * nk::dimensions_per_value<scalar_t>());
         std::memset(codes.raw_values_data(), 0x22, codes.size_bytes());
         auto scales = make_vector<scale_t>(backend, 8);
         auto tensor = make_vector<f32_t>(backend, 1);

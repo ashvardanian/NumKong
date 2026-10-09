@@ -2455,6 +2455,16 @@ NUMKONG_CONSTEXPR int nk_size_mul_checked_(nk_size_t a, nk_size_t b, nk_size_t *
     return 1;
 }
 
+/** Bytes spanned by @p count rows of @p row_bytes each, @p stride bytes apart, with overflow
+ *  detection. Writes the span and returns 1 on success, or returns 0 when it overflows. */
+NUMKONG_CONSTEXPR int nk_size_span_checked_(nk_size_t count, nk_size_t stride, nk_size_t row_bytes,
+                                            nk_size_t *bytes) NUMKONG_STREAMABLE_ {
+    nk_size_t prefix = 0;
+    if (count && (!nk_size_mul_checked_(count - 1, stride, &prefix) || row_bytes > NUMKONG_SIZE_MAX - prefix)) return 0;
+    *bytes = count ? prefix + row_bytes : 0;
+    return 1;
+}
+
 NUMKONG_CONSTEXPR nk_f32_t nk_f32_abs_(nk_f32_t x) { return x < 0 ? -x : x; }
 NUMKONG_CONSTEXPR nk_f64_t nk_f64_abs_(nk_f64_t x) { return x < 0 ? -x : x; }
 NUMKONG_CONSTEXPR nk_i64_t nk_i32_abs_(nk_i32_t x) { return x < 0 ? -x : x; }

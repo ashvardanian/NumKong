@@ -2914,13 +2914,19 @@ static nk_capability_kernels_t const *nk_each_swiglu_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_swiglu_f32_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_swiglu_f32_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -2944,11 +2950,17 @@ static nk_capability_kernels_t const *nk_each_swiglu_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_swiglu_f16_neon,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_swiglu_f16_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON, cpu},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -2993,13 +3005,19 @@ static nk_capability_kernels_t const *nk_each_swiglu_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_swiglu_bf16_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_swiglu_bf16_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3045,13 +3063,19 @@ static nk_capability_kernels_t const *nk_each_swiglu_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_swiglu_e4m3_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_swiglu_e4m3_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ada_k * NUMKONG_TARGET_ADA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3094,13 +3118,19 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmsnorm_f32_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmsnorm_f32_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3123,11 +3153,17 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmsnorm_f16_neon,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmsnorm_f16_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON, cpu},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3174,13 +3210,19 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmsnorm_bf16_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmsnorm_bf16_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_genoa_k * NUMKONG_TARGET_GENOA,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3227,13 +3269,19 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmsnorm_e4m3_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmsnorm_e4m3_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_genoa_k * NUMKONG_TARGET_GENOA,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ada_k * NUMKONG_TARGET_ADA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3277,13 +3325,19 @@ static nk_capability_kernels_t const *nk_each_rmscast_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmscast_bf16_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmscast_bf16_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3318,11 +3372,17 @@ static nk_capability_kernels_t const *nk_each_rmscast_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmscast_f16_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmscast_f16_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON, cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3366,13 +3426,19 @@ static nk_capability_kernels_t const *nk_each_rmscast_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmscast_e4m3_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmscast_e4m3_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ada_k * NUMKONG_TARGET_ADA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3407,11 +3473,17 @@ static nk_capability_kernels_t const *nk_each_rmscast_e5m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmscast_e5m2_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmscast_e5m2_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k, cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ada_k * NUMKONG_TARGET_ADA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3443,11 +3515,17 @@ static nk_capability_kernels_t const *nk_each_rmscast_e2m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmscast_e2m3_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmscast_e2m3_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k, cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3479,11 +3557,17 @@ static nk_capability_kernels_t const *nk_each_rmscast_e3m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmscast_e3m2_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmscast_e3m2_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k, cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3562,11 +3646,17 @@ static nk_capability_kernels_t const *nk_each_rmscast_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmscast_i8_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmscast_i8_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k, cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
@@ -3598,11 +3688,17 @@ static nk_capability_kernels_t const *nk_each_rmscast_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmscast_u8_rocm,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_each_rmscast_u8_metal,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k, cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
 }
