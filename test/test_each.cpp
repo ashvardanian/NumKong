@@ -154,9 +154,9 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
 std::uint64_t f16_ulp_distance(f16_t a, f16_t b) noexcept {
     float const a_f32 = a.to_f32(), b_f32 = b.to_f32();
     if (std::isnan(a_f32) || std::isnan(b_f32)) return std::numeric_limits<std::uint64_t>::max();
-    if (a_f32 == b_f32) return 0;
     auto ordered = [](std::uint16_t bits) noexcept {
-        return (bits & 0x8000u) ? static_cast<std::uint16_t>(~bits) : static_cast<std::uint16_t>(bits | 0x8000u);
+        std::uint16_t const magnitude = bits & 0x7FFFu;
+        return static_cast<std::uint16_t>((bits & 0x8000u) ? 0x8000u - magnitude : 0x8000u + magnitude);
     };
     std::uint16_t const ordered_a = ordered(a.to_bits());
     std::uint16_t const ordered_b = ordered(b.to_bits());
@@ -167,7 +167,10 @@ std::uint64_t f16_ulp_distance(f16_t a, f16_t b) noexcept {
 void accumulate_f16_comparison(error_stats_t &stats, f16_t actual, f16_t expected) noexcept {
     nk_f64_t const actual_f64 = actual.to_f32(), expected_f64 = expected.to_f32();
     std::uint64_t const ulps = f16_ulp_distance(actual, expected);
-    if (ulps == std::numeric_limits<std::uint64_t>::max()) return;
+    if (ulps == std::numeric_limits<std::uint64_t>::max()) {
+        stats.expect(false, "half comparison contains no NaN");
+        return;
+    }
     nk_f64_t const abs_error = actual_f64 == expected_f64 ? 0.0 : std::fabs(expected_f64 - actual_f64);
     nk_f64_t const rel_error = expected_f64 != 0.0 ? abs_error / std::fabs(expected_f64) : abs_error;
 
@@ -195,6 +198,26 @@ error_stats_t test_f16_ulp_distance() {
                  "zero and the smallest positive half subnormal have distance one");
     stats.expect(f16_ulp_distance(f16_t::from_bits(0x8000), f16_t::from_bits(0x0000)) == 0,
                  "signed half zeros compare equal");
+    stats.expect(f16_ulp_distance(f16_t::from_bits(0x8000), f16_t::from_bits(0x0001)) == 1,
+                 "negative zero and the smallest positive half subnormal have distance one");
+    stats.expect(f16_ulp_distance(f16_t::from_bits(0x0000), f16_t::from_bits(0x8001)) == 1,
+                 "positive zero and the smallest negative half subnormal have distance one");
+    stats.expect(f16_ulp_distance(f16_t::from_bits(0x8001), f16_t::from_bits(0x0001)) == 2,
+                 "the smallest half subnormals across zero have distance two");
+    return stats;
+}
+
+error_stats_t test_f16_comparison() {
+    error_stats_t stats(comparison_family_t::exact_k);
+    f16_t const finite = f16_t::from_bits(0x3C00), nan = f16_t::from_bits(0x7E00);
+
+    error_stats_t output_nan(comparison_family_t::approximate_k);
+    accumulate_f16_comparison(output_nan, nan, finite);
+    stats.expect(should_fail("each_scale_f16", output_nan), "NaN output fails a finite reference");
+
+    error_stats_t reference_nan(comparison_family_t::approximate_k);
+    accumulate_f16_comparison(reference_nan, finite, nan);
+    stats.expect(should_fail("each_scale_f16", reference_nan), "finite output fails a NaN reference");
     return stats;
 }
 
@@ -214,10 +237,8 @@ error_stats_t test_scale_f16_f32_reference(f16_t::scale_kernel_t kernel, nk_size
         kernel(input.raw_values_data(), n, &alpha, &beta, result.raw_values_data());
         nk_each_scale_f32(input_f32.data(), n, &alpha, &beta, reference_f32.data());
 
-        for (std::size_t i = 0; i != n; ++i) {
-            f16_t const expected = f16_t::from_f32(reference_f32[i]);
-            accumulate_f16_comparison(stats, result[i], expected);
-        }
+        for (std::size_t i = 0; i != n; ++i)
+            accumulate_f16_comparison(stats, result[i], f16_t::from_f32(reference_f32[i]));
     }
     return stats;
 }
@@ -242,10 +263,8 @@ error_stats_t test_blend_f16_f32_reference(f16_t::blend_kernel_t kernel, nk_size
         kernel(a.raw_values_data(), b.raw_values_data(), n, &alpha, &beta, result.raw_values_data());
         nk_each_blend_f32(a_f32.data(), b_f32.data(), n, &alpha, &beta, reference_f32.data());
 
-        for (std::size_t i = 0; i != n; ++i) {
-            f16_t const expected = f16_t::from_f32(reference_f32[i]);
-            accumulate_f16_comparison(stats, result[i], expected);
-        }
+        for (std::size_t i = 0; i != n; ++i)
+            accumulate_f16_comparison(stats, result[i], f16_t::from_f32(reference_f32[i]));
     }
     return stats;
 }
@@ -273,10 +292,8 @@ error_stats_t test_fma_f16_f32_reference(f16_t::fma_kernel_t kernel, nk_size_t n
                result.raw_values_data());
         nk_each_fma_f32(a_f32.data(), b_f32.data(), c_f32.data(), n, &alpha, &beta, reference_f32.data());
 
-        for (std::size_t i = 0; i != n; ++i) {
-            f16_t const expected = f16_t::from_f32(reference_f32[i]);
-            accumulate_f16_comparison(stats, result[i], expected);
-        }
+        for (std::size_t i = 0; i != n; ++i)
+            accumulate_f16_comparison(stats, result[i], f16_t::from_f32(reference_f32[i]));
     }
     return stats;
 }
@@ -291,6 +308,7 @@ void test_each() {
 
     check.section("Elementwise Precision Helpers", nk_cap_serial_k);
     check("f16_ulp_distance", test_f16_ulp_distance);
+    check("f16_comparison", test_f16_comparison);
 
     check.section("Elementwise Operations Serial", nk_cap_serial_k);
     check("each_scale_f32_serial", test_scale<f32_t>, nk_each_scale_f32_serial);
