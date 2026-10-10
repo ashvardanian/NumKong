@@ -1745,7 +1745,9 @@ void expect_log_sum_exp(settings_t const &settings, error_stats_t &stats, actual
  *  query tokens × heads grid, run in shuffled order and clipped to it, must match one call over
  *  the grid bit for bit. Block-scaled formats round each depth up to a whole block, and MX
  *  queries, keys and values of two blocks or more spread their first two scales past the window
- *  an MX plane rebases across. */
+ *  an MX plane rebases across, as does the last query row against rebased planes. The fourth
+ *  segment's MX query and key rows hold 2⁸ blocks but for a 2⁹⁷ first block in queries and second
+ *  in keys, so its first head's score multiplier overflows while its scores stay finite. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t,
           attention_weights_t weights_ = attention_weights_t::unquantized_k, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename attention_kernel_type_>
@@ -1796,12 +1798,24 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
                                                           key_value_stride, 0x1.8p-9f),
                  value_scales = random_scales<scalar_type_>(backend, generator, key_tokens, layout.key_value_width(),
                                                             key_value_stride, 1.25f);
-            // 2⁻⁹⁰ and 2³ blocks keep the first query row, K plane and V plane past the window
+            // 2⁻⁹⁰ and 2³ blocks keep the first and last query rows, K and V planes past the window
             if constexpr (format.scale_dtype == nk_ue8m0_k)
                 if (layout.depth >= 2 * format.block_size)
-                    for (auto *scales : {&query_scales, &key_scales, &value_scales})
-                        scales->blocks.data()[0] = ue8m0_t::from_raw(127 - 90),
-                        scales->blocks.data()[1] = ue8m0_t::from_raw(127 + 3);
+                    for (auto *blocks :
+                         {query_scales.blocks.data(), key_scales.blocks.data(), value_scales.blocks.data(),
+                          query_scales.blocks.data() + (query_tokens - 1) * query_scales.scale_stride})
+                        blocks[0] = ue8m0_t::from_raw(127 - 90), blocks[1] = ue8m0_t::from_raw(127 + 3);
+            // Crossed 2⁹⁷ and 2⁸ blocks overflow the fourth segment's multipliers, not its scores
+            if constexpr (format.scale_dtype == nk_ue8m0_k)
+                if (layout.depth >= 2 * format.block_size)
+                    for (auto [scales, offsets, high] :
+                         {std::tuple {&query_scales, segments.query_offsets.values_data(), 0},
+                          std::tuple {&key_scales, segments.key_offsets.values_data(), 1}})
+                        for (std::size_t row = offsets[3]; row != offsets[4]; row++) {
+                            auto *blocks = scales->blocks.data() + row * scales->scale_stride;
+                            std::fill_n(blocks, scales->scale_stride, ue8m0_t::from_raw(127 + 8));
+                            blocks[high] = ue8m0_t::from_raw(127 + 97);
+                        }
             auto key_value_packed = make_vector<char>(
                 backend, pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth, key_tokens,
                                          segments.count()));

@@ -309,11 +309,11 @@ NUMKONG_INLINE void nk_attention_scores_f16_sme_streaming_(nk_u16_t const *queri
 }
 
 /** Drains the 2×2 score tiles of the chunk at key @p first_position into @p chunk_scores,
- *  position-major with one query per lane, folding the scores into the panel maxima, hidden keys
- *  excluded when @p panel_masked. Padded positions contribute exact zeros, which may only raise
- *  the maximum, always numerically safe and cancelling in normalization. */
+ *  position-major with one query per lane, folding the scores of its first @p chunk_length
+ *  positions into the panel maxima, hidden keys excluded when @p panel_masked. Padded positions
+ *  stay out of the maxima: a zero far above every real score would underflow all their weights. */
 NUMKONG_INLINE void nk_attention_drain_scores_sme_streaming_(                                      //
-    nk_f32_t *chunk_scores, nk_size_t first_position, int panel_masked,                            //
+    nk_f32_t *chunk_scores, nk_size_t first_position, nk_size_t chunk_length, int panel_masked,    //
     svuint32_t key_begins_low_u32x, svuint32_t key_begins_high_u32x, svuint32_t key_ends_low_u32x, //
     svuint32_t key_ends_high_u32x, svfloat32_t *panel_max_low_f32x,                                //
     svfloat32_t *panel_max_high_f32x) NUMKONG_STREAMING_ __arm_inout("za") {
@@ -345,12 +345,14 @@ NUMKONG_INLINE void nk_attention_drain_scores_sme_streaming_(                   
                 nk_attention_visible_sme_(key_begins_high_u32x, key_ends_high_u32x, position1), column1_high_f32x,
                 hidden_f32x);
         }
-        *panel_max_low_f32x = svmax_f32_x(predicate_all_b32x,
-                                          svmax_f32_x(predicate_all_b32x, *panel_max_low_f32x, maximum0_low_f32x),
-                                          maximum1_low_f32x);
-        *panel_max_high_f32x = svmax_f32_x(predicate_all_b32x,
-                                           svmax_f32_x(predicate_all_b32x, *panel_max_high_f32x, maximum0_high_f32x),
-                                           maximum1_high_f32x);
+        if (slice_idx < chunk_length) {
+            *panel_max_low_f32x = svmax_f32_x(predicate_all_b32x, *panel_max_low_f32x, maximum0_low_f32x);
+            *panel_max_high_f32x = svmax_f32_x(predicate_all_b32x, *panel_max_high_f32x, maximum0_high_f32x);
+        }
+        if (tile_dimension + slice_idx < chunk_length) {
+            *panel_max_low_f32x = svmax_f32_x(predicate_all_b32x, *panel_max_low_f32x, maximum1_low_f32x);
+            *panel_max_high_f32x = svmax_f32_x(predicate_all_b32x, *panel_max_high_f32x, maximum1_high_f32x);
+        }
         nk_f32_t *column0_scores = chunk_scores + slice_idx * block_rows_capacity;
         nk_f32_t *column1_scores = chunk_scores + (tile_dimension + slice_idx) * block_rows_capacity;
         svst1_f32(predicate_all_b32x, (float32_t *)column0_scores, column0_low_f32x);
@@ -423,6 +425,31 @@ NUMKONG_INLINE void nk_attention_pair_weights_sme_streaming_(                   
                                          svcvt_s32_f32_x(predicate_all_b32x, whole_odd_low_f32x));
     *weight_odd_high_f32x = svscale_f32_x(predicate_all_b32x, svcvtlt_f32_f16_x(predicate_all_b32x, poly_odd_f16x),
                                           svcvt_s32_f32_x(predicate_all_b32x, whole_odd_high_f32x));
+}
+
+/** The multiplier that the weights of the panel's first @p panel_length positions take. From 2²⁴
+ *  up, the maximum's product rounds by whole units, which the fused 2^(s · scale₂ − m₂) would
+ *  carry into its weight up to an overflow or a zero row sum, so such panels are scaled in place
+ *  and take 1. Lanes left at the hidden-key sentinel never need it. */
+NUMKONG_INLINE svfloat32_t nk_attention_panel_scale2_sme_streaming_(                //
+    nk_f32_t *scores_panel, nk_size_t panel_length, svfloat32_t panel_max_low_f32x, //
+    svfloat32_t panel_max_high_f32x, svfloat32_t scale2_f32x) NUMKONG_STREAMING_ {
+    nk_size_t const tile_dimension = svcntw(), block_rows_capacity = 2 * tile_dimension;
+    svbool_t const predicate_all_b32x = svptrue_b32();
+    svbool_t const visible_low_b32x = svcmpgt_n_f32(predicate_all_b32x, panel_max_low_f32x, NUMKONG_F32_MIN);
+    svbool_t const visible_high_b32x = svcmpgt_n_f32(predicate_all_b32x, panel_max_high_f32x, NUMKONG_F32_MIN);
+    svbool_t const inexact_low_b32x = svacge_n_f32(
+        visible_low_b32x, svmul_f32_x(predicate_all_b32x, panel_max_low_f32x, scale2_f32x), 16777216.0f);
+    svbool_t const inexact_high_b32x = svacge_n_f32(
+        visible_high_b32x, svmul_f32_x(predicate_all_b32x, panel_max_high_f32x, scale2_f32x), 16777216.0f);
+    if (!svptest_any(predicate_all_b32x, svorr_b_z(predicate_all_b32x, inexact_low_b32x, inexact_high_b32x)))
+        return scale2_f32x;
+    for (nk_size_t element_idx = 0; element_idx < panel_length * block_rows_capacity; element_idx += tile_dimension) {
+        svfloat32_t const scores_f32x = svld1_f32(predicate_all_b32x, (float32_t const *)(scores_panel + element_idx));
+        svst1_f32(predicate_all_b32x, (float32_t *)(scores_panel + element_idx),
+                  svmul_f32_x(predicate_all_b32x, scores_f32x, scale2_f32x));
+    }
+    return svdup_f32(1.0f);
 }
 
 /** Zeroes ZA and accumulates the widening BFMOPA products of the pair-interleaved weights of
@@ -667,10 +694,10 @@ NUMKONG_INLINE void nk_attention_block_bf16_sme_streaming_(                     
                                          (panel_start + chunk_start) / tile_dimension * depth_pairs * vector_elements;
             nk_attention_scores_bf16_sme_streaming_(queries_low, queries_high, keys_tile0,
                                                     keys_tile0 + depth_pairs * vector_elements, depth_pairs);
-            nk_attention_drain_scores_sme_streaming_(scores_panel + chunk_start * block_rows_capacity,
-                                                     panel_start + chunk_start, panel_masked, key_begins_low_u32x,
-                                                     key_begins_high_u32x, key_ends_low_u32x, key_ends_high_u32x,
-                                                     &panel_max_low_f32x, &panel_max_high_f32x);
+            nk_attention_drain_scores_sme_streaming_(
+                scores_panel + chunk_start * block_rows_capacity, panel_start + chunk_start, panel_length - chunk_start,
+                panel_masked, key_begins_low_u32x, key_begins_high_u32x, key_ends_low_u32x, key_ends_high_u32x,
+                &panel_max_low_f32x, &panel_max_high_f32x);
         }
 
         svfloat32_t const new_max2_low_f32x = svmax_f32_x(
@@ -687,13 +714,15 @@ NUMKONG_INLINE void nk_attention_block_bf16_sme_streaming_(                     
         running_max2_high_f32x = new_max2_high_f32x;
         svfloat32_t const negated_max2_low_f32x = svneg_f32_x(predicate_all_b32x, new_max2_low_f32x);
         svfloat32_t const negated_max2_high_f32x = svneg_f32_x(predicate_all_b32x, new_max2_high_f32x);
+        svfloat32_t const panel_scale2_f32x = nk_attention_panel_scale2_sme_streaming_(
+            scores_panel, panel_length, panel_max_low_f32x, panel_max_high_f32x, scale2_f32x);
 
         svfloat32_t panel_sum_low_f32x = svdup_f32(0.0f);
         svfloat32_t panel_sum_high_f32x = svdup_f32(0.0f);
         for (nk_size_t pair_idx = 0; pair_idx < panel_pairs; pair_idx++) {
             svfloat32_t weight_even_low_f32x, weight_even_high_f32x, weight_odd_low_f32x, weight_odd_high_f32x;
             nk_attention_pair_weights_sme_streaming_(scores_panel, pair_idx, panel_start, panel_length, panel_masked,
-                                                     scale2_f32x, negated_max2_low_f32x, negated_max2_high_f32x,
+                                                     panel_scale2_f32x, negated_max2_low_f32x, negated_max2_high_f32x,
                                                      key_begins_low_u32x, key_begins_high_u32x, key_ends_low_u32x,
                                                      key_ends_high_u32x, &weight_even_low_f32x, &weight_even_high_f32x,
                                                      &weight_odd_low_f32x, &weight_odd_high_f32x);
@@ -795,10 +824,10 @@ NUMKONG_INLINE void nk_attention_block_f16_sme_streaming_(                      
                                          (panel_start + chunk_start) / tile_dimension * depth_pairs * vector_elements;
             nk_attention_scores_f16_sme_streaming_(queries_low, queries_high, keys_tile0,
                                                    keys_tile0 + depth_pairs * vector_elements, depth_pairs);
-            nk_attention_drain_scores_sme_streaming_(scores_panel + chunk_start * block_rows_capacity,
-                                                     panel_start + chunk_start, panel_masked, key_begins_low_u32x,
-                                                     key_begins_high_u32x, key_ends_low_u32x, key_ends_high_u32x,
-                                                     &panel_max_low_f32x, &panel_max_high_f32x);
+            nk_attention_drain_scores_sme_streaming_(
+                scores_panel + chunk_start * block_rows_capacity, panel_start + chunk_start, panel_length - chunk_start,
+                panel_masked, key_begins_low_u32x, key_begins_high_u32x, key_ends_low_u32x, key_ends_high_u32x,
+                &panel_max_low_f32x, &panel_max_high_f32x);
         }
 
         svfloat32_t const new_max2_low_f32x = svmax_f32_x(
@@ -815,13 +844,15 @@ NUMKONG_INLINE void nk_attention_block_f16_sme_streaming_(                      
         running_max2_high_f32x = new_max2_high_f32x;
         svfloat32_t const negated_max2_low_f32x = svneg_f32_x(predicate_all_b32x, new_max2_low_f32x);
         svfloat32_t const negated_max2_high_f32x = svneg_f32_x(predicate_all_b32x, new_max2_high_f32x);
+        svfloat32_t const panel_scale2_f32x = nk_attention_panel_scale2_sme_streaming_(
+            scores_panel, panel_length, panel_max_low_f32x, panel_max_high_f32x, scale2_f32x);
 
         svfloat32_t panel_sum_low_f32x = svdup_f32(0.0f);
         svfloat32_t panel_sum_high_f32x = svdup_f32(0.0f);
         for (nk_size_t pair_idx = 0; pair_idx < panel_pairs; pair_idx++) {
             svfloat32_t weight_even_low_f32x, weight_even_high_f32x, weight_odd_low_f32x, weight_odd_high_f32x;
             nk_attention_pair_weights_sme_streaming_(scores_panel, pair_idx, panel_start, panel_length, panel_masked,
-                                                     scale2_f32x, negated_max2_low_f32x, negated_max2_high_f32x,
+                                                     panel_scale2_f32x, negated_max2_low_f32x, negated_max2_high_f32x,
                                                      key_begins_low_u32x, key_begins_high_u32x, key_ends_low_u32x,
                                                      key_ends_high_u32x, &weight_even_low_f32x, &weight_even_high_f32x,
                                                      &weight_odd_low_f32x, &weight_odd_high_f32x);
@@ -3292,9 +3323,9 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_i8_sme_streaming_(   
                                                                                      1, (uint32_t)slice_idx);
                             svint32_t const column1_high_i32x = svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x,
                                                                                       3, (uint32_t)slice_idx);
-                            // Unlike the B16 core, only valid positions may raise the maximum: a
-                            // padded zero score above every real one would quantize all U8 weights
-                            // to zero and break the weight-sum-never-zero invariant.
+                            // Only valid positions may raise the maximum: a padded zero score above
+                            // every real one would quantize all U8 weights to zero and break the
+                            // weight-sum-never-zero invariant.
                             svint32_t maximum0_low_i32x = column0_low_i32x, maximum0_high_i32x = column0_high_i32x;
                             svint32_t maximum1_low_i32x = column1_low_i32x, maximum1_high_i32x = column1_high_i32x;
                             if (panel_masked) { // hidden keys never raise the maximum

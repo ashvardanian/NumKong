@@ -315,3 +315,124 @@ struct e2m1x2_t {
 };
 
 } // namespace nk
+
+/** A compensated F32 pair scaled by 2 to the power of @c exponent, which block products of any
+ *  scales add into, rounding once at the end. */
+struct nk_cross_scaled_sum_metal_t {
+    float2 sum;
+    int exponent;
+};
+
+/** Splits @p value into a mantissa and its power of two, subnormals included; zeros, infinities and
+ *  NaNs return themselves at exponent zero. */
+float nk_cross_float_mantissa_metal_(float value, thread int &exponent) {
+    uint const bits = as_type<uint>(value), fraction = bits & 0x7fffff, biased = (bits >> 23) & 255;
+    if (biased == 255 || (biased == 0 && fraction == 0)) {
+        exponent = 0;
+        return value;
+    }
+    if (biased) {
+        exponent = int(biased) - 127;
+        return as_type<float>((bits & 0x807fffff) | 0x3f800000);
+    }
+    int shift;
+    float const mantissa = frexp(float(fraction), shift);
+    exponent = shift - 149;
+    return bits & 0x80000000 ? -mantissa : mantissa;
+}
+
+/** Adds @p value times 2 to the power of @p exponent into @p state, keeping what the sum sheds in
+ *  its low half; a non-finite term or sum leaves a plain F32 sum. */
+void nk_cross_scaled_add_metal_(thread nk_cross_scaled_sum_metal_t &state, float value, int exponent) {
+#pragma clang fp contract(off) reassociate(off)
+    if (!isfinite(value) || !isfinite(state.sum.x)) {
+        state.sum = float2(state.sum.x + value, 0);
+        state.exponent = 0;
+        return;
+    }
+    if (value == 0) return;
+    int shift;
+    value = frexp(value, shift);
+    exponent += shift;
+    if (all(state.sum == float2(0))) {
+        state.sum = float2(value, 0);
+        state.exponent = exponent;
+        return;
+    }
+    int const common = max(state.exponent, exponent);
+    float const high = ldexp(state.sum.x, state.exponent - common);
+    float const low = ldexp(state.sum.y, state.exponent - common);
+    value = ldexp(value, exponent - common);
+    float const sum = high + value, split = sum - high;
+    float const error = (high - (sum - split)) + (value - split) + low;
+    float const rounded = sum + error;
+    state.sum = float2(rounded, error - (rounded - sum));
+    state.exponent = common;
+}
+
+/** The bits of the F32 nearest @p sum times 2 to the power of @p exponent, rounded once, subnormals
+ *  included. */
+uint nk_cross_scaled_bits_metal_(float2 sum, int exponent) {
+#pragma clang fp contract(off) reassociate(off)
+    if (!isfinite(sum.x) || all(sum == float2(0))) return as_type<uint>(sum.x);
+    uint const sign = as_type<uint>(sum.x) & 0x80000000;
+    if (sign) sum = -sum;
+    int shift;
+    float const high = frexp(sum.x, shift);
+    sum = float2(high, ldexp(sum.y, -shift));
+    exponent += shift;
+    if (exponent >= -125) return as_type<uint>(ldexp(sum.x + sum.y, exponent)) | sign;
+    if (exponent < -149) return sign;
+    float const scaled = ldexp(sum.x, exponent + 149), error = ldexp(sum.y, exponent + 149);
+    float rounded = rint(scaled);
+    if (abs(scaled - rounded) == 0.5f && error != 0) rounded = error > 0 ? ceil(scaled) : floor(scaled);
+    return sign | uint(rounded);
+}
+
+/** @p state rounded to F32, times the F32 whose bits are @p tensor_product, rounded again. */
+float nk_cross_scaled_dot_metal_(nk_cross_scaled_sum_metal_t state, uint tensor_product) {
+#pragma clang fp contract(off) reassociate(off)
+    uint const dot_bits = nk_cross_scaled_bits_metal_(state.sum, state.exponent);
+    if (tensor_product == 0x3f800000) return as_type<float>(dot_bits);
+    int dot_exponent, tensor_exponent;
+    float const dot = nk_cross_float_mantissa_metal_(as_type<float>(dot_bits), dot_exponent);
+    float const tensor = nk_cross_float_mantissa_metal_(as_type<float>(tensor_product), tensor_exponent);
+    float const product = dot * tensor;
+    return as_type<float>(nk_cross_scaled_bits_metal_(
+        float2(product, isfinite(product) ? fma(dot, tensor, -product) : 0), dot_exponent + tensor_exponent));
+}
+
+/** The block scales of the block-scaled formats: UE4M3 for NVFP4, UE8M0 for the MX formats. */
+enum nk_cross_scale_metal_t { nk_cross_scale_e4m3_metal_k, nk_cross_scale_e8m0_metal_k };
+
+/** The product of the block scale codes @p a and @p b as a mantissa and a power of two in
+ *  @p exponent: UE4M3 values multiply, UE8M0 exponents add, 0xFF giving a NaN and 0x00 a zero. */
+template <nk_cross_scale_metal_t scale_>
+float nk_cross_block_scale_metal_(uchar a, uchar b, thread int &exponent) {
+#pragma clang fp contract(off) reassociate(off)
+    exponent = 0;
+    // UE4M3 is unsigned, so the top bit is ignored as the serial decoders do
+    if (scale_ == nk_cross_scale_e4m3_metal_k)
+        return float(nk::e4m3_t::widen(ushort4(a & 0x7F))[0]) * float(nk::e4m3_t::widen(ushort4(b & 0x7F))[0]);
+    exponent = int(a) + int(b) - 254;
+    return a == 255 || b == 255 ? NAN : a == 0 || b == 0 ? 0.0f : 1.0f;
+}
+
+/** Adds a block's F32 @p dot times its two scales into @p state. */
+template <nk_cross_scale_metal_t scale_>
+void nk_cross_scaled_block_add_metal_(thread nk_cross_scaled_sum_metal_t &state, float dot, uchar a_scale,
+                                      uchar b_scale) {
+#pragma clang fp contract(off) reassociate(off)
+    int exponent;
+    float const scale = nk_cross_block_scale_metal_<scale_>(a_scale, b_scale, exponent);
+    float const product = dot * scale;
+    if (scale_ == nk_cross_scale_e4m3_metal_k) {
+        // NVFP4 block products fit in 20 significant bits and cannot overflow F32.
+        float const sum = state.sum.x + product, split = sum - state.sum.x;
+        float const error = (state.sum.x - (sum - split)) + (product - split) + state.sum.y;
+        float const rounded = sum + error;
+        state.sum = isfinite(product) && isfinite(state.sum.x) ? float2(rounded, error - (rounded - sum))
+                                                               : float2(state.sum.x + product, 0);
+    }
+    else nk_cross_scaled_add_metal_(state, product, exponent);
+}

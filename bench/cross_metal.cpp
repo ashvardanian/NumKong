@@ -218,6 +218,18 @@ nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
                                  nk_attention_pack_e4m3_metal, nk_attention_packed_e4m3_metal, backend);
         run_attention<nk_i8_k>(env, "attention_packed_i8_metal", nk_attention_pack_size_i8_metal,
                                nk_attention_pack_i8_metal, nk_attention_packed_i8_metal, backend);
+        run_attention<nk_nvfp4_k>(env, "attention_packed_nvfp4_metal", nk_attention_pack_size_nvfp4_metal,
+                                  nk_attention_pack_nvfp4_metal, nk_attention_packed_nvfp4_metal, backend);
+        run_attention<nk_mxfp4_k>(env, "attention_packed_mxfp4_metal", nk_attention_pack_size_mxfp4_metal,
+                                  nk_attention_pack_mxfp4_metal, nk_attention_packed_mxfp4_metal, backend);
+        run_attention<nk_mxfp6e2m3_k>(env, "attention_packed_mxfp6e2m3_metal", nk_attention_pack_size_mxfp6e2m3_metal,
+                                      nk_attention_pack_mxfp6e2m3_metal, nk_attention_packed_mxfp6e2m3_metal, backend);
+        run_attention<nk_mxfp6e3m2_k>(env, "attention_packed_mxfp6e3m2_metal", nk_attention_pack_size_mxfp6e3m2_metal,
+                                      nk_attention_pack_mxfp6e3m2_metal, nk_attention_packed_mxfp6e3m2_metal, backend);
+        run_attention<nk_mxfp8e4m3_k>(env, "attention_packed_mxfp8e4m3_metal", nk_attention_pack_size_mxfp8e4m3_metal,
+                                      nk_attention_pack_mxfp8e4m3_metal, nk_attention_packed_mxfp8e4m3_metal, backend);
+        run_attention<nk_mxfp8e5m2_k>(env, "attention_packed_mxfp8e5m2_metal", nk_attention_pack_size_mxfp8e5m2_metal,
+                                      nk_attention_pack_mxfp8e5m2_metal, nk_attention_packed_mxfp8e5m2_metal, backend);
         run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_metal",
                                            nk_attention_pack_size_bf16_metal, nk_attention_pack_bf16_metal,
                                            nk_attention_packed_bf16_metal, nk_attention_packed_gradients_bf16_metal,
@@ -386,6 +398,26 @@ nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
                                 nk_attention_pack_f16_apple9, nk_attention_packed_f16_apple9, backend);
         run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_apple9", nk_attention_pack_size_e4m3_apple9,
                                  nk_attention_pack_e4m3_apple9, nk_attention_packed_e4m3_apple9, backend);
+        run_attention<nk_nvfp4_k>(env, "attention_packed_nvfp4_apple9", nk_attention_pack_size_nvfp4_apple9,
+                                  nk_attention_pack_nvfp4_apple9, nk_attention_packed_nvfp4_apple9, backend);
+        run_attention<nk_mxfp4_k>(env, "attention_packed_mxfp4_apple9", nk_attention_pack_size_mxfp4_apple9,
+                                  nk_attention_pack_mxfp4_apple9, nk_attention_packed_mxfp4_apple9, backend);
+        run_attention<nk_mxfp6e2m3_k>(env, "attention_packed_mxfp6e2m3_apple9", nk_attention_pack_size_mxfp6e2m3_apple9,
+                                      nk_attention_pack_mxfp6e2m3_apple9, nk_attention_packed_mxfp6e2m3_apple9,
+                                      backend);
+        run_attention<nk_mxfp6e3m2_k>(env, "attention_packed_mxfp6e3m2_apple9", nk_attention_pack_size_mxfp6e3m2_apple9,
+                                      nk_attention_pack_mxfp6e3m2_apple9, nk_attention_packed_mxfp6e3m2_apple9,
+                                      backend);
+        run_attention<nk_mxfp8e4m3_k>(env, "attention_packed_mxfp8e4m3_apple9", nk_attention_pack_size_mxfp8e4m3_apple9,
+                                      nk_attention_pack_mxfp8e4m3_apple9, nk_attention_packed_mxfp8e4m3_apple9,
+                                      backend);
+        run_attention<nk_mxfp8e5m2_k>(env, "attention_packed_mxfp8e5m2_apple9", nk_attention_pack_size_mxfp8e5m2_apple9,
+                                      nk_attention_pack_mxfp8e5m2_apple9, nk_attention_packed_mxfp8e5m2_apple9,
+                                      backend);
+        run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_apple9",
+                                           nk_attention_pack_size_bf16_apple9, nk_attention_pack_bf16_apple9,
+                                           nk_attention_packed_bf16_apple9, nk_attention_packed_gradients_bf16_apple9,
+                                           backend);
     }
 #endif // NUMKONG_TARGET_APPLE9
 #if NUMKONG_TARGET_APPLE10
@@ -584,6 +616,22 @@ nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
                              nk_attention_pack_e4m3_apple10, nk_attention_packed_e4m3_apple10, backend);
     run_attention<nk_i8_k>(env, "attention_packed_i8_apple10", nk_attention_pack_size_i8_apple10,
                            nk_attention_pack_i8_apple10, nk_attention_packed_i8_apple10, backend);
+    run_attention<nk_nvfp4_k>(env, "attention_packed_nvfp4_apple10", nk_attention_pack_size_nvfp4_apple10,
+                              nk_attention_pack_nvfp4_apple10, nk_attention_packed_nvfp4_apple10, backend);
+    run_attention<nk_mxfp4_k>(env, "attention_packed_mxfp4_apple10", nk_attention_pack_size_mxfp4_apple10,
+                              nk_attention_pack_mxfp4_apple10, nk_attention_packed_mxfp4_apple10, backend);
+    run_attention<nk_mxfp6e2m3_k>(env, "attention_packed_mxfp6e2m3_apple10", nk_attention_pack_size_mxfp6e2m3_apple10,
+                                  nk_attention_pack_mxfp6e2m3_apple10, nk_attention_packed_mxfp6e2m3_apple10, backend);
+    run_attention<nk_mxfp6e3m2_k>(env, "attention_packed_mxfp6e3m2_apple10", nk_attention_pack_size_mxfp6e3m2_apple10,
+                                  nk_attention_pack_mxfp6e3m2_apple10, nk_attention_packed_mxfp6e3m2_apple10, backend);
+    run_attention<nk_mxfp8e4m3_k>(env, "attention_packed_mxfp8e4m3_apple10", nk_attention_pack_size_mxfp8e4m3_apple10,
+                                  nk_attention_pack_mxfp8e4m3_apple10, nk_attention_packed_mxfp8e4m3_apple10, backend);
+    run_attention<nk_mxfp8e5m2_k>(env, "attention_packed_mxfp8e5m2_apple10", nk_attention_pack_size_mxfp8e5m2_apple10,
+                                  nk_attention_pack_mxfp8e5m2_apple10, nk_attention_packed_mxfp8e5m2_apple10, backend);
+    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_apple10",
+                                       nk_attention_pack_size_bf16_apple10, nk_attention_pack_bf16_apple10,
+                                       nk_attention_packed_bf16_apple10, nk_attention_packed_gradients_bf16_apple10,
+                                       backend);
 #endif // NUMKONG_TARGET_APPLE10
 #else  // !NUMKONG_ARCH_METAL_
     return nk::status_t::missing_gpu_k;

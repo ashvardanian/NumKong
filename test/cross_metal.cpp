@@ -339,6 +339,22 @@ static void test_cross_metal_baseline(error_stats_section_t &check) {
           nk_attention_pack_size_e4m3_metal, nk_attention_pack_e4m3_metal, nk_attention_packed_e4m3_metal);
     check("attention_packed_i8_metal", test_attention_packed<i8_t, metal_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_metal, nk_attention_pack_i8_metal, nk_attention_packed_i8_metal);
+    check("attention_packed_nvfp4_metal", test_attention_packed<nvfp4_t, metal_backend_t>,
+          nk_attention_pack_size_nvfp4_metal, nk_attention_pack_nvfp4_metal, nk_attention_packed_nvfp4_metal);
+    check("attention_packed_mxfp4_metal", test_attention_packed<mxfp4_t, metal_backend_t>,
+          nk_attention_pack_size_mxfp4_metal, nk_attention_pack_mxfp4_metal, nk_attention_packed_mxfp4_metal);
+    check("attention_packed_mxfp6e2m3_metal", test_attention_packed<mxfp6e2m3_t, metal_backend_t>,
+          nk_attention_pack_size_mxfp6e2m3_metal, nk_attention_pack_mxfp6e2m3_metal,
+          nk_attention_packed_mxfp6e2m3_metal);
+    check("attention_packed_mxfp6e3m2_metal", test_attention_packed<mxfp6e3m2_t, metal_backend_t>,
+          nk_attention_pack_size_mxfp6e3m2_metal, nk_attention_pack_mxfp6e3m2_metal,
+          nk_attention_packed_mxfp6e3m2_metal);
+    check("attention_packed_mxfp8e4m3_metal", test_attention_packed<mxfp8e4m3_t, metal_backend_t>,
+          nk_attention_pack_size_mxfp8e4m3_metal, nk_attention_pack_mxfp8e4m3_metal,
+          nk_attention_packed_mxfp8e4m3_metal);
+    check("attention_packed_mxfp8e5m2_metal", test_attention_packed<mxfp8e5m2_t, metal_backend_t>,
+          nk_attention_pack_size_mxfp8e5m2_metal, nk_attention_pack_mxfp8e5m2_metal,
+          nk_attention_packed_mxfp8e5m2_metal);
     check("attention_packed_gradients_bf16_metal", test_attention_packed_gradients<bf16_t, metal_backend_t>,
           nk_attention_pack_size_bf16_metal, nk_attention_pack_bf16_metal, nk_attention_packed_gradients_bf16_metal);
     check("attention_rope_f32_metal", test_attention_rope<f32_t, metal_backend_t>, nk_attention_rope_f32_metal);
@@ -570,6 +586,30 @@ static void test_cross_apple9([[maybe_unused]] error_stats_section_t &check) {
     check("attention_packed_e4m3_apple9",
           test_attention_packed<e4m3_t, metal_backend_t, attention_weights_t::bits_11_k>,
           nk_attention_pack_size_e4m3_apple9, nk_attention_pack_e4m3_apple9, nk_attention_packed_e4m3_apple9);
+    check("attention_packed_nvfp4_apple9",
+          test_attention_packed<nvfp4_t, metal_backend_t, attention_weights_t::bits_11_k>,
+          nk_attention_pack_size_nvfp4_apple9, nk_attention_pack_nvfp4_apple9, nk_attention_packed_nvfp4_apple9);
+    check("attention_packed_mxfp4_apple9",
+          test_attention_packed<mxfp4_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_mxfp4_apple9, nk_attention_pack_mxfp4_apple9, nk_attention_packed_mxfp4_apple9);
+    check("attention_packed_mxfp6e2m3_apple9",
+          test_attention_packed<mxfp6e2m3_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_mxfp6e2m3_apple9, nk_attention_pack_mxfp6e2m3_apple9,
+          nk_attention_packed_mxfp6e2m3_apple9);
+    check("attention_packed_mxfp6e3m2_apple9",
+          test_attention_packed<mxfp6e3m2_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_mxfp6e3m2_apple9, nk_attention_pack_mxfp6e3m2_apple9,
+          nk_attention_packed_mxfp6e3m2_apple9);
+    check("attention_packed_mxfp8e4m3_apple9",
+          test_attention_packed<mxfp8e4m3_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_mxfp8e4m3_apple9, nk_attention_pack_mxfp8e4m3_apple9,
+          nk_attention_packed_mxfp8e4m3_apple9);
+    check("attention_packed_mxfp8e5m2_apple9",
+          test_attention_packed<mxfp8e5m2_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_mxfp8e5m2_apple9, nk_attention_pack_mxfp8e5m2_apple9,
+          nk_attention_packed_mxfp8e5m2_apple9);
+    check("attention_packed_gradients_bf16_apple9", test_attention_packed_gradients<bf16_t, metal_backend_t>,
+          nk_attention_pack_size_bf16_apple9, nk_attention_pack_bf16_apple9, nk_attention_packed_gradients_bf16_apple9);
 #endif // NUMKONG_TARGET_APPLE9
 }
 
@@ -880,6 +920,31 @@ static void test_cross_apple10([[maybe_unused]] error_stats_section_t &check) {
           nk_attention_pack_size_e4m3_apple10, nk_attention_pack_e4m3_apple10, nk_attention_packed_e4m3_apple10);
     check("attention_packed_i8_apple10", test_attention_packed<i8_t, metal_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_apple10, nk_attention_pack_i8_apple10, nk_attention_packed_i8_apple10);
+    check("attention_packed_nvfp4_apple10",
+          test_attention_packed<nvfp4_t, metal_backend_t, attention_weights_t::bits_11_k>,
+          nk_attention_pack_size_nvfp4_apple10, nk_attention_pack_nvfp4_apple10, nk_attention_packed_nvfp4_apple10);
+    check("attention_packed_mxfp4_apple10",
+          test_attention_packed<mxfp4_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_mxfp4_apple10, nk_attention_pack_mxfp4_apple10, nk_attention_packed_mxfp4_apple10);
+    check("attention_packed_mxfp6e2m3_apple10",
+          test_attention_packed<mxfp6e2m3_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_mxfp6e2m3_apple10, nk_attention_pack_mxfp6e2m3_apple10,
+          nk_attention_packed_mxfp6e2m3_apple10);
+    check("attention_packed_mxfp6e3m2_apple10",
+          test_attention_packed<mxfp6e3m2_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_mxfp6e3m2_apple10, nk_attention_pack_mxfp6e3m2_apple10,
+          nk_attention_packed_mxfp6e3m2_apple10);
+    check("attention_packed_mxfp8e4m3_apple10",
+          test_attention_packed<mxfp8e4m3_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_mxfp8e4m3_apple10, nk_attention_pack_mxfp8e4m3_apple10,
+          nk_attention_packed_mxfp8e4m3_apple10);
+    check("attention_packed_mxfp8e5m2_apple10",
+          test_attention_packed<mxfp8e5m2_t, metal_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_mxfp8e5m2_apple10, nk_attention_pack_mxfp8e5m2_apple10,
+          nk_attention_packed_mxfp8e5m2_apple10);
+    check("attention_packed_gradients_bf16_apple10", test_attention_packed_gradients<bf16_t, metal_backend_t>,
+          nk_attention_pack_size_bf16_apple10, nk_attention_pack_bf16_apple10,
+          nk_attention_packed_gradients_bf16_apple10);
 #endif // NUMKONG_TARGET_APPLE10
 }
 
