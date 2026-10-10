@@ -2744,7 +2744,10 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
     uint4 const zero = make_uint4(0, 0, 0, 0);
     nk_size_t cursor_segment = 0;
     nk_u64_t payload_offset = 0;
-    for (nk_size_t task = tasks_begin + blockIdx.x; task < tasks_end; task += gridDim.x) {
+    // A grid wider than the tasks splits each task's rows across that many blocks.
+    nk_size_t const tasks = tasks_end - tasks_begin, splits = gridDim.x > tasks ? gridDim.x / tasks : 1;
+    for (nk_size_t item = blockIdx.x; item < tasks * splits; item += gridDim.x) {
+        nk_size_t const task = tasks_begin + item / splits, part = item % splits;
         nk_size_t const segment = task / key_value_head_count, head = task % key_value_head_count;
         nk_attention_pack_advance_simt_(key_offsets, key_lengths, key_value_head_count, row_bytes, segment,
                                         &cursor_segment, &payload_offset);
@@ -2757,11 +2760,15 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
         unsigned char const *values_first = values + key_offsets[segment] * value_stride + head * depth_bytes;
         if (chunked) {
             if (lane_row >= rows_per_pass) continue;
-            unsigned const padded = (unsigned)(plane_bytes / row_bytes);
+            unsigned const padded = (unsigned)(plane_bytes / row_bytes), pass = 4 * rows_per_pass;
+            unsigned const share = (unsigned)nk_size_round_up_to_multiple_(nk_size_divide_round_up_(padded, splits),
+                                                                           pass);
+            unsigned const first = (unsigned)part * share;
             int const live_column = chunk < depth_chunks;
             unsigned char *keys_column = keys_plane + chunk * 16, *values_column = values_plane + chunk * 16;
             unsigned char const *keys_source = keys_first + chunk * 16, *values_source = values_first + chunk * 16;
-            for (unsigned position = lane_row; position < padded; position += 4 * rows_per_pass) {
+            for (unsigned position = first + lane_row; position < padded && position < first + share;
+                 position += pass) {
                 uint4 keys_quartets[4], values_quartets[4];
 #pragma unroll
                 for (unsigned step = 0; step < 4; ++step) {
@@ -2780,7 +2787,9 @@ NUMKONG_DEVICE void nk_attention_pack_rows_blackwell_(
             }
         }
         else
-            for (nk_size_t index = threadIdx.x; index < plane_bytes; index += blockDim.x) {
+            for (nk_size_t index = part * nk_size_divide_round_up_(plane_bytes, splits) + threadIdx.x;
+                 index < plane_bytes && index < (part + 1) * nk_size_divide_round_up_(plane_bytes, splits);
+                 index += blockDim.x) {
                 nk_size_t const position = index / row_bytes, byte = index % row_bytes;
                 int const inside = position < length && byte < depth_bytes;
                 keys_plane[index] = inside ? keys_first[position * key_stride + byte] : (unsigned char)0;

@@ -621,8 +621,14 @@ NUMKONG_INLINE nk_status_t nk_attention_pack_launch_cuda_(void const *payload_ke
     void *payload_arguments[12] = {(void *)&keys, (void *)&values, &key_value_head_count, &depth,
                                    &key_offsets,  &key_lengths,    &segment_count,        &key_stride,
                                    &value_stride, &packed,         &tasks_begin,          (void *)&end};
-    return nk_launch_cuda_(payload_kernel, end - tasks_begin < 65535 ? end - tasks_begin : 65535,
-                           nk_attention_pack_threads_k, payload_arguments, 0, stream);
+    // With fewer tasks than twice the SMs, blocks split each task's rows.
+    int multiprocessors = 0;
+    nk_status_t const status = nk_device_attribute_cuda_(cudaDevAttrMultiProcessorCount, &multiprocessors, stream);
+    if (status != nk_success_k) return status;
+    nk_size_t const tasks = end - tasks_begin, wanted = 2 * (nk_size_t)multiprocessors;
+    nk_size_t const blocks = tasks >= wanted ? (tasks < 65535 ? tasks : 65535)
+                                             : nk_size_divide_round_up_(wanted, tasks) * tasks;
+    return nk_launch_cuda_(payload_kernel, blocks, nk_attention_pack_threads_k, payload_arguments, 0, stream);
 }
 
 /** Validates the contract and launches @p kernel with as many blocks as stay resident. */

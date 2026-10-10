@@ -565,89 +565,121 @@ Measured with wasmtime 49.0.2, Cranelift.
 
 Rows ran on one `1g.34gb` MIG slice of a B300 with 18 SMs.
 The `cublasLtMatmul` rows time cuBLASLt from CUDA 13.2 on the same operands, with unit block scales for block-scaled dtypes.
+The `cublasGemmEx` row times cuBLAS's emulated F64 GEMM, `CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT`.
 Cells marked `✗` are dtypes cuBLASLt rejects, with `CUBLAS_STATUS_INVALID_VALUE`, `CUBLAS_STATUS_NOT_SUPPORTED`.
 
 | Kernel                                  |                    4096³ |                    8192³ |
 | :-------------------------------------- | -----------------------: | -----------------------: |
+| __f64__                                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_dots_packed_f64_cuda`               |        12.4 gso/s, 0 ulp |        12.4 gso/s, 0 ulp |
+| `nk_dots_symmetric_f64_cuda`            |        12.0 gso/s, 0 ulp |        12.1 gso/s, 0 ulp |
+| `cublasLtMatmul`                        |      127 gso/s, 46.9 ulp |     128 gso/s, 304.7 ulp |
+| `cublasGemmEx`                          |       290 gso/s, 0.3 ulp |       296 gso/s, 0.4 ulp |
+| __f32__                                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_dots_packed_f32_cuda`               |       139 gso/s, 5.1 ulp |      139 gso/s, 14.3 ulp |
+| `nk_dots_symmetric_f32_cuda`            |       134 gso/s, 3.8 ulp |      135 gso/s, 11.5 ulp |
+| `cublasLtMatmul`                        |    7,160 gso/s, 45.4 ulp |    7,229 gso/s, 91.5 ulp |
 | __bf16__                                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_bf16_blackwell`         | 210,000 gso/s, 179.9 ulp | 220,700 gso/s, 294.3 ulp |
 | `nk_dots_symmetric_bf16_blackwell`      | 155,200 gso/s, 204.9 ulp |   156,100 gso/s, 315 ulp |
+| `nk_dots_packed_bf16_ampere`            |  49,560 gso/s, 179.9 ulp |  51,220 gso/s, 294.3 ulp |
+| `nk_dots_symmetric_bf16_ampere`         |  43,080 gso/s, 204.9 ulp |    48,320 gso/s, 315 ulp |
 | `cublasLtMatmul`                        | 210,000 gso/s, 179.9 ulp | 216,400 gso/s, 294.3 ulp |
 | __f16__                                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_f16_blackwell`          | 209,800 gso/s, 431.7 ulp | 220,600 gso/s, 364.5 ulp |
 | `nk_dots_symmetric_f16_blackwell`       | 155,100 gso/s, 212.8 ulp | 156,100 gso/s, 404.2 ulp |
+| `nk_dots_packed_f16_ampere`             |  49,580 gso/s, 431.7 ulp |  51,230 gso/s, 364.5 ulp |
+| `nk_dots_symmetric_f16_ampere`          |  43,080 gso/s, 212.8 ulp |  48,320 gso/s, 404.2 ulp |
 | `cublasLtMatmul`                        | 210,100 gso/s, 431.7 ulp | 216,400 gso/s, 364.5 ulp |
 | __e5m2__                                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_e5m2_blackwell`         |   390,400 gso/s, 4.7 ulp |   454,400 gso/s, 3.5 ulp |
 | `nk_dots_symmetric_e5m2_blackwell`      |   359,600 gso/s, 1.6 ulp |   301,000 gso/s, 2.4 ulp |
+| `nk_dots_packed_e5m2_ampere`            |    48,630 gso/s, 4.8 ulp |    49,660 gso/s, 3.5 ulp |
+| `nk_dots_symmetric_e5m2_ampere`         |    42,740 gso/s, 1.6 ulp |    47,710 gso/s, 2.5 ulp |
 | `cublasLtMatmul`                        |                        ✗ |                        ✗ |
 | __e4m3__                                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_e4m3_blackwell`         |   390,300 gso/s, 3.4 ulp |   454,400 gso/s, 7.8 ulp |
 | `nk_dots_symmetric_e4m3_blackwell`      |   347,100 gso/s, 5.2 ulp |     301,200 gso/s, 6 ulp |
+| `nk_dots_packed_e4m3_ampere`            |    24,760 gso/s, 3.5 ulp |    25,140 gso/s, 7.9 ulp |
+| `nk_dots_symmetric_e4m3_ampere`         |    22,010 gso/s, 5.3 ulp |    24,270 gso/s, 6.1 ulp |
 | `cublasLtMatmul`                        |   480,100 gso/s, 3.4 ulp |   436,400 gso/s, 7.8 ulp |
 | __e3m2__                                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_e3m2_blackwell`         |     274,300 gso/s, 0 ulp |     291,500 gso/s, 0 ulp |
 | `nk_dots_symmetric_e3m2_blackwell`      |     126,000 gso/s, 0 ulp |     153,000 gso/s, 0 ulp |
+| `nk_dots_packed_e3m2_ampere`            |      38,520 gso/s, 0 ulp |      39,250 gso/s, 0 ulp |
+| `nk_dots_symmetric_e3m2_ampere`         |      34,100 gso/s, 0 ulp |      37,970 gso/s, 0 ulp |
 | `cublasLtMatmul`                        |                        ✗ |                        ✗ |
 | __e2m3__                                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_e2m3_blackwell`         |     274,400 gso/s, 0 ulp |     291,400 gso/s, 0 ulp |
 | `nk_dots_symmetric_e2m3_blackwell`      |     126,100 gso/s, 0 ulp |     153,100 gso/s, 0 ulp |
+| `nk_dots_packed_e2m3_ampere`            |      15,450 gso/s, 0 ulp |      15,520 gso/s, 0 ulp |
+| `nk_dots_symmetric_e2m3_ampere`         |      13,430 gso/s, 0 ulp |      14,750 gso/s, 0 ulp |
 | `cublasLtMatmul`                        |                        ✗ |                        ✗ |
 | __e2m1__                                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_e2m1_blackwell`         |     608,500 gso/s, 0 ulp |     811,000 gso/s, 0 ulp |
 | `nk_dots_symmetric_e2m1_blackwell`      |     548,900 gso/s, 0 ulp |     788,100 gso/s, 0 ulp |
+| `nk_dots_packed_e2m1_ampere`            |      15,590 gso/s, 0 ulp |      15,680 gso/s, 0 ulp |
+| `nk_dots_symmetric_e2m1_ampere`         |      14,220 gso/s, 0 ulp |      15,150 gso/s, 0 ulp |
 | `cublasLtMatmul`                        |     718,700 gso/s, 0 ulp |     953,400 gso/s, 0 ulp |
 | __nvfp4__                               | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_nvfp4_blackwell`        |     460,900 gso/s, 0 ulp |     577,600 gso/s, 0 ulp |
 | `nk_dots_symmetric_nvfp4_blackwell`     |     391,500 gso/s, 0 ulp |     534,800 gso/s, 0 ulp |
+| `nk_dots_packed_nvfp4_ampere`           |      28,200 gso/s, 0 ulp |      28,980 gso/s, 0 ulp |
+| `nk_dots_symmetric_nvfp4_ampere`        |      25,020 gso/s, 0 ulp |      27,560 gso/s, 0 ulp |
+| `nk_dots_packed_nvfp4_cuda`             |       1,808 gso/s, 0 ulp |       1,793 gso/s, 0 ulp |
 | `cublasLtMatmul`                        |     720,100 gso/s, 0 ulp |     955,800 gso/s, 0 ulp |
 | __mxfp4__                               | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_mxfp4_blackwell`        |     493,200 gso/s, 0 ulp |     638,700 gso/s, 0 ulp |
 | `nk_dots_symmetric_mxfp4_blackwell`     |     414,100 gso/s, 0 ulp |     597,800 gso/s, 0 ulp |
-| `cublasLtMatmul`                        |                        ✗ |                        ✗ |
-| __mxfp8e4m3__                           | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_dots_packed_mxfp8e4m3_blackwell`    |   315,300 gso/s, 3.4 ulp |   354,600 gso/s, 7.8 ulp |
-| `nk_dots_symmetric_mxfp8e4m3_blackwell` |   257,900 gso/s, 5.2 ulp |     263,300 gso/s, 6 ulp |
-| `cublasLtMatmul`                        |   455,300 gso/s, 3.4 ulp |   421,600 gso/s, 7.8 ulp |
-| __mxfp8e5m2__                           | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_dots_packed_mxfp8e5m2_blackwell`    |   315,400 gso/s, 4.7 ulp |   354,900 gso/s, 3.5 ulp |
-| `nk_dots_symmetric_mxfp8e5m2_blackwell` |   258,000 gso/s, 1.6 ulp |   263,300 gso/s, 2.4 ulp |
-| `cublasLtMatmul`                        |                        ✗ |                        ✗ |
-| __i8__                                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_dots_packed_i8_blackwell`           |     103,100 gso/s, exact |     102,300 gso/s, exact |
-| `nk_dots_symmetric_i8_blackwell`        |      60,920 gso/s, exact |      66,040 gso/s, exact |
-| `cublasLtMatmul`                        |      18,240 gso/s, exact |      18,280 gso/s, exact |
-| __u8__                                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_dots_packed_u8_blackwell`           |     103,100 gso/s, exact |     103,300 gso/s, exact |
-| `nk_dots_symmetric_u8_blackwell`        |      63,510 gso/s, exact |      69,030 gso/s, exact |
-| `cublasLtMatmul`                        |                        ✗ |                        ✗ |
-| __i4__                                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_dots_packed_i4_blackwell`           |      68,490 gso/s, exact |      69,250 gso/s, exact |
-| `nk_dots_symmetric_i4_blackwell`        |      60,980 gso/s, exact |      64,740 gso/s, exact |
-| `nk_dots_packed_nvfp4_ampere`           |      28,200 gso/s, 0 ulp |      28,980 gso/s, 0 ulp |
-| `nk_dots_symmetric_nvfp4_ampere`        |      25,020 gso/s, 0 ulp |      27,560 gso/s, 0 ulp |
-| `nk_dots_packed_nvfp4_cuda`             |       1,808 gso/s, 0 ulp |       1,793 gso/s, 0 ulp |
-| `cublasLtMatmul`                        |                        ✗ |                        ✗ |
-| __u4__                                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_dots_packed_u4_blackwell`           |      69,140 gso/s, exact |      69,840 gso/s, exact |
-| `nk_dots_symmetric_u4_blackwell`        |      61,230 gso/s, exact |      65,450 gso/s, exact |
 | `nk_dots_packed_mxfp4_ampere`           |      19,800 gso/s, 0 ulp |      22,300 gso/s, 0 ulp |
 | `nk_dots_symmetric_mxfp4_ampere`        |      17,460 gso/s, 0 ulp |      21,400 gso/s, 0 ulp |
 | `nk_dots_packed_mxfp4_cuda`             |       1,887 gso/s, 0 ulp |       1,859 gso/s, 0 ulp |
 | `cublasLtMatmul`                        |                        ✗ |                        ✗ |
-
-### Apple M5
-
+| __mxfp8e4m3__                           | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_dots_packed_mxfp8e4m3_blackwell`    |   315,300 gso/s, 3.4 ulp |   354,600 gso/s, 7.8 ulp |
+| `nk_dots_symmetric_mxfp8e4m3_blackwell` |   257,900 gso/s, 5.2 ulp |     263,300 gso/s, 6 ulp |
 | `nk_dots_packed_mxfp8e4m3_ampere`       |    15,630 gso/s, 3.5 ulp |    16,830 gso/s, 7.9 ulp |
 | `nk_dots_symmetric_mxfp8e4m3_ampere`    |    13,830 gso/s, 5.3 ulp |    16,470 gso/s, 6.1 ulp |
 | `nk_dots_packed_mxfp8e4m3_cuda`         |     2,038 gso/s, 2.6 ulp |     2,011 gso/s, 4.8 ulp |
+| `cublasLtMatmul`                        |   455,300 gso/s, 3.4 ulp |   421,600 gso/s, 7.8 ulp |
+| __mxfp8e5m2__                           | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_dots_packed_mxfp8e5m2_blackwell`    |   315,400 gso/s, 4.7 ulp |   354,900 gso/s, 3.5 ulp |
+| `nk_dots_symmetric_mxfp8e5m2_blackwell` |   258,000 gso/s, 1.6 ulp |   263,300 gso/s, 2.4 ulp |
+| `nk_dots_packed_mxfp8e5m2_ampere`       |    18,710 gso/s, 4.8 ulp |    23,590 gso/s, 3.5 ulp |
+| `nk_dots_symmetric_mxfp8e5m2_ampere`    |    19,600 gso/s, 1.6 ulp |    24,200 gso/s, 2.5 ulp |
+| `nk_dots_packed_mxfp8e5m2_cuda`         |     2,102 gso/s, 1.8 ulp |     2,074 gso/s, 2.3 ulp |
+| `cublasLtMatmul`                        |                        ✗ |                        ✗ |
+| __i8__                                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_dots_packed_i8_blackwell`           |     107,200 gso/s, exact |     115,500 gso/s, exact |
+| `nk_dots_symmetric_i8_blackwell`        |      60,470 gso/s, exact |      70,150 gso/s, exact |
+| `nk_dots_packed_i8_ampere`              |      16,630 gso/s, exact |      16,690 gso/s, exact |
+| `nk_dots_symmetric_i8_ampere`           |      14,590 gso/s, exact |      15,980 gso/s, exact |
+| `cublasLtMatmul`                        |      18,240 gso/s, exact |      18,280 gso/s, exact |
+| __u8__                                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_dots_packed_u8_blackwell`           |     103,100 gso/s, exact |     103,300 gso/s, exact |
+| `nk_dots_symmetric_u8_blackwell`        |      63,510 gso/s, exact |      69,030 gso/s, exact |
+| `nk_dots_packed_u8_ampere`              |      16,630 gso/s, exact |      16,680 gso/s, exact |
+| `nk_dots_symmetric_u8_ampere`           |      14,590 gso/s, exact |      15,980 gso/s, exact |
+| `cublasLtMatmul`                        |                        ✗ |                        ✗ |
+| __i4__                                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_dots_packed_i4_blackwell`           |      68,490 gso/s, exact |      69,250 gso/s, exact |
+| `nk_dots_symmetric_i4_blackwell`        |      60,980 gso/s, exact |      64,740 gso/s, exact |
+| `nk_dots_packed_i4_ampere`              |      16,720 gso/s, exact |      16,780 gso/s, exact |
+| `nk_dots_symmetric_i4_ampere`           |      14,750 gso/s, exact |      16,150 gso/s, exact |
+| `cublasLtMatmul`                        |                        ✗ |                        ✗ |
+| __u4__                                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_dots_packed_u4_blackwell`           |      69,140 gso/s, exact |      69,840 gso/s, exact |
+| `nk_dots_symmetric_u4_blackwell`        |      61,230 gso/s, exact |      65,450 gso/s, exact |
+| `nk_dots_packed_u4_ampere`              |      16,670 gso/s, exact |      16,720 gso/s, exact |
+| `nk_dots_symmetric_u4_ampere`           |      14,670 gso/s, exact |      16,090 gso/s, exact |
+| `cublasLtMatmul`                        |                        ✗ |                        ✗ |
+
+### Apple M5
+
 #### Native
 
 | Kernel                             |                     256³ |                    1024³ |                    4096³ |
 | :--------------------------------- | -----------------------: | -----------------------: | -----------------------: |
-| `nk_dots_packed_mxfp8e5m2_ampere`       |    18,710 gso/s, 4.8 ulp |    23,590 gso/s, 3.5 ulp |
-| `nk_dots_symmetric_mxfp8e5m2_ampere`    |    19,600 gso/s, 1.6 ulp |    24,200 gso/s, 2.5 ulp |
-| `nk_dots_packed_mxfp8e5m2_cuda`         |     2,102 gso/s, 1.8 ulp |     2,074 gso/s, 2.3 ulp |
 | __f64__                            | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_f64_serial`        |        2.49 gso/s, 3 ulp |        2.36 gso/s, 5 ulp |        2.48 gso/s, 6 ulp |
 | `nk_dots_symmetric_f64_serial`     |        1.38 gso/s, 0 ulp |        1.36 gso/s, 0 ulp |        1.49 gso/s, 0 ulp |
