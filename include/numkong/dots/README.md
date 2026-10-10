@@ -624,18 +624,30 @@ Cells marked `✗` are dtypes cuBLASLt rejects, with `CUBLAS_STATUS_INVALID_VALU
 | __i4__                                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_i4_blackwell`           |      68,490 gso/s, exact |      69,250 gso/s, exact |
 | `nk_dots_symmetric_i4_blackwell`        |      60,980 gso/s, exact |      64,740 gso/s, exact |
+| `nk_dots_packed_nvfp4_ampere`           |      28,200 gso/s, 0 ulp |      28,980 gso/s, 0 ulp |
+| `nk_dots_symmetric_nvfp4_ampere`        |      25,020 gso/s, 0 ulp |      27,560 gso/s, 0 ulp |
+| `nk_dots_packed_nvfp4_cuda`             |       1,808 gso/s, 0 ulp |       1,793 gso/s, 0 ulp |
 | `cublasLtMatmul`                        |                        ✗ |                        ✗ |
 | __u4__                                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_u4_blackwell`           |      69,140 gso/s, exact |      69,840 gso/s, exact |
 | `nk_dots_symmetric_u4_blackwell`        |      61,230 gso/s, exact |      65,450 gso/s, exact |
+| `nk_dots_packed_mxfp4_ampere`           |      19,800 gso/s, 0 ulp |      22,300 gso/s, 0 ulp |
+| `nk_dots_symmetric_mxfp4_ampere`        |      17,460 gso/s, 0 ulp |      21,400 gso/s, 0 ulp |
+| `nk_dots_packed_mxfp4_cuda`             |       1,887 gso/s, 0 ulp |       1,859 gso/s, 0 ulp |
 | `cublasLtMatmul`                        |                        ✗ |                        ✗ |
 
 ### Apple M5
 
+| `nk_dots_packed_mxfp8e4m3_ampere`       |    15,630 gso/s, 3.5 ulp |    16,830 gso/s, 7.9 ulp |
+| `nk_dots_symmetric_mxfp8e4m3_ampere`    |    13,830 gso/s, 5.3 ulp |    16,470 gso/s, 6.1 ulp |
+| `nk_dots_packed_mxfp8e4m3_cuda`         |     2,038 gso/s, 2.6 ulp |     2,011 gso/s, 4.8 ulp |
 #### Native
 
 | Kernel                             |                     256³ |                    1024³ |                    4096³ |
 | :--------------------------------- | -----------------------: | -----------------------: | -----------------------: |
+| `nk_dots_packed_mxfp8e5m2_ampere`       |    18,710 gso/s, 4.8 ulp |    23,590 gso/s, 3.5 ulp |
+| `nk_dots_symmetric_mxfp8e5m2_ampere`    |    19,600 gso/s, 1.6 ulp |    24,200 gso/s, 2.5 ulp |
+| `nk_dots_packed_mxfp8e5m2_cuda`         |     2,102 gso/s, 1.8 ulp |     2,074 gso/s, 2.3 ulp |
 | __f64__                            | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_dots_packed_f64_serial`        |        2.49 gso/s, 3 ulp |        2.36 gso/s, 5 ulp |        2.48 gso/s, 6 ulp |
 | `nk_dots_symmetric_f64_serial`     |        1.38 gso/s, 0 ulp |        1.36 gso/s, 0 ulp |        1.49 gso/s, 0 ulp |

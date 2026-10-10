@@ -380,6 +380,44 @@ void test_cross_cuda(error_stats_section_t &check) {
           test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_ampere, nk_dots_packed_e2m1_ampere,
                                     nk_dots_symmetric_e2m1_ampere>);
     check("dots_symmetric_e2m1_ampere", test_dots_symmetric<e2m1x2_t, cuda_backend_t>, nk_dots_symmetric_e2m1_ampere);
+    check("dots_packed_nvfp4_ampere", test_dots_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_ampere,
+          nk_dots_pack_nvfp4_ampere, nk_dots_packed_nvfp4_ampere);
+    check("dots_pack_nvfp4_ampere",
+          test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_ampere,
+                                nk_dots_packed_shape_nvfp4_ampere, nk_dots_pack_nvfp4_ampere>);
+    check("dots_contract_nvfp4_ampere",
+          test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_ampere,
+                                    nk_dots_packed_nvfp4_ampere, nk_dots_symmetric_nvfp4_ampere>);
+    check("dots_symmetric_nvfp4_ampere", test_dots_symmetric<nvfp4_t, cuda_backend_t>, nk_dots_symmetric_nvfp4_ampere);
+    check("dots_packed_mxfp4_ampere", test_dots_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_ampere,
+          nk_dots_pack_mxfp4_ampere, nk_dots_packed_mxfp4_ampere);
+    check("dots_pack_mxfp4_ampere",
+          test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_ampere,
+                                nk_dots_packed_shape_mxfp4_ampere, nk_dots_pack_mxfp4_ampere>);
+    check("dots_contract_mxfp4_ampere",
+          test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_ampere,
+                                    nk_dots_packed_mxfp4_ampere, nk_dots_symmetric_mxfp4_ampere>);
+    check("dots_symmetric_mxfp4_ampere", test_dots_symmetric<mxfp4_t, cuda_backend_t>, nk_dots_symmetric_mxfp4_ampere);
+    check("dots_packed_mxfp8e4m3_ampere", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e4m3_ampere, nk_dots_pack_mxfp8e4m3_ampere, nk_dots_packed_mxfp8e4m3_ampere);
+    check("dots_pack_mxfp8e4m3_ampere",
+          test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_ampere,
+                                nk_dots_packed_shape_mxfp8e4m3_ampere, nk_dots_pack_mxfp8e4m3_ampere>);
+    check("dots_contract_mxfp8e4m3_ampere",
+          test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_ampere,
+                                    nk_dots_packed_mxfp8e4m3_ampere, nk_dots_symmetric_mxfp8e4m3_ampere>);
+    check("dots_symmetric_mxfp8e4m3_ampere", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>,
+          nk_dots_symmetric_mxfp8e4m3_ampere);
+    check("dots_packed_mxfp8e5m2_ampere", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e5m2_ampere, nk_dots_pack_mxfp8e5m2_ampere, nk_dots_packed_mxfp8e5m2_ampere);
+    check("dots_pack_mxfp8e5m2_ampere",
+          test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_ampere,
+                                nk_dots_packed_shape_mxfp8e5m2_ampere, nk_dots_pack_mxfp8e5m2_ampere>);
+    check("dots_contract_mxfp8e5m2_ampere",
+          test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_ampere,
+                                    nk_dots_packed_mxfp8e5m2_ampere, nk_dots_symmetric_mxfp8e5m2_ampere>);
+    check("dots_symmetric_mxfp8e5m2_ampere", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>,
+          nk_dots_symmetric_mxfp8e5m2_ampere);
     check("dots_packed_i8_ampere", test_dots_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_ampere,
           nk_dots_pack_i8_ampere, nk_dots_packed_i8_ampere);
     check("dots_pack_i8_ampere", test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_ampere,
@@ -545,6 +583,44 @@ void test_cross_cuda(error_stats_section_t &check) {
           test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_hopper, nk_dots_packed_e2m1_hopper,
                                     nk_dots_symmetric_e2m1_hopper>);
     check("dots_symmetric_e2m1_hopper", test_dots_symmetric<e2m1x2_t, cuda_backend_t>, nk_dots_symmetric_e2m1_hopper);
+    check("dots_packed_nvfp4_hopper", test_dots_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_hopper,
+          nk_dots_pack_nvfp4_hopper, nk_dots_packed_nvfp4_hopper);
+    check("dots_pack_nvfp4_hopper",
+          test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_hopper,
+                                nk_dots_packed_shape_nvfp4_hopper, nk_dots_pack_nvfp4_hopper>);
+    check("dots_contract_nvfp4_hopper",
+          test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_hopper,
+                                    nk_dots_packed_nvfp4_hopper, nk_dots_symmetric_nvfp4_hopper>);
+    check("dots_symmetric_nvfp4_hopper", test_dots_symmetric<nvfp4_t, cuda_backend_t>, nk_dots_symmetric_nvfp4_hopper);
+    check("dots_packed_mxfp4_hopper", test_dots_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_hopper,
+          nk_dots_pack_mxfp4_hopper, nk_dots_packed_mxfp4_hopper);
+    check("dots_pack_mxfp4_hopper",
+          test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_hopper,
+                                nk_dots_packed_shape_mxfp4_hopper, nk_dots_pack_mxfp4_hopper>);
+    check("dots_contract_mxfp4_hopper",
+          test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_hopper,
+                                    nk_dots_packed_mxfp4_hopper, nk_dots_symmetric_mxfp4_hopper>);
+    check("dots_symmetric_mxfp4_hopper", test_dots_symmetric<mxfp4_t, cuda_backend_t>, nk_dots_symmetric_mxfp4_hopper);
+    check("dots_packed_mxfp8e4m3_hopper", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e4m3_hopper, nk_dots_pack_mxfp8e4m3_hopper, nk_dots_packed_mxfp8e4m3_hopper);
+    check("dots_pack_mxfp8e4m3_hopper",
+          test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_hopper,
+                                nk_dots_packed_shape_mxfp8e4m3_hopper, nk_dots_pack_mxfp8e4m3_hopper>);
+    check("dots_contract_mxfp8e4m3_hopper",
+          test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_hopper,
+                                    nk_dots_packed_mxfp8e4m3_hopper, nk_dots_symmetric_mxfp8e4m3_hopper>);
+    check("dots_symmetric_mxfp8e4m3_hopper", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>,
+          nk_dots_symmetric_mxfp8e4m3_hopper);
+    check("dots_packed_mxfp8e5m2_hopper", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e5m2_hopper, nk_dots_pack_mxfp8e5m2_hopper, nk_dots_packed_mxfp8e5m2_hopper);
+    check("dots_pack_mxfp8e5m2_hopper",
+          test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_hopper,
+                                nk_dots_packed_shape_mxfp8e5m2_hopper, nk_dots_pack_mxfp8e5m2_hopper>);
+    check("dots_contract_mxfp8e5m2_hopper",
+          test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_hopper,
+                                    nk_dots_packed_mxfp8e5m2_hopper, nk_dots_symmetric_mxfp8e5m2_hopper>);
+    check("dots_symmetric_mxfp8e5m2_hopper", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>,
+          nk_dots_symmetric_mxfp8e5m2_hopper);
     check("dots_packed_i8_hopper", test_dots_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_hopper,
           nk_dots_pack_i8_hopper, nk_dots_packed_i8_hopper);
     check("dots_pack_i8_hopper", test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_hopper,

@@ -61,6 +61,14 @@ void bench_cross_cuda([[maybe_unused]] environment_t const &env, [[maybe_unused]
                               nk_dots_packed_f64_cuda, backend);
     run_dots_packed<nk_f32_k>(env, "dots_packed_f32_cuda", nk_dots_pack_size_f32_cuda, nk_dots_pack_f32_cuda,
                               nk_dots_packed_f32_cuda, backend);
+    run_dots_packed<nk_nvfp4_k>(env, "dots_packed_nvfp4_cuda", nk_dots_pack_size_nvfp4_cuda, nk_dots_pack_nvfp4_cuda,
+                                nk_dots_packed_nvfp4_cuda, backend);
+    run_dots_packed<nk_mxfp4_k>(env, "dots_packed_mxfp4_cuda", nk_dots_pack_size_mxfp4_cuda, nk_dots_pack_mxfp4_cuda,
+                                nk_dots_packed_mxfp4_cuda, backend);
+    run_dots_packed<nk_mxfp8e4m3_k>(env, "dots_packed_mxfp8e4m3_cuda", nk_dots_pack_size_mxfp8e4m3_cuda,
+                                    nk_dots_pack_mxfp8e4m3_cuda, nk_dots_packed_mxfp8e4m3_cuda, backend);
+    run_dots_packed<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_cuda", nk_dots_pack_size_mxfp8e5m2_cuda,
+                                    nk_dots_pack_mxfp8e5m2_cuda, nk_dots_packed_mxfp8e5m2_cuda, backend);
     run_dots_symmetric<nk_f64_k>(env, "dots_symmetric_f64_cuda", nk_dots_symmetric_f64_cuda, backend);
     run_dots_symmetric<nk_f32_k>(env, "dots_symmetric_f32_cuda", nk_dots_symmetric_f32_cuda, backend);
     run_angulars_packed<nk_f64_k>(env, "angulars_packed_f64_cuda", nk_dots_pack_size_f64_cuda, nk_dots_pack_f64_cuda,
@@ -108,6 +116,14 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
                              nk_dots_packed_u8_ampere, backend);
     run_dots_packed<nk_u4_k>(env, "dots_packed_u4_ampere", nk_dots_pack_size_u4_ampere, nk_dots_pack_u4_ampere,
                              nk_dots_packed_u4_ampere, backend);
+    run_dots_packed<nk_nvfp4_k>(env, "dots_packed_nvfp4_ampere", nk_dots_pack_size_nvfp4_ampere,
+                                nk_dots_pack_nvfp4_ampere, nk_dots_packed_nvfp4_ampere, backend);
+    run_dots_packed<nk_mxfp4_k>(env, "dots_packed_mxfp4_ampere", nk_dots_pack_size_mxfp4_ampere,
+                                nk_dots_pack_mxfp4_ampere, nk_dots_packed_mxfp4_ampere, backend);
+    run_dots_packed<nk_mxfp8e4m3_k>(env, "dots_packed_mxfp8e4m3_ampere", nk_dots_pack_size_mxfp8e4m3_ampere,
+                                    nk_dots_pack_mxfp8e4m3_ampere, nk_dots_packed_mxfp8e4m3_ampere, backend);
+    run_dots_packed<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_ampere", nk_dots_pack_size_mxfp8e5m2_ampere,
+                                    nk_dots_pack_mxfp8e5m2_ampere, nk_dots_packed_mxfp8e5m2_ampere, backend);
 
     run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_ampere", nk_dots_symmetric_bf16_ampere, backend);
     run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_ampere", nk_dots_symmetric_f16_ampere, backend);
@@ -120,6 +136,12 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_dots_symmetric<nk_i4_k>(env, "dots_symmetric_i4_ampere", nk_dots_symmetric_i4_ampere, backend);
     run_dots_symmetric<nk_u8_k>(env, "dots_symmetric_u8_ampere", nk_dots_symmetric_u8_ampere, backend);
     run_dots_symmetric<nk_u4_k>(env, "dots_symmetric_u4_ampere", nk_dots_symmetric_u4_ampere, backend);
+    run_dots_symmetric<nk_nvfp4_k>(env, "dots_symmetric_nvfp4_ampere", nk_dots_symmetric_nvfp4_ampere, backend);
+    run_dots_symmetric<nk_mxfp4_k>(env, "dots_symmetric_mxfp4_ampere", nk_dots_symmetric_mxfp4_ampere, backend);
+    run_dots_symmetric<nk_mxfp8e4m3_k>(env, "dots_symmetric_mxfp8e4m3_ampere", nk_dots_symmetric_mxfp8e4m3_ampere,
+                                       backend);
+    run_dots_symmetric<nk_mxfp8e5m2_k>(env, "dots_symmetric_mxfp8e5m2_ampere", nk_dots_symmetric_mxfp8e5m2_ampere,
+                                       backend);
 
     run_angulars_packed<nk_bf16_k>(env, "angulars_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere,
                                    nk_dots_pack_bf16_ampere, nk_angulars_packed_bf16_ampere, backend);
@@ -244,6 +266,14 @@ void bench_cross_hopper([[maybe_unused]] environment_t const &env, [[maybe_unuse
                              nk_dots_packed_u8_hopper, backend);
     run_dots_packed<nk_u4_k>(env, "dots_packed_u4_hopper", nk_dots_pack_size_u4_hopper, nk_dots_pack_u4_hopper,
                              nk_dots_packed_u4_hopper, backend);
+    run_dots_packed<nk_nvfp4_k>(env, "dots_packed_nvfp4_hopper", nk_dots_pack_size_nvfp4_hopper,
+                                nk_dots_pack_nvfp4_hopper, nk_dots_packed_nvfp4_hopper, backend);
+    run_dots_packed<nk_mxfp4_k>(env, "dots_packed_mxfp4_hopper", nk_dots_pack_size_mxfp4_hopper,
+                                nk_dots_pack_mxfp4_hopper, nk_dots_packed_mxfp4_hopper, backend);
+    run_dots_packed<nk_mxfp8e4m3_k>(env, "dots_packed_mxfp8e4m3_hopper", nk_dots_pack_size_mxfp8e4m3_hopper,
+                                    nk_dots_pack_mxfp8e4m3_hopper, nk_dots_packed_mxfp8e4m3_hopper, backend);
+    run_dots_packed<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_hopper", nk_dots_pack_size_mxfp8e5m2_hopper,
+                                    nk_dots_pack_mxfp8e5m2_hopper, nk_dots_packed_mxfp8e5m2_hopper, backend);
 
     run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_hopper", nk_dots_symmetric_bf16_hopper, backend);
     run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_hopper", nk_dots_symmetric_f16_hopper, backend);
@@ -253,6 +283,12 @@ void bench_cross_hopper([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_dots_symmetric<nk_i4_k>(env, "dots_symmetric_i4_hopper", nk_dots_symmetric_i4_hopper, backend);
     run_dots_symmetric<nk_u8_k>(env, "dots_symmetric_u8_hopper", nk_dots_symmetric_u8_hopper, backend);
     run_dots_symmetric<nk_u4_k>(env, "dots_symmetric_u4_hopper", nk_dots_symmetric_u4_hopper, backend);
+    run_dots_symmetric<nk_nvfp4_k>(env, "dots_symmetric_nvfp4_hopper", nk_dots_symmetric_nvfp4_hopper, backend);
+    run_dots_symmetric<nk_mxfp4_k>(env, "dots_symmetric_mxfp4_hopper", nk_dots_symmetric_mxfp4_hopper, backend);
+    run_dots_symmetric<nk_mxfp8e4m3_k>(env, "dots_symmetric_mxfp8e4m3_hopper", nk_dots_symmetric_mxfp8e4m3_hopper,
+                                       backend);
+    run_dots_symmetric<nk_mxfp8e5m2_k>(env, "dots_symmetric_mxfp8e5m2_hopper", nk_dots_symmetric_mxfp8e5m2_hopper,
+                                       backend);
 
     run_angulars_packed<nk_bf16_k>(env, "angulars_packed_bf16_hopper", nk_dots_pack_size_bf16_hopper,
                                    nk_dots_pack_bf16_hopper, nk_angulars_packed_bf16_hopper, backend);

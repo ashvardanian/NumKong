@@ -55,6 +55,14 @@ enum {
     nk_cross_tile_u8_hopper_k = nk_cross_tile_hopper_k,
     nk_cross_threads_u4_hopper_k = nk_cross_threads_hopper_k,
     nk_cross_tile_u4_hopper_k = nk_cross_tile_hopper_k,
+    nk_cross_threads_nvfp4_hopper_k = nk_cross_threads_hopper_k,
+    nk_cross_tile_nvfp4_hopper_k = nk_cross_tile_hopper_k,
+    nk_cross_threads_mxfp4_hopper_k = nk_cross_threads_hopper_k,
+    nk_cross_tile_mxfp4_hopper_k = nk_cross_tile_hopper_k,
+    nk_cross_threads_mxfp8e4m3_hopper_k = nk_cross_threads_hopper_k,
+    nk_cross_tile_mxfp8e4m3_hopper_k = nk_cross_tile_hopper_k,
+    nk_cross_threads_mxfp8e5m2_hopper_k = nk_cross_threads_hopper_k,
+    nk_cross_tile_mxfp8e5m2_hopper_k = nk_cross_tile_hopper_k,
 };
 
 #pragma endregion Configuration
@@ -887,6 +895,500 @@ NUMKONG_DEVICE void nk_cross_tile_u4_hopper_(nk_cross_metric_t metric, nk_diagon
 
 #pragma endregion Tile
 
+/*  Block-scaled tiles widen both operands into BF16 in shared memory, every code times its block's
+ *  rebased scale, exact in BF16, one depth step of 32 at a time, and multiply those steps with the
+ *  BF16 @c wgmma slab of the plain tiles. Each of the 256 threads widens one staged row, A rows
+ *  then B rows, so the widening is shared by the whole tile rather than repeated per warp. One
+ *  stage of codes and one widened step fit the static 48 KB beside the scales and the rebasing. */
+#pragma region Block Scales
+
+/** Shared memory of a block-scaled tile: one widened BF16 step of 32 depths, A then B, on the
+ *  512-byte boundary its swizzle needs, one stage of codes, the rebased F32 scales of the staged
+ *  slab for the 128 rows of A and of B, and the rows' rebasing. */
+typedef struct {
+    unsigned char widened[2][nk_cross_stage_bytes_ampere_k];
+    unsigned char codes[2][nk_cross_stage_bytes_ampere_k];
+    nk_f32_t scales[2][nk_cross_tile_ampere_k][8];
+    nk_i32_t bases[2][nk_cross_tile_ampere_k];
+    nk_i32_t spreads[2][nk_cross_tile_ampere_k];
+} nk_cross_scaled_shared_hopper_t;
+
+/** The 16 staged bytes of chunk @p chunk of row @p row of a 64-byte-swizzled stage. */
+NUMKONG_DEVICE uint4 nk_cross_staged_chunk_hopper_(unsigned char const *stage, unsigned row, unsigned chunk) {
+    return *(uint4 const *)(stage + nk_swizzled_offset_simt_(row, chunk << 4, nk_cross_slab_bytes_ampere_k));
+}
+
+/** Writes 32 F32 values as one widened BF16 row of a 64-byte-swizzled step. */
+NUMKONG_DEVICE void nk_cross_widened_store_hopper_(unsigned char *step, unsigned row, nk_f32_t const values[32]) {
+#pragma unroll
+    for (unsigned chunk = 0; chunk < 4; ++chunk) {
+        uint4 words;
+        nk_u32_t *word = (nk_u32_t *)&words;
+#pragma unroll
+        for (unsigned pair = 0; pair < 4; ++pair) {
+            unsigned const index = chunk * 8 + pair * 2;
+            word[pair] = nk_f32_to_bf16_bits_ampere_(values[index]) |
+                         (nk_f32_to_bf16_bits_ampere_(values[index + 1]) << 16);
+        }
+        *(uint4 *)(step + nk_swizzled_offset_simt_(row, chunk << 4, nk_cross_slab_bytes_ampere_k)) = words;
+    }
+}
+
+/** Rebases this thread's A row and B row, among the first 128 threads, over their @p blocks UE4M3
+ *  scales. */
+NUMKONG_DEVICE void nk_cross_scaled_rebase_ue4m3_hopper_(nk_cross_scaled_shared_hopper_t *shared,
+                                                         nk_cross_tile_arguments_t const *arguments,
+                                                         nk_size_t first_row, nk_size_t first_column,
+                                                         nk_size_t blocks) {
+    nk_size_t const row = first_row + threadIdx.x, column = first_column + threadIdx.x;
+    nk_i32_t spread = 0;
+    shared->bases[0][threadIdx.x] = row < arguments->rows_end
+                                        ? nk_cross_scaled_base_ue4m3_simt_(
+                                              arguments->a_scales + row * arguments->a_scales_stride, blocks, &spread)
+                                        : 0;
+    shared->spreads[0][threadIdx.x] = spread, spread = 0;
+    shared->bases[1][threadIdx.x] = column < arguments->column_count
+                                        ? nk_cross_scaled_base_ue4m3_simt_(
+                                              arguments->b_scales + column * arguments->b_scales_stride, blocks,
+                                              &spread)
+                                        : 0;
+    shared->spreads[1][threadIdx.x] = spread;
+}
+
+/** Rebases this thread's A row and B row, among the first 128 threads, over their @p blocks UE8M0
+ *  scales. */
+NUMKONG_DEVICE void nk_cross_scaled_rebase_ue8m0_hopper_(nk_cross_scaled_shared_hopper_t *shared,
+                                                         nk_cross_tile_arguments_t const *arguments,
+                                                         nk_size_t first_row, nk_size_t first_column,
+                                                         nk_size_t blocks) {
+    nk_size_t const row = first_row + threadIdx.x, column = first_column + threadIdx.x;
+    nk_i32_t spread = 0;
+    shared->bases[0][threadIdx.x] = row < arguments->rows_end
+                                        ? nk_cross_scaled_base_ue8m0_ampere_(
+                                              arguments->a_scales + row * arguments->a_scales_stride, blocks, &spread)
+                                        : 0;
+    shared->spreads[0][threadIdx.x] = spread, spread = 0;
+    shared->bases[1][threadIdx.x] = column < arguments->column_count
+                                        ? nk_cross_scaled_base_ue8m0_ampere_(
+                                              arguments->b_scales + column * arguments->b_scales_stride, blocks,
+                                              &spread)
+                                        : 0;
+    shared->spreads[1][threadIdx.x] = spread;
+}
+
+/** Stages slab @p slab's codes from the first 128 threads, each copying for one A and one B row. */
+NUMKONG_DEVICE void nk_cross_scaled_stage_codes_hopper_(nk_cross_scaled_shared_hopper_t *shared,
+                                                        nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                        nk_size_t first_column, nk_size_t slab) {
+    if (threadIdx.x < nk_cross_threads_ampere_k && slab < arguments->depth_slabs)
+        nk_cross_stage_ampere_(shared->codes[0], shared->codes[1], arguments, first_row, first_column,
+                               slab * nk_cross_slab_bytes_ampere_k);
+    nk_commit_async_ampere_();
+}
+
+/** Stages the rebased F32 UE4M3 scales of @p count blocks from @p first, from the first 128
+ *  threads, one A and one B row each. */
+NUMKONG_DEVICE void nk_cross_scaled_stage_ue4m3_hopper_(nk_cross_scaled_shared_hopper_t *shared,
+                                                        nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                        nk_size_t first_column, nk_size_t blocks, nk_size_t first,
+                                                        unsigned count) {
+    if (threadIdx.x >= nk_cross_threads_ampere_k) return;
+    unsigned char codes[2][8];
+    nk_cross_scaled_codes_ampere_(arguments, first_row, first_column, blocks, first, count, codes);
+#pragma unroll
+    for (unsigned side = 0; side < 2; ++side)
+#pragma unroll
+        for (unsigned block = 0; block < 8; ++block)
+            shared->scales[side][threadIdx.x][block] = nk_cross_relative_scale_ue4m3_simt_(
+                codes[side][block], shared->bases[side][threadIdx.x]);
+}
+
+/** Stages the rebased F32 UE8M0 scales of @p count blocks from @p first, from the first 128
+ *  threads, one A and one B row each. */
+NUMKONG_DEVICE void nk_cross_scaled_stage_ue8m0_hopper_(nk_cross_scaled_shared_hopper_t *shared,
+                                                        nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                        nk_size_t first_column, nk_size_t blocks, nk_size_t first,
+                                                        unsigned count) {
+    if (threadIdx.x >= nk_cross_threads_ampere_k) return;
+    unsigned char codes[2][8];
+    nk_cross_scaled_codes_ampere_(arguments, first_row, first_column, blocks, first, count, codes);
+#pragma unroll
+    for (unsigned side = 0; side < 2; ++side)
+#pragma unroll
+        for (unsigned block = 0; block < 8; ++block)
+            shared->scales[side][threadIdx.x][block] = nk_relative_ue8m0_to_f32_ampere_(
+                codes[side][block], shared->bases[side][threadIdx.x]);
+}
+
+#pragma endregion Block Scales
+
+#pragma region NVFP4 Tiles
+
+/** Widens step @p step of the staged slab, 32 depths of this thread's staged row, A rows from the
+ *  first 128 threads and B rows from the rest, times each block's rebased scale, into BF16. */
+NUMKONG_DEVICE void nk_cross_widen_nvfp4_hopper_(nk_cross_scaled_shared_hopper_t *shared, unsigned step) {
+    unsigned const side = threadIdx.x >> 7, row = threadIdx.x & 127;
+    nk_f32_t const *scales = shared->scales[side][row];
+    nk_f32_t values[32];
+    // Chunk @p step of the row holds 32 codes, two 16-deep blocks
+    uint4 const chunk = nk_cross_staged_chunk_hopper_(shared->codes[side], row, step);
+    unsigned char const *bytes = (unsigned char const *)&chunk;
+#pragma unroll
+    for (unsigned index = 0; index < 32; ++index)
+        values[index] = nk_e2m1_load_f32_simt_(bytes, index) * scales[step * 2 + index / 16];
+    nk_cross_widened_store_hopper_(shared->widened[side], row, values);
+}
+
+NUMKONG_DEVICE void nk_cross_tile_nvfp4_hopper_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                nk_cross_tile_arguments_t const *arguments) {
+    // The 64-byte swizzle's zero base offset needs the widened step on a 512-byte boundary
+    __shared__ __align__(1024) nk_cross_scaled_shared_hopper_t shared;
+    nk_cross_scaled_factors_cuda_t const factors = nk_cross_scaled_factors_cuda_(arguments);
+    nk_size_t const depth = arguments->depth, blocks = depth / 16;
+    unsigned const lane = threadIdx.x & 31, warp = (threadIdx.x >> 5) & 3, group = lane >> 2, quad = lane & 3;
+    unsigned const warpgroup_row = (threadIdx.x >> 7) * nk_cross_warpgroup_rows_hopper_k;
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's last reads of every buffer retire before this tile refills them.
+        __syncthreads();
+        nk_size_t first_row, first_column;
+        if (!nk_cross_tile_origin_ampere_(band, arguments, tile, &first_row, &first_column)) continue;
+        nk_fui32_t accumulators[64];
+        nk_cross_accumulators_clear_hopper_(accumulators);
+        if (threadIdx.x < nk_cross_threads_ampere_k)
+            nk_cross_scaled_rebase_ue4m3_hopper_(&shared, arguments, first_row, first_column, blocks);
+        nk_cross_scaled_stage_codes_hopper_(&shared, arguments, first_row, first_column, 0);
+        nk_cross_scaled_stage_ue4m3_hopper_(&shared, arguments, first_row, first_column, blocks, 0, 8);
+        for (nk_size_t slab = 0; slab < arguments->depth_slabs; ++slab) {
+            nk_wait_async_ampere_(0);
+            // This slab's codes and scales are in.
+            __syncthreads();
+#pragma unroll
+            for (unsigned step = 0; step < 4; ++step) {
+                nk_cross_widen_nvfp4_hopper_(&shared, step);
+                nk_fence_proxy_async_hopper_();
+                __syncthreads();
+                nk_cross_issue_slab_bf16_hopper_(accumulators, shared.widened[0]);
+                nk_wgmma_wait_hopper_();
+                nk_wgmma_fence_operands_hopper_(accumulators, 64, nk_cross_epilogue_f32_k);
+                // Every warpgroup is done reading the widened step before the next one rewrites it.
+                __syncthreads();
+            }
+            nk_cross_scaled_stage_codes_hopper_(&shared, arguments, first_row, first_column, slab + 1);
+            nk_cross_scaled_stage_ue4m3_hopper_(&shared, arguments, first_row, first_column, blocks, (slab + 1) * 8, 8);
+        }
+        // Without slabs the rebasing still needs a barrier before other threads' rows read it.
+        __syncthreads();
+#pragma unroll
+        for (unsigned half = 0; half < 2; ++half) {
+            unsigned const tile_row = warpgroup_row + warp * 16 + half * 8 + group;
+            nk_size_t const row = first_row + tile_row;
+            if (row >= arguments->rows_end) continue;
+            nk_size_t column_begin, column_end;
+            nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
+            nk_f32_t *output = (nk_f32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
+#pragma unroll
+            for (unsigned column_tile = 0; column_tile < nk_cross_tile_ampere_k / 8; ++column_tile)
+#pragma unroll
+                for (unsigned pair = 0; pair < 2; ++pair) {
+                    unsigned const tile_column = column_tile * 8 + quad * 2 + pair;
+                    nk_size_t const column = first_column + tile_column;
+                    if (column < column_begin || column >= column_end) continue;
+                    nk_cross_wide_sum_t dot, a_sumsq, b_sumsq;
+                    nk_cross_scaled_wide_cuda_(accumulators[column_tile * 4 + half * 2 + pair].f,
+                                               shared.bases[0][tile_row], shared.bases[1][tile_column], 0, 0, &factors,
+                                               &dot, &a_sumsq, &b_sumsq);
+                    if (nk_cross_scaled_exceeds_simt_(shared.spreads[0][tile_row], shared.spreads[1][tile_column], 0)) {
+                        dot = nk_cross_scaled_exact_wide_nvfp4_simt_(
+                            arguments->a + row * arguments->a_stride,
+                            arguments->a_scales + row * arguments->a_scales_stride,
+                            arguments->b + column * arguments->b_stride,
+                            arguments->b_scales + column * arguments->b_scales_stride, depth, &a_sumsq, &b_sumsq);
+                        nk_cross_scaled_apply_factors_cuda_(&factors, &dot, &a_sumsq, &b_sumsq);
+                    }
+                    output[column] = nk_cross_scaled_metric_simt_(metric, dot, a_sumsq, b_sumsq);
+                }
+        }
+    }
+}
+
+#pragma endregion NVFP4 Tiles
+
+#pragma region MXFP4 Tiles
+
+/** Widens step @p step of the staged slab, 32 depths of this thread's staged row, A rows from the
+ *  first 128 threads and B rows from the rest, times each block's rebased scale, into BF16. */
+NUMKONG_DEVICE void nk_cross_widen_mxfp4_hopper_(nk_cross_scaled_shared_hopper_t *shared, unsigned step) {
+    unsigned const side = threadIdx.x >> 7, row = threadIdx.x & 127;
+    nk_f32_t const *scales = shared->scales[side][row];
+    nk_f32_t values[32];
+    // Chunk @p step of the row holds 32 codes, one block
+    uint4 const chunk = nk_cross_staged_chunk_hopper_(shared->codes[side], row, step);
+    unsigned char const *bytes = (unsigned char const *)&chunk;
+#pragma unroll
+    for (unsigned index = 0; index < 32; ++index) values[index] = nk_e2m1_load_f32_simt_(bytes, index) * scales[step];
+    nk_cross_widened_store_hopper_(shared->widened[side], row, values);
+}
+
+NUMKONG_DEVICE void nk_cross_tile_mxfp4_hopper_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                nk_cross_tile_arguments_t const *arguments) {
+    // The 64-byte swizzle's zero base offset needs the widened step on a 512-byte boundary
+    __shared__ __align__(1024) nk_cross_scaled_shared_hopper_t shared;
+    nk_cross_scaled_factors_cuda_t const factors = nk_cross_scaled_factors_cuda_(arguments);
+    nk_size_t const depth = arguments->depth, blocks = depth / 32;
+    unsigned const lane = threadIdx.x & 31, warp = (threadIdx.x >> 5) & 3, group = lane >> 2, quad = lane & 3;
+    unsigned const warpgroup_row = (threadIdx.x >> 7) * nk_cross_warpgroup_rows_hopper_k;
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's last reads of every buffer retire before this tile refills them.
+        __syncthreads();
+        nk_size_t first_row, first_column;
+        if (!nk_cross_tile_origin_ampere_(band, arguments, tile, &first_row, &first_column)) continue;
+        nk_fui32_t accumulators[64];
+        nk_cross_accumulators_clear_hopper_(accumulators);
+        if (threadIdx.x < nk_cross_threads_ampere_k)
+            nk_cross_scaled_rebase_ue8m0_hopper_(&shared, arguments, first_row, first_column, blocks);
+        nk_cross_scaled_stage_codes_hopper_(&shared, arguments, first_row, first_column, 0);
+        nk_cross_scaled_stage_ue8m0_hopper_(&shared, arguments, first_row, first_column, blocks, 0, 4);
+        for (nk_size_t slab = 0; slab < arguments->depth_slabs; ++slab) {
+            nk_wait_async_ampere_(0);
+            // This slab's codes and scales are in.
+            __syncthreads();
+#pragma unroll
+            for (unsigned step = 0; step < 4; ++step) {
+                nk_cross_widen_mxfp4_hopper_(&shared, step);
+                nk_fence_proxy_async_hopper_();
+                __syncthreads();
+                nk_cross_issue_slab_bf16_hopper_(accumulators, shared.widened[0]);
+                nk_wgmma_wait_hopper_();
+                nk_wgmma_fence_operands_hopper_(accumulators, 64, nk_cross_epilogue_f32_k);
+                // Every warpgroup is done reading the widened step before the next one rewrites it.
+                __syncthreads();
+            }
+            nk_cross_scaled_stage_codes_hopper_(&shared, arguments, first_row, first_column, slab + 1);
+            nk_cross_scaled_stage_ue8m0_hopper_(&shared, arguments, first_row, first_column, blocks, (slab + 1) * 4, 4);
+        }
+        // Without slabs the rebasing still needs a barrier before other threads' rows read it.
+        __syncthreads();
+#pragma unroll
+        for (unsigned half = 0; half < 2; ++half) {
+            unsigned const tile_row = warpgroup_row + warp * 16 + half * 8 + group;
+            nk_size_t const row = first_row + tile_row;
+            if (row >= arguments->rows_end) continue;
+            nk_size_t column_begin, column_end;
+            nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
+            nk_f32_t *output = (nk_f32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
+#pragma unroll
+            for (unsigned column_tile = 0; column_tile < nk_cross_tile_ampere_k / 8; ++column_tile)
+#pragma unroll
+                for (unsigned pair = 0; pair < 2; ++pair) {
+                    unsigned const tile_column = column_tile * 8 + quad * 2 + pair;
+                    nk_size_t const column = first_column + tile_column;
+                    if (column < column_begin || column >= column_end) continue;
+                    nk_cross_wide_sum_t dot, a_sumsq, b_sumsq;
+                    nk_cross_scaled_wide_cuda_(accumulators[column_tile * 4 + half * 2 + pair].f,
+                                               shared.bases[0][tile_row], shared.bases[1][tile_column], 0, 0, &factors,
+                                               &dot, &a_sumsq, &b_sumsq);
+                    if (nk_cross_scaled_exceeds_simt_(shared.spreads[0][tile_row], shared.spreads[1][tile_column], 0)) {
+                        dot = nk_cross_scaled_exact_wide_mxfp4_simt_(
+                            arguments->a + row * arguments->a_stride,
+                            arguments->a_scales + row * arguments->a_scales_stride,
+                            arguments->b + column * arguments->b_stride,
+                            arguments->b_scales + column * arguments->b_scales_stride, depth, &a_sumsq, &b_sumsq);
+                        nk_cross_scaled_apply_factors_cuda_(&factors, &dot, &a_sumsq, &b_sumsq);
+                    }
+                    output[column] = nk_cross_scaled_metric_simt_(metric, dot, a_sumsq, b_sumsq);
+                }
+        }
+    }
+}
+
+#pragma endregion MXFP4 Tiles
+
+#pragma region MXFP8E4M3 Tiles
+
+/** Widens step @p step of the staged slab, 32 depths of this thread's staged row, A rows from the
+ *  first 128 threads and B rows from the rest, times each block's rebased scale, into BF16. */
+NUMKONG_DEVICE void nk_cross_widen_mxfp8e4m3_hopper_(nk_cross_scaled_shared_hopper_t *shared, unsigned step) {
+    unsigned const side = threadIdx.x >> 7, row = threadIdx.x & 127;
+    nk_f32_t const *scales = shared->scales[side][row];
+    nk_f32_t values[32];
+    // Chunks 2 · step and 2 · step + 1 of the row hold 32 codes, one block
+    uint4 const chunks[2] = {nk_cross_staged_chunk_hopper_(shared->codes[side], row, step * 2),
+                             nk_cross_staged_chunk_hopper_(shared->codes[side], row, step * 2 + 1)};
+    unsigned char const *bytes = (unsigned char const *)chunks;
+#pragma unroll
+    for (unsigned index = 0; index < 32; ++index) values[index] = nk_e4m3_load_f32_simt_(bytes, index) * scales[step];
+    nk_cross_widened_store_hopper_(shared->widened[side], row, values);
+}
+
+NUMKONG_DEVICE void nk_cross_tile_mxfp8e4m3_hopper_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                    nk_cross_tile_arguments_t const *arguments) {
+    // The 64-byte swizzle's zero base offset needs the widened step on a 512-byte boundary
+    __shared__ __align__(1024) nk_cross_scaled_shared_hopper_t shared;
+    nk_cross_scaled_factors_cuda_t const factors = nk_cross_scaled_factors_cuda_(arguments);
+    nk_size_t const depth = arguments->depth, blocks = depth / 32;
+    unsigned const lane = threadIdx.x & 31, warp = (threadIdx.x >> 5) & 3, group = lane >> 2, quad = lane & 3;
+    unsigned const warpgroup_row = (threadIdx.x >> 7) * nk_cross_warpgroup_rows_hopper_k;
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's last reads of every buffer retire before this tile refills them.
+        __syncthreads();
+        nk_size_t first_row, first_column;
+        if (!nk_cross_tile_origin_ampere_(band, arguments, tile, &first_row, &first_column)) continue;
+        nk_fui32_t accumulators[64];
+        nk_cross_accumulators_clear_hopper_(accumulators);
+        if (threadIdx.x < nk_cross_threads_ampere_k)
+            nk_cross_scaled_rebase_ue8m0_hopper_(&shared, arguments, first_row, first_column, blocks);
+        nk_cross_scaled_stage_codes_hopper_(&shared, arguments, first_row, first_column, 0);
+        nk_cross_scaled_stage_ue8m0_hopper_(&shared, arguments, first_row, first_column, blocks, 0, 2);
+        for (nk_size_t slab = 0; slab < arguments->depth_slabs; ++slab) {
+            nk_wait_async_ampere_(0);
+            // This slab's codes and scales are in.
+            __syncthreads();
+#pragma unroll
+            for (unsigned step = 0; step < 2; ++step) {
+                nk_cross_widen_mxfp8e4m3_hopper_(&shared, step);
+                nk_fence_proxy_async_hopper_();
+                __syncthreads();
+                nk_cross_issue_slab_bf16_hopper_(accumulators, shared.widened[0]);
+                nk_wgmma_wait_hopper_();
+                nk_wgmma_fence_operands_hopper_(accumulators, 64, nk_cross_epilogue_f32_k);
+                // Every warpgroup is done reading the widened step before the next one rewrites it.
+                __syncthreads();
+            }
+            nk_cross_scaled_stage_codes_hopper_(&shared, arguments, first_row, first_column, slab + 1);
+            nk_cross_scaled_stage_ue8m0_hopper_(&shared, arguments, first_row, first_column, blocks, (slab + 1) * 2, 2);
+        }
+        // Without slabs the rebasing still needs a barrier before other threads' rows read it.
+        __syncthreads();
+#pragma unroll
+        for (unsigned half = 0; half < 2; ++half) {
+            unsigned const tile_row = warpgroup_row + warp * 16 + half * 8 + group;
+            nk_size_t const row = first_row + tile_row;
+            if (row >= arguments->rows_end) continue;
+            nk_size_t column_begin, column_end;
+            nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
+            nk_f32_t *output = (nk_f32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
+#pragma unroll
+            for (unsigned column_tile = 0; column_tile < nk_cross_tile_ampere_k / 8; ++column_tile)
+#pragma unroll
+                for (unsigned pair = 0; pair < 2; ++pair) {
+                    unsigned const tile_column = column_tile * 8 + quad * 2 + pair;
+                    nk_size_t const column = first_column + tile_column;
+                    if (column < column_begin || column >= column_end) continue;
+                    nk_cross_wide_sum_t dot, a_sumsq, b_sumsq;
+                    nk_cross_scaled_wide_cuda_(accumulators[column_tile * 4 + half * 2 + pair].f,
+                                               shared.bases[0][tile_row], shared.bases[1][tile_column], 0, 0, &factors,
+                                               &dot, &a_sumsq, &b_sumsq);
+                    if (nk_cross_scaled_exceeds_simt_(shared.spreads[0][tile_row], shared.spreads[1][tile_column], 0)) {
+                        dot = nk_cross_scaled_exact_wide_mxfp8e4m3_simt_(
+                            arguments->a + row * arguments->a_stride,
+                            arguments->a_scales + row * arguments->a_scales_stride,
+                            arguments->b + column * arguments->b_stride,
+                            arguments->b_scales + column * arguments->b_scales_stride, depth, &a_sumsq, &b_sumsq);
+                        nk_cross_scaled_apply_factors_cuda_(&factors, &dot, &a_sumsq, &b_sumsq);
+                    }
+                    output[column] = nk_cross_scaled_metric_simt_(metric, dot, a_sumsq, b_sumsq);
+                }
+        }
+    }
+}
+
+#pragma endregion MXFP8E4M3 Tiles
+
+#pragma region MXFP8E5M2 Tiles
+
+/** Widens step @p step of the staged slab, 32 depths of this thread's staged row, A rows from the
+ *  first 128 threads and B rows from the rest, times each block's rebased scale, into BF16. */
+NUMKONG_DEVICE void nk_cross_widen_mxfp8e5m2_hopper_(nk_cross_scaled_shared_hopper_t *shared, unsigned step) {
+    unsigned const side = threadIdx.x >> 7, row = threadIdx.x & 127;
+    nk_f32_t const *scales = shared->scales[side][row];
+    nk_f32_t values[32];
+    // Chunks 2 · step and 2 · step + 1 of the row hold 32 codes, one block
+    uint4 const chunks[2] = {nk_cross_staged_chunk_hopper_(shared->codes[side], row, step * 2),
+                             nk_cross_staged_chunk_hopper_(shared->codes[side], row, step * 2 + 1)};
+    unsigned char const *bytes = (unsigned char const *)chunks;
+#pragma unroll
+    for (unsigned index = 0; index < 32; ++index) values[index] = nk_e5m2_load_f32_simt_(bytes, index) * scales[step];
+    nk_cross_widened_store_hopper_(shared->widened[side], row, values);
+}
+
+NUMKONG_DEVICE void nk_cross_tile_mxfp8e5m2_hopper_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                    nk_cross_tile_arguments_t const *arguments) {
+    // The 64-byte swizzle's zero base offset needs the widened step on a 512-byte boundary
+    __shared__ __align__(1024) nk_cross_scaled_shared_hopper_t shared;
+    nk_cross_scaled_factors_cuda_t const factors = nk_cross_scaled_factors_cuda_(arguments);
+    nk_size_t const depth = arguments->depth, blocks = depth / 32;
+    unsigned const lane = threadIdx.x & 31, warp = (threadIdx.x >> 5) & 3, group = lane >> 2, quad = lane & 3;
+    unsigned const warpgroup_row = (threadIdx.x >> 7) * nk_cross_warpgroup_rows_hopper_k;
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's last reads of every buffer retire before this tile refills them.
+        __syncthreads();
+        nk_size_t first_row, first_column;
+        if (!nk_cross_tile_origin_ampere_(band, arguments, tile, &first_row, &first_column)) continue;
+        nk_fui32_t accumulators[64];
+        nk_cross_accumulators_clear_hopper_(accumulators);
+        if (threadIdx.x < nk_cross_threads_ampere_k)
+            nk_cross_scaled_rebase_ue8m0_hopper_(&shared, arguments, first_row, first_column, blocks);
+        nk_cross_scaled_stage_codes_hopper_(&shared, arguments, first_row, first_column, 0);
+        nk_cross_scaled_stage_ue8m0_hopper_(&shared, arguments, first_row, first_column, blocks, 0, 2);
+        for (nk_size_t slab = 0; slab < arguments->depth_slabs; ++slab) {
+            nk_wait_async_ampere_(0);
+            // This slab's codes and scales are in.
+            __syncthreads();
+#pragma unroll
+            for (unsigned step = 0; step < 2; ++step) {
+                nk_cross_widen_mxfp8e5m2_hopper_(&shared, step);
+                nk_fence_proxy_async_hopper_();
+                __syncthreads();
+                nk_cross_issue_slab_bf16_hopper_(accumulators, shared.widened[0]);
+                nk_wgmma_wait_hopper_();
+                nk_wgmma_fence_operands_hopper_(accumulators, 64, nk_cross_epilogue_f32_k);
+                // Every warpgroup is done reading the widened step before the next one rewrites it.
+                __syncthreads();
+            }
+            nk_cross_scaled_stage_codes_hopper_(&shared, arguments, first_row, first_column, slab + 1);
+            nk_cross_scaled_stage_ue8m0_hopper_(&shared, arguments, first_row, first_column, blocks, (slab + 1) * 2, 2);
+        }
+        // Without slabs the rebasing still needs a barrier before other threads' rows read it.
+        __syncthreads();
+#pragma unroll
+        for (unsigned half = 0; half < 2; ++half) {
+            unsigned const tile_row = warpgroup_row + warp * 16 + half * 8 + group;
+            nk_size_t const row = first_row + tile_row;
+            if (row >= arguments->rows_end) continue;
+            nk_size_t column_begin, column_end;
+            nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
+            nk_f32_t *output = (nk_f32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
+#pragma unroll
+            for (unsigned column_tile = 0; column_tile < nk_cross_tile_ampere_k / 8; ++column_tile)
+#pragma unroll
+                for (unsigned pair = 0; pair < 2; ++pair) {
+                    unsigned const tile_column = column_tile * 8 + quad * 2 + pair;
+                    nk_size_t const column = first_column + tile_column;
+                    if (column < column_begin || column >= column_end) continue;
+                    nk_cross_wide_sum_t dot, a_sumsq, b_sumsq;
+                    nk_cross_scaled_wide_cuda_(accumulators[column_tile * 4 + half * 2 + pair].f,
+                                               shared.bases[0][tile_row], shared.bases[1][tile_column], 0, 0, &factors,
+                                               &dot, &a_sumsq, &b_sumsq);
+                    if (nk_cross_scaled_exceeds_simt_(shared.spreads[0][tile_row], shared.spreads[1][tile_column], 0)) {
+                        dot = nk_cross_scaled_exact_wide_mxfp8e5m2_simt_(
+                            arguments->a + row * arguments->a_stride,
+                            arguments->a_scales + row * arguments->a_scales_stride,
+                            arguments->b + column * arguments->b_stride,
+                            arguments->b_scales + column * arguments->b_scales_stride, depth, &a_sumsq, &b_sumsq);
+                        nk_cross_scaled_apply_factors_cuda_(&factors, &dot, &a_sumsq, &b_sumsq);
+                    }
+                    output[column] = nk_cross_scaled_metric_simt_(metric, dot, a_sumsq, b_sumsq);
+                }
+        }
+    }
+}
+
+#pragma endregion MXFP8E5M2 Tiles
+
 #pragma region BF16
 
 nk_define_cross_pack_cuda_(bf16, hopper, bf16, bf16, nk_load_b8_simt_, /*norm_value_type=*/f32,
@@ -958,6 +1460,58 @@ nk_define_cross_cuda_(dot, u4, hopper, u4_hopper, u4x2, u4x2, u32, /*depth_simd_
                       /*dimensions_per_value=*/2)
 
 #pragma endregion U4
+
+#pragma region NVFP4
+
+nk_define_cross_pack_size_simt_(nvfp4, hopper, e2m1x2, cross_wide_sum, /*depth_simd_dimensions=*/32,
+                                /*dimensions_per_value=*/2)
+nk_define_cross_packed_shape_cuda_(nvfp4, hopper)
+nk_define_cross_pack_rows_cuda_(nvfp4, hopper, e2m1x2, e2m1x2, nk_load_b8_simt_, cross_wide_sum,
+                                nk_cross_scaled_pack_norm_nvfp4_simt_, /*depth_simd_dimensions=*/32,
+                                /*dimensions_per_value=*/2)
+nk_define_cross_cuda_(dot, nvfp4, hopper, nvfp4_hopper, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                      /*dimensions_per_value=*/2)
+
+#pragma endregion NVFP4
+
+#pragma region MXFP4
+
+nk_define_cross_pack_size_simt_(mxfp4, hopper, e2m1x2, cross_wide_sum, /*depth_simd_dimensions=*/32,
+                                /*dimensions_per_value=*/2)
+nk_define_cross_packed_shape_cuda_(mxfp4, hopper)
+nk_define_cross_pack_rows_cuda_(mxfp4, hopper, e2m1x2, e2m1x2, nk_load_b8_simt_, cross_wide_sum,
+                                nk_cross_scaled_pack_norm_mxfp4_simt_, /*depth_simd_dimensions=*/32,
+                                /*dimensions_per_value=*/2)
+nk_define_cross_cuda_(dot, mxfp4, hopper, mxfp4_hopper, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                      /*dimensions_per_value=*/2)
+
+#pragma endregion MXFP4
+
+#pragma region MXFP8E4M3
+
+nk_define_cross_pack_size_simt_(mxfp8e4m3, hopper, e4m3, cross_wide_sum, /*depth_simd_dimensions=*/16,
+                                /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_cuda_(mxfp8e4m3, hopper)
+nk_define_cross_pack_rows_cuda_(mxfp8e4m3, hopper, e4m3, e4m3, nk_load_b8_simt_, cross_wide_sum,
+                                nk_cross_scaled_pack_norm_mxfp8e4m3_simt_, /*depth_simd_dimensions=*/16,
+                                /*dimensions_per_value=*/1)
+nk_define_cross_cuda_(dot, mxfp8e4m3, hopper, mxfp8e4m3_hopper, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
+
+#pragma endregion MXFP8E4M3
+
+#pragma region MXFP8E5M2
+
+nk_define_cross_pack_size_simt_(mxfp8e5m2, hopper, e5m2, cross_wide_sum, /*depth_simd_dimensions=*/16,
+                                /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_cuda_(mxfp8e5m2, hopper)
+nk_define_cross_pack_rows_cuda_(mxfp8e5m2, hopper, e5m2, e5m2, nk_load_b8_simt_, cross_wide_sum,
+                                nk_cross_scaled_pack_norm_mxfp8e5m2_simt_, /*depth_simd_dimensions=*/16,
+                                /*dimensions_per_value=*/1)
+nk_define_cross_cuda_(dot, mxfp8e5m2, hopper, mxfp8e5m2_hopper, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
+
+#pragma endregion MXFP8E5M2
 
 #if defined(__cplusplus)
 } // extern "C"
