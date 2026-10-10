@@ -121,28 +121,46 @@ NUMKONG_INLINE nk_status_t nk_read_cuda_(void *host, void const *device, nk_size
     return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
+/** The current device's default managed memory pool, or null where a device lacks concurrent
+ *  managed access, as on Windows, so blocks fall back to @c cudaMallocManaged. */
+NUMKONG_INLINE cudaMemPool_t nk_managed_pool_cuda_(void) {
+    cudaMemPool_t pool = NUMKONG_NULL;
+    struct cudaMemLocation location;
+    location.type = cudaMemLocationTypeDevice;
+    if (cudaGetDevice(&location.id) != cudaSuccess) return NUMKONG_NULL;
+    if (cudaMemGetDefaultMemPool(&pool, &location, cudaMemAllocationTypeManaged) != cudaSuccess)
+        cudaGetLastError(), pool = NUMKONG_NULL;
+    return pool;
+}
+
 /** Allocates @p bytes of managed memory on the device of @p stream, the current one for a null
- *  stream, leaving the caller's current device as it was. */
+ *  stream, leaving the caller's current device as it was. Pool blocks are ordered on @p stream,
+ *  which is synchronized before returning so the host may touch the block at once. */
 NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_cuda_(nk_size_t bytes, void **pointer, nk_stream_t stream) {
     *pointer = NUMKONG_NULL;
     if (!bytes) return nk_success_k;
     int caller = 0;
     nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
     if (entered != nk_success_k) return entered;
-    cudaError_t const allocated = cudaMallocManaged(pointer, bytes, cudaMemAttachGlobal);
+    cudaMemPool_t const pool = nk_managed_pool_cuda_();
+    cudaError_t allocated = pool ? cudaMallocFromPoolAsync(pointer, bytes, pool, (cudaStream_t)stream)
+                                 : cudaMallocManaged(pointer, bytes, cudaMemAttachGlobal);
+    if (pool && allocated == cudaSuccess) allocated = cudaStreamSynchronize((cudaStream_t)stream);
     nk_device_leave_cuda_(caller);
     if (allocated == cudaSuccess) return nk_success_k;
     *pointer = NUMKONG_NULL;
     return nk_bad_alloc_k;
 }
 
-/** Frees a block of @ref nk_memory_allocate_unified_cuda_ once the device is done with it. */
+/** Frees a block of @ref nk_memory_allocate_unified_cuda_ once the work queued on @p stream is done
+ *  with it, without waiting where the block came from a managed pool. */
 NUMKONG_INLINE nk_status_t nk_memory_free_unified_cuda_(void *pointer, nk_stream_t stream) {
     if (!pointer) return nk_success_k;
     int caller = 0;
     nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
     if (entered != nk_success_k) return entered;
-    cudaError_t const status = cudaFree(pointer);
+    cudaError_t const status = nk_managed_pool_cuda_() ? cudaFreeAsync(pointer, (cudaStream_t)stream)
+                                                       : cudaFree(pointer);
     nk_device_leave_cuda_(caller);
     return status == cudaSuccess ? nk_success_k : nk_device_memory_mismatch_k;
 }

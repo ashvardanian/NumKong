@@ -65,8 +65,9 @@ NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocato
  *  @return @c nk_success_k, @c nk_bad_alloc_k, or @c nk_missing_gpu_k for a group without a device
  *      or missing from this build.
  *
- *  CUDA and ROCm hand out managed memory, and Metal a shared buffer every kernel on that device
- *  binds, so the host reads what a kernel wrote once the stream is synchronized.
+ *  CUDA and ROCm hand out managed memory, CUDA from the device's managed pool in the order of
+ *  @p stream, and Metal a shared buffer every kernel on that device binds, so the host reads what a
+ *  kernel wrote once the stream is synchronized.
  */
 NUMKONG_API nk_status_t nk_memory_allocate_unified_best(nk_size_t bytes, void **pointer, nk_capability_t capabilities,
                                                         nk_stream_t stream);
@@ -79,8 +80,9 @@ NUMKONG_API nk_status_t nk_memory_allocate_unified_best(nk_size_t bytes, void **
  *  @return @c nk_success_k, @c nk_device_memory_mismatch_k for a block the group never handed out,
  *      or @c nk_missing_gpu_k.
  *
- *  CUDA and ROCm wait for the device first, and Metal releases the buffer once the work committed
- *  to @p stream so far completes.
+ *  CUDA frees blocks of its managed pool once the work queued on @p stream completes, without
+ *  waiting; devices without concurrent managed access and ROCm wait for the device first; Metal
+ *  releases the buffer once the work committed to @p stream so far completes.
  */
 NUMKONG_API nk_status_t nk_memory_free_unified_best(void *pointer, nk_size_t bytes, nk_capability_t capabilities,
                                                     nk_stream_t stream);

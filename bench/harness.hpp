@@ -785,7 +785,7 @@ void measure_hammings_packed(                                                   
             break;
     }
 
-    loop.rate("scalar-ops", m * n * k);
+    loop.rate("scalar-ops", 1.0 * m * n * k);
 }
 
 /** Measure symmetric Hamming distance matrix computation. */
@@ -829,7 +829,7 @@ void measure_hammings_symmetric(                                                
             break;
     }
 
-    loop.rate("scalar-ops", n * (n + 1) * k / 2.0);
+    loop.rate("scalar-ops", 1.0 * n * (n + 1) * k / 2);
 }
 
 template <nk_dtype_t input_dtype_>
@@ -899,7 +899,7 @@ void measure_jaccards_packed(                                                   
             break;
     }
 
-    loop.rate("scalar-ops", m * n * k);
+    loop.rate("scalar-ops", 1.0 * m * n * k);
 }
 
 /** Measure symmetric Jaccard distance matrix computation. */
@@ -939,7 +939,7 @@ void measure_jaccards_symmetric(                                                
             break;
     }
 
-    loop.rate("scalar-ops", n * (n + 1) * k / 2.0);
+    loop.rate("scalar-ops", 1.0 * n * (n + 1) * k / 2);
 }
 
 template <nk_dtype_t input_dtype_>

@@ -87,7 +87,7 @@ void measure_dots_symmetric_unpacked(loop_t &loop, environment_t const &env, std
         do_not_optimize(s.c.data());
         kernel(s.a.data(), s.c.data(), n, k);
     }
-    loop.rate("scalar-ops", n * (n + 1) * k);
+    loop.rate("scalar-ops", 1.0 * n * (n + 1) * k);
 }
 
 void measure_dots_symmetric_f32_with_blas(loop_t &loop, environment_t const &env, std::size_t n, std::size_t k) {

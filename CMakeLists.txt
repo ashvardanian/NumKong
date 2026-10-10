@@ -434,9 +434,9 @@ include(cmake/nk_isa_probe.cmake)
 
 # CUDA and HIP come on before any target: `numkong_static` carries their units, so every target linking it, the
 # bindings, tests and benchmarks included, needs the architecture list. One cubin per device family plus a PTX tail,
-# needing CUDA 12.9 or newer; Turing, CUDA 13's floor, runs the CUDA baseline only. Every code lands in one fat binary,
-# and each kernel checks its own architecture in device code. To iterate on one GPU keep its family, like
-# "120f-real": "native" drops the family suffix and with it the family's capabilities.
+# needing CUDA 13 or newer and a driver from 580 on; Turing, CUDA 13's floor, runs the CUDA baseline only. Every
+# code lands in one fat binary, and each kernel checks its own architecture in device code. To iterate on one GPU
+# keep its family, like "120f-real": "native" drops the family suffix and with it the family's capabilities.
 if (NUMKONG_BUILD_CUDA)
     enable_language(CUDA)
     set(NUMKONG_CUDA_ARCHITECTURES "75-real;80-real;89-real;90a-real;100f-real;120f-real;80-virtual"
@@ -1132,7 +1132,7 @@ endfunction ()
 # One unit per GPU generation, as USearch builds them, so no cubin or code object carries another generation's
 # kernels and the units compile in parallel. The dispatch units see every capability some listed code runs.
 if (NUMKONG_BUILD_CUDA)
-    find_package(CUDAToolkit REQUIRED)
+    find_package(CUDAToolkit 13.0 REQUIRED)
     numkong_gpu_codes_(
         "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${nk_target_ampere_architectures}" NUMKONG_AMPERE_UNIT_CODES_
     )
@@ -1324,7 +1324,7 @@ endif ()
 
 # CUDA rows in the same `numkong_bench`, from bench/*_cuda.cu, with optional cuBLAS, cuDNN and cuVS baselines.
 if (NUMKONG_BUILD_BENCH AND NUMKONG_BUILD_CUDA)
-    find_package(CUDAToolkit REQUIRED)
+    find_package(CUDAToolkit 13.0 REQUIRED)
     set_target_properties(
         numkong_bench_cuda PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO
                                       CUDA_ARCHITECTURES "${NUMKONG_CUDA_ARCHITECTURES}"
