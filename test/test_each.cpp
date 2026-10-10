@@ -151,6 +151,136 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
     return stats;
 }
 
+std::uint64_t f16_ulp_distance(f16_t a, f16_t b) noexcept {
+    float const a_f32 = a.to_f32(), b_f32 = b.to_f32();
+    if (std::isnan(a_f32) || std::isnan(b_f32)) return std::numeric_limits<std::uint64_t>::max();
+    if (a_f32 == b_f32) return 0;
+    auto ordered = [](std::uint16_t bits) noexcept {
+        return (bits & 0x8000u) ? static_cast<std::uint16_t>(~bits) : static_cast<std::uint16_t>(bits | 0x8000u);
+    };
+    std::uint16_t const ordered_a = ordered(a.to_bits());
+    std::uint16_t const ordered_b = ordered(b.to_bits());
+    return ordered_a >= ordered_b ? static_cast<std::uint64_t>(ordered_a - ordered_b)
+                                  : static_cast<std::uint64_t>(ordered_b - ordered_a);
+}
+
+void accumulate_f16_comparison(error_stats_t &stats, f16_t actual, f16_t expected) noexcept {
+    nk_f64_t const actual_f64 = actual.to_f32(), expected_f64 = expected.to_f32();
+    std::uint64_t const ulps = f16_ulp_distance(actual, expected);
+    if (ulps == std::numeric_limits<std::uint64_t>::max()) return;
+    nk_f64_t const abs_error = actual_f64 == expected_f64 ? 0.0 : std::fabs(expected_f64 - actual_f64);
+    nk_f64_t const rel_error = expected_f64 != 0.0 ? abs_error / std::fabs(expected_f64) : abs_error;
+
+    stats.min_abs_err = std::min(stats.min_abs_err, abs_error);
+    stats.max_abs_err = std::max(stats.max_abs_err, abs_error);
+    stats.sum_abs_err += abs_error;
+    stats.min_rel_err = std::min(stats.min_rel_err, rel_error);
+    stats.max_rel_err = std::max(stats.max_rel_err, rel_error);
+    stats.sum_rel_err += rel_error;
+    stats.min_ulp = std::min(stats.min_ulp, ulps);
+    stats.max_ulp = std::max(stats.max_ulp, ulps);
+    stats.sum_ulp += f118_t(ulps);
+    stats.saw_floating_distance = true;
+    ++stats.count;
+    if (ulps == 0) ++stats.exact_matches;
+}
+
+error_stats_t test_f16_ulp_distance() {
+    error_stats_t stats(comparison_family_t::exact_k);
+    stats.expect(f16_ulp_distance(f16_t::from_bits(0x3C00), f16_t::from_bits(0x3C01)) == 1,
+                 "adjacent positive half values have distance one");
+    stats.expect(f16_ulp_distance(f16_t::from_bits(0xBC00), f16_t::from_bits(0xBC01)) == 1,
+                 "adjacent negative half values have distance one");
+    stats.expect(f16_ulp_distance(f16_t::from_bits(0x0000), f16_t::from_bits(0x0001)) == 1,
+                 "zero and the smallest positive half subnormal have distance one");
+    stats.expect(f16_ulp_distance(f16_t::from_bits(0x8000), f16_t::from_bits(0x0000)) == 0,
+                 "signed half zeros compare equal");
+    return stats;
+}
+
+error_stats_t test_scale_f16_f32_reference(f16_t::scale_kernel_t kernel, nk_size_t n) {
+    error_stats_t stats(comparison_family_t::approximate_k);
+    std::mt19937 generator(global_config.seed);
+    auto input = make_vector<f16_t>(n);
+    auto result = make_vector<f16_t>(n);
+    std::vector<nk_f32_t> input_f32(n), reference_f32(n);
+
+    for (auto start = test_start_time(); within_time_budget(start);) {
+        fill_random(generator, input);
+        nk_f32_t alpha = random_coef<f16_t>(generator);
+        nk_f32_t beta = random_coef<f16_t>(generator);
+        for (std::size_t i = 0; i != n; ++i) input_f32[i] = input[i].to_f32();
+
+        kernel(input.raw_values_data(), n, &alpha, &beta, result.raw_values_data());
+        nk_each_scale_f32(input_f32.data(), n, &alpha, &beta, reference_f32.data());
+
+        for (std::size_t i = 0; i != n; ++i) {
+            f16_t const expected = f16_t::from_f32(reference_f32[i]);
+            accumulate_f16_comparison(stats, result[i], expected);
+        }
+    }
+    return stats;
+}
+
+error_stats_t test_blend_f16_f32_reference(f16_t::blend_kernel_t kernel, nk_size_t n) {
+    error_stats_t stats(comparison_family_t::approximate_k);
+    std::mt19937 generator(global_config.seed);
+    auto a = make_vector<f16_t>(n), b = make_vector<f16_t>(n);
+    auto result = make_vector<f16_t>(n);
+    std::vector<nk_f32_t> a_f32(n), b_f32(n), reference_f32(n);
+
+    for (auto start = test_start_time(); within_time_budget(start);) {
+        fill_random(generator, a);
+        fill_random(generator, b);
+        nk_f32_t alpha = random_coef<f16_t>(generator);
+        nk_f32_t beta = random_coef<f16_t>(generator);
+        for (std::size_t i = 0; i != n; ++i) {
+            a_f32[i] = a[i].to_f32();
+            b_f32[i] = b[i].to_f32();
+        }
+
+        kernel(a.raw_values_data(), b.raw_values_data(), n, &alpha, &beta, result.raw_values_data());
+        nk_each_blend_f32(a_f32.data(), b_f32.data(), n, &alpha, &beta, reference_f32.data());
+
+        for (std::size_t i = 0; i != n; ++i) {
+            f16_t const expected = f16_t::from_f32(reference_f32[i]);
+            accumulate_f16_comparison(stats, result[i], expected);
+        }
+    }
+    return stats;
+}
+
+error_stats_t test_fma_f16_f32_reference(f16_t::fma_kernel_t kernel, nk_size_t n) {
+    error_stats_t stats(comparison_family_t::approximate_k);
+    std::mt19937 generator(global_config.seed);
+    auto a = make_vector<f16_t>(n), b = make_vector<f16_t>(n), c = make_vector<f16_t>(n);
+    auto result = make_vector<f16_t>(n);
+    std::vector<nk_f32_t> a_f32(n), b_f32(n), c_f32(n), reference_f32(n);
+
+    for (auto start = test_start_time(); within_time_budget(start);) {
+        fill_random(generator, a);
+        fill_random(generator, b);
+        fill_random(generator, c);
+        nk_f32_t alpha = random_coef<f16_t>(generator);
+        nk_f32_t beta = random_coef<f16_t>(generator);
+        for (std::size_t i = 0; i != n; ++i) {
+            a_f32[i] = a[i].to_f32();
+            b_f32[i] = b[i].to_f32();
+            c_f32[i] = c[i].to_f32();
+        }
+
+        kernel(a.raw_values_data(), b.raw_values_data(), c.raw_values_data(), n, &alpha, &beta,
+               result.raw_values_data());
+        nk_each_fma_f32(a_f32.data(), b_f32.data(), c_f32.data(), n, &alpha, &beta, reference_f32.data());
+
+        for (std::size_t i = 0; i != n; ++i) {
+            f16_t const expected = f16_t::from_f32(reference_f32[i]);
+            accumulate_f16_comparison(stats, result[i], expected);
+        }
+    }
+    return stats;
+}
+
 /**
  *  @brief Smoke-test for the tensor-shaped trig wrappers (`nk::try_sin`/`cos`/`atan`).
  *  Runs allocating + into-span variants on a small zero tensor — just exercises the dispatch
@@ -158,6 +288,9 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
  */
 void test_each() {
     error_stats_section_t check;
+
+    check.section("Elementwise Precision Helpers", nk_cap_serial_k);
+    check("f16_ulp_distance", test_f16_ulp_distance);
 
     check.section("Elementwise Operations Serial", nk_cap_serial_k);
     check("each_scale_f32_serial", test_scale<f32_t>, nk_each_scale_f32_serial);
@@ -204,6 +337,18 @@ void test_each() {
     check("each_sum_f32", test_sum<f32_t>, nk_each_sum_f32);
     check("each_blend_f32", test_blend<f32_t>, nk_each_blend_f32);
     check("each_fma_f32", test_fma<f32_t>, nk_each_fma_f32);
+    check("each_scale_f16_dynamic", test_scale_f16_f32_reference, nk_each_scale_f16,
+          static_cast<nk_size_t>(global_config.dense_dimensions));
+    check("each_scale_f16_dynamic_tail_only", test_scale_f16_f32_reference, nk_each_scale_f16, nk_size_t(7));
+    check("each_scale_f16_dynamic_tail_after_vector", test_scale_f16_f32_reference, nk_each_scale_f16, nk_size_t(9));
+    check("each_blend_f16_dynamic", test_blend_f16_f32_reference, nk_each_blend_f16,
+          static_cast<nk_size_t>(global_config.dense_dimensions));
+    check("each_blend_f16_dynamic_tail_only", test_blend_f16_f32_reference, nk_each_blend_f16, nk_size_t(7));
+    check("each_blend_f16_dynamic_tail_after_vector", test_blend_f16_f32_reference, nk_each_blend_f16, nk_size_t(9));
+    check("each_fma_f16_dynamic", test_fma_f16_f32_reference, nk_each_fma_f16,
+          static_cast<nk_size_t>(global_config.dense_dimensions));
+    check("each_fma_f16_dynamic_tail_only", test_fma_f16_f32_reference, nk_each_fma_f16, nk_size_t(7));
+    check("each_fma_f16_dynamic_tail_after_vector", test_fma_f16_f32_reference, nk_each_fma_f16, nk_size_t(9));
     check("each_scale_e4m3", test_scale<e4m3_t>, nk_each_scale_e4m3);
     check("each_scale_e5m2", test_scale<e5m2_t>, nk_each_scale_e5m2);
     check("each_sum_e4m3", test_sum<e4m3_t>, nk_each_sum_e4m3);
@@ -280,10 +425,22 @@ void test_each() {
 
 #if NK_TARGET_NEONHALF
     check.section("Elementwise Operations NEON HALF", nk_cap_neonhalf_k);
-    check("each_scale_f16_neonhalf", test_scale<f16_t>, nk_each_scale_f16_neonhalf);
+    check("each_scale_f16_neonhalf", test_scale_f16_f32_reference, nk_each_scale_f16_neonhalf,
+          static_cast<nk_size_t>(global_config.dense_dimensions));
+    check("each_scale_f16_neonhalf_tail_only", test_scale_f16_f32_reference, nk_each_scale_f16_neonhalf, nk_size_t(7));
+    check("each_scale_f16_neonhalf_tail_after_vector", test_scale_f16_f32_reference, nk_each_scale_f16_neonhalf,
+          nk_size_t(9));
     check("each_sum_f16_neonhalf", test_sum<f16_t>, nk_each_sum_f16_neonhalf);
-    check("each_blend_f16_neonhalf", test_blend<f16_t>, nk_each_blend_f16_neonhalf);
-    check("each_fma_f16_neonhalf", test_fma<f16_t>, nk_each_fma_f16_neonhalf);
+    check("each_blend_f16_neonhalf", test_blend_f16_f32_reference, nk_each_blend_f16_neonhalf,
+          static_cast<nk_size_t>(global_config.dense_dimensions));
+    check("each_blend_f16_neonhalf_tail_only", test_blend_f16_f32_reference, nk_each_blend_f16_neonhalf, nk_size_t(7));
+    check("each_blend_f16_neonhalf_tail_after_vector", test_blend_f16_f32_reference, nk_each_blend_f16_neonhalf,
+          nk_size_t(9));
+    check("each_fma_f16_neonhalf", test_fma_f16_f32_reference, nk_each_fma_f16_neonhalf,
+          static_cast<nk_size_t>(global_config.dense_dimensions));
+    check("each_fma_f16_neonhalf_tail_only", test_fma_f16_f32_reference, nk_each_fma_f16_neonhalf, nk_size_t(7));
+    check("each_fma_f16_neonhalf_tail_after_vector", test_fma_f16_f32_reference, nk_each_fma_f16_neonhalf,
+          nk_size_t(9));
     check("each_scale_u8_neonhalf", test_scale<u8_t>, nk_each_scale_u8_neonhalf);
     check("each_blend_u8_neonhalf", test_blend<u8_t>, nk_each_blend_u8_neonhalf);
     check("each_scale_i8_neonhalf", test_scale<i8_t>, nk_each_scale_i8_neonhalf);

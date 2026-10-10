@@ -319,6 +319,16 @@ Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run 
 
 ### Apple M5
 
+The `nk_each_scale_f16_neonhalf`, `nk_each_blend_f16_neonhalf`, and
+`nk_each_fma_f16_neonhalf` rows below are historical measurements of the
+previous native-F16 arithmetic. The current kernels widen to F32 for these
+operations. Those ULP values also used the old float32-spacing metric for
+half outputs, so they are not comparable to the binary16-ULP checks below; that
+test-helper issue is tracked in [#397](https://github.com/ashvardanian/NumKong/issues/397).
+The widened kernels address the performance and precision reports in
+[#395](https://github.com/ashvardanian/NumKong/issues/395) and
+[#396](https://github.com/ashvardanian/NumKong/issues/396).
+
 #### Native
 
 | Kernel                         |                      256 |                     1024 |                     4096 |
@@ -465,3 +475,35 @@ Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run 
 | `nk_each_blend_f32c_neon`      |       49.0 gb/s, 2.2 ulp |       58.3 gb/s, 2.2 ulp |       51.0 gb/s, 3.2 ulp |
 | `nk_each_fma_f32c_serial`      |       56.4 gb/s, 3.1 ulp |        49.8 gb/s, 78 ulp |       51.5 gb/s, 3.5 ulp |
 | `nk_each_fma_f32c_neon`        |       62.7 gb/s, 2.9 ulp |       62.4 gb/s, 4.1 ulp |        58.0 gb/s, 81 ulp |
+
+### Apple M4 Max: float16 dynamic C API route comparison
+
+Measurements compare the `NK_DYNAMIC_DISPATCH=1` float16 C API route with a
+float32 bridge: cast each half input to float32, run the float32 kernel, and
+cast the result back to float16. Output buffers were preallocated. Inputs were
+identical half-quantized contiguous HWC values passed as flat buffers; outputs
+matched bitwise in all cases. `scale` and `fma` used alpha `0.713` and beta
+`-0.031`; `blend` used alpha `0.375` and beta `0.625`. The bridge used
+`nk_cast(f16, f32) → nk_each_*_f32 → nk_cast(f32, f16)`; `blend` and `fma`
+widened both and all three inputs, respectively.
+
+The machine was an Apple M4 Max running macOS 27.0.1 with AppleClang 21.0.0;
+the runtime reported NEON FP16 support. Cells show median ± MAD from 101
+interleaved samples after 7 warmups.
+
+| HWC shape | Operation | Direct float16 | Float32 bridge | Direct / bridge |
+| --- | --- | ---: | ---: | ---: |
+| 128×160×3 | `scale` | 0.003125 ± 0.000209 ms | 0.034625 ± 0.001208 ms | 0.09× |
+| 128×160×3 | `blend` | 0.005917 ± 0.000125 ms | 0.042042 ± 0.001125 ms | 0.14× |
+| 128×160×3 | `fma` | 0.008791 ± 0.000833 ms | 0.058584 ± 0.002792 ms | 0.15× |
+| 240×320×3 | `scale` | 0.011292 ± 0.000084 ms | 0.131375 ± 0.003458 ms | 0.09× |
+| 240×320×3 | `blend` | 0.022542 ± 0.000209 ms | 0.166125 ± 0.006333 ms | 0.14× |
+| 240×320×3 | `fma` | 0.030000 ± 0.000250 ms | 0.195292 ± 0.005625 ms | 0.15× |
+| 480×640×3 | `scale` | 0.045417 ± 0.000584 ms | 0.539209 ± 0.013916 ms | 0.08× |
+| 480×640×3 | `blend` | 0.089750 ± 0.000458 ms | 0.642125 ± 0.008708 ms | 0.14× |
+| 480×640×3 | `fma` | 0.120042 ± 0.000542 ms | 0.766916 ± 0.009167 ms | 0.16× |
+
+The precision suite compares each direct float16 result with the public
+float32 route rounded once to float16, including tail-only and vector-plus-tail
+lengths. Maximum differences were 0 ULP for `scale`, 3 ULP for `blend`, and
+4 ULP for `fma`, within the 32-ULP limit.
