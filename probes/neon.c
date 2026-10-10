@@ -6,8 +6,9 @@
  */
 #define NUMKONG_HEADER_ONLY 1
 #define NUMKONG_TARGET_NEON 1
-#include <numkong/types.h>
-#include <numkong/dot/neon.h> // `nk_dot_f32_neon`
+#include "numkong/types.h"
+#include "numkong/each/neon.h"
+#include "numkong/dot/neon.h" // `nk_dot_f32_neon`
 
 int main(void) {
     nk_f32_t a[64], b[64];

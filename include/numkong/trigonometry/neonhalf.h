@@ -41,23 +41,30 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd+fp16")
 #endif
 
+/** Broadcasts an F16 bit pattern without requiring a native scalar half type. */
+NUMKONG_INLINE float16x8_t nk_set1_f16x8_neonhalf_(nk_u16_t bits) { return vreinterpretq_f16_u16(vdupq_n_u16(bits)); }
+
 /** Sine of 8 F16 angles already reduced to about [-π/2, π/2], odd in the reduced angle. */
 NUMKONG_INLINE float16x8_t nk_sin_reduced_f16x8_neonhalf_(float16x8_t reduced_f16x8) {
     // Degree-7 odd polynomial with a unit linear term, coefficients searched in F16 arithmetic
     float16x8_t const squared_f16x8 = vmulq_f16(reduced_f16x8, reduced_f16x8);
-    float16x8_t polynomial_f16x8 = vfmaq_f16(vdupq_n_f16(+0.00824737548828125), squared_f16x8,
-                                             vdupq_n_f16(-0.00018310546875));
-    polynomial_f16x8 = vfmaq_f16(vdupq_n_f16(-0.16650390625), polynomial_f16x8, squared_f16x8);
+    float16x8_t polynomial_f16x8 = vfmaq_f16(nk_set1_f16x8_neonhalf_(0x2039 /* +0.00824737548828125 */), squared_f16x8,
+                                             nk_set1_f16x8_neonhalf_(0x8A00 /* -0.00018310546875 */));
+    polynomial_f16x8 = vfmaq_f16(nk_set1_f16x8_neonhalf_(0xB154 /* -0.16650390625 */), polynomial_f16x8, squared_f16x8);
     return vfmaq_f16(reduced_f16x8, vmulq_f16(reduced_f16x8, squared_f16x8), polynomial_f16x8);
 }
 
 /** Subtracts @p multiples_f16x8 of π from @p angles_f16x8, for F16 angles up to 256. */
 NUMKONG_INLINE float16x8_t nk_reduce_pi_f16x8_neonhalf_(float16x8_t angles_f16x8, float16x8_t multiples_f16x8) {
     // π in three F16 parts, the last scaled by 2¹² to stay clear of F16 subnormals
-    float16x8_t reduced_f16x8 = vfmsq_f16(angles_f16x8, multiples_f16x8, vdupq_n_f16(3.140625));
-    reduced_f16x8 = vfmsq_f16(reduced_f16x8, multiples_f16x8, vdupq_n_f16(0.0009675025939941406));
-    float16x8_t const scaled_multiples_f16x8 = vmulq_f16(multiples_f16x8, vdupq_n_f16(0.000244140625));
-    return vfmsq_f16(reduced_f16x8, scaled_multiples_f16x8, vdupq_n_f16(0.0006184577941894531));
+    float16x8_t reduced_f16x8 = vfmsq_f16(angles_f16x8, multiples_f16x8,
+                                          nk_set1_f16x8_neonhalf_(0x4248 /* 3.140625 */));
+    reduced_f16x8 = vfmsq_f16(reduced_f16x8, multiples_f16x8,
+                              nk_set1_f16x8_neonhalf_(0x13ED /* 0.0009675025939941406 */));
+    float16x8_t const scaled_multiples_f16x8 = vmulq_f16(multiples_f16x8,
+                                                         nk_set1_f16x8_neonhalf_(0x0C00 /* 0.000244140625 */));
+    return vfmsq_f16(reduced_f16x8, scaled_multiples_f16x8,
+                     nk_set1_f16x8_neonhalf_(0x1111 /* 0.0006184577941894531 */));
 }
 
 /** Subtracts @p multiples_f32x4 of π from @p angles_f32x4, for F16 angles of any magnitude. */
@@ -99,13 +106,14 @@ NUMKONG_INLINE float32x4_t nk_cos_reduce_f32x4_neonhalf_(float32x4_t angles_f32x
 NUMKONG_INLINE float16x8_t nk_sin_f16x8_neonhalf_(float16x8_t angles_f16x8) {
     float16x8_t reduced_f16x8;
     // The F16 reduction holds one ULP only up to |x| ≤ 256
-    if (vmaxvq_u16(vcagtq_f16(angles_f16x8, vdupq_n_f16(256)))) {
+    if (vmaxvq_u16(vcagtq_f16(angles_f16x8, nk_set1_f16x8_neonhalf_(0x5C00 /* 256 */)))) {
         float32x4_t const low_f32x4 = nk_sin_reduce_f32x4_neonhalf_(vcvt_f32_f16(vget_low_f16(angles_f16x8)));
         float32x4_t const high_f32x4 = nk_sin_reduce_f32x4_neonhalf_(vcvt_high_f32_f16(angles_f16x8));
         reduced_f16x8 = vcvt_high_f16_f32(vcvt_f16_f32(low_f32x4), high_f32x4);
     }
     else {
-        float16x8_t const multiples_f16x8 = vrndnq_f16(vmulq_f16(angles_f16x8, vdupq_n_f16(0.31830988618379067154)));
+        float16x8_t const multiples_f16x8 = vrndnq_f16(
+            vmulq_f16(angles_f16x8, nk_set1_f16x8_neonhalf_(0x3518 /* 0.31830988618379067154 */)));
         reduced_f16x8 = nk_reduce_pi_f16x8_neonhalf_(angles_f16x8, multiples_f16x8);
         reduced_f16x8 = nk_flip_odd_f16x8_neonhalf_(reduced_f16x8, vcvtq_s16_f16(multiples_f16x8));
     }
@@ -116,16 +124,16 @@ NUMKONG_INLINE float16x8_t nk_sin_f16x8_neonhalf_(float16x8_t angles_f16x8) {
 NUMKONG_INLINE float16x8_t nk_cos_f16x8_neonhalf_(float16x8_t angles_f16x8) {
     float16x8_t reduced_f16x8;
     // The F16 reduction holds one ULP only up to |x| ≤ 256
-    if (vmaxvq_u16(vcagtq_f16(angles_f16x8, vdupq_n_f16(256)))) {
+    if (vmaxvq_u16(vcagtq_f16(angles_f16x8, nk_set1_f16x8_neonhalf_(0x5C00 /* 256 */)))) {
         float32x4_t const low_f32x4 = nk_cos_reduce_f32x4_neonhalf_(vcvt_f32_f16(vget_low_f16(angles_f16x8)));
         float32x4_t const high_f32x4 = nk_cos_reduce_f32x4_neonhalf_(vcvt_high_f32_f16(angles_f16x8));
         reduced_f16x8 = vcvt_high_f16_f32(vcvt_f16_f32(low_f32x4), high_f32x4);
     }
     else {
-        float16x8_t const quotients_f16x8 = vfmaq_f16(vdupq_n_f16(-0.5), angles_f16x8,
-                                                      vdupq_n_f16(0.31830988618379067154));
+        float16x8_t const quotients_f16x8 = vfmaq_f16(nk_set1_f16x8_neonhalf_(0xB800 /* -0.5 */), angles_f16x8,
+                                                      nk_set1_f16x8_neonhalf_(0x3518 /* 0.31830988618379067154 */));
         float16x8_t const multiples_f16x8 = vrndnq_f16(quotients_f16x8);
-        float16x8_t const offsets_f16x8 = vaddq_f16(multiples_f16x8, vdupq_n_f16(0.5));
+        float16x8_t const offsets_f16x8 = vaddq_f16(multiples_f16x8, nk_set1_f16x8_neonhalf_(0x3800 /* 0.5 */));
         reduced_f16x8 = nk_reduce_pi_f16x8_neonhalf_(angles_f16x8, offsets_f16x8);
         reduced_f16x8 = nk_flip_odd_f16x8_neonhalf_(reduced_f16x8, vmvnq_s16(vcvtq_s16_f16(multiples_f16x8)));
     }
@@ -134,7 +142,8 @@ NUMKONG_INLINE float16x8_t nk_cos_f16x8_neonhalf_(float16x8_t angles_f16x8) {
 
 /** Arctangent of 8 F16 values within one F16 ULP. */
 NUMKONG_INLINE float16x8_t nk_atan_f16x8_neonhalf_(float16x8_t values_f16x8) {
-    float16x8_t const one_f16x8 = vdupq_n_f16(1), zero_f16x8 = vdupq_n_f16(0);
+    float16x8_t const one_f16x8 = nk_set1_f16x8_neonhalf_(0x3C00 /* 1 */),
+                      zero_f16x8 = nk_set1_f16x8_neonhalf_(0x0000 /* 0 */);
 
     // Fold |x| > 1 into [0, 1] through atan(x) = π/2 - atan(1/x)
     float16x8_t const magnitudes_f16x8 = vabsq_f16(values_f16x8);
@@ -143,16 +152,17 @@ NUMKONG_INLINE float16x8_t nk_atan_f16x8_neonhalf_(float16x8_t values_f16x8) {
 
     // Folded lanes add the low part of π/2 first, as its high part alone is half an F16 ULP off
     float16x8_t const signed_f16x8 = vbslq_f16(folded_u16x8, vnegq_f16(reduced_f16x8), reduced_f16x8);
-    float16x8_t const bases_f16x8 = vaddq_f16(signed_f16x8,
-                                              vbslq_f16(folded_u16x8, vdupq_n_f16(0.0004837512969970703), zero_f16x8));
+    float16x8_t const bases_f16x8 = vaddq_f16(
+        signed_f16x8, vbslq_f16(folded_u16x8, nk_set1_f16x8_neonhalf_(0x0FED /* 0.0004837512969970703 */), zero_f16x8));
 
     // Degree-7 odd polynomial with a unit linear term, coefficients searched in F16 arithmetic
     float16x8_t const squared_f16x8 = vmulq_f16(reduced_f16x8, reduced_f16x8);
-    float16x8_t polynomial_f16x8 = vfmaq_f16(vdupq_n_f16(+0.1600341796875), squared_f16x8,
-                                             vdupq_n_f16(-0.046722412109375));
-    polynomial_f16x8 = vfmaq_f16(vdupq_n_f16(-0.328125), polynomial_f16x8, squared_f16x8);
+    float16x8_t polynomial_f16x8 = vfmaq_f16(nk_set1_f16x8_neonhalf_(0x311F /* +0.1600341796875 */), squared_f16x8,
+                                             nk_set1_f16x8_neonhalf_(0xA9FB /* -0.046722412109375 */));
+    polynomial_f16x8 = vfmaq_f16(nk_set1_f16x8_neonhalf_(0xB540 /* -0.328125 */), polynomial_f16x8, squared_f16x8);
     float16x8_t results_f16x8 = vfmaq_f16(bases_f16x8, vmulq_f16(signed_f16x8, squared_f16x8), polynomial_f16x8);
-    results_f16x8 = vaddq_f16(results_f16x8, vbslq_f16(folded_u16x8, vdupq_n_f16(1.5703125), zero_f16x8));
+    results_f16x8 = vaddq_f16(results_f16x8,
+                              vbslq_f16(folded_u16x8, nk_set1_f16x8_neonhalf_(0x3E48 /* 1.5703125 */), zero_f16x8));
     return vbslq_f16(vdupq_n_u16(0x8000), values_f16x8, results_f16x8);
 }
 
@@ -160,8 +170,8 @@ NUMKONG_API nk_status_t nk_trig_sin_f16_neonhalf(nk_f16_t const *ins, nk_size_t 
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        float16x8_t angles_f16x8 = vld1q_f16((float16_t const *)ins + i);
-        vst1q_f16((float16_t *)outs + i, nk_sin_f16x8_neonhalf_(angles_f16x8));
+        float16x8_t angles_f16x8 = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)ins + i));
+        vst1q_u16((nk_u16_t *)outs + i, vreinterpretq_u16_f16(nk_sin_f16x8_neonhalf_(angles_f16x8)));
     }
     if (i < n) {
         nk_b128_vec_t angles_vec, results_vec;
@@ -176,8 +186,8 @@ NUMKONG_API nk_status_t nk_trig_cos_f16_neonhalf(nk_f16_t const *ins, nk_size_t 
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        float16x8_t angles_f16x8 = vld1q_f16((float16_t const *)ins + i);
-        vst1q_f16((float16_t *)outs + i, nk_cos_f16x8_neonhalf_(angles_f16x8));
+        float16x8_t angles_f16x8 = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)ins + i));
+        vst1q_u16((nk_u16_t *)outs + i, vreinterpretq_u16_f16(nk_cos_f16x8_neonhalf_(angles_f16x8)));
     }
     if (i < n) {
         nk_b128_vec_t angles_vec, results_vec;
@@ -193,8 +203,8 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_neonhalf(nk_f16_t const *ins, nk_size_t
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        float16x8_t values_f16x8 = vld1q_f16((float16_t const *)ins + i);
-        vst1q_f16((float16_t *)outs + i, nk_atan_f16x8_neonhalf_(values_f16x8));
+        float16x8_t values_f16x8 = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)ins + i));
+        vst1q_u16((nk_u16_t *)outs + i, vreinterpretq_u16_f16(nk_atan_f16x8_neonhalf_(values_f16x8)));
     }
     if (i < n) {
         nk_b128_vec_t values_vec, results_vec;

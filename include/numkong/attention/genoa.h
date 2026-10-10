@@ -243,15 +243,15 @@ NUMKONG_INLINE void nk_attention_scores_chunk_genoa_(nk_bf16_t const *query_row,
         __m512 accumulator0_f32x16 = _mm512_setzero_ps(), accumulator1_f32x16 = _mm512_setzero_ps();
         __m512 accumulator2_f32x16 = _mm512_setzero_ps(), accumulator3_f32x16 = _mm512_setzero_ps();
         for (nk_size_t channel_idx = 0; channel_idx < chunk_padded; channel_idx += 32) {
-            __m512bh const query_bf16x32 = (__m512bh)_mm512_load_si512(query_row + channel_idx);
+            __m512bh const query_bf16x32 = nk_m512bh_from_m512i_(_mm512_load_si512(query_row + channel_idx));
             accumulator0_f32x16 = _mm512_dpbf16_ps(accumulator0_f32x16, query_bf16x32,
-                                                   (__m512bh)_mm512_loadu_si512(keys_row0 + channel_idx));
+                                                   nk_m512bh_from_m512i_(_mm512_loadu_si512(keys_row0 + channel_idx)));
             accumulator1_f32x16 = _mm512_dpbf16_ps(accumulator1_f32x16, query_bf16x32,
-                                                   (__m512bh)_mm512_loadu_si512(keys_row1 + channel_idx));
+                                                   nk_m512bh_from_m512i_(_mm512_loadu_si512(keys_row1 + channel_idx)));
             accumulator2_f32x16 = _mm512_dpbf16_ps(accumulator2_f32x16, query_bf16x32,
-                                                   (__m512bh)_mm512_loadu_si512(keys_row2 + channel_idx));
+                                                   nk_m512bh_from_m512i_(_mm512_loadu_si512(keys_row2 + channel_idx)));
             accumulator3_f32x16 = _mm512_dpbf16_ps(accumulator3_f32x16, query_bf16x32,
-                                                   (__m512bh)_mm512_loadu_si512(keys_row3 + channel_idx));
+                                                   nk_m512bh_from_m512i_(_mm512_loadu_si512(keys_row3 + channel_idx)));
         }
         scores[position_idx + 0] += nk_reduce_add_f32x16_skylake_(accumulator0_f32x16);
         scores[position_idx + 1] += nk_reduce_add_f32x16_skylake_(accumulator1_f32x16);

@@ -6,8 +6,9 @@
  */
 #define NUMKONG_HEADER_ONLY    1
 #define NUMKONG_TARGET_NEONFHM 1
-#include <numkong/types.h>
-#include <numkong/dot/neonfhm.h> // `nk_dot_f16_neonfhm`
+#include "numkong/types.h"
+#include "numkong/dot/neonfhm.h" // `nk_dot_f16_neonfhm`
+#include "numkong/attention/neonfhm.h"
 
 int main(void) {
     nk_f16_t a[64] = {0}, b[64] = {0};

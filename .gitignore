@@ -12,10 +12,11 @@ dist/
 javascript/dist
 bun.lockb
 .build/
-.venv/
+.venv*/
 .cache/
 .claude/
 tmp/
+/.tmp/
 
 # Per-developer preset overrides: toolchain paths that are true of one machine, not of the project
 CMakeUserPresets.json
@@ -91,3 +92,10 @@ CLAUDE.local.md
 /compile_commands.json
 .ruff_cache/
 .mypy_cache/
+
+# Windows compiler, build-runner, and local validation artifacts
+/.vs/
+/Testing/
+*.exp
+*.pdb
+*.ilk

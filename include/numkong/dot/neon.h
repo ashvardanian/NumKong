@@ -399,8 +399,8 @@ NUMKONG_INLINE void nk_load_scaled_i16x32_neon_(void const *values, nk_u8_t cons
 
 NUMKONG_INLINE void nk_load_scaled_f16x32_neon_(void const *values, nk_u8_t const *scales, nk_size_t offset,
                                                 nk_dot_scaled_f16x32_operand_neon_t *dst) {
-    float16_t const *source = (float16_t const *)values + offset;
-    for (nk_size_t i = 0; i != 4; ++i) dst->values_f16x8[i] = vld1q_f16(source + i * 8);
+    nk_u16_t const *source = (nk_u16_t const *)values + offset;
+    for (nk_size_t i = 0; i != 4; ++i) dst->values_f16x8[i] = vreinterpretq_f16_u16(vld1q_u16(source + i * 8));
     dst->scales_f32x4 = vld1q_dup_f32((nk_f32_t const *)scales + offset / 32);
 }
 

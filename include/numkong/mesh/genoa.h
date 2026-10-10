@@ -65,7 +65,7 @@ NUMKONG_INLINE __m512i nk_load_shifted_bf16x32_genoa_(nk_bf16_t const *points, _
                                       pivot_f32x16[0]);
     __m512 high_f32x16 = _mm512_sub_ps(nk_bf16x16_to_f32x16_skylake_(_mm512_extracti64x4_epi64(values_bf16x32, 1)),
                                        pivot_f32x16[1]);
-    return (__m512i)_mm512_cvtne2ps_pbh(high_f32x16, low_f32x16);
+    return nk_m512i_from_m512bh_(_mm512_cvtne2ps_pbh(high_f32x16, low_f32x16));
 }
 
 /** Centroids, centered cross-covariance, ‖a − ā‖² and ‖b − b̄‖² of bf16 clouds,

@@ -78,7 +78,7 @@ numkong = { version = "7", features = ["parallel", "std"] }
 
 The crate builds the C library through CMake, which probes the compiler for every backend of the target architecture, so the build machine needs CMake 3.21 or newer.
 All supported backends are compiled into a single binary and selected at runtime.
-Setting `NUMKONG_LIBRARY_DIR` to a directory holding a `numkong_static` archive CMake already built, like a parent project's build tree or a release's, skips the build and links that one.
+Setting `NUMKONG_LIBRARY_DIR` to the exact directory holding a `numkong_static` archive CMake already built skips the build and links that archive. For Visual Studio build trees, include the configuration directory, such as `build_msvc2022_x64/Release`. Cargo-managed builds use CMake's install target and link from its installed `lib` directory.
 
 The two CPU features are `std`, which enables standard library support, and `parallel`, which adds host-side orchestration via ForkUnion and implies `std`.
 

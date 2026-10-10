@@ -5,7 +5,7 @@
     {
       "name": "base",
       "hidden": true,
-      "description": "Ninja, a build tree named after the preset, and a compilation database. No compiler is pinned: CC/CXX pick it, or inherit `gcc`/`clang`.",
+      "description": "Ninja, a flat build_<preset> directory, and a compilation database. Select the compiler through a preset, CC/CXX, or CMakeUserPresets.json.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build_${presetName}",
       "cacheVariables": {
@@ -31,24 +31,23 @@
       "hidden": true,
       "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
     },
-
     { "name": "debug", "inherits": "base", "displayName": "Debug", "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" } },
     {
       "name": "release",
       "inherits": "base",
-      "displayName": "Release - tests and benchmarks",
+      "displayName": "Release",
       "cacheVariables": { "NUMKONG_BUILD_BENCH": "ON", "NUMKONG_BUILD_SHARED": "ON" }
     },
     {
       "name": "release_shared",
       "inherits": "base",
-      "displayName": "Release - the shared library alone, for packaging",
+      "displayName": "Release - libraries only",
       "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_BENCH": "OFF", "NUMKONG_BUILD_SHARED": "ON" }
     },
     {
       "name": "swift",
       "inherits": "base",
-      "displayName": "Release - the XCFramework or artifact bundle SwiftPM links",
+      "displayName": "Swift - XCFramework or artifact bundle",
       "cacheVariables": {
         "NUMKONG_BUILD_TEST": "OFF",
         "NUMKONG_BUILD_SHARED": "OFF",
@@ -57,20 +56,39 @@
       }
     },
     {
-      "name": "msvc_x64",
+      "name": "msvc2026_x64",
       "inherits": ["base", "windows"],
       "generator": "Visual Studio 18 2026",
       "architecture": "x64",
-      "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON" }
+      "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON" },
+      "displayName": "Windows x64 - Visual Studio 2026"
     },
     {
-      "name": "msvc_arm64",
+      "name": "msvc2022_x64",
+      "inherits": "msvc2026_x64",
+      "displayName": "Windows x64 - Visual Studio 2022",
+      "generator": "Visual Studio 17 2022"
+    },
+    {
+      "name": "msvc_cuda",
+      "inherits": ["base", "windows"],
+      "displayName": "Windows CUDA - MSVC and Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl",
+        "NUMKONG_BUILD_CUDA": "ON",
+        "NUMKONG_BUILD_SHARED": "ON",
+        "NUMKONG_CUDA_ARCHITECTURES": "native"
+      }
+    },
+    {
+      "name": "msvc2022_arm64",
       "inherits": ["base", "windows"],
       "generator": "Visual Studio 17 2022",
       "architecture": "ARM64",
-      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_SHARED": "ON" }
+      "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_SHARED": "ON" },
+      "displayName": "Windows ARM64 - Visual Studio 2022"
     },
-
     {
       "name": "cross",
       "hidden": true,
@@ -84,8 +102,16 @@
       "inherits": "cross",
       "toolchainFile": "${sourceDir}/cmake/toolchain-loongarch64-gnu.cmake"
     },
-    { "name": "linux_ppc64le", "inherits": "cross", "toolchainFile": "${sourceDir}/cmake/toolchain-ppc64le-gnu.cmake" },
-    { "name": "linux_riscv64", "inherits": "cross", "toolchainFile": "${sourceDir}/cmake/toolchain-riscv64-gnu.cmake" },
+    {
+      "name": "linux_ppc64le",
+      "inherits": "cross",
+      "toolchainFile": "${sourceDir}/cmake/toolchain-ppc64le-gnu.cmake"
+    },
+    {
+      "name": "linux_riscv64",
+      "inherits": "cross",
+      "toolchainFile": "${sourceDir}/cmake/toolchain-riscv64-gnu.cmake"
+    },
     {
       "name": "linux_riscv64_llvm",
       "inherits": "cross",
@@ -94,7 +120,7 @@
     {
       "name": "linux_armv7",
       "inherits": "cross",
-      "displayName": "Linux ARMv7, compile only",
+      "displayName": "Linux ARMv7 - compile only",
       "cacheVariables": {
         "CMAKE_SYSTEM_NAME": "Linux",
         "CMAKE_SYSTEM_PROCESSOR": "arm",
@@ -134,23 +160,22 @@
       "inherits": "base",
       "toolchainFile": "${sourceDir}/cmake/toolchain-wasm32-wasi-threads.cmake"
     },
-
     {
       "name": "cuda",
       "inherits": ["base", "linux"],
-      "displayName": "CUDA - the cross-kernel tests for every NUMKONG_CUDA_ARCHITECTURES, header-only and through the library",
+      "displayName": "CUDA - tests",
       "cacheVariables": { "NUMKONG_BUILD_CUDA": "ON", "NUMKONG_BUILD_SHARED": "ON" }
     },
     {
       "name": "rocm",
       "inherits": ["base", "linux"],
-      "displayName": "ROCm - the cross-kernel tests for every NUMKONG_ROCM_ARCHITECTURES, header-only and through the library",
+      "displayName": "ROCm - tests",
       "cacheVariables": { "NUMKONG_BUILD_ROCM": "ON", "NUMKONG_BUILD_SHARED": "ON" }
     },
     {
       "name": "metal",
       "inherits": ["base", "darwin"],
-      "displayName": "Metal - CPU and Apple GPU kernels through the static and shared libraries",
+      "displayName": "Metal - tests",
       "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON", "NUMKONG_BUILD_METAL": "ON" }
     }
   ],
@@ -159,8 +184,10 @@
     { "name": "release", "configurePreset": "release" },
     { "name": "release_shared", "configurePreset": "release_shared" },
     { "name": "swift", "configurePreset": "swift", "configuration": "Release" },
-    { "name": "msvc_x64", "configurePreset": "msvc_x64", "configuration": "Release" },
-    { "name": "msvc_arm64", "configurePreset": "msvc_arm64", "configuration": "Release" },
+    { "name": "msvc2026_x64", "configurePreset": "msvc2026_x64", "configuration": "Release" },
+    { "name": "msvc2022_x64", "configurePreset": "msvc2022_x64", "configuration": "Release" },
+    { "name": "msvc_cuda", "configurePreset": "msvc_cuda" },
+    { "name": "msvc2022_arm64", "configurePreset": "msvc2022_arm64", "configuration": "Release" },
     { "name": "linux_arm64", "configurePreset": "linux_arm64" },
     { "name": "linux_loongarch64", "configurePreset": "linux_loongarch64" },
     { "name": "linux_ppc64le", "configurePreset": "linux_ppc64le" },
@@ -175,11 +202,7 @@
     { "name": "wasm32_wasi_threads", "configurePreset": "wasm32_wasi_threads" },
     { "name": "cuda", "configurePreset": "cuda" },
     { "name": "rocm", "configurePreset": "rocm" },
-    {
-      "name": "metal",
-      "configurePreset": "metal",
-      "targets": ["numkong_cpu_test", "numkong_cpu_shared_test"]
-    }
+    { "name": "metal", "configurePreset": "metal", "targets": ["numkong_cpu_test", "numkong_cpu_shared_test"] }
   ],
   "testPresets": [
     {
@@ -209,7 +232,9 @@
       }
     },
     { "name": "release", "inherits": "base", "configurePreset": "release" },
-    { "name": "msvc_x64", "inherits": "base", "configurePreset": "msvc_x64", "configuration": "Release" },
+    { "name": "msvc2026_x64", "inherits": "base", "configurePreset": "msvc2026_x64", "configuration": "Release" },
+    { "name": "msvc2022_x64", "inherits": "base", "configurePreset": "msvc2022_x64", "configuration": "Release" },
+    { "name": "msvc_cuda", "inherits": "base", "configurePreset": "msvc_cuda" },
     { "name": "linux_arm64", "inherits": "emulated", "configurePreset": "linux_arm64" },
     { "name": "linux_loongarch64", "inherits": "emulated", "configurePreset": "linux_loongarch64" },
     { "name": "linux_ppc64le", "inherits": "emulated", "configurePreset": "linux_ppc64le" },

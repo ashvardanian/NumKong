@@ -14,32 +14,33 @@ const FEATURE_OPTIONS: &[(&str, &str)] = &[("CUDA", "NUMKONG_BUILD_CUDA"), ("ROC
 /// CMake cache variables read from the environment, like `NUMKONG_CUDA_ARCHITECTURES=120f-real`.
 const ENVIRONMENT_VARIABLES: &[&str] = &["NUMKONG_CUDA_ARCHITECTURES", "NUMKONG_ROCM_ARCHITECTURES"];
 
-/// Rebuilds when a directory's contents change, recursing as Cargo watches only what it is told.
-fn watch(directory: &Path) {
-    println!("cargo:rerun-if-changed={}", directory.display());
-    for entry in std::fs::read_dir(directory).into_iter().flatten().flatten() {
-        let path = entry.path();
-        match path.is_dir() {
-            true => watch(&path),
-            false => println!("cargo:rerun-if-changed={}", path.display()),
-        }
-    }
-}
-
 fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let enabled = |feature: &str| env::var_os(format!("CARGO_FEATURE_{feature}")).is_some();
+    let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
 
     // A directory holding `numkong_static` that CMake already built, like a parent project's
-    // build tree or a release, skips the build here.
+    // build tree or a release, skips the build here. Pass the archive's exact directory.
     println!("cargo:rerun-if-env-changed=NUMKONG_LIBRARY_DIR");
-    let build = match env::var_os("NUMKONG_LIBRARY_DIR") {
-        Some(directory) => PathBuf::from(directory),
-        None => build_library(&manifest, enabled),
+    let (library, build) = match env::var_os("NUMKONG_LIBRARY_DIR") {
+        Some(directory) => {
+            let directory = PathBuf::from(directory);
+            (directory.clone(), directory)
+        }
+        None => {
+            let installed = build_library(&manifest, enabled);
+            (installed.join("lib"), installed.join("build"))
+        }
     };
-    // Straight in the directory, or one configuration deeper on the multi-configuration generators.
-    println!("cargo:rustc-link-search=native={}", build.display());
-    println!("cargo:rustc-link-search=native={}", build.join("Release").display());
+    // Watch the archive itself so replacing a prebuilt library relinks the crate.
+    let archive_name = if target_env == "msvc" {
+        "numkong_static.lib"
+    } else {
+        "libnumkong_static.a"
+    };
+    let archive = library.join(archive_name);
+    println!("cargo:rerun-if-changed={}", archive.display());
+    println!("cargo:rustc-link-search=native={}", library.display());
     // `rust/*.rs` link `numkong`, which names the archive CMake calls `numkong_static`.
     println!("cargo:rustc-link-lib=static=numkong:numkong_static");
     println!("cargo:include={}", manifest.join("include").display());
@@ -65,25 +66,26 @@ fn main() {
             println!("cargo:rustc-link-lib=amdhip64");
         }
         // The GPU units' host side is C++, reaching its runtime for guarded statics and unwinding.
-        if env::var("CARGO_CFG_TARGET_ENV").unwrap() != "msvc" {
+        if target_env != "msvc" {
             println!("cargo:rustc-link-lib=stdc++");
         }
     }
 }
 
-/// Builds `numkong_static` through CMake and returns the directory holding it.
+/// Builds and installs `numkong_static` through CMake and returns the installation prefix.
 fn build_library(manifest: &Path, enabled: impl Fn(&str) -> bool) -> PathBuf {
-    println!("cargo:rerun-if-changed={}", manifest.join("CMakeLists.txt").display());
-    for directory in ["cmake", "c", "include", "probes"] {
-        watch(&manifest.join(directory));
+    for source in ["CMakeLists.txt", "VERSION", "cmake", "c", "include", "probes"] {
+        println!("cargo:rerun-if-changed={}", manifest.join(source).display());
     }
 
     let mut library = cmake::Config::new(manifest);
     library
         .profile("Release")
-        .define("NUMKONG_INSTALL", "OFF")
-        .define("NUMKONG_BUILD_SHARED", "OFF")
-        .build_target("numkong_static");
+        .define("NUMKONG_INSTALL", "ON")
+        .define("CMAKE_INSTALL_LIBDIR", "lib")
+        .define("NUMKONG_BUILD_TEST", "OFF")
+        .define("NUMKONG_BUILD_BENCH", "OFF")
+        .define("NUMKONG_BUILD_SHARED", "OFF");
     for (feature, option) in FEATURE_OPTIONS {
         library.define(option, if enabled(feature) { "ON" } else { "OFF" });
     }
@@ -132,6 +134,6 @@ fn build_library(manifest: &Path, enabled: impl Fn(&str) -> bool) -> PathBuf {
         };
     }
 
-    // `build_target` stops short of installing, so the archive sits where the generator left it.
-    library.build().join("build")
+    // The default install target resolves configuration-specific archive paths in CMake.
+    library.build()
 }

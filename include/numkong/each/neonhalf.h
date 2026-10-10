@@ -27,6 +27,7 @@
 #if NUMKONG_TARGET_NEONHALF
 
 #include "numkong/types.h"
+#include "numkong/cast/serial.h" // `nk_f16_to_f32_serial_`, `nk_f32_to_f16_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -45,17 +46,20 @@ NUMKONG_API nk_status_t nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t con
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        float16x8_t a_vec = vld1q_f16((float16_t const *)a + i);
-        float16x8_t b_vec = vld1q_f16((float16_t const *)b + i);
+        float16x8_t a_vec = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)a + i));
+        float16x8_t b_vec = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)b + i));
         float16x8_t sum_vec = vaddq_f16(a_vec, b_vec);
-        vst1q_f16((float16_t *)result + i, sum_vec);
+        vst1q_u16((nk_u16_t *)result + i, vreinterpretq_u16_f16(sum_vec));
     }
 
     // The tail:
-    float16_t const *a_values = (float16_t const *)a;
-    float16_t const *b_values = (float16_t const *)b;
-    float16_t *result_values = (float16_t *)result;
-    for (; i < n; ++i) result_values[i] = a_values[i] + b_values[i];
+    for (; i < n; ++i) {
+        nk_f32_t ai, bi;
+        nk_f16_to_f32_serial_(a + i, &ai);
+        nk_f16_to_f32_serial_(b + i, &bi);
+        nk_f32_t const sum = ai + bi;
+        nk_f32_to_f16_serial_(&sum, result + i);
+    }
     return nk_success_k;
 }
 

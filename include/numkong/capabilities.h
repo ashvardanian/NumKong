@@ -1050,7 +1050,9 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
                          (nk_cap_smebi32_k * (supports_smebi32)) | (nk_cap_serial_k));
 #elif NUMKONG_OS_WINDOWS_
 
-    unsigned supports_neon = 0, supports_dp = 0;
+    unsigned supports_neon = 0, supports_dp = 0, supports_fp16 = 0, supports_bf16 = 0;
+    unsigned supports_sve = 0, supports_sve2 = 0, supports_svebfdot = 0, supports_svei8mm = 0;
+    unsigned supports_sme = 0, supports_smef64 = 0;
 
 #if defined(PF_ARM_V8_INSTRUCTIONS_AVAILABLE)
     supports_neon = IsProcessorFeaturePresent(PF_ARM_V8_INSTRUCTIONS_AVAILABLE);
@@ -1058,9 +1060,41 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
 #if defined(PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE)
     supports_dp = IsProcessorFeaturePresent(PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE);
 #endif
+#if defined(PF_ARM_V82_FP16_INSTRUCTIONS_AVAILABLE)
+    supports_fp16 = IsProcessorFeaturePresent(PF_ARM_V82_FP16_INSTRUCTIONS_AVAILABLE);
+#endif
+#if defined(PF_ARM_V86_BF16_INSTRUCTIONS_AVAILABLE)
+    supports_bf16 = IsProcessorFeaturePresent(PF_ARM_V86_BF16_INSTRUCTIONS_AVAILABLE);
+#endif
+#if defined(PF_ARM_SVE_INSTRUCTIONS_AVAILABLE)
+    supports_sve = IsProcessorFeaturePresent(PF_ARM_SVE_INSTRUCTIONS_AVAILABLE);
+#endif
+#if defined(PF_ARM_SVE2_INSTRUCTIONS_AVAILABLE)
+    supports_sve2 = IsProcessorFeaturePresent(PF_ARM_SVE2_INSTRUCTIONS_AVAILABLE);
+#endif
+#if defined(PF_ARM_SVE_BF16_INSTRUCTIONS_AVAILABLE)
+    supports_svebfdot = IsProcessorFeaturePresent(PF_ARM_SVE_BF16_INSTRUCTIONS_AVAILABLE);
+#endif
+#if defined(PF_ARM_SVE_I8MM_INSTRUCTIONS_AVAILABLE)
+    supports_svei8mm = IsProcessorFeaturePresent(PF_ARM_SVE_I8MM_INSTRUCTIONS_AVAILABLE);
+#endif
+#if defined(PF_ARM_SME_INSTRUCTIONS_AVAILABLE)
+    supports_sme = IsProcessorFeaturePresent(PF_ARM_SME_INSTRUCTIONS_AVAILABLE);
+#endif
+#if defined(PF_ARM_SME_F64F64_INSTRUCTIONS_AVAILABLE)
+    supports_smef64 = IsProcessorFeaturePresent(PF_ARM_SME_F64F64_INSTRUCTIONS_AVAILABLE);
+#endif
 
-    return (nk_capability_t)((nk_cap_neon_k * (supports_neon)) | (nk_cap_neonsdot_k * (supports_neon && supports_dp)) |
-                             (nk_cap_serial_k));
+    // Windows exposes no distinct FHM, NEON FP8, or SME BI32 flag.
+    // Do not infer them from another extension.
+    return (nk_capability_t)((nk_cap_neon_k * supports_neon) | (nk_cap_neonhalf_k * (supports_neon && supports_fp16)) |
+                             (nk_cap_neonbfdot_k * (supports_neon && supports_bf16)) |
+                             (nk_cap_neonsdot_k * (supports_neon && supports_dp)) | (nk_cap_sve_k * supports_sve) |
+                             (nk_cap_svehalf_k * (supports_sve && supports_fp16)) |
+                             (nk_cap_svebfdot_k * (supports_sve && supports_svebfdot)) |
+                             (nk_cap_svesdot_k * (supports_sve && supports_svei8mm)) |
+                             (nk_cap_sve2_k * (supports_sve && supports_sve2)) | (nk_cap_sme_k * supports_sme) |
+                             (nk_cap_smef64_k * (supports_sme && supports_smef64)) | nk_cap_serial_k);
 
 #else
     return nk_cpu_capabilities_implied_();

@@ -99,7 +99,8 @@ NUMKONG_INLINE void nk_attention_weighted_sum_f16_neonfhm_(nk_f32_t *output_row,
                                                            char const *values_rows, nk_size_t panel_length,
                                                            nk_size_t depth_padded, nk_size_t plane_row_bytes) {
     for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
-        float16x8_t const weight_f16x8 = vdupq_n_f16((float16_t)weights[position_idx]);
+        float16x4_t const weight_f16x4 = vcvt_f16_f32(vdupq_n_f32(weights[position_idx]));
+        float16x8_t const weight_f16x8 = vcombine_f16(weight_f16x4, weight_f16x4);
         nk_u16_t const *values_row = (nk_u16_t const *)(values_rows + position_idx * plane_row_bytes);
         for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 8) {
             float16x8_t const values_f16x8 = vreinterpretq_f16_u16(vld1q_u16(values_row + channel_idx));

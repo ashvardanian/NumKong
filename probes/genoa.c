@@ -6,8 +6,10 @@
  */
 #define NUMKONG_HEADER_ONLY  1
 #define NUMKONG_TARGET_GENOA 1
-#include <numkong/types.h>
-#include <numkong/dot/genoa.h> // `nk_dot_bf16_genoa`
+#include "numkong/types.h"
+#include "numkong/dot/genoa.h" // `nk_dot_bf16_genoa`
+#include "numkong/attention/genoa.h"
+#include "numkong/mesh/genoa.h"
 
 int main(void) {
     nk_bf16_t a[64] = {0}, b[64] = {0};

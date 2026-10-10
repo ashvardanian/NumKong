@@ -141,12 +141,12 @@ jobs:
 
       - name: Build
         run: |
-          cmake --preset msvc_x64
-          cmake --build --preset msvc_x64
+          cmake --preset msvc2026_x64
+          cmake --build --preset msvc2026_x64
 
       # Runs the static and the shared-library suites; CTest reports a structured exception's real code
       - name: Test
-        run: ctest --preset msvc_x64
+        run: ctest --preset msvc2026_x64
 
   test_android:
     name: Test C for Android ARM64

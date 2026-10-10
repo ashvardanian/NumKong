@@ -569,14 +569,16 @@ NUMKONG_INLINE void nk_attention_exp_panel_sapphireamx_(        //
                 nk_exp2_f32x16_skylake_(
                     _mm512_fmsub_ps(_mm512_loadu_ps(scores_row + channel_idx), scale_f32x16, max_f32x16)));
             sum_f32x16 = _mm512_add_ps(sum_f32x16, exp_f32x16);
-            _mm256_store_si256((__m256i *)(weights_row + channel_idx), (__m256i)_mm512_cvtneps_pbh(exp_f32x16));
+            _mm256_store_si256((__m256i *)(weights_row + channel_idx),
+                               nk_m256i_from_m256bh_(_mm512_cvtneps_pbh(exp_f32x16)));
             channel_idx += 16;
         }
         for (; channel_idx + 16 <= row_end; channel_idx += 16) {
             __m512 exp_f32x16 = nk_exp2_f32x16_skylake_(
                 _mm512_fmsub_ps(_mm512_loadu_ps(scores_row + channel_idx), scale_f32x16, max_f32x16));
             sum_f32x16 = _mm512_add_ps(sum_f32x16, exp_f32x16);
-            _mm256_store_si256((__m256i *)(weights_row + channel_idx), (__m256i)_mm512_cvtneps_pbh(exp_f32x16));
+            _mm256_store_si256((__m256i *)(weights_row + channel_idx),
+                               nk_m256i_from_m256bh_(_mm512_cvtneps_pbh(exp_f32x16)));
         }
         if (channel_idx < row_end) {
             __m512 exp_f32x16 = _mm512_maskz_mov_ps(
@@ -584,7 +586,8 @@ NUMKONG_INLINE void nk_attention_exp_panel_sapphireamx_(        //
                 nk_exp2_f32x16_skylake_(
                     _mm512_fmsub_ps(_mm512_loadu_ps(scores_row + channel_idx), scale_f32x16, max_f32x16)));
             sum_f32x16 = _mm512_add_ps(sum_f32x16, exp_f32x16);
-            _mm256_store_si256((__m256i *)(weights_row + channel_idx), (__m256i)_mm512_cvtneps_pbh(exp_f32x16));
+            _mm256_store_si256((__m256i *)(weights_row + channel_idx),
+                               nk_m256i_from_m256bh_(_mm512_cvtneps_pbh(exp_f32x16)));
             channel_idx += 16;
         }
         for (; channel_idx < panel_columns; channel_idx += 16) // zero weights past the row's last key

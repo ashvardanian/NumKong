@@ -1045,10 +1045,11 @@ NUMKONG_API nk_status_t nk_each_scale_f16_neon(nk_f16_t const *a, nk_size_t n, n
     float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        float16x8_t a_f16x8 = vld1q_f16((float16_t const *)a + i);
+        float16x8_t a_f16x8 = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)a + i));
         float32x4_t result_low_f32x4 = vfmaq_f32(beta_f32x4, vcvt_f32_f16(vget_low_f16(a_f16x8)), alpha_f32x4);
         float32x4_t result_high_f32x4 = vfmaq_f32(beta_f32x4, vcvt_high_f32_f16(a_f16x8), alpha_f32x4);
-        vst1q_f16((float16_t *)result + i, vcvt_high_f16_f32(vcvt_f16_f32(result_low_f32x4), result_high_f32x4));
+        vst1q_u16((nk_u16_t *)result + i,
+                  vreinterpretq_u16_f16(vcvt_high_f16_f32(vcvt_f16_f32(result_low_f32x4), result_high_f32x4)));
     }
     for (; i < n; ++i) {
         nk_f32_t ai, scaled;
@@ -1066,8 +1067,8 @@ NUMKONG_API nk_status_t nk_each_blend_f16_neon(nk_f16_t const *a, nk_f16_t const
     float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        float16x8_t a_f16x8 = vld1q_f16((float16_t const *)a + i);
-        float16x8_t b_f16x8 = vld1q_f16((float16_t const *)b + i);
+        float16x8_t a_f16x8 = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)a + i));
+        float16x8_t b_f16x8 = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)b + i));
         // Unfused, like the serial kernel, so the two agree bit for bit
         float32x4_t a_scaled_low_f32x4 = vmulq_f32(vcvt_f32_f16(vget_low_f16(a_f16x8)), alpha_f32x4);
         float32x4_t a_scaled_high_f32x4 = vmulq_f32(vcvt_high_f32_f16(a_f16x8), alpha_f32x4);
@@ -1075,7 +1076,8 @@ NUMKONG_API nk_status_t nk_each_blend_f16_neon(nk_f16_t const *a, nk_f16_t const
         float32x4_t b_scaled_high_f32x4 = vmulq_f32(vcvt_high_f32_f16(b_f16x8), beta_f32x4);
         float32x4_t result_low_f32x4 = vaddq_f32(a_scaled_low_f32x4, b_scaled_low_f32x4);
         float32x4_t result_high_f32x4 = vaddq_f32(a_scaled_high_f32x4, b_scaled_high_f32x4);
-        vst1q_f16((float16_t *)result + i, vcvt_high_f16_f32(vcvt_f16_f32(result_low_f32x4), result_high_f32x4));
+        vst1q_u16((nk_u16_t *)result + i,
+                  vreinterpretq_u16_f16(vcvt_high_f16_f32(vcvt_f16_f32(result_low_f32x4), result_high_f32x4)));
     }
     for (; i < n; ++i) {
         nk_f32_t ai, bi;
@@ -1095,9 +1097,9 @@ NUMKONG_API nk_status_t nk_each_fma_f16_neon(nk_f16_t const *a, nk_f16_t const *
     float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        float16x8_t a_f16x8 = vld1q_f16((float16_t const *)a + i);
-        float16x8_t b_f16x8 = vld1q_f16((float16_t const *)b + i);
-        float16x8_t c_f16x8 = vld1q_f16((float16_t const *)c + i);
+        float16x8_t a_f16x8 = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)a + i));
+        float16x8_t b_f16x8 = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)b + i));
+        float16x8_t c_f16x8 = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)c + i));
         float32x4_t ab_low_f32x4 = vmulq_f32(vcvt_f32_f16(vget_low_f16(a_f16x8)), vcvt_f32_f16(vget_low_f16(b_f16x8)));
         float32x4_t ab_high_f32x4 = vmulq_f32(vcvt_high_f32_f16(a_f16x8), vcvt_high_f32_f16(b_f16x8));
         // Unfused, like the serial kernel, so the two agree bit for bit
@@ -1107,7 +1109,8 @@ NUMKONG_API nk_status_t nk_each_fma_f16_neon(nk_f16_t const *a, nk_f16_t const *
         float32x4_t c_scaled_high_f32x4 = vmulq_f32(vcvt_high_f32_f16(c_f16x8), beta_f32x4);
         float32x4_t result_low_f32x4 = vaddq_f32(ab_scaled_low_f32x4, c_scaled_low_f32x4);
         float32x4_t result_high_f32x4 = vaddq_f32(ab_scaled_high_f32x4, c_scaled_high_f32x4);
-        vst1q_f16((float16_t *)result + i, vcvt_high_f16_f32(vcvt_f16_f32(result_low_f32x4), result_high_f32x4));
+        vst1q_u16((nk_u16_t *)result + i,
+                  vreinterpretq_u16_f16(vcvt_high_f16_f32(vcvt_f16_f32(result_low_f32x4), result_high_f32x4)));
     }
     for (; i < n; ++i) {
         nk_f32_t ai, bi, ci;

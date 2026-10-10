@@ -145,9 +145,8 @@
 #endif
 
 /** Internal helper that callers can fold at compile time, and that CUDA kernels can call through
- *  @c --expt-relaxed-constexpr. It is @c constexpr from C++20, except under MSVC's own front end,
- *  which rejects its intrinsics there. */
-#if NUMKONG_CXX_STANDARD_ >= 202002L && (!defined(_MSC_VER) || defined(__clang__) || defined(__CUDACC__))
+ *  @c --expt-relaxed-constexpr. It is @c constexpr from C++20. */
+#if NUMKONG_CXX_STANDARD_ >= 202002L
 #define NUMKONG_CONSTEXPR NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ constexpr
 #else
 #define NUMKONG_CONSTEXPR NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_
@@ -1004,14 +1003,18 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #if NUMKONG_ARCH_X8664_
 #if defined(_MSC_VER)
 #define nk_m512bh_from_m512i_(x) (x)
+#define nk_m512i_from_m512bh_(x) (x)
 #define nk_m512h_from_m512i_(x)  (x)
 #define nk_m512i_from_m512h_(x)  (x)
 #define nk_m256bh_from_m256i_(x) (x)
+#define nk_m256i_from_m256bh_(x) (x)
 #else
 #define nk_m512bh_from_m512i_(x) ((__m512bh)(x))
+#define nk_m512i_from_m512bh_(x) ((__m512i)(x))
 #define nk_m512h_from_m512i_(x)  ((__m512h)(x))
 #define nk_m512i_from_m512h_(x)  ((__m512i)(x))
 #define nk_m256bh_from_m256i_(x) ((__m256bh)(x))
+#define nk_m256i_from_m256bh_(x) ((__m256i)(x))
 #endif
 #endif
 

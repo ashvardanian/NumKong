@@ -37,10 +37,17 @@ function (nk_cpu_capability_ capability_name_ capability_macro_)
     )
     if (NOT DEFINED nk_target_${capability_name_}_compiles)
         set(CMAKE_TRY_COMPILE_CONFIGURATION "Release")
+        # Library definitions do not reach try_compile; the Windows SDK needs its ARM64 selector here too.
+        if (MSVC AND NUMKONG_ARCH_ARM64_)
+            set(probe_definitions_ -D_ARM64_=1)
+        else ()
+            set(probe_definitions_)
+        endif ()
         try_compile(
             nk_target_${capability_name_}_compiles ${CMAKE_BINARY_DIR}/nk_probes
             ${PROJECT_SOURCE_DIR}/probes/${capability_name_}.c
             CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${PROJECT_SOURCE_DIR}/include" C_STANDARD 99
+            COMPILE_DEFINITIONS ${probe_definitions_}
         )
     endif ()
     message(STATUS "Performing ISA probe ${capability_macro_} - compiles: ${nk_target_${capability_name_}_compiles}")

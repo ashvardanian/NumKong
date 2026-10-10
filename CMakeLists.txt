@@ -105,6 +105,14 @@ if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND EXISTS "${CMAKE_CURRE
     endif ()
 endif ()
 
+# Embedded debug information avoids depending on a running MSVC PDB server during probes.
+if (POLICY CMP0141)
+    cmake_policy(SET CMP0141 NEW)
+    if (NOT DEFINED CMAKE_MSVC_DEBUG_INFORMATION_FORMAT)
+        set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+    endif ()
+endif ()
+
 # Every binding reads its version from `VERSION`, which the release bumps.
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" NUMKONG_VERSION_ LIMIT_COUNT 1)
 project(
@@ -298,7 +306,11 @@ add_compile_definitions($<$<CONFIG:Debug>:NUMKONG_DEBUG=1>)
 # unrolling of a runtime-bounded loop can speculatively divide by a tensor shape's zero-filled
 # spare extents and trap (#DE / SIGFPE); see shape_storage_::normalize_spare_.
 include(CheckIPOSupported)
+set(NUMKONG_IPO_CONFIGURATION_ "${CMAKE_TRY_COMPILE_CONFIGURATION}")
+set(CMAKE_TRY_COMPILE_CONFIGURATION Release)
 check_ipo_supported(RESULT NUMKONG_IPO_SUPPORTED_ OUTPUT NUMKONG_IPO_SUPPORT_OUTPUT_)
+set(CMAKE_TRY_COMPILE_CONFIGURATION "${NUMKONG_IPO_CONFIGURATION_}")
+unset(NUMKONG_IPO_CONFIGURATION_)
 if (NOT NUMKONG_IPO_SUPPORTED_)
     message(STATUS "Link-time optimization not available: ${NUMKONG_IPO_SUPPORT_OUTPUT_}")
 endif ()
@@ -1117,11 +1129,17 @@ function (numkong_add_gpu_unit_ source codes capabilities)
     # capability the listed architectures run on, as the dispatch units see them; the unit turns off the ones its
     # headers include.
     target_link_libraries(numkong_${unit}_ PRIVATE numkong_cpu_capabilities_disabled_ ${capabilities})
+    if (MSVC AND NUMKONG_ARCH_ARM64_)
+        target_compile_definitions(numkong_${unit}_ PRIVATE _ARM64_)
+    endif ()
     # NVCC compiles a unit's codes one after another unless told to spread them over threads.
     target_compile_options(
-        numkong_${unit}_ PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr --threads=0
-                                 -Xcompiler=-fvisibility=hidden> $<$<COMPILE_LANGUAGE:HIP>:-fvisibility=hidden>
+        numkong_${unit}_ PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;--threads=0>"
+                                 "$<$<COMPILE_LANGUAGE:HIP>:-fvisibility=hidden>"
     )
+    if (NOT MSVC)
+        target_compile_options(numkong_${unit}_ PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fvisibility=hidden>")
+    endif ()
     target_link_libraries(numkong_${unit}_ PRIVATE ${ARGN})
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_sources(${nk_library_} PRIVATE $<TARGET_OBJECTS:numkong_${unit}_>)
@@ -1228,9 +1246,9 @@ if (NUMKONG_BUILD_METAL)
     endforeach ()
 endif ()
 
-# Compiles a CUDA test target for `architectures` the way every CUDA test expects: C++20, `constexpr` host helpers
+# Configures CUDA suites for `architectures`: C++20, `constexpr` host helpers
 # callable from device code so the tensor views stay GPU-friendly, and the host baseline forwarded to NVCC.
-function (numkong_cuda_test_target_ target architectures)
+function (numkong_cuda_suite_target_ target architectures)
     target_include_directories(${target} PRIVATE "${PROJECT_SOURCE_DIR}/include")
     set_target_properties(
         ${target} PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO CUDA_ARCHITECTURES
@@ -1240,6 +1258,9 @@ function (numkong_cuda_test_target_ target architectures)
     if (MSVC)
         # {fmt} demands `/utf-8` for Unicode output, which NVCC's front end on Windows cannot honour.
         target_compile_definitions(${target} PRIVATE FMT_UNICODE=0)
+        if (NUMKONG_ARCH_ARM64_)
+            target_compile_definitions(${target} PRIVATE _ARM64_)
+        endif ()
     elseif (NUMKONG_ARCH_X8664_)
         target_compile_options(
             ${target}
@@ -1297,7 +1318,7 @@ if (NUMKONG_BUILD_TEST)
         endforeach ()
     endforeach ()
     if (NUMKONG_BUILD_CUDA)
-        numkong_cuda_test_target_(numkong_test_cuda "${NUMKONG_CUDA_ARCHITECTURES}")
+        numkong_cuda_suite_target_(numkong_test_cuda "${NUMKONG_CUDA_ARCHITECTURES}")
         target_link_libraries(numkong_test_cuda PRIVATE CUDA::cudart)
     endif ()
     if (NUMKONG_BUILD_ROCM)
@@ -1325,11 +1346,7 @@ endif ()
 # CUDA rows in the same `numkong_bench`, from bench/*_cuda.cu, with optional cuBLAS, cuDNN and cuVS baselines.
 if (NUMKONG_BUILD_BENCH AND NUMKONG_BUILD_CUDA)
     find_package(CUDAToolkit 13.0 REQUIRED)
-    set_target_properties(
-        numkong_bench_cuda PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO
-                                      CUDA_ARCHITECTURES "${NUMKONG_CUDA_ARCHITECTURES}"
-    )
-    target_compile_options(numkong_bench_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+    numkong_cuda_suite_target_(numkong_bench_cuda "${NUMKONG_CUDA_ARCHITECTURES}")
     target_compile_definitions(
         numkong_bench_cuda
         PRIVATE NUMKONG_COMPARE_TO_CUBLAS=$<BOOL:${NUMKONG_COMPARE_TO_CUBLAS}>

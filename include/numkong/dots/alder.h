@@ -115,7 +115,7 @@ nk_define_cross_compensated_pack_(dots, i8, alder, i8, i8, nk_b128_vec_t, nk_loa
                                   nk_partial_load_b8x16_haswell_, nk_store_b128_haswell_,
                                   nk_partial_store_b8x16_haswell_,
                                   /*simd_width=*/16, /*sum_value_type=*/i32, /*norm_value_type=*/u32,
-                                  nk_dots_reduce_moments_i8_alder_, /*depth_simd_dimensions=*/16,
+                                  nk_dots_reduce_moments_i8_alder_, /*depth_simd_dimensions=*/32,
                                   /*dimensions_per_value=*/1)
 nk_define_cross_compensated_symmetric_(dots, i8, alder, i8, i32,
                                        /*sum_value_type=*/i32, /*norm_value_type=*/u32, nk_b256_vec_t,
@@ -145,7 +145,7 @@ nk_define_cross_compensated_pack_(dots, u8, alder, u8, u8, nk_b128_vec_t, nk_loa
                                   nk_partial_load_b8x16_haswell_, nk_store_b128_haswell_,
                                   nk_partial_store_b8x16_haswell_,
                                   /*simd_width=*/16, /*sum_value_type=*/u32, /*norm_value_type=*/u32,
-                                  nk_dots_reduce_moments_u8_alder_, /*depth_simd_dimensions=*/16,
+                                  nk_dots_reduce_moments_u8_alder_, /*depth_simd_dimensions=*/32,
                                   /*dimensions_per_value=*/1)
 nk_define_cross_compensated_symmetric_(dots, u8, alder, u8, u32,
                                        /*sum_value_type=*/u32, /*norm_value_type=*/u32, nk_b256_vec_t,

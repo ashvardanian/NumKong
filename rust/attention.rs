@@ -2151,14 +2151,14 @@ mod tests {
             let packed = unsafe { base.add(base.align_offset(SIMD_ALIGNMENT)) };
             unsafe {
                 <bf16 as Attention>::attention_pack(
-                    keys_view.as_ptr(),
-                    values_view.as_ptr(),
                     heads,
                     depth,
                     offsets.as_ptr(),
                     key_lengths.as_ptr(),
                     segment_count,
+                    keys_view.as_ptr(),
                     keys_stride,
+                    values_view.as_ptr(),
                     values_stride,
                     packed,
                     0,

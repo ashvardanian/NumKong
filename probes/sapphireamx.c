@@ -6,8 +6,9 @@
  */
 #define NUMKONG_HEADER_ONLY        1
 #define NUMKONG_TARGET_SAPPHIREAMX 1
-#include <numkong/types.h>
-#include <numkong/dots/sapphireamx.h> // `nk_dots_symmetric_i8_sapphireamx`
+#include "numkong/types.h"
+#include "numkong/dots/sapphireamx.h" // `nk_dots_symmetric_i8_sapphireamx`
+#include "numkong/attention/sapphireamx.h"
 
 int main(void) {
     nk_i8_t vectors[16 * 64];
