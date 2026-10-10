@@ -1321,8 +1321,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_nvfp4_sapphireamx(nk_nvfp4_cref_t con
                                                                  a_stride, scales_stride, c_stride);
     if (status != nk_success_k) return status;
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
-    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 16,
-                                                                                 8);
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_nvfp4_sapphireamx_(b_packed, header->columns,
+                                                                                       depth);
     nk_cross_tensor_factor_t const factor = nk_cross_tensor_factor_serial_(tensor_scale, header->tensor_scale);
     nk_cross_tensor_factor_t const a_factor = nk_cross_tensor_factor_serial_(tensor_scale, tensor_scale);
 
@@ -1405,8 +1405,8 @@ NUMKONG_API nk_status_t nk_euclideans_packed_nvfp4_sapphireamx(nk_nvfp4_cref_t c
                                                                  a_stride, scales_stride, c_stride);
     if (status != nk_success_k) return status;
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
-    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 16,
-                                                                                 8);
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_nvfp4_sapphireamx_(b_packed, header->columns,
+                                                                                       depth);
     nk_cross_tensor_factor_t const factor = nk_cross_tensor_factor_serial_(tensor_scale, header->tensor_scale);
     nk_cross_tensor_factor_t const a_factor = nk_cross_tensor_factor_serial_(tensor_scale, tensor_scale);
 
@@ -1489,8 +1489,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp4_sapphireamx(nk_mxfp4_cref_t con
                                                                  a_stride, scales_stride, c_stride);
     if (status != nk_success_k) return status;
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
-    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 32,
-                                                                                 16);
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_mxfp4_sapphireamx_(b_packed, header->columns,
+                                                                                       depth);
     nk_i32_t const column_spread_max = nk_dots_scaled_spread_max_sapphireamx_(b.spreads, b.padded);
 
     for (nk_size_t row = 0; row < rows; row++) {
@@ -1508,9 +1508,9 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp4_sapphireamx(nk_mxfp4_cref_t con
                                                      nk_dots_spread_limit_mxfp4_sapphireamx_k))
                 continue;
             nk_cross_wide_sum_t a_sumsq, b_sumsq;
-            nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp4_serial_(
-                (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
-                b.codes + column * b.row_bytes, b.scales + column * b.blocks, depth, &a_sumsq, &b_sumsq);
+            nk_cross_wide_sum_t const dot = nk_dots_scaled_exact_mxfp4_sapphireamx_(
+                &b, column, (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
+                depth, &a_sumsq, &b_sumsq);
             c_row[column] = nk_angular_from_wide_f32_serial_(dot, a_sumsq, b_sumsq);
         }
     }
@@ -1596,8 +1596,8 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp4_sapphireamx(nk_mxfp4_cref_t c
                                                                  a_stride, scales_stride, c_stride);
     if (status != nk_success_k) return status;
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
-    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 32,
-                                                                                 16);
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_mxfp4_sapphireamx_(b_packed, header->columns,
+                                                                                       depth);
     nk_i32_t const column_spread_max = nk_dots_scaled_spread_max_sapphireamx_(b.spreads, b.padded);
 
     for (nk_size_t row = 0; row < rows; row++) {
@@ -1615,9 +1615,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp4_sapphireamx(nk_mxfp4_cref_t c
                                                      nk_dots_spread_limit_mxfp4_sapphireamx_k))
                 continue;
             nk_cross_wide_sum_t a_sumsq, b_sumsq;
-            nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp4_serial_(
-                (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
-                b.codes + column * b.row_bytes, b.scales + column * b.blocks, depth, &a_sumsq, &b_sumsq);
+            nk_cross_wide_sum_t const dot = nk_dots_scaled_exact_mxfp4_sapphireamx_(
+                &b, column, (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
+                depth, &a_sumsq, &b_sumsq);
             c_row[column] = nk_euclidean_from_wide_f32_serial_(dot, a_sumsq, b_sumsq);
         }
     }
@@ -1704,8 +1704,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cr
                                                                      a_stride, scales_stride, c_stride);
     if (status != nk_success_k) return status;
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
-    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 32,
-                                                                                 32);
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_mxfp8e4m3_sapphireamx_(b_packed, header->columns,
+                                                                                           depth);
     nk_i32_t const column_spread_max = nk_dots_scaled_spread_max_sapphireamx_(b.spreads, b.padded);
 
     for (nk_size_t row = 0; row < rows; row++) {
@@ -1723,9 +1723,9 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cr
                                                      nk_dots_spread_limit_mxfp8e4m3_sapphireamx_k))
                 continue;
             nk_cross_wide_sum_t a_sumsq, b_sumsq;
-            nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp8e4m3_serial_(
-                (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
-                b.codes + column * b.row_bytes, b.scales + column * b.blocks, depth, &a_sumsq, &b_sumsq);
+            nk_cross_wide_sum_t const dot = nk_dots_scaled_exact_mxfp8e4m3_sapphireamx_(
+                &b, column, (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
+                depth, &a_sumsq, &b_sumsq);
             c_row[column] = nk_angular_from_wide_f32_serial_(dot, a_sumsq, b_sumsq);
         }
     }
@@ -1812,8 +1812,8 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_
                                                                      a_stride, scales_stride, c_stride);
     if (status != nk_success_k) return status;
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
-    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 32,
-                                                                                 32);
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_mxfp8e4m3_sapphireamx_(b_packed, header->columns,
+                                                                                           depth);
     nk_i32_t const column_spread_max = nk_dots_scaled_spread_max_sapphireamx_(b.spreads, b.padded);
 
     for (nk_size_t row = 0; row < rows; row++) {
@@ -1831,9 +1831,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_
                                                      nk_dots_spread_limit_mxfp8e4m3_sapphireamx_k))
                 continue;
             nk_cross_wide_sum_t a_sumsq, b_sumsq;
-            nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp8e4m3_serial_(
-                (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
-                b.codes + column * b.row_bytes, b.scales + column * b.blocks, depth, &a_sumsq, &b_sumsq);
+            nk_cross_wide_sum_t const dot = nk_dots_scaled_exact_mxfp8e4m3_sapphireamx_(
+                &b, column, (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
+                depth, &a_sumsq, &b_sumsq);
             c_row[column] = nk_euclidean_from_wide_f32_serial_(dot, a_sumsq, b_sumsq);
         }
     }
@@ -1920,8 +1920,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cr
                                                                      a_stride, scales_stride, c_stride);
     if (status != nk_success_k) return status;
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
-    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 32,
-                                                                                 32);
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_mxfp8e5m2_sapphireamx_(b_packed, header->columns,
+                                                                                           depth);
     nk_i32_t const column_spread_max = nk_dots_scaled_spread_max_sapphireamx_(b.spreads, b.padded);
 
     for (nk_size_t row = 0; row < rows; row++) {
@@ -1939,9 +1939,9 @@ NUMKONG_API nk_status_t nk_angulars_packed_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cr
                                                      nk_dots_spread_limit_mxfp8e5m2_sapphireamx_k))
                 continue;
             nk_cross_wide_sum_t a_sumsq, b_sumsq;
-            nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp8e5m2_serial_(
-                (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
-                b.codes + column * b.row_bytes, b.scales + column * b.blocks, depth, &a_sumsq, &b_sumsq);
+            nk_cross_wide_sum_t const dot = nk_dots_scaled_exact_mxfp8e5m2_sapphireamx_(
+                &b, column, (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
+                depth, &a_sumsq, &b_sumsq);
             c_row[column] = nk_angular_from_wide_f32_serial_(dot, a_sumsq, b_sumsq);
         }
     }
@@ -2028,8 +2028,8 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_
                                                                      a_stride, scales_stride, c_stride);
     if (status != nk_success_k) return status;
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
-    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 32,
-                                                                                 32);
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_mxfp8e5m2_sapphireamx_(b_packed, header->columns,
+                                                                                           depth);
     nk_i32_t const column_spread_max = nk_dots_scaled_spread_max_sapphireamx_(b.spreads, b.padded);
 
     for (nk_size_t row = 0; row < rows; row++) {
@@ -2047,9 +2047,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_
                                                      nk_dots_spread_limit_mxfp8e5m2_sapphireamx_k))
                 continue;
             nk_cross_wide_sum_t a_sumsq, b_sumsq;
-            nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp8e5m2_serial_(
-                (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
-                b.codes + column * b.row_bytes, b.scales + column * b.blocks, depth, &a_sumsq, &b_sumsq);
+            nk_cross_wide_sum_t const dot = nk_dots_scaled_exact_mxfp8e5m2_sapphireamx_(
+                &b, column, (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
+                depth, &a_sumsq, &b_sumsq);
             c_row[column] = nk_euclidean_from_wide_f32_serial_(dot, a_sumsq, b_sumsq);
         }
     }

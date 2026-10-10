@@ -356,9 +356,9 @@ Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Ra
 | `nk_euclideans_packed_e2m1_alder`               |        84.2 gso/s, 0 ulp |         113 gso/s, 0 ulp |         107 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_e2m1_alder`            |        46.1 gso/s, 0 ulp |        84.5 gso/s, 0 ulp |        85.3 gso/s, 0 ulp |
 | __nvfp4__                                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_nvfp4_sapphireamx`          |         118 gso/s, 0 ulp |         144 gso/s, 0 ulp |         174 gso/s, 0 ulp |
+| `nk_angulars_packed_nvfp4_sapphireamx`          |         164 gso/s, 0 ulp |         331 gso/s, 0 ulp |         499 gso/s, 0 ulp |
 | `nk_angulars_symmetric_nvfp4_sapphireamx`       |        46.1 gso/s, 0 ulp |        43.4 gso/s, 0 ulp |        65.2 gso/s, 0 ulp |
-| `nk_euclideans_packed_nvfp4_sapphireamx`        |         115 gso/s, 0 ulp |         138 gso/s, 0 ulp |         242 gso/s, 0 ulp |
+| `nk_euclideans_packed_nvfp4_sapphireamx`        |         154 gso/s, 0 ulp |         323 gso/s, 0 ulp |         502 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_nvfp4_sapphireamx`     |        45.5 gso/s, 0 ulp |        44.9 gso/s, 0 ulp |        67.5 gso/s, 0 ulp |
 | `nk_angulars_packed_nvfp4_serial`               |       0.191 gso/s, 0 ulp |       0.188 gso/s, 0 ulp |                        ⋯ |
 | `nk_angulars_symmetric_nvfp4_serial`            |       0.191 gso/s, 0 ulp |       0.189 gso/s, 0 ulp |                        ⋯ |
@@ -369,9 +369,9 @@ Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Ra
 | `nk_euclideans_packed_nvfp4_skylake`            |        24.9 gso/s, 0 ulp |        27.9 gso/s, 0 ulp |        28.2 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_nvfp4_skylake`         |        22.8 gso/s, 0 ulp |        26.0 gso/s, 0 ulp |        24.9 gso/s, 0 ulp |
 | __mxfp4__                                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_mxfp4_sapphireamx`          |         119 gso/s, 0 ulp |         153 gso/s, 0 ulp |         195 gso/s, 0 ulp |
+| `nk_angulars_packed_mxfp4_sapphireamx`          |         187 gso/s, 0 ulp |         410 gso/s, 0 ulp |         789 gso/s, 0 ulp |
 | `nk_angulars_symmetric_mxfp4_sapphireamx`       |        49.2 gso/s, 0 ulp |        35.6 gso/s, 0 ulp |        67.4 gso/s, 0 ulp |
-| `nk_euclideans_packed_mxfp4_sapphireamx`        |         119 gso/s, 0 ulp |         117 gso/s, 0 ulp |         278 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp4_sapphireamx`        |         177 gso/s, 0 ulp |         412 gso/s, 0 ulp |         822 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_mxfp4_sapphireamx`     |        41.3 gso/s, 0 ulp |        47.3 gso/s, 0 ulp |        39.1 gso/s, 0 ulp |
 | `nk_angulars_packed_mxfp4_serial`               |       0.189 gso/s, 0 ulp |       0.188 gso/s, 0 ulp |                        ⋯ |
 | `nk_angulars_symmetric_mxfp4_serial`            |       0.188 gso/s, 0 ulp |       0.124 gso/s, 0 ulp |                        ⋯ |
@@ -382,9 +382,9 @@ Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Ra
 | `nk_euclideans_packed_mxfp4_skylake`            |        24.4 gso/s, 0 ulp |        27.6 gso/s, 0 ulp |        27.8 gso/s, 0 ulp |
 | `nk_euclideans_symmetric_mxfp4_skylake`         |        22.9 gso/s, 0 ulp |        26.1 gso/s, 0 ulp |        24.7 gso/s, 0 ulp |
 | __mxfp8e4m3__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_mxfp8e4m3_sapphireamx`      |         106 gso/s, 0 ulp |         128 gso/s, 0 ulp |         165 gso/s, 0 ulp |
+| `nk_angulars_packed_mxfp8e4m3_sapphireamx`      |         141 gso/s, 0 ulp |         280 gso/s, 0 ulp |         382 gso/s, 0 ulp |
 | `nk_angulars_symmetric_mxfp8e4m3_sapphireamx`   |        39.0 gso/s, 0 ulp |        25.7 gso/s, 0 ulp |        57.7 gso/s, 0 ulp |
-| `nk_euclideans_packed_mxfp8e4m3_sapphireamx`    |       105 gso/s, 0.2 ulp |        98 gso/s, 0.2 ulp |       217 gso/s, 0.2 ulp |
+| `nk_euclideans_packed_mxfp8e4m3_sapphireamx`    |       133 gso/s, 0.2 ulp |       281 gso/s, 0.2 ulp |       397 gso/s, 0.2 ulp |
 | `nk_euclideans_symmetric_mxfp8e4m3_sapphireamx` |      36.1 gso/s, 0.2 ulp |      36.9 gso/s, 0.2 ulp |      32.5 gso/s, 0.2 ulp |
 | `nk_angulars_packed_mxfp8e4m3_serial`           |       0.265 gso/s, 0 ulp |       0.212 gso/s, 0 ulp |                        ⋯ |
 | `nk_angulars_symmetric_mxfp8e4m3_serial`        |       0.271 gso/s, 0 ulp |       0.146 gso/s, 0 ulp |                        ⋯ |
@@ -395,9 +395,9 @@ Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Ra
 | `nk_euclideans_packed_mxfp8e4m3_skylake`        |      15.6 gso/s, 0.2 ulp |      16.8 gso/s, 0.3 ulp |      16.7 gso/s, 0.4 ulp |
 | `nk_euclideans_symmetric_mxfp8e4m3_skylake`     |      14.7 gso/s, 0.2 ulp |      16.0 gso/s, 0.2 ulp |      14.9 gso/s, 0.4 ulp |
 | __mxfp8e5m2__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_mxfp8e5m2_sapphireamx`      |         108 gso/s, 0 ulp |         138 gso/s, 0 ulp |         180 gso/s, 0 ulp |
+| `nk_angulars_packed_mxfp8e5m2_sapphireamx`      |         141 gso/s, 0 ulp |         274 gso/s, 0 ulp |         376 gso/s, 0 ulp |
 | `nk_angulars_symmetric_mxfp8e5m2_sapphireamx`   |        44.7 gso/s, 0 ulp |        30.6 gso/s, 0 ulp |        66.4 gso/s, 0 ulp |
-| `nk_euclideans_packed_mxfp8e5m2_sapphireamx`    |       109 gso/s, 0.2 ulp |       109 gso/s, 0.2 ulp |       251 gso/s, 0.2 ulp |
+| `nk_euclideans_packed_mxfp8e5m2_sapphireamx`    |       134 gso/s, 0.2 ulp |       277 gso/s, 0.2 ulp |       403 gso/s, 0.2 ulp |
 | `nk_euclideans_symmetric_mxfp8e5m2_sapphireamx` |      38.3 gso/s, 0.2 ulp |      38.2 gso/s, 0.2 ulp |      39.6 gso/s, 0.2 ulp |
 | `nk_angulars_packed_mxfp8e5m2_serial`           |       0.379 gso/s, 0 ulp |       0.289 gso/s, 0 ulp |                        ⋯ |
 | `nk_angulars_symmetric_mxfp8e5m2_serial`        |       0.378 gso/s, 0 ulp |       0.252 gso/s, 0 ulp |                        ⋯ |

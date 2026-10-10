@@ -419,28 +419,28 @@ Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Ra
 | `nk_dots_packed_e2m1_alder`               |         101 gso/s, 0 ulp |         122 gso/s, 0 ulp |         136 gso/s, 0 ulp |
 | `nk_dots_symmetric_e2m1_alder`            |        77.4 gso/s, 0 ulp |         103 gso/s, 0 ulp |         108 gso/s, 0 ulp |
 | __nvfp4__                                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_dots_packed_nvfp4_sapphireamx`        |         152 gso/s, 0 ulp |         236 gso/s, 0 ulp |         248 gso/s, 0 ulp |
+| `nk_dots_packed_nvfp4_sapphireamx`        |         372 gso/s, 0 ulp |         512 gso/s, 0 ulp |         574 gso/s, 0 ulp |
 | `nk_dots_symmetric_nvfp4_sapphireamx`     |        56.3 gso/s, 0 ulp |        65.9 gso/s, 0 ulp |        50.3 gso/s, 0 ulp |
 | `nk_dots_packed_nvfp4_serial`             |       0.202 gso/s, 0 ulp |       0.181 gso/s, 0 ulp |                        ⋯ |
 | `nk_dots_symmetric_nvfp4_serial`          |       0.203 gso/s, 0 ulp |       0.205 gso/s, 0 ulp |                        ⋯ |
 | `nk_dots_packed_nvfp4_skylake`            |        25.8 gso/s, 0 ulp |        28.5 gso/s, 0 ulp |        28.0 gso/s, 0 ulp |
 | `nk_dots_symmetric_nvfp4_skylake`         |        25.1 gso/s, 0 ulp |        27.2 gso/s, 0 ulp |        26.5 gso/s, 0 ulp |
 | __mxfp4__                                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_dots_packed_mxfp4_sapphireamx`        |         168 gso/s, 0 ulp |         201 gso/s, 0 ulp |         302 gso/s, 0 ulp |
+| `nk_dots_packed_mxfp4_sapphireamx`        |         335 gso/s, 0 ulp |         727 gso/s, 0 ulp |       1,022 gso/s, 0 ulp |
 | `nk_dots_symmetric_mxfp4_sapphireamx`     |        61.0 gso/s, 0 ulp |        69.6 gso/s, 0 ulp |        39.6 gso/s, 0 ulp |
 | `nk_dots_packed_mxfp4_serial`             |       0.186 gso/s, 0 ulp |       0.188 gso/s, 0 ulp |                        ⋯ |
 | `nk_dots_symmetric_mxfp4_serial`          |       0.193 gso/s, 0 ulp |       0.193 gso/s, 0 ulp |                        ⋯ |
 | `nk_dots_packed_mxfp4_skylake`            |        25.9 gso/s, 0 ulp |        27.8 gso/s, 0 ulp |        27.8 gso/s, 0 ulp |
 | `nk_dots_symmetric_mxfp4_skylake`         |        24.7 gso/s, 0 ulp |        27.6 gso/s, 0 ulp |        25.9 gso/s, 0 ulp |
 | __mxfp8e4m3__                             | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_dots_packed_mxfp8e4m3_sapphireamx`    |         139 gso/s, 0 ulp |       185 gso/s, 0.1 ulp |       234 gso/s, 2.6 ulp |
+| `nk_dots_packed_mxfp8e4m3_sapphireamx`    |         275 gso/s, 0 ulp |       378 gso/s, 0.1 ulp |       465 gso/s, 2.6 ulp |
 | `nk_dots_symmetric_mxfp8e4m3_sapphireamx` |        46.9 gso/s, 0 ulp |      56.8 gso/s, 0.1 ulp |      21.4 gso/s, 3.4 ulp |
 | `nk_dots_packed_mxfp8e4m3_serial`         |       0.260 gso/s, 0 ulp |     0.262 gso/s, 0.1 ulp |                        ⋯ |
 | `nk_dots_symmetric_mxfp8e4m3_serial`      |       0.255 gso/s, 0 ulp |     0.261 gso/s, 0.1 ulp |                        ⋯ |
 | `nk_dots_packed_mxfp8e4m3_skylake`        |        16.3 gso/s, 0 ulp |      17.0 gso/s, 0.1 ulp |      16.8 gso/s, 1.8 ulp |
 | `nk_dots_symmetric_mxfp8e4m3_skylake`     |        15.8 gso/s, 0 ulp |      16.9 gso/s, 0.1 ulp |      15.7 gso/s, 3.2 ulp |
 | __mxfp8e5m2__                             | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_dots_packed_mxfp8e5m2_sapphireamx`    |         153 gso/s, 0 ulp |       248 gso/s, 0.4 ulp |       272 gso/s, 1.8 ulp |
+| `nk_dots_packed_mxfp8e5m2_sapphireamx`    |         230 gso/s, 0 ulp |       370 gso/s, 0.4 ulp |       433 gso/s, 1.8 ulp |
 | `nk_dots_symmetric_mxfp8e5m2_sapphireamx` |        54.5 gso/s, 0 ulp |      62.9 gso/s, 0.4 ulp |      32.8 gso/s, 1.1 ulp |
 | `nk_dots_packed_mxfp8e5m2_serial`         |       0.381 gso/s, 0 ulp |     0.382 gso/s, 0.4 ulp |                        ⋯ |
 | `nk_dots_symmetric_mxfp8e5m2_serial`      |       0.378 gso/s, 0 ulp |     0.385 gso/s, 0.4 ulp |                        ⋯ |
