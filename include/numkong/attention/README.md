@@ -110,50 +110,10 @@ Scores stay exact in `i32` integer arithmetic; only the probabilities round.
 
 ## Performance
 
-The tables below follow the [benchmark methodology](../../../bench/README.md#methodology) on one core pinned with `numactl --membind=0 taskset -c <core>`, counting $4 \cdot h \cdot n_q \cdot n_{kv} \cdot d$ FLOPs, or $10 \cdot h \cdot n_q \cdot n_{kv} \cdot d$ for gradient rows.
+The tables below follow the [benchmark methodology](../../../bench/README.md#methodology) on one core pinned with `taskset -c <core>`, counting $4 \cdot h \cdot n_q \cdot n_{kv} \cdot d$ FLOPs, or $10 \cdot h \cdot n_q \cdot n_{kv} \cdot d$ for gradient rows.
 Rows are kernels under the mask they measured, columns are square self-attention shapes at `depth = 128`, 32 query heads over 8 key-value heads; accuracy is the maximum absolute error against an `f64` reference over dtype-rounded inputs.
 Bidirectional rows ran `keys_before = keys_after = NUMKONG_SIZE_MAX`, and causal rows `keys_after = 0`.
 Cells marked `⋯` await measurement on the corresponding platform.
-
-### Intel Sapphire Rapids
-
-#### Native
-
-| Kernel                                               |                 1024² |                 4096² |                16384² |
-| :--------------------------------------------------- | --------------------: | --------------------: | --------------------: |
-| __bf16__                                             | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_bf16_serial`      |           0.6 gflop/s |                     ⋯ |                     ⋯ |
-| bidirectional `nk_attention_packed_bf16_haswell`     |            36 gflop/s |            33 gflop/s |            25 gflop/s |
-| bidirectional `nk_attention_packed_bf16_skylake`     |            48 gflop/s |            41 gflop/s |            28 gflop/s |
-| bidirectional `nk_attention_packed_bf16_genoa`       |            54 gflop/s |            47 gflop/s |            30 gflop/s |
-| bidirectional `nk_attention_packed_bf16_sapphireamx` |           845 gflop/s |           827 gflop/s |           766 gflop/s |
-| __e4m3__                                             | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_e4m3_serial`      |           1.2 gflop/s |                     ⋯ |                     ⋯ |
-| bidirectional `nk_attention_packed_e4m3_haswell`     |            11 gflop/s |            11 gflop/s |            11 gflop/s |
-| bidirectional `nk_attention_packed_e4m3_skylake`     |            49 gflop/s |            41 gflop/s |            29 gflop/s |
-| bidirectional `nk_attention_packed_e4m3_genoa`       |            57 gflop/s |            46 gflop/s |            30 gflop/s |
-| bidirectional `nk_attention_packed_e4m3_sapphireamx` |           840 gflop/s |           841 gflop/s |           786 gflop/s |
-| __i8__                                               | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_i8_serial`        |           1.2 gflop/s |                     ⋯ |                     ⋯ |
-| bidirectional `nk_attention_packed_i8_haswell`       |           123 gflop/s |           125 gflop/s |           113 gflop/s |
-| bidirectional `nk_attention_packed_i8_icelake`       |           185 gflop/s |           186 gflop/s |           171 gflop/s |
-| bidirectional `nk_attention_packed_i8_sapphireamx`   |           941 gflop/s |           950 gflop/s |           931 gflop/s |
-
-#### WASM
-
-Measured with Wasmtime v24 (Cranelift backend).
-
-| Kernel                                               |                 1024² |                 4096² |                16384² |
-| :--------------------------------------------------- | --------------------: | --------------------: | --------------------: |
-| __bf16__                                             | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_bf16_serial`      |          0.60 gflop/s |                     ⋯ |                     ⋯ |
-| bidirectional `nk_attention_packed_bf16_v128relaxed` |            10 gflop/s |           9.9 gflop/s |            11 gflop/s |
-| __e4m3__                                             | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_e4m3_serial`      |          0.53 gflop/s |                     ⋯ |                     ⋯ |
-| bidirectional `nk_attention_packed_e4m3_v128relaxed` |           3.3 gflop/s |           3.0 gflop/s |           3.7 gflop/s |
-| __i8__                                               | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_i8_serial`        |           5.1 gflop/s |                     ⋯ |                     ⋯ |
-| bidirectional `nk_attention_packed_i8_v128relaxed`   |          24.6 gflop/s |          24.1 gflop/s |          29.2 gflop/s |
 
 ### Intel Granite Rapids with RTX PRO 6000 Blackwell
 
@@ -205,39 +165,55 @@ Measured with Wasmtime v24 (Cranelift backend).
 
 #### Native
 
-| Kernel                                               |        1024² |        4096² |       16384² |
-| :--------------------------------------------------- | -----------: | -----------: | -----------: |
-| __bf16__                                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_bf16_serial`      |  2.3 gflop/s |  2.1 gflop/s |            ⋯ |
-| causal `nk_attention_packed_bf16_serial`             |  2.4 gflop/s |  2.2 gflop/s |            ⋯ |
-| bidirectional `nk_attention_packed_bf16_haswell`     | 23.6 gflop/s | 22.5 gflop/s | 19.7 gflop/s |
-| causal `nk_attention_packed_bf16_haswell`            | 23.1 gflop/s | 22.9 gflop/s | 19.7 gflop/s |
-| bidirectional `nk_attention_packed_bf16_skylake`     | 29.1 gflop/s | 27.2 gflop/s | 23.2 gflop/s |
-| causal `nk_attention_packed_bf16_skylake`            | 28.6 gflop/s | 28.4 gflop/s | 23.9 gflop/s |
-| bidirectional `nk_attention_packed_bf16_genoa`       | 31.7 gflop/s | 30.4 gflop/s | 25.6 gflop/s |
-| causal `nk_attention_packed_bf16_genoa`              | 32.2 gflop/s | 31.5 gflop/s | 26.0 gflop/s |
-| bidirectional `nk_attention_packed_bf16_sapphireamx` |  418 gflop/s |  447 gflop/s |  450 gflop/s |
-| causal `nk_attention_packed_bf16_sapphireamx`        |  306 gflop/s |  411 gflop/s |  437 gflop/s |
-| __e4m3__                                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_e4m3_serial`      |  1.1 gflop/s |  1.1 gflop/s |            ⋯ |
-| causal `nk_attention_packed_e4m3_serial`             |  1.2 gflop/s |  1.1 gflop/s |            ⋯ |
-| bidirectional `nk_attention_packed_e4m3_haswell`     |  9.6 gflop/s |  9.7 gflop/s |  9.8 gflop/s |
-| causal `nk_attention_packed_e4m3_haswell`            |  9.7 gflop/s |  9.9 gflop/s |  9.7 gflop/s |
-| bidirectional `nk_attention_packed_e4m3_skylake`     | 29.9 gflop/s | 28.6 gflop/s | 23.9 gflop/s |
-| causal `nk_attention_packed_e4m3_skylake`            | 29.6 gflop/s | 29.3 gflop/s | 24.3 gflop/s |
-| bidirectional `nk_attention_packed_e4m3_genoa`       | 32.3 gflop/s | 29.8 gflop/s | 25.4 gflop/s |
-| causal `nk_attention_packed_e4m3_genoa`              | 32.4 gflop/s | 31.7 gflop/s | 26.1 gflop/s |
-| bidirectional `nk_attention_packed_e4m3_sapphireamx` |  419 gflop/s |  447 gflop/s |  451 gflop/s |
-| causal `nk_attention_packed_e4m3_sapphireamx`        |  306 gflop/s |  415 gflop/s |  439 gflop/s |
-| __i8__                                               | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| bidirectional `nk_attention_packed_i8_serial`        |  5.0 gflop/s |  5.0 gflop/s |            ⋯ |
-| causal `nk_attention_packed_i8_serial`               |  4.8 gflop/s |  4.9 gflop/s |            ⋯ |
-| bidirectional `nk_attention_packed_i8_haswell`       |  130 gflop/s |  136 gflop/s |  140 gflop/s |
-| causal `nk_attention_packed_i8_haswell`              |  122 gflop/s |  134 gflop/s |  139 gflop/s |
-| bidirectional `nk_attention_packed_i8_icelake`       |  143 gflop/s |  142 gflop/s |  136 gflop/s |
-| causal `nk_attention_packed_i8_icelake`              |  138 gflop/s |  142 gflop/s |  139 gflop/s |
-| bidirectional `nk_attention_packed_i8_sapphireamx`   |  546 gflop/s |  616 gflop/s |  606 gflop/s |
-| causal `nk_attention_packed_i8_sapphireamx`          |  425 gflop/s |  570 gflop/s |  601 gflop/s |
+| Kernel                                               |        1024² |         4096² |       16384² |
+| :--------------------------------------------------- | -----------: | ------------: | -----------: |
+| __bf16__                                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_bf16_serial`      | 2.38 gflop/s |  1.79 gflop/s |            ⋯ |
+| causal `nk_attention_packed_bf16_serial`             | 2.37 gflop/s |  2.13 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_bf16_haswell`     | 23.7 gflop/s |  22.4 gflop/s |            ⋯ |
+| causal `nk_attention_packed_bf16_haswell`            | 23.6 gflop/s |  22.9 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_bf16_skylake`     | 28.9 gflop/s |  17.8 gflop/s |            ⋯ |
+| causal `nk_attention_packed_bf16_skylake`            | 28.6 gflop/s |  25.9 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_bf16_genoa`       | 32.8 gflop/s |  30.4 gflop/s |            ⋯ |
+| causal `nk_attention_packed_bf16_genoa`              | 32.2 gflop/s |  30.9 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_bf16_sapphireamx` |  434 gflop/s |   444 gflop/s |  457 gflop/s |
+| causal `nk_attention_packed_bf16_sapphireamx`        |  317 gflop/s |   413 gflop/s |  445 gflop/s |
+| __e4m3__                                             | ░░░░░░░░░░░░ | ░░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_e4m3_serial`      | 1.19 gflop/s | 0.972 gflop/s |            ⋯ |
+| causal `nk_attention_packed_e4m3_serial`             | 1.19 gflop/s |  1.18 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_e4m3_haswell`     | 9.66 gflop/s |  8.93 gflop/s |            ⋯ |
+| causal `nk_attention_packed_e4m3_haswell`            | 9.76 gflop/s |  7.38 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_e4m3_skylake`     | 30.0 gflop/s |  25.4 gflop/s |            ⋯ |
+| causal `nk_attention_packed_e4m3_skylake`            | 29.6 gflop/s |  29.1 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_e4m3_genoa`       | 32.6 gflop/s |  28.6 gflop/s |            ⋯ |
+| causal `nk_attention_packed_e4m3_genoa`              | 32.3 gflop/s |  31.6 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_e4m3_sapphireamx` |  366 gflop/s |   443 gflop/s |  455 gflop/s |
+| causal `nk_attention_packed_e4m3_sapphireamx`        |  275 gflop/s |   417 gflop/s |  430 gflop/s |
+| __i8__                                               | ░░░░░░░░░░░░ | ░░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_i8_serial`        | 5.04 gflop/s |  4.89 gflop/s |            ⋯ |
+| causal `nk_attention_packed_i8_serial`               | 5.03 gflop/s |  3.82 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_i8_haswell`       |  135 gflop/s |  97.0 gflop/s |            ⋯ |
+| causal `nk_attention_packed_i8_haswell`              |  125 gflop/s |  99.5 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_i8_icelake`       |  142 gflop/s |   144 gflop/s |            ⋯ |
+| causal `nk_attention_packed_i8_icelake`              |  140 gflop/s |   141 gflop/s |            ⋯ |
+| bidirectional `nk_attention_packed_i8_sapphireamx`   |  488 gflop/s |   624 gflop/s |  610 gflop/s |
+| causal `nk_attention_packed_i8_sapphireamx`          |  394 gflop/s |   573 gflop/s |  596 gflop/s |
+
+#### WASM
+
+Measured with wasmtime 49.0.2, Cranelift.
+
+| Kernel                                               |                 1024² |                 4096² |                16384² |
+| :--------------------------------------------------- | --------------------: | --------------------: | --------------------: |
+| __bf16__                                             | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_bf16_serial`      |          1.88 gflop/s |                     ⋯ |                     ⋯ |
+| bidirectional `nk_attention_packed_bf16_v128relaxed` |          11.2 gflop/s |          10.8 gflop/s |                     ⋯ |
+| __e4m3__                                             | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_e4m3_serial`      |         0.891 gflop/s |                     ⋯ |                     ⋯ |
+| bidirectional `nk_attention_packed_e4m3_v128relaxed` |          1.78 gflop/s |          1.78 gflop/s |                     ⋯ |
+| __i8__                                               | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ |
+| bidirectional `nk_attention_packed_i8_serial`        |          3.28 gflop/s |                     ⋯ |                     ⋯ |
+| bidirectional `nk_attention_packed_i8_v128relaxed`   |          29.0 gflop/s |          29.0 gflop/s |                     ⋯ |
 
 #### CUDA
 

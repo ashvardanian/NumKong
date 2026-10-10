@@ -89,74 +89,80 @@ The metric tensor is a square matrix of side $N$, so each bilinear form $\mathbf
 Columns show matrix side length: 256², 1024², 4096².
 The throughput is measured in GSO/s as Giga Scalar Operations per Second.
 
-### Intel Sapphire Rapids
+### Intel Xeon 6 with B300
+
+Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Rapids part.
 
 #### Native
 
 | Kernel                        |                     256² |                    1024² |                    4096² |
 | :---------------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __f64c__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `bilinear_f64c_with_blas` 🧩  |               1.25 gso/s |               1.36 gso/s |               1.38 gso/s |
-| `nk_bilinear_f64c_serial`     |    0.0862 gso/s, 0.5 ulp |     0.161 gso/s, 0.2 ulp |     0.171 gso/s, 0.5 ulp |
-| `nk_bilinear_f64c_skylake`    |     0.583 gso/s, 3.5 ulp |     0.718 gso/s, 3.5 ulp |     0.765 gso/s, 3.5 ulp |
+| `bilinear_f64c_with_blas` 🧩  |               1.51 gso/s |               1.65 gso/s |               1.64 gso/s |
+| `nk_bilinear_f64c_serial`     |     0.113 gso/s, 0.5 ulp |     0.113 gso/s, 0.2 ulp |     0.110 gso/s, 0.5 ulp |
+| `nk_bilinear_f64c_skylake`    |     0.427 gso/s, 3.5 ulp |     0.605 gso/s, 3.5 ulp |     0.616 gso/s, 3.5 ulp |
 | __f32c__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `bilinear_f32c_with_blas` 🧩  |               2.14 gso/s |               2.61 gso/s |               2.57 gso/s |
-| `nk_bilinear_f32c_serial`     |       0.756 gso/s, 0 ulp |        1.37 gso/s, 0 ulp |        1.37 gso/s, 0 ulp |
-| `nk_bilinear_f32c_skylake`    |        1.72 gso/s, 0 ulp |        1.75 gso/s, 0 ulp |        1.46 gso/s, 0 ulp |
+| `bilinear_f32c_with_blas` 🧩  |               2.50 gso/s |               3.24 gso/s |               3.26 gso/s |
+| `nk_bilinear_f32c_serial`     |       0.414 gso/s, 0 ulp |       0.416 gso/s, 0 ulp |       0.436 gso/s, 0 ulp |
+| `nk_bilinear_f32c_skylake`    |        1.29 gso/s, 0 ulp |        2.01 gso/s, 0 ulp |        2.28 gso/s, 0 ulp |
 | __bf16c__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_bf16c_serial`    |       0.154 gso/s, 5 ulp |     0.158 gso/s, 5.8 ulp |       0.155 gso/s, 5 ulp |
-| `nk_bilinear_bf16c_genoa`     |        2.81 gso/s, 5 ulp |        4.57 gso/s, 5 ulp |        4.47 gso/s, 5 ulp |
+| `nk_bilinear_bf16c_serial`    |       0.707 gso/s, 5 ulp |     0.608 gso/s, 5.8 ulp |       0.579 gso/s, 5 ulp |
+| `nk_bilinear_bf16c_genoa`     |        4.04 gso/s, 5 ulp |        4.58 gso/s, 5 ulp |        3.20 gso/s, 5 ulp |
 | __f16c__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_f16c_serial`     |     0.585 gso/s, 7.2 ulp |     0.592 gso/s, 7.2 ulp |     0.600 gso/s, 7.2 ulp |
+| `nk_bilinear_f16c_serial`     |     0.380 gso/s, 7.2 ulp |     0.365 gso/s, 7.2 ulp |     0.357 gso/s, 7.2 ulp |
 | __f64__                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `bilinear_f64_with_blas` 🧩   |               2.84 gso/s |               3.23 gso/s |               3.14 gso/s |
-| `nk_bilinear_f64_serial`      |     0.291 gso/s, 0.7 ulp |     0.565 gso/s, 0.4 ulp |     0.577 gso/s, 0.7 ulp |
-| `nk_mahalanobis_f64_serial`   |       0.267 gso/s, 0 ulp |       0.537 gso/s, 0 ulp |       0.539 gso/s, 0 ulp |
-| `nk_bilinear_f64_skylake`     |      1.79 gso/s, 1.6 ulp |      1.71 gso/s, 1.3 ulp |        1.59 gso/s, 1 ulp |
-| `nk_mahalanobis_f64_skylake`  |        1.77 gso/s, 0 ulp |        1.82 gso/s, 0 ulp |      2.12 gso/s, 0.2 ulp |
+| `bilinear_f64_with_blas` 🧩   |               3.45 gso/s |               3.64 gso/s |               3.46 gso/s |
+| `nk_bilinear_f64_serial`      |     0.301 gso/s, 0.7 ulp |     0.293 gso/s, 0.4 ulp |     0.383 gso/s, 0.7 ulp |
+| `nk_mahalanobis_f64_serial`   |       0.310 gso/s, 0 ulp |       0.297 gso/s, 0 ulp |       0.384 gso/s, 0 ulp |
+| `nk_bilinear_f64_skylake`     |      1.28 gso/s, 1.6 ulp |      1.96 gso/s, 1.3 ulp |        2.16 gso/s, 1 ulp |
+| `nk_mahalanobis_f64_skylake`  |        1.85 gso/s, 0 ulp |        1.66 gso/s, 0 ulp |      2.37 gso/s, 0.2 ulp |
 | __f32__                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `bilinear_f32_with_blas` 🧩   |               4.09 gso/s |               5.61 gso/s |               6.59 gso/s |
-| `nk_bilinear_f32_serial`      |        1.19 gso/s, 0 ulp |        2.71 gso/s, 0 ulp |        2.68 gso/s, 0 ulp |
-| `nk_mahalanobis_f32_serial`   |        2.36 gso/s, 0 ulp |        2.53 gso/s, 0 ulp |        2.40 gso/s, 0 ulp |
-| `nk_bilinear_f32_haswell`     |        3.45 gso/s, 0 ulp |        3.66 gso/s, 0 ulp |        3.24 gso/s, 0 ulp |
-| `nk_mahalanobis_f32_haswell`  |        3.37 gso/s, 0 ulp |        3.28 gso/s, 0 ulp |        3.30 gso/s, 0 ulp |
-| `nk_bilinear_f32_skylake`     |        3.68 gso/s, 0 ulp |        3.08 gso/s, 0 ulp |        2.71 gso/s, 0 ulp |
-| `nk_mahalanobis_f32_skylake`  |        3.45 gso/s, 0 ulp |        2.94 gso/s, 0 ulp |        3.32 gso/s, 0 ulp |
+| `bilinear_f32_with_blas` 🧩   |               4.20 gso/s |               7.31 gso/s |               7.05 gso/s |
+| `nk_bilinear_f32_serial`      |        1.07 gso/s, 0 ulp |       0.925 gso/s, 0 ulp |       0.870 gso/s, 0 ulp |
+| `nk_mahalanobis_f32_serial`   |       0.935 gso/s, 0 ulp |       0.848 gso/s, 0 ulp |       0.775 gso/s, 0 ulp |
+| `nk_bilinear_f32_haswell`     |        2.31 gso/s, 0 ulp |        3.36 gso/s, 0 ulp |        2.98 gso/s, 0 ulp |
+| `nk_mahalanobis_f32_haswell`  |        1.98 gso/s, 0 ulp |        2.40 gso/s, 0 ulp |        2.48 gso/s, 0 ulp |
+| `nk_bilinear_f32_skylake`     |        2.97 gso/s, 0 ulp |        4.40 gso/s, 0 ulp |        4.40 gso/s, 0 ulp |
+| `nk_mahalanobis_f32_skylake`  |        2.55 gso/s, 0 ulp |        4.02 gso/s, 0 ulp |        4.03 gso/s, 0 ulp |
 | __bf16__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_bf16_serial`     |      0.321 gso/s, 16 ulp |      0.331 gso/s, 13 ulp |      0.314 gso/s, 12 ulp |
-| `nk_mahalanobis_bf16_serial`  |     0.216 gso/s, 2.2 ulp |     0.215 gso/s, 2.1 ulp |     0.211 gso/s, 2.3 ulp |
-| `nk_bilinear_bf16_haswell`    |       6.75 gso/s, 11 ulp |       7.04 gso/s, 13 ulp |       6.80 gso/s, 13 ulp |
-| `nk_mahalanobis_bf16_haswell` |        5.93 gso/s, 1 ulp |        5.77 gso/s, 1 ulp |        5.86 gso/s, 1 ulp |
-| `nk_bilinear_bf16_genoa`      |       6.22 gso/s, 18 ulp |       10.9 gso/s, 18 ulp |       10.3 gso/s, 18 ulp |
-| `nk_mahalanobis_bf16_genoa`   |    7.04 gso/s, 8.55K ulp |    8.76 gso/s, 8.41K ulp |    8.57 gso/s, 8.41K ulp |
+| `nk_bilinear_bf16_serial`     |       1.64 gso/s, 16 ulp |       1.35 gso/s, 13 ulp |       1.25 gso/s, 12 ulp |
+| `nk_mahalanobis_bf16_serial`  |      1.62 gso/s, 2.2 ulp |      1.32 gso/s, 2.1 ulp |      1.21 gso/s, 2.3 ulp |
+| `nk_bilinear_bf16_haswell`    |       4.11 gso/s, 11 ulp |       5.09 gso/s, 13 ulp |       4.80 gso/s, 13 ulp |
+| `nk_mahalanobis_bf16_haswell` |        2.94 gso/s, 1 ulp |        4.44 gso/s, 1 ulp |        4.04 gso/s, 1 ulp |
+| `nk_bilinear_bf16_genoa`      |       11.0 gso/s, 18 ulp |       12.3 gso/s, 18 ulp |       10.1 gso/s, 18 ulp |
+| `nk_mahalanobis_bf16_genoa`   |    8.14 gso/s, 8.55K ulp |    9.40 gso/s, 8.41K ulp |    6.20 gso/s, 8.41K ulp |
 | __f16__                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_f16_serial`      |      0.654 gso/s, 23 ulp |      0.652 gso/s, 23 ulp |      0.657 gso/s, 23 ulp |
-| `nk_mahalanobis_f16_serial`   |     0.510 gso/s, 2.7 ulp |     0.520 gso/s, 3.2 ulp |     0.500 gso/s, 2.7 ulp |
-| `nk_bilinear_f16_haswell`     |       7.36 gso/s, 37 ulp |       7.30 gso/s, 37 ulp |       7.29 gso/s, 37 ulp |
-| `nk_mahalanobis_f16_haswell`  |        6.75 gso/s, 1 ulp |        6.24 gso/s, 1 ulp |        6.83 gso/s, 1 ulp |
+| `nk_bilinear_f16_serial`      |      0.785 gso/s, 23 ulp |      0.772 gso/s, 23 ulp |      0.724 gso/s, 23 ulp |
+| `nk_mahalanobis_f16_serial`   |     0.546 gso/s, 2.7 ulp |     0.549 gso/s, 3.2 ulp |     0.529 gso/s, 2.7 ulp |
+| `nk_bilinear_f16_haswell`     |       4.82 gso/s, 37 ulp |       6.28 gso/s, 37 ulp |       5.60 gso/s, 37 ulp |
+| `nk_mahalanobis_f16_haswell`  |        3.69 gso/s, 1 ulp |        5.05 gso/s, 1 ulp |        4.65 gso/s, 1 ulp |
 
 #### WASM
 
-Measured with Wasmtime v42 (Cranelift backend).
+Measured with wasmtime 49.0.2, Cranelift.
 
-| Kernel                     |                     256² |                    1024² |                    4096² |
-| :------------------------- | -----------------------: | -----------------------: | -----------------------: |
-| __f64c__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_f64c_serial`  |      0.21 gso/s, 1.2 ulp |      0.21 gso/s, 1.2 ulp |      0.21 gso/s, 1.2 ulp |
-| __f32c__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_f32c_serial`  |        1.10 gso/s, 0 ulp |        1.07 gso/s, 0 ulp |        1.10 gso/s, 0 ulp |
-| __bf16c__                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_bf16c_serial` |      1.26 gso/s, 9.8 ulp |      1.31 gso/s, 9.8 ulp |      1.27 gso/s, 9.5 ulp |
-| __f16c__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_f16c_serial`  |       0.40 gso/s, 39 ulp |       0.38 gso/s, 39 ulp |       0.40 gso/s, 39 ulp |
-| __f64__                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_f64_serial`   |      0.49 gso/s, 0.6 ulp |      0.49 gso/s, 0.6 ulp |      0.48 gso/s, 0.6 ulp |
-| __f32__                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_f32_serial`   |        2.54 gso/s, 0 ulp |        2.62 gso/s, 0 ulp |        2.53 gso/s, 0 ulp |
-| __bf16__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_bf16_serial`  |       2.91 gso/s, 27 ulp |       2.90 gso/s, 22 ulp |       2.98 gso/s, 22 ulp |
-| __f16__                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_bilinear_f16_serial`   |       0.76 gso/s, 74 ulp |       0.76 gso/s, 74 ulp |       0.78 gso/s, 74 ulp |
+| Kernel                       |                     256² |                    1024² |                    4096² |
+| :--------------------------- | -----------------------: | -----------------------: | -----------------------: |
+| __f64c__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_bilinear_f64c_serial`    |     0.128 gso/s, 1.2 ulp |     0.126 gso/s, 1.2 ulp |     0.130 gso/s, 1.2 ulp |
+| __f32c__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_bilinear_f32c_serial`    |       0.932 gso/s, 0 ulp |       0.969 gso/s, 0 ulp |       0.368 gso/s, 0 ulp |
+| __bf16c__                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_bilinear_bf16c_serial`   |      1.15 gso/s, 9.8 ulp |      1.19 gso/s, 9.8 ulp |     0.619 gso/s, 9.5 ulp |
+| __f16c__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_bilinear_f16c_serial`    |      0.392 gso/s, 39 ulp |      0.390 gso/s, 39 ulp |      0.380 gso/s, 39 ulp |
+| __f64__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_bilinear_f64_serial`     |     0.439 gso/s, 0.6 ulp |     0.421 gso/s, 0.6 ulp |     0.380 gso/s, 0.6 ulp |
+| `nk_mahalanobis_f64_serial`  |              0.367 gso/s |              0.407 gso/s |              0.333 gso/s |
+| __f32__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_bilinear_f32_serial`     |        2.14 gso/s, 0 ulp |        2.14 gso/s, 0 ulp |       0.808 gso/s, 0 ulp |
+| `nk_mahalanobis_f32_serial`  |               1.48 gso/s |               1.62 gso/s |              0.701 gso/s |
+| __bf16__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_bilinear_bf16_serial`    |       2.77 gso/s, 27 ulp |       2.83 gso/s, 22 ulp |       1.29 gso/s, 22 ulp |
+| `nk_mahalanobis_bf16_serial` |               1.68 gso/s |               1.64 gso/s |               1.12 gso/s |
+| __f16__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_bilinear_f16_serial`     |      0.800 gso/s, 74 ulp |      0.760 gso/s, 74 ulp |      0.775 gso/s, 74 ulp |
+| `nk_mahalanobis_f16_serial`  |              0.476 gso/s |              0.554 gso/s |              0.552 gso/s |
 
 ### Apple M4
 

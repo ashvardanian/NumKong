@@ -74,41 +74,43 @@ Columns show throughput for 256³, 1024³, and 4096³ configurations.
 The throughput is measured in GSO/s as Giga Scalar Operations per Second.
 Accuracy is reported where applicable as exact distance in the result representation; floating Jaccard rows are shown as mean ULP (units in last place).
 
-### Intel Sapphire Rapids
+### Intel Xeon 6 with B300
+
+Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Rapids part.
 
 #### Native
 
 | Kernel                             |                     256³ |                    1024³ |                    4096³ |
 | :--------------------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __u1__                             | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_hammings_packed_u1_serial`     |                109 gso/s |                162 gso/s |                284 gso/s |
-| `nk_hammings_symmetric_u1_serial`  |               39.7 gso/s |                133 gso/s |                325 gso/s |
-| `nk_jaccards_packed_u1_serial`     |        54.8 gso/s, 0 ulp |         128 gso/s, 0 ulp |         259 gso/s, 0 ulp |
-| `nk_jaccards_symmetric_u1_serial`  |        29.8 gso/s, 0 ulp |         110 gso/s, 0 ulp |         292 gso/s, 0 ulp |
-| `nk_hammings_packed_u1_haswell`    |                100 gso/s |                126 gso/s |                168 gso/s |
-| `nk_hammings_symmetric_u1_haswell` |               58.5 gso/s |                132 gso/s |                328 gso/s |
-| `nk_jaccards_packed_u1_haswell`    |      84.2 gso/s, 0.3 ulp |       124 gso/s, 0.3 ulp |       165 gso/s, 0.3 ulp |
-| `nk_jaccards_symmetric_u1_haswell` |      57.6 gso/s, 0.3 ulp |       131 gso/s, 0.3 ulp |       324 gso/s, 0.3 ulp |
-| `nk_hammings_packed_u1_icelake`    |                110 gso/s |                340 gso/s |                604 gso/s |
-| `nk_hammings_symmetric_u1_icelake` |               76.2 gso/s |                258 gso/s |              1,040 gso/s |
-| `nk_jaccards_packed_u1_icelake`    |      89.2 gso/s, 0.3 ulp |       312 gso/s, 0.3 ulp |       601 gso/s, 0.3 ulp |
-| `nk_jaccards_symmetric_u1_icelake` |      66.9 gso/s, 0.3 ulp |       260 gso/s, 0.3 ulp |       965 gso/s, 0.3 ulp |
+| `nk_hammings_packed_u1_serial`     |               37.1 gso/s |               40.6 gso/s |               50.9 gso/s |
+| `nk_hammings_symmetric_u1_serial`  |               29.7 gso/s |               46.8 gso/s |               34.9 gso/s |
+| `nk_jaccards_packed_u1_serial`     |        31.5 gso/s, 0 ulp |        43.7 gso/s, 0 ulp |        36.1 gso/s, 0 ulp |
+| `nk_jaccards_symmetric_u1_serial`  |        26.5 gso/s, 0 ulp |        44.0 gso/s, 0 ulp |        34.9 gso/s, 0 ulp |
+| `nk_hammings_packed_u1_haswell`    |               69.7 gso/s |               98.2 gso/s |                105 gso/s |
+| `nk_hammings_symmetric_u1_haswell` |               45.0 gso/s |                114 gso/s |                111 gso/s |
+| `nk_jaccards_packed_u1_haswell`    |      62.8 gso/s, 0.3 ulp |      86.4 gso/s, 0.3 ulp |       106 gso/s, 0.3 ulp |
+| `nk_jaccards_symmetric_u1_haswell` |      43.6 gso/s, 0.3 ulp |       104 gso/s, 0.3 ulp |      98.8 gso/s, 0.3 ulp |
+| `nk_hammings_packed_u1_icelake`    |                103 gso/s |                232 gso/s |                427 gso/s |
+| `nk_hammings_symmetric_u1_icelake` |               73.7 gso/s |                295 gso/s |                428 gso/s |
+| `nk_jaccards_packed_u1_icelake`    |      91.7 gso/s, 0.3 ulp |       205 gso/s, 0.3 ulp |       403 gso/s, 0.3 ulp |
+| `nk_jaccards_symmetric_u1_icelake` |      72.6 gso/s, 0.3 ulp |       247 gso/s, 0.3 ulp |       554 gso/s, 0.3 ulp |
 
 #### WASM
 
-Measured with Wasmtime v42 (Cranelift backend).
+Measured with wasmtime 49.0.2, Cranelift.
 
 | Kernel                            |                     256³ |                    1024³ |                    4096³ |
 | :-------------------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __u1__                            | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_hammings_packed_u1_serial`    |               43.7 gso/s |               68.0 gso/s |               74.7 gso/s |
-| `nk_hammings_packed_u1_v128`      |               75.3 gso/s |                134 gso/s |                144 gso/s |
-| `nk_hammings_symmetric_u1_serial` |               3.72 gso/s |               13.5 gso/s |               41.0 gso/s |
-| `nk_hammings_symmetric_u1_v128`   |               3.64 gso/s |               13.9 gso/s |               42.2 gso/s |
-| `nk_jaccards_packed_u1_serial`    |        33.7 gso/s, 0 ulp |        61.3 gso/s, 0 ulp |        73.2 gso/s, 0 ulp |
-| `nk_jaccards_packed_u1_v128`      |        66.4 gso/s, 0 ulp |         129 gso/s, 0 ulp |         143 gso/s, 0 ulp |
-| `nk_jaccards_symmetric_u1_serial` |        3.57 gso/s, 0 ulp |        13.3 gso/s, 0 ulp |        40.6 gso/s, 0 ulp |
-| `nk_jaccards_symmetric_u1_v128`   |        3.65 gso/s, 0 ulp |        13.9 gso/s, 0 ulp |        42.2 gso/s, 0 ulp |
+| `nk_hammings_packed_u1_serial`    |               76.6 gso/s |               98.6 gso/s |                109 gso/s |
+| `nk_hammings_packed_u1_v128`      |               84.0 gso/s |                123 gso/s |                127 gso/s |
+| `nk_hammings_symmetric_u1_serial` |               49.5 gso/s |               80.0 gso/s |               85.3 gso/s |
+| `nk_hammings_symmetric_u1_v128`   |               55.9 gso/s |               99.7 gso/s |                122 gso/s |
+| `nk_jaccards_packed_u1_serial`    |        54.1 gso/s, 0 ulp |        89.6 gso/s, 0 ulp |         113 gso/s, 0 ulp |
+| `nk_jaccards_packed_u1_v128`      |        78.5 gso/s, 0 ulp |         101 gso/s, 0 ulp |         119 gso/s, 0 ulp |
+| `nk_jaccards_symmetric_u1_serial` |        34.6 gso/s, 0 ulp |        73.4 gso/s, 0 ulp |        86.6 gso/s, 0 ulp |
+| `nk_jaccards_symmetric_u1_v128`   |        50.6 gso/s, 0 ulp |        93.8 gso/s, 0 ulp |         116 gso/s, 0 ulp |
 
 ### Apple M5
 

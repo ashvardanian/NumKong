@@ -110,283 +110,540 @@ The input size is controlled by `NUMWARS_DIMS_HEIGHT`, `NUMWARS_DIMS_WIDTH`, and
 Columns show throughput for 256³, 1024³, and 4096³ configurations.
 The throughput is measured in GSO/s as Giga Scalar Operations per Second, with $\text{ops} = 2 \cdot M \cdot N \cdot K$ complexity for computing $M \times N$ pairwise distances over $K$-dimensional vectors.
 
-### Intel Sapphire Rapids
+### Intel Xeon 6 with B300
+
+Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Rapids part.
 
 #### Native
 
-| Kernel                                     |                     256³ |                    1024³ |                    4096³ |
-| :----------------------------------------- | -----------------------: | -----------------------: | -----------------------: |
-| __f64__                                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_f64_serial`            |       0.578 gso/s, 0 ulp |       0.691 gso/s, 0 ulp |       0.787 gso/s, 0 ulp |
-| `nk_angulars_symmetric_f64_serial`         |       0.477 gso/s, 0 ulp |       0.569 gso/s, 0 ulp |        1.24 gso/s, 0 ulp |
-| `nk_euclideans_packed_f64_serial`          |     0.569 gso/s, 0.6 ulp |     0.692 gso/s, 0.6 ulp |     0.775 gso/s, 0.6 ulp |
-| `nk_euclideans_symmetric_f64_serial`       |     0.477 gso/s, 0.6 ulp |     0.562 gso/s, 0.6 ulp |      1.26 gso/s, 0.3 ulp |
-| `nk_angulars_packed_f64_haswell`           |        5.89 gso/s, 0 ulp |        6.04 gso/s, 0 ulp |        6.08 gso/s, 0 ulp |
-| `nk_angulars_symmetric_f64_haswell`        |        5.17 gso/s, 0 ulp |        5.56 gso/s, 0 ulp |        11.3 gso/s, 0 ulp |
-| `nk_euclideans_packed_f64_haswell`         |      5.83 gso/s, 0.2 ulp |      6.21 gso/s, 0.2 ulp |      6.24 gso/s, 0.2 ulp |
-| `nk_euclideans_symmetric_f64_haswell`      |      5.33 gso/s, 0.2 ulp |      5.62 gso/s, 0.2 ulp |      11.7 gso/s, 0.2 ulp |
-| `nk_angulars_packed_f64_skylake`           |        7.56 gso/s, 0 ulp |        8.46 gso/s, 0 ulp |        8.92 gso/s, 0 ulp |
-| `nk_angulars_symmetric_f64_skylake`        |        7.37 gso/s, 0 ulp |        8.66 gso/s, 0 ulp |        17.1 gso/s, 0 ulp |
-| `nk_euclideans_packed_f64_skylake`         |      8.06 gso/s, 0.2 ulp |      8.37 gso/s, 0.2 ulp |      8.06 gso/s, 0.2 ulp |
-| `nk_euclideans_symmetric_f64_skylake`      |      7.14 gso/s, 0.2 ulp |      8.43 gso/s, 0.2 ulp |      17.4 gso/s, 0.2 ulp |
-| __f32__                                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_f32_serial`            |      15.0 gso/s, 0.1 ulp |      16.3 gso/s, 0.1 ulp |      16.4 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_f32_serial`         |      3.86 gso/s, 0.1 ulp |      4.29 gso/s, 0.1 ulp |      8.62 gso/s, 0.1 ulp |
-| `nk_euclideans_packed_f32_serial`          |      15.3 gso/s, 0.6 ulp |      17.0 gso/s, 0.5 ulp |      17.0 gso/s, 0.5 ulp |
-| `nk_euclideans_symmetric_f32_serial`       |      3.97 gso/s, 0.6 ulp |      4.16 gso/s, 0.5 ulp |      8.38 gso/s, 0.3 ulp |
-| `nk_angulars_packed_f32_haswell`           |        29.3 gso/s, 0 ulp |        31.6 gso/s, 0 ulp |        31.6 gso/s, 0 ulp |
-| `nk_angulars_symmetric_f32_haswell`        |        21.4 gso/s, 0 ulp |        24.8 gso/s, 0 ulp |          52 gso/s, 0 ulp |
-| `nk_euclideans_packed_f32_haswell`         |      29.7 gso/s, 0.2 ulp |        32 gso/s, 0.2 ulp |      32.9 gso/s, 0.2 ulp |
-| `nk_euclideans_symmetric_f32_haswell`      |      21.8 gso/s, 0.2 ulp |      25.7 gso/s, 0.2 ulp |        53 gso/s, 0.2 ulp |
-| `nk_angulars_packed_f32_skylake`           |        33.3 gso/s, 0 ulp |        39.4 gso/s, 0 ulp |        37.5 gso/s, 0 ulp |
-| `nk_angulars_symmetric_f32_skylake`        |        24.8 gso/s, 0 ulp |        25.5 gso/s, 0 ulp |        61.4 gso/s, 0 ulp |
-| `nk_euclideans_packed_f32_skylake`         |      34.4 gso/s, 0.2 ulp |      40.3 gso/s, 0.2 ulp |      40.3 gso/s, 0.2 ulp |
-| `nk_euclideans_symmetric_f32_skylake`      |      25.1 gso/s, 0.2 ulp |      29.3 gso/s, 0.2 ulp |      65.9 gso/s, 0.2 ulp |
-| __bf16__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_bf16_serial`           |        1.18 gso/s, 0 ulp |        1.21 gso/s, 0 ulp |      1.19 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_bf16_serial`        |        1.19 gso/s, 0 ulp |        1.18 gso/s, 0 ulp |        2.35 gso/s, 0 ulp |
-| `nk_euclideans_packed_bf16_serial`         |      1.20 gso/s, 0.6 ulp |      1.18 gso/s, 0.6 ulp |      1.16 gso/s, 6.0 ulp |
-| `nk_euclideans_symmetric_bf16_serial`      |      1.11 gso/s, 0.6 ulp |      1.14 gso/s, 0.6 ulp |      2.34 gso/s, 0.4 ulp |
-| `nk_angulars_packed_bf16_haswell`          |        54.6 gso/s, 0 ulp |        65.7 gso/s, 0 ulp |      66.1 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_bf16_haswell`       |        38.3 gso/s, 0 ulp |        50.1 gso/s, 0 ulp |         106 gso/s, 0 ulp |
-| `nk_euclideans_packed_bf16_haswell`        |        58 gso/s, 0.2 ulp |      65.7 gso/s, 0.3 ulp |      70.7 gso/s, 5.8 ulp |
-| `nk_euclideans_symmetric_bf16_haswell`     |      38.6 gso/s, 0.2 ulp |      49.8 gso/s, 0.3 ulp |       109 gso/s, 0.3 ulp |
-| `nk_angulars_packed_bf16_skylake`          |        67.8 gso/s, 0 ulp |        87.7 gso/s, 0 ulp |      86.4 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_bf16_skylake`       |        48.8 gso/s, 0 ulp |        58.7 gso/s, 0 ulp |         125 gso/s, 0 ulp |
-| `nk_euclideans_packed_bf16_skylake`        |        64 gso/s, 0.2 ulp |      87.4 gso/s, 0.3 ulp |      90.8 gso/s, 5.8 ulp |
-| `nk_euclideans_symmetric_bf16_skylake`     |      48.8 gso/s, 0.2 ulp |      58.9 gso/s, 0.3 ulp |       121 gso/s, 0.3 ulp |
-| `nk_angulars_packed_bf16_genoa`            |        59.7 gso/s, 0 ulp |        81.9 gso/s, 0 ulp |        87.2 gso/s, 0 ulp |
-| `nk_angulars_symmetric_bf16_genoa`         |        54.9 gso/s, 0 ulp |        61.2 gso/s, 0 ulp |         137 gso/s, 0 ulp |
-| `nk_euclideans_packed_bf16_genoa`          |        63 gso/s, 0.2 ulp |      79.6 gso/s, 0.3 ulp |      87.3 gso/s, 0.3 ulp |
-| `nk_euclideans_symmetric_bf16_genoa`       |      53.4 gso/s, 0.2 ulp |      60.2 gso/s, 0.3 ulp |       130 gso/s, 0.3 ulp |
-| `nk_angulars_packed_bf16_sapphireamx`      |         287 gso/s, 0 ulp |         364 gso/s, 0 ulp |         582 gso/s, 0 ulp |
-| `nk_angulars_symmetric_bf16_sapphireamx`   |        75.7 gso/s, 0 ulp |         114 gso/s, 0 ulp |         116 gso/s, 0 ulp |
-| `nk_euclideans_packed_bf16_sapphireamx`    |       328 gso/s, 0.3 ulp |       573 gso/s, 0.3 ulp |       632 gso/s, 0.3 ulp |
-| `nk_euclideans_symmetric_bf16_sapphireamx` |      76.3 gso/s, 0.3 ulp |       115 gso/s, 0.3 ulp |       123 gso/s, 0.3 ulp |
-| __f16__                                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_f16_serial`            |      7.46 gso/s, 0.1 ulp |      7.97 gso/s, 0.1 ulp |      8.12 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_f16_serial`         |      4.04 gso/s, 0.1 ulp |      4.09 gso/s, 0.1 ulp |      8.13 gso/s, 0.1 ulp |
-| `nk_euclideans_packed_f16_serial`          |      7.69 gso/s, 0.7 ulp |      7.73 gso/s, 1.1 ulp |      8.34 gso/s, 0.6 ulp |
-| `nk_euclideans_symmetric_f16_serial`       |      4.08 gso/s, 0.7 ulp |      4.19 gso/s, 1.1 ulp |      8.23 gso/s, 0.5 ulp |
-| `nk_angulars_packed_f16_haswell`           |        62 gso/s, 0.1 ulp |      74.4 gso/s, 0.1 ulp |      70.6 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_f16_haswell`        |      38.3 gso/s, 0.1 ulp |      54.9 gso/s, 0.1 ulp |       121 gso/s, 0.1 ulp |
-| `nk_euclideans_packed_f16_haswell`         |      62.9 gso/s, 0.4 ulp |      75.2 gso/s, 0.9 ulp |      75.7 gso/s, 0.5 ulp |
-| `nk_euclideans_symmetric_f16_haswell`      |      39.6 gso/s, 0.4 ulp |      54.2 gso/s, 0.9 ulp |       123 gso/s, 0.3 ulp |
-| `nk_angulars_packed_f16_skylake`           |      66.6 gso/s, 0.1 ulp |      85.2 gso/s, 0.1 ulp |        88.3 gso/s, 0 ulp |
-| `nk_angulars_symmetric_f16_skylake`        |      50.1 gso/s, 0.1 ulp |      57.7 gso/s, 0.1 ulp |         126 gso/s, 0 ulp |
-| `nk_euclideans_packed_f16_skylake`         |      69.6 gso/s, 0.4 ulp |      93.3 gso/s, 0.9 ulp |        91 gso/s, 0.5 ulp |
-| `nk_euclideans_symmetric_f16_skylake`      |      49.4 gso/s, 0.4 ulp |      59.8 gso/s, 0.9 ulp |       134 gso/s, 0.3 ulp |
-| __e5m2__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_e5m2_serial`           |       0.587 gso/s, 0 ulp |       0.553 gso/s, 0 ulp |       0.563 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e5m2_serial`        |       0.446 gso/s, 0 ulp |       0.427 gso/s, 0 ulp |       0.847 gso/s, 0 ulp |
-| `nk_euclideans_packed_e5m2_serial`         |     0.576 gso/s, 0.5 ulp |     0.571 gso/s, 0.5 ulp |     0.557 gso/s, 0.2 ulp |
-| `nk_euclideans_symmetric_e5m2_serial`      |     0.424 gso/s, 0.5 ulp |     0.437 gso/s, 0.5 ulp |     0.836 gso/s, 0.2 ulp |
-| `nk_angulars_packed_e5m2_haswell`          |        27.4 gso/s, 0 ulp |        30.4 gso/s, 0 ulp |          31 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e5m2_haswell`       |        15.3 gso/s, 0 ulp |        15.7 gso/s, 0 ulp |        32.3 gso/s, 0 ulp |
-| `nk_euclideans_packed_e5m2_haswell`        |          28 gso/s, 0 ulp |        30.8 gso/s, 0 ulp |        30.6 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e5m2_haswell`     |        15.4 gso/s, 0 ulp |        15.9 gso/s, 0 ulp |          32 gso/s, 0 ulp |
-| `nk_angulars_packed_e5m2_skylake`          |        32.9 gso/s, 0 ulp |        36.7 gso/s, 0 ulp |        40.1 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e5m2_skylake`       |          19 gso/s, 0 ulp |          21 gso/s, 0 ulp |        42.7 gso/s, 0 ulp |
-| `nk_euclideans_packed_e5m2_skylake`        |        34.1 gso/s, 0 ulp |        37.9 gso/s, 0 ulp |        39.6 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e5m2_skylake`     |          20 gso/s, 0 ulp |        18.4 gso/s, 0 ulp |        41.6 gso/s, 0 ulp |
-| `nk_angulars_packed_e5m2_genoa`            |        39.6 gso/s, 0 ulp |        46.8 gso/s, 0 ulp |        47.5 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e5m2_genoa`         |          30 gso/s, 0 ulp |        32.5 gso/s, 0 ulp |        66.3 gso/s, 0 ulp |
-| `nk_euclideans_packed_e5m2_genoa`          |        42.3 gso/s, 0 ulp |        49.1 gso/s, 0 ulp |        51.3 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e5m2_genoa`       |        30.1 gso/s, 0 ulp |        32.8 gso/s, 0 ulp |        64.9 gso/s, 0 ulp |
-| `nk_angulars_packed_e5m2_sapphireamx`      |         216 gso/s, 0 ulp |         355 gso/s, 0 ulp |         427 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e5m2_sapphireamx`   |        48.7 gso/s, 0 ulp |        73.3 gso/s, 0 ulp |        72.3 gso/s, 0 ulp |
-| `nk_euclideans_packed_e5m2_sapphireamx`    |         220 gso/s, 0 ulp |         375 gso/s, 0 ulp |         408 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e5m2_sapphireamx` |        48.3 gso/s, 0 ulp |        73.3 gso/s, 0 ulp |          74 gso/s, 0 ulp |
-| __e4m3__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_e4m3_serial`           |       0.479 gso/s, 0 ulp |       0.473 gso/s, 0 ulp |       0.485 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e4m3_serial`        |       0.395 gso/s, 0 ulp |       0.390 gso/s, 0 ulp |       0.795 gso/s, 0 ulp |
-| `nk_euclideans_packed_e4m3_serial`         |     0.467 gso/s, 0.5 ulp |     0.484 gso/s, 0.5 ulp |     0.480 gso/s, 0.5 ulp |
-| `nk_euclideans_symmetric_e4m3_serial`      |     0.395 gso/s, 0.5 ulp |     0.395 gso/s, 0.5 ulp |     0.781 gso/s, 0.3 ulp |
-| `nk_angulars_packed_e4m3_haswell`          |        20.6 gso/s, 0 ulp |        22.5 gso/s, 0 ulp |        21.8 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e4m3_haswell`       |        12.2 gso/s, 0 ulp |        12.1 gso/s, 0 ulp |        24.7 gso/s, 0 ulp |
-| `nk_euclideans_packed_e4m3_haswell`        |        20.7 gso/s, 0 ulp |        22.4 gso/s, 0 ulp |      23.4 gso/s, 0.2 ulp |
-| `nk_euclideans_symmetric_e4m3_haswell`     |        11.2 gso/s, 0 ulp |        11.9 gso/s, 0 ulp |      24.6 gso/s, 0.1 ulp |
-| `nk_angulars_packed_e4m3_skylake`          |        28.8 gso/s, 0 ulp |        32.8 gso/s, 0 ulp |        31.3 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e4m3_skylake`       |        16.4 gso/s, 0 ulp |        17.4 gso/s, 0 ulp |        35.1 gso/s, 0 ulp |
-| `nk_euclideans_packed_e4m3_skylake`        |        27.8 gso/s, 0 ulp |        31.2 gso/s, 0 ulp |      31.7 gso/s, 0.2 ulp |
-| `nk_euclideans_symmetric_e4m3_skylake`     |        16.1 gso/s, 0 ulp |        16.8 gso/s, 0 ulp |      34.4 gso/s, 0.1 ulp |
-| `nk_angulars_packed_e4m3_genoa`            |        40.8 gso/s, 0 ulp |        48.4 gso/s, 0 ulp |        52.1 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e4m3_genoa`         |        30.3 gso/s, 0 ulp |        31.5 gso/s, 0 ulp |        69.2 gso/s, 0 ulp |
-| `nk_euclideans_packed_e4m3_genoa`          |        43.3 gso/s, 0 ulp |        50.9 gso/s, 0 ulp |      48.8 gso/s, 0.1 ulp |
-| `nk_euclideans_symmetric_e4m3_genoa`       |        29.9 gso/s, 0 ulp |        31.9 gso/s, 0 ulp |      64.6 gso/s, 0.1 ulp |
-| `nk_angulars_packed_e4m3_sapphireamx`      |         212 gso/s, 0 ulp |         325 gso/s, 0 ulp |         418 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e4m3_sapphireamx`   |        50.5 gso/s, 0 ulp |        73.4 gso/s, 0 ulp |          72 gso/s, 0 ulp |
-| `nk_euclideans_packed_e4m3_sapphireamx`    |       216 gso/s, 0.1 ulp |       372 gso/s, 0.1 ulp |       394 gso/s, 0.1 ulp |
-| `nk_euclideans_symmetric_e4m3_sapphireamx` |      49.3 gso/s, 0.1 ulp |      70.1 gso/s, 0.1 ulp |      73.1 gso/s, 0.1 ulp |
-| __e3m2__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_e3m2_serial`           |       0.554 gso/s, 0 ulp |       0.524 gso/s, 0 ulp |       0.534 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e3m2_serial`        |       0.439 gso/s, 0 ulp |       0.427 gso/s, 0 ulp |       0.839 gso/s, 0 ulp |
-| `nk_euclideans_packed_e3m2_serial`         |     0.556 gso/s, 0.5 ulp |     0.549 gso/s, 0.5 ulp |     0.509 gso/s, 0.2 ulp |
-| `nk_euclideans_symmetric_e3m2_serial`      |     0.413 gso/s, 0.5 ulp |     0.427 gso/s, 0.5 ulp |     0.829 gso/s, 0.2 ulp |
-| `nk_angulars_packed_e3m2_haswell`          |        30.3 gso/s, 0 ulp |        32.2 gso/s, 0 ulp |        32.8 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e3m2_haswell`       |        27.1 gso/s, 0 ulp |        32.8 gso/s, 0 ulp |        65.7 gso/s, 0 ulp |
-| `nk_euclideans_packed_e3m2_haswell`        |        30.1 gso/s, 0 ulp |        32.3 gso/s, 0 ulp |        33.5 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e3m2_haswell`     |        28.5 gso/s, 0 ulp |        32.6 gso/s, 0 ulp |        66.1 gso/s, 0 ulp |
-| `nk_angulars_packed_e3m2_skylake`          |        37.4 gso/s, 0 ulp |        41.4 gso/s, 0 ulp |        44.1 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e3m2_skylake`       |          39 gso/s, 0 ulp |        41.9 gso/s, 0 ulp |        87.3 gso/s, 0 ulp |
-| `nk_euclideans_packed_e3m2_skylake`        |        35.7 gso/s, 0 ulp |        41.3 gso/s, 0 ulp |          43 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e3m2_skylake`     |        36.2 gso/s, 0 ulp |        36.4 gso/s, 0 ulp |        87.8 gso/s, 0 ulp |
-| `nk_angulars_packed_e3m2_sapphireamx`      |         238 gso/s, 0 ulp |         420 gso/s, 0 ulp |         431 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e3m2_sapphireamx`   |        60.7 gso/s, 0 ulp |        96.5 gso/s, 0 ulp |        90.9 gso/s, 0 ulp |
-| `nk_euclideans_packed_e3m2_sapphireamx`    |         224 gso/s, 0 ulp |         426 gso/s, 0 ulp |         443 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e3m2_sapphireamx` |        60.8 gso/s, 0 ulp |        99.2 gso/s, 0 ulp |        92.6 gso/s, 0 ulp |
-| __e2m3__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_e2m3_serial`           |       0.332 gso/s, 0 ulp |       0.325 gso/s, 0 ulp |       0.320 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e2m3_serial`        |       0.298 gso/s, 0 ulp |       0.305 gso/s, 0 ulp |       0.568 gso/s, 0 ulp |
-| `nk_euclideans_packed_e2m3_serial`         |     0.324 gso/s, 0.5 ulp |     0.310 gso/s, 0.5 ulp |     0.313 gso/s, 0.2 ulp |
-| `nk_euclideans_symmetric_e2m3_serial`      |     0.293 gso/s, 0.5 ulp |     0.295 gso/s, 0.5 ulp |     0.586 gso/s, 0.2 ulp |
-| `nk_angulars_packed_e2m3_haswell`          |        54.2 gso/s, 0 ulp |          61 gso/s, 0 ulp |        66.2 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e2m3_haswell`       |        48.2 gso/s, 0 ulp |          60 gso/s, 0 ulp |         128 gso/s, 0 ulp |
-| `nk_euclideans_packed_e2m3_haswell`        |        55.9 gso/s, 0 ulp |        63.4 gso/s, 0 ulp |        64.8 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e2m3_haswell`     |        48.6 gso/s, 0 ulp |        62.1 gso/s, 0 ulp |         128 gso/s, 0 ulp |
-| `nk_angulars_packed_e2m3_skylake`          |        65.1 gso/s, 0 ulp |        79.4 gso/s, 0 ulp |        85.4 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e2m3_skylake`       |        61.7 gso/s, 0 ulp |        81.1 gso/s, 0 ulp |         163 gso/s, 0 ulp |
-| `nk_euclideans_packed_e2m3_skylake`        |        65.1 gso/s, 0 ulp |        80.4 gso/s, 0 ulp |        80.8 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e2m3_skylake`     |        60.8 gso/s, 0 ulp |        62.3 gso/s, 0 ulp |         167 gso/s, 0 ulp |
-| `nk_angulars_packed_e2m3_sapphireamx`      |         350 gso/s, 0 ulp |         956 gso/s, 0 ulp |       1,020 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e2m3_sapphireamx`   |        88.4 gso/s, 0 ulp |         203 gso/s, 0 ulp |         188 gso/s, 0 ulp |
-| `nk_euclideans_packed_e2m3_sapphireamx`    |         337 gso/s, 0 ulp |         990 gso/s, 0 ulp |         992 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e2m3_sapphireamx` |        88.7 gso/s, 0 ulp |         193 gso/s, 0 ulp |         201 gso/s, 0 ulp |
-| __i8__                                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_i8_serial`             |        8.84 gso/s, 0 ulp |        9.49 gso/s, 0 ulp |        10.1 gso/s, 0 ulp |
-| `nk_angulars_symmetric_i8_serial`          |        4.40 gso/s, 0 ulp |        4.45 gso/s, 0 ulp |        9.58 gso/s, ? ulp |
-| `nk_euclideans_packed_i8_serial`           |      8.64 gso/s, 0.4 ulp |      9.84 gso/s, 0.4 ulp |      9.94 gso/s, 0.4 ulp |
-| `nk_euclideans_symmetric_i8_serial`        |      4.47 gso/s, 0.4 ulp |      4.64 gso/s, 0.4 ulp |        9.15 gso/s, ? ulp |
-| `nk_angulars_packed_i8_haswell`            |        79.5 gso/s, 0 ulp |         102 gso/s, 0 ulp |         109 gso/s, 0 ulp |
-| `nk_angulars_symmetric_i8_haswell`         |        60.6 gso/s, 0 ulp |        77.4 gso/s, 0 ulp |         168 gso/s, ? ulp |
-| `nk_euclideans_packed_i8_haswell`          |        82.5 gso/s, 0 ulp |         102 gso/s, 0 ulp |         109 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_i8_haswell`       |          62 gso/s, 0 ulp |        76.5 gso/s, 0 ulp |         166 gso/s, ? ulp |
-| `nk_angulars_packed_i8_icelake`            |         155 gso/s, 0 ulp |         206 gso/s, 0 ulp |         402 gso/s, 0 ulp |
-| `nk_angulars_symmetric_i8_icelake`         |         103 gso/s, 0 ulp |         263 gso/s, 0 ulp |         690 gso/s, ? ulp |
-| `nk_euclideans_packed_i8_icelake`          |         169 gso/s, 0 ulp |         313 gso/s, 0 ulp |         393 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_i8_icelake`       |         108 gso/s, 0 ulp |         268 gso/s, 0 ulp |         695 gso/s, ? ulp |
-| `nk_angulars_packed_i8_sapphireamx`        |         427 gso/s, 0 ulp |       1,020 gso/s, 0 ulp |       1,170 gso/s, 0 ulp |
-| `nk_angulars_symmetric_i8_sapphireamx`     |         106 gso/s, 0 ulp |         261 gso/s, 0 ulp |         210 gso/s, 0 ulp |
-| `nk_euclideans_packed_i8_sapphireamx`      |         428 gso/s, 0 ulp |       1,240 gso/s, 0 ulp |       1,170 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_i8_sapphireamx`   |         104 gso/s, 0 ulp |         243 gso/s, 0 ulp |         219 gso/s, 0 ulp |
-| __u8__                                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_u8_serial`             |      12.2 gso/s, 0.3 ulp |      12.8 gso/s, 0.3 ulp |      13.0 gso/s, 0.3 ulp |
-| `nk_angulars_symmetric_u8_serial`          |      4.48 gso/s, 0.3 ulp |      4.73 gso/s, 0.3 ulp |        9.50 gso/s, ? ulp |
-| `nk_euclideans_packed_u8_serial`           |      12.0 gso/s, 0.5 ulp |      13.1 gso/s, 0.5 ulp |      13.4 gso/s, 0.6 ulp |
-| `nk_euclideans_symmetric_u8_serial`        |      4.52 gso/s, 0.5 ulp |      4.69 gso/s, 0.5 ulp |        9.65 gso/s, ? ulp |
-| `nk_angulars_packed_u8_haswell`            |      54.6 gso/s, 0.3 ulp |      87.8 gso/s, 0.3 ulp |       104 gso/s, 0.3 ulp |
-| `nk_angulars_symmetric_u8_haswell`         |      44.6 gso/s, 0.3 ulp |      70.2 gso/s, 0.3 ulp |         161 gso/s, ? ulp |
-| `nk_euclideans_packed_u8_haswell`          |      55.5 gso/s, 0.5 ulp |      87.7 gso/s, 0.5 ulp |       105 gso/s, 0.6 ulp |
-| `nk_euclideans_symmetric_u8_haswell`       |      45.3 gso/s, 0.5 ulp |      68.4 gso/s, 0.5 ulp |         159 gso/s, ? ulp |
-| `nk_angulars_packed_u8_icelake`            |       154 gso/s, 0.3 ulp |       301 gso/s, 0.3 ulp |       404 gso/s, 0.3 ulp |
-| `nk_angulars_symmetric_u8_icelake`         |       108 gso/s, 0.3 ulp |       267 gso/s, 0.3 ulp |         699 gso/s, ? ulp |
-| `nk_euclideans_packed_u8_icelake`          |         168 gso/s, 0 ulp |         300 gso/s, 0 ulp |         402 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_u8_icelake`       |         109 gso/s, 0 ulp |         253 gso/s, 0 ulp |         695 gso/s, ? ulp |
-| `nk_angulars_packed_u8_sapphireamx`        |       444 gso/s, 0.2 ulp |     1,210 gso/s, 0.2 ulp |     1,220 gso/s, 0.2 ulp |
-| `nk_angulars_symmetric_u8_sapphireamx`     |       103 gso/s, 0.2 ulp |       257 gso/s, 0.2 ulp |       227 gso/s, 0.2 ulp |
-| `nk_euclideans_packed_u8_sapphireamx`      |         432 gso/s, 0 ulp |       1,240 gso/s, 0 ulp |       1,200 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_u8_sapphireamx`   |         102 gso/s, 0 ulp |         256 gso/s, 0 ulp |         220 gso/s, 0 ulp |
-| __i4__                                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_i4_serial`             |        3.79 gso/s, ? ulp |        3.83 gso/s, ? ulp |        4.06 gso/s, ? ulp |
-| `nk_angulars_symmetric_i4_serial`          |        3.52 gso/s, ? ulp |        3.58 gso/s, ? ulp |        7.08 gso/s, ? ulp |
-| `nk_euclideans_packed_i4_serial`           |        3.69 gso/s, ? ulp |        3.91 gso/s, ? ulp |        3.76 gso/s, ? ulp |
-| `nk_euclideans_symmetric_i4_serial`        |        3.45 gso/s, ? ulp |        3.64 gso/s, ? ulp |        6.99 gso/s, ? ulp |
-| `nk_angulars_packed_i4_icelake`            |         117 gso/s, ? ulp |         208 gso/s, ? ulp |         249 gso/s, ? ulp |
-| `nk_angulars_symmetric_i4_icelake`         |         103 gso/s, ? ulp |         233 gso/s, ? ulp |         561 gso/s, ? ulp |
-| `nk_euclideans_packed_i4_icelake`          |         121 gso/s, ? ulp |         173 gso/s, ? ulp |         246 gso/s, ? ulp |
-| `nk_euclideans_symmetric_i4_icelake`       |         101 gso/s, ? ulp |         228 gso/s, ? ulp |         572 gso/s, ? ulp |
-| __u4__                                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_u4_serial`             |        5.49 gso/s, ? ulp |        5.60 gso/s, ? ulp |        5.78 gso/s, ? ulp |
-| `nk_angulars_symmetric_u4_serial`          |        5.18 gso/s, ? ulp |        5.57 gso/s, ? ulp |        11.5 gso/s, ? ulp |
-| `nk_euclideans_packed_u4_serial`           |        5.23 gso/s, ? ulp |        5.50 gso/s, ? ulp |        5.64 gso/s, ? ulp |
-| `nk_euclideans_symmetric_u4_serial`        |        5.22 gso/s, ? ulp |        5.47 gso/s, ? ulp |        11.1 gso/s, ? ulp |
-| `nk_angulars_packed_u4_icelake`            |         153 gso/s, ? ulp |         270 gso/s, ? ulp |         381 gso/s, ? ulp |
-| `nk_angulars_symmetric_u4_icelake`         |         122 gso/s, ? ulp |         264 gso/s, ? ulp |         658 gso/s, ? ulp |
-| `nk_euclideans_packed_u4_icelake`          |         158 gso/s, ? ulp |         285 gso/s, ? ulp |         385 gso/s, ? ulp |
-| `nk_euclideans_symmetric_u4_icelake`       |         120 gso/s, ? ulp |         279 gso/s, ? ulp |         624 gso/s, ? ulp |
+| Kernel                                          |                     256³ |                    1024³ |                    4096³ |
+| :---------------------------------------------- | -----------------------: | -----------------------: | -----------------------: |
+| __f64__                                         | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_f64_serial`                 |       0.470 gso/s, 0 ulp |       0.478 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_f64_serial`              |       0.454 gso/s, 0 ulp |       0.381 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_f64_serial`               |     0.474 gso/s, 0.4 ulp |     0.407 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_f64_serial`            |     0.455 gso/s, 0.4 ulp |     0.279 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_f64_haswell`                |        5.47 gso/s, 0 ulp |        5.97 gso/s, 0 ulp |        6.08 gso/s, 0 ulp |
+| `nk_angulars_symmetric_f64_haswell`             |        5.14 gso/s, 0 ulp |        5.49 gso/s, 0 ulp |        5.52 gso/s, 0 ulp |
+| `nk_euclideans_packed_f64_haswell`              |      5.52 gso/s, 0.1 ulp |      6.01 gso/s, 0.1 ulp |      6.03 gso/s, 0.1 ulp |
+| `nk_euclideans_symmetric_f64_haswell`           |      5.17 gso/s, 0.2 ulp |      5.53 gso/s, 0.1 ulp |      5.50 gso/s, 0.1 ulp |
+| `nk_angulars_packed_f64_skylake`                |        6.99 gso/s, 0 ulp |        8.30 gso/s, 0 ulp |        8.74 gso/s, 0 ulp |
+| `nk_angulars_symmetric_f64_skylake`             |        6.57 gso/s, 0 ulp |        7.63 gso/s, 0 ulp |        7.61 gso/s, 0 ulp |
+| `nk_euclideans_packed_f64_skylake`              |      7.10 gso/s, 0.1 ulp |      8.32 gso/s, 0.1 ulp |      8.90 gso/s, 0.1 ulp |
+| `nk_euclideans_symmetric_f64_skylake`           |      6.63 gso/s, 0.1 ulp |      7.61 gso/s, 0.1 ulp |      8.12 gso/s, 0.1 ulp |
+| __f32__                                         | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_f32_serial`                 |        4.66 gso/s, 0 ulp |        5.06 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_f32_serial`              |        3.49 gso/s, 0 ulp |        3.86 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_f32_serial`               |      4.39 gso/s, 0.4 ulp |      5.06 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_f32_serial`            |      3.51 gso/s, 0.4 ulp |      3.86 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_f32_haswell`                |        23.8 gso/s, 0 ulp |      27.2 gso/s, 0.1 ulp |      28.9 gso/s, 0.3 ulp |
+| `nk_angulars_symmetric_f32_haswell`             |        17.5 gso/s, 0 ulp |      20.1 gso/s, 0.1 ulp |      14.8 gso/s, 0.3 ulp |
+| `nk_euclideans_packed_f32_haswell`              |      24.5 gso/s, 0.1 ulp |      27.7 gso/s, 0.9 ulp |      27.9 gso/s, 8.6 ulp |
+| `nk_euclideans_symmetric_f32_haswell`           |      18.3 gso/s, 0.1 ulp |      20.6 gso/s, 0.9 ulp |      20.4 gso/s, 8.6 ulp |
+| `nk_angulars_packed_f32_skylake`                |        30.2 gso/s, 0 ulp |        37.9 gso/s, 0 ulp |      38.3 gso/s, 0.1 ulp |
+| `nk_angulars_symmetric_f32_skylake`             |        25.8 gso/s, 0 ulp |        31.4 gso/s, 0 ulp |      34.0 gso/s, 0.1 ulp |
+| `nk_euclideans_packed_f32_skylake`              |      31.5 gso/s, 0.1 ulp |      39.5 gso/s, 0.1 ulp |      39.8 gso/s, 1.9 ulp |
+| `nk_euclideans_symmetric_f32_skylake`           |      26.7 gso/s, 0.1 ulp |      32.2 gso/s, 0.1 ulp |      37.0 gso/s, 1.9 ulp |
+| __bf16__                                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_bf16_serial`                |      5.27 gso/s, 0.1 ulp |        5.64 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_bf16_serial`             |        4.45 gso/s, 0 ulp |        5.30 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_bf16_serial`              |      5.06 gso/s, 0.5 ulp |      5.57 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_bf16_serial`           |      4.52 gso/s, 0.5 ulp |      5.32 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_bf16_haswell`               |      46.4 gso/s, 0.1 ulp |        53.4 gso/s, 0 ulp |      60.4 gso/s, 0.1 ulp |
+| `nk_angulars_symmetric_bf16_haswell`            |      39.5 gso/s, 0.1 ulp |        50.1 gso/s, 0 ulp |      37.4 gso/s, 0.1 ulp |
+| `nk_euclideans_packed_bf16_haswell`             |      49.3 gso/s, 0.3 ulp |      56.1 gso/s, 0.4 ulp |      49.7 gso/s, 2.6 ulp |
+| `nk_euclideans_symmetric_bf16_haswell`          |      41.7 gso/s, 0.3 ulp |      51.6 gso/s, 0.4 ulp |      54.2 gso/s, 2.6 ulp |
+| `nk_angulars_packed_bf16_skylake`               |      66.1 gso/s, 0.1 ulp |        92.8 gso/s, 0 ulp |         102 gso/s, 0 ulp |
+| `nk_angulars_symmetric_bf16_skylake`            |      60.5 gso/s, 0.1 ulp |        84.5 gso/s, 0 ulp |        89.7 gso/s, 0 ulp |
+| `nk_euclideans_packed_bf16_skylake`             |      72.8 gso/s, 0.2 ulp |      99.8 gso/s, 0.3 ulp |       105 gso/s, 1.4 ulp |
+| `nk_euclideans_symmetric_bf16_skylake`          |      64.9 gso/s, 0.3 ulp |      87.2 gso/s, 0.3 ulp |      97.3 gso/s, 1.4 ulp |
+| `nk_angulars_packed_bf16_genoa`                 |      56.5 gso/s, 0.1 ulp |        74.3 gso/s, 0 ulp |        83.5 gso/s, 0 ulp |
+| `nk_angulars_symmetric_bf16_genoa`              |      53.3 gso/s, 0.1 ulp |        67.6 gso/s, 0 ulp |        72.4 gso/s, 0 ulp |
+| `nk_euclideans_packed_bf16_genoa`               |      61.0 gso/s, 0.2 ulp |      79.3 gso/s, 0.3 ulp |      70.2 gso/s, 1.4 ulp |
+| `nk_euclideans_symmetric_bf16_genoa`            |      56.0 gso/s, 0.3 ulp |      69.4 gso/s, 0.3 ulp |      69.2 gso/s, 1.4 ulp |
+| `nk_angulars_packed_bf16_sapphireamx`           |       282 gso/s, 0.1 ulp |         486 gso/s, 0 ulp |       457 gso/s, 0.1 ulp |
+| `nk_angulars_symmetric_bf16_sapphireamx`        |         104 gso/s, 0 ulp |        10.8 gso/s, 0 ulp |       147 gso/s, 0.1 ulp |
+| `nk_euclideans_packed_bf16_sapphireamx`         |       283 gso/s, 0.2 ulp |       392 gso/s, 0.3 ulp |       675 gso/s, 1.4 ulp |
+| `nk_euclideans_symmetric_bf16_sapphireamx`      |       105 gso/s, 0.3 ulp |       117 gso/s, 0.3 ulp |       208 gso/s, 1.4 ulp |
+| __f16__                                         | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_f16_serial`                 |      2.48 gso/s, 0.1 ulp |      2.59 gso/s, 0.1 ulp |                        ⋯ |
+| `nk_angulars_symmetric_f16_serial`              |     0.643 gso/s, 0.1 ulp |     0.709 gso/s, 0.1 ulp |                        ⋯ |
+| `nk_euclideans_packed_f16_serial`               |      2.50 gso/s, 0.5 ulp |      2.57 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_f16_serial`            |     0.687 gso/s, 0.5 ulp |     0.717 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_f16_haswell`                |      44.7 gso/s, 0.1 ulp |      50.7 gso/s, 0.1 ulp |      52.1 gso/s, 0.1 ulp |
+| `nk_angulars_symmetric_f16_haswell`             |      37.3 gso/s, 0.1 ulp |      47.4 gso/s, 0.1 ulp |      34.4 gso/s, 0.1 ulp |
+| `nk_euclideans_packed_f16_haswell`              |      46.8 gso/s, 0.4 ulp |      52.3 gso/s, 0.4 ulp |      50.4 gso/s, 1.7 ulp |
+| `nk_euclideans_symmetric_f16_haswell`           |      38.5 gso/s, 0.3 ulp |      48.7 gso/s, 0.3 ulp |      50.8 gso/s, 1.7 ulp |
+| `nk_angulars_packed_f16_skylake`                |      63.1 gso/s, 0.1 ulp |      89.0 gso/s, 0.1 ulp |        88.2 gso/s, 0 ulp |
+| `nk_angulars_symmetric_f16_skylake`             |      46.1 gso/s, 0.1 ulp |      58.4 gso/s, 0.1 ulp |        70.4 gso/s, 0 ulp |
+| `nk_euclideans_packed_f16_skylake`              |      69.1 gso/s, 0.3 ulp |      95.7 gso/s, 0.5 ulp |      90.9 gso/s, 0.3 ulp |
+| `nk_euclideans_symmetric_f16_skylake`           |      49.0 gso/s, 0.3 ulp |      60.6 gso/s, 0.5 ulp |      74.8 gso/s, 0.3 ulp |
+| `nk_angulars_packed_f16_graniteamx`             |       239 gso/s, 0.1 ulp |       337 gso/s, 0.1 ulp |         341 gso/s, 0 ulp |
+| `nk_angulars_symmetric_f16_graniteamx`          |      93.0 gso/s, 0.1 ulp |       120 gso/s, 0.1 ulp |         118 gso/s, 0 ulp |
+| `nk_euclideans_packed_f16_graniteamx`           |       296 gso/s, 0.3 ulp |       346 gso/s, 0.5 ulp |       341 gso/s, 0.3 ulp |
+| `nk_euclideans_symmetric_f16_graniteamx`        |       106 gso/s, 0.3 ulp |       126 gso/s, 0.5 ulp |       121 gso/s, 0.3 ulp |
+| __e5m2__                                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_e5m2_serial`                |        1.46 gso/s, 0 ulp |        1.49 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_e5m2_serial`             |        1.25 gso/s, 0 ulp |        1.15 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_e5m2_serial`              |      1.46 gso/s, 0.4 ulp |      1.18 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_e5m2_serial`           |      1.25 gso/s, 0.5 ulp |      1.29 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_e5m2_haswell`               |        33.2 gso/s, 0 ulp |        37.0 gso/s, 0 ulp |        39.2 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e5m2_haswell`            |        31.4 gso/s, 0 ulp |        39.0 gso/s, 0 ulp |        35.8 gso/s, 0 ulp |
+| `nk_euclideans_packed_e5m2_haswell`             |      34.4 gso/s, 0.2 ulp |      38.6 gso/s, 0.2 ulp |      39.3 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e5m2_haswell`          |      33.0 gso/s, 0.2 ulp |      38.9 gso/s, 0.2 ulp |      40.6 gso/s, 0.2 ulp |
+| `nk_angulars_packed_e5m2_skylake`               |        40.9 gso/s, 0 ulp |        49.0 gso/s, 0 ulp |        51.9 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e5m2_skylake`            |        41.1 gso/s, 0 ulp |        51.1 gso/s, 0 ulp |        55.2 gso/s, 0 ulp |
+| `nk_euclideans_packed_e5m2_skylake`             |      42.6 gso/s, 0.2 ulp |      51.8 gso/s, 0.2 ulp |      52.9 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e5m2_skylake`          |      43.2 gso/s, 0.2 ulp |      52.1 gso/s, 0.2 ulp |      54.6 gso/s, 0.2 ulp |
+| `nk_angulars_packed_e5m2_genoa`                 |        33.5 gso/s, 0 ulp |        39.0 gso/s, 0 ulp |        42.2 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e5m2_genoa`              |        24.8 gso/s, 0 ulp |        28.0 gso/s, 0 ulp |        25.7 gso/s, 0 ulp |
+| `nk_euclideans_packed_e5m2_genoa`               |      35.2 gso/s, 0.2 ulp |      40.2 gso/s, 0.2 ulp |      36.6 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e5m2_genoa`            |      25.3 gso/s, 0.2 ulp |      28.5 gso/s, 0.2 ulp |      24.2 gso/s, 0.2 ulp |
+| `nk_angulars_packed_e5m2_sapphireamx`           |         164 gso/s, 0 ulp |         290 gso/s, 0 ulp |         246 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e5m2_sapphireamx`        |        75.1 gso/s, 0 ulp |        12.2 gso/s, 0 ulp |        75.8 gso/s, 0 ulp |
+| `nk_euclideans_packed_e5m2_sapphireamx`         |       161 gso/s, 0.2 ulp |       223 gso/s, 0.2 ulp |       340 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e5m2_sapphireamx`      |      76.0 gso/s, 0.2 ulp |      77.8 gso/s, 0.2 ulp |       112 gso/s, 0.2 ulp |
+| `nk_angulars_packed_e5m2_graniteamx`            |         188 gso/s, 0 ulp |         301 gso/s, 0 ulp |         289 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e5m2_graniteamx`         |         102 gso/s, 0 ulp |         134 gso/s, 0 ulp |         124 gso/s, 0 ulp |
+| `nk_euclideans_packed_e5m2_graniteamx`          |       227 gso/s, 0.2 ulp |       313 gso/s, 0.2 ulp |       329 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e5m2_graniteamx`       |       103 gso/s, 0.2 ulp |       136 gso/s, 0.2 ulp |       144 gso/s, 0.2 ulp |
+| __e4m3__                                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_e4m3_serial`                |       0.441 gso/s, 0 ulp |       0.449 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_e4m3_serial`             |     0.427 gso/s, 0.1 ulp |       0.446 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_e4m3_serial`              |     0.448 gso/s, 0.5 ulp |     0.450 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_e4m3_serial`           |     0.440 gso/s, 0.5 ulp |     0.446 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_e4m3_haswell`               |      15.3 gso/s, 0.1 ulp |        16.0 gso/s, 0 ulp |        16.3 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e4m3_haswell`            |        14.8 gso/s, 0 ulp |        16.0 gso/s, 0 ulp |        16.2 gso/s, 0 ulp |
+| `nk_euclideans_packed_e4m3_haswell`             |      15.5 gso/s, 0.2 ulp |      16.2 gso/s, 0.2 ulp |      16.5 gso/s, 0.3 ulp |
+| `nk_euclideans_symmetric_e4m3_haswell`          |      15.1 gso/s, 0.2 ulp |      16.1 gso/s, 0.2 ulp |      14.0 gso/s, 0.3 ulp |
+| `nk_angulars_packed_e4m3_skylake`               |      33.8 gso/s, 0.1 ulp |        38.6 gso/s, 0 ulp |        41.3 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e4m3_skylake`            |        23.5 gso/s, 0 ulp |        26.6 gso/s, 0 ulp |        27.3 gso/s, 0 ulp |
+| `nk_euclideans_packed_e4m3_skylake`             |      35.5 gso/s, 0.2 ulp |      40.4 gso/s, 0.2 ulp |      42.1 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e4m3_skylake`          |      24.0 gso/s, 0.2 ulp |      26.8 gso/s, 0.2 ulp |      27.6 gso/s, 0.2 ulp |
+| `nk_angulars_packed_e4m3_genoa`                 |        34.9 gso/s, 0 ulp |        39.8 gso/s, 0 ulp |        43.4 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e4m3_genoa`              |        25.9 gso/s, 0 ulp |        29.1 gso/s, 0 ulp |        30.1 gso/s, 0 ulp |
+| `nk_euclideans_packed_e4m3_genoa`               |      36.5 gso/s, 0.2 ulp |      41.4 gso/s, 0.2 ulp |      37.8 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e4m3_genoa`            |      26.4 gso/s, 0.2 ulp |      29.5 gso/s, 0.2 ulp |      25.3 gso/s, 0.2 ulp |
+| `nk_angulars_packed_e4m3_sapphireamx`           |         164 gso/s, 0 ulp |         290 gso/s, 0 ulp |         248 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e4m3_sapphireamx`        |        74.0 gso/s, 0 ulp |        16.1 gso/s, 0 ulp |         116 gso/s, 0 ulp |
+| `nk_euclideans_packed_e4m3_sapphireamx`         |       159 gso/s, 0.2 ulp |       227 gso/s, 0.2 ulp |       337 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e4m3_sapphireamx`      |      74.8 gso/s, 0.2 ulp |      80.0 gso/s, 0.2 ulp |       117 gso/s, 0.2 ulp |
+| __e3m2__                                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_e3m2_serial`                |        1.38 gso/s, 0 ulp |        1.44 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_e3m2_serial`             |       0.854 gso/s, 0 ulp |       0.925 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_e3m2_serial`              |      1.42 gso/s, 0.4 ulp |      1.45 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_e3m2_serial`           |     0.861 gso/s, 0.4 ulp |     0.872 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_e3m2_haswell`               |        21.9 gso/s, 0 ulp |        23.9 gso/s, 0 ulp |        23.9 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e3m2_haswell`            |        21.9 gso/s, 0 ulp |        25.9 gso/s, 0 ulp |        26.3 gso/s, 0 ulp |
+| `nk_euclideans_packed_e3m2_haswell`             |        22.7 gso/s, 0 ulp |      24.6 gso/s, 0.1 ulp |      25.9 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e3m2_haswell`          |        22.0 gso/s, 0 ulp |      25.7 gso/s, 0.2 ulp |      26.1 gso/s, 0.2 ulp |
+| `nk_angulars_packed_e3m2_skylake`               |        34.3 gso/s, 0 ulp |        39.7 gso/s, 0 ulp |        42.9 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e3m2_skylake`            |        32.3 gso/s, 0 ulp |        41.0 gso/s, 0 ulp |        43.4 gso/s, 0 ulp |
+| `nk_euclideans_packed_e3m2_skylake`             |        36.2 gso/s, 0 ulp |      41.7 gso/s, 0.1 ulp |      43.6 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e3m2_skylake`          |        33.2 gso/s, 0 ulp |      41.7 gso/s, 0.2 ulp |      42.9 gso/s, 0.2 ulp |
+| `nk_angulars_packed_e3m2_sapphireamx`           |         179 gso/s, 0 ulp |         360 gso/s, 0 ulp |         307 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e3m2_sapphireamx`        |        91.6 gso/s, 0 ulp |        53.1 gso/s, 0 ulp |         167 gso/s, 0 ulp |
+| `nk_euclideans_packed_e3m2_sapphireamx`         |         176 gso/s, 0 ulp |       234 gso/s, 0.1 ulp |       379 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e3m2_sapphireamx`      |        93.5 gso/s, 0 ulp |      77.9 gso/s, 0.2 ulp |       167 gso/s, 0.2 ulp |
+| __e2m3__                                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_e2m3_serial`                |        1.40 gso/s, 0 ulp |        1.45 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_e2m3_serial`             |       0.846 gso/s, 0 ulp |       0.934 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_e2m3_serial`              |      1.41 gso/s, 0.5 ulp |      1.44 gso/s, 0.5 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_e2m3_serial`           |     0.861 gso/s, 0.6 ulp |     0.877 gso/s, 0.6 ulp |                        ⋯ |
+| `nk_angulars_packed_e2m3_haswell`               |        33.1 gso/s, 0 ulp |        35.9 gso/s, 0 ulp |        34.7 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m3_haswell`            |        31.1 gso/s, 0 ulp |        37.1 gso/s, 0 ulp |        39.4 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m3_haswell`             |        34.3 gso/s, 0 ulp |        36.6 gso/s, 0 ulp |        38.7 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m3_haswell`          |        32.1 gso/s, 0 ulp |        38.7 gso/s, 0 ulp |        39.8 gso/s, 0 ulp |
+| `nk_angulars_packed_e2m3_skylake`               |        55.0 gso/s, 0 ulp |        64.1 gso/s, 0 ulp |        71.1 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m3_skylake`            |        52.7 gso/s, 0 ulp |        73.5 gso/s, 0 ulp |        79.2 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m3_skylake`             |        59.3 gso/s, 0 ulp |        67.4 gso/s, 0 ulp |        73.3 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m3_skylake`          |        56.2 gso/s, 0 ulp |        74.7 gso/s, 0 ulp |        80.2 gso/s, 0 ulp |
+| `nk_angulars_packed_e2m3_sapphireamx`           |         224 gso/s, 0 ulp |         683 gso/s, 0 ulp |         598 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m3_sapphireamx`        |         124 gso/s, 0 ulp |         147 gso/s, 0 ulp |         314 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m3_sapphireamx`         |         221 gso/s, 0 ulp |         538 gso/s, 0 ulp |         791 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m3_sapphireamx`      |         129 gso/s, 0 ulp |         170 gso/s, 0 ulp |         323 gso/s, 0 ulp |
+| `nk_angulars_packed_e2m3_alder`                 |        39.1 gso/s, 0 ulp |        43.0 gso/s, 0 ulp |        46.5 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m3_alder`              |        33.7 gso/s, 0 ulp |        41.5 gso/s, 0 ulp |        35.1 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m3_alder`               |        41.5 gso/s, 0 ulp |        44.3 gso/s, 0 ulp |        36.8 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m3_alder`            |        34.6 gso/s, 0 ulp |        42.3 gso/s, 0 ulp |        35.1 gso/s, 0 ulp |
+| __i8__                                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_i8_serial`                  |        4.39 gso/s, 0 ulp |        3.86 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_i8_serial`               |        4.16 gso/s, 0 ulp |        4.05 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_i8_serial`                |        4.60 gso/s, 0 ulp |        4.77 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_i8_serial`             |        4.26 gso/s, 0 ulp |        4.57 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_packed_i8_haswell`                 |      48.2 gso/s, 0.2 ulp |      58.0 gso/s, 0.2 ulp |      60.1 gso/s, 0.3 ulp |
+| `nk_angulars_symmetric_i8_haswell`              |      47.4 gso/s, 0.2 ulp |      62.7 gso/s, 0.2 ulp |      69.2 gso/s, 0.3 ulp |
+| `nk_euclideans_packed_i8_haswell`               |        53.1 gso/s, 0 ulp |        60.5 gso/s, 0 ulp |      66.0 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_i8_haswell`            |        52.1 gso/s, 0 ulp |        64.2 gso/s, 0 ulp |      69.7 gso/s, 0.2 ulp |
+| `nk_angulars_packed_i8_icelake`                 |       115 gso/s, 0.2 ulp |       200 gso/s, 0.2 ulp |       255 gso/s, 0.3 ulp |
+| `nk_angulars_symmetric_i8_icelake`              |      85.5 gso/s, 0.2 ulp |       216 gso/s, 0.2 ulp |       294 gso/s, 0.3 ulp |
+| `nk_euclideans_packed_i8_icelake`               |         146 gso/s, 0 ulp |         224 gso/s, 0 ulp |       289 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_i8_icelake`            |        98.1 gso/s, 0 ulp |         241 gso/s, 0 ulp |       307 gso/s, 0.2 ulp |
+| `nk_angulars_packed_i8_sapphireamx`             |       323 gso/s, 0.2 ulp |       597 gso/s, 0.2 ulp |       868 gso/s, 0.3 ulp |
+| `nk_angulars_symmetric_i8_sapphireamx`          |       146 gso/s, 0.2 ulp |       180 gso/s, 0.2 ulp |       372 gso/s, 0.3 ulp |
+| `nk_euclideans_packed_i8_sapphireamx`           |         367 gso/s, 0 ulp |         510 gso/s, 0 ulp |     1,218 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_i8_sapphireamx`        |         136 gso/s, 0 ulp |         212 gso/s, 0 ulp |       229 gso/s, 0.2 ulp |
+| `nk_angulars_packed_i8_alder`                   |      86.0 gso/s, 0.2 ulp |       111 gso/s, 0.2 ulp |       114 gso/s, 0.3 ulp |
+| `nk_angulars_symmetric_i8_alder`                |      66.3 gso/s, 0.2 ulp |       128 gso/s, 0.2 ulp |       127 gso/s, 0.3 ulp |
+| `nk_euclideans_packed_i8_alder`                 |         104 gso/s, 0 ulp |         121 gso/s, 0 ulp |       117 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_i8_alder`              |        75.2 gso/s, 0 ulp |         136 gso/s, 0 ulp |       132 gso/s, 0.2 ulp |
+| __u8__                                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_u8_serial`                  |        4.54 gso/s, 0 ulp |        3.85 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_u8_serial`               |        4.11 gso/s, 0 ulp |        4.43 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_u8_serial`                |        4.60 gso/s, 0 ulp |        4.86 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_u8_serial`             |        4.18 gso/s, 0 ulp |        4.54 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_packed_u8_haswell`                 |      49.3 gso/s, 0.4 ulp |      58.7 gso/s, 0.4 ulp |      65.1 gso/s, 0.4 ulp |
+| `nk_angulars_symmetric_u8_haswell`              |      47.7 gso/s, 0.4 ulp |      62.6 gso/s, 0.4 ulp |      69.3 gso/s, 0.4 ulp |
+| `nk_euclideans_packed_u8_haswell`               |        53.1 gso/s, 0 ulp |        60.6 gso/s, 0 ulp |      65.6 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_u8_haswell`            |        51.8 gso/s, 0 ulp |        63.9 gso/s, 0 ulp |      69.4 gso/s, 0.2 ulp |
+| `nk_angulars_packed_u8_icelake`                 |       121 gso/s, 0.4 ulp |       201 gso/s, 0.4 ulp |       267 gso/s, 0.4 ulp |
+| `nk_angulars_symmetric_u8_icelake`              |      89.5 gso/s, 0.4 ulp |       224 gso/s, 0.4 ulp |       301 gso/s, 0.4 ulp |
+| `nk_euclideans_packed_u8_icelake`               |         143 gso/s, 0 ulp |         223 gso/s, 0 ulp |       285 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_u8_icelake`            |        99.6 gso/s, 0 ulp |         236 gso/s, 0 ulp |       305 gso/s, 0.2 ulp |
+| `nk_angulars_packed_u8_sapphireamx`             |       338 gso/s, 0.4 ulp |       296 gso/s, 0.4 ulp |       846 gso/s, 0.4 ulp |
+| `nk_angulars_symmetric_u8_sapphireamx`          |       144 gso/s, 0.4 ulp |       189 gso/s, 0.4 ulp |       376 gso/s, 0.4 ulp |
+| `nk_euclideans_packed_u8_sapphireamx`           |         369 gso/s, 0 ulp |         509 gso/s, 0 ulp |     1,239 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_u8_sapphireamx`        |         136 gso/s, 0 ulp |         225 gso/s, 0 ulp |       229 gso/s, 0.2 ulp |
+| `nk_angulars_packed_u8_alder`                   |      86.1 gso/s, 0.4 ulp |       113 gso/s, 0.4 ulp |       115 gso/s, 0.4 ulp |
+| `nk_angulars_symmetric_u8_alder`                |      68.1 gso/s, 0.4 ulp |       130 gso/s, 0.4 ulp |       132 gso/s, 0.4 ulp |
+| `nk_euclideans_packed_u8_alder`                 |        97.7 gso/s, 0 ulp |         122 gso/s, 0 ulp |       117 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_u8_alder`              |        73.6 gso/s, 0 ulp |         136 gso/s, 0 ulp |       132 gso/s, 0.2 ulp |
+| __i4__                                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_i4_serial`                  |        1.22 gso/s, 0 ulp |        1.22 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_i4_serial`               |        1.41 gso/s, 0 ulp |        1.44 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_i4_serial`                |        1.23 gso/s, 0 ulp |        1.23 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_i4_serial`             |        1.40 gso/s, 0 ulp |        1.45 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_packed_i4_icelake`                 |      12.0 gso/s, 0.3 ulp |      12.7 gso/s, 0.3 ulp |      13.1 gso/s, 0.3 ulp |
+| `nk_angulars_symmetric_i4_icelake`              |      81.4 gso/s, 0.3 ulp |       180 gso/s, 0.3 ulp |       238 gso/s, 0.3 ulp |
+| `nk_euclideans_packed_i4_icelake`               |        12.2 gso/s, 0 ulp |        12.9 gso/s, 0 ulp |        13.2 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_i4_icelake`            |        93.9 gso/s, 0 ulp |         201 gso/s, 0 ulp |         244 gso/s, 0 ulp |
+| `nk_angulars_packed_i4_haswell`                 |      11.4 gso/s, 0.3 ulp |      11.7 gso/s, 0.3 ulp |      10.7 gso/s, 0.3 ulp |
+| `nk_angulars_symmetric_i4_haswell`              |      27.3 gso/s, 0.3 ulp |      32.5 gso/s, 0.3 ulp |      33.4 gso/s, 0.3 ulp |
+| `nk_euclideans_packed_i4_haswell`               |        11.6 gso/s, 0 ulp |        11.9 gso/s, 0 ulp |        12.3 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_i4_haswell`            |        27.7 gso/s, 0 ulp |        33.0 gso/s, 0 ulp |        33.7 gso/s, 0 ulp |
+| __u4__                                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_u4_serial`                  |        1.91 gso/s, 0 ulp |        1.92 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_u4_serial`               |        3.02 gso/s, 0 ulp |        2.60 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_u4_serial`                |        1.94 gso/s, 0 ulp |        1.97 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_u4_serial`             |        3.02 gso/s, 0 ulp |        3.18 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_packed_u4_icelake`                 |       115 gso/s, 0.4 ulp |       209 gso/s, 0.3 ulp |       289 gso/s, 0.3 ulp |
+| `nk_angulars_symmetric_u4_icelake`              |       108 gso/s, 0.3 ulp |       237 gso/s, 0.3 ulp |       317 gso/s, 0.3 ulp |
+| `nk_euclideans_packed_u4_icelake`               |         134 gso/s, 0 ulp |         230 gso/s, 0 ulp |         308 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_u4_icelake`            |         123 gso/s, 0 ulp |         260 gso/s, 0 ulp |         323 gso/s, 0 ulp |
+| `nk_angulars_packed_u4_haswell`                 |      58.3 gso/s, 0.4 ulp |      70.2 gso/s, 0.3 ulp |      77.4 gso/s, 0.3 ulp |
+| `nk_angulars_symmetric_u4_haswell`              |      51.0 gso/s, 0.3 ulp |      70.0 gso/s, 0.3 ulp |      74.7 gso/s, 0.3 ulp |
+| `nk_euclideans_packed_u4_haswell`               |        63.5 gso/s, 0 ulp |        73.1 gso/s, 0 ulp |        78.2 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_u4_haswell`            |        53.5 gso/s, 0 ulp |        71.1 gso/s, 0 ulp |        75.6 gso/s, 0 ulp |
+| __e2m1__                                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_e2m1_sapphireamx`           |         165 gso/s, 0 ulp |         533 gso/s, 0 ulp |         566 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m1_sapphireamx`        |        69.5 gso/s, 0 ulp |         130 gso/s, 0 ulp |         298 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m1_sapphireamx`         |         168 gso/s, 0 ulp |         413 gso/s, 0 ulp |         661 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m1_sapphireamx`      |        68.9 gso/s, 0 ulp |         140 gso/s, 0 ulp |         294 gso/s, 0 ulp |
+| `nk_angulars_packed_e2m1_serial`                |        1.09 gso/s, 0 ulp |        1.11 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_e2m1_serial`             |        1.60 gso/s, 0 ulp |        1.56 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_e2m1_serial`              |      1.09 gso/s, 0.4 ulp |      1.11 gso/s, 0.3 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_e2m1_serial`           |      1.59 gso/s, 0.4 ulp |      1.64 gso/s, 0.3 ulp |                        ⋯ |
+| `nk_angulars_packed_e2m1_haswell`               |        63.5 gso/s, 0 ulp |        85.5 gso/s, 0 ulp |        90.4 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m1_haswell`            |        42.9 gso/s, 0 ulp |        76.8 gso/s, 0 ulp |        91.3 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m1_haswell`             |        67.8 gso/s, 0 ulp |        89.9 gso/s, 0 ulp |         102 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m1_haswell`          |        45.6 gso/s, 0 ulp |        79.0 gso/s, 0 ulp |        90.9 gso/s, 0 ulp |
+| `nk_angulars_packed_e2m1_skylake`               |        65.3 gso/s, 0 ulp |        95.0 gso/s, 0 ulp |         112 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m1_skylake`            |        49.6 gso/s, 0 ulp |        88.5 gso/s, 0 ulp |         109 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m1_skylake`             |        69.0 gso/s, 0 ulp |         101 gso/s, 0 ulp |         116 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m1_skylake`          |        51.8 gso/s, 0 ulp |        91.7 gso/s, 0 ulp |         114 gso/s, 0 ulp |
+| `nk_angulars_packed_e2m1_alder`                 |        75.0 gso/s, 0 ulp |         105 gso/s, 0 ulp |         129 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m1_alder`              |        43.4 gso/s, 0 ulp |        82.7 gso/s, 0 ulp |        84.4 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m1_alder`               |        84.2 gso/s, 0 ulp |         113 gso/s, 0 ulp |         107 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m1_alder`            |        46.1 gso/s, 0 ulp |        84.5 gso/s, 0 ulp |        85.3 gso/s, 0 ulp |
+| __nvfp4__                                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_nvfp4_sapphireamx`          |         118 gso/s, 0 ulp |         144 gso/s, 0 ulp |         174 gso/s, 0 ulp |
+| `nk_angulars_symmetric_nvfp4_sapphireamx`       |        46.1 gso/s, 0 ulp |        43.4 gso/s, 0 ulp |        65.2 gso/s, 0 ulp |
+| `nk_euclideans_packed_nvfp4_sapphireamx`        |         115 gso/s, 0 ulp |         138 gso/s, 0 ulp |         242 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_nvfp4_sapphireamx`     |        45.5 gso/s, 0 ulp |        44.9 gso/s, 0 ulp |        67.5 gso/s, 0 ulp |
+| `nk_angulars_packed_nvfp4_serial`               |       0.191 gso/s, 0 ulp |       0.188 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_nvfp4_serial`            |       0.191 gso/s, 0 ulp |       0.189 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_nvfp4_serial`             |     0.186 gso/s, 0.4 ulp |     0.191 gso/s, 0.3 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_nvfp4_serial`          |     0.190 gso/s, 0.4 ulp |     0.192 gso/s, 0.3 ulp |                        ⋯ |
+| `nk_angulars_packed_nvfp4_skylake`              |        24.9 gso/s, 0 ulp |        27.7 gso/s, 0 ulp |        28.0 gso/s, 0 ulp |
+| `nk_angulars_symmetric_nvfp4_skylake`           |        22.9 gso/s, 0 ulp |        25.9 gso/s, 0 ulp |        24.9 gso/s, 0 ulp |
+| `nk_euclideans_packed_nvfp4_skylake`            |        24.9 gso/s, 0 ulp |        27.9 gso/s, 0 ulp |        28.2 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_nvfp4_skylake`         |        22.8 gso/s, 0 ulp |        26.0 gso/s, 0 ulp |        24.9 gso/s, 0 ulp |
+| __mxfp4__                                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_mxfp4_sapphireamx`          |         119 gso/s, 0 ulp |         153 gso/s, 0 ulp |         195 gso/s, 0 ulp |
+| `nk_angulars_symmetric_mxfp4_sapphireamx`       |        49.2 gso/s, 0 ulp |        35.6 gso/s, 0 ulp |        67.4 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp4_sapphireamx`        |         119 gso/s, 0 ulp |         117 gso/s, 0 ulp |         278 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_mxfp4_sapphireamx`     |        41.3 gso/s, 0 ulp |        47.3 gso/s, 0 ulp |        39.1 gso/s, 0 ulp |
+| `nk_angulars_packed_mxfp4_serial`               |       0.189 gso/s, 0 ulp |       0.188 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_mxfp4_serial`            |       0.188 gso/s, 0 ulp |       0.124 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_mxfp4_serial`             |     0.188 gso/s, 0.4 ulp |     0.187 gso/s, 0.3 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_mxfp4_serial`          |     0.189 gso/s, 0.4 ulp |     0.189 gso/s, 0.3 ulp |                        ⋯ |
+| `nk_angulars_packed_mxfp4_skylake`              |        24.6 gso/s, 0 ulp |        27.9 gso/s, 0 ulp |        28.0 gso/s, 0 ulp |
+| `nk_angulars_symmetric_mxfp4_skylake`           |        23.3 gso/s, 0 ulp |        26.3 gso/s, 0 ulp |        24.7 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp4_skylake`            |        24.4 gso/s, 0 ulp |        27.6 gso/s, 0 ulp |        27.8 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_mxfp4_skylake`         |        22.9 gso/s, 0 ulp |        26.1 gso/s, 0 ulp |        24.7 gso/s, 0 ulp |
+| __mxfp8e4m3__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_mxfp8e4m3_sapphireamx`      |         106 gso/s, 0 ulp |         128 gso/s, 0 ulp |         165 gso/s, 0 ulp |
+| `nk_angulars_symmetric_mxfp8e4m3_sapphireamx`   |        39.0 gso/s, 0 ulp |        25.7 gso/s, 0 ulp |        57.7 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp8e4m3_sapphireamx`    |       105 gso/s, 0.2 ulp |        98 gso/s, 0.2 ulp |       217 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_mxfp8e4m3_sapphireamx` |      36.1 gso/s, 0.2 ulp |      36.9 gso/s, 0.2 ulp |      32.5 gso/s, 0.2 ulp |
+| `nk_angulars_packed_mxfp8e4m3_serial`           |       0.265 gso/s, 0 ulp |       0.212 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_mxfp8e4m3_serial`        |       0.271 gso/s, 0 ulp |       0.146 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_mxfp8e4m3_serial`         |     0.264 gso/s, 0.5 ulp |     0.259 gso/s, 0.5 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_mxfp8e4m3_serial`      |     0.257 gso/s, 0.5 ulp |     0.262 gso/s, 0.5 ulp |                        ⋯ |
+| `nk_angulars_packed_mxfp8e4m3_skylake`          |        15.8 gso/s, 0 ulp |        16.9 gso/s, 0 ulp |        16.8 gso/s, 0 ulp |
+| `nk_angulars_symmetric_mxfp8e4m3_skylake`       |        14.6 gso/s, 0 ulp |        16.0 gso/s, 0 ulp |        15.1 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp8e4m3_skylake`        |      15.6 gso/s, 0.2 ulp |      16.8 gso/s, 0.3 ulp |      16.7 gso/s, 0.4 ulp |
+| `nk_euclideans_symmetric_mxfp8e4m3_skylake`     |      14.7 gso/s, 0.2 ulp |      16.0 gso/s, 0.2 ulp |      14.9 gso/s, 0.4 ulp |
+| __mxfp8e5m2__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_mxfp8e5m2_sapphireamx`      |         108 gso/s, 0 ulp |         138 gso/s, 0 ulp |         180 gso/s, 0 ulp |
+| `nk_angulars_symmetric_mxfp8e5m2_sapphireamx`   |        44.7 gso/s, 0 ulp |        30.6 gso/s, 0 ulp |        66.4 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp8e5m2_sapphireamx`    |       109 gso/s, 0.2 ulp |       109 gso/s, 0.2 ulp |       251 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_mxfp8e5m2_sapphireamx` |      38.3 gso/s, 0.2 ulp |      38.2 gso/s, 0.2 ulp |      39.6 gso/s, 0.2 ulp |
+| `nk_angulars_packed_mxfp8e5m2_serial`           |       0.379 gso/s, 0 ulp |       0.289 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_mxfp8e5m2_serial`        |       0.378 gso/s, 0 ulp |       0.252 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_mxfp8e5m2_serial`         |     0.386 gso/s, 0.4 ulp |     0.392 gso/s, 0.5 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_mxfp8e5m2_serial`      |     0.395 gso/s, 0.5 ulp |     0.403 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_mxfp8e5m2_skylake`          |        18.8 gso/s, 0 ulp |        20.2 gso/s, 0 ulp |        20.1 gso/s, 0 ulp |
+| `nk_angulars_symmetric_mxfp8e5m2_skylake`       |        17.7 gso/s, 0 ulp |        19.4 gso/s, 0 ulp |        18.1 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp8e5m2_skylake`        |      18.9 gso/s, 0.2 ulp |      20.5 gso/s, 0.3 ulp |      20.6 gso/s, 0.4 ulp |
+| `nk_euclideans_symmetric_mxfp8e5m2_skylake`     |      17.5 gso/s, 0.2 ulp |      19.3 gso/s, 0.2 ulp |      17.6 gso/s, 0.3 ulp |
+| __mxfp6e2m3__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_mxfp6e2m3_serial`           |       0.377 gso/s, 0 ulp |       0.384 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_mxfp6e2m3_serial`        |       0.375 gso/s, 0 ulp |       0.379 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_mxfp6e2m3_serial`         |     0.398 gso/s, 0.5 ulp |     0.296 gso/s, 0.5 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_mxfp6e2m3_serial`      |     0.393 gso/s, 0.6 ulp |     0.286 gso/s, 0.6 ulp |                        ⋯ |
+| `nk_angulars_packed_mxfp6e2m3_skylake`          |        13.5 gso/s, 0 ulp |        14.3 gso/s, 0 ulp |        14.3 gso/s, 0 ulp |
+| `nk_angulars_symmetric_mxfp6e2m3_skylake`       |        12.7 gso/s, 0 ulp |        13.6 gso/s, 0 ulp |        12.4 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp6e2m3_skylake`        |        13.4 gso/s, 0 ulp |        14.1 gso/s, 0 ulp |        14.2 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_mxfp6e2m3_skylake`     |        12.6 gso/s, 0 ulp |        13.5 gso/s, 0 ulp |        12.7 gso/s, 0 ulp |
+| __mxfp6e3m2__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_mxfp6e3m2_serial`           |       0.378 gso/s, 0 ulp |       0.283 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_mxfp6e3m2_serial`        |       0.376 gso/s, 0 ulp |       0.382 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_mxfp6e3m2_serial`         |     0.392 gso/s, 0.4 ulp |     0.395 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_mxfp6e3m2_serial`      |     0.398 gso/s, 0.4 ulp |     0.405 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_mxfp6e3m2_skylake`          |        13.5 gso/s, 0 ulp |        14.4 gso/s, 0 ulp |        14.2 gso/s, 0 ulp |
+| `nk_angulars_symmetric_mxfp6e3m2_skylake`       |        12.6 gso/s, 0 ulp |        13.6 gso/s, 0 ulp |        12.9 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp6e3m2_skylake`        |        13.4 gso/s, 0 ulp |      14.3 gso/s, 0.1 ulp |        14.2 gso/s, 1 ulp |
+| `nk_euclideans_symmetric_mxfp6e3m2_skylake`     |        12.6 gso/s, 0 ulp |      13.6 gso/s, 0.2 ulp |      12.7 gso/s, 0.4 ulp |
 
 #### WASM
 
-Measured with Wasmtime v42 (Cranelift backend).
+Measured with wasmtime 49.0.2, Cranelift.
 
 | Kernel                                     |                     256³ |                    1024³ |                    4096³ |
 | :----------------------------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __f64__                                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_f64_serial`            |        1.38 gso/s, 0 ulp |        1.37 gso/s, 0 ulp |        1.36 gso/s, 0 ulp |
-| `nk_angulars_symmetric_f64_serial`         |       0.267 gso/s, 0 ulp |       0.268 gso/s, 0 ulp |       0.258 gso/s, 0 ulp |
-| `nk_euclideans_packed_f64_serial`          |      1.41 gso/s, 0.6 ulp |      1.37 gso/s, 0.6 ulp |      1.36 gso/s, 0.6 ulp |
-| `nk_euclideans_symmetric_f64_serial`       |     0.272 gso/s, 0.6 ulp |     0.271 gso/s, 0.5 ulp |     0.161 gso/s, 0.5 ulp |
-| `nk_angulars_packed_f64_v128relaxed`       |      10.9 gso/s, 0.1 ulp |      10.9 gso/s, 0.1 ulp |      10.9 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_f64_v128relaxed`    |     0.238 gso/s, 0.1 ulp |     0.240 gso/s, 0.1 ulp |     0.271 gso/s, 0.1 ulp |
-| `nk_euclideans_packed_f64_v128relaxed`     |      11.0 gso/s, 0.6 ulp |      11.2 gso/s, 0.6 ulp |      11.2 gso/s, 0.6 ulp |
-| `nk_euclideans_symmetric_f64_v128relaxed`  |    0.0463 gso/s, 0.6 ulp |    0.0465 gso/s, 0.5 ulp |   0.00806 gso/s, 0.5 ulp |
+| `nk_angulars_packed_f64_serial`            |       0.440 gso/s, 0 ulp |       0.445 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_f64_serial`         |       0.438 gso/s, 0 ulp |       0.440 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_f64_serial`          |     0.343 gso/s, 0.4 ulp |     0.441 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_f64_serial`       |     0.336 gso/s, 0.4 ulp |     0.441 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_f64_v128relaxed`       |        1.70 gso/s, 0 ulp |        1.74 gso/s, 0 ulp |        1.65 gso/s, 0 ulp |
+| `nk_angulars_symmetric_f64_v128relaxed`    |        1.68 gso/s, 0 ulp |        1.75 gso/s, 0 ulp |        1.71 gso/s, 0 ulp |
+| `nk_euclideans_packed_f64_v128relaxed`     |      1.68 gso/s, 0.4 ulp |      1.74 gso/s, 0.4 ulp |      1.33 gso/s, 0.3 ulp |
+| `nk_euclideans_symmetric_f64_v128relaxed`  |      1.64 gso/s, 0.4 ulp |      1.73 gso/s, 0.4 ulp |      1.66 gso/s, 0.3 ulp |
 | __f32__                                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_f32_serial`            |      4.16 gso/s, 0.1 ulp |      4.26 gso/s, 0.1 ulp |      4.39 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_f32_serial`         |      3.08 gso/s, 0.1 ulp |      4.88 gso/s, 0.1 ulp |      5.69 gso/s, 0.1 ulp |
-| `nk_euclideans_packed_f32_serial`          |      4.19 gso/s, 0.6 ulp |      4.32 gso/s, 0.6 ulp |      4.33 gso/s, 0.5 ulp |
-| `nk_euclideans_symmetric_f32_serial`       |      3.05 gso/s, 0.5 ulp |      4.97 gso/s, 0.5 ulp |      5.64 gso/s, 0.5 ulp |
-| `nk_angulars_packed_f32_v128relaxed`       |      9.41 gso/s, 0.1 ulp |      10.6 gso/s, 0.1 ulp |      10.7 gso/s, 0.1 ulp |
-| `nk_angulars_symmetric_f32_v128relaxed`    |      3.64 gso/s, 0.1 ulp |      6.14 gso/s, 0.1 ulp |      7.33 gso/s, 0.1 ulp |
-| `nk_euclideans_packed_f32_v128relaxed`     |      9.55 gso/s, 0.2 ulp |      10.6 gso/s, 0.2 ulp |      10.6 gso/s, 0.2 ulp |
-| `nk_euclideans_symmetric_f32_v128relaxed`  |      3.55 gso/s, 0.2 ulp |      6.15 gso/s, 0.2 ulp |      7.27 gso/s, 0.2 ulp |
+| `nk_angulars_packed_f32_serial`            |        3.65 gso/s, 0 ulp |        3.72 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_f32_serial`         |        3.65 gso/s, 0 ulp |        4.01 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_f32_serial`          |      3.62 gso/s, 0.4 ulp |      3.82 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_f32_serial`       |      3.65 gso/s, 0.4 ulp |      4.02 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_f32_v128relaxed`       |        8.90 gso/s, 0 ulp |        10.1 gso/s, 0 ulp |        10.8 gso/s, 0 ulp |
+| `nk_angulars_symmetric_f32_v128relaxed`    |        6.19 gso/s, 0 ulp |        7.56 gso/s, 0 ulp |        8.32 gso/s, 0 ulp |
+| `nk_euclideans_packed_f32_v128relaxed`     |      8.49 gso/s, 0.4 ulp |      10.1 gso/s, 0.4 ulp |      10.8 gso/s, 0.3 ulp |
+| `nk_euclideans_symmetric_f32_v128relaxed`  |      6.33 gso/s, 0.4 ulp |      7.63 gso/s, 0.4 ulp |      8.27 gso/s, 0.3 ulp |
 | __bf16__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_bf16_serial`           |        4.10 gso/s, 0 ulp |      4.33 gso/s, 0.2 ulp |      4.45 gso/s, 0.6 ulp |
-| `nk_angulars_symmetric_bf16_serial`        |        3.74 gso/s, 0 ulp |      6.15 gso/s, 0.2 ulp |      7.39 gso/s, 0.6 ulp |
-| `nk_euclideans_packed_bf16_serial`         |      4.26 gso/s, 0.7 ulp |      4.35 gso/s, 6.1 ulp |       4.40 gso/s, 32 ulp |
-| `nk_euclideans_symmetric_bf16_serial`      |      3.80 gso/s, 0.6 ulp |      6.16 gso/s, 5.3 ulp |       7.40 gso/s, 28 ulp |
-| `nk_angulars_packed_bf16_v128relaxed`      |        22.0 gso/s, 0 ulp |      24.8 gso/s, 0.2 ulp |      24.7 gso/s, 0.6 ulp |
-| `nk_angulars_symmetric_bf16_v128relaxed`   |        4.78 gso/s, 0 ulp |      9.61 gso/s, 0.2 ulp |      12.5 gso/s, 0.6 ulp |
-| `nk_euclideans_packed_bf16_v128relaxed`    |      22.2 gso/s, 0.7 ulp |      24.1 gso/s, 6.1 ulp |       24.8 gso/s, 32 ulp |
-| `nk_euclideans_symmetric_bf16_v128relaxed` |      4.72 gso/s, 0.3 ulp |      9.53 gso/s, 5.1 ulp |       12.4 gso/s, 28 ulp |
-| `nk_angulars_packed_bf16_v128`             |                        … |                        … |                        … |
-| `nk_angulars_symmetric_bf16_v128`          |                        … |                        … |                        … |
-| `nk_euclideans_packed_bf16_v128`           |                        … |                        … |                        … |
-| `nk_euclideans_symmetric_bf16_v128`        |                        … |                        … |                        … |
+| `nk_angulars_packed_bf16_serial`           |      1.95 gso/s, 0.1 ulp |        2.00 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_bf16_serial`        |      1.94 gso/s, 0.1 ulp |        2.06 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_bf16_serial`         |      1.96 gso/s, 0.4 ulp |      2.01 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_bf16_serial`      |      1.96 gso/s, 0.5 ulp |      2.05 gso/s, 0.4 ulp |                        ⋯ |
+| `nk_angulars_packed_bf16_v128relaxed`      |        28.0 gso/s, 0 ulp |        30.8 gso/s, 0 ulp |        33.8 gso/s, 0 ulp |
+| `nk_angulars_symmetric_bf16_v128relaxed`   |        21.2 gso/s, 0 ulp |        28.2 gso/s, 0 ulp |        19.9 gso/s, 0 ulp |
+| `nk_euclideans_packed_bf16_v128relaxed`    |      28.6 gso/s, 0.2 ulp |      30.9 gso/s, 0.2 ulp |      33.8 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_bf16_v128relaxed` |      21.9 gso/s, 0.2 ulp |      28.0 gso/s, 0.2 ulp |      29.6 gso/s, 0.2 ulp |
+| `nk_angulars_packed_bf16_v128`             |        24.3 gso/s, 0 ulp |        25.2 gso/s, 0 ulp |        27.1 gso/s, 0 ulp |
+| `nk_angulars_symmetric_bf16_v128`          |        16.8 gso/s, 0 ulp |        24.4 gso/s, 0 ulp |        25.7 gso/s, 0 ulp |
+| `nk_euclideans_packed_bf16_v128`           |      22.0 gso/s, 0.2 ulp |      25.9 gso/s, 0.2 ulp |      19.6 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_bf16_v128`        |      19.6 gso/s, 0.2 ulp |      24.6 gso/s, 0.2 ulp |      25.3 gso/s, 0.2 ulp |
 | __e2m3__                                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_e2m3_serial`           |        2.66 gso/s, 0 ulp |        2.71 gso/s, 0 ulp |        2.63 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e2m3_serial`        |      0.0400 gso/s, 0 ulp |      0.0413 gso/s, 0 ulp |       0.238 gso/s, 0 ulp |
-| `nk_euclideans_packed_e2m3_serial`         |      2.74 gso/s, 0.5 ulp |      2.70 gso/s, 0.5 ulp |      2.67 gso/s, 0.5 ulp |
-| `nk_euclideans_symmetric_e2m3_serial`      |    0.0403 gso/s, 0.5 ulp |    0.0411 gso/s, 0.4 ulp |    0.0401 gso/s, 0.4 ulp |
-| `nk_angulars_packed_e2m3_v128relaxed`      |        18.4 gso/s, 0 ulp |        18.6 gso/s, 0 ulp |        18.5 gso/s, 0 ulp |
-| `nk_angulars_symmetric_e2m3_v128relaxed`   |      0.0559 gso/s, 0 ulp |      0.0180 gso/s, 0 ulp |       0.131 gso/s, 0 ulp |
-| `nk_euclideans_packed_e2m3_v128relaxed`    |        18.5 gso/s, 0 ulp |        18.7 gso/s, 0 ulp |        18.1 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_e2m3_v128relaxed` |       0.206 gso/s, 0 ulp |      0.0170 gso/s, 0 ulp |      0.0554 gso/s, 0 ulp |
+| `nk_angulars_packed_e2m3_serial`           |        1.08 gso/s, 0 ulp |        1.11 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_e2m3_serial`        |        1.09 gso/s, 0 ulp |        1.13 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_e2m3_serial`         |     0.800 gso/s, 0.6 ulp |      1.12 gso/s, 0.5 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_e2m3_serial`      |      1.10 gso/s, 0.6 ulp |      1.14 gso/s, 0.5 ulp |                        ⋯ |
+| `nk_angulars_packed_e2m3_v128relaxed`      |        15.8 gso/s, 0 ulp |        17.4 gso/s, 0 ulp |        15.4 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m3_v128relaxed`   |        13.4 gso/s, 0 ulp |        16.8 gso/s, 0 ulp |        17.7 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m3_v128relaxed`    |        16.1 gso/s, 0 ulp |        17.6 gso/s, 0 ulp |        18.2 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m3_v128relaxed` |        13.4 gso/s, 0 ulp |        16.9 gso/s, 0 ulp |        17.7 gso/s, 0 ulp |
 | __i8__                                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_i8_serial`             |        4.73 gso/s, 0 ulp |        4.81 gso/s, 0 ulp |        4.59 gso/s, 0 ulp |
-| `nk_angulars_symmetric_i8_serial`          |     0.00447 gso/s, 0 ulp |       0.198 gso/s, 0 ulp |       0.190 gso/s, 0 ulp |
-| `nk_euclideans_packed_i8_serial`           |      4.77 gso/s, 0.5 ulp |      4.80 gso/s, 0.4 ulp |      4.65 gso/s, 0.4 ulp |
-| `nk_euclideans_symmetric_i8_serial`        |     0.201 gso/s, 0.5 ulp |    0.0819 gso/s, 0.4 ulp |    0.0823 gso/s, 0.4 ulp |
-| `nk_angulars_packed_i8_v128relaxed`        |        31.6 gso/s, 0 ulp |        31.7 gso/s, 0 ulp |        31.1 gso/s, 0 ulp |
-| `nk_angulars_symmetric_i8_v128relaxed`     |      0.0304 gso/s, 0 ulp |      0.0680 gso/s, 0 ulp |       0.298 gso/s, 0 ulp |
-| `nk_euclideans_packed_i8_v128relaxed`      |        31.5 gso/s, 0 ulp |        32.3 gso/s, 0 ulp |        30.8 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_i8_v128relaxed`   |       0.224 gso/s, 0 ulp |       0.222 gso/s, 0 ulp |       0.143 gso/s, 0 ulp |
-| `nk_angulars_packed_i8_v128`               |                        … |                        … |                        … |
-| `nk_angulars_symmetric_i8_v128`            |                        … |                        … |                        … |
-| `nk_euclideans_packed_i8_v128`             |                        … |                        … |                        … |
-| `nk_euclideans_symmetric_i8_v128`          |                        … |                        … |                        … |
+| `nk_angulars_packed_i8_serial`             |        4.94 gso/s, 0 ulp |        5.40 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_i8_serial`          |        3.39 gso/s, 0 ulp |        3.62 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_i8_serial`           |        3.94 gso/s, 0 ulp |        5.48 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_i8_serial`        |        3.49 gso/s, 0 ulp |        3.65 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_packed_i8_v128relaxed`        |      28.2 gso/s, 0.2 ulp |      33.5 gso/s, 0.2 ulp |      25.3 gso/s, 0.4 ulp |
+| `nk_angulars_symmetric_i8_v128relaxed`     |      25.0 gso/s, 0.2 ulp |      31.8 gso/s, 0.2 ulp |      34.1 gso/s, 0.4 ulp |
+| `nk_euclideans_packed_i8_v128relaxed`      |        30.4 gso/s, 0 ulp |        34.4 gso/s, 0 ulp |      37.4 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_i8_v128relaxed`   |        26.5 gso/s, 0 ulp |        32.8 gso/s, 0 ulp |      34.3 gso/s, 0.2 ulp |
+| `nk_angulars_packed_i8_v128`               |      34.2 gso/s, 0.2 ulp |      43.7 gso/s, 0.2 ulp |      48.8 gso/s, 0.4 ulp |
+| `nk_angulars_symmetric_i8_v128`            |      30.5 gso/s, 0.2 ulp |      45.4 gso/s, 0.2 ulp |      48.8 gso/s, 0.4 ulp |
+| `nk_euclideans_packed_i8_v128`             |        42.9 gso/s, 0 ulp |        44.9 gso/s, 0 ulp |      35.2 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_i8_v128`          |        37.1 gso/s, 0 ulp |        47.1 gso/s, 0 ulp |      48.6 gso/s, 0.2 ulp |
 | __u8__                                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_u8_serial`             |      4.26 gso/s, 0.4 ulp |      5.07 gso/s, 0.3 ulp |      5.11 gso/s, 0.3 ulp |
-| `nk_angulars_symmetric_u8_serial`          |      2.64 gso/s, 0.4 ulp |      4.02 gso/s, 0.3 ulp |      4.34 gso/s, 0.3 ulp |
-| `nk_euclideans_packed_u8_serial`           |      4.35 gso/s, 0.5 ulp |      4.67 gso/s, 0.5 ulp |      5.09 gso/s, 0.5 ulp |
-| `nk_euclideans_symmetric_u8_serial`        |      2.64 gso/s, 0.5 ulp |      3.97 gso/s, 0.5 ulp |      4.38 gso/s, 0.5 ulp |
-| `nk_angulars_packed_u8_v128relaxed`        |      23.7 gso/s, 0.3 ulp |      25.1 gso/s, 0.3 ulp |      25.8 gso/s, 0.3 ulp |
-| `nk_angulars_symmetric_u8_v128relaxed`     |      19.6 gso/s, 0.3 ulp |      23.2 gso/s, 0.3 ulp |      24.1 gso/s, 0.3 ulp |
-| `nk_euclideans_packed_u8_v128relaxed`      |        23.8 gso/s, 0 ulp |        25.3 gso/s, 0 ulp |        25.8 gso/s, 0 ulp |
-| `nk_euclideans_symmetric_u8_v128relaxed`   |        19.5 gso/s, 0 ulp |        23.0 gso/s, 0 ulp |        24.6 gso/s, 0 ulp |
-| `nk_angulars_packed_u8_v128`               |                        … |                        … |                        … |
-| `nk_angulars_symmetric_u8_v128`            |                        … |                        … |                        … |
-| `nk_euclideans_packed_u8_v128`             |                        … |                        … |                        … |
-| `nk_euclideans_symmetric_u8_v128`          |                        … |                        … |                        … |
+| `nk_angulars_packed_u8_serial`             |        5.06 gso/s, 0 ulp |        5.42 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_u8_serial`          |        3.28 gso/s, 0 ulp |        3.64 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_u8_serial`           |        3.70 gso/s, 0 ulp |        5.38 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_u8_serial`        |        3.36 gso/s, 0 ulp |        3.63 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_packed_u8_v128relaxed`        |      28.1 gso/s, 0.4 ulp |      33.0 gso/s, 0.5 ulp |      36.3 gso/s, 0.5 ulp |
+| `nk_angulars_symmetric_u8_v128relaxed`     |      21.6 gso/s, 0.4 ulp |      26.8 gso/s, 0.6 ulp |      27.9 gso/s, 0.5 ulp |
+| `nk_euclideans_packed_u8_v128relaxed`      |        29.8 gso/s, 0 ulp |        33.4 gso/s, 0 ulp |      36.3 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_u8_v128relaxed`   |        22.6 gso/s, 0 ulp |        27.0 gso/s, 0 ulp |      27.7 gso/s, 0.2 ulp |
+| `nk_angulars_packed_u8_v128`               |      38.0 gso/s, 0.4 ulp |      47.9 gso/s, 0.5 ulp |      54.6 gso/s, 0.5 ulp |
+| `nk_angulars_symmetric_u8_v128`            |      31.8 gso/s, 0.4 ulp |      48.5 gso/s, 0.6 ulp |      51.5 gso/s, 0.5 ulp |
+| `nk_euclideans_packed_u8_v128`             |        46.0 gso/s, 0 ulp |        50.3 gso/s, 0 ulp |      39.2 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_u8_v128`          |        38.0 gso/s, 0 ulp |        49.1 gso/s, 0 ulp |      51.3 gso/s, 0.2 ulp |
 | __i4__                                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_i4_serial`             |     6.22 gso/s, 0.35 ulp |     6.41 gso/s, 0.34 ulp |     6.55 gso/s, 0.35 ulp |
-| `nk_angulars_symmetric_i4_serial`          |     2.64 gso/s, 0.34 ulp |     3.69 gso/s, 0.34 ulp |     4.18 gso/s, 0.34 ulp |
-| `nk_euclideans_packed_i4_serial`           |     6.00 gso/s, 0.49 ulp |     6.43 gso/s, 0.54 ulp |     6.56 gso/s, 0.64 ulp |
-| `nk_euclideans_symmetric_i4_serial`        |     2.61 gso/s, 0.48 ulp |     3.68 gso/s, 0.53 ulp |     4.14 gso/s, 0.63 ulp |
+| `nk_angulars_packed_i4_serial`             |        2.41 gso/s, 0 ulp |        2.57 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_i4_serial`          |        1.91 gso/s, 0 ulp |        2.58 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_i4_serial`           |        1.89 gso/s, 0 ulp |        2.63 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_i4_serial`        |        2.50 gso/s, 0 ulp |        2.62 gso/s, 0 ulp |                        ⋯ |
 | __u4__                                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_angulars_packed_u4_serial`             |     5.38 gso/s, 0.35 ulp |     5.60 gso/s, 0.34 ulp |     5.81 gso/s, 0.35 ulp |
-| `nk_angulars_symmetric_u4_serial`          |     2.90 gso/s, 0.34 ulp |     4.28 gso/s, 0.34 ulp |     4.90 gso/s, 0.34 ulp |
-| `nk_euclideans_packed_u4_serial`           |     5.25 gso/s, 0.49 ulp |     5.64 gso/s, 0.54 ulp |     5.82 gso/s, 0.64 ulp |
-| `nk_euclideans_symmetric_u4_serial`        |     2.89 gso/s, 0.48 ulp |     4.30 gso/s, 0.53 ulp |     4.86 gso/s, 0.63 ulp |
+| `nk_angulars_packed_u4_serial`             |        3.10 gso/s, 0 ulp |        3.25 gso/s, 0 ulp |                        ⋯ |
+| `nk_angulars_symmetric_u4_serial`          |        2.25 gso/s, 0 ulp |        3.34 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_packed_u4_serial`           |        2.22 gso/s, 0 ulp |        3.27 gso/s, 0 ulp |                        ⋯ |
+| `nk_euclideans_symmetric_u4_serial`        |        3.19 gso/s, 0 ulp |        3.36 gso/s, 0 ulp |                        ⋯ |
+
+#### CUDA
+
+Rows ran on one `1g.34gb` MIG slice of a B300 with 18 SMs.
+
+| Kernel                                        |                 256³ |                 1024³ |                  4096³ |
+| :-------------------------------------------- | -------------------: | --------------------: | ---------------------: |
+| __f64__                                       | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_f64_cuda`                 |    10.7 gso/s, 0 ulp |     11.6 gso/s, 0 ulp |      12.2 gso/s, 0 ulp |
+| `nk_angulars_symmetric_f64_cuda`              |    5.28 gso/s, 0 ulp |     10.7 gso/s, 0 ulp |      11.6 gso/s, 0 ulp |
+| `nk_euclideans_packed_f64_cuda`               |    10.7 gso/s, 0 ulp |     11.6 gso/s, 0 ulp |      12.2 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_f64_cuda`            |    5.30 gso/s, 0 ulp |     10.7 gso/s, 0 ulp |      11.6 gso/s, 0 ulp |
+| __f32__                                       | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_f32_cuda`                 |    92.1 gso/s, 0 ulp |      110 gso/s, 0 ulp |       117 gso/s, 0 ulp |
+| `nk_angulars_symmetric_f32_cuda`              |    40.2 gso/s, 0 ulp |     89.2 gso/s, 0 ulp |      98.7 gso/s, 0 ulp |
+| `nk_euclideans_packed_f32_cuda`               |    94.2 gso/s, 0 ulp |      110 gso/s, 0 ulp |       117 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_f32_cuda`            |    41.0 gso/s, 0 ulp |     89.8 gso/s, 0 ulp |      98.8 gso/s, 0 ulp |
+| __bf16__                                      | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_bf16_ampere`              | 1,639 gso/s, 0.1 ulp | 25,150 gso/s, 0.2 ulp |  38,830 gso/s, 0.6 ulp |
+| `nk_angulars_symmetric_bf16_ampere`           |   737 gso/s, 0.1 ulp | 11,210 gso/s, 0.2 ulp |  30,000 gso/s, 0.6 ulp |
+| `nk_euclideans_packed_bf16_ampere`            | 1,834 gso/s, 0.2 ulp | 26,040 gso/s, 0.3 ulp |  38,460 gso/s, 0.4 ulp |
+| `nk_euclideans_symmetric_bf16_ampere`         |   817 gso/s, 0.3 ulp | 11,400 gso/s, 0.3 ulp |  30,500 gso/s, 0.5 ulp |
+| `nk_angulars_packed_bf16_blackwell`           | 2,102 gso/s, 0.1 ulp | 37,330 gso/s, 0.2 ulp | 114,800 gso/s, 0.6 ulp |
+| `nk_angulars_symmetric_bf16_blackwell`        |   830 gso/s, 0.1 ulp | 18,160 gso/s, 0.2 ulp |  77,420 gso/s, 0.6 ulp |
+| `nk_euclideans_packed_bf16_blackwell`         | 2,332 gso/s, 0.2 ulp | 41,350 gso/s, 0.3 ulp | 115,400 gso/s, 0.4 ulp |
+| `nk_euclideans_symmetric_bf16_blackwell`      |   964 gso/s, 0.3 ulp | 21,070 gso/s, 0.3 ulp |  75,990 gso/s, 0.4 ulp |
+| __f16__                                       | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_f16_ampere`               | 1,634 gso/s, 0.2 ulp | 24,640 gso/s, 0.4 ulp |  37,760 gso/s, 0.8 ulp |
+| `nk_angulars_symmetric_f16_ampere`            |   734 gso/s, 0.2 ulp | 11,040 gso/s, 0.4 ulp |  29,370 gso/s, 0.7 ulp |
+| `nk_euclideans_packed_f16_ampere`             | 1,831 gso/s, 0.3 ulp | 25,540 gso/s, 0.3 ulp |  37,550 gso/s, 0.4 ulp |
+| `nk_euclideans_symmetric_f16_ampere`          |   813 gso/s, 0.4 ulp | 10,900 gso/s, 0.4 ulp |  29,720 gso/s, 0.6 ulp |
+| `nk_angulars_packed_f16_blackwell`            | 2,093 gso/s, 0.2 ulp | 37,180 gso/s, 0.4 ulp | 104,000 gso/s, 0.8 ulp |
+| `nk_angulars_symmetric_f16_blackwell`         |   827 gso/s, 0.2 ulp | 18,150 gso/s, 0.4 ulp |  69,930 gso/s, 0.7 ulp |
+| `nk_euclideans_packed_f16_blackwell`          | 2,329 gso/s, 0.4 ulp | 40,890 gso/s, 0.3 ulp | 102,800 gso/s, 0.4 ulp |
+| `nk_euclideans_symmetric_f16_blackwell`       |   963 gso/s, 0.6 ulp | 21,090 gso/s, 0.5 ulp |  70,170 gso/s, 0.6 ulp |
+| __e5m2__                                      | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_e5m2_ampere`              |   1,730 gso/s, 0 ulp |   26,430 gso/s, 0 ulp |    42,710 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e5m2_ampere`           |     768 gso/s, 0 ulp |   11,920 gso/s, 0 ulp |    33,010 gso/s, 0 ulp |
+| `nk_euclideans_packed_e5m2_ampere`            | 1,955 gso/s, 0.2 ulp | 27,660 gso/s, 0.2 ulp |  42,850 gso/s, 0.3 ulp |
+| `nk_euclideans_symmetric_e5m2_ampere`         |   856 gso/s, 0.2 ulp | 12,550 gso/s, 0.3 ulp |  33,740 gso/s, 0.3 ulp |
+| `nk_angulars_packed_e5m2_blackwell`           |   2,157 gso/s, 0 ulp |   39,150 gso/s, 0 ulp |   135,300 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e5m2_blackwell`        |     839 gso/s, 0 ulp |   18,790 gso/s, 0 ulp |    87,040 gso/s, 0 ulp |
+| `nk_euclideans_packed_e5m2_blackwell`         | 2,417 gso/s, 0.2 ulp | 44,040 gso/s, 0.2 ulp | 135,200 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e5m2_blackwell`      |   984 gso/s, 0.2 ulp | 21,820 gso/s, 0.2 ulp |  86,320 gso/s, 0.3 ulp |
+| __e4m3__                                      | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_e4m3_ampere`              |   1,461 gso/s, 0 ulp |   13,830 gso/s, 0 ulp |    19,170 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e4m3_ampere`           |     619 gso/s, 0 ulp |    5,935 gso/s, 0 ulp |    13,790 gso/s, 0 ulp |
+| `nk_euclideans_packed_e4m3_ampere`            | 1,617 gso/s, 0.2 ulp | 13,800 gso/s, 0.2 ulp |  19,470 gso/s, 0.3 ulp |
+| `nk_euclideans_symmetric_e4m3_ampere`         |   679 gso/s, 0.2 ulp |  6,120 gso/s, 0.2 ulp |  13,950 gso/s, 0.3 ulp |
+| `nk_angulars_packed_e4m3_blackwell`           |   2,076 gso/s, 0 ulp |   34,310 gso/s, 0 ulp |    78,780 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e4m3_blackwell`        |     778 gso/s, 0 ulp |   14,500 gso/s, 0 ulp |    33,260 gso/s, 0 ulp |
+| `nk_euclideans_packed_e4m3_blackwell`         | 2,298 gso/s, 0.2 ulp | 39,290 gso/s, 0.2 ulp |  79,750 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e4m3_blackwell`      |   897 gso/s, 0.2 ulp | 16,260 gso/s, 0.2 ulp |  33,860 gso/s, 0.3 ulp |
+| __e3m2__                                      | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_e3m2_ampere`              |   1,640 gso/s, 0 ulp |   21,110 gso/s, 0 ulp |    31,130 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e3m2_ampere`           |     723 gso/s, 0 ulp |    9,261 gso/s, 0 ulp |    24,040 gso/s, 0 ulp |
+| `nk_euclideans_packed_e3m2_ampere`            |   1,843 gso/s, 0 ulp | 22,060 gso/s, 0.1 ulp |  31,320 gso/s, 0.3 ulp |
+| `nk_euclideans_symmetric_e3m2_ampere`         |     805 gso/s, 0 ulp |  9,693 gso/s, 0.2 ulp |  24,310 gso/s, 0.5 ulp |
+| `nk_angulars_packed_e3m2_blackwell`           |   2,115 gso/s, 0 ulp |   36,110 gso/s, 0 ulp |    93,110 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e3m2_blackwell`        |     798 gso/s, 0 ulp |   15,840 gso/s, 0 ulp |    46,180 gso/s, 0 ulp |
+| `nk_euclideans_packed_e3m2_blackwell`         |   2,351 gso/s, 0 ulp | 40,490 gso/s, 0.1 ulp |  93,550 gso/s, 0.2 ulp |
+| `nk_euclideans_symmetric_e3m2_blackwell`      |     915 gso/s, 0 ulp | 17,940 gso/s, 0.2 ulp |  44,800 gso/s, 0.3 ulp |
+| __e2m3__                                      | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_e2m3_ampere`              |   1,290 gso/s, 0 ulp |   11,600 gso/s, 0 ulp |    14,460 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m3_ampere`           |     566 gso/s, 0 ulp |    5,241 gso/s, 0 ulp |    11,450 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m3_ampere`            |   1,352 gso/s, 0 ulp |   11,580 gso/s, 0 ulp |    14,290 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m3_ampere`         |     587 gso/s, 0 ulp |    5,279 gso/s, 0 ulp |    11,360 gso/s, 0 ulp |
+| `nk_angulars_packed_e2m3_blackwell`           |   2,121 gso/s, 0 ulp |   35,350 gso/s, 0 ulp |    96,740 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m3_blackwell`        |     799 gso/s, 0 ulp |   15,890 gso/s, 0 ulp |    48,090 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m3_blackwell`         |   2,363 gso/s, 0 ulp |   40,150 gso/s, 0 ulp |    96,770 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m3_blackwell`      |     922 gso/s, 0 ulp |   18,060 gso/s, 0 ulp |    47,630 gso/s, 0 ulp |
+| __e2m1__                                      | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_e2m1_ampere`              |   1,358 gso/s, 0 ulp |   12,050 gso/s, 0 ulp |    15,010 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m1_ampere`           |     616 gso/s, 0 ulp |    6,059 gso/s, 0 ulp |    13,370 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m1_ampere`            |   1,423 gso/s, 0 ulp |   12,000 gso/s, 0 ulp |    15,070 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m1_ampere`         |     620 gso/s, 0 ulp |    6,131 gso/s, 0 ulp |    13,400 gso/s, 0 ulp |
+| `nk_angulars_packed_e2m1_blackwell`           |   2,266 gso/s, 0 ulp |   41,430 gso/s, 0 ulp |   180,200 gso/s, 0 ulp |
+| `nk_angulars_symmetric_e2m1_blackwell`        |     880 gso/s, 0 ulp |   20,150 gso/s, 0 ulp |   114,000 gso/s, 0 ulp |
+| `nk_euclideans_packed_e2m1_blackwell`         |   2,528 gso/s, 0 ulp |   47,280 gso/s, 0 ulp |   208,200 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_e2m1_blackwell`      |   1,037 gso/s, 0 ulp |   24,120 gso/s, 0 ulp |   139,300 gso/s, 0 ulp |
+| __i8__                                        | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_i8_ampere`                |     183 gso/s, 0 ulp |    3,208 gso/s, 0 ulp |    12,440 gso/s, 0 ulp |
+| `nk_angulars_symmetric_i8_ampere`             |    95.2 gso/s, 0 ulp |    1,594 gso/s, 0 ulp |    10,280 gso/s, 0 ulp |
+| `nk_euclideans_packed_i8_ampere`              |     488 gso/s, 0 ulp |    7,633 gso/s, 0 ulp |    14,320 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_i8_ampere`           |     239 gso/s, 0 ulp |    3,752 gso/s, 0 ulp |    12,260 gso/s, 0 ulp |
+| `nk_angulars_packed_i8_blackwell`             |     200 gso/s, 0 ulp |    3,220 gso/s, 0 ulp |    13,230 gso/s, 0 ulp |
+| `nk_angulars_symmetric_i8_blackwell`          |    97.9 gso/s, 0 ulp |    2,098 gso/s, 0 ulp |    11,170 gso/s, 0 ulp |
+| `nk_euclideans_packed_i8_blackwell`           |     559 gso/s, 0 ulp |    9,152 gso/s, 0 ulp |    32,750 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_i8_blackwell`        |     269 gso/s, 0 ulp |    5,768 gso/s, 0 ulp |    25,860 gso/s, 0 ulp |
+| __i4__                                        | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_i4_ampere`                |     182 gso/s, 0 ulp |    3,131 gso/s, 0 ulp |    11,790 gso/s, 0 ulp |
+| `nk_angulars_symmetric_i4_ampere`             |    92.5 gso/s, 0 ulp |    1,565 gso/s, 0 ulp |     9,543 gso/s, 0 ulp |
+| `nk_euclideans_packed_i4_ampere`              |     488 gso/s, 0 ulp |    7,751 gso/s, 0 ulp |    13,340 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_i4_ampere`           |     238 gso/s, 0 ulp |    3,655 gso/s, 0 ulp |    12,370 gso/s, 0 ulp |
+| `nk_angulars_packed_i4_blackwell`             |     195 gso/s, 0 ulp |    3,159 gso/s, 0 ulp |    13,980 gso/s, 0 ulp |
+| `nk_angulars_symmetric_i4_blackwell`          |    95.8 gso/s, 0 ulp |    2,067 gso/s, 0 ulp |    12,260 gso/s, 0 ulp |
+| `nk_euclideans_packed_i4_blackwell`           |     554 gso/s, 0 ulp |    8,984 gso/s, 0 ulp |    38,300 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_i4_blackwell`        |     267 gso/s, 0 ulp |    5,736 gso/s, 0 ulp |    32,460 gso/s, 0 ulp |
+| __u8__                                        | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_u8_ampere`                |     275 gso/s, 0 ulp |    4,579 gso/s, 0 ulp |    12,730 gso/s, 0 ulp |
+| `nk_angulars_symmetric_u8_ampere`             |     136 gso/s, 0 ulp |    2,260 gso/s, 0 ulp |    10,920 gso/s, 0 ulp |
+| `nk_euclideans_packed_u8_ampere`              |     488 gso/s, 0 ulp |    7,626 gso/s, 0 ulp |    14,230 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_u8_ampere`           |     239 gso/s, 0 ulp |    3,751 gso/s, 0 ulp |    12,370 gso/s, 0 ulp |
+| `nk_angulars_packed_u8_blackwell`             |     294 gso/s, 0 ulp |    4,709 gso/s, 0 ulp |    18,620 gso/s, 0 ulp |
+| `nk_angulars_symmetric_u8_blackwell`          |     142 gso/s, 0 ulp |    3,048 gso/s, 0 ulp |    15,520 gso/s, 0 ulp |
+| `nk_euclideans_packed_u8_blackwell`           |     556 gso/s, 0 ulp |    9,054 gso/s, 0 ulp |    32,520 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_u8_blackwell`        |     264 gso/s, 0 ulp |    5,688 gso/s, 0 ulp |    25,760 gso/s, 0 ulp |
+| __u4__                                        | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_u4_ampere`                |     275 gso/s, 0 ulp |    4,579 gso/s, 0 ulp |    12,420 gso/s, 0 ulp |
+| `nk_angulars_symmetric_u4_ampere`             |     136 gso/s, 0 ulp |    2,284 gso/s, 0 ulp |    10,670 gso/s, 0 ulp |
+| `nk_euclideans_packed_u4_ampere`              |     487 gso/s, 0 ulp |    7,683 gso/s, 0 ulp |    14,220 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_u4_ampere`           |     238 gso/s, 0 ulp |    3,807 gso/s, 0 ulp |    12,370 gso/s, 0 ulp |
+| `nk_angulars_packed_u4_blackwell`             |     295 gso/s, 0 ulp |    4,711 gso/s, 0 ulp |    20,550 gso/s, 0 ulp |
+| `nk_angulars_symmetric_u4_blackwell`          |     144 gso/s, 0 ulp |    3,074 gso/s, 0 ulp |    18,020 gso/s, 0 ulp |
+| `nk_euclideans_packed_u4_blackwell`           |     555 gso/s, 0 ulp |    9,019 gso/s, 0 ulp |    38,730 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_u4_blackwell`        |     270 gso/s, 0 ulp |    5,784 gso/s, 0 ulp |    33,310 gso/s, 0 ulp |
+| __nvfp4__                                     | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_nvfp4_blackwell`          |   1,564 gso/s, 0 ulp |   14,560 gso/s, 0 ulp |    17,050 gso/s, 0 ulp |
+| `nk_angulars_symmetric_nvfp4_blackwell`       |     512 gso/s, 0 ulp |    5,220 gso/s, 0 ulp |     7,695 gso/s, 0 ulp |
+| `nk_euclideans_packed_nvfp4_blackwell`        |   1,691 gso/s, 0 ulp |   14,830 gso/s, 0 ulp |    17,160 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_nvfp4_blackwell`     |     568 gso/s, 0 ulp |    5,349 gso/s, 0 ulp |     7,816 gso/s, 0 ulp |
+| __mxfp4__                                     | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_mxfp4_blackwell`          |   1,605 gso/s, 0 ulp |   16,850 gso/s, 0 ulp |    20,840 gso/s, 0 ulp |
+| `nk_angulars_symmetric_mxfp4_blackwell`       |     552 gso/s, 0 ulp |    6,200 gso/s, 0 ulp |     9,496 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp4_blackwell`        |   1,728 gso/s, 0 ulp |   17,180 gso/s, 0 ulp |    20,850 gso/s, 0 ulp |
+| `nk_euclideans_symmetric_mxfp4_blackwell`     |     606 gso/s, 0 ulp |    6,248 gso/s, 0 ulp |     9,393 gso/s, 0 ulp |
+| __mxfp8e4m3__                                 | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_mxfp8e4m3_blackwell`      |   1,744 gso/s, 0 ulp |   21,840 gso/s, 0 ulp |    28,220 gso/s, 0 ulp |
+| `nk_angulars_symmetric_mxfp8e4m3_blackwell`   |     619 gso/s, 0 ulp |    8,132 gso/s, 0 ulp |    12,500 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp8e4m3_blackwell`    | 1,879 gso/s, 0.2 ulp | 22,270 gso/s, 0.3 ulp |  28,260 gso/s, 0.4 ulp |
+| `nk_euclideans_symmetric_mxfp8e4m3_blackwell` |   686 gso/s, 0.2 ulp |  8,234 gso/s, 0.2 ulp |  12,400 gso/s, 0.3 ulp |
+| __mxfp8e5m2__                                 | ░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_angulars_packed_mxfp8e5m2_blackwell`      |   1,781 gso/s, 0 ulp |   23,600 gso/s, 0 ulp |    30,680 gso/s, 0 ulp |
+| `nk_angulars_symmetric_mxfp8e5m2_blackwell`   |     642 gso/s, 0 ulp |    8,899 gso/s, 0 ulp |    13,750 gso/s, 0 ulp |
+| `nk_euclideans_packed_mxfp8e5m2_blackwell`    | 1,937 gso/s, 0.2 ulp | 24,090 gso/s, 0.3 ulp |  30,800 gso/s, 0.4 ulp |
+| `nk_euclideans_symmetric_mxfp8e5m2_blackwell` |   718 gso/s, 0.2 ulp |  9,214 gso/s, 0.2 ulp |  13,880 gso/s, 0.3 ulp |
 
 ### Intel Granite Rapids with RTX PRO 6000 Blackwell
 

@@ -72,43 +72,45 @@ The throughput is measured in MP/s as the number of Millions of pairwise point d
 Current `numkong_cpu_test` output reports geospatial accuracy in two forms: mean/max absolute error in meters against Vincenty's formula computed at double-double (f118) precision, and mean/max ULP against the matching high-precision implementation of the same formula.
 The historical tables below use the meter-based summary where it has been remeasured; older x86 rows still retain their original ULP figures until rerun.
 
-### Intel Sapphire Rapids
+### Intel Xeon 6 with B300
+
+Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Rapids part.
 
 #### Native
 
 | Kernel                     |                      ≤1° |                     ≤30° |                    ≤180° |
 | :------------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __f64__                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f64_serial`  |       1.95 mp/s, 0.8 ulp |       2.10 mp/s, 0.8 ulp |       2.02 mp/s, 1.7 ulp |
-| `nk_vincenty_f64_serial`   |       0.565 mp/s, 82 ulp |      0.481 mp/s, 3.9 ulp |      0.514 mp/s, 1.1 ulp |
-| `nk_haversine_f64_haswell` |       73.3 mp/s, 0.6 ulp |       68.3 mp/s, 0.6 ulp |       70.4 mp/s, 1.5 ulp |
-| `nk_vincenty_f64_haswell`  |        12.2 mp/s, 80 ulp |       10.2 mp/s, 3.6 ulp |       7.15 mp/s, 1.1 ulp |
-| `nk_haversine_f64_skylake` |        106 mp/s, 0.6 ulp |        107 mp/s, 0.6 ulp |       99.8 mp/s, 1.5 ulp |
-| `nk_vincenty_f64_skylake`  |      20.4 mp/s, 171K ulp |     17.5 mp/s, 6.57K ulp |     11.2 mp/s, 1.02K ulp |
+| `nk_haversine_f64_serial`  |       2.93 mp/s, 0.8 ulp |       2.90 mp/s, 0.8 ulp |       2.49 mp/s, 1.7 ulp |
+| `nk_vincenty_f64_serial`   |       0.829 mp/s, 82 ulp |      0.730 mp/s, 3.9 ulp |      0.555 mp/s, 1.1 ulp |
+| `nk_haversine_f64_haswell` |       72.5 mp/s, 0.6 ulp |       83.0 mp/s, 0.6 ulp |       69.0 mp/s, 1.5 ulp |
+| `nk_vincenty_f64_haswell`  |        12.0 mp/s, 80 ulp |       10.4 mp/s, 3.6 ulp |       6.82 mp/s, 1.1 ulp |
+| `nk_haversine_f64_skylake` |        130 mp/s, 0.6 ulp |        129 mp/s, 0.6 ulp |       99.5 mp/s, 1.5 ulp |
+| `nk_vincenty_f64_skylake`  |      19.7 mp/s, 171K ulp |     17.4 mp/s, 6.57K ulp |     9.91 mp/s, 1.02K ulp |
 | __f32__                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f32_serial`  |       56.2 mp/s, 3.4 ulp |       62.3 mp/s, 2.9 ulp |        57.2 mp/s, 55 ulp |
-| `nk_vincenty_f32_serial`   |     3.25 mp/s, 58.3K ulp |       2.39 mp/s, 306 ulp |       1.79 mp/s, 103 ulp |
-| `nk_haversine_f32_haswell` |        247 mp/s, 3.2 ulp |        282 mp/s, 2.7 ulp |         281 mp/s, 54 ulp |
-| `nk_vincenty_f32_haswell`  |     53.6 mp/s, 26.2K ulp |       46.4 mp/s, 289 ulp |        16.5 mp/s, 61 ulp |
-| `nk_haversine_f32_skylake` |        350 mp/s, 3.1 ulp |        328 mp/s, 2.7 ulp |         356 mp/s, 53 ulp |
-| `nk_vincenty_f32_skylake`  |     78.7 mp/s, 7.16K ulp |       73.6 mp/s, 406 ulp |       20.1 mp/s, 105 ulp |
+| `nk_haversine_f32_serial`  |       8.30 mp/s, 3.4 ulp |       8.25 mp/s, 2.9 ulp |        7.21 mp/s, 55 ulp |
+| `nk_vincenty_f32_serial`   |     3.58 mp/s, 58.3K ulp |       2.68 mp/s, 306 ulp |       1.84 mp/s, 103 ulp |
+| `nk_haversine_f32_haswell` |        291 mp/s, 3.2 ulp |        293 mp/s, 2.7 ulp |         243 mp/s, 54 ulp |
+| `nk_vincenty_f32_haswell`  |     50.5 mp/s, 26.2K ulp |       43.7 mp/s, 289 ulp |        14.2 mp/s, 61 ulp |
+| `nk_haversine_f32_skylake` |        442 mp/s, 3.1 ulp |        442 mp/s, 2.7 ulp |         339 mp/s, 53 ulp |
+| `nk_vincenty_f32_skylake`  |     81.0 mp/s, 7.16K ulp |       77.5 mp/s, 406 ulp |       17.9 mp/s, 105 ulp |
 
 #### WASM
 
-Measured with Wasmtime v42 (Cranelift backend).
+Measured with wasmtime 49.0.2, Cranelift.
 
 | Kernel                         |                      ≤1° |                     ≤30° |                    ≤180° |
 | :----------------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __f64__                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f64_serial`      |          ? mp/s, 0.9 ulp |          ? mp/s, 0.9 ulp |          ? mp/s, 1.8 ulp |
-| `nk_vincenty_f64_serial`       |          ? mp/s, 102 ulp |          ? mp/s, 3.7 ulp |          ? mp/s, 1.1 ulp |
-| `nk_haversine_f64_v128relaxed` |          ? mp/s, 0.6 ulp |          ? mp/s, 0.6 ulp |          ? mp/s, 1.7 ulp |
-| `nk_vincenty_f64_v128relaxed`  |          ? mp/s, 104 ulp |          ? mp/s, 3.4 ulp |          ? mp/s, 1.1 ulp |
+| `nk_haversine_f64_serial`      |                2.83 mp/s |                2.85 mp/s |                2.82 mp/s |
+| `nk_vincenty_f64_serial`       |               0.767 mp/s |               0.682 mp/s |               0.590 mp/s |
+| `nk_haversine_f64_v128relaxed` |                37.7 mp/s |                39.0 mp/s |                39.8 mp/s |
+| `nk_vincenty_f64_v128relaxed`  |                5.60 mp/s |                5.00 mp/s |                4.06 mp/s |
 | __f32__                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f32_serial`      |          ? mp/s, 3.5 ulp |          ? mp/s, 2.9 ulp |         ? mp/s, 53.6 ulp |
-| `nk_vincenty_f32_serial`       |        ? mp/s, 70.5K ulp |          ? mp/s, 326 ulp |         ? mp/s, 65.5 ulp |
-| `nk_haversine_f32_v128relaxed` |          ? mp/s, 6.5 ulp |          ? mp/s, 5.6 ulp |         ? mp/s, 53.3 ulp |
-| `nk_vincenty_f32_v128relaxed`  |        ? mp/s, 23.8K ulp |          ? mp/s, 323 ulp |         ? mp/s, 64.0 ulp |
+| `nk_haversine_f32_serial`      |                7.75 mp/s |                8.05 mp/s |                7.88 mp/s |
+| `nk_vincenty_f32_serial`       |                3.48 mp/s |                2.68 mp/s |                2.03 mp/s |
+| `nk_haversine_f32_v128relaxed` |                 115 mp/s |                 120 mp/s |                 122 mp/s |
+| `nk_vincenty_f32_v128relaxed`  |                23.9 mp/s |                19.9 mp/s |                10.7 mp/s |
 
 ### Apple M4
 

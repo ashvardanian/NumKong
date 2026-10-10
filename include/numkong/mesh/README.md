@@ -114,9 +114,9 @@ The input size is controlled by the `NUMKONG_MESH_POINTS` environment variable a
 Each alignment computes centroids, covariance, and a 3×3 SVD over $N$ point pairs, so cost is $O(N)$ per alignment with a large constant.
 The throughput is measured in mp/s as millions of 3D points aligned per second.
 
-### Intel Granite Rapids
+### Intel Xeon 6 with B300
 
-Xeon 6776P, 2.3 GHz base, `cpu_scaling_enabled=false`.
+Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Rapids part.
 Serial kernels compiled with `-fno-tree-vectorize`.
 
 #### Native
@@ -124,64 +124,63 @@ Serial kernels compiled with `-fno-tree-vectorize`.
 | Kernel                    |                      256 |                     1024 |                     4096 |
 | :------------------------ | -----------------------: | -----------------------: | -----------------------: |
 | __f64__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f64_serial`      |       93.7 mp/s, 0.5 ulp |       87.4 mp/s, 0.5 ulp |       69.8 mp/s, 0.5 ulp |
-| `nk_kabsch_f64_serial`    |       11.8 mp/s, 0.8 ulp |       13.6 mp/s, 0.8 ulp |       12.8 mp/s, 0.8 ulp |
-| `nk_umeyama_f64_serial`   |       10.4 mp/s, 0.3 ulp |       11.7 mp/s, 0.3 ulp |       11.5 mp/s, 0.3 ulp |
-| `nk_rmsd_f64_haswell`     |        523 mp/s, 0.3 ulp |        564 mp/s, 0.4 ulp |        449 mp/s, 0.8 ulp |
-| `nk_kabsch_f64_haswell`   |       65.3 mp/s, 0.5 ulp |        203 mp/s, 0.9 ulp |        326 mp/s, 1.5 ulp |
-| `nk_umeyama_f64_haswell`  |       68.0 mp/s, 0.5 ulp |        200 mp/s, 0.8 ulp |        324 mp/s, 1.5 ulp |
-| `nk_rmsd_f64_skylake`     |        546 mp/s, 0.2 ulp |        587 mp/s, 0.3 ulp |        583 mp/s, 0.4 ulp |
-| `nk_kabsch_f64_skylake`   |       34.5 mp/s, 0.4 ulp |        107 mp/s, 0.5 ulp |        261 mp/s, 0.8 ulp |
-| `nk_umeyama_f64_skylake`  |       24.3 mp/s, 0.3 ulp |       82.7 mp/s, 0.5 ulp |        201 mp/s, 0.8 ulp |
+| `nk_rmsd_f64_serial`      |       73.1 mp/s, 0.5 ulp |       46.3 mp/s, 0.5 ulp |       47.5 mp/s, 0.5 ulp |
+| `nk_kabsch_f64_serial`    |       8.68 mp/s, 0.8 ulp |       8.62 mp/s, 0.8 ulp |       10.7 mp/s, 0.8 ulp |
+| `nk_umeyama_f64_serial`   |       7.34 mp/s, 0.3 ulp |       7.84 mp/s, 0.3 ulp |       9.06 mp/s, 0.3 ulp |
+| `nk_rmsd_f64_haswell`     |        495 mp/s, 0.3 ulp |        514 mp/s, 0.4 ulp |        268 mp/s, 0.8 ulp |
+| `nk_kabsch_f64_haswell`   |       51.7 mp/s, 0.5 ulp |        126 mp/s, 0.9 ulp |        130 mp/s, 1.5 ulp |
+| `nk_umeyama_f64_haswell`  |       51.0 mp/s, 0.5 ulp |        106 mp/s, 0.8 ulp |        123 mp/s, 1.5 ulp |
+| `nk_rmsd_f64_skylake`     |        502 mp/s, 0.2 ulp |        539 mp/s, 0.3 ulp |        235 mp/s, 0.4 ulp |
+| `nk_kabsch_f64_skylake`   |       51.3 mp/s, 0.4 ulp |        117 mp/s, 0.5 ulp |        125 mp/s, 0.8 ulp |
+| `nk_umeyama_f64_skylake`  |       51.3 mp/s, 0.3 ulp |        114 mp/s, 0.5 ulp |        126 mp/s, 0.8 ulp |
 | __f32__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f32_serial`      |       68.9 mp/s, 0.5 ulp |       70.7 mp/s, 0.5 ulp |       72.1 mp/s, 0.5 ulp |
-| `nk_kabsch_f32_serial`    |       11.2 mp/s, 0.8 ulp |       12.8 mp/s, 0.8 ulp |       14.0 mp/s, 0.9 ulp |
-| `nk_umeyama_f32_serial`   |       10.1 mp/s, 0.3 ulp |       11.2 mp/s, 0.3 ulp |       12.1 mp/s, 0.4 ulp |
-| `nk_rmsd_f32_haswell`     |        686 mp/s, 0.3 ulp |        848 mp/s, 0.5 ulp |        841 mp/s, 0.9 ulp |
-| `nk_kabsch_f32_haswell`   |       90.4 mp/s, 0.9 ulp |        250 mp/s, 1.3 ulp |        455 mp/s, 7.6 ulp |
-| `nk_umeyama_f32_haswell`  |       87.7 mp/s, 0.3 ulp |        250 mp/s, 0.4 ulp |        374 mp/s, 0.7 ulp |
-| `nk_rmsd_f32_skylake`     |      1,016 mp/s, 1.2 ulp |      1,112 mp/s, 1.2 ulp |      1,042 mp/s, 4.3 ulp |
-| `nk_kabsch_f32_skylake`   |       81.8 mp/s, 0.9 ulp |        241 mp/s, 4.1 ulp |        549 mp/s, 3.1 ulp |
-| `nk_umeyama_f32_skylake`  |       58.0 mp/s, 0.6 ulp |        168 mp/s, 2.9 ulp |        459 mp/s, 2.1 ulp |
+| `nk_rmsd_f32_serial`      |       50.3 mp/s, 0.5 ulp |       49.5 mp/s, 0.5 ulp |       50.0 mp/s, 0.5 ulp |
+| `nk_kabsch_f32_serial`    |       7.42 mp/s, 0.8 ulp |       7.73 mp/s, 0.8 ulp |       8.58 mp/s, 0.9 ulp |
+| `nk_umeyama_f32_serial`   |       7.18 mp/s, 0.3 ulp |       7.82 mp/s, 0.3 ulp |       8.31 mp/s, 0.4 ulp |
+| `nk_rmsd_f32_haswell`     |        582 mp/s, 0.3 ulp |        644 mp/s, 0.5 ulp |        377 mp/s, 0.9 ulp |
+| `nk_kabsch_f32_haswell`   |       52.1 mp/s, 0.9 ulp |       94.5 mp/s, 1.3 ulp |        119 mp/s, 7.6 ulp |
+| `nk_umeyama_f32_haswell`  |       51.3 mp/s, 0.3 ulp |       91.7 mp/s, 0.4 ulp |        120 mp/s, 0.7 ulp |
+| `nk_rmsd_f32_skylake`     |        841 mp/s, 1.2 ulp |        972 mp/s, 1.2 ulp |        697 mp/s, 4.3 ulp |
+| `nk_kabsch_f32_skylake`   |       58.3 mp/s, 0.9 ulp |        129 mp/s, 4.1 ulp |        154 mp/s, 3.1 ulp |
+| `nk_umeyama_f32_skylake`  |       57.0 mp/s, 0.6 ulp |        126 mp/s, 2.9 ulp |        149 mp/s, 2.1 ulp |
 | __bf16__                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_bf16_haswell`    |        284 mp/s, 0.3 ulp |        281 mp/s, 3.5 ulp |       273 mp/s, 12.8 ulp |
-| `nk_kabsch_bf16_haswell`  |       36.2 mp/s, 0.4 ulp |        106 mp/s, 7.6 ulp |       186 mp/s, 33.0 ulp |
-| `nk_umeyama_bf16_haswell` |       34.5 mp/s, 0.3 ulp |        102 mp/s, 5.3 ulp |       186 mp/s, 23.1 ulp |
-| `nk_rmsd_bf16_skylake`    |      1,837 mp/s, 0.4 ulp |      2,357 mp/s, 5.4 ulp |     2,422 mp/s, 11.8 ulp |
-| `nk_kabsch_bf16_skylake`  |       34.1 mp/s, 0.3 ulp |        131 mp/s, 3.2 ulp |       487 mp/s, 20.4 ulp |
-| `nk_umeyama_bf16_skylake` |       34.6 mp/s, 0.3 ulp |        130 mp/s, 2.2 ulp |       394 mp/s, 14.3 ulp |
-| `nk_rmsd_bf16_genoa`      |      1,743 mp/s, 0.3 ulp |      2,323 mp/s, 3.1 ulp |     2,066 mp/s, 20.2 ulp |
-| `nk_kabsch_bf16_genoa`    |       33.4 mp/s, 0.3 ulp |        133 mp/s, 3.2 ulp |       405 mp/s, 20.3 ulp |
-| `nk_umeyama_bf16_genoa`   |       33.2 mp/s, 0.3 ulp |        129 mp/s, 2.2 ulp |       439 mp/s, 14.3 ulp |
+| `nk_rmsd_bf16_haswell`    |        209 mp/s, 0.3 ulp |        205 mp/s, 3.5 ulp |       193 mp/s, 12.8 ulp |
+| `nk_kabsch_bf16_haswell`  |       28.9 mp/s, 0.4 ulp |       79.9 mp/s, 7.6 ulp |       134 mp/s, 33.0 ulp |
+| `nk_umeyama_bf16_haswell` |       29.0 mp/s, 0.3 ulp |       75.8 mp/s, 5.3 ulp |       124 mp/s, 23.1 ulp |
+| `nk_rmsd_bf16_skylake`    |      1,538 mp/s, 0.4 ulp |      1,922 mp/s, 5.4 ulp |     2,053 mp/s, 11.8 ulp |
+| `nk_kabsch_bf16_skylake`  |       30.8 mp/s, 0.3 ulp |        114 mp/s, 3.2 ulp |       260 mp/s, 20.4 ulp |
+| `nk_umeyama_bf16_skylake` |       31.1 mp/s, 0.3 ulp |        110 mp/s, 2.2 ulp |       254 mp/s, 14.3 ulp |
+| `nk_rmsd_bf16_genoa`      |      1,543 mp/s, 0.3 ulp |      1,859 mp/s, 3.1 ulp |     2,068 mp/s, 20.2 ulp |
+| `nk_kabsch_bf16_genoa`    |       30.5 mp/s, 0.3 ulp |        106 mp/s, 3.2 ulp |       188 mp/s, 20.3 ulp |
+| `nk_umeyama_bf16_genoa`   |       30.7 mp/s, 0.3 ulp |       98.9 mp/s, 2.2 ulp |       215 mp/s, 14.3 ulp |
 | __f16__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f16_haswell`     |        273 mp/s, 0.2 ulp |        274 mp/s, 0.7 ulp |        291 mp/s, 2.5 ulp |
-| `nk_kabsch_f16_haswell`   |       34.4 mp/s, 0.5 ulp |       98.0 mp/s, 1.8 ulp |        197 mp/s, 8.2 ulp |
-| `nk_umeyama_f16_haswell`  |       35.5 mp/s, 0.4 ulp |       97.9 mp/s, 1.2 ulp |        196 mp/s, 5.7 ulp |
-| `nk_rmsd_f16_skylake`     |      1,834 mp/s, 0.3 ulp |      2,341 mp/s, 1.3 ulp |      2,418 mp/s, 3.9 ulp |
-| `nk_kabsch_f16_skylake`   |       34.0 mp/s, 0.7 ulp |        132 mp/s, 0.5 ulp |        480 mp/s, 4.7 ulp |
-| `nk_umeyama_f16_skylake`  |       33.8 mp/s, 0.5 ulp |        127 mp/s, 0.4 ulp |        481 mp/s, 3.3 ulp |
+| `nk_rmsd_f16_haswell`     |        204 mp/s, 0.2 ulp |        209 mp/s, 0.7 ulp |        197 mp/s, 2.5 ulp |
+| `nk_kabsch_f16_haswell`   |       29.8 mp/s, 0.5 ulp |       82.4 mp/s, 1.8 ulp |        131 mp/s, 8.2 ulp |
+| `nk_umeyama_f16_haswell`  |       30.0 mp/s, 0.4 ulp |       80.4 mp/s, 1.2 ulp |        133 mp/s, 5.7 ulp |
+| `nk_rmsd_f16_skylake`     |      1,567 mp/s, 0.3 ulp |      1,947 mp/s, 1.3 ulp |      2,006 mp/s, 3.9 ulp |
+| `nk_kabsch_f16_skylake`   |       31.6 mp/s, 0.7 ulp |        108 mp/s, 0.5 ulp |        279 mp/s, 4.7 ulp |
+| `nk_umeyama_f16_skylake`  |       31.5 mp/s, 0.5 ulp |        109 mp/s, 0.4 ulp |        266 mp/s, 3.3 ulp |
 
 #### WASM
 
-Measured with Wasmtime v43 (Cranelift backend), WASI-SDK 24, `-msimd128 -mrelaxed-simd`.
+Measured with wasmtime 49.0.2, Cranelift.
 
 | Kernel                       |                      256 |                     1024 |                     4096 |
 | :--------------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __f64__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f64_serial`         |       89.9 mp/s, 0.5 ulp |       86.1 mp/s, 0.5 ulp |       73.4 mp/s, 0.5 ulp |
-| `nk_rmsd_f64_v128relaxed`    |        485 mp/s, 0.4 ulp |        552 mp/s, 0.7 ulp |        412 mp/s, 1.3 ulp |
-| `nk_kabsch_f64_serial`       |       12.1 mp/s, 0.8 ulp |       13.9 mp/s, 0.8 ulp |       14.0 mp/s, 0.9 ulp |
-| `nk_kabsch_f64_v128relaxed`  |       66.0 mp/s, 0.9 ulp |        188 mp/s, 1.7 ulp |        177 mp/s, 3.1 ulp |
-| `nk_umeyama_f64_serial`      |       10.8 mp/s, 0.3 ulp |       12.3 mp/s, 0.3 ulp |       12.2 mp/s, 0.4 ulp |
-| `nk_umeyama_f64_v128relaxed` |       64.0 mp/s, 0.8 ulp |        187 mp/s, 1.6 ulp |        178 mp/s, 3.2 ulp |
+| `nk_rmsd_f64_serial`         |       68.2 mp/s, 0.5 ulp |       66.8 mp/s, 0.5 ulp |       64.9 mp/s, 0.5 ulp |
+| `nk_rmsd_f64_v128relaxed`    |        546 mp/s, 0.4 ulp |        586 mp/s, 0.7 ulp |        576 mp/s, 1.3 ulp |
+| `nk_kabsch_f64_serial`       |       9.37 mp/s, 0.8 ulp |       10.5 mp/s, 0.8 ulp |       10.9 mp/s, 0.9 ulp |
+| `nk_kabsch_f64_v128relaxed`  |       48.7 mp/s, 0.9 ulp |       96.2 mp/s, 1.7 ulp |        128 mp/s, 3.1 ulp |
+| `nk_umeyama_f64_serial`      |       6.45 mp/s, 0.3 ulp |       6.88 mp/s, 0.3 ulp |       7.19 mp/s, 0.4 ulp |
+| `nk_umeyama_f64_v128relaxed` |       47.2 mp/s, 0.8 ulp |       94.1 mp/s, 1.6 ulp |        125 mp/s, 3.2 ulp |
 | __f32__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f32_serial`         |       80.6 mp/s, 0.5 ulp |       82.7 mp/s, 0.5 ulp |       70.3 mp/s, 0.5 ulp |
-| `nk_rmsd_f32_v128relaxed`    |        452 mp/s, 1.5 ulp |        416 mp/s, 1.3 ulp |        399 mp/s, 4.8 ulp |
-| `nk_kabsch_f32_serial`       |       11.4 mp/s, 0.8 ulp |       12.8 mp/s, 0.9 ulp |       12.7 mp/s, 0.8 ulp |
-| `nk_kabsch_f32_v128relaxed`  |       79.5 mp/s, 4.2 ulp |        132 mp/s, 3.9 ulp |       177 mp/s, 14.3 ulp |
-| `nk_umeyama_f32_serial`      |       10.1 mp/s, 0.3 ulp |       11.2 mp/s, 0.3 ulp |       11.2 mp/s, 0.3 ulp |
-| `nk_umeyama_f32_v128relaxed` |       79.4 mp/s, 2.8 ulp |        138 mp/s, 2.8 ulp |       194 mp/s, 10.1 ulp |
-
+| `nk_rmsd_f32_serial`         |       58.2 mp/s, 0.5 ulp |       57.8 mp/s, 0.5 ulp |       54.4 mp/s, 0.5 ulp |
+| `nk_rmsd_f32_v128relaxed`    |        356 mp/s, 1.5 ulp |        369 mp/s, 1.3 ulp |        370 mp/s, 4.8 ulp |
+| `nk_kabsch_f32_serial`       |       7.84 mp/s, 0.8 ulp |       8.60 mp/s, 0.9 ulp |       8.82 mp/s, 0.8 ulp |
+| `nk_kabsch_f32_v128relaxed`  |       43.9 mp/s, 4.2 ulp |       66.2 mp/s, 3.9 ulp |      98.4 mp/s, 14.3 ulp |
+| `nk_umeyama_f32_serial`      |       5.67 mp/s, 0.3 ulp |       6.04 mp/s, 0.3 ulp |       6.22 mp/s, 0.3 ulp |
+| `nk_umeyama_f32_v128relaxed` |       43.3 mp/s, 2.8 ulp |       65.1 mp/s, 2.8 ulp |      93.8 mp/s, 10.1 ulp |
 
 ### Apple M5
 
