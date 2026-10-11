@@ -671,6 +671,8 @@ def test_multiply_numpy_buffer_protocol(dtype: str):
 @pytest.mark.skipif(not numpy_available or not nk.get_capabilities().get("neonhalf"), reason="NEON half is unavailable")
 def test_multiply_float16_preserves_signed_zero():
     """Multiplication preserves negative zero for scalar and array operands, including out buffers."""
+    keep_one_capability("neonhalf")
+
     image = np.array([-0.0, 0.0, -0.0, 0.0], dtype=np.float16)
     operands = (
         0.875,
