@@ -6690,6 +6690,27 @@ struct raw_pod_type<value_type_, std::void_t<typename value_type_::raw_t>> {
     using type = typename value_type_::raw_t;
 };
 
+/** One dimension of the value at @p value: itself, or a packed one's code at @p sub_index. */
+template <typename value_type_>
+constexpr decltype(auto) dimension_at_(void const *value, std::size_t sub_index) noexcept {
+    if constexpr (dimensions_per_value<value_type_>() == 1) return *static_cast<value_type_ const *>(value);
+    else {
+        using raw_type = typename raw_pod_type<value_type_>::type;
+        return sub_byte_ref<value_type_>(const_cast<raw_type *>(static_cast<raw_type const *>(value)), sub_index).get();
+    }
+}
+
+/** The mutable twin of @ref dimension_at_: a reference, or a @c sub_byte_ref to the code. */
+template <typename value_type_>
+constexpr value_ref<value_type_> dimension_ref_at_(void *value, std::size_t sub_index) noexcept {
+    if constexpr (dimensions_per_value<value_type_>() == 1) return *static_cast<value_type_ *>(value);
+    else return {static_cast<typename raw_pod_type<value_type_>::type *>(value), sub_index};
+}
+
+/** One logical dimension of a value read by copy, the immutable twin of @ref value_ref. */
+template <typename value_type_>
+using value_copy = std::remove_cvref_t<decltype(dimension_at_<value_type_>(nullptr, 0))>;
+
 template <typename in_type_>
 struct operand_pointer_ {
     using type = in_type_ const *;

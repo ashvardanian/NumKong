@@ -326,16 +326,9 @@ struct vector_view {
     constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
         nk_assert_(i < dimensions_);
-        if constexpr (dimensions_per_value<value_type>() > 1) {
-            constexpr auto dims_per_value = dimensions_per_value<value_type>();
-            auto value_index = i / dims_per_value;
-            auto sub_index = i % dims_per_value;
-            using raw_type = typename raw_pod_type<value_type>::type;
-            auto *base = const_cast<raw_type *>(
-                reinterpret_cast<raw_type const *>(data_ + static_cast<difference_type>(value_index) * stride_));
-            return sub_byte_ref<value_type>(base, sub_index).get();
-        }
-        else { return *reinterpret_cast<value_type const *>(data_ + static_cast<difference_type>(i) * stride_); }
+        constexpr auto dims_per_value = dimensions_per_value<value_type>();
+        return dimension_at_<value_type>(data_ + static_cast<difference_type>(i / dims_per_value) * stride_,
+                                         i % dims_per_value);
     }
 
     /** Sub-slice via range. */
@@ -447,15 +440,9 @@ struct vector_span {
     constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
         nk_assert_(i < dimensions_);
-        if constexpr (dimensions_per_value<value_type>() > 1) {
-            constexpr auto dims_per_value = dimensions_per_value<value_type>();
-            auto value_index = i / dims_per_value;
-            auto sub_index = i % dims_per_value;
-            using raw_type = typename raw_pod_type<value_type>::type;
-            auto *base = reinterpret_cast<raw_type *>(data_ + static_cast<difference_type>(value_index) * stride_);
-            return sub_byte_ref<value_type>(base, sub_index);
-        }
-        else { return *reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(i) * stride_); }
+        constexpr auto dims_per_value = dimensions_per_value<value_type>();
+        return dimension_ref_at_<value_type>(data_ + static_cast<difference_type>(i / dims_per_value) * stride_,
+                                             i % dims_per_value);
     }
 
     /** Sub-slice via range. */
@@ -819,20 +806,16 @@ struct vector {
     constexpr decltype(auto) operator[](index_type_ idx) noexcept {
         auto i = resolve_index_(idx, dimensions_);
         nk_assert_(i < dimensions_);
-        if constexpr (dimensions_per_value<value_type>() > 1)
-            return sub_byte_ref<value_type>(reinterpret_cast<raw_value_type *>(data_), i);
-        else return data_[i];
+        constexpr auto dims_per_value = dimensions_per_value<value_type>();
+        return dimension_ref_at_<value_type>(data_ + i / dims_per_value, i % dims_per_value);
     }
 
     template <std::integral index_type_>
     constexpr decltype(auto) operator[](index_type_ idx) const noexcept {
         auto i = resolve_index_(idx, dimensions_);
         nk_assert_(i < dimensions_);
-        if constexpr (dimensions_per_value<value_type>() > 1)
-            return sub_byte_ref<value_type>(
-                       const_cast<raw_value_type *>(reinterpret_cast<raw_value_type const *>(data_)), i)
-                .get();
-        else return data_[i];
+        constexpr auto dims_per_value = dimensions_per_value<value_type>();
+        return dimension_at_<value_type>(data_ + i / dims_per_value, i % dims_per_value);
     }
 
     /** Slice via range_t, returns a vector_span. */

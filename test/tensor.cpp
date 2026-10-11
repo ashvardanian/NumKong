@@ -209,6 +209,29 @@ error_stats_t test_tensor_operator_indexing(settings_t const &) {
     return stats;
 }
 
+/** Native, foreign, packed and block-scaled elements iterate exactly as their lookup reads them. */
+template <typename value_type_>
+error_stats_t test_tensor_iteration(settings_t const &) {
+    error_stats_t stats(comparison_family_t::exact_k);
+    constexpr std::size_t dims_per_value = nk::dimensions_per_value<value_type_>();
+    auto values = make_vector<value_type_>(3 * 2 * 8 * dims_per_value);
+    std::mt19937 generator(42);
+    fill_random_bits(generator, values);
+    // The leading half of every row, so each row's walk ends a stride short of the next row.
+    nk::tensor_view<value_type_> const cube(values.values_data(), {3, 2, 8 * dims_per_value});
+    nk::tensor_view<value_type_> const half = cube(nk::all, nk::all, nk::range(std::size_t {0}, 4 * dims_per_value),
+                                                   nk::slice);
+    std::size_t matched = 0;
+    for (auto it = half.begin(); it != half.end(); ++it) {
+        auto const [position, value] = *it;
+        auto const looked_up = half(position[0], position[1], position[2]);
+        static_assert(std::is_same_v<decltype(value), decltype(looked_up)>, "iteration yields the lookup's type");
+        matched += std::memcmp(&value, &looked_up, sizeof(value)) == 0;
+    }
+    stats.expect(matched == half.numel(), "tensor iteration differs from its lookup");
+    return stats;
+}
+
 error_stats_t test_packed_tensor_operator_indexing(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto [t4, t4_status] = nk::tensor<nk::u4x2_t>::zeros({2, 4});
@@ -1620,6 +1643,12 @@ void test_tensor_ops(error_stats_section_t &check) {
     check("tensor_rank1_axis", test_rank1_axis_reductions);
     check("tensor_operator_indexing", test_tensor_operator_indexing);
     check("tensor_packed_operator_indexing", test_packed_tensor_operator_indexing);
+    check("tensor_iteration_f32", test_tensor_iteration<float>);
+    check("tensor_iteration_f32c", test_tensor_iteration<nk::f32c_t>);
+    check("tensor_iteration_u1", test_tensor_iteration<nk::u1x8_t>);
+    check("tensor_iteration_e2m1", test_tensor_iteration<nk::e2m1x2_t>);
+    check("tensor_iteration_nvfp4", test_tensor_iteration<nk::nvfp4_t>);
+    check("tensor_iteration_mxfp8e4m3", test_tensor_iteration<nk::mxfp8e4m3_t>);
     check("tensor_fail_closed_views", test_packed_tensor_fail_closed_views);
 
     check("tensor_symmetric_f32", test_tensor_symmetric_for_type<nk::f32_t>);

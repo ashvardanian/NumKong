@@ -834,18 +834,10 @@ constexpr decltype(auto) tensor_lookup_resolved_(tensor_view<value_type_, max_ra
             offset += static_cast<std::ptrdiff_t>(coords[i]) * input.stride_bytes(i);
         constexpr auto dims_per_value = dimensions_per_value<value_type_>();
         auto last_index = coords[input.rank() - 1];
-        auto value_index = last_index / dims_per_value;
-        auto sub_index = last_index % dims_per_value;
-        using raw_type = typename raw_pod_type<value_type_>::type;
-        auto *base = const_cast<raw_type *>(reinterpret_cast<raw_type const *>(
-            input.byte_data() + offset +
-            static_cast<std::ptrdiff_t>(value_index) * input.stride_bytes(input.rank() - 1)));
-        return sub_byte_ref<value_type_>(base, sub_index).get();
+        offset += static_cast<std::ptrdiff_t>(last_index / dims_per_value) * input.stride_bytes(input.rank() - 1);
+        return dimension_at_<value_type_>(input.byte_data() + offset, last_index % dims_per_value);
     }
-    else {
-        auto offset = input.shape().linearize(coords.data());
-        return *reinterpret_cast<value_type_ const *>(input.byte_data() + offset);
-    }
+    else return dimension_at_<value_type_>(input.byte_data() + input.shape().linearize(coords.data()), 0);
 }
 
 template <typename value_type_, std::size_t max_rank_, std::size_t extent_>
@@ -860,18 +852,10 @@ constexpr decltype(auto) tensor_lookup_resolved_(tensor_span<value_type_, max_ra
             offset += static_cast<std::ptrdiff_t>(coords[i]) * input.stride_bytes(i);
         constexpr auto dims_per_value = dimensions_per_value<value_type_>();
         auto last_index = coords[input.rank() - 1];
-        auto value_index = last_index / dims_per_value;
-        auto sub_index = last_index % dims_per_value;
-        using raw_type = typename raw_pod_type<value_type_>::type;
-        auto *base = reinterpret_cast<raw_type *>(input.byte_data() + offset +
-                                                  static_cast<std::ptrdiff_t>(value_index) *
-                                                      input.stride_bytes(input.rank() - 1));
-        return sub_byte_ref<value_type_>(base, sub_index);
+        offset += static_cast<std::ptrdiff_t>(last_index / dims_per_value) * input.stride_bytes(input.rank() - 1);
+        return dimension_ref_at_<value_type_>(input.byte_data() + offset, last_index % dims_per_value);
     }
-    else {
-        auto offset = input.shape().linearize(coords.data());
-        return *reinterpret_cast<value_type_ *>(input.byte_data() + offset);
-    }
+    else return dimension_ref_at_<value_type_>(input.byte_data() + input.shape().linearize(coords.data()), 0);
 }
 
 template <typename value_type_, std::size_t max_rank_, typename index_type_>
@@ -1117,183 +1101,125 @@ class axis_iterator {
 #pragma region Tensor Element Iterators
 
 /**
- *  @brief Forward iterator over all logical scalar elements of a const tensor view.
+ *  @brief The walk both element iterators share, over every logical element of a view or span.
  *
- *  Yields `std::pair<index_type, scalar_type>` where @c index_type is an N-dimensional position
- *  array and @c scalar_type is the unpacked dimension scalar, a copy. For sub-byte types the
- *  innermost axis is split into per-dimension offsets.
+ *  The innermost index and the address of the value holding it live in scalars, so a step along a
+ *  row indexes no array; the outer indices move, and the address is re-derived, when a row ends.
  */
-template <typename view_type_>
-class tensor_view_iterator_ {
-    using value_type_ = typename view_type_::value_type;
-    static constexpr std::size_t max_rank_ = view_type_::max_rank;
-    static constexpr unsigned dims_per_value_ = dimensions_per_value<value_type_>();
+template <typename parent_type_, typename byte_type_>
+class tensor_walk_ {
+  protected:
+    static constexpr std::size_t max_rank_ = parent_type_::max_rank;
+    static constexpr std::size_t dims_per_value_ = dimensions_per_value<typename parent_type_::value_type>();
 
-    char const *data_ = nullptr;
-    std::size_t extents_[max_rank_] = {};
-    std::ptrdiff_t strides_[max_rank_] = {};
-    std::size_t ndim_ = 0;
-    std::size_t indices_[max_rank_] = {};
-    std::size_t remaining_ = 0;
+    parent_type_ parent_ {};
+    byte_type_ *value_ = nullptr;
+    std::size_t inner_ = 0, inner_extent_ = 0, remaining_ = 0;
+    std::ptrdiff_t inner_stride_ = 0;
+    std::size_t outer_[max_rank_] = {};
+
+    constexpr tensor_walk_() noexcept = default;
+    constexpr tensor_walk_(parent_type_ const &parent, std::size_t remaining) noexcept
+        : parent_(parent), value_(parent.byte_data()), remaining_(parent.empty() ? 0 : remaining) {
+        if (!parent.rank()) return;
+        inner_extent_ = parent.extent(parent.rank() - 1);
+        inner_stride_ = parent.stride_bytes(parent.rank() - 1);
+    }
+
+    constexpr std::size_t sub_index_() const noexcept { return inner_ % dims_per_value_; }
+
+    constexpr void advance_() noexcept {
+        --remaining_;
+        if (++inner_ < inner_extent_) {
+            if (inner_ % dims_per_value_ == 0) value_ += inner_stride_;
+            return;
+        }
+        inner_ = 0;
+        std::size_t const outer = parent_.rank() ? parent_.rank() - 1 : 0;
+        for (std::size_t axis = outer; axis > 0 && ++outer_[axis - 1] == parent_.extent(axis - 1); --axis)
+            outer_[axis - 1] = 0;
+        value_ = parent_.byte_data();
+        for (std::size_t axis = 0; axis != outer; ++axis)
+            value_ += static_cast<std::ptrdiff_t>(outer_[axis]) * parent_.stride_bytes(axis);
+    }
 
   public:
     using index_type = std::array<std::size_t, max_rank_>;
-    using scalar_type = typename value_type_::component_t;
     using iterator_category = std::forward_iterator_tag;
     using difference_type = std::ptrdiff_t;
     using size_type = std::size_t;
-    using value_type = std::pair<index_type, scalar_type>;
 
-    constexpr tensor_view_iterator_() noexcept = default;
-
-    constexpr tensor_view_iterator_(view_type_ const &parent, bool at_end = false) noexcept
-        : data_(parent.byte_data()), ndim_(parent.rank()), remaining_(at_end || parent.empty() ? 0 : parent.numel()) {
-        for (std::size_t i = 0; i < ndim_; ++i) {
-            extents_[i] = parent.extent(i);
-            strides_[i] = parent.stride_bytes(i);
-        }
-    }
-
-    constexpr value_type operator*() const noexcept {
-        index_type pos {};
-        std::ptrdiff_t offset = 0;
-        for (std::size_t d = 0; d + 1 < ndim_; ++d) {
-            pos[d] = indices_[d];
-            offset += static_cast<std::ptrdiff_t>(indices_[d]) * strides_[d];
-        }
-        if constexpr (dims_per_value_ == 1) {
-            if (ndim_ == 0) return {pos, *reinterpret_cast<value_type_ const *>(data_)};
-            std::size_t inner = indices_[ndim_ - 1];
-            pos[ndim_ - 1] = inner;
-            offset += static_cast<std::ptrdiff_t>(inner) * strides_[ndim_ - 1];
-            return {pos, *reinterpret_cast<value_type_ const *>(data_ + offset)};
-        }
-        else {
-            std::size_t inner = indices_[ndim_ - 1];
-            pos[ndim_ - 1] = inner;
-            std::size_t storage_idx = inner / dims_per_value_;
-            std::size_t sub_idx = inner % dims_per_value_;
-            offset += static_cast<std::ptrdiff_t>(storage_idx) * strides_[ndim_ - 1];
-            using raw_type = typename raw_pod_type<value_type_>::type;
-            auto *raw = const_cast<raw_type *>(reinterpret_cast<raw_type const *>(data_ + offset));
-            return {pos, sub_byte_ref<value_type_>(raw, sub_idx).get()};
-        }
-    }
-
-    constexpr tensor_view_iterator_ &operator++() noexcept {
-        --remaining_;
-        for (std::size_t d = ndim_; d > 0; --d) {
-            if (++indices_[d - 1] < extents_[d - 1]) return *this;
-            indices_[d - 1] = 0;
-        }
-        return *this;
-    }
-
-    constexpr tensor_view_iterator_ operator++(int) noexcept {
-        auto tmp = *this;
-        ++(*this);
-        return tmp;
-    }
-
-    constexpr bool operator==(tensor_view_iterator_ const &o) const noexcept { return remaining_ == o.remaining_; }
-    constexpr bool operator!=(tensor_view_iterator_ const &o) const noexcept { return remaining_ != o.remaining_; }
+    constexpr bool operator==(tensor_walk_ const &other) const noexcept { return remaining_ == other.remaining_; }
 
     constexpr index_type position() const noexcept {
-        index_type pos {};
-        for (std::size_t d = 0; d < ndim_; ++d) pos[d] = indices_[d];
-        return pos;
+        index_type position {};
+        std::size_t const rank = parent_.rank();
+        for (std::size_t axis = 0; axis + 1 < rank; ++axis) position[axis] = outer_[axis];
+        if (rank) position[rank - 1] = inner_;
+        return position;
     }
 
     constexpr size_type remaining() const noexcept { return remaining_; }
 };
 
-/**
- *  @brief Forward iterator over all logical scalar elements of a mutable tensor span.
- *
- *  Yields `std::pair<index_type, T&>` for normal types or `std::pair<index_type, sub_byte_ref<T>>`
- *  for sub-byte types.
- */
-template <typename span_type_>
-class tensor_span_iterator_ {
-    using value_type_ = typename span_type_::value_type;
-    static constexpr std::size_t max_rank_ = span_type_::max_rank;
-    static constexpr unsigned dims_per_value_ = dimensions_per_value<value_type_>();
-
-    char *data_ = nullptr;
-    std::size_t extents_[max_rank_] = {};
-    std::ptrdiff_t strides_[max_rank_] = {};
-    std::size_t ndim_ = 0;
-    std::size_t indices_[max_rank_] = {};
-    std::size_t remaining_ = 0;
+/** Forward iterator over every element of a const tensor view, yielding each position beside a
+ *  copy of what the view's lookup reads: the value itself, of any type, or a packed raw code. */
+template <typename view_type_>
+class tensor_view_iterator_ : public tensor_walk_<view_type_, char const> {
+    using walk_type_ = tensor_walk_<view_type_, char const>;
 
   public:
-    using index_type = std::array<std::size_t, max_rank_>;
-    using value_reference_type = value_ref<value_type_>;
-    using iterator_category = std::forward_iterator_tag;
-    using difference_type = std::ptrdiff_t;
-    using size_type = std::size_t;
-    using value_type = std::pair<index_type, value_reference_type>;
+    using scalar_type = value_copy<typename view_type_::value_type>;
+    using value_type = std::pair<typename walk_type_::index_type, scalar_type>;
 
-    constexpr tensor_span_iterator_() noexcept = default;
-
-    constexpr tensor_span_iterator_(span_type_ &parent, bool at_end = false) noexcept
-        : data_(parent.byte_data()), ndim_(parent.rank()), remaining_(at_end || parent.empty() ? 0 : parent.numel()) {
-        for (std::size_t i = 0; i < ndim_; ++i) {
-            extents_[i] = parent.extent(i);
-            strides_[i] = parent.stride_bytes(i);
-        }
-    }
+    constexpr tensor_view_iterator_() noexcept = default;
+    constexpr tensor_view_iterator_(view_type_ const &parent, bool at_end = false) noexcept
+        : walk_type_(parent, at_end ? 0 : parent.numel()) {}
 
     constexpr value_type operator*() const noexcept {
-        index_type pos {};
-        std::ptrdiff_t offset = 0;
-        for (std::size_t d = 0; d + 1 < ndim_; ++d) {
-            pos[d] = indices_[d];
-            offset += static_cast<std::ptrdiff_t>(indices_[d]) * strides_[d];
-        }
-        if constexpr (dims_per_value_ == 1) {
-            if (ndim_ == 0) return {pos, *reinterpret_cast<value_type_ *>(data_)};
-            std::size_t inner = indices_[ndim_ - 1];
-            pos[ndim_ - 1] = inner;
-            offset += static_cast<std::ptrdiff_t>(inner) * strides_[ndim_ - 1];
-            return {pos, *reinterpret_cast<value_type_ *>(data_ + offset)};
-        }
-        else {
-            std::size_t inner = indices_[ndim_ - 1];
-            pos[ndim_ - 1] = inner;
-            std::size_t storage_idx = inner / dims_per_value_;
-            std::size_t sub_idx = inner % dims_per_value_;
-            offset += static_cast<std::ptrdiff_t>(storage_idx) * strides_[ndim_ - 1];
-            auto *raw = reinterpret_cast<typename raw_pod_type<value_type_>::type *>(data_ + offset);
-            return {pos, sub_byte_ref<value_type_>(raw, sub_idx)};
-        }
+        return {this->position(), dimension_at_<typename view_type_::value_type>(this->value_, this->sub_index_())};
+    }
+
+    constexpr tensor_view_iterator_ &operator++() noexcept {
+        this->advance_();
+        return *this;
+    }
+
+    constexpr tensor_view_iterator_ operator++(int) noexcept {
+        auto previous = *this;
+        this->advance_();
+        return previous;
+    }
+};
+
+/** Forward iterator over every element of a mutable tensor span, yielding each position beside
+ *  the reference its lookup returns: a @c T& to a value, or a @c sub_byte_ref to a code. */
+template <typename span_type_>
+class tensor_span_iterator_ : public tensor_walk_<span_type_, char> {
+    using walk_type_ = tensor_walk_<span_type_, char>;
+
+  public:
+    using value_reference_type = value_ref<typename span_type_::value_type>;
+    using value_type = std::pair<typename walk_type_::index_type, value_reference_type>;
+
+    constexpr tensor_span_iterator_() noexcept = default;
+    constexpr tensor_span_iterator_(span_type_ const &parent, bool at_end = false) noexcept
+        : walk_type_(parent, at_end ? 0 : parent.numel()) {}
+
+    constexpr value_type operator*() const noexcept {
+        return {this->position(), dimension_ref_at_<typename span_type_::value_type>(this->value_, this->sub_index_())};
     }
 
     constexpr tensor_span_iterator_ &operator++() noexcept {
-        --remaining_;
-        for (std::size_t d = ndim_; d > 0; --d) {
-            if (++indices_[d - 1] < extents_[d - 1]) return *this;
-            indices_[d - 1] = 0;
-        }
+        this->advance_();
         return *this;
     }
 
     constexpr tensor_span_iterator_ operator++(int) noexcept {
-        auto tmp = *this;
-        ++(*this);
-        return tmp;
+        auto previous = *this;
+        this->advance_();
+        return previous;
     }
-
-    constexpr bool operator==(tensor_span_iterator_ const &o) const noexcept { return remaining_ == o.remaining_; }
-    constexpr bool operator!=(tensor_span_iterator_ const &o) const noexcept { return remaining_ != o.remaining_; }
-
-    constexpr index_type position() const noexcept {
-        index_type pos {};
-        for (std::size_t d = 0; d < ndim_; ++d) pos[d] = indices_[d];
-        return pos;
-    }
-
-    constexpr size_type remaining() const noexcept { return remaining_; }
 };
 
 /**
@@ -1325,13 +1251,9 @@ struct tensor_dims_view_ {
     };
 
     constexpr iterator_ begin() const noexcept { return {begin_}; }
-    constexpr iterator_ end() const noexcept {
-        auto end_it = begin_;
-        // Advance to end by constructing an iterator with remaining_==0
-        // We stored size_ so we can compare via remaining counts
-        iterator_type_ sentinel;
-        return {sentinel};
-    }
+
+    /** A default-constructed iterator has nothing remaining, so it equals the exhausted one. */
+    constexpr iterator_ end() const noexcept { return {iterator_type_ {}}; }
     constexpr std::size_t size() const noexcept { return size_; }
 };
 
