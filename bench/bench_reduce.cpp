@@ -6,6 +6,7 @@
  */
 
 #include <array>
+#include <cstring>
 
 #include "numkong/cast.h"
 #include "numkong/reduce.h"
@@ -105,6 +106,51 @@ void run_reduce_moments_f16_layout(std::string name, f16_kernel_type_ *f16_kerne
                           f16_kernel, f32_kernel, bench_config.dense_dimensions, channels);
 }
 
+template <bool bridge_, typename f16_kernel_type_, typename f32_kernel_type_>
+void measure_reduce_moments_f16_unaligned_stride(bm::State &state, f16_kernel_type_ f16_kernel,
+                                                 f32_kernel_type_ f32_kernel, std::size_t count) {
+    constexpr std::size_t stride_bytes = sizeof(nk_f16_t) + 1;
+    nk::vector<nk::f16_t> values = make_vector<nk::f16_t>(count);
+    auto generator = make_random_engine();
+    nk::fill_uniform(generator, values.values_data(), values.size_values());
+    std::vector<nk_u8_t> strided((count - 1) * stride_bytes + sizeof(nk_f16_t));
+    for (std::size_t i = 0; i != count; ++i)
+        std::memcpy(strided.data() + i * stride_bytes, values.raw_values_data() + i, sizeof(nk_f16_t));
+    std::vector<nk_f32_t> widened(bridge_ ? count : 0);
+
+    std::size_t iterations = 0;
+    for (auto _ : state) {
+        if constexpr (bridge_) {
+            nk_f64_t sum, sumsq;
+            for (std::size_t i = 0; i != count; ++i)
+                nk_f16_to_f32_serial((nk_f16_t const *)(strided.data() + i * stride_bytes), widened.data() + i);
+            f32_kernel(widened.data(), count, sizeof(nk_f32_t), &sum, &sumsq);
+            bm::DoNotOptimize(sum);
+            bm::DoNotOptimize(sumsq);
+        }
+        else {
+            nk_f32_t sum, sumsq;
+            f16_kernel((nk_f16_t const *)strided.data(), count, stride_bytes, &sum, &sumsq);
+            bm::DoNotOptimize(sum);
+            bm::DoNotOptimize(sumsq);
+        }
+        ++iterations;
+    }
+
+    std::size_t const bytes_per_call = bridge_ ? count * (stride_bytes + 2 * sizeof(nk_f32_t)) : count * stride_bytes;
+    state.counters["bytes"] = bm::Counter(1.0 * iterations * bytes_per_call, bm::Counter::kIsRate);
+    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
+}
+
+template <bool bridge_, typename f16_kernel_type_, typename f32_kernel_type_>
+void run_reduce_moments_f16_unaligned_stride(std::string name, f16_kernel_type_ *f16_kernel,
+                                             f32_kernel_type_ *f32_kernel) {
+    std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + " values>";
+    bm::RegisterBenchmark(bench_name.c_str(),
+                          measure_reduce_moments_f16_unaligned_stride<bridge_, f16_kernel_type_ *, f32_kernel_type_ *>,
+                          f16_kernel, f32_kernel, bench_config.dense_dimensions);
+}
+
 /**
  *  @brief Measures the performance of a reduce_minmax kernel (min + max with indices).
  */
@@ -176,6 +222,10 @@ void bench_reduce() {
                                          nk_reduce_moments_f32_neon, 3);
     run_reduce_moments_f16_layout<true>("reduce_moments_f16_f32_bridge_neon_hwc_c3", nk_reduce_moments_f16_neon,
                                         nk_reduce_moments_f32_neon, 3);
+    run_reduce_moments_f16_unaligned_stride<false>("reduce_moments_f16_neon_unaligned_stride",
+                                                   nk_reduce_moments_f16_neon, nk_reduce_moments_f32_neon);
+    run_reduce_moments_f16_unaligned_stride<true>("reduce_moments_f16_f32_bridge_neon_unaligned_stride",
+                                                  nk_reduce_moments_f16_neon, nk_reduce_moments_f32_neon);
     run_reduce_moments<i8_k>("reduce_moments_i8_neon", nk_reduce_moments_i8_neon);
     run_reduce_moments<u8_k>("reduce_moments_u8_neon", nk_reduce_moments_u8_neon);
     run_reduce_moments<i16_k>("reduce_moments_i16_neon", nk_reduce_moments_i16_neon);
