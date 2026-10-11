@@ -3920,26 +3920,27 @@ NK_INTERNAL void nk_reduce_moments_f16_neon_accumulate_f64_(           //
     nk_size_t stride_elements = stride_bytes / sizeof(nk_f16_t);
     int aligned = (stride_bytes % sizeof(nk_f16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) {
+    else if (!aligned || stride_elements > 4) {
         nk_f32_t sum_f32, sumsq_f32;
         nk_reduce_moments_f16_serial(data_ptr, count, stride_bytes, &sum_f32, &sumsq_f32);
         *sum_ptr = sum_f32, *sumsq_ptr = sumsq_f32;
     }
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 8) {
-        nk_size_t left_count = count / 2;
-        nk_f64_t left_sum, left_sumsq, right_sum, right_sumsq;
-        nk_reduce_moments_f16_neon_accumulate_f64_(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
-        nk_reduce_moments_f16_neon_accumulate_f64_(data_ptr + left_count * stride_elements, count - left_count,
-                                                   stride_bytes, &right_sum, &right_sumsq);
-        *sum_ptr = left_sum + right_sum, *sumsq_ptr = left_sumsq + right_sumsq;
-    }
-    else if (stride_elements == 1) nk_reduce_moments_f16_neon_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else if (stride_elements <= 4)
-        nk_reduce_moments_f16_neon_strided_(data_ptr, count, stride_elements, sum_ptr, sumsq_ptr);
     else {
-        nk_f32_t sum_f32, sumsq_f32;
-        nk_reduce_moments_f16_serial(data_ptr, count, stride_bytes, &sum_f32, &sumsq_f32);
-        *sum_ptr = sum_f32, *sumsq_ptr = sumsq_f32;
+        nk_size_t const chunk_limit = (nk_size_t)(NK_U16_MAX + 1) * 8;
+        nk_f64_t sum = 0, sumsq = 0;
+        for (nk_size_t offset = 0; offset < count;) {
+            nk_size_t chunk_count = count - offset;
+            if (chunk_count > chunk_limit) chunk_count = chunk_limit;
+            nk_f64_t chunk_sum, chunk_sumsq;
+            nk_f16_t const *chunk_data = data_ptr + offset * stride_elements;
+            if (stride_elements == 1)
+                nk_reduce_moments_f16_neon_contiguous_(chunk_data, chunk_count, &chunk_sum, &chunk_sumsq);
+            else
+                nk_reduce_moments_f16_neon_strided_(chunk_data, chunk_count, stride_elements, &chunk_sum, &chunk_sumsq);
+            sum += chunk_sum, sumsq += chunk_sumsq;
+            offset += chunk_count;
+        }
+        *sum_ptr = sum, *sumsq_ptr = sumsq;
     }
 }
 
