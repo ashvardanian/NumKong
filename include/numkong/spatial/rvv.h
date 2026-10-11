@@ -51,13 +51,16 @@ extern "C" {
 NUMKONG_INLINE vfloat32m1_t nk_rsqrt_f32m1_rvv_(vfloat32m1_t values_f32m1, size_t vector_length) {
     vfloat32m1_t rsqrt_f32m1 = __riscv_vfrsqrt7_v_f32m1(values_f32m1, vector_length);
     for (int step = 0; step < 2; step++) {
-        vfloat32m1_t rsqrt_sq_f32m1 = __riscv_vfmul_vv_f32m1(rsqrt_f32m1, rsqrt_f32m1, vector_length);
+        // x · r before the second r, as r² overflows for a subnormal x
+        vfloat32m1_t scaled_f32m1 = __riscv_vfmul_vv_f32m1(values_f32m1, rsqrt_f32m1, vector_length);
         vfloat32m1_t residual_f32m1 = __riscv_vfrsub_vf_f32m1(
-            __riscv_vfmul_vv_f32m1(values_f32m1, rsqrt_sq_f32m1, vector_length), 3.0f, vector_length);
+            __riscv_vfmul_vv_f32m1(scaled_f32m1, rsqrt_f32m1, vector_length), 3.0f, vector_length);
         rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(__riscv_vfmul_vv_f32m1(rsqrt_f32m1, residual_f32m1, vector_length), 0.5f,
                                              vector_length);
     }
-    return rsqrt_f32m1;
+    // The Newton steps turn the estimate of 0 for an infinite input into ∞ × 0 = NaN
+    vbool32_t const infinite_b32 = __riscv_vmfeq_vf_f32m1_b32(values_f32m1, NUMKONG_F32_INF, vector_length);
+    return __riscv_vfmerge_vfm_f32m1(rsqrt_f32m1, 0.0f, infinite_b32, vector_length);
 }
 
 /**
@@ -69,13 +72,16 @@ NUMKONG_INLINE vfloat32m1_t nk_rsqrt_f32m1_rvv_(vfloat32m1_t values_f32m1, size_
 NUMKONG_INLINE vfloat64m1_t nk_rsqrt_f64m1_rvv_(vfloat64m1_t values_f64m1, size_t vector_length) {
     vfloat64m1_t rsqrt_f64m1 = __riscv_vfrsqrt7_v_f64m1(values_f64m1, vector_length);
     for (int step = 0; step < 3; step++) {
-        vfloat64m1_t rsqrt_sq_f64m1 = __riscv_vfmul_vv_f64m1(rsqrt_f64m1, rsqrt_f64m1, vector_length);
+        // x · r before the second r, as r² overflows for a subnormal x
+        vfloat64m1_t scaled_f64m1 = __riscv_vfmul_vv_f64m1(values_f64m1, rsqrt_f64m1, vector_length);
         vfloat64m1_t residual_f64m1 = __riscv_vfrsub_vf_f64m1(
-            __riscv_vfmul_vv_f64m1(values_f64m1, rsqrt_sq_f64m1, vector_length), 3.0, vector_length);
+            __riscv_vfmul_vv_f64m1(scaled_f64m1, rsqrt_f64m1, vector_length), 3.0, vector_length);
         rsqrt_f64m1 = __riscv_vfmul_vf_f64m1(__riscv_vfmul_vv_f64m1(rsqrt_f64m1, residual_f64m1, vector_length), 0.5,
                                              vector_length);
     }
-    return rsqrt_f64m1;
+    // The Newton steps turn the estimate of 0 for an infinite input into ∞ × 0 = NaN
+    vbool64_t const infinite_b64 = __riscv_vmfeq_vf_f64m1_b64(values_f64m1, NUMKONG_F64_INF, vector_length);
+    return __riscv_vfmerge_vfm_f64m1(rsqrt_f64m1, 0.0, infinite_b64, vector_length);
 }
 
 /** Approximate reciprocal of f32 vector (m4) using vfrec7 + 2 Newton-Raphson steps. Achieves

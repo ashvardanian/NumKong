@@ -48,7 +48,7 @@ NUMKONG_INLINE nk_f32_t nk_rsqrt_f32_serial_(nk_f32_t number) {
 /** Square root of @p number as its product with its reciprocal square root, 0 if not positive. */
 NUMKONG_INLINE nk_f32_t nk_sqrt_f32_serial_(nk_f32_t number) {
     nk_f32_t positive = number > 0 ? number : 0;
-    nk_f32_t finite = positive == NUMKONG_F32_INF ? 1.0f : positive;
+    nk_f32_t finite = number > 0 && number < NUMKONG_F32_INF ? number : 1.0f;
     return positive * nk_rsqrt_f32_serial_(finite);
 }
 
@@ -74,7 +74,7 @@ NUMKONG_INLINE nk_f64_t nk_rsqrt_f64_serial_(nk_f64_t number) {
 /** Square root of @p number as its product with its reciprocal square root, 0 if not positive. */
 NUMKONG_INLINE nk_f64_t nk_sqrt_f64_serial_(nk_f64_t number) {
     nk_f64_t positive = number > 0 ? number : 0;
-    nk_f64_t finite = positive == NUMKONG_F64_INF ? 1.0 : positive;
+    nk_f64_t finite = number > 0 && number < NUMKONG_F64_INF ? number : 1.0;
     return positive * nk_rsqrt_f64_serial_(finite);
 }
 

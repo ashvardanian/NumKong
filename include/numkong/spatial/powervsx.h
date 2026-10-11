@@ -61,14 +61,19 @@ extern "C" {
 NUMKONG_INLINE nk_vf32x4_t nk_rsqrt_f32x4_powervsx_(nk_vf32x4_t x) {
     nk_vf32x4_t half_f32x4 = vec_splats(0.5f);
     nk_vf32x4_t three_halves_f32x4 = vec_splats(1.5f);
-    nk_vf32x4_t rsqrt_f32x4 = vec_rsqrte(x);
+    // Subnormals scale by 2²⁴ so the Newton squares stay finite, and their roots scale back by 2¹²
+    nk_vu32x4_t const subnormal_u32x4 = (nk_vu32x4_t)vec_cmplt(x, vec_splats(0x1p-126f));
+    nk_vf32x4_t const scaled_f32x4 = vec_sel(x, vec_mul(x, vec_splats(0x1p24f)), subnormal_u32x4);
+    nk_vf32x4_t rsqrt_f32x4 = vec_rsqrte(scaled_f32x4);
     // Iteration 1
     nk_vf32x4_t nr_f32x4 = vec_sub(three_halves_f32x4,
-                                   vec_mul(half_f32x4, vec_mul(x, vec_mul(rsqrt_f32x4, rsqrt_f32x4))));
+                                   vec_mul(half_f32x4, vec_mul(scaled_f32x4, vec_mul(rsqrt_f32x4, rsqrt_f32x4))));
     rsqrt_f32x4 = vec_mul(rsqrt_f32x4, nr_f32x4);
     // Iteration 2
-    nr_f32x4 = vec_sub(three_halves_f32x4, vec_mul(half_f32x4, vec_mul(x, vec_mul(rsqrt_f32x4, rsqrt_f32x4))));
+    nr_f32x4 = vec_sub(three_halves_f32x4,
+                       vec_mul(half_f32x4, vec_mul(scaled_f32x4, vec_mul(rsqrt_f32x4, rsqrt_f32x4))));
     rsqrt_f32x4 = vec_mul(rsqrt_f32x4, nr_f32x4);
+    rsqrt_f32x4 = vec_sel(rsqrt_f32x4, vec_mul(rsqrt_f32x4, vec_splats(0x1p12f)), subnormal_u32x4);
     // The Newton steps turn the estimate of 0 for an infinite input into ∞ × 0 = NaN
     return vec_sel(rsqrt_f32x4, vec_splats(0.0f), vec_cmpeq(x, vec_splats(NUMKONG_F32_INF)));
 }
@@ -82,17 +87,23 @@ NUMKONG_INLINE nk_vf32x4_t nk_rsqrt_f32x4_powervsx_(nk_vf32x4_t x) {
 NUMKONG_INLINE nk_vf64x2_t nk_rsqrt_f64x2_powervsx_(nk_vf64x2_t x) {
     nk_vf64x2_t half_f64x2 = vec_splats(0.5);
     nk_vf64x2_t three_halves_f64x2 = vec_splats(1.5);
-    nk_vf64x2_t rsqrt_f64x2 = vec_rsqrte(x);
+    // Subnormals scale by 2⁵⁴ so the Newton squares stay finite, and their roots scale back by 2²⁷
+    nk_vu64x2_t const subnormal_u64x2 = (nk_vu64x2_t)vec_cmplt(x, vec_splats(0x1p-1022));
+    nk_vf64x2_t const scaled_f64x2 = vec_sel(x, vec_mul(x, vec_splats(0x1p54)), subnormal_u64x2);
+    nk_vf64x2_t rsqrt_f64x2 = vec_rsqrte(scaled_f64x2);
     // Iteration 1
     nk_vf64x2_t nr_f64x2 = vec_sub(three_halves_f64x2,
-                                   vec_mul(half_f64x2, vec_mul(x, vec_mul(rsqrt_f64x2, rsqrt_f64x2))));
+                                   vec_mul(half_f64x2, vec_mul(scaled_f64x2, vec_mul(rsqrt_f64x2, rsqrt_f64x2))));
     rsqrt_f64x2 = vec_mul(rsqrt_f64x2, nr_f64x2);
     // Iteration 2
-    nr_f64x2 = vec_sub(three_halves_f64x2, vec_mul(half_f64x2, vec_mul(x, vec_mul(rsqrt_f64x2, rsqrt_f64x2))));
+    nr_f64x2 = vec_sub(three_halves_f64x2,
+                       vec_mul(half_f64x2, vec_mul(scaled_f64x2, vec_mul(rsqrt_f64x2, rsqrt_f64x2))));
     rsqrt_f64x2 = vec_mul(rsqrt_f64x2, nr_f64x2);
     // Iteration 3
-    nr_f64x2 = vec_sub(three_halves_f64x2, vec_mul(half_f64x2, vec_mul(x, vec_mul(rsqrt_f64x2, rsqrt_f64x2))));
+    nr_f64x2 = vec_sub(three_halves_f64x2,
+                       vec_mul(half_f64x2, vec_mul(scaled_f64x2, vec_mul(rsqrt_f64x2, rsqrt_f64x2))));
     rsqrt_f64x2 = vec_mul(rsqrt_f64x2, nr_f64x2);
+    rsqrt_f64x2 = vec_sel(rsqrt_f64x2, vec_mul(rsqrt_f64x2, vec_splats(0x1p27)), subnormal_u64x2);
     return vec_sel(rsqrt_f64x2, vec_splats(0.0), vec_cmpeq(x, vec_splats(NUMKONG_F64_INF)));
 }
 
