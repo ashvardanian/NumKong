@@ -266,6 +266,7 @@ constexpr enumerate_view_<container_type_ const> enumerate(container_type_ const
 template <typename value_type_>
 struct vector_view {
     using value_type = value_type_;
+    using raw_value_type = typename raw_pod_type<value_type>::type;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
@@ -312,6 +313,11 @@ struct vector_view {
 
     /** Typed pointer (only valid if contiguous). */
     constexpr value_type const *data() const noexcept { return reinterpret_cast<value_type const *>(data_); }
+
+    /** The storage as C kernels take it: @c raw_t for NumKong's types, else the type itself. */
+    constexpr raw_value_type const *raw_values_data() const noexcept {
+        return reinterpret_cast<raw_value_type const *>(data_);
+    }
 
     /** Storage values as a contiguous span; @c unexpected_dimensions_k for a strided view or one
      *  ending mid-value. */
@@ -374,6 +380,7 @@ struct vector_span {
                   "vector_span requires a non-const value_type_; use vector_view<value_type_> for read-only access");
 
     using value_type = value_type_;
+    using raw_value_type = typename raw_pod_type<value_type>::type;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
@@ -421,6 +428,9 @@ struct vector_span {
 
     /** Typed pointer (only valid if contiguous). */
     constexpr value_type *data() const noexcept { return reinterpret_cast<value_type *>(data_); }
+
+    /** The storage as C kernels take it: @c raw_t for NumKong's types, else the type itself. */
+    constexpr raw_value_type *raw_values_data() const noexcept { return reinterpret_cast<raw_value_type *>(data_); }
 
     /** Storage values as a contiguous span; @c unexpected_dimensions_k for a strided span or one
      *  ending mid-value. */

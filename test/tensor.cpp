@@ -1430,6 +1430,26 @@ error_stats_t test_typed_pointer_ctors(settings_t const &) {
     return stats;
 }
 
+/** Owners, views, spans and their rows hand C kernels their storage as the raw type, in place. */
+error_stats_t test_raw_values_data(settings_t const &) {
+    error_stats_t stats(comparison_family_t::exact_k);
+    using raw_t = nk::bf16_t::raw_t;
+    auto owner = nk::tensor<nk::bf16_t>::zeros({2, 3}).value;
+    nk::tensor_view<nk::bf16_t> const view = owner.view();
+    nk::tensor_span<nk::bf16_t> const span = owner.span();
+    nk::vector_view<nk::bf16_t> const row = view.row(1).as_vector();
+    static_assert(std::is_same_v<decltype(view.raw_values_data()), raw_t const *>);
+    static_assert(std::is_same_v<decltype(span.raw_values_data()), raw_t *>);
+    static_assert(std::is_same_v<decltype(span.row(1).as_vector().raw_values_data()), raw_t *>);
+    static_assert(std::is_same_v<decltype(nk::vector_view<float> {}.raw_values_data()), float const *>);
+    stats.expect(static_cast<void const *>(owner.raw_values_data()) == owner.data() &&
+                     static_cast<void const *>(view.raw_values_data()) == view.byte_data() &&
+                     static_cast<void const *>(span.raw_values_data()) == span.byte_data() &&
+                     static_cast<void const *>(row.raw_values_data()) == row.byte_data(),
+                 "raw pointers alias the storage they view");
+    return stats;
+}
+
 /** `explicit operator bool` on every owning + non-owning handle type. */
 error_stats_t test_operator_bool(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
@@ -1680,6 +1700,7 @@ void test_tensor_ops(error_stats_section_t &check) {
     check("tensor_cast_f64_to_f32", test_cast_for_types<nk::f64_t, nk::f32_t>);
 
     check("tensor_typed_pointer_ctors", test_typed_pointer_ctors);
+    check("tensor_raw_values_data", test_raw_values_data);
     check("tensor_operator_bool", test_operator_bool);
     check("tensor_flatten_out_rank", test_flatten_out_rank);
     check("tensor_resize_capacity", test_resize_capacity);

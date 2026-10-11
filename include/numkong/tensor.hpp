@@ -250,6 +250,7 @@ struct tensor_dims_view_;
 template <typename value_type_, std::size_t max_rank_ = 8>
 struct tensor_view {
     using value_type = value_type_;
+    using raw_value_type = typename raw_pod_type<value_type>::type;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
@@ -321,6 +322,11 @@ struct tensor_view {
 
     /** Typed pointer, assumes data is contiguous from this pointer. */
     constexpr value_type const *data() const noexcept { return reinterpret_cast<value_type const *>(data_); }
+
+    /** The storage as C kernels take it: @c raw_t for NumKong's types, else the type itself. */
+    constexpr raw_value_type const *raw_values_data() const noexcept {
+        return reinterpret_cast<raw_value_type const *>(data_);
+    }
 
     /** Access the shape storage. */
     constexpr shape_storage_<max_rank_> const &shape() const noexcept { return shape_; }
@@ -532,6 +538,7 @@ struct tensor_span {
                   "tensor_span requires a non-const value_type_; use tensor_view<value_type_> for read-only access");
 
     using value_type = value_type_;
+    using raw_value_type = typename raw_pod_type<value_type>::type;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
@@ -602,6 +609,9 @@ struct tensor_span {
 
     /** Typed pointer, assumes data is contiguous from this pointer. */
     constexpr value_type *data() const noexcept { return reinterpret_cast<value_type *>(data_); }
+
+    /** The storage as C kernels take it: @c raw_t for NumKong's types, else the type itself. */
+    constexpr raw_value_type *raw_values_data() const noexcept { return reinterpret_cast<raw_value_type *>(data_); }
 
     /** Access the shape storage. */
     constexpr shape_storage_<max_rank_> const &shape() const noexcept { return shape_; }
@@ -1276,6 +1286,7 @@ struct tensor_dims_view_ {
 template <typename value_type_, typename allocator_type_ = aligned_allocator<value_type_>, std::size_t max_rank_ = 8>
 struct tensor {
     using value_type = value_type_;
+    using raw_value_type = typename raw_pod_type<value_type>::type;
     using allocator_type = allocator_type_;
     using alloc_traits = std::allocator_traits<allocator_type_>;
     using size_type = std::size_t;
@@ -1541,6 +1552,12 @@ struct tensor {
     /** Typed pointer to data. */
     constexpr pointer data() noexcept { return data_; }
     constexpr value_type const *data() const noexcept { return data_; }
+
+    /** The storage as C kernels take it: @c raw_t for NumKong's types, else the type itself. */
+    constexpr raw_value_type *raw_values_data() noexcept { return reinterpret_cast<raw_value_type *>(data_); }
+    constexpr raw_value_type const *raw_values_data() const noexcept {
+        return reinterpret_cast<raw_value_type const *>(data_);
+    }
 
     /** Shape storage. */
     constexpr shape_storage_<max_rank_> const &shape() const noexcept { return shape_; }
