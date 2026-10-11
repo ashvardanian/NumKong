@@ -742,8 +742,8 @@ def test_scale_identity(ndim: int, dtype: str, capability: str):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("dtype", [np.float16, np.float32])
-def test_scale_rejects_mismatched_output_dtype(dtype: type[np.generic]) -> None:
+@pytest.mark.parametrize("dtype", ["float16", "float32"])
+def test_scale_rejects_mismatched_output_dtype(dtype: str) -> None:
     values = np.array([0.0, 0.5, 1.0, 1.5], dtype=dtype)
     storage = np.full(values.nbytes, 0xA5, dtype=np.uint8)
     output = storage[: values.size]
