@@ -3914,6 +3914,20 @@ NK_INTERNAL void nk_reduce_moments_f16_neon_strided_(                     //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
+NK_INTERNAL void nk_reduce_moments_f16_serial_f64_(                    //
+    nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
+    nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
+    nk_f64_t sum = 0, sumsq = 0;
+    unsigned char const *ptr = (unsigned char const *)data_ptr;
+    for (nk_size_t i = 0; i < count; ++i, ptr += stride_bytes) {
+        nk_f32_t value_f32;
+        nk_f16_to_f32_serial((nk_f16_t const *)ptr, &value_f32);
+        nk_f64_t value_f64 = value_f32;
+        sum += value_f64, sumsq += value_f64 * value_f64;
+    }
+    *sum_ptr = sum, *sumsq_ptr = sumsq;
+}
+
 NK_INTERNAL void nk_reduce_moments_f16_neon_accumulate_f64_(           //
     nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
@@ -3921,9 +3935,7 @@ NK_INTERNAL void nk_reduce_moments_f16_neon_accumulate_f64_(           //
     int aligned = (stride_bytes % sizeof(nk_f16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned || stride_elements > 4) {
-        nk_f32_t sum_f32, sumsq_f32;
-        nk_reduce_moments_f16_serial(data_ptr, count, stride_bytes, &sum_f32, &sumsq_f32);
-        *sum_ptr = sum_f32, *sumsq_ptr = sumsq_f32;
+        nk_reduce_moments_f16_serial_f64_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
     }
     else {
         nk_size_t const chunk_limit = (nk_size_t)(NK_U16_MAX + 1) * 8;

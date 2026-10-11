@@ -5,6 +5,8 @@
  *  @date February 6, 2026
  */
 
+#include <cstring>
+
 #include "test.hpp"
 #include "numkong/reduce.hpp"
 #include "numkong/reduce/serial.h"
@@ -122,6 +124,27 @@ error_stats_t test_reduce_moments_f16_neon_subnormal() {
         interleaved[0] = one.raw_;
         check_values(interleaved, strided_count, stride_elements);
     }
+
+    nk_size_t const unaligned_count = 1'048'576;
+    nk_size_t const unaligned_stride_bytes = 3;
+    std::vector<nk_u8_t> unaligned_bytes((unaligned_count - 1) * unaligned_stride_bytes + sizeof(nk_f16_t), 0);
+    nk_f64_t reference_sum = 0, reference_sumsq = 0;
+    for (nk_size_t i = 0; i != unaligned_count; ++i) {
+        nk_u16_t const raw = i == 0 ? one.raw_ : largest_subnormal.raw_;
+        std::memcpy(unaligned_bytes.data() + i * unaligned_stride_bytes, &raw, sizeof(raw));
+        nk_f64_t const value = i == 0 ? 1.0 : largest_subnormal.to_f32();
+        reference_sum += value, reference_sumsq += value * value;
+    }
+    nk_f32_t sum, sumsq, dispatched_sum, dispatched_sumsq;
+    auto const *unaligned_data = reinterpret_cast<nk_f16_t const *>(unaligned_bytes.data());
+    nk_reduce_moments_f16_neon(unaligned_data, unaligned_count, unaligned_stride_bytes, &sum, &sumsq);
+    nk_reduce_moments_f16(unaligned_data, unaligned_count, unaligned_stride_bytes, &dispatched_sum, &dispatched_sumsq);
+    nk_f32_t const expected_sum = static_cast<nk_f32_t>(reference_sum);
+    nk_f32_t const expected_sumsq = static_cast<nk_f32_t>(reference_sumsq);
+    stats.expect(sum == expected_sum, "unaligned F16 NEON sum matches float64 reference");
+    stats.expect(sumsq == expected_sumsq, "unaligned F16 NEON sumsq matches float64 reference");
+    stats.expect(dispatched_sum == expected_sum, "unaligned F16 dispatch sum matches float64 reference");
+    stats.expect(dispatched_sumsq == expected_sumsq, "unaligned F16 dispatch sumsq matches float64 reference");
     return stats;
 }
 #endif
