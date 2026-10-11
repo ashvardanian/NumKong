@@ -668,6 +668,31 @@ def test_multiply_numpy_buffer_protocol(dtype: str):
     assert_allclose(result_np, expected)
 
 
+@pytest.mark.skipif(not numpy_available or not nk.get_capabilities().get("neonhalf"), reason="NEON half is unavailable")
+def test_multiply_float16_preserves_signed_zero():
+    """Multiplication preserves negative zero for scalar and array operands, including out buffers."""
+    keep_one_capability("neonhalf")
+
+    image = np.array([-0.0, 0.0, -0.0, 0.0], dtype=np.float16)
+    operands = (
+        0.875,
+        np.array([0.875, 0.875, -0.875, -0.875], dtype=np.float16),
+    )
+
+    for value in operands:
+        expected = np.multiply(image, value).astype(np.float16, copy=False)
+        result = np.asarray(nk.multiply(image, value))
+        np.testing.assert_array_equal(result.view(np.uint16), expected.view(np.uint16))
+
+        out = np.full_like(image, np.inf)
+        assert nk.multiply(image, value, out=out) is None
+        np.testing.assert_array_equal(out.view(np.uint16), expected.view(np.uint16))
+
+        aliased = image.copy()
+        assert nk.multiply(aliased, value, out=aliased) is None
+        np.testing.assert_array_equal(aliased.view(np.uint16), expected.view(np.uint16))
+
+
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 def test_blend_numpy_buffer_protocol(dtype: str):
