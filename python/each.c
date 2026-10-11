@@ -847,7 +847,8 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     if (out_obj && !nk_get_buffer(out_obj, &out_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &out_backing)) goto cleanup;
     if (out_obj && !buffers_shapes_match(&a_buffer, &out_buffer)) goto cleanup;
 
-    nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&a_buffer);
+    nk_dtype_t input_dtype = resolve_nk_dtype_in_py_buffer(&a_buffer);
+    nk_dtype_t dtype = input_dtype;
     if (out_dtype_obj) { dtype = py_object_to_nk_dtype(out_dtype_obj); }
     if (dtype == nk_dtype_unknown_k) goto cleanup;
 
@@ -861,7 +862,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     }
 
     nk_scalar_buffer_t alpha_buf, beta_buf;
-    beta_buf.f64 = 0.0;
+    beta_buf.f64 = input_dtype == nk_f16_k ? -0.0 : 0.0;
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
     if (!py_number_to_nk_scalar_buffer(scalar_obj, &alpha_buf, scalar_dtype)) goto cleanup;
     nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
@@ -981,7 +982,10 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     }
 
     nk_scalar_buffer_t alpha_buf, beta_buf;
-    alpha_buf.f64 = 1.0, beta_buf.f64 = 0.0;
+    int const half_product = a_dtype == nk_f16_k && b_dtype == nk_f16_k;
+    alpha_buf.f64 = 1.0;
+    // A final FMA with +0 erases the sign of a negative-zero product.
+    beta_buf.f64 = half_product ? -0.0 : 0.0;
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
     nk_scalar_buffer_from_f64(&alpha_buf.f64, &alpha_buf, scalar_dtype);
     nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);
@@ -1018,9 +1022,10 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     }
     // nk.multiply(np.int16([1,2,3]), np.uint16([4,5,6]), out=np.zeros(3, dtype=np.float64))
     // → kernel computes int32, then casts int32→float64 into output buffer
+    // Half products need a zeroed addend even when the caller supplied an output buffer.
     else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
-             out_buf_dtype != dtype) {
-        if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
+             (out_buf_dtype != dtype || half_product)) {
+        if (out_buf_dtype != dtype && !validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
         cast_staging = PyMem_Malloc(total_elements * element_size + NK_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
