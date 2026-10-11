@@ -371,7 +371,7 @@ char const doc_scale[] =                                                        
     "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
     "    alpha (float, optional): Multiplicative scale, 1.0 by default.\n"                             //
     "    beta (float, optional): Additive offset, 0.0 by default.\n"                                   //
-    "    out (Tensor, optional): Vector for resulting output.\n\n"                                     //
+    "    out (Tensor, optional): Result vector with the same dtype as `dtype` (or the input dtype).\n\n" //
     "Returns:\n"                                                                                       //
     "    Tensor: The result if `out` is not provided.\n"                                               //
     "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
@@ -460,6 +460,11 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
         goto cleanup;
     }
     if (dtype == nk_dtype_unknown_k) dtype = a_parsed.dtype;
+    if (out_obj && out_parsed.dtype != dtype) {
+        PyErr_Format(PyExc_TypeError, "Output dtype '%s' must match scale dtype '%s'", nk_dtype_name(out_parsed.dtype),
+                     nk_dtype_name(dtype));
+        goto cleanup;
+    }
 
     // Convert `alpha_obj` to `alpha_buf` and `beta_obj` to `beta_buf`
     nk_scalar_buffer_t alpha_buf, beta_buf;
