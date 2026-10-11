@@ -116,7 +116,7 @@ error_stats_t test_reduce_moments_f16_neon_subnormal() {
     }
 
     nk_size_t const strided_count = 16'384;
-    for (nk_size_t stride_elements : {nk_size_t(2), nk_size_t(3), nk_size_t(4)}) {
+    for (nk_size_t stride_elements : {nk_size_t(2), nk_size_t(3), nk_size_t(4), nk_size_t(9)}) {
         std::vector<nk_f16_t> interleaved(strided_count * stride_elements, nk::f16_t(0.0f).raw_);
         for (nk_size_t i = 0; i != strided_count; ++i) interleaved[i * stride_elements] = largest_subnormal.raw_;
         interleaved[0] = one.raw_;
