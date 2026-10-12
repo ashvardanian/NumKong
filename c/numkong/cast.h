@@ -100,6 +100,43 @@ NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_dtype, vo
 NUMKONG_API nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
                                        nk_size_t count, nk_stream_t stream);
 
+/** Casts a strided CPU run in batches. Packed and block-scaled values require their own layout. */
+NUMKONG_INLINE nk_status_t nk_cast_strided_(void const *from, nk_dtype_t from_dtype, nk_i64_t from_stride_bytes,
+                                            void *to, nk_dtype_t to_dtype, nk_i64_t to_stride_bytes, nk_size_t count,
+                                            nk_capability_t capabilities) {
+    nk_size_t const from_bytes = nk_dtype_bits(from_dtype) / NUMKONG_BITS_PER_BYTE;
+    nk_size_t const to_bytes = nk_dtype_bits(to_dtype) / NUMKONG_BITS_PER_BYTE;
+    if (!from_bytes || !to_bytes || nk_dimensions_per_value(from_dtype) != 1 || nk_dimensions_per_value(to_dtype) != 1)
+        return nk_unexpected_dimensions_k;
+
+    // A spare cache line accommodates older MSVC masked-store lowering.
+    enum { batch_bytes = 1024, padding_bytes = 64 };
+    nk_align_(64) nk_u8_t gathered[batch_bytes + padding_bytes];
+    nk_align_(64) nk_u8_t converted[batch_bytes + padding_bytes];
+    nk_size_t const batch_count = batch_bytes / (from_bytes > to_bytes ? from_bytes : to_bytes);
+    for (nk_size_t offset = 0; offset < count;) {
+        nk_size_t const batch = count - offset < batch_count ? count - offset : batch_count;
+        char const *source = (char const *)from + (nk_i64_t)offset * from_stride_bytes;
+        char *destination = (char *)to + (nk_i64_t)offset * to_stride_bytes;
+        if (from_stride_bytes != (nk_i64_t)from_bytes) {
+            for (nk_size_t i = 0; i < batch; ++i)
+                nk_copy_bytes_(gathered + i * from_bytes, source + (nk_i64_t)i * from_stride_bytes, from_bytes);
+            source = (char const *)gathered;
+        }
+        void *output = to_stride_bytes == (nk_i64_t)to_bytes ? (void *)destination : (void *)converted;
+        nk_status_t const status = capabilities
+                                       ? nk_cast_best(source, from_dtype, output, to_dtype, batch, capabilities,
+                                                      NUMKONG_NULL)
+                                       : nk_cast_serial(source, from_dtype, output, to_dtype, batch, NUMKONG_NULL);
+        if (status != nk_success_k) return status;
+        if (to_stride_bytes != (nk_i64_t)to_bytes)
+            for (nk_size_t i = 0; i < batch; ++i)
+                nk_copy_bytes_(destination + (nk_i64_t)i * to_stride_bytes, converted + i * to_bytes, to_bytes);
+        offset += batch;
+    }
+    return nk_success_k;
+}
+
 /**
  *  @brief Scalar conversion from @c f16 to @c f32, covering every IEEE 754 edge case.
  *

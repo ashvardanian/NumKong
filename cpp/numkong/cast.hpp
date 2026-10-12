@@ -9,6 +9,8 @@
 
 #include <cstddef> // `std::size_t`
 
+#include <type_traits> // `std::is_same_v`, `std::remove_cvref_t`
+
 #include "numkong/cast.h"
 
 #include "numkong/tensor.hpp"
@@ -37,12 +39,22 @@ status_t cast(from_type_ const *from, std::size_t n, to_type_ *to,
         nk_cast_best(from, from_type_::dtype(), to, to_type_::dtype(), n, capabilities, stream));
 }
 
-/** Elementwise type-cast of one run into another of equal dimensions; @c unexpected_dimensions_k
- *  when they differ or either run is strided or ends mid-value. */
+/** Elementwise type-cast of two runs with equal dimensions.
+ *  Byte-addressable CPU views can be strided; packed values and GPU runs must be contiguous. */
 template <numeric_dtype from_type_, numeric_dtype to_type_, vector_of<from_type_> from_vector_type_,
           mutable_vector_of<to_type_> to_vector_type_>
 status_t cast(from_vector_type_ const &from, to_vector_type_ &&to,
               nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+    if constexpr (std::is_same_v<from_vector_type_, vector_view<from_type_>> &&
+                  std::is_same_v<std::remove_cvref_t<to_vector_type_>, vector_span<to_type_>>) {
+        if (!from.is_contiguous() || !to.is_contiguous()) {
+            if (from.size() != to.size() || stream || (capabilities & nk_cap_gpus_k))
+                return status_t::unexpected_dimensions_k;
+            return static_cast<status_t>(nk_cast_strided_(from.byte_data(), from_type_::dtype(), from.stride_bytes(),
+                                                          to.byte_data(), to_type_::dtype(), to.stride_bytes(),
+                                                          from.size(), capabilities));
+        }
+    }
     auto from_values = contiguous_values_<from_type_ const>(from);
     auto to_values = contiguous_values_<to_type_>(to);
     std::size_t const dimensions = from_values.value.size() * dimensions_per_value<from_type_>();

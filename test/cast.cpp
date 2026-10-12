@@ -5,14 +5,37 @@
  *  @brief Type cast tests.
  */
 
+#include "numkong/cast.hpp" // `cast`
+
 #include "harness.hpp"
 #include "cast.hpp" // `test_cast`, `test_cast_block_scaled`
 
 namespace ashvardanian::numkong::test {
 
+static error_stats_t test_cast_strided_views(settings_t const &) {
+    error_stats_t stats(comparison_family_t::exact_k);
+    constexpr std::size_t count = 513;
+    auto input = make_vector<f32_t>(count * 2);
+    auto output = make_vector<f16_t>(count * 2);
+    for (std::size_t i = 0; i != count * 2; ++i) {
+        input[i] = f32_t(static_cast<float>(i));
+        output[i] = f16_t(-1.0f);
+    }
+    vector_view<f32_t> from(input.view().byte_data(), count, 2 * sizeof(f32_t));
+    vector_span<f16_t> to(reinterpret_cast<char *>(output.data() + 2 * (count - 1)), count,
+                          -static_cast<std::ptrdiff_t>(2 * sizeof(f16_t)));
+    stats.expect(succeeded(cast<f32_t, f16_t>(from, to)), "strided cast succeeds");
+    for (std::size_t i = 0; i != count; ++i) {
+        stats.expect(output[2 * (count - 1 - i)].to_f32() == input[2 * i].raw_, "strided cast honors both layouts");
+        stats.expect(output[2 * i + 1].to_f32() == -1.0f, "strided cast preserves output gaps");
+    }
+    return stats;
+}
+
 void test_casts(error_stats_section_t &check) {
 
     check.section("Type Casts Serial", nk_cap_serial_k);
+    check("cast_strided_views", test_cast_strided_views);
     check("cast_bf16_to_f32_serial", test_cast<bf16_t, f32_t>, nk_cast_serial);
     check("cast_f32_to_bf16_serial", test_cast<f32_t, bf16_t>, nk_cast_serial);
     check("cast_e4m3_to_f32_serial", test_cast<e4m3_t, f32_t>, nk_cast_serial);
