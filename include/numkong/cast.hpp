@@ -36,7 +36,11 @@ void cast(from_type_ const *from, std::size_t n, to_type_ *to) noexcept {
 template <numeric_dtype from_type_, numeric_dtype to_type_, allow_simd_t allow_simd_ = prefer_simd_k>
 void cast(vector_view<from_type_> from, vector_span<to_type_> to) noexcept {
     std::size_t n = from.size() < to.size() ? from.size() : to.size();
-    cast<from_type_, to_type_, allow_simd_>(from.data(), n, to.data());
+    if constexpr (dimensions_per_value<from_type_>() > 1 || dimensions_per_value<to_type_>() > 1)
+        cast<from_type_, to_type_, allow_simd_>(from.data(), n, to.data());
+    else
+        nk_cast_strided_(from.byte_data(), from_type_::dtype(), from.stride_bytes(), n, to.byte_data(),
+                         to_type_::dtype(), to.stride_bytes(), allow_simd_ == prefer_simd_k ? nk_cast : nk_cast_serial);
 }
 
 } // namespace ashvardanian::numkong
