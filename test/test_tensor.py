@@ -147,6 +147,76 @@ def test_astype_linearizes_strided_input():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", [np.float16, np.float32] if numpy_available else [])
+@pytest.mark.parametrize("length", [31, 32, 257, 513])
+@pytest.mark.parametrize("layout", ["C", "F", "transpose", "reverse", "step", "broadcast", "unaligned"])
+@pytest.mark.parametrize("use_out", [False, True])
+def test_astype_strided_float_cast(dtype, length, layout, use_out):
+    source = np.linspace(-16, 16, 6 * length, dtype=dtype).reshape(2, 3, length)
+    if layout == "F":
+        source = np.asfortranarray(source)
+    elif layout == "transpose":
+        source = source.reshape(2, length, 3).swapaxes(1, 2)
+    elif layout == "reverse":
+        source = source[:, ::-1, ::-1]
+    elif layout == "step":
+        source = np.repeat(source, 2, axis=-1)[..., ::2]
+    elif layout == "broadcast":
+        source = np.broadcast_to(source[..., :1], source.shape)
+    elif layout == "unaligned":
+        unaligned = np.ndarray(source.shape, dtype=dtype, buffer=bytearray(source.nbytes + 1), offset=1)
+        unaligned[...] = source
+        source = unaligned[..., ::-1]
+    source.flags.writeable = False
+    target = np.float32 if dtype == np.float16 else np.float16
+    output = np.empty(source.shape, dtype=target) if use_out else None
+    cast_source = source
+    if layout == "unaligned":
+        cast_source = nk.from_pointer(
+            source.ctypes.data, source.shape, np.dtype(dtype).name, strides=source.strides, owner=source
+        )
+    result = nk.astype(cast_source, np.dtype(target).name, out=output)
+    if use_out:
+        assert result is output
+    actual = np.asarray(result)
+    assert actual.shape == source.shape
+    assert actual.flags.c_contiguous
+    np.testing.assert_array_equal(actual.view(f"u{actual.itemsize}"), source.astype(target).view(f"u{actual.itemsize}"))
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", [np.float16, np.float32] if numpy_available else [])
+def test_astype_strided_float_cast_special_values(dtype):
+    if dtype == np.float16:
+        source = np.arange(65536, dtype=np.uint16).view(np.float16).reshape(128, 512)
+        target = np.float32
+    else:
+        boundaries = np.array([0, 2**-24, 2**-14, 1, 2, 32768], dtype=np.float16)
+        upper = np.nextafter(boundaries, np.float16(np.inf)).astype(np.float32)
+        midpoints = (boundaries.astype(np.float32) + upper) * np.float32(0.5)
+        values = np.concatenate(
+            (
+                midpoints,
+                np.nextafter(midpoints, np.float32(-np.inf)),
+                np.nextafter(midpoints, np.float32(np.inf)),
+                np.array([0.0, -0.0, 65504, 65520, np.inf, -np.inf, np.nan], dtype=np.float32),
+            )
+        )
+        source = np.resize(np.concatenate((values, -values)), (2, 513))
+        target = np.float16
+    source = source[:, ::-1]
+    with np.errstate(all="ignore"):
+        reference = source.astype(target)
+    for output in [None, np.empty(source.shape, dtype=target)]:
+        actual = np.asarray(nk.astype(source, np.dtype(target).name, out=output))
+        np.testing.assert_array_equal(np.isnan(actual), np.isnan(reference))
+        mask = ~np.isnan(reference)
+        np.testing.assert_array_equal(
+            actual.view(f"u{actual.itemsize}")[mask], reference.view(f"u{actual.itemsize}")[mask]
+        )
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_astype_float_to_integer_policy():
     """Float-to-integer casts round ties to even, saturate, and map NaN to zero."""
     source = np.array([-np.inf, -127.5, -0.5, 0.5, 1.5, 126.5, np.inf, np.nan], dtype=np.float64)

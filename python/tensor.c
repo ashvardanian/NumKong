@@ -411,6 +411,30 @@ void compute_contiguous_strides(size_t rank, Py_ssize_t const *shape, size_t ite
     for (size_t d = rank - 1; d > 0; --d) strides_out[d - 1] = strides_out[d] * shape[d];
 }
 
+/** @brief Gather FP16/FP32 input into bounded batches for the existing contiguous cast kernels. */
+static void cast_gathered_slice_(char const *src_data, nk_dtype_t src_dtype, Py_ssize_t src_stride, char *dest_data,
+                                 nk_dtype_t dest_dtype, size_t dest_element_size, Py_ssize_t elements) {
+    enum { batch_size = 256 };
+    union {
+        nk_f16_t f16[batch_size];
+        nk_f32_t f32[batch_size];
+    } packed;
+
+    for (Py_ssize_t offset = 0; offset < elements;) {
+        Py_ssize_t const count = elements - offset < batch_size ? elements - offset : batch_size;
+        if (src_dtype == nk_f16_k) {
+            for (Py_ssize_t position = 0; position < count; ++position)
+                memcpy(&packed.f16[position], src_data + (offset + position) * src_stride, sizeof(nk_f16_t));
+        }
+        else {
+            for (Py_ssize_t position = 0; position < count; ++position)
+                memcpy(&packed.f32[position], src_data + (offset + position) * src_stride, sizeof(nk_f32_t));
+        }
+        nk_cast(&packed, src_dtype, (nk_size_t)count, dest_data + offset * (Py_ssize_t)dest_element_size, dest_dtype);
+        offset += count;
+    }
+}
+
 /**
  *  @brief Recursive stride walker shared by linearize_cast_into and cast_into_strided.
  *
@@ -430,6 +454,12 @@ static void cast_strided_recursive(                                            /
         for (size_t dimension = 0; dimension < remaining_dims; ++dimension) slice_elements *= (size_t)shape[dimension];
         if (src_dtype == dest_dtype) memcpy(dest_data, src_data, slice_elements * element_size);
         else nk_cast(src_data, src_dtype, (nk_size_t)slice_elements, dest_data, dest_dtype);
+        return;
+    }
+
+    if (remaining_dims == 1 && shape[0] >= 32 && dest_strides[0] == (Py_ssize_t)element_size &&
+        ((src_dtype == nk_f16_k && dest_dtype == nk_f32_k) || (src_dtype == nk_f32_k && dest_dtype == nk_f16_k))) {
+        cast_gathered_slice_(src_data, src_dtype, src_strides[0], dest_data, dest_dtype, element_size, shape[0]);
         return;
     }
 
