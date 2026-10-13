@@ -275,9 +275,15 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif
 
 /*  Compiling for 64-bit Arm: NUMKONG_ARCH_ARM64_
- *  @see Arm C Language Extensions: https://arm-software.github.io/acle/main/acle.html */
+ *  @see Arm C Language Extensions: https://arm-software.github.io/acle/main/acle.html
+ *
+ *  NVCC and HIP-Clang predefine the host's architecture in their device passes too, so every CPU
+ *  architecture below also checks @c __CUDA_ARCH__, @c __HIP_DEVICE_COMPILE__ and, for symmetry,
+ *  Metal's @c __METAL_VERSION__: a GPU pass compiles no CPU kernels, and a CPU target a host
+ *  verdict named turns off there. */
 #if !defined(NUMKONG_ARCH_ARM64_)
-#if defined(__aarch64__) || defined(_M_ARM64)
+#if (defined(__aarch64__) || defined(_M_ARM64)) && !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__) && \
+    !defined(__METAL_VERSION__)
 #define NUMKONG_ARCH_ARM64_ 1
 #else
 #define NUMKONG_ARCH_ARM64_ 0
@@ -287,7 +293,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 /*  Compiling for x86: NUMKONG_ARCH_X8664_
  *  @see Intel predefined macros: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/developer-guide-reference/2024-2/additional-predefined-macros.html */
 #if !defined(NUMKONG_ARCH_X8664_)
-#if defined(__x86_64__) || defined(_M_X64)
+#if (defined(__x86_64__) || defined(_M_X64)) && !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__) && \
+    !defined(__METAL_VERSION__)
 #define NUMKONG_ARCH_X8664_ 1
 #else
 #define NUMKONG_ARCH_X8664_ 0
@@ -296,7 +303,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /* Compiling for RISC-V: NUMKONG_ARCH_RISCV64_ */
 #if !defined(NUMKONG_ARCH_RISCV64_)
-#if defined(__riscv) && (__riscv_xlen == 64)
+#if defined(__riscv) && (__riscv_xlen == 64) && !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__) && \
+    !defined(__METAL_VERSION__)
 #define NUMKONG_ARCH_RISCV64_ 1
 #else
 #define NUMKONG_ARCH_RISCV64_ 0
@@ -305,7 +313,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /* Compiling for LoongArch: NUMKONG_ARCH_LOONGARCH64_ */
 #if !defined(NUMKONG_ARCH_LOONGARCH64_)
-#if defined(__loongarch__)
+#if defined(__loongarch__) && !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__) && !defined(__METAL_VERSION__)
 #define NUMKONG_ARCH_LOONGARCH64_ 1
 #else
 #define NUMKONG_ARCH_LOONGARCH64_ 0
@@ -314,7 +322,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /* Compiling for Power: NUMKONG_ARCH_PPC64_ */
 #if !defined(NUMKONG_ARCH_PPC64_)
-#if defined(__powerpc64__) || defined(__ppc64__) || defined(_ARCH_PPC64)
+#if (defined(__powerpc64__) || defined(__ppc64__) || defined(_ARCH_PPC64)) && !defined(__CUDA_ARCH__) && \
+    !defined(__HIP_DEVICE_COMPILE__) && !defined(__METAL_VERSION__)
 #define NUMKONG_ARCH_PPC64_ 1
 #else
 #define NUMKONG_ARCH_PPC64_ 0
@@ -1170,7 +1179,7 @@ typedef float nk_f32_t;
 typedef double nk_f64_t;
 
 #if NUMKONG_ARCH_X8664_ || NUMKONG_ARCH_ARM64_ || NUMKONG_ARCH_RISCV64_ || NUMKONG_ARCH_PPC64_ || \
-    NUMKONG_ARCH_LOONGARCH64_
+    NUMKONG_ARCH_LOONGARCH64_ || NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_ || defined(__METAL_VERSION__)
 #define NUMKONG_ARCH_64BIT_ 1
 #else
 #define NUMKONG_ARCH_64BIT_ 0
