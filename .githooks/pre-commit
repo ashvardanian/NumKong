@@ -388,7 +388,8 @@ check_kernels_call_no_public_kernels() {
 
 # Rejects a kernel signature with a runtime `nk_dtype_t` parameter that HEAD's copy of the function lacks,
 # because a kernel takes typed function arguments, generated per dtype by a macro; a `NUMKONG_CONSTEXPR`
-# helper may fold the lookup. Touching an older signature, as a parameter rename does, never fires.
+# helper may fold the lookup. Touching an older signature, as a parameter rename does, never fires. Each
+# backend's `nk_cast_<backend>` is exempt, since the cast family names both dtypes at run time by contract.
 check_kernels_take_no_runtime_dtype() {
     case "$staged_path" in include/numkong/*/*.h | include/numkong/*/*.cuh) ;; *) return 0 ;; esac
     local runtime_dtypes
@@ -409,7 +410,7 @@ check_kernels_take_no_runtime_dtype() {
                 typed_line = FNR; typed_text = $0
             }
             if ($0 ~ /[{;]/) {
-                if ((touched || listing) && typed_line && !constexpr)
+                if ((touched || listing) && typed_line && !constexpr && name !~ /^nk_cast_[a-z0-9]+$/)
                     printf "%s\tline %d: %s\n", name, typed_line, typed_text
                 in_signature = 0
             }

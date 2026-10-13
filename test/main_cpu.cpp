@@ -616,10 +616,12 @@ static nk::status_t test_device(error_stats_section_t &check, nk::device_t devic
             test_cross_cuda(check);
             break;
         case nk::device_kind_t::rocm_k:
+            test_cast_rocm(check);
             test_each_rocm(check);
             test_cross_rocm(check);
             break;
         case nk::device_kind_t::metal_k:
+            test_cast_metal(check);
             test_each_metal(check);
             test_cross_metal(check);
             break;

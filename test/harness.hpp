@@ -1410,6 +1410,8 @@ void test_each_cuda(error_stats_section_t &check);
 void test_each_rocm(error_stats_section_t &check);
 void test_each_metal(error_stats_section_t &check);
 void test_cast_cuda(error_stats_section_t &check);
+void test_cast_rocm(error_stats_section_t &check);
+void test_cast_metal(error_stats_section_t &check);
 void test_reduce_cuda(error_stats_section_t &check);
 void test_tensor_cuda(error_stats_section_t &check);
 

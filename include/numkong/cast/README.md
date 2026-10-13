@@ -90,6 +90,8 @@ Encodes derive the scales and decodes apply them:
 | `mxfp8e5m2` | `e5m2`   | `ue8m0` per 32  | none         |
 | `mxint8`    | `i8`     | `ue8m0` per 32  | none         |
 
+The GPU casts `nk_cast_cuda`, `nk_cast_rocm` and `nk_cast_metal` take the same pairs, block-scaled ones included, over device memory, and match `nk_cast_serial` bit for bit.
+
 ## Optimizations
 
 ### Lookup Tables for Mini-Floats

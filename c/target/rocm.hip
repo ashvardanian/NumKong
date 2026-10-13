@@ -10,6 +10,7 @@
 #include "numkong/spatials/rocm.cuh"
 #include "numkong/attention/rocm.cuh"
 #include "numkong/each/rocm.cuh"
+#include "numkong/cast/rocm.cuh"
 #include "numkong/reduce/rocm.cuh"
 
 extern "C" NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {

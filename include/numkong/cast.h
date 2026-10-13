@@ -500,6 +500,18 @@ NUMKONG_API nk_status_t nk_cast_ada(void const *from, nk_dtype_t from_dtype, voi
                                     nk_size_t count, nk_stream_t stream);
 #endif // NUMKONG_TARGET_ADA
 
+#if NUMKONG_TARGET_ROCM
+/** @copydoc nk_cast_best */
+NUMKONG_API nk_status_t nk_cast_rocm(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                     nk_size_t count, nk_stream_t stream);
+#endif // NUMKONG_TARGET_ROCM
+
+#if NUMKONG_TARGET_METAL
+/** @copydoc nk_cast_best */
+NUMKONG_API nk_status_t nk_cast_metal(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                      nk_size_t count, nk_stream_t stream);
+#endif // NUMKONG_TARGET_METAL
+
 /**
  *  @brief Finds the cast kernel of @p kind for @p dtype, from the best of @p capabilities.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
@@ -528,6 +540,8 @@ NUMKONG_API nk_status_t nk_cast_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
 #include "numkong/cast/cuda.cuh"
 #include "numkong/cast/ampere.cuh"
 #include "numkong/cast/ada.cuh"
+#include "numkong/cast/rocm.cuh"
+#include "numkong/cast/metal.h"
 
 #if defined(__cplusplus)
 extern "C" {
