@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/mesh.h
+ *  @file include/numkong/meshes.h
  *  @author Ash Vardanian
  *  @date June 19, 2024
  *  @brief SIMD-accelerated point cloud alignment.
@@ -598,15 +598,15 @@ NUMKONG_API nk_status_t nk_mesh_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
 #endif
 
 #if NUMKONG_HEADER_ONLY
-#include "numkong/mesh/serial.h"
-#include "numkong/mesh/neon.h"
-#include "numkong/mesh/neonbfdot.h"
-#include "numkong/mesh/neonfhm.h"
-#include "numkong/mesh/haswell.h"
-#include "numkong/mesh/skylake.h"
-#include "numkong/mesh/genoa.h"
-#include "numkong/mesh/rvv.h"
-#include "numkong/mesh/v128relaxed.h"
+#include "numkong/meshes/serial.h"
+#include "numkong/meshes/neon.h"
+#include "numkong/meshes/neonbfdot.h"
+#include "numkong/meshes/neonfhm.h"
+#include "numkong/meshes/haswell.h"
+#include "numkong/meshes/skylake.h"
+#include "numkong/meshes/genoa.h"
+#include "numkong/meshes/rvv.h"
+#include "numkong/meshes/v128relaxed.h"
 
 #if defined(__cplusplus)
 extern "C" {

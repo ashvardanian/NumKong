@@ -1,10 +1,10 @@
 /**
- *  @file include/numkong/mesh/neonbfdot.h
+ *  @file include/numkong/meshes/neonbfdot.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
  *  @brief SIMD-accelerated point cloud alignment for NEON BF16.
  *
- *  @sa include/numkong/mesh.h
+ *  @sa include/numkong/meshes.h
  *
  *  @section mesh_neonbfdot_instructions ARM NEON BF16 Instructions (ARMv8.6-BF16)
  *
@@ -42,7 +42,7 @@
 
 #include "numkong/types.h"
 #include "numkong/cast/neon.h"   // `nk_splat_u16x8_neon_`
-#include "numkong/mesh/serial.h" // `nk_det3x3_f32_serial_`, `nk_svd3x3_f32_serial_`
+#include "numkong/meshes/serial.h" // `nk_det3x3_f32_serial_`, `nk_svd3x3_f32_serial_`
 
 #if defined(__cplusplus)
 extern "C" {

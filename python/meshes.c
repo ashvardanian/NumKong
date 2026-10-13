@@ -1,5 +1,5 @@
 /**
- *  @file python/mesh.c
+ *  @file python/meshes.c
  *  @author Ash Vardanian
  *  @date December 24, 2025
  *  @brief Mesh alignment, Kabsch, Umeyama, RMSD, for NumKong Python bindings.
@@ -7,7 +7,7 @@
  *  Implements the MeshAlignmentResult type and the three mesh-alignment API functions, kabsch,
  *  umeyama, rmsd. The MeshAlignmentResultObject struct is opaque; only its type is exported.
  */
-#include "mesh.h"
+#include "meshes.h"
 #include "tensor.h"
 
 #include <structmember.h> // `PyMemberDef`, `T_OBJECT_EX`, `READONLY`, `offsetof`

@@ -130,7 +130,7 @@ pub mod dot;
 pub mod each;
 pub mod geospatial;
 pub mod maxsim;
-pub mod mesh;
+pub mod meshes;
 pub mod probability;
 pub mod reduce;
 pub mod scalar;
@@ -179,7 +179,7 @@ pub use trigonometry::{TrigAtan, TrigAtanOps, TrigCos, TrigCosOps, TrigSin, Trig
 pub use curved::{Bilinear, Mahalanobis};
 
 // Re-export mesh alignment
-pub use mesh::{MeshAlignment, MeshAlignmentResult};
+pub use meshes::{MeshAlignment, MeshAlignmentResult};
 
 // Re-export geospatial
 pub use geospatial::{Geospatial, Haversine, Vincenty};

@@ -1,12 +1,12 @@
 /**
- *  @file test/mesh.cpp
+ *  @file test/meshes.cpp
  *  @author Ash Vardanian
  *  @date December 28, 2025
  *  @brief RMSD, Kabsch, and Umeyama alignment tests.
  */
 
 #include "harness.hpp"
-#include "numkong/mesh.hpp" // `nk::rmsd`
+#include "numkong/meshes.hpp" // `nk::rmsd`
 
 namespace ashvardanian::numkong::test {
 

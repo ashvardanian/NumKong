@@ -15,7 +15,7 @@
 #include "numkong/curved/neon.h"
 #include "numkong/probability/neon.h"
 #include "numkong/geospatial/neon.h"
-#include "numkong/mesh/neon.h"
+#include "numkong/meshes/neon.h"
 #include "numkong/sparse/neon.h"
 #include "numkong/each/neon.h"
 #include "numkong/trigonometry/neon.h"

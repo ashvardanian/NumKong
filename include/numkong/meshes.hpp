@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/mesh.hpp
+ *  @file include/numkong/meshes.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief C++ bindings for mesh-distance kernels.
@@ -12,7 +12,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "numkong/mesh.h"
+#include "numkong/meshes.h"
 
 #include "numkong/types.hpp"
 

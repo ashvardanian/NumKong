@@ -1,10 +1,10 @@
 /**
- *  @file include/numkong/mesh/genoa.h
+ *  @file include/numkong/meshes/genoa.h
  *  @author Ash Vardanian
  *  @date December 28, 2025
  *  @brief SIMD-accelerated point cloud alignment for Genoa, AVX-512-BF16.
  *
- *  @sa include/numkong/mesh.h
+ *  @sa include/numkong/meshes.h
  *
  *  @section genoa_mesh_instructions Key AVX-512 BF16 Mesh Instructions
  *
@@ -33,7 +33,7 @@
 #if NUMKONG_TARGET_GENOA
 
 #include "numkong/types.h"
-#include "numkong/mesh/skylake.h" // `nk_rmsd_bf16_through_f32_skylake_`, `nk_bf16x16_to_f32x16_skylake_`
+#include "numkong/meshes/skylake.h" // `nk_rmsd_bf16_through_f32_skylake_`, `nk_bf16x16_to_f32x16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {

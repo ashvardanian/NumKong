@@ -1,10 +1,10 @@
 /**
- *  @file include/numkong/mesh/neon.h
+ *  @file include/numkong/meshes/neon.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
  *  @brief SIMD-accelerated point cloud alignment for NEON.
  *
- *  @sa include/numkong/mesh.h
+ *  @sa include/numkong/meshes.h
  *
  *  @section neon_mesh_instructions Key NEON Mesh Instructions
  *
@@ -34,7 +34,7 @@
 
 #include "numkong/types.h"
 #include "numkong/dot/neon.h"
-#include "numkong/mesh/serial.h"
+#include "numkong/meshes/serial.h"
 
 #if defined(__cplusplus)
 extern "C" {

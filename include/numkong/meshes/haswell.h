@@ -1,10 +1,10 @@
 /**
- *  @file include/numkong/mesh/haswell.h
+ *  @file include/numkong/meshes/haswell.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
  *  @brief SIMD-accelerated point cloud alignment for Haswell.
  *
- *  @sa include/numkong/mesh.h
+ *  @sa include/numkong/meshes.h
  *
  *  @section haswell_mesh_instructions Key AVX2 Mesh Instructions
  *
@@ -29,7 +29,7 @@
 
 #include "numkong/types.h"
 #include "numkong/dot/haswell.h"
-#include "numkong/mesh/serial.h"
+#include "numkong/meshes/serial.h"
 #include "numkong/reduce/haswell.h" // `nk_reduce_add_f32x8_haswell_`
 
 #if defined(__cplusplus)

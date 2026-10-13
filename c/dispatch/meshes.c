@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/mesh.c
+ *  @file c/dispatch/meshes.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Dispatch points of the point-cloud alignments: RMSD, Kabsch and Umeyama.

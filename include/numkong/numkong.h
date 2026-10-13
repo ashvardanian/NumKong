@@ -21,7 +21,7 @@
 #include "numkong/dots.h"         // GEMM-style MxN batched dot-products, like `nk_dots_pack_size_bf16_best`
 #include "numkong/each.h"         // Weighted Sum, Fused-Multiply-Add, like `nk_each_scale_f64_best`
 #include "numkong/geospatial.h"   // Haversine and Vincenty, like `nk_haversine_f64_best`
-#include "numkong/mesh.h"         // RMSD, Kabsch, Umeyama, like `nk_rmsd_f64_best`
+#include "numkong/meshes.h"       // RMSD, Kabsch, Umeyama, like `nk_rmsd_f64_best`
 #include "numkong/probability.h"  // Kullback-Leibler, Jensen-Shannon, like `nk_kld_f16_best`
 #include "numkong/reduce.h"       // Horizontal MinMax & Moments reductions, like `nk_reduce_moments_f64_best`
 #include "numkong/sets.h"         // Hamming & Jaccard for binary sets, like `nk_hammings_packed_u1_best`

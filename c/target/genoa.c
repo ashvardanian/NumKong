@@ -16,7 +16,7 @@
 #include "numkong/dot/genoa.h"
 #include "numkong/spatial/genoa.h"
 #include "numkong/curved/genoa.h"
-#include "numkong/mesh/genoa.h"
+#include "numkong/meshes/genoa.h"
 #include "numkong/each/genoa.h"
 #include "numkong/dots/genoa.h"
 #include "numkong/spatials/genoa.h"

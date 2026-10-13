@@ -1,11 +1,11 @@
 /**
- *  @file python/mesh.h
+ *  @file python/meshes.h
  *  @author Ash Vardanian
  *  @date February 19, 2026
  *  @brief Mesh alignment declarations for NumKong Python bindings.
  *
  *  Forward declarations for mesh alignment, Kabsch/Umeyama/RMSD, API functions. The
- *  MeshAlignmentResultObject struct is private to mesh.c.
+ *  MeshAlignmentResultObject struct is private to meshes.c.
  */
 #ifndef NUMKONG_PYTHON_MESH_H
 #define NUMKONG_PYTHON_MESH_H
@@ -16,7 +16,7 @@
 extern "C" {
 #endif
 
-/** MeshAlignmentResult Python type object, defined in mesh.c. */
+/** MeshAlignmentResult Python type object, defined in meshes.c. */
 extern PyTypeObject MeshAlignmentResultType;
 
 PyObject *api_kabsch(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);

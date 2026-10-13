@@ -3,9 +3,9 @@
 
 DTypes: float64, float32, float16, bfloat16.
 Baselines: high-precision Decimal Jacobi SVD, SciPy procrustes, NumPy SVD.
-Matches C++ suite: test/mesh.cpp.
+Matches C++ suite: test/meshes.cpp.
 
-File: test/mesh.py
+File: test/meshes.py
 Author: Ash Vardanian
 Date: February 27, 2026
 """

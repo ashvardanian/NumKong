@@ -15,7 +15,7 @@
 #include "numkong/curved/skylake.h"
 #include "numkong/probability/skylake.h"
 #include "numkong/geospatial/skylake.h"
-#include "numkong/mesh/skylake.h"
+#include "numkong/meshes/skylake.h"
 #include "numkong/each/skylake.h"
 #include "numkong/trigonometry/skylake.h"
 #include "numkong/dots/skylake.h"

@@ -1,10 +1,10 @@
 /**
- *  @file include/numkong/mesh/v128relaxed.h
+ *  @file include/numkong/meshes/v128relaxed.h
  *  @author Ash Vardanian
  *  @date March 10, 2026
  *  @brief SIMD-accelerated point cloud alignment for WASM Relaxed SIMD.
  *
- *  @sa include/numkong/mesh.h
+ *  @sa include/numkong/meshes.h
  *
  *  @section wasm_mesh_instructions Key WASM Relaxed SIMD Mesh Instructions
  *
@@ -35,7 +35,7 @@
 #if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
-#include "numkong/mesh/serial.h"
+#include "numkong/meshes/serial.h"
 #include "numkong/dot/v128relaxed.h"
 #include "numkong/reduce/v128.h" // `nk_reduce_add_f64x2_v128_`
 #include "numkong/reduce/v128relaxed.h"

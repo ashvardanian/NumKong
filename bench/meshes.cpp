@@ -1,11 +1,11 @@
 /**
- *  @file bench/mesh.cpp
+ *  @file bench/meshes.cpp
  *  @author Ash Vardanian
  *  @date March 14, 2023
  *  @brief Mesh alignment benchmarks, RMSD, Kabsch, Umeyama.
  */
 
-#include "numkong/mesh.h"
+#include "numkong/meshes.h"
 
 #include "harness.hpp"
 

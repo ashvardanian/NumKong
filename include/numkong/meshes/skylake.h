@@ -1,10 +1,10 @@
 /**
- *  @file include/numkong/mesh/skylake.h
+ *  @file include/numkong/meshes/skylake.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
  *  @brief SIMD-accelerated point cloud alignment for Skylake.
  *
- *  @sa include/numkong/mesh.h
+ *  @sa include/numkong/meshes.h
  *
  *  @section skylake_mesh_instructions Key AVX-512 Mesh Instructions
  *
@@ -35,7 +35,7 @@
 
 #include "numkong/types.h"
 #include "numkong/dot/skylake.h"
-#include "numkong/mesh/serial.h"
+#include "numkong/meshes/serial.h"
 #include "numkong/cast/skylake.h"
 
 #if defined(__cplusplus)

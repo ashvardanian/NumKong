@@ -94,7 +94,7 @@
 #include "distance.h"
 #include "each.h"
 #include "trigonometry.h"
-#include "mesh.h"
+#include "meshes.h"
 #include "attention.h"
 #include "maxsim.h"
 #include "numpy_interop.h"

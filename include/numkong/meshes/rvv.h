@@ -1,17 +1,17 @@
 /**
- *  @file include/numkong/mesh/rvv.h
+ *  @file include/numkong/meshes/rvv.h
  *  @author Ash Vardanian
  *  @date February 6, 2026
  *  @brief SIMD-accelerated mesh operations for RISC-V.
  *
- *  @sa include/numkong/mesh.h
+ *  @sa include/numkong/meshes.h
  *
  *  RVV mesh operations leverage:
  *
  *  - @c vlseg3e32 and @c vlseg3e64: deinterleave xyz triplets in hardware
  *  - @c vfwcvt: widens f32 to f64 before any arithmetic, so f32 inputs go through f64 logic
  *  - @c vfredusum: single-instruction horizontal reduction, deferred until after the loop
- *  - Serial SVD/determinant from mesh/serial.h for fixed 3×3 matrix operations
+ *  - Serial SVD/determinant from meshes/serial.h for fixed 3×3 matrix operations
  *
  *  Kabsch and Umeyama take two passes:
  *
@@ -35,7 +35,7 @@
 
 #include "numkong/types.h"
 #include "numkong/dot/rvv.h"
-#include "numkong/mesh/serial.h" // `nk_svd3x3_f32_serial_`, `nk_rmsd_f16_serial_`, `nk_kabsch_bf16_serial_`, `nk_umeyama_f16_serial_`
+#include "numkong/meshes/serial.h" // `nk_svd3x3_f32_serial_`, `nk_rmsd_f16_serial_`, `nk_kabsch_bf16_serial_`, `nk_umeyama_f16_serial_`
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)

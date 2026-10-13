@@ -26,7 +26,7 @@
 //! with [`Error::ShapeMismatch`] and too-small ones with [`Error::InvalidShape`]. The
 //! struct-returning API makes downstream `transform_point` / `transform_points` calls trivial.
 //!
-//! File: rust/mesh.rs
+//! File: rust/meshes.rs
 //! Author: Ash Vardanian
 
 use core::{ffi::c_void, ptr::null_mut};

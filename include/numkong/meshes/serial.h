@@ -1,10 +1,10 @@
 /**
- *  @file include/numkong/mesh/serial.h
+ *  @file include/numkong/meshes/serial.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
  *  @brief SWAR-accelerated point cloud alignment for SIMD-free CPUs.
  *
- *  @sa include/numkong/mesh.h
+ *  @sa include/numkong/meshes.h
  */
 #ifndef NUMKONG_MESH_SERIAL_H
 #define NUMKONG_MESH_SERIAL_H

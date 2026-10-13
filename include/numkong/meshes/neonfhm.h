@@ -1,10 +1,10 @@
 /**
- *  @file include/numkong/mesh/neonfhm.h
+ *  @file include/numkong/meshes/neonfhm.h
  *  @author Ash Vardanian
  *  @date April 15, 2026
  *  @brief SIMD-accelerated point cloud alignment for NEON FP16 FHM, with widening FMA.
  *
- *  @sa include/numkong/mesh.h
+ *  @sa include/numkong/meshes.h
  *
  *  @section mesh_neonfhm_instructions ARM NEON FP16 Matrix Instructions (ARMv8.4-FHM)
  *
@@ -41,7 +41,7 @@
 #if NUMKONG_TARGET_NEONFHM
 
 #include "numkong/types.h"
-#include "numkong/mesh/neon.h" // `nk_centered_moments_f16_neon_`
+#include "numkong/meshes/neon.h" // `nk_centered_moments_f16_neon_`
 
 #if defined(__cplusplus)
 extern "C" {
