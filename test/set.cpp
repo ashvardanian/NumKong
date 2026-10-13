@@ -21,8 +21,7 @@ error_stats_t test_hamming(settings_t const &settings, typename scalar_type_::ha
 
     auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
 
@@ -51,8 +50,7 @@ error_stats_t test_jaccard(settings_t const &settings, typename scalar_type_::ja
 
     auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
 

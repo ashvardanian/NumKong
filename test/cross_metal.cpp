@@ -17,23 +17,18 @@ static error_stats_t test_metal_bound_lifetime(settings_t const &settings) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto origin = make_backend<metal_backend_t>(settings);
     auto consumer = make_backend<metal_backend_t>(settings);
-    using bytes_t = nk::vector<char, metal_backend_t::allocator<char>>;
-    using inputs_t = nk::vector<i8_t, metal_backend_t::allocator<i8_t>>;
-    using outputs_t = nk::vector<i32_t, metal_backend_t::allocator<i32_t>>;
-    auto packed =
-        bytes_t::zeros(pack_size_bytes(stats, nk_dots_pack_size_i8_metal, 1, 16), allocator_of<char>(consumer)).value;
+    auto packed = make_vector<char>(consumer, pack_size_bytes(stats, nk_dots_pack_size_i8_metal, 1, 16));
     {
-        auto input = inputs_t::zeros(16, allocator_of<i8_t>(origin)).value;
+        auto input = make_vector<i8_t>(origin, 16);
         std::fill_n(input.data(), 16, i8_t(1));
-        stats.expect(
-            consumer.call(nk_dots_pack_i8_metal, input.raw_values_data(), 1, 16, 16, packed.raw_values_data(), 0, 1));
+        consumer.call(nk_dots_pack_i8_metal, input.raw_values_data(), 1, 16, 16, packed.raw_values_data(), 0, 1);
     }
-    auto query = inputs_t::zeros(16, allocator_of<i8_t>(consumer)).value;
-    auto result = outputs_t::zeros(1, allocator_of<i32_t>(consumer)).value;
+    auto query = make_vector<i8_t>(consumer, 16);
+    auto result = make_vector<i32_t>(consumer, 1);
     std::fill_n(query.data(), 16, i8_t(1));
-    stats.expect(consumer.call(nk_dots_packed_i8_metal, query.raw_values_data(), packed.raw_values_data(),
-                               result.raw_values_data(), 1, 1, 16, 16, sizeof(nk_i32_t)));
-    stats.expect(consumer.synchronize());
+    consumer.call(nk_dots_packed_i8_metal, query.raw_values_data(), packed.raw_values_data(), result.raw_values_data(),
+                  1, 1, 16, 16, sizeof(nk_i32_t));
+    if (!stats.expect(consumer.synchronize())) return stats;
     stats.expect(result[0] == i32_t(16), "queued work lost an allocation released on another stream");
     return stats;
 }

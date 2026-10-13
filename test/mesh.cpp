@@ -79,8 +79,7 @@ error_stats_t test_rmsd(settings_t const &settings, typename scalar_type_::mesh_
     }
 
     bool far_from_origin = false;
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
         if ((far_from_origin = !far_from_origin)) offset_points(a, 64), offset_points(b, 64);
@@ -131,8 +130,7 @@ error_stats_t test_kabsch(settings_t const &settings, typename scalar_type_::mes
     }
 
     bool far_from_origin = false;
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
         if ((far_from_origin = !far_from_origin)) offset_points(a, 64), offset_points(b, 64);
@@ -185,8 +183,7 @@ error_stats_t test_umeyama(settings_t const &settings, typename scalar_type_::me
     }
 
     bool far_from_origin = false;
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
         if ((far_from_origin = !far_from_origin)) offset_points(a, 64), offset_points(b, 64);

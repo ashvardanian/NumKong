@@ -53,16 +53,6 @@ enum class attention_weights_t : unsigned {
     bits_11_k = 11,
 };
 
-/** A vector of @p value_type_ in the memory the kernels of @p backend_type_ read and write. */
-template <typename value_type_, typename backend_type_>
-using backend_vector = nk::vector<value_type_, typename backend_type_::template allocator<value_type_>>;
-
-/** A zeroed vector of @p count values in @p backend memory, empty when the allocation fails. */
-template <typename value_type_, typename backend_type_>
-[[nodiscard]] backend_vector<value_type_, backend_type_> make_vector(backend_type_ const &backend, std::size_t count) {
-    return backend_vector<value_type_, backend_type_>::zeros(count, allocator_of<value_type_>(backend)).value;
-}
-
 /** The bytes @p packed_size_fn asks to pack its @p arguments into, failing @p stats when it has no
  *  kernel. Pack sizes are host arithmetic on every backend, so they run here. */
 template <typename packed_size_kernel_type_, typename... arguments_types_>
@@ -71,16 +61,6 @@ std::size_t pack_size_bytes(error_stats_t &stats, packed_size_kernel_type_ packe
     nk_size_t bytes = 0;
     stats.expect(packed_size_fn(arguments..., &bytes));
     return bytes;
-}
-
-/** Waits for the calls queued on @p backend, the first that failed having returned @p status, and
- *  expects both to succeed: true when their results are readable. */
-template <typename backend_type_>
-bool expect_completed(error_stats_t &stats, backend_type_ &backend, nk_status_t status) noexcept {
-    nk_status_t const synchronization_status = backend.synchronize();
-    stats.expect(status);
-    stats.expect(synchronization_status);
-    return status == nk_success_k && synchronization_status == nk_success_k;
 }
 
 #pragma endregion Backend Policy
@@ -392,24 +372,19 @@ constexpr std::size_t attention_row_bytes(std::size_t width) noexcept {
  *  rely on the other, that one clipped from past the grid. */
 template <typename backend_type_, typename pack_kernel_type_, typename scalar_vector_type_, typename scales_type_,
           typename packed_vector_type_>
-nk_status_t pack_attention_in_two_windows(backend_type_ &backend, pack_kernel_type_ pack_fn,
-                                          scalar_vector_type_ const &keys, scalar_vector_type_ const &values,
-                                          scales_type_ const &key_scales, scales_type_ const &value_scales,
-                                          attention_segments<backend_type_> const &segments,
-                                          attention_layout_t const &layout, packed_vector_type_ &key_value_packed) {
+void pack_attention_in_two_windows(backend_type_ &backend, pack_kernel_type_ pack_fn, scalar_vector_type_ const &keys,
+                                   scalar_vector_type_ const &values, scales_type_ const &key_scales,
+                                   scales_type_ const &value_scales, attention_segments<backend_type_> const &segments,
+                                   attention_layout_t const &layout, packed_vector_type_ &key_value_packed) {
     using scalar_t = typename scalar_vector_type_::value_type;
     std::size_t const stride = attention_row_bytes<scalar_t>(layout.key_value_width());
     std::size_t const tasks = segments.count() * layout.key_value_head_count;
     std::size_t const windows[2][2] = {{1, tasks + 7}, {0, 1}};
-    for (auto const &window : windows) {
-        nk_status_t const status = backend.call(pack_fn, layout.key_value_head_count, layout.depth,
-                                                segments.key_offsets.values_data(), segments.lengths.values_data(),
-                                                segments.count(), key_scales.operand(keys.raw_values_data()), stride,
-                                                value_scales.operand(values.raw_values_data()), stride,
-                                                key_value_packed.raw_values_data(), window[0], window[1]);
-        if (status != nk_success_k) return status;
-    }
-    return nk_success_k;
+    for (auto const &window : windows)
+        backend.call(pack_fn, layout.key_value_head_count, layout.depth, segments.key_offsets.values_data(),
+                     segments.lengths.values_data(), segments.count(), key_scales.operand(keys.raw_values_data()),
+                     stride, value_scales.operand(values.raw_values_data()), stride, key_value_packed.raw_values_data(),
+                     window[0], window[1]);
 }
 
 /** Keys of one segment that one query row sees, from @c begin up to @c end. */
@@ -845,11 +820,10 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
         nk_nvfp4_cref_t const operand {codes.raw_values_data(), nullptr, tensor.raw_values_data()};
         auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 65, 0));
         auto result = make_vector<result_t>(backend, 33 * 65);
-        nk_status_t status = backend.call(pack_fn, &operand, 65, 0, 0, packed.raw_values_data(), 0, 65);
-        if (status == nk_success_k)
-            status = backend.call(dots_fn, &operand, packed.raw_values_data(), result.raw_values_data(), 33, 65, 0, 0,
-                                  65 * sizeof(result_t));
-        if (!expect_completed(stats, backend, status)) return stats;
+        backend.call(pack_fn, &operand, 65, 0, 0, packed.raw_values_data(), 0, 65);
+        backend.call(dots_fn, &operand, packed.raw_values_data(), result.raw_values_data(), 33, 65, 0, 0,
+                     65 * sizeof(result_t));
+        if (!stats.expect(backend.synchronize())) return stats;
         for (std::size_t i = 0; i < result.size(); ++i)
             stats.expect(std::isnan(static_cast<float>(result[i])), "empty NVFP4 dot loses infinite tensor scale");
     }
@@ -862,12 +836,10 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
         nk_mxfp4_cref_t const b {codes.raw_values_data(), scales.raw_values_data() + 1};
         auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 1, format.block_size));
         auto result = make_vector<result_t>(backend, 1);
-        nk_status_t status = backend.call(pack_fn, &b, 1, format.block_size, format.block_bytes,
-                                          packed.raw_values_data(), 0, 1);
-        if (status == nk_success_k)
-            status = backend.call(dots_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, 1,
-                                  format.block_size, format.block_bytes, sizeof(result_t));
-        if (!expect_completed(stats, backend, status)) return stats;
+        backend.call(pack_fn, &b, 1, format.block_size, format.block_bytes, packed.raw_values_data(), 0, 1);
+        backend.call(dots_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, 1, format.block_size,
+                     format.block_bytes, sizeof(result_t));
+        if (!stats.expect(backend.synchronize())) return stats;
         stats.expect(static_cast<float>(result[0]) == 0, "MXFP4 zero scale decodes as a nonzero exponent");
     }
     if constexpr (format.block_size != 0) {
@@ -893,11 +865,10 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
             a.tensor_scale = tensor.raw_values_data(), b.tensor_scale = tensor.raw_values_data();
         auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
         auto result = make_vector<result_t>(backend, columns);
-        nk_status_t status = backend.call(pack_fn, &b, columns, depth, row_bytes, packed.raw_values_data(), 0, columns);
-        if (status == nk_success_k)
-            status = backend.call(dots_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, columns, depth,
-                                  row_bytes, columns * sizeof(result_t));
-        if (!expect_completed(stats, backend, status)) return stats;
+        backend.call(pack_fn, &b, columns, depth, row_bytes, packed.raw_values_data(), 0, columns);
+        backend.call(dots_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, columns, depth, row_bytes,
+                     columns * sizeof(result_t));
+        if (!stats.expect(backend.synchronize())) return stats;
         for (std::size_t column = 0; column < columns; ++column)
             stats.expect(std::isnan(static_cast<float>(result[column])), "a NaN block scale does not reach the dot");
     }
@@ -906,8 +877,7 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
     std::vector<dots_packed_case_t> const cases = dots_packed_cases<scalar_type_>(settings);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         for (dots_packed_case_t const &test_case : cases) {
             std::size_t const rows = test_case.rows, columns = test_case.columns;
             std::size_t const depth = nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple;
@@ -925,12 +895,10 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
             auto c = make_vector<result_t>(backend, rows * c_stride / sizeof(result_t));
             auto b_packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
 
-            if constexpr (std::is_same_v<scalar_t, f64_t>) {
+            fill_random(settings, generator, a), fill_random(settings, generator, b);
+            if constexpr (std::is_same_v<scalar_t, f64_t>)
                 if (test_case.operands == dots_operands_t::ill_conditioned_k)
                     fill_ill_conditioned(generator, a, a_stride_values, b, b_stride_values, rows, columns, depth);
-                else fill_random(settings, generator, a), fill_random(settings, generator, b);
-            }
-            else fill_random(settings, generator, a), fill_random(settings, generator, b);
             if constexpr (scalar_type_::dtype() == nk_mxfp6e2m3_k || scalar_type_::dtype() == nk_mxfp6e3m2_k)
                 if (rows == 1 && columns == 1) {
                     std::memset(a.raw_values_data(), 0x1F, row_bytes);
@@ -949,12 +917,11 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
                     a_scales.blocks.data()[0] = ue8m0_t::from_raw(1),
                     a_scales.blocks.data()[1] = ue8m0_t::from_raw(254);
 
-            nk_status_t status = backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, b_stride,
-                                              b_packed.raw_values_data(), 0, columns);
-            if (status == nk_success_k)
-                status = backend.call(dots_fn, a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
-                                      c.raw_values_data(), rows, columns, depth, a_stride, c_stride);
-            if (!expect_completed(stats, backend, status)) return stats;
+            backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, b_stride,
+                         b_packed.raw_values_data(), 0, columns);
+            backend.call(dots_fn, a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
+                         c.raw_values_data(), rows, columns, depth, a_stride, c_stride);
+            if (!stats.expect(backend.synchronize())) return stats;
 
             std::vector<reference_t> c_reference(rows * columns);
             auto b_packed_reference = make_vector<char>(
@@ -1018,8 +985,7 @@ error_stats_t test_dots_pack_layout(settings_t const &settings, backend_type_ ba
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
     std::vector<dots_packed_case_t> const cases = dots_packed_cases<scalar_type_>(settings);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         for (dots_packed_case_t const &test_case : cases) {
             std::size_t const columns = test_case.columns;
             std::size_t const depth = nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple;
@@ -1034,17 +1000,12 @@ error_stats_t test_dots_pack_layout(settings_t const &settings, backend_type_ ba
 
             // One pack of every column, one in two column windows, then the shape
             nk_size_t shape_width = 0, shape_depth = 0;
-            nk_status_t status = backend.call(pack_fn_, b_operand, columns, depth, row_bytes, whole.raw_values_data(),
-                                              0, columns);
-            if (status == nk_success_k)
-                status = backend.call(pack_fn_, b_operand, columns, depth, row_bytes, windows.raw_values_data(), 0,
-                                      columns / 2);
-            if (status == nk_success_k)
-                status = backend.call(pack_fn_, b_operand, columns, depth, row_bytes, windows.raw_values_data(),
-                                      columns / 2, columns);
-            if (status == nk_success_k)
-                status = backend.call(packed_shape_fn_, whole.raw_values_data(), &shape_width, &shape_depth);
-            if (!expect_completed(stats, backend, status)) return stats;
+            backend.call(pack_fn_, b_operand, columns, depth, row_bytes, whole.raw_values_data(), 0, columns);
+            backend.call(pack_fn_, b_operand, columns, depth, row_bytes, windows.raw_values_data(), 0, columns / 2);
+            backend.call(pack_fn_, b_operand, columns, depth, row_bytes, windows.raw_values_data(), columns / 2,
+                         columns);
+            backend.call(packed_shape_fn_, whole.raw_values_data(), &shape_width, &shape_depth);
+            if (!stats.expect(backend.synchronize())) return stats;
 
             stats.expect(shape_width == columns && shape_depth == depth, "packed_shape disagrees with the pack");
             stats.expect(std::memcmp(whole.raw_values_data(), windows.raw_values_data(), whole.size_bytes()) == 0,
@@ -1112,8 +1073,7 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
     std::vector<dots_symmetric_case_t> const cases = dots_symmetric_cases(settings);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         for (dots_symmetric_case_t const &test_case : cases) {
             std::size_t const count = test_case.count, rows_begin = test_case.rows_begin;
             std::size_t const rows_end = std::min(count, test_case.rows_end);
@@ -1131,10 +1091,9 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
             // An NVFP4 tensor scale whose square is an F32 subnormal, never rounded on the way
             auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 0x1.4p-66f);
 
-            if (!expect_completed(stats, backend,
-                                  backend.call(symmetric_fn, scales.operand(a.raw_values_data()), count, depth, stride,
-                                               c.raw_values_data(), c_stride, rows_begin, test_case.rows_end)))
-                return stats;
+            backend.call(symmetric_fn, scales.operand(a.raw_values_data()), count, depth, stride, c.raw_values_data(),
+                         c_stride, rows_begin, test_case.rows_end);
+            if (!stats.expect(backend.synchronize())) return stats;
 
             std::vector<reference_t> c_reference(count * count);
             stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
@@ -1236,16 +1195,15 @@ error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type
                                                 cells, word_stride, 0, count),
                      "symmetric took a result stride off the result size");
     }
-    if (!expect_completed(stats, backend, nk_success_k)) return stats;
+    if (!stats.expect(backend.synchronize())) return stats;
     stats.expect(overwritten_bytes(output, 0, output.size_bytes()) == 0, "a refused call wrote its output");
 
     // A NaN input reaches every sum it enters, however the capability widens its codes
     if constexpr (nk::nan_capable_dtype<scalar_t>) {
         reinterpret_cast<scalar_t *>(rows.raw_values_data())[0] = scalar_t::quiet_nan();
-        if (!expect_completed(stats, backend,
-                              backend.call(symmetric_fn_, scales.operand(aligned), count, depth, aligned_stride, cells,
-                                           output_stride, 0, count)))
-            return stats;
+        backend.call(symmetric_fn_, scales.operand(aligned), count, depth, aligned_stride, cells, output_stride, 0,
+                     count);
+        if (!stats.expect(backend.synchronize())) return stats;
         stats.expect(std::isnan(static_cast<double>(cells[0])), "a NaN input summed to a finite dot");
     }
     return stats;
@@ -1292,8 +1250,7 @@ error_stats_t test_sets_packed(settings_t const &settings, pack_size_kernel_type
     std::mt19937 generator(settings.seed.value);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;)
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
         for (matrix_shape_t const &shape : matrix_shapes(settings)) {
             std::size_t const rows = shape.rows, columns = shape.columns;
             std::size_t const depth = nk::divide_round_up(shape.depth, dimensions_per_value) * dimensions_per_value;
@@ -1345,8 +1302,7 @@ error_stats_t test_sets_symmetric(settings_t const &settings, symmetric_kernel_t
     std::mt19937 generator(settings.seed.value);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;)
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
         for (matrix_shape_t const &shape : matrix_shapes(settings)) {
             std::size_t const count = shape.rows;
             std::size_t const depth = nk::divide_round_up(shape.depth, dimensions_per_value) * dimensions_per_value;
@@ -1432,10 +1388,9 @@ void expect_near_parallel_integers(error_stats_t &stats, backend_type_ &backend,
         stats.expect(nk_cast_serial(values.data() + row * depth, nk_f64_k,
                                     codes.raw_values_data() + row * stride_values, dtype, depth, nullptr));
     auto results = make_vector<result_t>(backend, rows * rows);
-    nk_status_t const status = launch(codes.raw_values_data(), rows, depth, stride, results.raw_values_data(),
-                                      rows * sizeof(result_t));
-    stats.expect(status);
-    if (status != nk_success_k) return;
+    if (!stats.expect(
+            launch(codes.raw_values_data(), rows, depth, stride, results.raw_values_data(), rows * sizeof(result_t))))
+        return;
 
     auto const exact_dot = [&](std::size_t first, std::size_t second) {
         std::int64_t dot = 0;
@@ -1481,7 +1436,7 @@ void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, std::mt1
     auto codes = make_vector<scalar_t>(backend, rows * stride_values * dimensions_per_value);
     std::vector<double> values(depth, 1.0);
     for (std::size_t row = 2; row != rows; ++row) {
-        if (row == 3 && !format.block_size) values[0] = std::numeric_limits<double>::quiet_NaN();
+        if (row == 3 && !format.block_size) values[depth / 2] = std::numeric_limits<double>::quiet_NaN();
         stats.expect(nk_cast_serial(values.data(), nk_f64_k, codes.raw_values_data() + row * stride_values,
                                     scalar_t::dtype(), depth, nullptr));
     }
@@ -1490,10 +1445,9 @@ void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, std::mt1
         scales.blocks.data()[3 * scales.scale_stride] = decltype(scales)::scale_t::from_raw(
             format.scale_dtype == nk_ue4m3_k ? 0x7F : 0xFF);
     auto results = make_vector<result_t>(backend, rows * rows);
-    nk_status_t const status = launch(scales.operand(codes.raw_values_data()), rows, depth, stride,
-                                      results.raw_values_data(), rows * sizeof(result_t));
-    stats.expect(status);
-    if (status != nk_success_k) return;
+    if (!stats.expect(launch(scales.operand(codes.raw_values_data()), rows, depth, stride, results.raw_values_data(),
+                             rows * sizeof(result_t))))
+        return;
 
     for (std::size_t i = 0; i != rows; ++i)
         for (std::size_t j = symmetric_ ? i + 1 : 0; j != rows; ++j) {
@@ -1534,11 +1488,10 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
         nk_mxfp8e5m2_cref_t const b {codes.raw_values_data() + 32, scales.raw_values_data() + 1};
         auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 1, 32));
         auto result = make_vector<result_t>(backend, 1);
-        nk_status_t status = backend.call(pack_fn, &b, 1, 32, 32, packed.raw_values_data(), 0, 1);
-        if (status == nk_success_k)
-            status = backend.call(spatials_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, 1, 32, 32,
-                                  sizeof(result_t));
-        if (!expect_completed(stats, backend, status)) return stats;
+        backend.call(pack_fn, &b, 1, 32, 32, packed.raw_values_data(), 0, 1);
+        backend.call(spatials_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, 1, 32, 32,
+                     sizeof(result_t));
+        if (!stats.expect(backend.synchronize())) return stats;
         stats.expect(static_cast<float>(result[0]) == 1,
                      "orthogonal block-scaled vectors whose norms pass F32 range are not 1 apart");
     }
@@ -1547,12 +1500,9 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
     auto const launch = [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c,
                             std::size_t c_stride) {
         auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, rows, depth));
-        nk_status_t status = backend.call(pack_fn, operand, rows, depth, stride, packed.raw_values_data(), 0, rows);
-        if (status == nk_success_k)
-            status = backend.call(spatials_fn, operand, packed.raw_values_data(), c, rows, rows, depth, stride,
-                                  c_stride);
-        nk_status_t const synchronization_status = backend.synchronize();
-        return status != nk_success_k ? status : synchronization_status;
+        backend.call(pack_fn, operand, rows, depth, stride, packed.raw_values_data(), 0, rows);
+        backend.call(spatials_fn, operand, packed.raw_values_data(), c, rows, rows, depth, stride, c_stride);
+        return backend.synchronize();
     };
     if constexpr (angular) expect_angular_edges<scalar_type_, packed_kind>(stats, backend, generator, launch);
     if constexpr (nk::is_integral_dtype<scalar_type_>())
@@ -1560,8 +1510,7 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;)
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
         for (matrix_shape_t const &shape : matrix_shapes(settings)) {
             std::size_t const rows = shape.rows, columns = shape.columns;
             std::size_t const depth = nk::divide_round_up(shape.depth, depth_multiple) * depth_multiple;
@@ -1580,15 +1529,13 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
                        b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, stride, 0.75f);
 
             // The norms of the second window's columns come from a pack not starting at zero
-            nk_status_t status = backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, stride,
-                                              b_packed.raw_values_data(), 0, columns / 2);
-            if (status == nk_success_k)
-                status = backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, stride,
-                                      b_packed.raw_values_data(), columns / 2, columns);
-            if (status == nk_success_k)
-                status = backend.call(spatials_fn, a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
-                                      c.raw_values_data(), rows, columns, depth, stride, columns * sizeof(result_t));
-            if (!expect_completed(stats, backend, status)) return stats;
+            backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, stride,
+                         b_packed.raw_values_data(), 0, columns / 2);
+            backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, stride,
+                         b_packed.raw_values_data(), columns / 2, columns);
+            backend.call(spatials_fn, a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
+                         c.raw_values_data(), rows, columns, depth, stride, columns * sizeof(result_t));
+            if (!stats.expect(backend.synchronize())) return stats;
 
             auto b_packed_reference = make_vector<char>(
                 nk::dots_pack_size<scalar_type_>(columns, depth, no_tiers_k).value);
@@ -1639,9 +1586,8 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
                                                         : nk_kernel_euclideans_symmetric_k;
     auto const launch = [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c,
                             std::size_t c_stride) {
-        nk_status_t const status = backend.call(symmetric_fn, operand, rows, depth, stride, c, c_stride, 0, rows);
-        nk_status_t const synchronization_status = backend.synchronize();
-        return status != nk_success_k ? status : synchronization_status;
+        backend.call(symmetric_fn, operand, rows, depth, stride, c, c_stride, 0, rows);
+        return backend.synchronize();
     };
     if constexpr (angular) expect_angular_edges<scalar_type_, symmetric_kind>(stats, backend, generator, launch);
     if constexpr (nk::is_integral_dtype<scalar_type_>())
@@ -1649,8 +1595,7 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;)
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
         for (matrix_shape_t const &shape : matrix_shapes(settings)) {
             std::size_t const count = shape.rows, c_stride = count * sizeof(result_t);
             std::size_t const depth = nk::divide_round_up(shape.depth, depth_multiple) * depth_multiple;
@@ -1664,10 +1609,9 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
             fill_canary(c);
             auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 1.5f);
 
-            if (!expect_completed(stats, backend,
-                                  backend.call(symmetric_fn, scales.operand(a.raw_values_data()), count, depth, stride,
-                                               c.raw_values_data(), c_stride, 0, count)))
-                return stats;
+            backend.call(symmetric_fn, scales.operand(a.raw_values_data()), count, depth, stride, c.raw_values_data(),
+                         c_stride, 0, count);
+            if (!stats.expect(backend.synchronize())) return stats;
 
             auto dots_reference = make_vector<reference_t>(count * count);
             stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
@@ -1764,8 +1708,7 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
 
     std::vector<attention_case_t> const cases = attention_cases();
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         for (attention_case_t const &test_case : cases) {
             auto const segments = test_case.many_segments
                                       ? make_many_attention_segments(backend, generator)
@@ -1825,22 +1768,20 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
             auto log_sum_exp = make_vector<result_t>(backend, query_tokens * layout.head_count),
                  windowed_log_sum_exp = make_vector<result_t>(backend, query_tokens * layout.head_count);
 
-            nk_status_t status = pack_attention_in_two_windows(backend, pack_fn, keys, values, key_scales, value_scales,
-                                                               segments, layout, key_value_packed);
+            pack_attention_in_two_windows(backend, pack_fn, keys, values, key_scales, value_scales, segments, layout,
+                                          key_value_packed);
             auto const attend = [&](auto &into, auto &into_log_sum_exp, std::size_t tasks_begin,
                                     std::size_t tasks_end) {
-                return backend.call(attention_fn, layout.head_count, layout.key_value_head_count, layout.depth,
-                                    segments.query_offsets.values_data(), query_tokens, layout.scale,
-                                    test_case.keys_before, test_case.keys_after,
-                                    query_scales.operand(queries.raw_values_data()), query_stride,
-                                    key_value_packed.raw_values_data(), into.raw_values_data(), output_stride,
-                                    into_log_sum_exp.raw_values_data(), tasks_begin, tasks_end);
+                backend.call(attention_fn, layout.head_count, layout.key_value_head_count, layout.depth,
+                             segments.query_offsets.values_data(), query_tokens, layout.scale, test_case.keys_before,
+                             test_case.keys_after, query_scales.operand(queries.raw_values_data()), query_stride,
+                             key_value_packed.raw_values_data(), into.raw_values_data(), output_stride,
+                             into_log_sum_exp.raw_values_data(), tasks_begin, tasks_end);
             };
-            if (status == nk_success_k) status = attend(output, log_sum_exp, 0, NUMKONG_SIZE_MAX);
+            attend(output, log_sum_exp, 0, NUMKONG_SIZE_MAX);
             for (std::size_t window : windows)
-                if (status == nk_success_k)
-                    status = attend(windowed_output, windowed_log_sum_exp, bounds[window], bounds[window + 1]);
-            if (!expect_completed(stats, backend, status)) return stats;
+                attend(windowed_output, windowed_log_sum_exp, bounds[window], bounds[window + 1]);
+            if (!stats.expect(backend.synchronize())) return stats;
             void const *outputs[2] = {output.raw_values_data(), windowed_output.raw_values_data()};
             void const *log_sum_exps[2] = {log_sum_exp.raw_values_data(), windowed_log_sum_exp.raw_values_data()};
             stats.expect(std::memcmp(outputs[0], outputs[1], output.size_bytes()) == 0,
@@ -1892,8 +1833,7 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
     auto const segments = make_attention_segments(backend, {60, 130, 0, 33, 5}, {60, 24, 2, 1, 9});
     std::size_t const query_tokens = segments.query_tokens(), key_tokens = segments.key_tokens();
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         for (attention_case_t const &test_case : cases) {
             attention_layout_t const layout {attention_key_value_heads_k * test_case.group, attention_key_value_heads_k,
                                              nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple,
@@ -1966,20 +1906,18 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                 backend, pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth, key_tokens,
                                          segments.count()));
 
-            nk_status_t status = pack_attention_in_two_windows(backend, pack_fn, keys, values, key_scales, value_scales,
-                                                               segments, layout, key_value_packed);
+            pack_attention_in_two_windows(backend, pack_fn, keys, values, key_scales, value_scales, segments, layout,
+                                          key_value_packed);
             std::size_t const windows[2][2] = {{0, 1}, {1, NUMKONG_SIZE_MAX}};
             for (auto const &window : windows)
-                if (status == nk_success_k)
-                    status = backend.call(
-                        gradients_fn, layout.head_count, layout.key_value_head_count, layout.depth,
-                        segments.query_offsets.values_data(), query_tokens, layout.scale, test_case.keys_before,
-                        test_case.keys_after, query_scales.operand(queries.raw_values_data()), query_stride,
-                        key_value_packed.raw_values_data(), output.raw_values_data(), output_gradient.raw_values_data(),
-                        output_stride, log_sum_exp.raw_values_data(), query_gradient.raw_values_data(),
-                        query_gradient_stride, key_gradient.raw_values_data(), value_gradient.raw_values_data(),
-                        gradient_stride, window[0], window[1]);
-            if (!expect_completed(stats, backend, status)) return stats;
+                backend.call(gradients_fn, layout.head_count, layout.key_value_head_count, layout.depth,
+                             segments.query_offsets.values_data(), query_tokens, layout.scale, test_case.keys_before,
+                             test_case.keys_after, query_scales.operand(queries.raw_values_data()), query_stride,
+                             key_value_packed.raw_values_data(), output.raw_values_data(),
+                             output_gradient.raw_values_data(), output_stride, log_sum_exp.raw_values_data(),
+                             query_gradient.raw_values_data(), query_gradient_stride, key_gradient.raw_values_data(),
+                             value_gradient.raw_values_data(), gradient_stride, window[0], window[1]);
+            if (!stats.expect(backend.synchronize())) return stats;
 
             auto const accumulate_gradient = [&](backend_vector<f32_t, backend_type_> const &actual,
                                                  std::size_t actual_width, std::vector<double> const &expected,
@@ -2020,8 +1958,7 @@ error_stats_t test_attention_rope(settings_t const &settings, rope_kernel_type_ 
     std::size_t const rows = 33, head_count = 2, depth = 74, half_depth = depth / 2;
     std::size_t const row_values = head_count * depth + 8, row_bytes = row_values * sizeof(scalar_t);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;)
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
         for (bool const in_place : {false, true}) {
             auto x = make_vector<scalar_t>(backend, rows * row_values),
                  y = make_vector<scalar_t>(backend, rows * row_values);
@@ -2033,13 +1970,11 @@ error_stats_t test_attention_rope(settings_t const &settings, rope_kernel_type_ 
                 cosines[index] = std::cos(angle), sines[index] = std::sin(angle);
             }
 
-            nk_status_t status = in_place ? backend.copy(y.raw_values_data(), x.raw_values_data(), rows * row_bytes)
-                                          : nk_success_k;
-            if (status == nk_success_k)
-                status = backend.call(rope_fn, in_place ? y.raw_values_data() : x.raw_values_data(),
-                                      cosines.raw_values_data(), sines.raw_values_data(), y.raw_values_data(), rows,
-                                      head_count, depth, row_bytes, row_bytes);
-            if (!expect_completed(stats, backend, status)) return stats;
+            if (in_place && !stats.expect(backend.copy(y.raw_values_data(), x.raw_values_data(), rows * row_bytes)))
+                return stats;
+            backend.call(rope_fn, in_place ? y.raw_values_data() : x.raw_values_data(), cosines.raw_values_data(),
+                         sines.raw_values_data(), y.raw_values_data(), rows, head_count, depth, row_bytes, row_bytes);
+            if (!stats.expect(backend.synchronize())) return stats;
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t head = 0; head < head_count; head++)

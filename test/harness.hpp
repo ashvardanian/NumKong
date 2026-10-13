@@ -166,7 +166,14 @@ using nk::mxint8_t;
 using nk::nvfp4_t;
 
 using steady_clock_t = std::chrono::steady_clock;
-using time_point_t = steady_clock_t::time_point;
+
+/** The moment a kernel's randomized trials stop. */
+struct deadline_t {
+    steady_clock_t::time_point moment;
+
+    /** Whether the clock, read on every call, has not reached @c moment yet. */
+    bool ahead() const noexcept { return steady_clock_t::now() < moment; }
+};
 
 /** A 32-bit generator seed, kept apart from counts so neither passes for the other. */
 struct seed_t {
@@ -477,6 +484,9 @@ struct settings_t {
 
     /** The binary's @c argv[0], which closes every rerun line. */
     std::string_view program;
+
+    /** The deadline of trials starting now. */
+    deadline_t deadline() const noexcept { return {steady_clock_t::now() + time_limit_per_kernel}; }
 
     /** Whether @p name passes the filter. */
     bool selects(std::string_view name) const {
@@ -959,13 +969,15 @@ struct error_stats_t {
         accumulate(static_cast<int>(held), 1);
     }
 
-    /** Record a kernel's @p status, failing it by the status's name when it wrote no result. */
-    void expect(nk_status_t status) noexcept {
+    /** Record a kernel's @p status, failing it by the status's name when it wrote no result, and
+     *  return whether it succeeded. */
+    bool expect(nk_status_t status) noexcept {
         if (status != nk_success_k) expect(false, nk_status_name(status));
+        return status == nk_success_k;
     }
 
     /** Record a C++ wrapper's @p status, like the C one. */
-    void expect(nk::status_t status) noexcept { expect(static_cast<nk_status_t>(status)); }
+    bool expect(nk::status_t status) noexcept { return expect(static_cast<nk_status_t>(status)); }
 
     /** Records one result against its reference, failing on NaN or when the error exceeds @p bound
      *  plus the rounding into @p actual_type_. Past that type's finite range, a saturated or
@@ -1196,6 +1208,9 @@ struct host_backend_t {
     template <typename value_type_>
     using allocator = aligned_allocator<value_type_>;
 
+    /** The first failed call's status since the last @c synchronize, which skips later calls. */
+    nk_status_t failure = nk_success_k;
+
     /** Row stride for @p row_bytes: exactly one row, keeping the tightest stride covered. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return row_bytes; }
 
@@ -1211,14 +1226,14 @@ struct host_backend_t {
         return nk_success_k;
     }
 
-    /** Calls @p kernel with @p arguments and the null stream of the CPU. */
+    /** Calls @p kernel with @p arguments and the null stream of the CPU, unless a call failed. */
     template <typename kernel_type_, typename... arguments_types_>
-    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        return kernel(arguments..., nullptr);
+    void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        if (failure == nk_success_k) failure = kernel(arguments..., nullptr);
     }
 
-    /** Waits for submitted work. */
-    nk_status_t synchronize() noexcept { return nk_success_k; }
+    /** Returns and clears the first failure since the last call to it. */
+    nk_status_t synchronize() noexcept { return std::exchange(failure, nk_success_k); }
 };
 
 #if NUMKONG_ARCH_CUDA_
@@ -1281,6 +1296,9 @@ struct device_backend {
     std::shared_ptr<owner_t> owner;
     nk_stream_t const stream;
 
+    /** The first failed call's status since the last @c synchronize, which skips later calls. */
+    nk_status_t failure = nk_success_k;
+
     explicit device_backend(nk::device_t device)
         : owner(std::make_shared<owner_t>(device)), stream(owner->queue.get()) {}
 
@@ -1309,24 +1327,26 @@ struct device_backend {
         return nk_success_k;
     }
 
-    /** Launches @p kernel with @p arguments on the stream. */
+    /** Launches @p kernel with @p arguments on the stream, unless a call failed. */
     template <typename kernel_type_, typename... arguments_types_>
-    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        if (owner->status != nk_success_k) return owner->status;
-        return kernel(arguments..., stream);
+    void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        if (owner->status == nk_success_k && failure == nk_success_k) failure = kernel(arguments..., stream);
     }
 
     /** Calls @p kernel on operands it must refuse, reporting whether it returned
-     *  @c nk_misaligned_k unlaunched. */
+     *  @c nk_misaligned_k unlaunched, and keeping no failure. */
     template <typename kernel_type_, typename... arguments_types_>
     bool refuses_misaligned(kernel_type_ kernel, arguments_types_... arguments) noexcept {
         return kernel(arguments..., stream) == nk_misaligned_k;
     }
 
-    /** Waits for submitted work. */
+    /** Waits for submitted work, then returns and clears the first failure since the last call to
+     *  it, or else the stream's. */
     nk_status_t synchronize() noexcept {
         if (owner->status != nk_success_k) return owner->status;
-        return synchronize_(stream);
+        nk_status_t const synchronized = synchronize_(stream);
+        nk_status_t const failed = std::exchange(failure, nk_success_k);
+        return failed != nk_success_k ? failed : synchronized;
     }
 };
 
@@ -1356,6 +1376,16 @@ backend_type_ make_backend(settings_t const &settings) {
 template <typename value_type_, typename backend_type_>
 typename backend_type_::template allocator<value_type_> allocator_of(backend_type_ const &) noexcept {
     return {};
+}
+
+/** A vector of @p value_type_ in the memory the kernels of @p backend_type_ read and write. */
+template <typename value_type_, typename backend_type_>
+using backend_vector = nk::vector<value_type_, typename backend_type_::template allocator<value_type_>>;
+
+/** A zeroed vector of @p count values in @p backend memory, empty when the allocation fails. */
+template <typename value_type_, typename backend_type_>
+[[nodiscard]] backend_vector<value_type_, backend_type_> make_vector(backend_type_ const &backend, std::size_t count) {
+    return backend_vector<value_type_, backend_type_>::zeros(count, allocator_of<value_type_>(backend)).value;
 }
 
 #pragma endregion Backends

@@ -38,8 +38,7 @@ error_stats_t test_maxsim_packed(settings_t const &settings,
     auto query_packed = make_vector<char>(query_pack_size);
     auto document_packed = make_vector<char>(document_pack_size);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, queries);
         fill_random(settings, generator, documents);
         // A zero query beside a zero document scores 0, as two zero vectors do in `spatials.h`

@@ -20,8 +20,7 @@ error_stats_t test_intersect(settings_t const &settings, typename index_type_::s
     auto a = make_vector<index_t>(dim), b = make_vector<index_t>(dim);
     auto matched = make_vector<index_t>(dim), expected = make_vector<index_t>(dim);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         // Every 8th case crosses the 64:1 ratio where the serial kernel switches to galloping
         // search, and `a`'s wider range makes it overshoot `b`'s last element.
         std::size_t b_length = 1 + generator() % dim;
@@ -65,8 +64,7 @@ error_stats_t test_sparse_dot(settings_t const &settings, typename weight_type_:
     auto a_idx = make_vector<index_t>(dim), b_idx = make_vector<index_t>(dim);
     auto a_weights = make_vector<weight_t>(dim), b_weights = make_vector<weight_t>(dim);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         nk::fill_sorted_unique(generator, a_idx.values_data(), a_idx.size_values(), index_t(dim * 4));
         nk::fill_sorted_unique(generator, b_idx.values_data(), b_idx.size_values(), index_t(dim * 4));
         fill_random(settings, generator, a_weights);

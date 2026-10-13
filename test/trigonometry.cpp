@@ -30,8 +30,7 @@ error_stats_t test_sin(settings_t const &settings, typename scalar_type_::trigon
     auto outputs = make_vector<scalar_t>(settings.dense_dimensions),
          reference = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), -scalar_t::two_pi_k(),
                          scalar_t::two_pi_k());
 
@@ -61,8 +60,7 @@ error_stats_t test_cos(settings_t const &settings, typename scalar_type_::trigon
     auto outputs = make_vector<scalar_t>(settings.dense_dimensions),
          reference = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), -scalar_t::two_pi_k(),
                          scalar_t::two_pi_k());
 
@@ -92,8 +90,7 @@ error_stats_t test_atan(settings_t const &settings, typename scalar_type_::trigo
     auto outputs = make_vector<scalar_t>(settings.dense_dimensions),
          reference = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), scalar_t(-10.0), scalar_t(10.0));
 
         stats.expect(kernel(inputs.raw_values_data(), settings.dense_dimensions, outputs.raw_values_data(), nullptr));

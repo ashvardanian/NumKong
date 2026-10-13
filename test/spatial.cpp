@@ -25,8 +25,7 @@ error_stats_t test_sqeuclidean(settings_t const &settings, typename scalar_type_
     std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
 
@@ -57,8 +56,7 @@ error_stats_t test_angular(settings_t const &settings, typename scalar_type_::an
     std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
 
@@ -88,8 +86,7 @@ error_stats_t test_euclidean(settings_t const &settings, typename scalar_type_::
     std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
 

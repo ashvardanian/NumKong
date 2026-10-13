@@ -249,7 +249,7 @@ void test_tensor_cuda(error_stats_section_t &check) {
         return;
     }
 
-    check("Tensor memcpy round-trips", [&](settings_t const &) {
+    check("tensor_memcpy_cuda", [&](settings_t const &) {
         error_stats_t stats(comparison_family_t::exact_k);
         stats.expect(test_memcpy_1d_roundtrip_(), "1D round-trip (cudaMemcpy)");
         stats.expect(test_memcpy_2d_padded_rows_(), "2D round-trip, padded rows (cudaMemcpy2D)");

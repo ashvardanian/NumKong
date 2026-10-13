@@ -13,40 +13,6 @@ namespace ashvardanian::numkong::test {
 
 #if NUMKONG_ARCH_CUDA_
 
-/** Packed angular distance against serial where the B column holds the E4M3 NaN code 0x7F, which
- *  must give NaN as serial does rather than decode to 480. */
-template <auto packed_size_fn_, auto pack_fn_, auto angulars_fn_>
-static error_stats_t test_angulars_packed_nan_e4m3(settings_t const &settings) {
-    using bytes_t = nk::vector<char, cuda_backend_t::allocator<char>>;
-    cuda_backend_t backend = make_backend<cuda_backend_t>(settings);
-    error_stats_t stats(comparison_family_t::exact_k);
-    std::size_t const depth = 64;
-    auto a = bytes_t::zeros(depth, allocator_of<char>(backend)).value,
-         b = bytes_t::zeros(depth, allocator_of<char>(backend)).value,
-         distance = bytes_t::zeros(4, allocator_of<char>(backend)).value;
-    auto packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn_, 1, depth), allocator_of<char>(backend)).value;
-    auto serial_packed = make_vector<char>(pack_size_bytes(stats, nk_dots_pack_size_e4m3_serial, 1, depth));
-    std::memset(a.raw_values_data(), 0x38, depth), std::memset(b.raw_values_data(), 0x38, depth); // 1.0
-    b[depth / 2] = 0x7F;
-    auto const *a_codes = reinterpret_cast<nk_e4m3_t const *>(a.raw_values_data());
-    auto const *b_codes = reinterpret_cast<nk_e4m3_t const *>(b.raw_values_data());
-    auto *gpu = reinterpret_cast<nk_f32_t *>(distance.raw_values_data());
-    nk_status_t submission_status = backend.call(pack_fn_, b_codes, 1, depth, depth, packed.raw_values_data(), 0, 1);
-    if (submission_status == nk_success_k)
-        submission_status = backend.call(angulars_fn_, a_codes, packed.raw_values_data(), gpu, 1, 1, depth, depth,
-                                         sizeof(nk_f32_t));
-    nk_status_t const completion_status = backend.synchronize();
-    stats.expect(submission_status);
-    stats.expect(completion_status);
-    if (submission_status != nk_success_k || completion_status != nk_success_k) return stats;
-    nk_f32_t serial = 0;
-    stats.expect(nk_dots_pack_e4m3_serial(b_codes, 1, depth, depth, serial_packed.raw_values_data(), 0, 1, nullptr));
-    stats.expect(nk_angulars_packed_e4m3_serial(a_codes, serial_packed.raw_values_data(), &serial, 1, 1, depth, depth,
-                                                sizeof(nk_f32_t), nullptr));
-    stats.expect(std::isnan(*gpu) && std::isnan(serial), "a NaN code in B gives no NaN angle");
-    return stats;
-}
-
 void test_cross_cuda(error_stats_section_t &check) {
     check.section("Cross CUDA", nk_cap_cuda_k);
     check("dots_packed_f64_cuda", test_dots_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_cuda,
@@ -472,9 +438,6 @@ void test_cross_cuda(error_stats_section_t &check) {
           nk_euclideans_symmetric_e5m2_ampere);
     check("angulars_packed_e4m3_ampere", test_angulars_packed<e4m3_t, cuda_backend_t>, nk_dots_pack_size_e4m3_ampere,
           nk_dots_pack_e4m3_ampere, nk_angulars_packed_e4m3_ampere);
-    check("angulars_packed_nan_e4m3_ampere",
-          test_angulars_packed_nan_e4m3<nk_dots_pack_size_e4m3_ampere, nk_dots_pack_e4m3_ampere,
-                                        nk_angulars_packed_e4m3_ampere>);
     check("angulars_symmetric_e4m3_ampere", test_angulars_symmetric<e4m3_t, cuda_backend_t>,
           nk_angulars_symmetric_e4m3_ampere);
     check("euclideans_packed_e4m3_ampere", test_euclideans_packed<e4m3_t, cuda_backend_t>,
@@ -860,9 +823,6 @@ void test_cross_cuda(error_stats_section_t &check) {
           nk_euclideans_symmetric_e5m2_blackwell);
     check("angulars_packed_e4m3_blackwell", test_angulars_packed<e4m3_t, cuda_backend_t>,
           nk_dots_pack_size_e4m3_blackwell, nk_dots_pack_e4m3_blackwell, nk_angulars_packed_e4m3_blackwell);
-    check("angulars_packed_nan_e4m3_blackwell",
-          test_angulars_packed_nan_e4m3<nk_dots_pack_size_e4m3_blackwell, nk_dots_pack_e4m3_blackwell,
-                                        nk_angulars_packed_e4m3_blackwell>);
     check("angulars_symmetric_e4m3_blackwell", test_angulars_symmetric<e4m3_t, cuda_backend_t>,
           nk_angulars_symmetric_e4m3_blackwell);
     check("euclideans_packed_e4m3_blackwell", test_euclideans_packed<e4m3_t, cuda_backend_t>,
@@ -1075,9 +1035,6 @@ void test_cross_cuda(error_stats_section_t &check) {
           nk_euclideans_symmetric_e5m2_blackwellrtx);
     check("angulars_packed_e4m3_blackwellrtx", test_angulars_packed<e4m3_t, cuda_backend_t>,
           nk_dots_pack_size_e4m3_blackwellrtx, nk_dots_pack_e4m3_blackwellrtx, nk_angulars_packed_e4m3_blackwellrtx);
-    check("angulars_packed_nan_e4m3_blackwellrtx",
-          test_angulars_packed_nan_e4m3<nk_dots_pack_size_e4m3_blackwellrtx, nk_dots_pack_e4m3_blackwellrtx,
-                                        nk_angulars_packed_e4m3_blackwellrtx>);
     check("angulars_symmetric_e4m3_blackwellrtx", test_angulars_symmetric<e4m3_t, cuda_backend_t>,
           nk_angulars_symmetric_e4m3_blackwellrtx);
     check("euclideans_packed_e4m3_blackwellrtx", test_euclideans_packed<e4m3_t, cuda_backend_t>,

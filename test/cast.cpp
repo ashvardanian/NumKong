@@ -6,7 +6,7 @@
  */
 
 #include "harness.hpp"
-#include "cast.hpp" // `test_cast`, `check_block_scaled_casts`
+#include "cast.hpp" // `test_cast`, `test_cast_block_scaled`
 
 namespace ashvardanian::numkong::test {
 
@@ -36,8 +36,7 @@ void test_casts(error_stats_section_t &check) {
     check("cast_i8_to_f64_serial", test_cast<i8_t, f64_t>, nk_cast_serial);
     check("cast_i8_to_i32_serial", test_cast<i8_t, i32_t>, nk_cast_serial);
     check("cast_u8_to_f32_serial", test_cast<u8_t, f32_t>, nk_cast_serial);
-
-    check_block_scaled_casts(check, "serial", nk_cast_serial);
+    check("cast_block_scaled_serial", test_cast_block_scaled<>, nk_cast_serial);
 
 #if !NUMKONG_HEADER_ONLY
     check.section("Type Casts Runtime Dispatch", nk_cap_serial_k);
@@ -106,7 +105,7 @@ void test_casts(error_stats_section_t &check) {
     // Verify serial fallbacks for rare paths
     check("cast_i32_to_f64_haswell", test_cast<i32_t, f64_t>, nk_cast_haswell);
     check("cast_f64_to_f32_haswell", test_cast<f64_t, f32_t>, nk_cast_haswell);
-    check_block_scaled_casts(check, "haswell", nk_cast_haswell);
+    check("cast_block_scaled_haswell", test_cast_block_scaled<>, nk_cast_haswell);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
@@ -157,7 +156,7 @@ void test_casts(error_stats_section_t &check) {
     // Verify serial fallbacks for rare paths
     check("cast_i8_to_f64_skylake", test_cast<i8_t, f64_t>, nk_cast_skylake);
     check("cast_f64_to_bf16_skylake", test_cast<f64_t, bf16_t>, nk_cast_skylake);
-    check_block_scaled_casts(check, "skylake", nk_cast_skylake);
+    check("cast_block_scaled_skylake", test_cast_block_scaled<>, nk_cast_skylake);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_ICELAKE
@@ -176,7 +175,7 @@ void test_casts(error_stats_section_t &check) {
     check("cast_f32_to_e2m3_icelake", test_cast<f32_t, e2m3_t>, nk_cast_icelake);
     check("cast_e3m2_to_f32_icelake", test_cast<e3m2_t, f32_t>, nk_cast_icelake);
     check("cast_f32_to_e3m2_icelake", test_cast<f32_t, e3m2_t>, nk_cast_icelake);
-    check_block_scaled_casts(check, "icelake", nk_cast_icelake);
+    check("cast_block_scaled_icelake", test_cast_block_scaled<>, nk_cast_icelake);
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if NUMKONG_TARGET_SAPPHIRE
@@ -198,7 +197,7 @@ void test_casts(error_stats_section_t &check) {
     check("cast_e5m2_to_f32_neon", test_cast<e5m2_t, f32_t>, nk_cast_neon);
     check("cast_e5m2_to_f16_neon", test_cast<e5m2_t, f16_t>, nk_cast_neon);
     check("cast_f32_to_e5m2_neon", test_cast<f32_t, e5m2_t>, nk_cast_neon);
-    check_block_scaled_casts(check, "neon", nk_cast_neon);
+    check("cast_block_scaled_neon", test_cast_block_scaled<>, nk_cast_neon);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_V128RELAXED

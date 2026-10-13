@@ -43,8 +43,7 @@ error_stats_t test_dots_unpacked(settings_t const &settings, kernel_type_ dots_f
     auto a_buf = make_vector<scalar_t>(m * k), b_buf = make_vector<scalar_t>(n * k);
     auto c = make_vector<result_t>(m * n);
     std::vector<reference_t> c_ref(m * n);
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a_buf);
         fill_random(settings, generator, b_buf);
 
@@ -82,8 +81,7 @@ error_stats_t test_dots_unpacked_conjugated(settings_t const &settings, kernel_t
     auto a_buf = make_vector<scalar_t>(m * k), b_buf = make_vector<scalar_t>(n * k);
     auto c = make_vector<result_t>(m * n);
     std::vector<reference_t> c_ref(m * n);
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a_buf);
         fill_random(settings, generator, b_buf);
 
@@ -280,8 +278,7 @@ error_stats_t test_dot_blas(settings_t const &settings, typename scalar_type_::d
     std::mt19937 generator(settings.seed.value);
     auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
 
@@ -310,8 +307,7 @@ error_stats_t test_vdot_blas(settings_t const &settings, typename scalar_type_::
     std::mt19937 generator(settings.seed.value);
     auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
 

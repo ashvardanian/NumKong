@@ -46,8 +46,7 @@ error_stats_t test_bilinear(settings_t const &settings, typename scalar_type_::c
 
     auto a = make_vector<scalar_t>(settings.curved_dimensions), b = make_vector<scalar_t>(settings.curved_dimensions);
     auto m = make_vector<scalar_t>(settings.curved_dimensions * settings.curved_dimensions);
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
         fill_random(settings, generator, m);
@@ -80,8 +79,7 @@ error_stats_t test_mahalanobis(settings_t const &settings, typename scalar_type_
     auto a = make_vector<scalar_t>(settings.curved_dimensions), b = make_vector<scalar_t>(settings.curved_dimensions);
     auto m = make_vector<scalar_t>(settings.curved_dimensions * settings.curved_dimensions);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
         fill_random(settings, generator, m);

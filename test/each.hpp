@@ -46,34 +46,21 @@ error_stats_t test_scale(settings_t const &settings, typename scalar_type_::scal
     using scalar_t = scalar_type_;
     using scale_t = typename scalar_t::scale_t;
     using value_t = tracked<reference_for<scalar_t>>;
-    using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
-    using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::size_t const count = settings.dense_dimensions;
-    auto const values = allocator_of<scalar_t>(backend);
-    auto input = scalars_t::zeros(count, values).value, result = scalars_t::zeros(count, values).value;
-    auto coefficients = bytes_t::zeros(2 * sizeof(scale_t), allocator_of<char>(backend)).value;
+    auto input = make_vector<scalar_t>(backend, count), result = make_vector<scalar_t>(backend, count);
+    auto coefficients = make_vector<char>(backend, 2 * sizeof(scale_t));
     scale_t *alpha = reinterpret_cast<scale_t *>(coefficients.raw_values_data()), *beta = alpha + 1;
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, input);
         *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
 
-        if (nk_status_t const status = backend.call(kernel, input.raw_values_data(), count, alpha, beta,
-                                                    result.raw_values_data());
-            status != nk_success_k) {
-            stats.expect(status);
-            stats.expect(backend.synchronize());
-            return stats;
-        }
-        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
-            stats.expect(status);
-            return stats;
-        }
+        backend.call(kernel, input.raw_values_data(), count, alpha, beta, result.raw_values_data());
+        if (!stats.expect(backend.synchronize())) return stats;
         for (std::size_t i = 0; i < count; i++)
             stats.accumulate(result[i], value_t(input[i]) * value_t(*alpha) + value_t(*beta));
     }
@@ -87,36 +74,23 @@ error_stats_t test_blend(settings_t const &settings, typename scalar_type_::blen
     using scalar_t = scalar_type_;
     using scale_t = typename scalar_t::scale_t;
     using value_t = tracked<reference_for<scalar_t>>;
-    using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
-    using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::size_t const count = settings.dense_dimensions;
-    auto const values = allocator_of<scalar_t>(backend);
-    auto a = scalars_t::zeros(count, values).value, b = scalars_t::zeros(count, values).value;
-    auto result = scalars_t::zeros(count, values).value;
-    auto coefficients = bytes_t::zeros(2 * sizeof(scale_t), allocator_of<char>(backend)).value;
+    auto a = make_vector<scalar_t>(backend, count), b = make_vector<scalar_t>(backend, count);
+    auto result = make_vector<scalar_t>(backend, count);
+    auto coefficients = make_vector<char>(backend, 2 * sizeof(scale_t));
     scale_t *alpha = reinterpret_cast<scale_t *>(coefficients.raw_values_data()), *beta = alpha + 1;
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
         *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
 
-        if (nk_status_t const status = backend.call(kernel, a.raw_values_data(), b.raw_values_data(), count, alpha,
-                                                    beta, result.raw_values_data());
-            status != nk_success_k) {
-            stats.expect(status);
-            stats.expect(backend.synchronize());
-            return stats;
-        }
-        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
-            stats.expect(status);
-            return stats;
-        }
+        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), count, alpha, beta, result.raw_values_data());
+        if (!stats.expect(backend.synchronize())) return stats;
         for (std::size_t i = 0; i < count; i++)
             stats.accumulate(result[i], value_t(a[i]) * value_t(*alpha) + value_t(b[i]) * value_t(*beta));
     }
@@ -130,37 +104,25 @@ error_stats_t test_fma(settings_t const &settings, typename scalar_type_::fma_ke
     using scalar_t = scalar_type_;
     using scale_t = typename scalar_t::scale_t;
     using value_t = tracked<reference_for<scalar_t>>;
-    using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
-    using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::size_t const count = settings.dense_dimensions;
-    auto const values = allocator_of<scalar_t>(backend);
-    auto a = scalars_t::zeros(count, values).value, b = scalars_t::zeros(count, values).value;
-    auto c = scalars_t::zeros(count, values).value, result = scalars_t::zeros(count, values).value;
-    auto coefficients = bytes_t::zeros(2 * sizeof(scale_t), allocator_of<char>(backend)).value;
+    auto a = make_vector<scalar_t>(backend, count), b = make_vector<scalar_t>(backend, count);
+    auto c = make_vector<scalar_t>(backend, count), result = make_vector<scalar_t>(backend, count);
+    auto coefficients = make_vector<char>(backend, 2 * sizeof(scale_t));
     scale_t *alpha = reinterpret_cast<scale_t *>(coefficients.raw_values_data()), *beta = alpha + 1;
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
         fill_random(settings, generator, c);
         *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
 
-        if (nk_status_t const status = backend.call(kernel, a.raw_values_data(), b.raw_values_data(),
-                                                    c.raw_values_data(), count, alpha, beta, result.raw_values_data());
-            status != nk_success_k) {
-            stats.expect(status);
-            stats.expect(backend.synchronize());
-            return stats;
-        }
-        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
-            stats.expect(status);
-            return stats;
-        }
+        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), c.raw_values_data(), count, alpha, beta,
+                     result.raw_values_data());
+        if (!stats.expect(backend.synchronize())) return stats;
         for (std::size_t i = 0; i < count; i++)
             stats.accumulate(result[i],
                              value_t(a[i]) * value_t(b[i]) * value_t(*alpha) + value_t(c[i]) * value_t(*beta));
@@ -172,34 +134,22 @@ error_stats_t test_fma(settings_t const &settings, typename scalar_type_::fma_ke
 template <typename scalar_type_, typename backend_type_ = host_backend_t>
 error_stats_t test_sum(settings_t const &settings, typename scalar_type_::sum_kernel_t kernel) {
     using scalar_t = scalar_type_;
-    using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
 
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk::is_integral_dtype<scalar_t>() ? comparison_family_t::exact_k
                                                           : comparison_family_t::approximate_k);
     std::mt19937 generator(settings.seed.value);
     std::size_t const count = settings.dense_dimensions;
-    auto const values = allocator_of<scalar_t>(backend);
-    auto a = scalars_t::zeros(count, values).value, b = scalars_t::zeros(count, values).value;
-    auto result = scalars_t::zeros(count, values).value;
+    auto a = make_vector<scalar_t>(backend, count), b = make_vector<scalar_t>(backend, count);
+    auto result = make_vector<scalar_t>(backend, count);
     auto reference = make_vector<scalar_t>(count);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
 
-        if (nk_status_t const status = backend.call(kernel, a.raw_values_data(), b.raw_values_data(), count,
-                                                    result.raw_values_data());
-            status != nk_success_k) {
-            stats.expect(status);
-            stats.expect(backend.synchronize());
-            return stats;
-        }
-        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
-            stats.expect(status);
-            return stats;
-        }
+        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), count, result.raw_values_data());
+        if (!stats.expect(backend.synchronize())) return stats;
         stats.expect(nk::add<scalar_t>(a.values_data(), b.values_data(), count, reference.values_data(), no_tiers_k));
 
         for (std::size_t i = 0; i < count; i++) stats.accumulate(result[i], reference[i]);
@@ -217,9 +167,6 @@ template <typename scalar_type_, typename backend_type_ = host_backend_t, typena
 error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsnorm_fn) {
     using scalar_t = scalar_type_;
     using input_t = input_type_;
-    using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
-    using inputs_t = nk::vector<input_t, typename backend_type_::template allocator<input_t>>;
-    using gains_t = nk::vector<f32_t, typename backend_type_::template allocator<f32_t>>;
     struct layout {
         std::size_t groups, columns;
     };
@@ -230,34 +177,23 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
     std::uniform_real_distribution<float> gain_distribution(0.5f, 1.5f);
     nk_f32_t const epsilon = 1e-6f;
     std::size_t const rows = 33;
-    auto normalize = [&](inputs_t &x, nk_f32_t const *gains, scalars_t &y, std::size_t rows, std::size_t groups,
-                         std::size_t columns, std::size_t row_values, nk_f32_t epsilon) {
-        nk_status_t const status = backend.call(rmsnorm_fn, x.raw_values_data(), gains, y.raw_values_data(), rows,
-                                                groups, columns, row_values * sizeof(input_t),
-                                                row_values * sizeof(scalar_t), epsilon);
-        nk_status_t const synchronized = backend.synchronize();
-        return status != nk_success_k ? status : synchronized;
-    };
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;)
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
         for (layout const vectors :
              {layout {1, 99}, layout {3, 16385}, layout {8, 128}, layout {1, 2048}, layout {1, 36864}}) {
             std::size_t const groups = vectors.groups, columns = vectors.columns;
             std::size_t const row_values = groups * columns + 16;
             nk_f64_t const bound = nk_each_rmsnorm_error_bound(input_t::dtype(), scalar_t::dtype(), columns);
-            auto x = inputs_t::zeros(rows * row_values, allocator_of<input_t>(backend)).value;
-            auto y = scalars_t::zeros(rows * row_values, allocator_of<scalar_t>(backend)).value;
-            auto gamma = gains_t::zeros(columns, allocator_of<f32_t>(backend)).value;
+            auto x = make_vector<input_t>(backend, rows * row_values);
+            auto y = make_vector<scalar_t>(backend, rows * row_values);
+            auto gamma = make_vector<f32_t>(backend, columns);
             fill_random(settings, generator, x);
             for (std::size_t col = 0; col < columns; col++) gamma[col] = gain_distribution(generator);
             nk_f32_t const *gains = groups == 1 ? gamma.raw_values_data() : nullptr;
 
-            if (nk_status_t const status = normalize(x, gains, y, rows, groups, columns, row_values, epsilon);
-                status != nk_success_k) {
-                stats.expect(status);
-                return stats;
-            }
+            backend.call(rmsnorm_fn, x.raw_values_data(), gains, y.raw_values_data(), rows, groups, columns,
+                         row_values * sizeof(input_t), row_values * sizeof(scalar_t), epsilon);
+            if (!stats.expect(backend.synchronize())) return stats;
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t group = 0; group < groups; group++) {
@@ -286,21 +222,18 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
         constexpr bool non_finite = input_t::has_infinity() && scalar_t::has_nan();
         std::size_t const columns = 32, edge_rows = 4;
         nk_f64_t const bound = nk_each_rmsnorm_error_bound(input_t::dtype(), scalar_t::dtype(), columns);
-        auto x = inputs_t::zeros(edge_rows * columns, allocator_of<input_t>(backend)).value;
-        auto y = scalars_t::zeros(edge_rows * columns, allocator_of<scalar_t>(backend)).value;
-        auto gamma = gains_t::zeros(columns, allocator_of<f32_t>(backend)).value;
+        auto x = make_vector<input_t>(backend, edge_rows * columns);
+        auto y = make_vector<scalar_t>(backend, edge_rows * columns);
+        auto gamma = make_vector<f32_t>(backend, columns);
         for (std::size_t col = 0; col < columns; col++) {
             gamma[col] = edge_gains[col % std::size(edge_gains)];
             x[col] = input_t(input_t::is_signed() && col % 2 ? -8 : 8);
             x[2 * columns + col] = input_t(8), x[3 * columns + col] = input_t(8);
         }
         if constexpr (non_finite) x[2 * columns] = input_t::quiet_nan(), x[3 * columns] = input_t::positive_infinity();
-        if (nk_status_t const status = normalize(x, gamma.raw_values_data(), y, edge_rows, 1, columns, columns,
-                                                 epsilon);
-            status != nk_success_k) {
-            stats.expect(status);
-            return stats;
-        }
+        backend.call(rmsnorm_fn, x.raw_values_data(), gamma.raw_values_data(), y.raw_values_data(), edge_rows, 1,
+                     columns, columns * sizeof(input_t), columns * sizeof(scalar_t), epsilon);
+        if (!stats.expect(backend.synchronize())) return stats;
         for (std::size_t col = 0; col < columns; col++) {
             nk_f32_t const gain = edge_gains[col % std::size(edge_gains)];
             nk_f64_t const signed_gain = input_t::is_signed() && col % 2 ? -gain : gain;
@@ -331,17 +264,15 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
                                                                               : std::vector {0x1p70};
         std::size_t const columns = 77, rows = magnitudes.size();
         nk_f64_t const bound = nk_each_rmsnorm_error_bound(input_t::dtype(), scalar_t::dtype(), columns);
-        auto x = inputs_t::zeros(rows * columns, allocator_of<input_t>(backend)).value;
-        auto y = scalars_t::zeros(rows * columns, allocator_of<scalar_t>(backend)).value;
+        auto x = make_vector<input_t>(backend, rows * columns);
+        auto y = make_vector<scalar_t>(backend, rows * columns);
         std::uniform_real_distribution<double> unit_distribution(0.5, 1.5);
         for (std::size_t row = 0; row < rows; row++)
             for (std::size_t col = 0; col < columns; col++)
                 x[row * columns + col] = input_t((col % 3 ? 1 : -1) * unit_distribution(generator) * magnitudes[row]);
-        if (nk_status_t const status = normalize(x, nullptr, y, rows, 1, columns, columns, 0.0f);
-            status != nk_success_k) {
-            stats.expect(status);
-            return stats;
-        }
+        backend.call(rmsnorm_fn, x.raw_values_data(), nullptr, y.raw_values_data(), rows, 1, columns,
+                     columns * sizeof(input_t), columns * sizeof(scalar_t), 0.0f);
+        if (!stats.expect(backend.synchronize())) return stats;
         for (std::size_t row = 0; row < rows; row++) {
             double sum_squares = 0;
             for (std::size_t col = 0; col < columns; col++)
@@ -366,7 +297,6 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename swiglu_kernel_type_>
 error_stats_t test_swiglu(settings_t const &settings, swiglu_kernel_type_ swiglu_fn) {
     using scalar_t = scalar_type_;
-    using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
 
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_each_swiglu_error_bound(scalar_t::dtype()));
@@ -374,30 +304,19 @@ error_stats_t test_swiglu(settings_t const &settings, swiglu_kernel_type_ swiglu
     nk_f32_t const gate_scale = 0.25f, output_scale = 2.0f;
     std::size_t const rows = 37;
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;)
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
         for (bool const gated : {true, false}) {
             std::size_t const columns = gated ? 129 : 130;
             std::size_t const fused_values = 2 * columns + 3, output_values = columns + 5;
-            auto const values = allocator_of<scalar_t>(backend);
-            auto fused = scalars_t::zeros(rows * fused_values, values).value;
-            auto y = scalars_t::zeros(rows * output_values, values).value;
+            auto fused = make_vector<scalar_t>(backend, rows * fused_values);
+            auto y = make_vector<scalar_t>(backend, rows * output_values);
             fill_random(settings, generator, fused);
             auto const *gate = fused.raw_values_data();
             auto const *up = gated ? gate + columns : nullptr;
 
-            if (nk_status_t const status = backend.call(
-                    swiglu_fn, gate, up, y.raw_values_data(), rows, columns, fused_values * sizeof(scalar_t),
-                    fused_values * sizeof(scalar_t), output_values * sizeof(scalar_t), gate_scale, output_scale);
-                status != nk_success_k) {
-                stats.expect(status);
-                stats.expect(backend.synchronize());
-                return stats;
-            }
-            if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
-                stats.expect(status);
-                return stats;
-            }
+            backend.call(swiglu_fn, gate, up, y.raw_values_data(), rows, columns, fused_values * sizeof(scalar_t),
+                         fused_values * sizeof(scalar_t), output_values * sizeof(scalar_t), gate_scale, output_scale);
+            if (!stats.expect(backend.synchronize())) return stats;
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t col = 0; col < columns; col++) {

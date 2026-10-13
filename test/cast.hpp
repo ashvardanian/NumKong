@@ -45,10 +45,8 @@ struct cast_operand {
     static constexpr bool scaled = nk_dtype_is_block_scaled(dtype);
     static constexpr bool has_tensor_scale = nk_block_scaled_format_of_dtype(dtype).tensor_scale_dtype == nk_f32_k;
 
-    using bytes_t = nk::vector<u8_t, typename backend_type_::template allocator<u8_t>>;
-    using elements_t =
-        std::conditional_t<scaled, bytes_t,
-                           nk::vector<value_type_, typename backend_type_::template allocator<value_type_>>>;
+    using bytes_t = backend_vector<u8_t, backend_type_>;
+    using elements_t = std::conditional_t<scaled, bytes_t, backend_vector<value_type_, backend_type_>>;
 
     elements_t elements;
     bytes_t scales;
@@ -56,10 +54,9 @@ struct cast_operand {
 
     cast_operand(std::size_t dimensions, backend_type_ const &backend)
         : elements(make_elements_(dimensions, backend)),
-          scales(bytes_t::zeros(nk_block_scaled_scales_size(dimensions, nk_block_scaled_format_of_dtype(dtype)) + 1,
-                                allocator_of<u8_t>(backend))
-                     .value),
-          tensor_scale(bytes_t::zeros(sizeof(nk_f32_t), allocator_of<u8_t>(backend)).value) {}
+          scales(make_vector<u8_t>(
+              backend, nk_block_scaled_scales_size(dimensions, nk_block_scaled_format_of_dtype(dtype)) + 1)),
+          tensor_scale(make_vector<u8_t>(backend, sizeof(nk_f32_t))) {}
 
     nk_f32_t &tensor_scale_value() { return *reinterpret_cast<nk_f32_t *>(tensor_scale.raw_values_data()); }
 
@@ -85,10 +82,9 @@ struct cast_operand {
 
     static elements_t make_elements_(std::size_t dimensions, backend_type_ const &backend) {
         if constexpr (scaled)
-            return bytes_t::zeros(nk_block_scaled_elements_size(dimensions, nk_block_scaled_format_of_dtype(dtype)),
-                                  allocator_of<u8_t>(backend))
-                .value;
-        else return elements_t::zeros(dimensions, allocator_of<value_type_>(backend)).value;
+            return make_vector<u8_t>(backend,
+                                     nk_block_scaled_elements_size(dimensions, nk_block_scaled_format_of_dtype(dtype)));
+        else return make_vector<value_type_>(backend, dimensions);
     }
 };
 
@@ -100,7 +96,6 @@ template <typename from_type_, typename to_type_, typename backend_type_ = host_
 error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
     using source_t = cast_operand<from_type_, backend_type_>;
     using target_t = cast_operand<to_type_, backend_type_>;
-    using floats_t = nk::vector<f32_t, typename backend_type_::template allocator<f32_t>>;
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
@@ -112,7 +107,7 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
 
     source_t source(dimensions, backend);
     target_t target(dimensions, backend), reference(dimensions, backend);
-    auto source_floats = floats_t::zeros(dimensions, allocator_of<f32_t>(backend)).value;
+    auto source_floats = make_vector<f32_t>(backend, dimensions);
     typename source_t::reference_t source_reference = source.reference();
     typename target_t::reference_t target_reference = target.reference(), reference_reference = reference.reference();
     void *source_operand = source.operand(source_reference);
@@ -124,8 +119,7 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
             stats.accumulate(target_bytes[i], reference_bytes[i]);
     };
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         if constexpr (source_t::scaled) {
             fill_random(settings, generator, source_floats);
             source.tensor_scale_value() = 0.0f;
@@ -140,18 +134,9 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
             target.tensor_scale_value() = reference.tensor_scale_value() = tensor_scale;
             stats.expect(nk_cast_serial(source_operand, from_type_::dtype(), reference_operand, to_type_::dtype(),
                                         dimensions, nullptr));
-            if (nk_status_t const status = backend.call(kernel, static_cast<void const *>(source_operand),
-                                                        from_type_::dtype(), target_operand, to_type_::dtype(),
-                                                        static_cast<nk_size_t>(dimensions));
-                status != nk_success_k) {
-                stats.expect(status);
-                stats.expect(backend.synchronize());
-                return stats;
-            }
-            if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
-                stats.expect(status);
-                return stats;
-            }
+            backend.call(kernel, static_cast<void const *>(source_operand), from_type_::dtype(), target_operand,
+                         to_type_::dtype(), static_cast<nk_size_t>(dimensions));
+            if (!stats.expect(backend.synchronize())) return stats;
 
             if constexpr (target_t::scaled) {
                 compare_bytes(target.elements, reference.elements);
@@ -171,7 +156,6 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
  *  I64 hub reads no U1 and converts whatever its buffers held. */
 template <typename backend_type_ = host_backend_t>
 error_stats_t test_cast_pairs(settings_t const &settings, cast_t kernel) {
-    using bytes_t = nk::vector<u8_t, typename backend_type_::template allocator<u8_t>>;
     nk_dtype_t const dtypes[] = {nk_f64_k,   nk_f32_k,  nk_f16_k,   nk_bf16_k,  nk_e4m3_k, nk_e5m2_k, nk_e2m3_k,
                                  nk_e3m2_k,  nk_e2m1_k, nk_ue8m0_k, nk_ue4m3_k, nk_f64c_k, nk_f32c_k, nk_f16c_k,
                                  nk_bf16c_k, nk_i64_k,  nk_i32_k,   nk_i16_k,   nk_i8_k,   nk_i4_k,   nk_u64_k,
@@ -180,12 +164,10 @@ error_stats_t test_cast_pairs(settings_t const &settings, cast_t kernel) {
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
     std::size_t const count = nk::divide_round_up(settings.dense_dimensions, 8) * 8, capacity = count * 16;
-    auto source = bytes_t::zeros(capacity, allocator_of<u8_t>(backend)).value,
-         target = bytes_t::zeros(capacity, allocator_of<u8_t>(backend)).value;
+    auto source = make_vector<u8_t>(backend, capacity), target = make_vector<u8_t>(backend, capacity);
     auto reference = make_vector<u8_t>(capacity);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;)
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
         for (nk_dtype_t const from_type : dtypes) {
             fill_random_bits(generator, source);
             for (nk_dtype_t const to_type : dtypes) {
@@ -194,18 +176,9 @@ error_stats_t test_cast_pairs(settings_t const &settings, cast_t kernel) {
                 std::memset(reference.raw_values_data(), 0, capacity);
                 stats.expect(nk_cast_serial(source.raw_values_data(), from_type, reference.raw_values_data(), to_type,
                                             count, nullptr));
-                if (nk_status_t const status = backend.call(kernel, static_cast<void const *>(source.raw_values_data()),
-                                                            from_type, static_cast<void *>(target.raw_values_data()),
-                                                            to_type, count);
-                    status != nk_success_k) {
-                    stats.expect(status);
-                    stats.expect(backend.synchronize());
-                    return stats;
-                }
-                if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
-                    stats.expect(status);
-                    return stats;
-                }
+                backend.call(kernel, static_cast<void const *>(source.raw_values_data()), from_type,
+                             static_cast<void *>(target.raw_values_data()), to_type, count);
+                if (!stats.expect(backend.synchronize())) return stats;
                 std::size_t const to_bytes = count * nk_dtype_bits(to_type) / NUMKONG_BITS_PER_BYTE;
                 for (std::size_t i = 0; i < to_bytes; ++i) stats.accumulate(target[i], reference[i]);
             }
@@ -213,24 +186,32 @@ error_stats_t test_cast_pairs(settings_t const &settings, cast_t kernel) {
     return stats;
 }
 
-/** Registers the casts of every block-scaled format from F32 and to F32, and three transcodes
- *  covering each distinct path, as rows named `cast_<from>_to_<to>_<isa>`, each checked by
- *  @c test_cast: a 16-element block into a 32-element one, the reverse with a derived tensor scale,
- *  and a widening between two MX formats. */
+/** Casts every block-scaled format from F32 and to F32, and three transcodes covering each distinct
+ *  path, through @c test_cast: a 16-element block into a 32-element one, the reverse with a derived
+ *  tensor scale, and a widening between two MX formats. The 17 pairs split one kernel's time limit,
+ *  and the first pair to fail names the failure. */
 template <typename backend_type_ = host_backend_t>
-void check_block_scaled_casts(error_stats_section_t &check, char const *isa, cast_t kernel) {
-    auto row = [&]<typename from_type_, typename to_type_>() {
-        std::string const name = fmt::format("cast_{}_to_{}_{}", from_type_::dtype_name(), to_type_::dtype_name(), isa);
-        check(name.c_str(), test_cast<from_type_, to_type_, backend_type_>, kernel);
+error_stats_t test_cast_block_scaled(settings_t const &settings, cast_t kernel) {
+    constexpr int pairs_count = 17;
+    settings_t pair_settings = settings;
+    pair_settings.time_limit_per_kernel = std::max(settings.time_limit_per_kernel / pairs_count,
+                                                   std::chrono::milliseconds(1));
+    error_stats_t stats(comparison_family_t::exact_k);
+    auto pair = [&]<typename from_type_, typename to_type_>() {
+        static std::string const name = fmt::format("{} → {}", from_type_::dtype_name(), to_type_::dtype_name());
+        error_stats_t const pair_stats = test_cast<from_type_, to_type_, backend_type_>(pair_settings, kernel);
+        stats.merge(pair_stats);
+        if (should_fail(settings, pair_stats)) stats.expect(false, name.c_str());
     };
     [&]<typename... format_types_>(std::type_identity<format_types_>...) {
-        ((row.template operator()<f32_t, format_types_>(), row.template operator()<format_types_, f32_t>()), ...);
+        ((pair.template operator()<f32_t, format_types_>(), pair.template operator()<format_types_, f32_t>()), ...);
     }(std::type_identity<nvfp4_t> {}, std::type_identity<mxfp4_t> {}, std::type_identity<mxfp6e2m3_t> {},
       std::type_identity<mxfp6e3m2_t> {}, std::type_identity<mxfp8e4m3_t> {}, std::type_identity<mxfp8e5m2_t> {},
       std::type_identity<mxint8_t> {});
-    row.template operator()<nvfp4_t, mxfp8e4m3_t>();
-    row.template operator()<mxfp8e4m3_t, nvfp4_t>();
-    row.template operator()<mxfp4_t, mxfp8e5m2_t>();
+    pair.template operator()<nvfp4_t, mxfp8e4m3_t>();
+    pair.template operator()<mxfp8e4m3_t, nvfp4_t>();
+    pair.template operator()<mxfp4_t, mxfp8e5m2_t>();
+    return stats;
 }
 
 } // namespace ashvardanian::numkong::test

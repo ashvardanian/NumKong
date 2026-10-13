@@ -357,7 +357,7 @@ static void test_cast_cuda_conformance(error_stats_section_t &check) {
         return;
     }
 
-    check("FP8 conformance: nk_cast vs __nv_cvt_* (bit-exact)", [&](settings_t const &) {
+    check("cast_fp8_conformance_cuda", [&](settings_t const &) {
         error_stats_t stats(comparison_family_t::exact_k);
         stats.expect(
             sweep_fp32_to_fp8_( //
@@ -413,7 +413,7 @@ static void test_cast_cuda_conformance(error_stats_section_t &check) {
         return stats;
     });
 
-    check("FP8 reverse: fp{32,16,bf16} ← e{4m3,5m2} (bit-exact)", [&](settings_t const &) {
+    check("cast_fp8_reverse_cuda", [&](settings_t const &) {
         error_stats_t stats(comparison_family_t::exact_k);
         stats.expect(sweep_small_to_wide_<float>( //
                          "e4m3 → fp32", nk_e4m3_k, nk_f32_k, 256u,
@@ -467,7 +467,7 @@ static void test_cast_cuda_conformance(error_stats_section_t &check) {
         return stats;
     });
 
-    check("FP6 conformance: nk_cast vs __nv_cvt_* (bit-exact)", [&](settings_t const &) {
+    check("cast_fp6_conformance_cuda", [&](settings_t const &) {
         error_stats_t stats(comparison_family_t::exact_k);
         stats.expect(sweep_fp32_to_fp6_( //
                          "fp32 → e3m2", nk_e3m2_k, __NV_E3M2,
@@ -517,7 +517,7 @@ static void test_cast_cuda_conformance(error_stats_section_t &check) {
         return stats;
     });
 
-    check("FP6 reverse: fp{32,16,bf16} ← e{3m2,2m3} (bit-exact)", [&](settings_t const &) {
+    check("cast_fp6_reverse_cuda", [&](settings_t const &) {
         error_stats_t stats(comparison_family_t::exact_k);
         stats.expect(sweep_small_to_wide_<float>( //
                          "e3m2 → fp32", nk_e3m2_k, nk_f32_k, 64u,
@@ -576,16 +576,16 @@ void test_cast_cuda(error_stats_section_t &check) {
     test_cast_cuda_conformance(check);
 #if NUMKONG_TARGET_CUDA
     check.section("Conversions CUDA", nk_cap_cuda_k);
-    check("cast_cuda", test_cast_pairs<cuda_backend_t>, nk_cast_cuda);
-    check_block_scaled_casts<cuda_backend_t>(check, "cuda", nk_cast_cuda);
+    check("cast_pairs_cuda", test_cast_pairs<cuda_backend_t>, nk_cast_cuda);
+    check("cast_block_scaled_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_cuda);
 #endif // NUMKONG_TARGET_CUDA
 #if NUMKONG_TARGET_AMPERE
     check.section("Conversions Ampere", nk_cap_ampere_k);
-    check("cast_ampere", test_cast_pairs<cuda_backend_t>, nk_cast_ampere);
+    check("cast_pairs_ampere", test_cast_pairs<cuda_backend_t>, nk_cast_ampere);
 #endif // NUMKONG_TARGET_AMPERE
 #if NUMKONG_TARGET_ADA
     check.section("Conversions Ada", nk_cap_ada_k);
-    check("cast_ada", test_cast_pairs<cuda_backend_t>, nk_cast_ada);
+    check("cast_pairs_ada", test_cast_pairs<cuda_backend_t>, nk_cast_ada);
 #endif // NUMKONG_TARGET_ADA
 }
 

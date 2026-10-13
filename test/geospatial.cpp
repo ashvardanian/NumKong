@@ -26,8 +26,7 @@ error_stats_t test_haversine(settings_t const &settings, typename scalar_type_::
          reference = make_vector<scalar_t>(settings.dense_dimensions);
 
     double const max_separation_rad = double(settings.max_coord_angle_degrees) * 3.14159265358979323846 / 180.0;
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         nk::fill_coordinates(generator, a_lats.values_data(), a_lons.values_data(), settings.dense_dimensions);
         nk::fill_nearby_coordinates(generator, a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
                                     b_lons.values_data(), settings.dense_dimensions, max_separation_rad);
@@ -67,8 +66,7 @@ error_stats_t test_vincenty(settings_t const &settings, typename scalar_type_::g
          reference = make_vector<scalar_t>(settings.dense_dimensions);
 
     double const max_separation_rad = double(settings.max_coord_angle_degrees) * 3.14159265358979323846 / 180.0;
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         nk::fill_coordinates(generator, a_lats.values_data(), a_lons.values_data(), settings.dense_dimensions);
         nk::fill_nearby_coordinates(generator, a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
                                     b_lons.values_data(), settings.dense_dimensions, max_separation_rad);

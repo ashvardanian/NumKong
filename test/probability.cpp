@@ -24,8 +24,7 @@ error_stats_t test_kld(settings_t const &settings, typename scalar_type_::probab
     std::mt19937 generator(settings.seed.value);
     auto p = make_vector<scalar_t>(settings.dense_dimensions), q = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         nk::fill_probability(generator, p.values_data(), settings.dense_dimensions);
         nk::fill_probability(generator, q.values_data(), settings.dense_dimensions);
 
@@ -57,8 +56,7 @@ error_stats_t test_jsd(settings_t const &settings, typename scalar_type_::probab
     std::mt19937 generator(settings.seed.value);
     auto p = make_vector<scalar_t>(settings.dense_dimensions), q = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         nk::fill_probability(generator, p.values_data(), settings.dense_dimensions);
         nk::fill_probability(generator, q.values_data(), settings.dense_dimensions);
 
