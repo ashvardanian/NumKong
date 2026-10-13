@@ -91,6 +91,12 @@ error_stats_t test_integral_indexing_api(settings_t const &) {
     stats.expect(view[std::ptrdiff_t {-1}] == 5.0f, "view signed indexing failed");
     stats.expect(span[unsigned {3}] == 4.0f, "span unsigned indexing failed");
     stats.expect(strided[2u] == 3.0f, "raw view unsigned stride ctor failed");
+    nk::vector_view<float> const spanned = std::span<float const>(v.values_data(), v.size());
+    stats.expect(spanned.size() == 5 && spanned[4u] == 5.0f, "view from a span failed");
+    nk::vector_span<float> const writable = std::span<float>(v.values_data(), v.size());
+    writable[0u] = 7.0f;
+    stats.expect(writable.size() == 5 && v[std::size_t {0}] == 7.0f, "span from a span failed");
+    v[std::size_t {0}] = 1.0f;
 
     auto sub = view[nk::range(1u, 4u)];
     stats.expect(sub.size() == 3, "unsigned range size mismatch");
@@ -385,6 +391,8 @@ error_stats_t test_sub_byte_u1x8(settings_t const &) {
     stats.expect(v[0] == true, "u1x8_t dim 0 mismatch");
     stats.expect(v[1] == false, "u1x8_t dim 1 mismatch");
     stats.expect(v[7] == true, "u1x8_t dim 7 mismatch");
+    nk::vector_view<nk::u1x8_t> const bits = std::span<nk::u1x8_t>(v.values_data(), v.size_values());
+    stats.expect(bits.size() == 64 && bits[7] == true, "u1x8_t view from a span must count dimensions");
     return stats;
 }
 

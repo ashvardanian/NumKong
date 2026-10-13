@@ -40,7 +40,7 @@
 #include <iterator>    // `std::random_access_iterator_tag`
 #include <memory>      // `std::allocator_traits`
 #include <span>        // `std::span`
-#include <type_traits> // `std::conditional_t`
+#include <type_traits> // `std::conditional_t`, `std::remove_const_t`
 #include <utility>     // `std::exchange`, `std::swap`
 
 #include "numkong/memory.hpp" // `aligned_allocator`, `allocator`
@@ -290,6 +290,15 @@ struct vector_view {
         : data_(reinterpret_cast<char const *>(data)), dimensions_(resolve_extent_(dims)),
           stride_(static_cast<difference_type>(sizeof(value_type))) {}
 
+    /** Views contiguous storage values as every logical dimension they hold, the inverse of
+     *  @ref values. */
+    template <typename span_value_type_, std::size_t span_extent_>
+        requires std::is_same_v<std::remove_const_t<span_value_type_>, value_type>
+    constexpr vector_view(std::span<span_value_type_, span_extent_> values) noexcept
+        : data_(reinterpret_cast<char const *>(values.data())),
+          dimensions_(values.size() * dimensions_per_value<value_type>()),
+          stride_(static_cast<difference_type>(sizeof(value_type))) {}
+
     /** Number of logical dimensions. */
     constexpr size_type size() const noexcept { return dimensions_; }
 
@@ -403,6 +412,14 @@ struct vector_span {
     template <std::unsigned_integral dims_type_>
     constexpr vector_span(value_type *data, dims_type_ dims) noexcept
         : data_(reinterpret_cast<char *>(data)), dimensions_(resolve_extent_(dims)),
+          stride_(static_cast<difference_type>(sizeof(value_type))) {}
+
+    /** Spans contiguous storage values as every logical dimension they hold, the inverse of
+     *  @ref values. */
+    template <std::size_t span_extent_>
+    constexpr vector_span(std::span<value_type, span_extent_> values) noexcept
+        : data_(reinterpret_cast<char *>(values.data())),
+          dimensions_(values.size() * dimensions_per_value<value_type>()),
           stride_(static_cast<difference_type>(sizeof(value_type))) {}
 
     /** Number of logical dimensions. */
