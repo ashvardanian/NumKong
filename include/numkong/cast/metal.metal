@@ -49,7 +49,7 @@ enum nk_dtype_t : uint {
     nk_ue4m3_k = 1u << 26,
 };
 
-/** The hub a bulk cast converts through, laid out as the C launcher's enumeration of that name. */
+/** The hub a bulk cast converts through, laid out as @c nk_cast_hub_t of the C launchers. */
 enum nk_cast_hub_metal_t : uint {
     nk_cast_hub_bytes_metal_k = 0,
     nk_cast_hub_bf16_metal_k,
@@ -59,8 +59,8 @@ enum nk_cast_hub_metal_t : uint {
     nk_cast_hub_f64c_metal_k,
 };
 
-/** The launch record of a bulk cast, laid out as the C launcher's record of the same name. */
-struct nk_cast_arguments_metal_t {
+/** The plan of a bulk cast, laid out as @c nk_cast_plan_t of the C launchers. */
+struct nk_cast_plan_metal_t {
     ulong count, units;
     uint from_dtype, to_dtype, hub, unit_values;
 };
@@ -72,7 +72,7 @@ struct nk_cast_block_scaled_arguments_metal_t {
     uint to_dtype, to_scale_dtype, to_tensor_scale_dtype, to_block;
 };
 
-static_assert(sizeof(nk_cast_arguments_metal_t) == 32, "mirrors the C record in cast/metal.h");
+static_assert(sizeof(nk_cast_plan_metal_t) == 32, "mirrors the C plan in cast/serial.h");
 static_assert(sizeof(nk_cast_block_scaled_arguments_metal_t) == 48, "mirrors the C record in cast/metal.h");
 
 /** The F32 bits of one and of the default NaN of Arm cores. */
@@ -548,8 +548,8 @@ inline uint nk_cast_code_metal_(uint hub, ulong2 value, uint dtype) {
 
 /** Converts unit @p unit of a bulk cast: one value, the 2 or 8 values sharing a packed byte, or
  *  one word of a copy. A packed destination gets whole bytes only, like the serial batches. */
-inline void nk_cast_unit_metal_(device uchar const *from, device uchar *to,
-                                constant nk_cast_arguments_metal_t &arguments, ulong unit) {
+inline void nk_cast_unit_metal_(device uchar const *from, device uchar *to, constant nk_cast_plan_metal_t &arguments,
+                                ulong unit) {
     uint const hub = arguments.hub, to_dtype = arguments.to_dtype, from_dtype = arguments.from_dtype;
     device uint4 const *from_u128s = (device uint4 const *)from;
     device ulong const *from_u64s = (device ulong const *)from;
@@ -597,7 +597,7 @@ inline void nk_cast_unit_metal_(device uchar const *from, device uchar *to,
 }
 
 kernel void nk_cast_metal_kernel_(device uchar const *from [[buffer(0)]], device uchar *to [[buffer(1)]],
-                                  constant nk_cast_arguments_metal_t &arguments [[buffer(2)]],
+                                  constant nk_cast_plan_metal_t &arguments [[buffer(2)]],
                                   uint position [[thread_position_in_grid]], uint threads [[threads_per_grid]]) {
     for (ulong unit = position; unit < arguments.units; unit += threads) nk_cast_unit_metal_(from, to, arguments, unit);
 }

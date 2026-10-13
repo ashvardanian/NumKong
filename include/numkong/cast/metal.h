@@ -17,7 +17,7 @@
 
 #if NUMKONG_ARCH_METAL_
 #include "numkong/metal.h"       // `nk_metal_call_t`
-#include "numkong/cast/serial.h" // `nk_cast_operand_serial_`
+#include "numkong/cast/serial.h" // `nk_cast_plan_serial_`, `nk_cast_operand_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -41,23 +41,6 @@ static char const nk_cast_source_metal_[] = {
 /** Threads of every cast threadgroup, and the most threadgroups one launch loops over. */
 enum { nk_cast_threads_metal_k = 256, nk_cast_groups_metal_k = 65535 };
 
-/** The hub a bulk cast converts through, as @c nk_cast_elementwise_serial_ picks it, laid out as
- *  the kernels' enumeration of the same name. */
-typedef enum {
-    nk_cast_hub_bytes_metal_k = 0,
-    nk_cast_hub_bf16_metal_k,
-    nk_cast_hub_u64_metal_k,
-    nk_cast_hub_i64_metal_k,
-    nk_cast_hub_f32c_metal_k,
-    nk_cast_hub_f64c_metal_k,
-} nk_cast_hub_metal_t;
-
-/** The launch record of a bulk cast, laid out as the kernels' record of the same name. */
-typedef struct {
-    nk_u64_t count, units;
-    nk_u32_t from_dtype, to_dtype, hub, unit_values;
-} nk_cast_arguments_metal_t;
-
 /** The launch record of a block-scaled cast, laid out as the kernels' record of the same name. A
  *  plain side has an unknown scale type and blocks of one value, and a tensor scale not applied an
  *  unknown tensor scale type. */
@@ -67,25 +50,9 @@ typedef struct {
     nk_u32_t to_dtype, to_scale_dtype, to_tensor_scale_dtype, to_block;
 } nk_cast_block_scaled_arguments_metal_t;
 
-nk_static_assert_(sizeof(nk_cast_arguments_metal_t) == 32, nk_cast_arguments_metal_must_be_32_bytes);
+nk_static_assert_(sizeof(nk_cast_plan_t) == 32, nk_cast_plan_must_be_32_bytes);
 nk_static_assert_(sizeof(nk_cast_block_scaled_arguments_metal_t) == 48,
                   nk_cast_block_scaled_arguments_metal_must_be_48_bytes);
-
-/** Whether F32 holds every value of @p dtype exactly, so a cast between two such types never
- *  needs the F64 hub. */
-NUMKONG_CONSTEXPR int nk_dtype_f32_exact_metal_(nk_dtype_t dtype) {
-    nk_dtype_family_t const family = nk_dtype_family(dtype);
-    nk_size_t const bits = nk_dtype_bits(dtype);
-    return dtype != nk_f64_k && dtype != nk_f64c_k &&
-           (family == nk_dtype_family_int_k || family == nk_dtype_family_uint_k ? bits <= 16 : 1);
-}
-
-/** The alignment a device load or store of one @p dtype value needs: its component's size. */
-NUMKONG_CONSTEXPR nk_size_t nk_dtype_alignment_metal_(nk_dtype_t dtype) {
-    nk_size_t const bits = nk_dtype_bits(dtype);
-    nk_size_t const component_bits = nk_dtype_family(dtype) == nk_dtype_family_complex_float_k ? bits / 2 : bits;
-    return component_bits >= 8 ? component_bits / 8 : 1;
-}
 
 /** The bytes that @p count values of @p dtype span, rounded up to whole bytes, or zero when the
  *  product overflows. */
@@ -132,46 +99,6 @@ NUMKONG_INLINE nk_status_t nk_cast_call_metal_(char const *kernel, void const *c
     return nk_dispatch_metal_(&call, grid, group);
 }
 
-/** Plans the bulk cast of @p count values through the hub @c nk_cast_elementwise_serial_ would
- *  take, copying same-type bytes in the widest words the OR of both @p addresses aligns. Returns
- *  zero when the serial cast writes nothing. */
-NUMKONG_CONSTEXPR int nk_cast_plan_metal_(nk_dtype_t from_dtype, nk_dtype_t to_dtype, nk_size_t count,
-                                          nk_size_t addresses, nk_cast_arguments_metal_t *arguments) {
-    nk_size_t const from_bits = nk_dtype_bits(from_dtype), to_bits = nk_dtype_bits(to_dtype);
-    nk_dtype_family_t const from_family = nk_dtype_family(from_dtype), to_family = nk_dtype_family(to_dtype);
-    int const from_integer = from_family == nk_dtype_family_int_k || from_family == nk_dtype_family_uint_k;
-    int const to_integer = to_family == nk_dtype_family_int_k || to_family == nk_dtype_family_uint_k;
-    nk_size_t const from_per_byte = from_bits && from_bits < NUMKONG_BITS_PER_BYTE ? NUMKONG_BITS_PER_BYTE / from_bits
-                                                                                   : 1;
-    nk_size_t const to_per_byte = to_bits && to_bits < NUMKONG_BITS_PER_BYTE ? NUMKONG_BITS_PER_BYTE / to_bits : 1;
-    arguments->count = count, arguments->from_dtype = from_dtype, arguments->to_dtype = to_dtype;
-    arguments->unit_values = (nk_u32_t)(from_per_byte > to_per_byte ? from_per_byte : to_per_byte);
-    if (from_dtype == to_dtype) {
-        arguments->count = count * from_bits / NUMKONG_BITS_PER_BYTE;
-        arguments->hub = nk_cast_hub_bytes_metal_k, arguments->unit_values = 16;
-        while ((addresses | arguments->count) & (arguments->unit_values - 1)) arguments->unit_values /= 2;
-    }
-    else if (from_dtype == nk_f32_k && to_dtype == nk_bf16_k) { arguments->hub = nk_cast_hub_bf16_metal_k; }
-    else if (from_dtype == nk_f32c_k && to_dtype == nk_bf16c_k) {
-        arguments->hub = nk_cast_hub_bf16_metal_k, arguments->count *= 2;
-    }
-    else if (!from_bits || !to_bits) { return 0; }
-    else if (from_family == nk_dtype_family_uint_k && to_family == nk_dtype_family_uint_k) {
-        arguments->hub = nk_cast_hub_u64_metal_k;
-    }
-    else if (from_integer && to_integer) {
-        // The serial I64 hub stores no U4 and no U1
-        if (to_dtype == nk_u4_k || to_dtype == nk_u1_k) return 0;
-        arguments->hub = nk_cast_hub_i64_metal_k;
-    }
-    else if (nk_dtype_f32_exact_metal_(from_dtype) && nk_dtype_f32_exact_metal_(to_dtype)) {
-        arguments->hub = nk_cast_hub_f32c_metal_k;
-    }
-    else { arguments->hub = nk_cast_hub_f64c_metal_k; }
-    arguments->units = nk_size_divide_round_up_(arguments->count, arguments->unit_values);
-    return arguments->units != 0;
-}
-
 /** Validates a cast with a block-scaled side and commits its launches: a destination tensor scale
  *  adds the abs-max pass before the chunks, of which at least one thread runs, so an empty cast
  *  still writes the tensor scale it derives. */
@@ -184,8 +111,8 @@ NUMKONG_INLINE nk_status_t nk_cast_block_scaled_launch_metal_(nk_cast_operand_t 
     int const to_plain = to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0;
     if ((!from_plain && from_format->block_size > 32) || (!to_plain && to_format->block_size > 32))
         return nk_unexpected_dimensions_k;
-    if (((nk_size_t)from->codes & (nk_dtype_alignment_metal_(from_format->element_dtype) - 1)) ||
-        ((nk_size_t)to->codes & (nk_dtype_alignment_metal_(to_format->element_dtype) - 1)))
+    if (((nk_size_t)from->codes & (nk_dtype_alignment_serial_(from_format->element_dtype) - 1)) ||
+        ((nk_size_t)to->codes & (nk_dtype_alignment_serial_(to_format->element_dtype) - 1)))
         return nk_misaligned_k;
     nk_cast_block_scaled_arguments_metal_t arguments;
     arguments.count = count;
@@ -227,18 +154,16 @@ NUMKONG_API nk_status_t nk_cast_metal(void const *from, nk_dtype_t from_dtype, v
         nk_cast_operand_t const target = nk_cast_operand_serial_(to_dtype, to);
         return nk_cast_block_scaled_launch_metal_(&source, &from_format, &target, &to_format, count, stream);
     }
-    if (((nk_size_t)from & (nk_dtype_alignment_metal_(from_dtype) - 1)) ||
-        ((nk_size_t)to & (nk_dtype_alignment_metal_(to_dtype) - 1)))
+    if (((nk_size_t)from & (nk_dtype_alignment_serial_(from_dtype) - 1)) ||
+        ((nk_size_t)to & (nk_dtype_alignment_serial_(to_dtype) - 1)))
         return nk_misaligned_k;
-    nk_cast_arguments_metal_t arguments;
+    nk_cast_plan_t plan;
     nk_size_t bytes[2];
     if (!nk_dtype_bytes_metal_(from_dtype, count, bytes + 0) || !nk_dtype_bytes_metal_(to_dtype, count, bytes + 1))
         return nk_unexpected_dimensions_k;
-    if (!nk_cast_plan_metal_(from_dtype, to_dtype, count, (nk_size_t)from | (nk_size_t)to, &arguments))
-        return nk_success_k;
+    if (!nk_cast_plan_serial_(from_dtype, to_dtype, count, (nk_size_t)from | (nk_size_t)to, &plan)) return nk_success_k;
     void const *const pointers[2] = {from, to};
-    return nk_cast_call_metal_("nk_cast_metal_kernel_", pointers, bytes, 2, &arguments, sizeof(arguments),
-                               arguments.units, stream);
+    return nk_cast_call_metal_("nk_cast_metal_kernel_", pointers, bytes, 2, &plan, sizeof(plan), plan.units, stream);
 }
 #endif // NUMKONG_TARGET_METAL
 

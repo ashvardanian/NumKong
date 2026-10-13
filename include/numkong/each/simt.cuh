@@ -38,6 +38,7 @@
 #if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
 
 #include "numkong/cast/simt.cuh" // `nk_bf16_to_f32_simt_`
+#include "numkong/each/serial.h" // `nk_each_rmsnorm_arguments_t`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -124,19 +125,6 @@ typedef struct {
                                                                   result + index);                                \
     }
 
-/** Everything one RMSNorm launch shares, passed by value as the kernels' only argument. */
-typedef struct {
-    unsigned char const *x;
-    nk_f32_t const *gamma;
-    unsigned char *y;
-    nk_size_t groups;
-    nk_size_t columns;
-    nk_size_t vectors;
-    nk_size_t x_stride;
-    nk_size_t y_stride;
-    nk_f32_t epsilon;
-} nk_each_rmsnorm_arguments_t;
-
 /** The unit @p scale and the F32 inverse RMS @p factor of @p count values from the merged F32 sum
  *  of their squares, all in F32, the inverse from the vendor's @c rsqrtf. */
 NUMKONG_DEVICE void nk_each_inverse_rms_f32_simt_(nk_f32_t sum, nk_size_t count, nk_f32_t epsilon, nk_f32_t *scale,
@@ -176,7 +164,8 @@ NUMKONG_DEVICE void nk_each_inverse_rms_f64_to_f32_simt_(nk_f64_t sum, nk_size_t
 
 /** Generates @p verb for @p isa_suffix, an RMSNorm of @p input_type vectors into @p output_type
  *  ones after @c nk_define_each_rmsnorm_ of the serial backend: the helper that normalizes one
- *  chunk out of its 16-byte @c pieces, the kernel, one block per vector, and the entry point.
+ *  chunk out of its 16-byte @c pieces, the device body that normalizes every vector of a launch,
+ *  one block per vector, the kernel over it, and the entry point.
  *  Squares sum in @p reduction_type, rounded and shuffled through the primitives of @p vendor,
  *  @c cuda or @c rocm, the @p inverse_rms helper turns them into a scale and a factor of
  *  @p element_type, and every value scales in that @p element_type. */
@@ -205,7 +194,7 @@ NUMKONG_DEVICE void nk_each_inverse_rms_f64_to_f32_simt_(nk_f64_t sum, nk_size_t
         }                                                                                                              \
         *(uint4 *)y = normalized;                                                                                      \
     }                                                                                                                  \
-    static __global__ void nk_each_##verb##_##output_type##_##isa_suffix##_kernel_(                                    \
+    NUMKONG_DEVICE void nk_each_##verb##_##output_type##_##isa_suffix##_vectors_(                                      \
         nk_each_rmsnorm_arguments_t arguments) {                                                                       \
         __shared__ nk_##reduction_type##_t partials[nk_each_threads_simt_k / nk_each_team_lanes_simt_k];               \
         unsigned const piece_values = 16 / sizeof(nk_##input_type##_t);                                                \
@@ -294,6 +283,10 @@ NUMKONG_DEVICE void nk_each_inverse_rms_f64_to_f32_simt_(nk_f64_t sum, nk_size_t
                 convert_and_store(&result, y + column);                                                                \
             }                                                                                                          \
         }                                                                                                              \
+    }                                                                                                                  \
+    static __global__ void nk_each_##verb##_##output_type##_##isa_suffix##_kernel_(                                    \
+        nk_each_rmsnorm_arguments_t arguments) {                                                                       \
+        nk_each_##verb##_##output_type##_##isa_suffix##_vectors_(arguments);                                           \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_each_##verb##_##output_type##_##isa_suffix(                                             \
         nk_##input_type##_t const *x, nk_f32_t const *gamma, nk_##output_type##_t *y, nk_size_t rows,                  \

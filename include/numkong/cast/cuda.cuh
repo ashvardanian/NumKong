@@ -36,8 +36,8 @@ NUMKONG_INLINE nk_status_t nk_cast_block_scaled_launch_cuda_(void const *kernel,
     nk_cast_block_scaled_arguments_t arguments;
     if ((!from_plain && from_format->block_size > 32) || (!to_plain && to_format->block_size > 32))
         return nk_unexpected_dimensions_k;
-    if (((nk_size_t)from.codes & (nk_dtype_alignment_simt_(from_format->element_dtype) - 1)) ||
-        ((nk_size_t)to.codes & (nk_dtype_alignment_simt_(to_format->element_dtype) - 1)))
+    if (((nk_size_t)from.codes & (nk_dtype_alignment_serial_(from_format->element_dtype) - 1)) ||
+        ((nk_size_t)to.codes & (nk_dtype_alignment_serial_(to_format->element_dtype) - 1)))
         return nk_misaligned_k;
     arguments.from = (unsigned char const *)from.codes, arguments.to = (unsigned char *)to.codes;
     arguments.from_scales = from.scales, arguments.to_scales = to.scales;
@@ -78,12 +78,14 @@ NUMKONG_INLINE nk_status_t nk_cast_launch_cuda_(void const *kernel, void const *
                                                  &from_format, nk_cast_operand_serial_(to_dtype, to), &to_format, count,
                                                  stream);
     }
-    if (((nk_size_t)from & (nk_dtype_alignment_simt_(from_dtype) - 1)) ||
-        ((nk_size_t)to & (nk_dtype_alignment_simt_(to_dtype) - 1)))
+    if (((nk_size_t)from & (nk_dtype_alignment_serial_(from_dtype) - 1)) ||
+        ((nk_size_t)to & (nk_dtype_alignment_serial_(to_dtype) - 1)))
         return nk_misaligned_k;
-    if (!nk_cast_plan_simt_(from, from_dtype, count, to, to_dtype, &arguments)) return nk_success_k;
+    arguments.from = (unsigned char const *)from, arguments.to = (unsigned char *)to;
+    if (!nk_cast_plan_serial_(from_dtype, to_dtype, count, (nk_size_t)from | (nk_size_t)to, &arguments.plan))
+        return nk_success_k;
     if (nk_cast_plan_vectors_simt_(&arguments)) kernel = vectors_kernel;
-    return nk_launch_resident_cuda_(kernel, 256, 0, 0, nk_size_divide_round_up_(arguments.units, 256), &arguments,
+    return nk_launch_resident_cuda_(kernel, 256, 0, 0, nk_size_divide_round_up_(arguments.plan.units, 256), &arguments,
                                     stream);
 }
 
@@ -91,7 +93,7 @@ NUMKONG_INLINE nk_status_t nk_cast_launch_cuda_(void const *kernel, void const *
 
 static __global__ void nk_cast_cuda_kernel_(nk_cast_arguments_t arguments) {
     nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;
-    for (nk_size_t unit = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; unit < arguments.units; unit += stride)
+    for (nk_size_t unit = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; unit < arguments.plan.units; unit += stride)
         nk_cast_unit_simt_(&arguments, unit);
 }
 

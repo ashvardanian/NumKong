@@ -2350,6 +2350,104 @@ NUMKONG_INLINE void nk_cast_elementwise_serial_(void const *from, nk_dtype_t fro
     }
 }
 
+/*  The plans of the bulk casts on GPUs, walking the hubs the loop above picks. They are host code,
+ *  shared by the Metal, CUDA and ROCm launchers and by a caller loading the SIMT kernels itself. */
+#pragma region GPU Cast Plans
+
+/** Whether F32 holds every value of @p dtype exactly, so a cast between two such types never
+ *  needs the F64 hub. */
+NUMKONG_CONSTEXPR int nk_dtype_f32_exact_serial_(nk_dtype_t dtype) {
+    nk_dtype_family_t const family = nk_dtype_family(dtype);
+    nk_size_t const bits = nk_dtype_bits(dtype);
+    return dtype != nk_f64_k && dtype != nk_f64c_k &&
+           (family == nk_dtype_family_int_k || family == nk_dtype_family_uint_k ? bits <= 16 : 1);
+}
+
+/** The alignment a device load or store of one @p dtype value needs: its component's size. */
+NUMKONG_CONSTEXPR nk_size_t nk_dtype_alignment_serial_(nk_dtype_t dtype) {
+    nk_size_t const bits = nk_dtype_bits(dtype);
+    nk_size_t const component_bits = nk_dtype_family(dtype) == nk_dtype_family_complex_float_k ? bits / 2 : bits;
+    return component_bits >= 8 ? component_bits / 8 : 1;
+}
+
+/** The hub a bulk cast converts through, as @c nk_cast_elementwise_serial_ picks it. */
+typedef enum {
+
+    /** The same type on both ends, copied as bytes. */
+    nk_cast_hub_bytes_k = 0,
+
+    /** F32 values or complex pairs narrowed straight to BF16, keeping NaN payloads. */
+    nk_cast_hub_bf16_k,
+
+    /** Unsigned integers on both ends, through U64 with saturation. */
+    nk_cast_hub_u64_k,
+
+    /** Integers on both ends, one of them signed, through I64 with saturation. */
+    nk_cast_hub_i64_k,
+
+    /** Values that F32 holds exactly into types it narrows to, through a quieted F32 pair. */
+    nk_cast_hub_f32c_k,
+
+    /** Everything else, through an F64 pair. */
+    nk_cast_hub_f64c_k,
+} nk_cast_hub_t;
+
+/** The plan of a bulk cast, everything but its two ends: Metal binds it beside its buffers, and the
+ *  SIMT kernels take it inside @c nk_cast_arguments_t. */
+typedef struct {
+    nk_u64_t count, units;
+    nk_dtype_t from_dtype, to_dtype;
+    nk_cast_hub_t hub;
+    nk_u32_t unit_values;
+} nk_cast_plan_t;
+
+/** A bulk cast on the SIMT cores, passed by value as the kernel's only argument. */
+typedef struct {
+    unsigned char const *from;
+    unsigned char *to;
+    nk_cast_plan_t plan;
+} nk_cast_arguments_t;
+
+/** Plans the bulk cast of @p count values from @p from_dtype to @p to_dtype through the hub
+ *  @c nk_cast_elementwise_serial_ would take, copying same-type bytes in the widest words the OR of
+ *  both ends' @p addresses aligns. Returns zero when the serial cast writes nothing. */
+NUMKONG_CONSTEXPR int nk_cast_plan_serial_(nk_dtype_t from_dtype, nk_dtype_t to_dtype, nk_size_t count,
+                                           nk_size_t addresses, nk_cast_plan_t *plan) {
+    nk_size_t const from_bits = nk_dtype_bits(from_dtype), to_bits = nk_dtype_bits(to_dtype);
+    nk_dtype_family_t const from_family = nk_dtype_family(from_dtype), to_family = nk_dtype_family(to_dtype);
+    int const from_integer = from_family == nk_dtype_family_int_k || from_family == nk_dtype_family_uint_k;
+    int const to_integer = to_family == nk_dtype_family_int_k || to_family == nk_dtype_family_uint_k;
+    nk_size_t const from_per_byte = from_bits && from_bits < NUMKONG_BITS_PER_BYTE ? NUMKONG_BITS_PER_BYTE / from_bits
+                                                                                   : 1;
+    nk_size_t const to_per_byte = to_bits && to_bits < NUMKONG_BITS_PER_BYTE ? NUMKONG_BITS_PER_BYTE / to_bits : 1;
+    plan->count = count, plan->from_dtype = from_dtype, plan->to_dtype = to_dtype;
+    plan->unit_values = (nk_u32_t)(from_per_byte > to_per_byte ? from_per_byte : to_per_byte);
+    if (from_dtype == to_dtype) {
+        plan->count = count * from_bits / NUMKONG_BITS_PER_BYTE;
+        plan->hub = nk_cast_hub_bytes_k, plan->unit_values = 16;
+        while ((addresses | plan->count) & (plan->unit_values - 1)) plan->unit_values /= 2;
+    }
+    else if (from_dtype == nk_f32_k && to_dtype == nk_bf16_k) { plan->hub = nk_cast_hub_bf16_k; }
+    else if (from_dtype == nk_f32c_k && to_dtype == nk_bf16c_k) { plan->hub = nk_cast_hub_bf16_k, plan->count *= 2; }
+    else if (!from_bits || !to_bits) { return 0; }
+    else if (from_family == nk_dtype_family_uint_k && to_family == nk_dtype_family_uint_k) {
+        plan->hub = nk_cast_hub_u64_k;
+    }
+    else if (from_integer && to_integer) {
+        // The serial I64 hub stores no U4 and no U1
+        if (to_dtype == nk_u4_k || to_dtype == nk_u1_k) return 0;
+        plan->hub = nk_cast_hub_i64_k;
+    }
+    else if (nk_dtype_f32_exact_serial_(from_dtype) && nk_dtype_f32_exact_serial_(to_dtype)) {
+        plan->hub = nk_cast_hub_f32c_k;
+    }
+    else { plan->hub = nk_cast_hub_f64c_k; }
+    plan->units = nk_size_divide_round_up_(plan->count, plan->unit_values);
+    return plan->units != 0;
+}
+
+#pragma endregion GPU Cast Plans
+
 /** Maximum representable magnitude for each block-scaled element dtype (OCP MX / NVFP4 spec). */
 NUMKONG_CONSTEXPR nk_f32_t nk_element_max_representable_serial_(nk_dtype_t element_dtype) {
     switch (element_dtype) {

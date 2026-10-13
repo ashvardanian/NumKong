@@ -73,15 +73,15 @@ NUMKONG_DEVICE void nk_cast_f32x8_to_bf16x8_ampere_(uint4 const *from, uint4 *to
 
 static __global__ void nk_cast_ampere_kernel_(nk_cast_arguments_t arguments) {
     nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;
-    for (nk_size_t unit = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; unit < arguments.units; unit += stride)
+    for (nk_size_t unit = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; unit < arguments.plan.units; unit += stride)
         nk_cast_unit_simt_(&arguments, unit);
 }
 
 static __global__ void nk_cast_vectors_ampere_kernel_(nk_cast_arguments_t arguments) {
     nk_size_t const threads = (nk_size_t)gridDim.x * blockDim.x;
     nk_size_t const first = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x;
-    nk_size_t const chunks = arguments.count / arguments.unit_values;
-    if (arguments.from_dtype != nk_f32_k || arguments.to_dtype != nk_bf16_k) {
+    nk_size_t const chunks = arguments.plan.count / arguments.plan.unit_values;
+    if (arguments.plan.from_dtype != nk_f32_k || arguments.plan.to_dtype != nk_bf16_k) {
         nk_cast_vectors_simt_(&arguments);
         return;
     }

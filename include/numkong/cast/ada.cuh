@@ -109,24 +109,24 @@ NUMKONG_DEVICE void nk_cast_e4m3x16_to_f32x16_ada_(uint4 const *from, uint4 *to)
 
 static __global__ void nk_cast_ada_kernel_(nk_cast_arguments_t arguments) {
     nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;
-    for (nk_size_t unit = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; unit < arguments.units; unit += stride)
+    for (nk_size_t unit = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; unit < arguments.plan.units; unit += stride)
         nk_cast_unit_simt_(&arguments, unit);
 }
 
 static __global__ void nk_cast_vectors_ada_kernel_(nk_cast_arguments_t arguments) {
     nk_size_t const threads = (nk_size_t)gridDim.x * blockDim.x;
     nk_size_t const first = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x;
-    nk_size_t const chunks = arguments.count / arguments.unit_values;
+    nk_size_t const chunks = arguments.plan.count / arguments.plan.unit_values;
     uint4 const *from = (uint4 const *)arguments.from;
     uint4 *to = (uint4 *)arguments.to;
-    if (arguments.from_dtype == nk_bf16_k) {
+    if (arguments.plan.from_dtype == nk_bf16_k) {
         nk_cast_vectors_simt_(&arguments);
         return;
     }
-    if (arguments.from_dtype == nk_e4m3_k)
+    if (arguments.plan.from_dtype == nk_e4m3_k)
         for (nk_size_t chunk = first; chunk < chunks; chunk += threads)
             nk_cast_e4m3x16_to_f32x16_ada_(from + chunk, to + chunk * 4);
-    else if (arguments.to_dtype == nk_bf16_k)
+    else if (arguments.plan.to_dtype == nk_bf16_k)
         for (nk_size_t chunk = first; chunk < chunks; chunk += threads)
             nk_cast_f32x8_to_bf16x8_ampere_(from + chunk * 2, to + chunk);
     else

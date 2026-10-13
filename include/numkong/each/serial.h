@@ -131,6 +131,21 @@ NUMKONG_INLINE void nk_each_prescale_f32_serial_(nk_f64_t inverse_rms, nk_f32_t 
     *prescale = (nk_f32_t)power.f, *factor = (nk_f32_t)(inverse_rms * remainder.f);
 }
 
+/** Everything one RMSNorm launch on the SIMT cores shares, passed by value as the kernels' only
+ *  argument. Host code fills it, so a caller launching the kernels through its own loader needs no
+ *  GPU header to plan one. */
+typedef struct {
+    unsigned char const *x;
+    nk_f32_t const *gamma;
+    unsigned char *y;
+    nk_size_t groups;
+    nk_size_t columns;
+    nk_size_t vectors;
+    nk_size_t x_stride;
+    nk_size_t y_stride;
+    nk_f32_t epsilon;
+} nk_each_rmsnorm_arguments_t;
+
 #if NUMKONG_TARGET_SERIAL
 /*  Keep the serial instantiations below actually scalar, regardless of build type. Without this,
  *  -O3 + LTO can vectorize or clone the serial kernels under AVX-512 callers in dispatch_*.c, which
