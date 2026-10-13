@@ -635,7 +635,8 @@ That is why these APIs are faster than a nested Python loop over `angular(a[i], 
 Point clouds are packed once each, centered on their centroids and rotated onto their principal axes.
 The packed sets then score every row cloud against every column cloud, and the clouds may differ in size.
 Chamfer and Hausdorff compare nearest partners under the 8 sign flips of the principal axes.
-Wasserstein-Procrustes solves for the exact transport plan and the best rotation or reflection together, and equals the Kabsch RMSD when the correspondence is known.
+Wasserstein-Procrustes solves for the exact transport plan and the best rotation or reflection together.
+On equal sizes it is at most the Kabsch RMSD of a known correspondence, and equals it when that correspondence is an optimal plan.
 Gromov-Wasserstein compares the clouds' own distance matrices.
 
 ```python
@@ -645,23 +646,29 @@ import numkong as nk
 molecules = [np.random.randn(atoms, 3) for atoms in (20, 31, 60)]
 rows = nk.shapes_pack(molecules)  # float64 input packs as float32
 columns = nk.shapes_pack(molecules[1:])
+assert rows.shape == (3, 111) and columns.shape == (2, 91)  # clouds and total points
 
-distances, rotations = nk.shapes_wassersteinprocrustes_packed(rows, columns, rotations=True)
-assert np.asarray(distances).shape == (3, 2) and np.asarray(rotations).shape == (3, 2, 3, 3)
+rotations = np.empty((3, 2, 3, 3), dtype=np.float32)
+distances = nk.wassersteinprocrustes_packed(rows, columns, rotations=rotations)
+assert np.asarray(distances).shape == (3, 2)
 assert np.asarray(distances)[1, 0] < 1e-6, "a molecule against itself"
 
-chamfers = nk.shapes_chamfers_packed(rows[:1], columns)  # slices are views over the same packs
+chamfers = nk.chamfers_packed(rows[:1], columns)  # slices are views over the same packs
 assert np.asarray(chamfers).dtype == np.float64
+assert np.allclose(np.asarray(rows.unpack(1)), molecules[1], atol=1e-5)  # the inverse of packing
 
 grown = nk.shapes_pack_normalized([molecules[0] * 3.7 + 1.0])  # divided by its RMS radius
 originals = nk.shapes_pack_normalized(molecules)
-assert np.asarray(nk.shapes_wassersteinprocrustes_packed(originals, grown))[0, 0] < 1e-5
+assert np.asarray(nk.wassersteinprocrustes_packed(originals, grown))[0, 0] < 1e-5
 ```
 
 Each rotation takes column cloud `b` onto row cloud `a` through the centroids: `a ≈ (b - b.mean(0)) @ R.T + a.mean(0)`.
+The optional `rotations=` output is a writable C-contiguous `float32` buffer of shape `[rows, columns, 3, 3]`, and the functions always return the distances.
 `nk.shapes_pack_normalized` also divides every cloud by its RMS distance from the centroid, so every kind ignores size as well as pose.
 Between normalized packs, the rotation also scales by `scale_a / scale_b`, and each kind compares the packed coordinates, so mixing absolute and normalized packs in one call is the caller's choice.
-The `centroids`, `frames`, `scales` and `spreads` properties read the pack headers, and `coordinates(i)` returns the packed points of cloud `i`.
+The pack layout is private, and the `centroids`, `frames`, `scales`, `spreads` and `max_radii` properties report every cloud's pose and bounds.
+`unpack(index)` returns one cloud as a `[points, 3]` tensor in the pack dtype and its original pose and scale, within one storage rounding.
+`nk.ShapesPackedMatrix.pack_size(points, dtype)` returns the bytes one pack takes.
 Wasserstein-Procrustes and Gromov-Wasserstein allocate their workspace inside the call.
 
 ## MaxSim and ColBERT-Style Late Interaction

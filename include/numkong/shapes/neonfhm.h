@@ -1,10 +1,10 @@
 /**
- *  @file include/numkong/meshes/neonfhm.h
+ *  @file include/numkong/shapes/neonfhm.h
  *  @author Ash Vardanian
  *  @date April 15, 2026
  *  @brief Many-to-many shape distances between 3D point clouds for NEON FHM, with widening FMA.
  *
- *  @sa include/numkong/meshes.h
+ *  @sa include/numkong/shapes.h
  *
  *  @section shapes_neonfhm_instructions ARM NEON FP16 FHM Shape Instructions (ARMv8.4-FHM)
  *
@@ -33,15 +33,15 @@
  *  infinite x, so they never win a minimum, and a last octuple of four points or fewer skips its
  *  high half, wasting no more lanes than the NEON kernel's quadruples.
  */
-#ifndef NUMKONG_MESHES_NEONFHM_H
-#define NUMKONG_MESHES_NEONFHM_H
+#ifndef NUMKONG_SHAPES_NEONFHM_H
+#define NUMKONG_SHAPES_NEONFHM_H
 
 #if NUMKONG_ARCH_ARM64_
 #if NUMKONG_TARGET_NEONFHM
 
 #include "numkong/types.h"
-#include "numkong/meshes/serial.h" // `nk_define_shapes_flip_kernels_`
-#include "numkong/meshes/neon.h"   // `nk_shapes_lower_nearest_differences_f32_neon_`
+#include "numkong/shapes/serial.h" // `nk_define_shapes_flip_kernels_`
+#include "numkong/shapes/neon.h"   // `nk_shapes_lower_nearest_differences_f32_neon_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -155,4 +155,4 @@ nk_define_shapes_flip_kernels_(f16, f32, neonfhm, nk_shapes_nearest_f16_neonfhm_
 
 #endif // NUMKONG_TARGET_NEONFHM
 #endif // NUMKONG_ARCH_ARM64_
-#endif // NUMKONG_MESHES_NEONFHM_H
+#endif // NUMKONG_SHAPES_NEONFHM_H

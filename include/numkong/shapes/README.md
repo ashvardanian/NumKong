@@ -15,13 +15,14 @@ $$
 $$
 
 Both are taken over the 8 sign flips of the two clouds' principal axes, keeping the best.
-Wasserstein-Procrustes pairs points by an exact optimal transport plan $P$ between uniform weights and superposes them by the best rotation or reflection:
+Wasserstein-Procrustes pairs points by an exact optimal transport plan $P$ between uniform weights and superposes them by a rotation or reflection $R$, alternating the two while this cost falls:
 
 $$
-\text{WP}(A, B) = \min_{R \in O(3)} \min_P \sqrt{\sum_{ij} P_{ij} \|a_i - R b_j\|^2}
+\text{cost}(P, R) = \sqrt{\sum_{ij} P_{ij} \|a_i - R b_j\|^2}
 $$
 
-On equal sizes with a known correspondence it is the Kabsch RMSD.
+The alternation descends from each of the 8 flips to a local optimum, and the kernel reports the best of the 8, not a proven minimum over all $P$ and $R \in O(3)$.
+On equal sizes that minimum is at most the Kabsch RMSD of a known correspondence, and equals it when that correspondence is an optimal plan.
 Gromov-Wasserstein compares the clouds' own distance matrices, so it needs no superposition at all:
 
 $$
@@ -69,26 +70,27 @@ def wasserstein_procrustes(a: np.ndarray, b: np.ndarray) -> float:
 
 ## Input & Output Types
 
-| Input Type | Math Type | Distance Type | Pack Header              |
-| :--------- | :-------- | :------------ | :----------------------- |
-| `f32`      | `f64`     | `f64`         | `nk_shapes_header_f64_t` |
-| `f16`      | `f32`     | `f32`         | `nk_shapes_header_f32_t` |
+| Input Type | Math Type | Distance Type | Pack Constants |
+| :--------- | :-------- | :------------ | :------------- |
+| `f32`      | `f64`     | `f64`         | `f64`          |
+| `f16`      | `f32`     | `f32`         | `f32`          |
 
-Rotations are `f32` for both, row-major 3 × 3, taking each column cloud onto each row cloud through the centroids in the headers.
+Rotations are `f32` for both, row-major 3 × 3, taking each column cloud onto each row cloud through the centroids of the packs.
 The transport solver keeps its duals and Gromov-Wasserstein its line search in `f64` for both, since a near-tie between two plans otherwise lands the search in a different local optimum.
 
 ## Packing
 
-A pack is a public header followed by the x, y and z arrays in the input type, each on a 64-byte boundary from the start of the pack and zero-padded to the next one.
+A pack is opaque and, like the transport workspace and every NumKong buffer, starts on an `nk_default_alignment_k` boundary.
 Packing centers the cloud, rotates it onto the eigenvectors of its covariance in descending eigenvalue order, and rounds the result once into the input type.
-The header keeps the centroid, the frame as a unit quaternion, the scale, the descending spreads of the packed points, and their largest norm.
-Packing is one serial routine for every capability, written so no compiler can contract it, so a pack is byte-identical on every machine.
+The pack keeps the centroid, the frame as a unit quaternion, the scale, the descending spreads of the packed points, and their largest norm, which `nk_shapes_packed_shape_*` reads.
+Packing is one serial routine for every capability today, written so no compiler contracts it under the project's ISO C build flags, so a pack is byte-identical on every machine and every capability reads it.
 
 Normalized packing also divides the centered cloud by its RMS distance from the centroid, $s = \sqrt{\operatorname{tr} C}$ over its covariance $C$, before rounding, and keeps $s$ as the scale, which stays 1 for an empty cloud, a single point or coincident points.
-An input point comes back as $x = s \, Q^T x' + \bar{x}$, and a rotation between normalized packs takes column cloud $b$ onto row cloud $a$ as $a_i \approx (s_a / s_b) \, R \, (b_j - \bar{b}) + \bar{a}$.
+`nk_shapes_unpack_*` restores every input point as $x = s \, Q^T x' + \bar{x}$, rounded once into the input type, so an absolute pack returns its inputs within one storage rounding and a normalized pack its cloud at the original scale.
+A rotation between normalized packs takes column cloud $b$ onto row cloud $a$ as $a_i \approx (s_a / s_b) \, R \, (b_j - \bar{b}) + \bar{a}$.
 Every kind compares the packed coordinates, so it sees only shape between normalized packs, and mixing absolute and normalized packs in one call is the caller's choice.
 
-The header's constants bound the expensive kinds from below, the way vector norms bound dot products:
+The spreads and largest radius that `nk_shapes_packed_shape_*` reads bound the expensive kinds from below, the way vector norms bound dot products:
 
 - Wasserstein-Procrustes ≥ $\sqrt{\sum_k (\sqrt{\lambda_{a,k}} - \sqrt{\lambda_{b,k}})^2}$ over the descending spreads, from Gelbrich's bound between second moments
 - Hausdorff ≥ $|r_a - r_b|$ over the largest radii
@@ -120,15 +122,4 @@ Chamfer and Hausdorff are symmetric by construction.
 
 From the product plan alone, Gromov-Wasserstein lands more than 1% worse than its best start in 70% of molecule pairs.
 It starts from the best proper and the best mirrored Wasserstein-Procrustes plans as well, then takes a fixed budget of Frank-Wolfe steps with exact transport plans and closed-form line searches.
-
-### Why SME and SVE Were Removed
-
-Historical note: experimental SME variants of RMSD, Kabsch, and Umeyama were implemented in 1,052 lines across `sme.h` and `smef64.h` (commit `0e0bc30c`) and removed 4 days later (commit `f55e9a71`).
-The fundamental mismatch: the algorithm computes a 3×3 cross-covariance matrix $H = \sum (a_i - \bar{a})(b_i - \bar{b})^T$ — a sum of outer products of 3D vectors.
-SME's `FMOPA` operates on SVL-wide vectors (16+ elements at SVL=512), but the outer products here are 3×3 — the tile is 99.6% wasted (9 useful cells out of 256).
-Three approaches were explored in a design document that never landed in the repository:
-(1) batched outer products — reformulates as 9 independent dot products but loses SME's outer-product strength, falling back to what NEON already does;
-(2) streaming SVE with `svld3` — hardware stride-3 deinterleaving processes 16 points per iteration vs NEON's 4, but `SMSTART`/`SMSTOP` mode transitions cost ~100 cycles and the 3×3 SVD step cannot use streaming mode at all;
-(3) SME for SVD — the 3×3 matrix cannot fill even one 16×16 tile.
-Performance estimates from the design document: NEON baseline ~2.25N cycles for N points; streaming SVE ~1.2N cycles but with ~100-cycle mode transition overhead — for typical protein alignment workloads (N = 100–500 atoms), the overhead dominates.
-Experimental SVE shape kernels (`sve.h`, `svehalf.h`, 112 lines total) were removed in the same commit — variable vector length added complexity without clear benefit over fixed-width NEON for the 3D point cloud problem.
+Its workspace holds the dense plan, its gradient and a vertex's gradient, each $n \times m$, and the distances within each cloud, $n^2 + m^2$, so it needs $\Theta(n^2 + m^2 + nm)$.

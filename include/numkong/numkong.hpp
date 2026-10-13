@@ -68,7 +68,7 @@
 #include "numkong/geospatial.hpp"
 #include "numkong/sparse.hpp"
 #include "numkong/set.hpp"
-#include "numkong/meshes.hpp"
+#include "numkong/shapes.hpp"
 #include "numkong/trigonometry.hpp"
 #include "numkong/dots.hpp"
 #include "numkong/matrix.hpp"

@@ -10,7 +10,7 @@
 
 #include "numkong/reduce/neonfhm.h"
 #include "numkong/dot/neonfhm.h"
-#include "numkong/meshes/neonfhm.h"
+#include "numkong/shapes/neonfhm.h"
 #include "numkong/dots/neonfhm.h"
 #include "numkong/spatials/neonfhm.h"
 #include "numkong/attention/neonfhm.h"

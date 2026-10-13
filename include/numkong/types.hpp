@@ -472,9 +472,7 @@ struct f32_t {
     using reduce_moments_sum_t = f64_t;   // `nk_reduce_moments_f32` sum output
     using reduce_moments_sumsq_t = f64_t; // `nk_reduce_moments_f32` sumsq output
     using reduce_minmax_value_t = f32_t;  // `nk_reduce_minmax_f32` value output
-
-    /** The output of @c nk_shapes_chamfers_packed_f32 and the type of its pack header. */
-    using shapes_distance_t = f64_t;
+    using shapes_distance_t = f64_t;      // `nk_chamfers_packed_f32` output and pack constants
     using maxsim_result_t = f64_t;
 
     using dot_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_stream_t);
@@ -488,6 +486,9 @@ struct f32_t {
     using probability_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_stream_t);
     using shapes_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t *);
     using shapes_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, void *, nk_stream_t);
+    using shapes_packed_shape_kernel_t = nk_status_t (*)(void const *, nk_size_t *, nk_f64_t *, nk_f64_t *, nk_f64_t *,
+                                                         nk_f64_t *, nk_f64_t *, nk_stream_t);
+    using shapes_unpack_kernel_t = nk_status_t (*)(void const *, raw_t *, nk_stream_t);
     using shapes_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
     using shapes_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
                                                    nk_f64_t *, nk_size_t, nk_f32_t *, nk_stream_t);
@@ -544,10 +545,6 @@ struct f32_t {
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return true; }
     static constexpr bool has_nan() noexcept { return true; }
-
-    static constexpr double rmsd_tolerance() noexcept { return 1e-5; }
-    static constexpr double kabsch_tolerance() noexcept { return 1e-5; }
-    static constexpr double umeyama_tolerance() noexcept { return 1e-4; }
 
     raw_t raw_;
 
@@ -816,10 +813,6 @@ struct f64_t {
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return true; }
     static constexpr bool has_nan() noexcept { return true; }
-
-    static constexpr double rmsd_tolerance() noexcept { return 1e-10; }
-    static constexpr double kabsch_tolerance() noexcept { return 1e-10; }
-    static constexpr double umeyama_tolerance() noexcept { return 1e-9; }
 
     raw_t raw_;
 
@@ -1532,9 +1525,7 @@ struct f16_t {
     using reduce_moments_sum_t = f32_t;   // `nk_reduce_moments_f16` sum output
     using reduce_moments_sumsq_t = f32_t; // `nk_reduce_moments_f16` sumsq output
     using reduce_minmax_value_t = f16_t;  // `nk_reduce_minmax_f16` value output
-
-    /** The output of @c nk_shapes_chamfers_packed_f16 and the type of its pack header. */
-    using shapes_distance_t = f32_t;
+    using shapes_distance_t = f32_t;      // `nk_chamfers_packed_f16` output and pack constants
     using attention_result_t = f32_t;
     using maxsim_result_t = f32_t;
 
@@ -1547,6 +1538,9 @@ struct f16_t {
     using probability_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f32_t *, nk_stream_t);
     using shapes_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t *);
     using shapes_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, void *, nk_stream_t);
+    using shapes_packed_shape_kernel_t = nk_status_t (*)(void const *, nk_size_t *, nk_f32_t *, nk_f32_t *, nk_f32_t *,
+                                                         nk_f32_t *, nk_f32_t *, nk_stream_t);
+    using shapes_unpack_kernel_t = nk_status_t (*)(void const *, raw_t *, nk_stream_t);
     using shapes_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
     using shapes_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
                                                    nk_f32_t *, nk_size_t, nk_f32_t *, nk_stream_t);

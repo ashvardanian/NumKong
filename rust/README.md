@@ -598,18 +598,19 @@ assert!(score.is_finite());
 
 ## Many-to-Many Shape Distances
 
-`ShapesPacked` packs point clouds of any sizes once each, centered and rotated onto their principal axes.
+`ShapesPackedMatrix` packs point clouds of any sizes once each, centered and rotated onto their principal axes.
 Its methods score every cloud of one set against every cloud of another into caller-provided slices.
 Distances are `f64` for `f32` clouds and `f32` for `f16` ones, and the optional rotations are row-major `[f32; 9]` matrices taking each column cloud onto each row cloud.
+On equal sizes, Wasserstein-Procrustes is at most the Kabsch RMSD of a known correspondence, and equals it when that correspondence is an optimal plan.
 
 ```rust
-use numkong::ShapesPacked;
+use numkong::ShapesPackedMatrix;
 
 let tetrahedron = [[0.0_f32, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]];
 let triangle = [[1.0_f32, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 
-let rows = ShapesPacked::new(&[&tetrahedron[..]]).unwrap();
-let columns = ShapesPacked::new(&[&tetrahedron[..], &triangle[..]]).unwrap();
+let rows = ShapesPackedMatrix::new(&[&tetrahedron[..]]).unwrap();
+let columns = ShapesPackedMatrix::new(&[&tetrahedron[..], &triangle[..]]).unwrap();
 
 let mut distances = [0.0_f64; 2];
 let mut rotations = [[0.0_f32; 9]; 2];
@@ -617,16 +618,23 @@ rows.wassersteinprocrustes(&columns, &mut distances, Some(&mut rotations)).unwra
 assert!(distances[0] < 1e-6);
 
 rows.chamfers(&columns, &mut distances, None).unwrap();
-assert_eq!((rows.points(0).unwrap(), columns.points(1).unwrap()), (4, 3));
+assert_eq!(columns.shape(), (2, 7)); // clouds and their total points
+assert_eq!(columns.cloud_points(1).unwrap(), 3);
+
+let mut unpacked = [[0.0_f32; 3]; 3];
+columns.unpack(1, &mut unpacked).unwrap(); // the inverse of packing, within one rounding
+assert!(unpacked.iter().flatten().zip(triangle.iter().flatten()).all(|(a, b)| (a - b).abs() < 1e-6));
 
 let grown = tetrahedron.map(|point| point.map(|value| value * 3.7 + 1.0));
-let similar = ShapesPacked::new_normalized(&[&grown[..]]).unwrap();
-let normalized = ShapesPacked::new_normalized(&[&tetrahedron[..]]).unwrap();
+let similar = ShapesPackedMatrix::new_normalized(&[&grown[..]]).unwrap();
+let normalized = ShapesPackedMatrix::new_normalized(&[&tetrahedron[..]]).unwrap();
 normalized.wassersteinprocrustes(&similar, &mut distances[..1], None).unwrap();
 assert!(distances[0] < 1e-6 && similar.scale(0).unwrap() > 3.0 * normalized.scale(0).unwrap());
 ```
 
-`ShapesPacked::new_normalized` also divides every cloud by its RMS distance from the centroid, kept as `scale(i)`, so every kind ignores size as well as pose.
+`ShapesPackedMatrix::new_normalized` also divides every cloud by its RMS distance from the centroid, kept as `scale(i)`, so every kind ignores size as well as pose.
+The pack layout is private, and the `cloud_points(i)`, `centroid(i)`, `frame(i)`, `spreads(i)` and `max_radius(i)` accessors report the rest of each cloud's pose and bounds.
+`unpack(i, &mut points)` writes cloud `i` back interleaved, in its original pose and scale, within one rounding to the cloud type.
 Between normalized packs, the rotation also scales by `scale_a / scale_b`, and each kind compares the packed coordinates, so mixing absolute and normalized packs in one call is the caller's choice.
 
 The transport kinds, `wassersteinprocrustes` and `gromovwassersteins`, allocate their workspace through the row set's allocator for the call.

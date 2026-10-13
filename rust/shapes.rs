@@ -1,39 +1,43 @@
 //! Many-to-many shape distances between 3D point clouds of any size.
 //!
-//! [`ShapesPacked`] packs every cloud on its own: centered on its centroid and rotated onto its
-//! principal axes, so a pack is the same on every machine. Its methods then score every packed
+//! [`ShapesPackedMatrix`] packs every cloud on its own: centered on its centroid and rotated onto
+//! its principal axes, so a pack is the same on every machine. Its methods then score every packed
 //! cloud of one set, the rows, against every packed cloud of another, the columns:
 //!
-//! - [`ShapesPacked::chamfers`]: the mean nearest-partner distance both ways, halved
-//! - [`ShapesPacked::hausdorffs`]: the worst nearest-partner distance either way
-//! - [`ShapesPacked::wassersteinprocrustes`]: the exact transport RMSD after the best rotation or
-//!   reflection, equal to the Kabsch RMSD on equal sizes with a known correspondence
-//! - [`ShapesPacked::gromovwassersteins`]: the transport distance between the clouds' own distance
-//!   matrices
+//! - [`ShapesPackedMatrix::chamfers`]: the mean nearest-partner distance both ways, halved
+//! - [`ShapesPackedMatrix::hausdorffs`]: the worst nearest-partner distance either way
+//! - [`ShapesPackedMatrix::wassersteinprocrustes`]: the exact transport RMSD after the best
+//!   rotation or reflection, on equal sizes at most the Kabsch RMSD of a known correspondence, and
+//!   equal to it when that correspondence is an optimal plan
+//! - [`ShapesPackedMatrix::gromovwassersteins`]: the transport distance between the clouds' own
+//!   distance matrices
 //!
 //! None of them needs a correspondence between points, and the two sides may differ in size. Every
 //! kind is invariant to rotation, reflection and translation, and between packs made by
-//! [`ShapesPacked::new_normalized`], which divide each cloud by its RMS distance from the centroid,
-//! to scale as well. Distances are `f32` for `f16` clouds and `f64` for `f32` ones, and the
-//! optional rotations are row-major `[f32; 9]` matrices taking each column cloud onto each row
+//! [`ShapesPackedMatrix::new_normalized`], which divide each cloud by its RMS distance from the
+//! centroid, to scale as well. Distances are `f32` for `f16` clouds and `f64` for `f32` ones, and
+//! the optional rotations are row-major `[f32; 9]` matrices taking each column cloud onto each row
 //! cloud through the centroids and scales: `aᵢ ≈ (scale_a / scale_b) × R × (bⱼ − b̄) + ā`.
+//!
+//! The pack layout is private: the accessors report each cloud's pose and bounds, and
+//! [`ShapesPackedMatrix::unpack`] writes a cloud back in its original pose and scale.
 //!
 //! # Example
 //!
 //! ```rust,no_run
-//! use numkong::ShapesPacked;
+//! use numkong::ShapesPackedMatrix;
 //!
 //! let tetrahedron = [[0.0_f32, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]];
 //! let triangle = [[1.0_f32, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 //!
-//! let rows = ShapesPacked::new(&[&tetrahedron[..]]).unwrap();
-//! let columns = ShapesPacked::new(&[&tetrahedron[..], &triangle[..]]).unwrap();
+//! let rows = ShapesPackedMatrix::new(&[&tetrahedron[..]]).unwrap();
+//! let columns = ShapesPackedMatrix::new(&[&tetrahedron[..], &triangle[..]]).unwrap();
 //! let mut distances = [0.0_f64; 2];
 //! rows.wassersteinprocrustes(&columns, &mut distances, None).unwrap();
 //! assert!(distances[0] < 1e-6);
 //! ```
 //!
-//! File: rust/meshes.rs
+//! File: rust/shapes.rs
 //! Author: Ash Vardanian
 
 use core::{alloc::Layout, ffi::c_void, marker::PhantomData, ptr::null_mut};
@@ -86,8 +90,42 @@ extern "C" {
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
+    fn nk_shapes_packed_shape_f16_best(
+        packed: *const u8,
+        points: *mut nk_size_t,
+        centroid: *mut f32,
+        frame: *mut f32,
+        scale: *mut f32,
+        spreads: *mut f32,
+        max_radius: *mut f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_shapes_packed_shape_f32_best(
+        packed: *const u8,
+        points: *mut nk_size_t,
+        centroid: *mut f64,
+        frame: *mut f64,
+        scale: *mut f64,
+        spreads: *mut f64,
+        max_radius: *mut f64,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_shapes_unpack_f16_best(
+        packed: *const u8,
+        points: *mut f16,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_shapes_unpack_f32_best(
+        packed: *const u8,
+        points: *mut f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
 
-    fn nk_shapes_chamfers_packed_f16_best(
+    fn nk_chamfers_packed_f16_best(
         a_packed: *const *const u8,
         rows: nk_size_t,
         b_packed: *const *const u8,
@@ -98,7 +136,7 @@ extern "C" {
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
-    fn nk_shapes_chamfers_packed_f32_best(
+    fn nk_chamfers_packed_f32_best(
         a_packed: *const *const u8,
         rows: nk_size_t,
         b_packed: *const *const u8,
@@ -109,7 +147,7 @@ extern "C" {
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
-    fn nk_shapes_hausdorffs_packed_f16_best(
+    fn nk_hausdorffs_packed_f16_best(
         a_packed: *const *const u8,
         rows: nk_size_t,
         b_packed: *const *const u8,
@@ -120,7 +158,7 @@ extern "C" {
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
-    fn nk_shapes_hausdorffs_packed_f32_best(
+    fn nk_hausdorffs_packed_f32_best(
         a_packed: *const *const u8,
         rows: nk_size_t,
         b_packed: *const *const u8,
@@ -132,32 +170,32 @@ extern "C" {
         stream: *mut c_void,
     ) -> nk_status_t;
 
-    fn nk_shapes_wassersteinprocrustes_workspace_size_f16_best(
+    fn nk_wassersteinprocrustes_workspace_size_f16_best(
         row_points: nk_size_t,
         column_points: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
-    fn nk_shapes_wassersteinprocrustes_workspace_size_f32_best(
+    fn nk_wassersteinprocrustes_workspace_size_f32_best(
         row_points: nk_size_t,
         column_points: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
-    fn nk_shapes_gromovwassersteins_workspace_size_f16_best(
+    fn nk_gromovwassersteins_workspace_size_f16_best(
         row_points: nk_size_t,
         column_points: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
-    fn nk_shapes_gromovwassersteins_workspace_size_f32_best(
+    fn nk_gromovwassersteins_workspace_size_f32_best(
         row_points: nk_size_t,
         column_points: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
 
-    fn nk_shapes_wassersteinprocrustes_packed_f16_best(
+    fn nk_wassersteinprocrustes_packed_f16_best(
         a_packed: *const *const u8,
         rows: nk_size_t,
         b_packed: *const *const u8,
@@ -170,7 +208,7 @@ extern "C" {
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
-    fn nk_shapes_wassersteinprocrustes_packed_f32_best(
+    fn nk_wassersteinprocrustes_packed_f32_best(
         a_packed: *const *const u8,
         rows: nk_size_t,
         b_packed: *const *const u8,
@@ -183,7 +221,7 @@ extern "C" {
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
-    fn nk_shapes_gromovwassersteins_packed_f16_best(
+    fn nk_gromovwassersteins_packed_f16_best(
         a_packed: *const *const u8,
         rows: nk_size_t,
         b_packed: *const *const u8,
@@ -196,7 +234,7 @@ extern "C" {
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
-    fn nk_shapes_gromovwassersteins_packed_f32_best(
+    fn nk_gromovwassersteins_packed_f32_best(
         a_packed: *const *const u8,
         rows: nk_size_t,
         b_packed: *const *const u8,
@@ -215,22 +253,14 @@ extern "C" {
 
 // region: Shapes trait
 
-/// Byte boundary every pack and every axis inside it starts on, `nk_shapes_alignment_k`.
-const PACK_ALIGNMENT: usize = 64;
-
-/// The largest `nk_default_alignment_k` of any target, which the transport workspaces need.
-const WORKSPACE_ALIGNMENT: usize = 256;
-
-/// The header every pack starts with: `nk_shapes_header_f32_t` for `f16` points, with `u32` counts
-/// and `f32` fields, and `nk_shapes_header_f64_t` for `f32` points, with `u64` and `f64`.
-#[repr(C)]
-struct Header<Count, Float> {
-    points: Count,
-    centroid: [Float; 3],
-    frame: [Float; 4],
-    scale: Float,
-    spreads: [Float; 3],
-}
+/// Byte boundary every pack and every transport workspace starts on, the C library's
+/// `NUMKONG_DEFAULT_ALIGNMENT` for the same target.
+#[cfg(target_arch = "s390x")]
+const DEFAULT_ALIGNMENT: usize = 256;
+#[cfg(target_family = "wasm")]
+const DEFAULT_ALIGNMENT: usize = 64;
+#[cfg(not(any(target_arch = "s390x", target_family = "wasm")))]
+const DEFAULT_ALIGNMENT: usize = 128;
 
 mod private {
     pub trait Sealed {}
@@ -244,49 +274,51 @@ mod private {
 ///
 /// [`Error::KernelFailed`] when the kernel refuses to run, like on a misaligned workspace.
 pub trait Shapes: private::Sealed + StorageElement {
-    /// Distance type and header field type: `f32` for `f16` clouds, `f64` for `f32` ones.
+    /// Distance type and pose type: `f32` for `f16` clouds, `f64` for `f32` ones.
     type Distance: Copy + Default;
 
     /// Returns the bytes a pack of `points` points takes.
     fn shapes_pack_size(points: usize) -> Result<usize, Error>;
 
-    /// Packs one cloud: centers it, rotates it onto its principal axes, and fills the header.
+    /// Packs one cloud: centers it and rotates it onto its principal axes.
     ///
     /// # Safety
-    /// `packed` must have `shapes_pack_size(points.len())` writable bytes on a 64-byte boundary.
+    /// `packed` must have `shapes_pack_size(points.len())` writable bytes on an
+    /// `nk_default_alignment_k` boundary.
     unsafe fn shapes_pack(points: &[[Self; 3]], packed: *mut u8) -> Result<(), Error>;
 
     /// Packs one cloud like [`Shapes::shapes_pack`], also dividing it by its RMS distance from the
-    /// centroid, which the header keeps as its scale, or by 1 when the cloud has no spread.
+    /// centroid, which the pack keeps as its scale, or by 1 when the cloud has no spread.
     ///
     /// # Safety
     /// The contract of [`Shapes::shapes_pack`].
     unsafe fn shapes_pack_normalized(points: &[[Self; 3]], packed: *mut u8) -> Result<(), Error>;
 
-    /// Reads the number of points from the header of a pack.
+    /// Reads the pose and bounds of a pack into every non-null output: its number of points, its
+    /// mean input point, the unit quaternion (x, y, z, w) rotating the centered cloud onto its
+    /// principal axes, what the rotated cloud was divided by, the descending eigenvalues of the
+    /// packed points' second moments, and the largest packed point norm.
+    ///
     /// # Safety
-    /// `packed` must point to a pack produced by `shapes_pack`.
-    unsafe fn shapes_packed_points(packed: *const u8) -> usize;
+    /// `packed` must point to a pack of `Self`, and the non-null outputs must hold 1, 3, 4, 1, 3
+    /// and 1 writable values in that order.
+    unsafe fn shapes_packed_shape(
+        packed: *const u8,
+        points: *mut usize,
+        centroid: *mut Self::Distance,
+        frame: *mut Self::Distance,
+        scale: *mut Self::Distance,
+        spreads: *mut Self::Distance,
+        max_radius: *mut Self::Distance,
+    ) -> Result<(), Error>;
 
-    /// Reads the mean input point from the header of a pack.
+    /// Writes the cloud of a pack back interleaved, in its original pose and scale, within one
+    /// rounding to `Self`.
+    ///
     /// # Safety
-    /// `packed` must point to a pack produced by `shapes_pack`.
-    unsafe fn shapes_packed_centroid(packed: *const u8) -> [Self::Distance; 3];
-
-    /// Reads the unit quaternion (x, y, z, w) rotating the centered cloud onto its principal axes.
-    /// # Safety
-    /// `packed` must point to a pack produced by `shapes_pack`.
-    unsafe fn shapes_packed_frame(packed: *const u8) -> [Self::Distance; 4];
-
-    /// Reads what the rotated cloud was divided by: its RMS distance from the centroid, or 1.
-    /// # Safety
-    /// `packed` must point to a pack produced by `shapes_pack` or `shapes_pack_normalized`.
-    unsafe fn shapes_packed_scale(packed: *const u8) -> Self::Distance;
-
-    /// Reads the descending eigenvalues of the packed points' second moments.
-    /// # Safety
-    /// `packed` must point to a pack produced by `shapes_pack`.
-    unsafe fn shapes_packed_spreads(packed: *const u8) -> [Self::Distance; 3];
+    /// `packed` must point to a pack of `Self`, and `points` must hold as many writable points as
+    /// it packed.
+    unsafe fn shapes_unpack(packed: *const u8, points: *mut [Self; 3]) -> Result<(), Error>;
 
     /// Chamfer distances between every row cloud and every column cloud.
     ///
@@ -294,7 +326,7 @@ pub trait Shapes: private::Sealed + StorageElement {
     /// - `a_packed` and `b_packed` must hold `rows` and `columns` pointers to packs of `Self`
     /// - `results` must hold `rows` rows of `columns` distances, `results_stride` bytes apart
     /// - `rotations` must be null or hold `rows × columns × 9` writable values
-    unsafe fn shapes_chamfers_packed(
+    unsafe fn chamfers_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -307,8 +339,8 @@ pub trait Shapes: private::Sealed + StorageElement {
     /// Hausdorff distances between every row cloud and every column cloud.
     ///
     /// # Safety
-    /// The contract of [`Shapes::shapes_chamfers_packed`].
-    unsafe fn shapes_hausdorffs_packed(
+    /// The contract of [`Shapes::chamfers_packed`].
+    unsafe fn hausdorffs_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -320,14 +352,14 @@ pub trait Shapes: private::Sealed + StorageElement {
 
     /// Returns the workspace bytes Wasserstein-Procrustes needs between clouds of up to
     /// `row_points` and `column_points` points.
-    fn shapes_wassersteinprocrustes_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error>;
+    fn wassersteinprocrustes_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error>;
 
     /// Wasserstein-Procrustes distances between every row cloud and every column cloud.
     ///
     /// # Safety
-    /// The contract of [`Shapes::shapes_chamfers_packed`], plus `workspace` must have
-    /// `workspace_bytes` writable bytes on an `nk_default_alignment_k` boundary.
-    unsafe fn shapes_wassersteinprocrustes_packed(
+    /// The contract of [`Shapes::chamfers_packed`], plus `workspace` must have `workspace_bytes`
+    /// writable bytes on an `nk_default_alignment_k` boundary.
+    unsafe fn wassersteinprocrustes_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -341,13 +373,13 @@ pub trait Shapes: private::Sealed + StorageElement {
 
     /// Returns the workspace bytes Gromov-Wasserstein needs between clouds of up to `row_points`
     /// and `column_points` points.
-    fn shapes_gromovwassersteins_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error>;
+    fn gromovwassersteins_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error>;
 
     /// Gromov-Wasserstein distances between every row cloud and every column cloud.
     ///
     /// # Safety
-    /// The contract of [`Shapes::shapes_wassersteinprocrustes_packed`].
-    unsafe fn shapes_gromovwassersteins_packed(
+    /// The contract of [`Shapes::wassersteinprocrustes_packed`].
+    unsafe fn gromovwassersteins_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -395,17 +427,34 @@ impl Shapes for f16 {
         .check()
     }
 
-    unsafe fn shapes_packed_points(packed: *const u8) -> usize { (*packed.cast::<Header<u32, f32>>()).points as usize }
+    unsafe fn shapes_packed_shape(
+        packed: *const u8,
+        points: *mut usize,
+        centroid: *mut f32,
+        frame: *mut f32,
+        scale: *mut f32,
+        spreads: *mut f32,
+        max_radius: *mut f32,
+    ) -> Result<(), Error> {
+        nk_shapes_packed_shape_f16_best(
+            packed,
+            points,
+            centroid,
+            frame,
+            scale,
+            spreads,
+            max_radius,
+            Capabilities::CPUS.bits(),
+            null_mut(),
+        )
+        .check()
+    }
 
-    unsafe fn shapes_packed_centroid(packed: *const u8) -> [f32; 3] { (*packed.cast::<Header<u32, f32>>()).centroid }
+    unsafe fn shapes_unpack(packed: *const u8, points: *mut [Self; 3]) -> Result<(), Error> {
+        nk_shapes_unpack_f16_best(packed, points.cast(), Capabilities::CPUS.bits(), null_mut()).check()
+    }
 
-    unsafe fn shapes_packed_frame(packed: *const u8) -> [f32; 4] { (*packed.cast::<Header<u32, f32>>()).frame }
-
-    unsafe fn shapes_packed_scale(packed: *const u8) -> f32 { (*packed.cast::<Header<u32, f32>>()).scale }
-
-    unsafe fn shapes_packed_spreads(packed: *const u8) -> [f32; 3] { (*packed.cast::<Header<u32, f32>>()).spreads }
-
-    unsafe fn shapes_chamfers_packed(
+    unsafe fn chamfers_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -414,7 +463,7 @@ impl Shapes for f16 {
         results_stride: usize,
         rotations: *mut f32,
     ) -> Result<(), Error> {
-        nk_shapes_chamfers_packed_f16_best(
+        nk_chamfers_packed_f16_best(
             a_packed,
             rows,
             b_packed,
@@ -428,7 +477,7 @@ impl Shapes for f16 {
         .check()
     }
 
-    unsafe fn shapes_hausdorffs_packed(
+    unsafe fn hausdorffs_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -437,7 +486,7 @@ impl Shapes for f16 {
         results_stride: usize,
         rotations: *mut f32,
     ) -> Result<(), Error> {
-        nk_shapes_hausdorffs_packed_f16_best(
+        nk_hausdorffs_packed_f16_best(
             a_packed,
             rows,
             b_packed,
@@ -451,10 +500,10 @@ impl Shapes for f16 {
         .check()
     }
 
-    fn shapes_wassersteinprocrustes_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
+    fn wassersteinprocrustes_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
         let mut bytes = 0;
         unsafe {
-            nk_shapes_wassersteinprocrustes_workspace_size_f16_best(
+            nk_wassersteinprocrustes_workspace_size_f16_best(
                 row_points,
                 column_points,
                 Capabilities::CPUS.bits(),
@@ -465,7 +514,7 @@ impl Shapes for f16 {
         Ok(bytes)
     }
 
-    unsafe fn shapes_wassersteinprocrustes_packed(
+    unsafe fn wassersteinprocrustes_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -476,7 +525,7 @@ impl Shapes for f16 {
         workspace: *mut u8,
         workspace_bytes: usize,
     ) -> Result<(), Error> {
-        nk_shapes_wassersteinprocrustes_packed_f16_best(
+        nk_wassersteinprocrustes_packed_f16_best(
             a_packed,
             rows,
             b_packed,
@@ -492,10 +541,10 @@ impl Shapes for f16 {
         .check()
     }
 
-    fn shapes_gromovwassersteins_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
+    fn gromovwassersteins_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
         let mut bytes = 0;
         unsafe {
-            nk_shapes_gromovwassersteins_workspace_size_f16_best(
+            nk_gromovwassersteins_workspace_size_f16_best(
                 row_points,
                 column_points,
                 Capabilities::CPUS.bits(),
@@ -506,7 +555,7 @@ impl Shapes for f16 {
         Ok(bytes)
     }
 
-    unsafe fn shapes_gromovwassersteins_packed(
+    unsafe fn gromovwassersteins_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -517,7 +566,7 @@ impl Shapes for f16 {
         workspace: *mut u8,
         workspace_bytes: usize,
     ) -> Result<(), Error> {
-        nk_shapes_gromovwassersteins_packed_f16_best(
+        nk_gromovwassersteins_packed_f16_best(
             a_packed,
             rows,
             b_packed,
@@ -565,17 +614,34 @@ impl Shapes for f32 {
         .check()
     }
 
-    unsafe fn shapes_packed_points(packed: *const u8) -> usize { (*packed.cast::<Header<u64, f64>>()).points as usize }
+    unsafe fn shapes_packed_shape(
+        packed: *const u8,
+        points: *mut usize,
+        centroid: *mut f64,
+        frame: *mut f64,
+        scale: *mut f64,
+        spreads: *mut f64,
+        max_radius: *mut f64,
+    ) -> Result<(), Error> {
+        nk_shapes_packed_shape_f32_best(
+            packed,
+            points,
+            centroid,
+            frame,
+            scale,
+            spreads,
+            max_radius,
+            Capabilities::CPUS.bits(),
+            null_mut(),
+        )
+        .check()
+    }
 
-    unsafe fn shapes_packed_centroid(packed: *const u8) -> [f64; 3] { (*packed.cast::<Header<u64, f64>>()).centroid }
+    unsafe fn shapes_unpack(packed: *const u8, points: *mut [Self; 3]) -> Result<(), Error> {
+        nk_shapes_unpack_f32_best(packed, points.cast(), Capabilities::CPUS.bits(), null_mut()).check()
+    }
 
-    unsafe fn shapes_packed_frame(packed: *const u8) -> [f64; 4] { (*packed.cast::<Header<u64, f64>>()).frame }
-
-    unsafe fn shapes_packed_scale(packed: *const u8) -> f64 { (*packed.cast::<Header<u64, f64>>()).scale }
-
-    unsafe fn shapes_packed_spreads(packed: *const u8) -> [f64; 3] { (*packed.cast::<Header<u64, f64>>()).spreads }
-
-    unsafe fn shapes_chamfers_packed(
+    unsafe fn chamfers_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -584,7 +650,7 @@ impl Shapes for f32 {
         results_stride: usize,
         rotations: *mut f32,
     ) -> Result<(), Error> {
-        nk_shapes_chamfers_packed_f32_best(
+        nk_chamfers_packed_f32_best(
             a_packed,
             rows,
             b_packed,
@@ -598,7 +664,7 @@ impl Shapes for f32 {
         .check()
     }
 
-    unsafe fn shapes_hausdorffs_packed(
+    unsafe fn hausdorffs_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -607,7 +673,7 @@ impl Shapes for f32 {
         results_stride: usize,
         rotations: *mut f32,
     ) -> Result<(), Error> {
-        nk_shapes_hausdorffs_packed_f32_best(
+        nk_hausdorffs_packed_f32_best(
             a_packed,
             rows,
             b_packed,
@@ -621,10 +687,10 @@ impl Shapes for f32 {
         .check()
     }
 
-    fn shapes_wassersteinprocrustes_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
+    fn wassersteinprocrustes_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
         let mut bytes = 0;
         unsafe {
-            nk_shapes_wassersteinprocrustes_workspace_size_f32_best(
+            nk_wassersteinprocrustes_workspace_size_f32_best(
                 row_points,
                 column_points,
                 Capabilities::CPUS.bits(),
@@ -635,7 +701,7 @@ impl Shapes for f32 {
         Ok(bytes)
     }
 
-    unsafe fn shapes_wassersteinprocrustes_packed(
+    unsafe fn wassersteinprocrustes_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -646,7 +712,7 @@ impl Shapes for f32 {
         workspace: *mut u8,
         workspace_bytes: usize,
     ) -> Result<(), Error> {
-        nk_shapes_wassersteinprocrustes_packed_f32_best(
+        nk_wassersteinprocrustes_packed_f32_best(
             a_packed,
             rows,
             b_packed,
@@ -662,10 +728,10 @@ impl Shapes for f32 {
         .check()
     }
 
-    fn shapes_gromovwassersteins_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
+    fn gromovwassersteins_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
         let mut bytes = 0;
         unsafe {
-            nk_shapes_gromovwassersteins_workspace_size_f32_best(
+            nk_gromovwassersteins_workspace_size_f32_best(
                 row_points,
                 column_points,
                 Capabilities::CPUS.bits(),
@@ -676,7 +742,7 @@ impl Shapes for f32 {
         Ok(bytes)
     }
 
-    unsafe fn shapes_gromovwassersteins_packed(
+    unsafe fn gromovwassersteins_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
@@ -687,7 +753,7 @@ impl Shapes for f32 {
         workspace: *mut u8,
         workspace_bytes: usize,
     ) -> Result<(), Error> {
-        nk_shapes_gromovwassersteins_packed_f32_best(
+        nk_gromovwassersteins_packed_f32_best(
             a_packed,
             rows,
             b_packed,
@@ -706,24 +772,24 @@ impl Shapes for f32 {
 
 // endregion: Shapes impls
 
-// region: ShapesPacked
+// region: ShapesPackedMatrix
 
 /// Point clouds packed one by one onto their principal axes, scored as rows against the columns
 /// of another set.
 ///
 /// One allocation holds the pointer to every pack, as the kernels take them, then the packs.
 #[derive(Debug)]
-pub struct ShapesPacked<Scalar: Shapes, Alloc: Allocator = Global> {
+pub struct ShapesPackedMatrix<Scalar: Shapes, Alloc: Allocator = Global> {
     buffer: PackedBuffer<Alloc>,
-    count: usize,
+    clouds: usize,
     _marker: PhantomData<Scalar>,
 }
 
 // Safety: the pointers only reach into the buffer this value owns
-unsafe impl<Scalar: Shapes + Send, Alloc: Allocator + Send> Send for ShapesPacked<Scalar, Alloc> {}
-unsafe impl<Scalar: Shapes + Sync, Alloc: Allocator + Sync> Sync for ShapesPacked<Scalar, Alloc> {}
+unsafe impl<Scalar: Shapes + Send, Alloc: Allocator + Send> Send for ShapesPackedMatrix<Scalar, Alloc> {}
+unsafe impl<Scalar: Shapes + Sync, Alloc: Allocator + Sync> Sync for ShapesPackedMatrix<Scalar, Alloc> {}
 
-impl<Scalar: Shapes, Alloc: Allocator> ShapesPacked<Scalar, Alloc> {
+impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
     /// Packs every cloud of `clouds`, of any sizes, using a custom allocator.
     pub fn new_in(clouds: &[&[[Scalar; 3]]], alloc: Alloc) -> Result<Self, Error> {
         Self::pack_in(clouds, alloc, Scalar::shapes_pack)
@@ -740,26 +806,26 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPacked<Scalar, Alloc> {
         alloc: Alloc,
         pack_cloud: unsafe fn(&[[Scalar; 3]], *mut u8) -> Result<(), Error>,
     ) -> Result<Self, Error> {
-        let pointers_bytes = core::mem::size_of_val(clouds).next_multiple_of(PACK_ALIGNMENT);
-        let mut total_bytes = pointers_bytes;
+        let pointers_bytes = clouds.len() * core::mem::size_of::<*const u8>();
+        // The slack moves the packs from `PackedBuffer`'s `SIMD_ALIGNMENT` to `DEFAULT_ALIGNMENT`
+        let mut total_bytes = pointers_bytes + DEFAULT_ALIGNMENT - 1;
         for cloud in clouds {
             total_bytes = total_bytes
-                .checked_add(Scalar::shapes_pack_size(cloud.len())?)
+                .checked_add(Scalar::shapes_pack_size(cloud.len())?.next_multiple_of(DEFAULT_ALIGNMENT))
                 .ok_or(Error::AllocationFailed)?;
         }
         let mut buffer = PackedBuffer::empty_in(alloc);
         let base = buffer.reset_for_pack(total_bytes)?;
-        let mut offset = pointers_bytes;
+        let mut offset = (base.addr() + pointers_bytes).next_multiple_of(DEFAULT_ALIGNMENT) - base.addr();
         for (index, cloud) in clouds.iter().enumerate() {
-            // Pack sizes are multiples of 64 bytes, so every pack keeps the buffer's alignment
             let pack = unsafe { base.add(offset) };
             unsafe { pack_cloud(cloud, pack) }?;
             unsafe { base.cast::<*const u8>().add(index).write(pack) };
-            offset += Scalar::shapes_pack_size(cloud.len())?;
+            offset += Scalar::shapes_pack_size(cloud.len())?.next_multiple_of(DEFAULT_ALIGNMENT);
         }
         Ok(Self {
             buffer,
-            count: clouds.len(),
+            clouds: clouds.len(),
             _marker: PhantomData,
         })
     }
@@ -768,58 +834,94 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPacked<Scalar, Alloc> {
     pub fn allocator(&self) -> &Alloc { self.buffer.allocator() }
 
     /// Number of packed clouds.
-    pub fn len(&self) -> usize { self.count }
+    pub fn clouds(&self) -> usize { self.clouds }
 
-    /// Whether no cloud is packed.
-    pub fn is_empty(&self) -> bool { self.count == 0 }
+    /// Total points across the packed clouds.
+    pub fn points(&self) -> usize {
+        (0..self.clouds)
+            .map(|index| self.cloud_points(index).unwrap_or(0))
+            .sum()
+    }
 
-    /// The pointer to every pack, as the `nk_shapes_*_packed_*` kernels take them.
+    /// Returns the shape __[clouds,points]__, the clouds and their total points.
+    pub fn shape(&self) -> (usize, usize) { (self.clouds, self.points()) }
+
+    /// Bytes one packed cloud of `points` points takes, to size a buffer without packing.
+    pub fn pack_size(points: usize) -> Result<usize, Error> { Scalar::shapes_pack_size(points) }
+
+    /// The pointer to every pack, as the `nk_*_packed_*` shape kernels take them.
     pub fn packs(&self) -> &[*const u8] {
-        match self.count {
+        match self.clouds {
             0 => &[],
-            count => unsafe { core::slice::from_raw_parts(self.buffer.as_ptr().cast::<*const u8>(), count) },
+            clouds => unsafe { core::slice::from_raw_parts(self.buffer.as_ptr().cast::<*const u8>(), clouds) },
         }
     }
 
     fn pack(&self, index: usize) -> Result<*const u8, Error> {
         self.packs().get(index).copied().ok_or(Error::IndexOutOfBounds {
             index,
-            size: self.count,
+            size: self.clouds,
         })
     }
 
     /// Number of points in cloud `index`.
-    pub fn points(&self, index: usize) -> Result<usize, Error> {
-        Ok(unsafe { Scalar::shapes_packed_points(self.pack(index)?) })
+    pub fn cloud_points(&self, index: usize) -> Result<usize, Error> {
+        let (pack, mut points, none) = (self.pack(index)?, 0, null_mut());
+        unsafe { Scalar::shapes_packed_shape(pack, &mut points, none, none, none, none, none) }?;
+        Ok(points)
     }
 
     /// Mean input point of cloud `index`.
     pub fn centroid(&self, index: usize) -> Result<[Scalar::Distance; 3], Error> {
-        Ok(unsafe { Scalar::shapes_packed_centroid(self.pack(index)?) })
+        let (pack, mut centroid, none) = (self.pack(index)?, [Scalar::Distance::default(); 3], null_mut());
+        unsafe { Scalar::shapes_packed_shape(pack, null_mut(), centroid.as_mut_ptr(), none, none, none, none) }?;
+        Ok(centroid)
     }
 
     /// Unit quaternion (x, y, z, w) rotating centered cloud `index` onto its principal axes.
     pub fn frame(&self, index: usize) -> Result<[Scalar::Distance; 4], Error> {
-        Ok(unsafe { Scalar::shapes_packed_frame(self.pack(index)?) })
+        let (pack, mut frame, none) = (self.pack(index)?, [Scalar::Distance::default(); 4], null_mut());
+        unsafe { Scalar::shapes_packed_shape(pack, null_mut(), none, frame.as_mut_ptr(), none, none, none) }?;
+        Ok(frame)
     }
 
     /// What rotated cloud `index` was divided by: its RMS distance from the centroid for normalized
     /// packs, and 1 otherwise.
     pub fn scale(&self, index: usize) -> Result<Scalar::Distance, Error> {
-        Ok(unsafe { Scalar::shapes_packed_scale(self.pack(index)?) })
+        let (pack, mut scale, none) = (self.pack(index)?, Scalar::Distance::default(), null_mut());
+        unsafe { Scalar::shapes_packed_shape(pack, null_mut(), none, none, &mut scale, none, none) }?;
+        Ok(scale)
     }
 
     /// Descending eigenvalues of the second moments of packed cloud `index`.
     pub fn spreads(&self, index: usize) -> Result<[Scalar::Distance; 3], Error> {
-        Ok(unsafe { Scalar::shapes_packed_spreads(self.pack(index)?) })
+        let (pack, mut spreads, none) = (self.pack(index)?, [Scalar::Distance::default(); 3], null_mut());
+        unsafe { Scalar::shapes_packed_shape(pack, null_mut(), none, none, none, spreads.as_mut_ptr(), none) }?;
+        Ok(spreads)
+    }
+
+    /// Largest packed point norm of cloud `index`.
+    pub fn max_radius(&self, index: usize) -> Result<Scalar::Distance, Error> {
+        let (pack, mut max_radius, none) = (self.pack(index)?, Scalar::Distance::default(), null_mut());
+        unsafe { Scalar::shapes_packed_shape(pack, null_mut(), none, none, none, none, &mut max_radius) }?;
+        Ok(max_radius)
+    }
+
+    /// Writes cloud `index` into `out` as it was packed: interleaved, in its original pose and
+    /// scale, within one rounding to `Scalar`.
+    ///
+    /// Returns `Err` if `index` is out of range or `out` does not hold
+    /// [`cloud_points`](Self::cloud_points) points.
+    pub fn unpack(&self, index: usize, out: &mut [[Scalar; 3]]) -> Result<(), Error> {
+        check_len(self.cloud_points(index)?, out.len())?;
+        unsafe { Scalar::shapes_unpack(self.pack(index)?, out.as_mut_ptr()) }
     }
 
     fn largest(&self) -> usize {
-        let points = self
-            .packs()
-            .iter()
-            .map(|&pack| unsafe { Scalar::shapes_packed_points(pack) });
-        points.max().unwrap_or(0)
+        (0..self.clouds)
+            .map(|index| self.cloud_points(index).unwrap_or(0))
+            .max()
+            .unwrap_or(0)
     }
 
     /// Chamfer distances from every cloud of `self` to every cloud of `columns`, the best of the 8
@@ -832,14 +934,14 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPacked<Scalar, Alloc> {
     /// Returns `Err` if `results` or `rotations` does not hold __rows × columns__ entries.
     pub fn chamfers<OtherAlloc: Allocator>(
         &self,
-        columns: &ShapesPacked<Scalar, OtherAlloc>,
+        columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
         results: &mut [Scalar::Distance],
         rotations: Option<&mut [[f32; 9]]>,
     ) -> Result<(), Error> {
-        let (results_stride, rotations) = check_outputs(self.count, columns.count, results, rotations)?;
+        let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
         let (rows, columns) = (self.packs(), columns.packs());
         unsafe {
-            Scalar::shapes_chamfers_packed(
+            Scalar::chamfers_packed(
                 rows.as_ptr(),
                 rows.len(),
                 columns.as_ptr(),
@@ -856,14 +958,14 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPacked<Scalar, Alloc> {
     /// [`chamfers`](Self::chamfers).
     pub fn hausdorffs<OtherAlloc: Allocator>(
         &self,
-        columns: &ShapesPacked<Scalar, OtherAlloc>,
+        columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
         results: &mut [Scalar::Distance],
         rotations: Option<&mut [[f32; 9]]>,
     ) -> Result<(), Error> {
-        let (results_stride, rotations) = check_outputs(self.count, columns.count, results, rotations)?;
+        let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
         let (rows, columns) = (self.packs(), columns.packs());
         unsafe {
-            Scalar::shapes_hausdorffs_packed(
+            Scalar::hausdorffs_packed(
                 rows.as_ptr(),
                 rows.len(),
                 columns.as_ptr(),
@@ -883,15 +985,15 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPacked<Scalar, Alloc> {
     /// [`chamfers`](Self::chamfers).
     pub fn wassersteinprocrustes<OtherAlloc: Allocator>(
         &self,
-        columns: &ShapesPacked<Scalar, OtherAlloc>,
+        columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
         results: &mut [Scalar::Distance],
         rotations: Option<&mut [[f32; 9]]>,
     ) -> Result<(), Error> {
-        let (results_stride, rotations) = check_outputs(self.count, columns.count, results, rotations)?;
-        let workspace_bytes = Scalar::shapes_wassersteinprocrustes_workspace_size(self.largest(), columns.largest())?;
+        let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
+        let workspace_bytes = Scalar::wassersteinprocrustes_workspace_size(self.largest(), columns.largest())?;
         let (rows, columns) = (self.packs(), columns.packs());
         with_workspace(self.allocator(), workspace_bytes, |workspace| unsafe {
-            Scalar::shapes_wassersteinprocrustes_packed(
+            Scalar::wassersteinprocrustes_packed(
                 rows.as_ptr(),
                 rows.len(),
                 columns.as_ptr(),
@@ -913,15 +1015,15 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPacked<Scalar, Alloc> {
     /// [`chamfers`](Self::chamfers).
     pub fn gromovwassersteins<OtherAlloc: Allocator>(
         &self,
-        columns: &ShapesPacked<Scalar, OtherAlloc>,
+        columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
         results: &mut [Scalar::Distance],
         rotations: Option<&mut [[f32; 9]]>,
     ) -> Result<(), Error> {
-        let (results_stride, rotations) = check_outputs(self.count, columns.count, results, rotations)?;
-        let workspace_bytes = Scalar::shapes_gromovwassersteins_workspace_size(self.largest(), columns.largest())?;
+        let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
+        let workspace_bytes = Scalar::gromovwassersteins_workspace_size(self.largest(), columns.largest())?;
         let (rows, columns) = (self.packs(), columns.packs());
         with_workspace(self.allocator(), workspace_bytes, |workspace| unsafe {
-            Scalar::shapes_gromovwassersteins_packed(
+            Scalar::gromovwassersteins_packed(
                 rows.as_ptr(),
                 rows.len(),
                 columns.as_ptr(),
@@ -936,7 +1038,7 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPacked<Scalar, Alloc> {
     }
 }
 
-impl<Scalar: Shapes> ShapesPacked<Scalar, Global> {
+impl<Scalar: Shapes> ShapesPackedMatrix<Scalar, Global> {
     /// Packs every cloud of `clouds`, of any sizes, using the global allocator.
     pub fn new(clouds: &[&[[Scalar; 3]]]) -> Result<Self, Error> { Self::new_in(clouds, Global) }
 
@@ -970,7 +1072,7 @@ fn with_workspace<Alloc: Allocator>(
     bytes: usize,
     kernel: impl FnOnce(*mut u8) -> Result<(), Error>,
 ) -> Result<(), Error> {
-    let layout = Layout::from_size_align(bytes, WORKSPACE_ALIGNMENT).map_err(|_| Error::AllocationFailed)?;
+    let layout = Layout::from_size_align(bytes, DEFAULT_ALIGNMENT).map_err(|_| Error::AllocationFailed)?;
     let workspace = alloc
         .allocate(layout)
         .map_err(|_| Error::AllocationFailed)?
@@ -980,7 +1082,7 @@ fn with_workspace<Alloc: Allocator>(
     result
 }
 
-// endregion: ShapesPacked
+// endregion: ShapesPackedMatrix
 
 #[cfg(test)]
 mod tests {
@@ -1035,15 +1137,20 @@ mod tests {
         cloud.iter().map(convert).collect()
     }
 
-    fn check_headers<Scalar>()
+    /// The accessors report every cloud's pose and bounds, `max_radius` within `tolerance` of the
+    /// farthest input point from the centroid.
+    fn check_poses<Scalar>(tolerance: f64)
     where
         Scalar: Shapes + FloatLike,
         Scalar::Distance: NumberLike,
     {
         let shifted = convert_cloud::<Scalar>(&moved_cloud([10.0, -4.0, 2.5]));
-        let packed = ShapesPacked::new(&[&shifted[..], &[]]).unwrap();
-        assert_eq!(packed.len(), 2);
-        assert_eq!((packed.points(0).unwrap(), packed.points(1).unwrap()), (7, 0));
+        let packed = ShapesPackedMatrix::new(&[&shifted[..], &[]]).unwrap();
+        assert_eq!(packed.shape(), (2, 7));
+        assert_eq!(
+            (packed.cloud_points(0).unwrap(), packed.cloud_points(1).unwrap()),
+            (7, 0)
+        );
         let centroid = packed.centroid(0).unwrap().map(NumberLike::to_f64);
         for axis in 0..3 {
             let mean = shifted.iter().map(|point| point[axis].to_f64()).sum::<f64>() / 7.0;
@@ -1059,16 +1166,66 @@ mod tests {
             0.0,
             "frame norm",
         );
+        let farthest = shifted
+            .iter()
+            .map(|point| {
+                (0..3)
+                    .map(|axis| (point[axis].to_f64() - centroid[axis]).powi(2))
+                    .sum::<f64>()
+            })
+            .fold(0.0, f64::max)
+            .sqrt();
+        assert_close(
+            packed.max_radius(0).unwrap().to_f64(),
+            farthest,
+            tolerance,
+            0.0,
+            "max radius",
+        );
+        assert_eq!(packed.max_radius(1).unwrap().to_f64(), 0.0);
         assert!(matches!(
-            packed.points(2),
+            packed.cloud_points(2),
             Err(Error::IndexOutOfBounds { index: 2, size: 2 })
         ));
     }
 
     #[test]
-    fn shapes_pack_fills_headers() {
-        check_headers::<f32>();
-        check_headers::<f16>();
+    fn shapes_pack_reports_poses() {
+        check_poses::<f32>(1e-5);
+        check_poses::<f16>(1e-2);
+    }
+
+    /// Unpacking plain and normalized packs returns every input point within `tolerance`.
+    fn check_unpack<Scalar>(tolerance: f64)
+    where
+        Scalar: Shapes + FloatLike,
+    {
+        let shifted = convert_cloud::<Scalar>(&moved_cloud([10.0, -4.0, 2.5]));
+        let plain = ShapesPackedMatrix::new(&[&shifted[..], &[]]).unwrap();
+        let normalized = ShapesPackedMatrix::new_normalized(&[&shifted[..]]).unwrap();
+        let mut unpacked = vec![[Scalar::from_f32(0.0); 3]; 7];
+        for packed in [&plain, &normalized] {
+            packed.unpack(0, &mut unpacked).unwrap();
+            for (point, input) in unpacked.iter().zip(&shifted) {
+                for axis in 0..3 {
+                    let name = core::any::type_name::<Scalar>();
+                    assert_close(point[axis].to_f64(), input[axis].to_f64(), tolerance, 0.0, name);
+                }
+            }
+        }
+        plain.unpack(1, &mut []).unwrap();
+        let mismatch = Err(Error::ShapeMismatch {
+            axis: 0,
+            expected: 7,
+            got: 6,
+        });
+        assert_eq!(plain.unpack(0, &mut unpacked[..6]), mismatch);
+    }
+
+    #[test]
+    fn shapes_unpack_round_trips() {
+        check_unpack::<f32>(1e-5);
+        check_unpack::<f16>(1e-2);
     }
 
     /// Every kind vanishes within `tolerance` between a cloud and its rigid motion, and the
@@ -1081,8 +1238,8 @@ mod tests {
         let shift = [1.0_f32, -2.0, 0.5];
         let cloud = convert_cloud::<Scalar>(&CLOUD);
         let moved = convert_cloud::<Scalar>(&moved_cloud(shift));
-        let rows = ShapesPacked::new(&[&cloud[..]]).unwrap();
-        let columns = ShapesPacked::new(&[&moved[..]]).unwrap();
+        let rows = ShapesPackedMatrix::new(&[&cloud[..]]).unwrap();
+        let columns = ShapesPackedMatrix::new(&[&moved[..]]).unwrap();
         let name = core::any::type_name::<Scalar>();
         let mut distances = [Scalar::Distance::default(); 1];
         let mut rotations = [[0.0_f32; 9]; 1];
@@ -1157,14 +1314,14 @@ mod tests {
                 .flat_map(|point| (0..3).map(move |axis| point[axis] as f64 - centroid[axis]));
             (squares.map(|delta| delta * delta).sum::<f64>() / 7.0).sqrt()
         };
-        let rows = ShapesPacked::new_normalized(&[&CLOUD[..]]).unwrap();
-        let columns = ShapesPacked::new_normalized(&[&grown[..]]).unwrap();
+        let rows = ShapesPackedMatrix::new_normalized(&[&CLOUD[..]]).unwrap();
+        let columns = ShapesPackedMatrix::new_normalized(&[&grown[..]]).unwrap();
         assert_close(rows.scale(0).unwrap(), radius(&CLOUD), 0.0, 1e-6, "scale");
         assert_close(columns.scale(0).unwrap(), radius(&grown), 0.0, 1e-6, "grown scale");
-        let plain_rows = ShapesPacked::new(&[&CLOUD[..]]).unwrap();
-        let plain_columns = ShapesPacked::new(&[&grown[..]]).unwrap();
+        let plain_rows = ShapesPackedMatrix::new(&[&CLOUD[..]]).unwrap();
+        let plain_columns = ShapesPackedMatrix::new(&[&grown[..]]).unwrap();
         assert_eq!(plain_rows.scale(0).unwrap(), 1.0);
-        type Kind = fn(&ShapesPacked<f32>, &ShapesPacked<f32>, &mut [f64]) -> Result<(), Error>;
+        type Kind = fn(&ShapesPackedMatrix<f32>, &ShapesPackedMatrix<f32>, &mut [f64]) -> Result<(), Error>;
         let kinds: [Kind; 4] = [
             |a, b, results| a.chamfers(b, results, None),
             |a, b, results| a.hausdorffs(b, results, None),
@@ -1194,9 +1351,9 @@ mod tests {
         let small = &CLOUD[..5];
         let large = moved_cloud([0.3, 0.0, -1.0]);
         let empty: &[[f32; 3]] = &[];
-        let rows = ShapesPacked::new(&[small, &large[..], empty]).unwrap();
-        let columns = ShapesPacked::new(&[&large[..], small, empty]).unwrap();
-        type Kind = fn(&ShapesPacked<f32>, &ShapesPacked<f32>, &mut [f64]) -> Result<(), Error>;
+        let rows = ShapesPackedMatrix::new(&[small, &large[..], empty]).unwrap();
+        let columns = ShapesPackedMatrix::new(&[&large[..], small, empty]).unwrap();
+        type Kind = fn(&ShapesPackedMatrix<f32>, &ShapesPackedMatrix<f32>, &mut [f64]) -> Result<(), Error>;
         let kinds: [Kind; 4] = [
             |a, b, results| a.chamfers(b, results, None),
             |a, b, results| a.hausdorffs(b, results, None),
@@ -1220,7 +1377,7 @@ mod tests {
 
     #[test]
     fn shapes_reject_short_outputs() {
-        let packed = ShapesPacked::new(&[&CLOUD[..], &CLOUD[..3]]).unwrap();
+        let packed = ShapesPackedMatrix::new(&[&CLOUD[..], &CLOUD[..3]]).unwrap();
         let mut results = [0.0_f64; 3];
         let mismatch = Err(Error::ShapeMismatch {
             axis: 0,

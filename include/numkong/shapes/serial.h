@@ -1,27 +1,93 @@
 /**
- *  @file include/numkong/meshes/serial.h
+ *  @file include/numkong/shapes/serial.h
  *  @author Ash Vardanian
  *  @date December 27, 2025
  *  @brief Many-to-many shape distances between 3D point clouds for SIMD-free CPUs.
  *
- *  @sa include/numkong/meshes.h
+ *  @sa include/numkong/shapes.h
  *
  *  Every capability packs through the serial routine here and solves exact transport through its
  *  own network simplex: a northwest-corner tree rooted at the first row point, block pricing, and
  *  the leaving arc by Cunningham's rule, which keeps the tree strongly feasible so that degenerate
  *  pivots never cycle.
  */
-#ifndef NUMKONG_MESHES_SERIAL_H
-#define NUMKONG_MESHES_SERIAL_H
+#ifndef NUMKONG_SHAPES_SERIAL_H
+#define NUMKONG_SHAPES_SERIAL_H
 
 #include "numkong/types.h"
-#include "numkong/meshes.h"        // `nk_shapes_header_f32_t`, `nk_shapes_axes_f16`
+#include "numkong/shapes.h"        // `nk_shapes_pack_f16_serial`, `nk_shapes_unpack_f16_serial`
 #include "numkong/cast/serial.h"   // `nk_f16_to_f32_serial_`, `nk_f32_to_f16_serial_`
 #include "numkong/scalar/serial.h" // `nk_sqrt_f32_serial_`, `nk_rsqrt_f64_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
+
+/** Byte boundary every axis of a pack and every array of a transport workspace starts on, within a
+ *  buffer on an @c nk_default_alignment_k boundary. */
+enum { nk_shapes_alignment_k_ = 64 };
+
+/** Opens every pack of @c f16 points; the x, y and z arrays of @c f16 follow. */
+typedef struct nk_shapes_packed_header_f32_t {
+
+    /** Number of 3D points. */
+    nk_u32_t points;
+
+    /** Mean input point. */
+    nk_f32_t centroid[3];
+
+    /** Unit quaternion (x, y, z, w) of 𝑄, rotating centered inputs onto the principal axes. */
+    nk_f32_t frame[4];
+
+    /** What the rotated inputs were divided by: their RMS distance from the centroid, or 1. */
+    nk_f32_t scale;
+
+    /** Descending eigenvalues of the packed points' second moments. */
+    nk_f32_t spreads[3];
+
+    /** Largest packed point norm. */
+    nk_f32_t max_radius;
+} nk_shapes_packed_header_f32_t;
+
+/** Opens every pack of @c f32 points; the x, y and z arrays of @c f32 follow. */
+typedef struct nk_shapes_packed_header_f64_t {
+
+    /** Number of 3D points. */
+    nk_u64_t points;
+
+    /** Mean input point. */
+    nk_f64_t centroid[3];
+
+    /** Unit quaternion (x, y, z, w) of 𝑄, rotating centered inputs onto the principal axes. */
+    nk_f64_t frame[4];
+
+    /** What the rotated inputs were divided by: their RMS distance from the centroid, or 1. */
+    nk_f64_t scale;
+
+    /** Descending eigenvalues of the packed points' second moments. */
+    nk_f64_t spreads[3];
+
+    /** Largest packed point norm. */
+    nk_f64_t max_radius;
+} nk_shapes_packed_header_f64_t;
+
+/** The x array of a pack of @c f16 points, with the elements from each axis to the next. */
+NUMKONG_INLINE nk_f16_t const *nk_shapes_packed_axes_f16_serial_(void const *packed, nk_size_t *axis_stride) {
+    nk_size_t const points = ((nk_shapes_packed_header_f32_t const *)packed)->points;
+    nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
+                                                                 nk_shapes_alignment_k_);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k_) / sizeof(nk_f16_t);
+    return (nk_f16_t const *)((char const *)packed + header_bytes);
+}
+
+/** The x array of a pack of @c f32 points, with the elements from each axis to the next. */
+NUMKONG_INLINE nk_f32_t const *nk_shapes_packed_axes_f32_serial_(void const *packed, nk_size_t *axis_stride) {
+    nk_size_t const points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)packed)->points;
+    nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
+                                                                 nk_shapes_alignment_k_);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f32_t), nk_shapes_alignment_k_) / sizeof(nk_f32_t);
+    return (nk_f32_t const *)((char const *)packed + header_bytes);
+}
 
 /** Constants for the McAdams 3×3 SVD algorithm: γ = (√8 + 3)² / 4 = 5.828427124, with cstar =
  *  cos(π/8) and sstar = sin(π/8). */
@@ -417,9 +483,10 @@ nk_define_det3x3_(f64)
  *  xx, yx, yy, zx, zy and zz, returning the RMS distance from the centroid, or 0 when every point
  *  coincides, as the rounded centroid of coincident points still leaves a spread. Then the pack of
  *  one cloud from them: the header, then the x, y and z arrays of its points centered, rotated onto
- *  the principal axes and divided by @p scale. Every product sits in a statement of its own, as
- *  Clang contracts only within one and GCC's ISO modes not at all, so the arithmetic rounds alike
- *  with and without FMA units. */
+ *  the principal axes and divided by @p scale. Then its inverse, which restores every packed point
+ *  as scale × 𝑄ᵀ × x′ + centroid. Every product sits in a statement of its own, as Clang contracts
+ *  only within one and GCC's ISO modes not at all, so the arithmetic rounds alike on machines with
+ *  and without FMA units. */
 #define nk_define_shapes_pack_(input_type, math_type, points_type, load_and_convert, convert_and_store, compute_sqrt, \
                                compute_rsqrt)                                                                         \
     NUMKONG_INLINE nk_##math_type##_t nk_shapes_moments_##input_type##_serial_(                                       \
@@ -454,11 +521,11 @@ nk_define_det3x3_(f64)
     NUMKONG_INLINE void nk_shapes_pack_##input_type##_serial_(                                                        \
         nk_##input_type##_t const *points, nk_size_t count, nk_##math_type##_t const *centroid,                       \
         nk_##math_type##_t const *covariance, nk_##math_type##_t scale, void *packed) {                               \
-        nk_shapes_header_##math_type##_t *header = (nk_shapes_header_##math_type##_t *)packed;                        \
-        nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_header_##math_type##_t),        \
-                                                                     nk_shapes_alignment_k);                          \
+        nk_shapes_packed_header_##math_type##_t *header = (nk_shapes_packed_header_##math_type##_t *)packed;          \
+        nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_##math_type##_t), \
+                                                                     nk_shapes_alignment_k_);                         \
         nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(count * sizeof(nk_##input_type##_t),               \
-                                                                   nk_shapes_alignment_k);                            \
+                                                                   nk_shapes_alignment_k_);                           \
         nk_u8_t *packed_bytes = (nk_u8_t *)packed;                                                                    \
         for (nk_size_t byte_index = 0; byte_index != header_bytes + 3 * axis_bytes; ++byte_index)                     \
             packed_bytes[byte_index] = 0;                                                                             \
@@ -553,6 +620,28 @@ nk_define_det3x3_(f64)
         header->centroid[0] = centroid[0], header->centroid[1] = centroid[1], header->centroid[2] = centroid[2];      \
         header->spreads[0] = moment_xx, header->spreads[1] = moment_yy, header->spreads[2] = moment_zz;               \
         header->max_radius = compute_sqrt(max_norm_squared);                                                          \
+    }                                                                                                                 \
+    NUMKONG_INLINE void nk_shapes_unpack_##input_type##_serial_(void const *packed, nk_##input_type##_t *points) {    \
+        nk_shapes_packed_header_##math_type##_t const *header =                                                       \
+            (nk_shapes_packed_header_##math_type##_t const *)packed;                                                  \
+        nk_size_t axis_stride;                                                                                        \
+        nk_##input_type##_t const *packed_x = nk_shapes_packed_axes_##input_type##_serial_(packed, &axis_stride);     \
+        nk_size_t const count = (nk_size_t)header->points;                                                            \
+        nk_##math_type##_t axes[9], packed_point[3], restored, product;                                               \
+        nk_quaternion_to_mat3x3_##math_type##_serial_(header->frame, axes);                                           \
+        /* Scaling 𝑄 scales every restored offset, and scaling by 1 changes no bit */                                 \
+        for (int cell = 0; cell != 9; ++cell) axes[cell] *= header->scale;                                            \
+        for (nk_size_t index = 0; index != count; ++index) {                                                          \
+            for (int axis = 0; axis != 3; ++axis)                                                                     \
+                load_and_convert(packed_x + axis * axis_stride + index, &packed_point[axis]);                         \
+            for (int axis = 0; axis != 3; ++axis) {                                                                   \
+                restored = axes[axis] * packed_point[0];                                                              \
+                product = axes[3 + axis] * packed_point[1], restored += product;                                      \
+                product = axes[6 + axis] * packed_point[2], restored += product;                                      \
+                restored += header->centroid[axis];                                                                   \
+                convert_and_store(&restored, points + index * 3 + axis);                                              \
+            }                                                                                                         \
+        }                                                                                                             \
     }
 
 nk_define_shapes_pack_(f16, f32, u32, nk_f16_to_f32_serial_, nk_f32_to_f16_serial_, nk_sqrt_f32_serial_,
@@ -588,9 +677,10 @@ nk_define_shapes_pack_(f32, f64, u64, nk_assign_from_to_, nk_assign_from_to_, nk
             if (flip_distances[flip] < flip_distances[best_flip]) best_flip = flip;                                   \
         *result = flip_distances[best_flip];                                                                          \
         if (!rotation) return;                                                                                        \
-        nk_shapes_header_##math_type##_t const *row_header = (nk_shapes_header_##math_type##_t const *)row_packed;    \
-        nk_shapes_header_##math_type##_t const *column_header =                                                       \
-            (nk_shapes_header_##math_type##_t const *)column_packed;                                                  \
+        nk_shapes_packed_header_##math_type##_t const *row_header =                                                   \
+            (nk_shapes_packed_header_##math_type##_t const *)row_packed;                                              \
+        nk_shapes_packed_header_##math_type##_t const *column_header =                                                \
+            (nk_shapes_packed_header_##math_type##_t const *)column_packed;                                           \
         nk_##math_type##_t flip_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};                                            \
         nk_##math_type##_t pair_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};                                            \
         if (row_header->points && column_header->points) {                                                            \
@@ -605,7 +695,8 @@ nk_define_shapes_pack_(f32, f64, u64, nk_assign_from_to_, nk_assign_from_to_, nk
                                                                            nk_size_t count) {                         \
         nk_size_t largest = 0;                                                                                        \
         for (nk_size_t index = 0; index != count; ++index) {                                                          \
-            nk_shapes_header_##math_type##_t const *header = (nk_shapes_header_##math_type##_t const *)packs[index];  \
+            nk_shapes_packed_header_##math_type##_t const *header =                                                   \
+                (nk_shapes_packed_header_##math_type##_t const *)packs[index];                                        \
             largest = header->points > largest ? (nk_size_t)header->points : largest;                                 \
         }                                                                                                             \
         return largest;                                                                                               \
@@ -715,38 +806,47 @@ NUMKONG_INLINE void nk_shapes_tree_arcs_serial_(nk_size_t rows, nk_size_t column
     }
 }
 
-/** The transport workspace: the widened row and column points and the rotated column points, each
- *  as x, y and z arrays @c points_stride apart; the tree's parent, flow, depth, first child, next
- *  and previous sibling arrays, @c tree_stride apart, with their f64 potentials; the best proper
- *  and improper plans as row, column and flow arrays, @c plan_stride apart; and the f64
- *  Gromov-Wasserstein matrices, @c matrix_stride apart. Its layout function carves one when given
- *  memory, leaving null views without it, and returns the bytes up to the matrices either way. */
+/** The transport workspace for clouds of up to @p row_points and @p column_points: the widened row
+ *  and column points and the rotated column points, each as x, y and z arrays @c points_stride
+ *  apart; the tree's parent, flow, depth, first child, next and previous sibling arrays,
+ *  @c tree_stride apart, with their f64 potentials; and the best proper and improper plans as row,
+ *  column and flow arrays, @c plan_stride apart. The f64 Gromov-Wasserstein matrices follow, in
+ *  @c gromov_bytes: the dense plan, its gradient and a vertex's gradient, @c matrix_stride apart
+ *  for @p row_points × @p column_points, then one block of @p row_points² + @p column_points² for
+ *  the distances within each cloud. Its layout function carves one when given memory, leaving null
+ *  views without it, and returns the bytes up to the matrices either way. */
 #define nk_define_shapes_workspace_(math_type)                                                                       \
     typedef struct nk_shapes_workspace_##math_type##_serial_t {                                                      \
         nk_##math_type##_t *row_points, *column_points, *rotated_points;                                             \
         nk_f64_t *matrices, *potential;                                                                              \
         nk_u32_t *tree, *proper_plan, *improper_plan;                                                                \
-        nk_size_t points_stride, tree_stride, plan_stride, matrix_stride;                                            \
+        nk_size_t points_stride, tree_stride, plan_stride, matrix_stride, gromov_bytes;                              \
     } nk_shapes_workspace_##math_type##_serial_t;                                                                    \
     NUMKONG_INLINE nk_size_t nk_shapes_workspace_##math_type##_serial_(                                              \
-        nk_size_t points, nk_u8_t *workspace, nk_shapes_workspace_##math_type##_serial_t *views) {                   \
+        nk_size_t row_points, nk_size_t column_points, nk_u8_t *workspace,                                           \
+        nk_shapes_workspace_##math_type##_serial_t *views) {                                                         \
+        nk_size_t const points = row_points > column_points ? row_points : column_points;                            \
         nk_size_t const points_bytes = nk_size_round_up_to_multiple_(3 * points * sizeof(nk_##math_type##_t),        \
-                                                                     nk_shapes_alignment_k);                         \
+                                                                     nk_shapes_alignment_k_);                        \
         nk_size_t const nodes_bytes = nk_size_round_up_to_multiple_(2 * points * sizeof(nk_u32_t),                   \
-                                                                    nk_shapes_alignment_k);                          \
+                                                                    nk_shapes_alignment_k_);                         \
         nk_size_t const potential_bytes = nk_size_round_up_to_multiple_(2 * points * sizeof(nk_f64_t),               \
-                                                                        nk_shapes_alignment_k);                      \
+                                                                        nk_shapes_alignment_k_);                     \
         nk_size_t const plan_bytes = nk_size_round_up_to_multiple_((points ? 2 * points - 1 : 0) * sizeof(nk_u32_t), \
-                                                                   nk_shapes_alignment_k);                           \
-        nk_size_t const matrix_bytes = nk_size_round_up_to_multiple_(points * points * sizeof(nk_f64_t),             \
-                                                                     nk_shapes_alignment_k);                         \
+                                                                   nk_shapes_alignment_k_);                          \
+        nk_size_t const matrix_bytes = nk_size_round_up_to_multiple_(row_points * column_points * sizeof(nk_f64_t),  \
+                                                                     nk_shapes_alignment_k_);                        \
+        nk_size_t const distances_bytes = nk_size_round_up_to_multiple_(                                             \
+            (row_points * row_points + column_points * column_points) * sizeof(nk_f64_t), nk_shapes_alignment_k_);   \
         nk_size_t const transport_bytes = 3 * points_bytes + 6 * nodes_bytes + potential_bytes + 6 * plan_bytes;     \
         views->points_stride = points, views->tree_stride = nodes_bytes / sizeof(nk_u32_t);                          \
         views->plan_stride = plan_bytes / sizeof(nk_u32_t), views->matrix_stride = matrix_bytes / sizeof(nk_f64_t);  \
+        views->gromov_bytes = 3 * matrix_bytes + distances_bytes;                                                    \
         views->row_points = views->column_points = views->rotated_points = NUMKONG_NULL;                             \
         views->matrices = views->potential = NUMKONG_NULL;                                                           \
         views->tree = views->proper_plan = views->improper_plan = NUMKONG_NULL;                                      \
         if (!workspace) return transport_bytes;                                                                      \
+        /* The order matters, as price-block tail lanes read past rotated_points, potential and G */                 \
         views->row_points = (nk_##math_type##_t *)workspace;                                                         \
         views->column_points = (nk_##math_type##_t *)(workspace + points_bytes);                                     \
         views->rotated_points = (nk_##math_type##_t *)(workspace + 2 * points_bytes);                                \
@@ -1050,9 +1150,9 @@ NUMKONG_INLINE nk_f64_t nk_shapes_plan_score_f64_serial_(nk_f64_t const *gradien
  *  Wasserstein-Procrustes plans. Returns the least square loss and the orthogonal Procrustes fit of
  *  its plan. Only the coordinates come in the math type: the distances, plans, gradients, line
  *  search, loss and fit all stay in f64, as a non-convex search follows f32 rounding near plan ties
- *  into other optima. Each capability passes its f64 @p distance_gradient, @p step_plan and
- *  @p score_plan passes over the dense matrices. */
-#define nk_define_shapes_gromov_wasserstein_(math_type, suffix, distance_gradient, step_plan, score_plan)              \
+ *  into other optima. Each capability runs its own network simplex around the serial passes over
+ *  the dense matrices. */
+#define nk_define_shapes_gromov_wasserstein_(math_type, suffix)                                                        \
     NUMKONG_INLINE void nk_shapes_distances_##math_type##_##suffix##_(                                                 \
         nk_##math_type##_t const *points, nk_size_t count, nk_size_t stride, nk_f64_t *distances) {                    \
         for (nk_size_t first = 0; first != count; ++first)                                                             \
@@ -1070,9 +1170,8 @@ NUMKONG_INLINE nk_f64_t nk_shapes_plan_score_f64_serial_(nk_f64_t const *gradien
         nk_##math_type##_t *rotation) {                                                                                \
         nk_size_t const cells = rows * columns, arcs = rows + columns - 1, stride = views->points_stride;              \
         nk_size_t const plan_stride = views->plan_stride;                                                              \
-        nk_f64_t *plan = views->matrices + 2 * views->matrix_stride;                                                   \
-        nk_f64_t *gradient = views->matrices + 3 * views->matrix_stride;                                               \
-        nk_f64_t *vertex_gradient = views->matrices + 4 * views->matrix_stride;                                        \
+        nk_f64_t *plan = views->matrices, *gradient = views->matrices + views->matrix_stride;                          \
+        nk_f64_t *vertex_gradient = views->matrices + 2 * views->matrix_stride;                                        \
         nk_f64_t const mass = (nk_f64_t)cells;                                                                         \
         nk_shapes_wasserstein_procrustes_##math_type##_##suffix##_(views, rows, columns, cost_scale, rotation);        \
         nk_f64_t row_spread = 0, column_spread = 0;                                                                    \
@@ -1107,17 +1206,17 @@ NUMKONG_INLINE nk_f64_t nk_shapes_plan_score_f64_serial_(nk_f64_t const *gradien
                 for (nk_size_t arc = 0; arc != arcs; ++arc)                                                            \
                     plan[start_plan[arc] * columns + start_plan[plan_stride + arc]] =                                  \
                         (nk_f64_t)start_plan[2 * plan_stride + arc] / mass;                                            \
-                distance_gradient(start_plan, plan_stride, arcs, mass, row_distances, rows, column_distances, columns, \
-                                  gradient);                                                                           \
+                nk_shapes_distance_gradient_f64_serial_(start_plan, plan_stride, arcs, mass, row_distances, rows,      \
+                                                        column_distances, columns, gradient);                          \
             }                                                                                                          \
             nk_f64_t gradient_scale;                                                                                   \
-            nk_f64_t plan_score = score_plan(gradient, plan, cells, &gradient_scale);                                  \
+            nk_f64_t plan_score = nk_shapes_plan_score_f64_serial_(gradient, plan, cells, &gradient_scale);            \
             for (int step_index = 0; step_index != 32; ++step_index) {                                                 \
                 if (!step_index) nk_shapes_northwest_corner_serial_(rows, columns, views->tree, views->tree_stride);   \
                 nk_shapes_network_simplex_##math_type##_##suffix##_(views, gradient, rows, columns, gradient_scale);   \
                 nk_shapes_tree_arcs_serial_(rows, columns, views->tree, views->tree_stride, vertex, plan_stride);      \
-                distance_gradient(vertex, plan_stride, arcs, mass, row_distances, rows, column_distances, columns,     \
-                                  vertex_gradient);                                                                    \
+                nk_shapes_distance_gradient_f64_serial_(vertex, plan_stride, arcs, mass, row_distances, rows,          \
+                                                        column_distances, columns, vertex_gradient);                   \
                 nk_f64_t vertex_score = 0, vertex_curvature = 0;                                                       \
                 for (nk_size_t arc = 0; arc != arcs; ++arc) {                                                          \
                     nk_size_t const cell = vertex[arc] * columns + vertex[plan_stride + arc];                          \
@@ -1134,11 +1233,11 @@ NUMKONG_INLINE nk_f64_t nk_shapes_plan_score_f64_serial_(nk_f64_t const *gradien
                     step = step < 0 ? 0 : step > 1 ? 1 : step;                                                         \
                 }                                                                                                      \
                 if (step == 0) break;                                                                                  \
-                step_plan(plan, gradient, vertex_gradient, cells, 1 - step, step);                                     \
+                nk_shapes_plan_step_f64_serial_(plan, gradient, vertex_gradient, cells, 1 - step, step);               \
                 for (nk_size_t arc = 0; arc != arcs; ++arc)                                                            \
                     plan[vertex[arc] * columns + vertex[plan_stride + arc]] +=                                         \
                         step * ((nk_f64_t)vertex[2 * plan_stride + arc] / mass);                                       \
-                plan_score = score_plan(gradient, plan, cells, &gradient_scale);                                       \
+                plan_score = nk_shapes_plan_score_f64_serial_(gradient, plan, cells, &gradient_scale);                 \
             }                                                                                                          \
             nk_f64_t const loss = row_spread + column_spread - 2 * plan_score;                                         \
             if (!(loss < best)) continue;                                                                              \
@@ -1164,19 +1263,18 @@ NUMKONG_INLINE nk_f64_t nk_shapes_plan_score_f64_serial_(nk_f64_t const *gradien
         return best;                                                                                                   \
     }
 
-nk_define_shapes_gromov_wasserstein_(f32, serial, nk_shapes_distance_gradient_f64_serial_,
-                                     nk_shapes_plan_step_f64_serial_, nk_shapes_plan_score_f64_serial_)
-nk_define_shapes_gromov_wasserstein_(f64, serial, nk_shapes_distance_gradient_f64_serial_,
-                                     nk_shapes_plan_step_f64_serial_, nk_shapes_plan_score_f64_serial_)
+nk_define_shapes_gromov_wasserstein_(f32, serial)
+nk_define_shapes_gromov_wasserstein_(f64, serial)
 
 /** The canonical order of a transport pair, by points, spreads, radius and then packed bytes, so
  *  swapping the sides solves the same problem; and the widening of a pack into workspace points. */
 #define nk_define_shapes_transport_(input_type, math_type, load_and_convert)                                       \
     NUMKONG_INLINE int nk_shapes_column_first_##input_type##_serial_(void const *row_packed,                       \
                                                                      void const *column_packed) {                  \
-        nk_shapes_header_##math_type##_t const *row_header = (nk_shapes_header_##math_type##_t const *)row_packed; \
-        nk_shapes_header_##math_type##_t const *column_header =                                                    \
-            (nk_shapes_header_##math_type##_t const *)column_packed;                                               \
+        nk_shapes_packed_header_##math_type##_t const *row_header =                                                \
+            (nk_shapes_packed_header_##math_type##_t const *)row_packed;                                           \
+        nk_shapes_packed_header_##math_type##_t const *column_header =                                             \
+            (nk_shapes_packed_header_##math_type##_t const *)column_packed;                                        \
         if (row_header->points != column_header->points) return column_header->points < row_header->points;        \
         for (int axis = 0; axis != 3; ++axis)                                                                      \
             if (row_header->spreads[axis] != column_header->spreads[axis])                                         \
@@ -1184,8 +1282,10 @@ nk_define_shapes_gromov_wasserstein_(f64, serial, nk_shapes_distance_gradient_f6
         if (row_header->max_radius != column_header->max_radius)                                                   \
             return column_header->max_radius < row_header->max_radius;                                             \
         nk_size_t axis_stride;                                                                                     \
-        nk_u8_t const *row_bytes = (nk_u8_t const *)nk_shapes_axes_##input_type(row_packed, &axis_stride);         \
-        nk_u8_t const *column_bytes = (nk_u8_t const *)nk_shapes_axes_##input_type(column_packed, &axis_stride);   \
+        nk_u8_t const *row_bytes = (nk_u8_t const *)nk_shapes_packed_axes_##input_type##_serial_(row_packed,       \
+                                                                                                 &axis_stride);    \
+        nk_u8_t const *column_bytes = (nk_u8_t const *)nk_shapes_packed_axes_##input_type##_serial_(column_packed, \
+                                                                                                    &axis_stride); \
         nk_size_t const axis_bytes = axis_stride * sizeof(nk_##input_type##_t);                                    \
         nk_size_t const points_bytes = (nk_size_t)row_header->points * sizeof(nk_##input_type##_t);                \
         for (nk_size_t axis_offset = 0; axis_offset != 3 * axis_bytes; axis_offset += axis_bytes)                  \
@@ -1197,8 +1297,8 @@ nk_define_shapes_gromov_wasserstein_(f64, serial, nk_shapes_distance_gradient_f6
     NUMKONG_INLINE void nk_shapes_widen_##input_type##_serial_(void const *packed, nk_##math_type##_t *points,     \
                                                                nk_size_t points_stride) {                          \
         nk_size_t axis_stride;                                                                                     \
-        nk_##input_type##_t const *axes = nk_shapes_axes_##input_type(packed, &axis_stride);                       \
-        nk_size_t const count = (nk_size_t)((nk_shapes_header_##math_type##_t const *)packed)->points;             \
+        nk_##input_type##_t const *axes = nk_shapes_packed_axes_##input_type##_serial_(packed, &axis_stride);      \
+        nk_size_t const count = (nk_size_t)((nk_shapes_packed_header_##math_type##_t const *)packed)->points;      \
         for (int axis = 0; axis != 3; ++axis)                                                                      \
             for (nk_size_t index = 0; index != count; ++index)                                                     \
                 load_and_convert(axes + axis * axis_stride + index, points + axis * points_stride + index);        \
@@ -1207,45 +1307,67 @@ nk_define_shapes_gromov_wasserstein_(f64, serial, nk_shapes_distance_gradient_f6
 nk_define_shapes_transport_(f16, f32, nk_f16_to_f32_serial_)
 nk_define_shapes_transport_(f32, f64, nk_assign_from_to_)
 
-/** The @c _serial pack and workspace-size kernels of one input type, which every capability
- *  shares. */
-#define nk_define_shapes_(input_type, math_type)                                                                     \
-    NUMKONG_API nk_status_t nk_shapes_pack_size_##input_type##_serial(nk_size_t points, nk_size_t *bytes) {          \
-        *bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_header_##math_type##_t), nk_shapes_alignment_k) +    \
-                 3 * nk_size_round_up_to_multiple_(points * sizeof(nk_##input_type##_t), nk_shapes_alignment_k);     \
-        return nk_success_k;                                                                                         \
-    }                                                                                                                \
-    NUMKONG_API nk_status_t nk_shapes_pack_##input_type##_serial(nk_##input_type##_t const *points, nk_size_t count, \
-                                                                 void *packed, nk_stream_t stream) {                 \
-        nk_assert_(stream == NUMKONG_NULL);                                                                          \
-        nk_##math_type##_t centroid[3], covariance[6];                                                               \
-        nk_shapes_moments_##input_type##_serial_(points, count, centroid, covariance);                               \
-        nk_shapes_pack_##input_type##_serial_(points, count, centroid, covariance, 1, packed);                       \
-        return nk_success_k;                                                                                         \
-    }                                                                                                                \
-    NUMKONG_API nk_status_t nk_shapes_pack_normalized_##input_type##_serial(                                         \
-        nk_##input_type##_t const *points, nk_size_t count, void *packed, nk_stream_t stream) {                      \
-        nk_assert_(stream == NUMKONG_NULL);                                                                          \
-        nk_##math_type##_t centroid[3], covariance[6];                                                               \
-        nk_##math_type##_t const radius = nk_shapes_moments_##input_type##_serial_(points, count, centroid,          \
-                                                                                   covariance);                      \
-        nk_shapes_pack_##input_type##_serial_(points, count, centroid, covariance, radius > 0 ? radius : 1, packed); \
-        return nk_success_k;                                                                                         \
-    }                                                                                                                \
-    NUMKONG_API nk_status_t nk_shapes_wassersteinprocrustes_workspace_size_##input_type##_serial(                    \
-        nk_size_t row_points, nk_size_t column_points, nk_size_t *bytes) {                                           \
-        nk_shapes_workspace_##math_type##_serial_t views;                                                            \
-        *bytes = nk_shapes_workspace_##math_type##_serial_(row_points > column_points ? row_points : column_points,  \
-                                                           NUMKONG_NULL, &views);                                    \
-        return nk_success_k;                                                                                         \
-    }                                                                                                                \
-    NUMKONG_API nk_status_t nk_shapes_gromovwassersteins_workspace_size_##input_type##_serial(                       \
-        nk_size_t row_points, nk_size_t column_points, nk_size_t *bytes) {                                           \
-        nk_shapes_workspace_##math_type##_serial_t views;                                                            \
-        *bytes = nk_shapes_workspace_##math_type##_serial_(row_points > column_points ? row_points : column_points,  \
-                                                           NUMKONG_NULL, &views) +                                   \
-                 5 * views.matrix_stride * sizeof(nk_f64_t);                                                         \
-        return nk_success_k;                                                                                         \
+/** The @c _serial pack, pack-reading, unpack and workspace-size kernels of one input type, which
+ *  every capability shares. */
+#define nk_define_shapes_(input_type, math_type)                                                                      \
+    NUMKONG_API nk_status_t nk_shapes_pack_size_##input_type##_serial(nk_size_t points, nk_size_t *bytes) {           \
+        *bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_##math_type##_t),                       \
+                                               nk_shapes_alignment_k_) +                                              \
+                 3 * nk_size_round_up_to_multiple_(points * sizeof(nk_##input_type##_t), nk_shapes_alignment_k_);     \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_shapes_pack_##input_type##_serial(nk_##input_type##_t const *points, nk_size_t count,  \
+                                                                 void *packed, nk_stream_t stream) {                  \
+        nk_assert_(stream == NUMKONG_NULL);                                                                           \
+        nk_##math_type##_t centroid[3], covariance[6];                                                                \
+        nk_shapes_moments_##input_type##_serial_(points, count, centroid, covariance);                                \
+        nk_shapes_pack_##input_type##_serial_(points, count, centroid, covariance, 1, packed);                        \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_shapes_pack_normalized_##input_type##_serial(                                          \
+        nk_##input_type##_t const *points, nk_size_t count, void *packed, nk_stream_t stream) {                       \
+        nk_assert_(stream == NUMKONG_NULL);                                                                           \
+        nk_##math_type##_t centroid[3], covariance[6];                                                                \
+        nk_##math_type##_t const radius = nk_shapes_moments_##input_type##_serial_(points, count, centroid,           \
+                                                                                   covariance);                       \
+        nk_shapes_pack_##input_type##_serial_(points, count, centroid, covariance, radius > 0 ? radius : 1, packed);  \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_shapes_packed_shape_##input_type##_serial(                                             \
+        void const *packed, nk_size_t *points, nk_##math_type##_t *centroid, nk_##math_type##_t *frame,               \
+        nk_##math_type##_t *scale, nk_##math_type##_t *spreads, nk_##math_type##_t *max_radius, nk_stream_t stream) { \
+        nk_assert_(stream == NUMKONG_NULL);                                                                           \
+        nk_shapes_packed_header_##math_type##_t const *header =                                                       \
+            (nk_shapes_packed_header_##math_type##_t const *)packed;                                                  \
+        if (points) *points = (nk_size_t)header->points;                                                              \
+        for (int axis = 0; axis != 3; ++axis) {                                                                       \
+            if (centroid) centroid[axis] = header->centroid[axis];                                                    \
+            if (spreads) spreads[axis] = header->spreads[axis];                                                       \
+        }                                                                                                             \
+        for (int component = 0; component != 4; ++component)                                                          \
+            if (frame) frame[component] = header->frame[component];                                                   \
+        if (scale) *scale = header->scale;                                                                            \
+        if (max_radius) *max_radius = header->max_radius;                                                             \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_shapes_unpack_##input_type##_serial(void const *packed, nk_##input_type##_t *points,   \
+                                                                   nk_stream_t stream) {                              \
+        nk_assert_(stream == NUMKONG_NULL);                                                                           \
+        nk_shapes_unpack_##input_type##_serial_(packed, points);                                                      \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_wassersteinprocrustes_workspace_size_##input_type##_serial(                            \
+        nk_size_t row_points, nk_size_t column_points, nk_size_t *bytes) {                                            \
+        nk_shapes_workspace_##math_type##_serial_t views;                                                             \
+        *bytes = nk_shapes_workspace_##math_type##_serial_(row_points, column_points, NUMKONG_NULL, &views);          \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_gromovwassersteins_workspace_size_##input_type##_serial(                               \
+        nk_size_t row_points, nk_size_t column_points, nk_size_t *bytes) {                                            \
+        nk_shapes_workspace_##math_type##_serial_t views;                                                             \
+        *bytes = nk_shapes_workspace_##math_type##_serial_(row_points, column_points, NUMKONG_NULL, &views) +         \
+                 views.gromov_bytes;                                                                                  \
+        return nk_success_k;                                                                                          \
     }
 
 /** The Chamfer and Hausdorff kernels of one input type for the capability @p suffix, whose
@@ -1254,16 +1376,17 @@ nk_define_shapes_transport_(f32, f64, nk_assign_from_to_)
     NUMKONG_INLINE void nk_shapes_flips_##input_type##_##suffix##_(void const *row_packed, void const *column_packed,  \
                                                                    nk_##math_type##_t *chamfers,                       \
                                                                    nk_##math_type##_t *hausdorffs) {                   \
-        nk_size_t const rows = (nk_size_t)((nk_shapes_header_##math_type##_t const *)row_packed)->points;              \
-        nk_size_t const columns = (nk_size_t)((nk_shapes_header_##math_type##_t const *)column_packed)->points;        \
+        nk_size_t const rows = (nk_size_t)((nk_shapes_packed_header_##math_type##_t const *)row_packed)->points;       \
+        nk_size_t const columns = (nk_size_t)((nk_shapes_packed_header_##math_type##_t const *)column_packed)->points; \
         if (!rows || !columns) {                                                                                       \
             nk_##math_type##_t const distance = rows == columns ? 0 : infinity;                                        \
             for (int flip = 0; flip != 8; ++flip) chamfers[flip] = distance, hausdorffs[flip] = distance;              \
             return;                                                                                                    \
         }                                                                                                              \
         nk_size_t row_stride, column_stride;                                                                           \
-        nk_##input_type##_t const *row_axes = nk_shapes_axes_##input_type(row_packed, &row_stride);                    \
-        nk_##input_type##_t const *column_axes = nk_shapes_axes_##input_type(column_packed, &column_stride);           \
+        nk_##input_type##_t const *row_axes = nk_shapes_packed_axes_##input_type##_serial_(row_packed, &row_stride);   \
+        nk_##input_type##_t const *column_axes = nk_shapes_packed_axes_##input_type##_serial_(column_packed,           \
+                                                                                              &column_stride);         \
         nk_##math_type##_t forward_sums[8] = {0, 0, 0, 0, 0, 0, 0, 0}, forward_maxima[8] = {0, 0, 0, 0, 0, 0, 0, 0};   \
         nk_##math_type##_t backward_sums[8] = {0, 0, 0, 0, 0, 0, 0, 0}, backward_maxima[8] = {0, 0, 0, 0, 0, 0, 0, 0}; \
         nearest(row_axes, row_stride, rows, column_axes, column_stride, columns, forward_sums, forward_maxima);        \
@@ -1275,7 +1398,7 @@ nk_define_shapes_transport_(f32, f64, nk_assign_from_to_)
                                                                             : backward_maxima[flip];                   \
         }                                                                                                              \
     }                                                                                                                  \
-    NUMKONG_API nk_status_t nk_shapes_chamfers_packed_##input_type##_##suffix(                                         \
+    NUMKONG_API nk_status_t nk_chamfers_packed_##input_type##_##suffix(                                                \
         void const *const *a_packed, nk_size_t rows, void const *const *b_packed, nk_size_t columns,                   \
         nk_##math_type##_t *results, nk_size_t results_stride, nk_f32_t *rotations, nk_stream_t stream) {              \
         nk_assert_(stream == NUMKONG_NULL);                                                                            \
@@ -1292,7 +1415,7 @@ nk_define_shapes_transport_(f32, f64, nk_assign_from_to_)
         }                                                                                                              \
         return nk_success_k;                                                                                           \
     }                                                                                                                  \
-    NUMKONG_API nk_status_t nk_shapes_hausdorffs_packed_##input_type##_##suffix(                                       \
+    NUMKONG_API nk_status_t nk_hausdorffs_packed_##input_type##_##suffix(                                              \
         void const *const *a_packed, nk_size_t rows, void const *const *b_packed, nk_size_t columns,                   \
         nk_##math_type##_t *results, nk_size_t results_stride, nk_f32_t *rotations, nk_stream_t stream) {              \
         nk_assert_(stream == NUMKONG_NULL);                                                                            \
@@ -1312,8 +1435,8 @@ nk_define_shapes_transport_(f32, f64, nk_assign_from_to_)
 
 /** The Wasserstein-Procrustes and Gromov-Wasserstein kernels of one input type for the capability
  *  @p suffix, around its instantiations of the shared solvers. */
-#define nk_define_shapes_transport_kernels_(input_type, math_type, suffix, compute_sqrt, infinity)                   \
-    NUMKONG_API nk_status_t nk_shapes_wassersteinprocrustes_packed_##input_type##_##suffix(                          \
+#define nk_define_shapes_transport_kernels_(input_type, math_type, suffix, infinity)                                 \
+    NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_##input_type##_##suffix(                                 \
         void const *const *a_packed, nk_size_t rows, void const *const *b_packed, nk_size_t columns,                 \
         nk_##math_type##_t *results, nk_size_t results_stride, nk_f32_t *rotations, void *workspace,                 \
         nk_size_t workspace_bytes, nk_stream_t stream) {                                                             \
@@ -1322,21 +1445,21 @@ nk_define_shapes_transport_(f32, f64, nk_assign_from_to_)
         if ((uintptr_t)workspace & (nk_default_alignment_k - 1)) return nk_misaligned_k;                             \
         nk_size_t const row_points = nk_shapes_largest_cloud_##math_type##_serial_(a_packed, rows);                  \
         nk_size_t const column_points = nk_shapes_largest_cloud_##math_type##_serial_(b_packed, columns);            \
-        nk_size_t const points = row_points > column_points ? row_points : column_points;                            \
         nk_shapes_workspace_##math_type##_serial_t views;                                                            \
-        if (workspace_bytes < nk_shapes_workspace_##math_type##_serial_(points, NUMKONG_NULL, &views))               \
+        if (workspace_bytes <                                                                                        \
+            nk_shapes_workspace_##math_type##_serial_(row_points, column_points, NUMKONG_NULL, &views))              \
             return nk_unexpected_dimensions_k;                                                                       \
-        nk_shapes_workspace_##math_type##_serial_(points, (nk_u8_t *)workspace, &views);                             \
+        nk_shapes_workspace_##math_type##_serial_(row_points, column_points, (nk_u8_t *)workspace, &views);          \
         for (nk_size_t row = 0; row != rows; ++row) {                                                                \
             nk_##math_type##_t *results_row = (nk_##math_type##_t *)((char *)results + row * results_stride);        \
             for (nk_size_t column = 0; column != columns; ++column) {                                                \
                 int const swapped = nk_shapes_column_first_##input_type##_serial_(a_packed[row], b_packed[column]);  \
                 void const *row_packed = swapped ? b_packed[column] : a_packed[row];                                 \
                 void const *column_packed = swapped ? a_packed[row] : b_packed[column];                              \
-                nk_shapes_header_##math_type##_t const *row_header =                                                 \
-                    (nk_shapes_header_##math_type##_t const *)row_packed;                                            \
-                nk_shapes_header_##math_type##_t const *column_header =                                              \
-                    (nk_shapes_header_##math_type##_t const *)column_packed;                                         \
+                nk_shapes_packed_header_##math_type##_t const *row_header =                                          \
+                    (nk_shapes_packed_header_##math_type##_t const *)row_packed;                                     \
+                nk_shapes_packed_header_##math_type##_t const *column_header =                                       \
+                    (nk_shapes_packed_header_##math_type##_t const *)column_packed;                                  \
                 nk_size_t const solved_rows = (nk_size_t)row_header->points;                                         \
                 nk_size_t const solved_columns = (nk_size_t)column_header->points;                                   \
                 nk_##math_type##_t inner[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1},                                           \
@@ -1347,8 +1470,9 @@ nk_define_shapes_transport_(f32, f64, nk_assign_from_to_)
                     nk_shapes_widen_##input_type##_serial_(row_packed, views.row_points, views.points_stride);       \
                     nk_shapes_widen_##input_type##_serial_(column_packed, views.column_points, views.points_stride); \
                     nk_##math_type##_t const radii = row_header->max_radius + column_header->max_radius;             \
-                    results_row[column] = compute_sqrt(nk_shapes_wasserstein_procrustes_##math_type##_##suffix##_(   \
-                        &views, solved_rows, solved_columns, radii * radii, inner));                                 \
+                    results_row[column] = nk_sqrt_##math_type##_serial_(                                             \
+                        nk_shapes_wasserstein_procrustes_##math_type##_##suffix##_(                                  \
+                            &views, solved_rows, solved_columns, radii * radii, inner));                             \
                     nk_shapes_rotation_##math_type##_serial_(row_header->frame, inner, column_header->frame,         \
                                                              pair_rotation);                                         \
                 }                                                                                                    \
@@ -1360,7 +1484,7 @@ nk_define_shapes_transport_(f32, f64, nk_assign_from_to_)
         }                                                                                                            \
         return nk_success_k;                                                                                         \
     }                                                                                                                \
-    NUMKONG_API nk_status_t nk_shapes_gromovwassersteins_packed_##input_type##_##suffix(                             \
+    NUMKONG_API nk_status_t nk_gromovwassersteins_packed_##input_type##_##suffix(                                    \
         void const *const *a_packed, nk_size_t rows, void const *const *b_packed, nk_size_t columns,                 \
         nk_##math_type##_t *results, nk_size_t results_stride, nk_f32_t *rotations, void *workspace,                 \
         nk_size_t workspace_bytes, nk_stream_t stream) {                                                             \
@@ -1369,17 +1493,17 @@ nk_define_shapes_transport_(f32, f64, nk_assign_from_to_)
         if ((uintptr_t)workspace & (nk_default_alignment_k - 1)) return nk_misaligned_k;                             \
         nk_size_t const row_points = nk_shapes_largest_cloud_##math_type##_serial_(a_packed, rows);                  \
         nk_size_t const column_points = nk_shapes_largest_cloud_##math_type##_serial_(b_packed, columns);            \
-        nk_size_t const points = row_points > column_points ? row_points : column_points;                            \
         nk_shapes_workspace_##math_type##_serial_t views;                                                            \
-        nk_size_t const transport_bytes = nk_shapes_workspace_##math_type##_serial_(points, NUMKONG_NULL, &views);   \
-        if (workspace_bytes < transport_bytes + 5 * views.matrix_stride * sizeof(nk_f64_t))                          \
-            return nk_unexpected_dimensions_k;                                                                       \
-        nk_shapes_workspace_##math_type##_serial_(points, (nk_u8_t *)workspace, &views);                             \
-        nk_f64_t *cached_distances = views.matrices, *pair_distances = views.matrices + views.matrix_stride;         \
+        nk_size_t const transport_bytes = nk_shapes_workspace_##math_type##_serial_(row_points, column_points,       \
+                                                                                    NUMKONG_NULL, &views);           \
+        if (workspace_bytes < transport_bytes + views.gromov_bytes) return nk_unexpected_dimensions_k;               \
+        nk_shapes_workspace_##math_type##_serial_(row_points, column_points, (nk_u8_t *)workspace, &views);          \
+        nk_f64_t *cached_distances = views.matrices + 3 * views.matrix_stride;                                       \
         for (nk_size_t row = 0; row != rows; ++row) {                                                                \
             nk_##math_type##_t *results_row = (nk_##math_type##_t *)((char *)results + row * results_stride);        \
             nk_size_t const cached_points =                                                                          \
-                (nk_size_t)((nk_shapes_header_##math_type##_t const *)a_packed[row])->points;                        \
+                (nk_size_t)((nk_shapes_packed_header_##math_type##_t const *)a_packed[row])->points;                 \
+            nk_f64_t *pair_distances = cached_distances + cached_points * cached_points;                             \
             nk_shapes_widen_##input_type##_serial_(a_packed[row], views.row_points, views.points_stride);            \
             nk_shapes_distances_##math_type##_##suffix##_(views.row_points, cached_points, views.points_stride,      \
                                                           cached_distances);                                         \
@@ -1387,10 +1511,10 @@ nk_define_shapes_transport_(f32, f64, nk_assign_from_to_)
                 int const swapped = nk_shapes_column_first_##input_type##_serial_(a_packed[row], b_packed[column]);  \
                 void const *row_packed = swapped ? b_packed[column] : a_packed[row];                                 \
                 void const *column_packed = swapped ? a_packed[row] : b_packed[column];                              \
-                nk_shapes_header_##math_type##_t const *row_header =                                                 \
-                    (nk_shapes_header_##math_type##_t const *)row_packed;                                            \
-                nk_shapes_header_##math_type##_t const *column_header =                                              \
-                    (nk_shapes_header_##math_type##_t const *)column_packed;                                         \
+                nk_shapes_packed_header_##math_type##_t const *row_header =                                          \
+                    (nk_shapes_packed_header_##math_type##_t const *)row_packed;                                     \
+                nk_shapes_packed_header_##math_type##_t const *column_header =                                       \
+                    (nk_shapes_packed_header_##math_type##_t const *)column_packed;                                  \
                 nk_size_t const solved_rows = (nk_size_t)row_header->points;                                         \
                 nk_size_t const solved_columns = (nk_size_t)column_header->points;                                   \
                 nk_##math_type##_t inner[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1},                                           \
@@ -1438,8 +1562,8 @@ nk_define_shapes_(f16, f32)
 nk_define_shapes_(f32, f64)
 nk_define_shapes_flip_kernels_(f16, f32, serial, nk_shapes_nearest_f16_serial_, NUMKONG_F32_INF)
 nk_define_shapes_flip_kernels_(f32, f64, serial, nk_shapes_nearest_f32_serial_, NUMKONG_F64_INF)
-nk_define_shapes_transport_kernels_(f16, f32, serial, nk_sqrt_f32_serial_, NUMKONG_F32_INF)
-nk_define_shapes_transport_kernels_(f32, f64, serial, nk_sqrt_f64_serial_, NUMKONG_F64_INF)
+nk_define_shapes_transport_kernels_(f16, f32, serial, NUMKONG_F32_INF)
+nk_define_shapes_transport_kernels_(f32, f64, serial, NUMKONG_F64_INF)
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -1448,7 +1572,7 @@ nk_define_shapes_transport_kernels_(f32, f64, serial, nk_sqrt_f64_serial_, NUMKO
 #endif
 #endif // NUMKONG_TARGET_SERIAL
 
-/*  The solver and kernel macros stay defined, as each SIMD backend instantiates them. */
+/*  The solver and kernel macros stay defined, as each capability instantiates them. */
 #undef NUMKONG_F32_SVD_GAMMA_
 #undef NUMKONG_F32_SVD_CSTAR_
 #undef NUMKONG_F32_SVD_SSTAR_
@@ -1495,4 +1619,4 @@ nk_define_shapes_transport_kernels_(f32, f64, serial, nk_sqrt_f64_serial_, NUMKO
 } // extern "C"
 #endif
 
-#endif // NUMKONG_MESHES_SERIAL_H
+#endif // NUMKONG_SHAPES_SERIAL_H

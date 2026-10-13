@@ -600,7 +600,7 @@ if (NUMKONG_BUILD_BENCH)
     add_executable(
         numkong_bench
         bench/main.cpp bench/dot.cpp bench/spatial.cpp bench/set.cpp bench/curved.cpp bench/probability.cpp
-        bench/each.cpp bench/trigonometry.cpp bench/geospatial.cpp bench/meshes.cpp bench/sparse.cpp bench/cast.cpp
+        bench/each.cpp bench/trigonometry.cpp bench/geospatial.cpp bench/shapes.cpp bench/sparse.cpp bench/cast.cpp
         bench/reduce.cpp
         # ISA-family cross/batch files for parallel compilation
         bench/cross_serial.cpp bench/cross_x8664.cpp bench/cross_arm64.cpp bench/cross_blas.cpp bench/cross_riscv64.cpp
@@ -662,7 +662,7 @@ set(NUMKONG_LIBRARY_UNITS_
     c/dispatch/curved.c
     c/dispatch/probability.c
     c/dispatch/geospatial.c
-    c/dispatch/meshes.c
+    c/dispatch/shapes.c
     c/target/serial.c
     c/target/haswell.c
     c/target/alder.c
@@ -703,7 +703,7 @@ set(NUMKONG_LIBRARY_UNITS_
 # Build tests
 set(NUMKONG_TEST_SOURCES_
     test/main_cpu.cpp test/dot.cpp test/spatial.cpp test/set.cpp test/curved.cpp test/probability.cpp test/each.cpp
-    test/trigonometry.cpp test/geospatial.cpp test/meshes.cpp test/cast.cpp test/reduce.cpp test/sparse.cpp
+    test/trigonometry.cpp test/geospatial.cpp test/shapes.cpp test/cast.cpp test/reduce.cpp test/sparse.cpp
     # ISA-family cross/batch files for parallel compilation
     test/cross_serial.cpp test/cross_x8664.cpp test/cross_arm64.cpp test/cross_blas.cpp test/cross_riscv64.cpp
     test/cross_ppc64.cpp test/cross_loongarch64.cpp test/cross_wasm.cpp test/maxsim.cpp test/tensor.cpp
@@ -913,7 +913,7 @@ if (NUMKONG_BUILD_PYTHON)
     find_package(OpenMP COMPONENTS C)
     python_add_library(
         numkong_python MODULE WITH_SOABI python/numkong.c python/tensor.c python/matrix.c python/types.c
-        python/distance.c python/each.c python/trigonometry.c python/meshes.c python/attention.c python/maxsim.c
+        python/distance.c python/each.c python/trigonometry.c python/shapes.c python/attention.c python/maxsim.c
         python/numpy_interop.c python/dlpack_interop.c c/parallel.c
     )
     set_target_properties(numkong_python PROPERTIES OUTPUT_NAME "_numkong" C_STANDARD 11 C_EXTENSIONS OFF)

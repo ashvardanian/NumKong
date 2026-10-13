@@ -74,7 +74,7 @@ Each benchmark prints one line: its name, calls per second, and its counters.
 | `NUMWARS_DIMS_WIDTH`           |   `128` | GEMM N dimension, query count in kNN                                                |
 | `NUMWARS_DIMS_DEPTH`           |  `1536` | GEMM K dimension, vector dimension in kNN                                           |
 | `NUMKONG_CURVED_DIMS`          |    `64` | Vector dimension for curved / bilinear form benchmarks                              |
-| `NUMKONG_SHAPE_POINTS`         |    `64` | Points per cloud for shape benchmarks                                               |
+| `NUMKONG_SHAPE_POINTS`         |    `32` | Points per cloud for shape benchmarks                                               |
 | `NUMKONG_SPARSE_FIRST_LENGTH`  |  `1024` | First set size for sparse benchmarks                                                |
 | `NUMKONG_SPARSE_SECOND_LENGTH` |  `8192` | Second set size for sparse benchmarks                                               |
 | `NUMKONG_SPARSE_INTERSECTION`  |   `0.5` | Intersection share in (0, 1] for sparse benchmarks                                  |

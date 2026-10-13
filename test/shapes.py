@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Test the many-to-many shape distances: nk.shapes_pack and the nk.shapes_*_packed kinds.
+"""Test the many-to-many shape distances: nk.shapes_pack and the nk.*_packed kinds.
 
 DTypes: float32, float16.
 Baselines: SciPy nearest-partner, assignment and linear-program references, RDKit best RMS, POT.
-Matches C++ suite: test/meshes.cpp.
+Matches C++ suite: test/shapes.cpp.
 
-File: test/meshes.py
+File: test/shapes.py
 Author: Ash Vardanian
 Date: February 27, 2026
 """
@@ -61,24 +61,23 @@ try:
 except ImportError:
     pot_available = False
 
+requires_numpy = pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 requires_scipy = pytest.mark.skipif(not (numpy_available and scipy_available), reason="NumPy or SciPy is not installed")
 
 KINDS: dict[str, Callable] = {
-    "chamfers": nk.shapes_chamfers_packed,
-    "hausdorffs": nk.shapes_hausdorffs_packed,
-    "wassersteinprocrustes": nk.shapes_wassersteinprocrustes_packed,
-    "gromovwassersteins": nk.shapes_gromovwassersteins_packed,
+    "chamfers": nk.chamfers_packed,
+    "hausdorffs": nk.hausdorffs_packed,
+    "wassersteinprocrustes": nk.wassersteinprocrustes_packed,
+    "gromovwassersteins": nk.gromovwassersteins_packed,
 }
 
 FLIP_SIGNS = [tuple(-1.0 if flip >> axis & 1 else 1.0 for axis in range(3)) for flip in range(8)]
 """The axis signs of flip `s`, negating principal axis `k` when bit `k` is set."""
 PROPER_FLIPS = (0, 3, 5, 6)
 """The flips that are rotations, the rest being reflections."""
-PACKED_TOLERANCES = {"float32": (1e-12, 1e-11), "float16": (1e-5, 2e-5)}
-"""The `(atol, rtol)` of values computed from the same packed points: in float64 for float32 packs, where
-the worst seen is 6e-15 relative, and in float32 for float16 packs, where it is 4e-6 relative."""
 INPUT_TOLERANCES = {"float32": 1e-5, "float16": 3e-2}
-"""The absolute error of values that also see the inputs rounded to the pack dtype, worst seen 1e-6 and 1.6e-2."""
+"""The absolute error of values that also see points rounded to the pack dtype, the inputs worst seen at 1e-6
+and 1.6e-2, or the unpacked points that `packed_coordinates` poses back."""
 DISTANCE_DTYPES = {"float32": np.float64, "float16": np.float32} if numpy_available else {}
 
 
@@ -96,9 +95,19 @@ def random_rotation(generator: np.random.Generator) -> np.ndarray:
     return orthogonal
 
 
-def packed_coordinates(packed: nk.ShapesPacked) -> list[np.ndarray]:
-    """The packed points of every cloud, widened to float64."""
-    return [np.asarray(packed.coordinates(index)).astype(np.float64) for index in range(len(packed))]
+def packed_coordinates(packed: nk.ShapesPackedMatrix) -> list[np.ndarray]:
+    """The packed points of every cloud in float64, posed back from its unpacked points x as x′ = Q (x − c) / scale."""
+    poses = zip(*(np.asarray(array, dtype=np.float64) for array in (packed.frames, packed.centroids, packed.scales)))
+    clouds = []
+    for index, (frame, centroid, scale) in enumerate(poses):
+        points = np.asarray(packed.unpack(index), dtype=np.float64)
+        clouds.append((points - centroid) @ Rotation.from_quat(frame).as_matrix().T / scale)
+    return clouds
+
+
+def rotations_buffer(a_packed: nk.ShapesPackedMatrix, b_packed: nk.ShapesPackedMatrix) -> np.ndarray:
+    """A NaN-filled `rotations=` output for every pair of `a_packed` and `b_packed`."""
+    return np.full((len(a_packed), len(b_packed), 3, 3), np.nan, dtype=np.float32)
 
 
 def reference_chamfer(a: np.ndarray, b: np.ndarray) -> float:
@@ -208,15 +217,14 @@ def reference_gromovwasserstein(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def check_against_reference(stats, capabilities, kind: str, dtype: str, a_packed, b_packed, reference) -> None:
-    """Scores every cloud pair with `kind` and compares each distance to `reference` on the packed points."""
+    """Scores every cloud pair with `kind` and compares each distance to `reference` on the posed-back packed points."""
     result_ns, distances = timed_call(KINDS[kind], a_packed, b_packed, capabilities=capabilities)
     distances = np.asarray(distances)
     assert distances.dtype == DISTANCE_DTYPES[dtype]
     a_clouds, b_clouds = packed_coordinates(a_packed), packed_coordinates(b_packed)
     accurate_ns, expected = timed_call(lambda: np.array([[reference(a, b) for b in b_clouds] for a in a_clouds]))
-    atol, rtol = PACKED_TOLERANCES[dtype]
-    assert_allclose(distances, expected, atol=atol, rtol=rtol, err_msg=kind)
-    points = int(np.asarray(a_packed.points).max())
+    assert_allclose(distances, expected, atol=INPUT_TOLERANCES[dtype], rtol=0, err_msg=kind)
+    points = max(a_packed[index].points for index in range(len(a_packed)))
     capability = capabilities.name.lower().replace("|", "+")
     collect_errors(
         kind, points, dtype, expected, accurate_ns, None, 0, distances, result_ns, stats, capability=capability
@@ -285,22 +293,20 @@ def test_gromovwassersteins(stats, capabilities, dtype: str, np_rng: np.random.G
 
 @requires_scipy
 def test_wassersteinprocrustes_equals_kabsch(capabilities, np_rng: np.random.Generator):
-    """With a known correspondence, Wasserstein-Procrustes is the Kabsch RMSD and returns its rotation."""
+    """When the known correspondence is the optimal plan, Wasserstein-Procrustes is the Kabsch RMSD and
+    returns its rotation."""
     a = random_cloud(np_rng, 32)
     # Noise far below the spacing between points keeps the correspondence the optimal plan
     b = (a + np_rng.normal(scale=0.01, size=a.shape)) @ random_rotation(np_rng) + np_rng.normal(size=3)
-    distances, rotations = nk.shapes_wassersteinprocrustes_packed(
-        nk.shapes_pack(a, dtype="float32"),
-        nk.shapes_pack(b, dtype="float32"),
-        rotations=True,
-        capabilities=capabilities,
-    )
+    a_packed, b_packed = nk.shapes_pack(a, dtype="float32"), nk.shapes_pack(b, dtype="float32")
+    rotations = rotations_buffer(a_packed, b_packed)
+    distances = nk.wassersteinprocrustes_packed(a_packed, b_packed, rotations=rotations, capabilities=capabilities)
     rotation, root_sum_squares = Rotation.align_vectors(a - a.mean(axis=0), b - b.mean(axis=0))
     assert_allclose(float(np.asarray(distances)[0, 0]), root_sum_squares / math.sqrt(len(a)), atol=0, rtol=2e-5)
-    assert_allclose(np.asarray(rotations)[0, 0], rotation.as_matrix(), atol=1e-6, rtol=0)
+    assert_allclose(rotations[0, 0], rotation.as_matrix(), atol=1e-6, rtol=0)
 
 
-@requires_scipy
+@requires_numpy
 @pytest.mark.skipif(not rdkit_available, reason="RDKit is not installed")
 def test_wassersteinprocrustes_below_rdkit_best_rms(capabilities, np_rng: np.random.Generator):
     """No atom mapping RDKit's symmetry-aware best RMS tries beats the optimal transport plan."""
@@ -313,7 +319,7 @@ def test_wassersteinprocrustes_below_rdkit_best_rms(capabilities, np_rng: np.ran
     for atom, point in enumerate(perturbed):
         probe.GetConformer().SetAtomPosition(atom, Point3D(*point))
     best_rms = rdMolAlign.GetBestRMS(probe, molecule)
-    distances = nk.shapes_wassersteinprocrustes_packed(
+    distances = nk.wassersteinprocrustes_packed(
         nk.shapes_pack(reference, dtype="float32"),
         nk.shapes_pack(perturbed, dtype="float32"),
         capabilities=capabilities,
@@ -327,7 +333,7 @@ def test_gromovwassersteins_against_pot(capabilities, np_rng: np.random.Generato
     """On shuffled noisy copies, the Wasserstein-Procrustes starts end no worse than POT's product start."""
     a = random_cloud(np_rng, 12)
     b = (a + np_rng.normal(scale=0.02, size=a.shape))[np_rng.permutation(12)] @ random_rotation(np_rng)
-    distances = nk.shapes_gromovwassersteins_packed(
+    distances = nk.gromovwassersteins_packed(
         nk.shapes_pack(a, dtype="float32"), nk.shapes_pack(b, dtype="float32"), capabilities=capabilities
     )
     weights = np.full(12, 1.0 / 12)
@@ -335,21 +341,21 @@ def test_gromovwassersteins_against_pot(capabilities, np_rng: np.random.Generato
     assert float(np.asarray(distances)[0, 0]) <= 0.5 * math.sqrt(max(loss, 0.0)) + 1e-6
 
 
-@requires_scipy
+@requires_numpy
 @pytest.mark.parametrize("kind", list(KINDS))
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 def test_swapped_sides_transpose(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
     """Swapping the sides transposes the distances bit for bit and the rotations with them."""
     a_packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (5, 9, 0)], dtype=dtype)
     b_packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (8, 0, 6, 9)], dtype=dtype)
-    forward, forward_rotations = KINDS[kind](a_packed, b_packed, rotations=True, capabilities=capabilities)
-    backward, backward_rotations = KINDS[kind](b_packed, a_packed, rotations=True, capabilities=capabilities)
+    forward_rotations, backward_rotations = rotations_buffer(a_packed, b_packed), rotations_buffer(b_packed, a_packed)
+    forward = KINDS[kind](a_packed, b_packed, rotations=forward_rotations, capabilities=capabilities)
+    backward = KINDS[kind](b_packed, a_packed, rotations=backward_rotations, capabilities=capabilities)
     np.testing.assert_array_equal(np.asarray(forward), np.asarray(backward).T)
-    swapped_rotations = np.asarray(backward_rotations).transpose(1, 0, 3, 2)
-    np.testing.assert_array_equal(np.asarray(forward_rotations), swapped_rotations)
+    np.testing.assert_array_equal(forward_rotations, backward_rotations.transpose(1, 0, 3, 2))
 
 
-@requires_scipy
+@requires_numpy
 @pytest.mark.parametrize("kind", list(KINDS))
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 def test_rigid_motions_preserve_distances(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
@@ -362,7 +368,7 @@ def test_rigid_motions_preserve_distances(capabilities, kind: str, dtype: str, n
     assert_allclose(np.asarray(rigid), np.asarray(original), atol=INPUT_TOLERANCES[dtype], rtol=0)
 
 
-@requires_scipy
+@requires_numpy
 @pytest.mark.parametrize("kind", list(KINDS))
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 def test_rotations_superpose_rigid_copies(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
@@ -371,14 +377,15 @@ def test_rotations_superpose_rigid_copies(capabilities, kind: str, dtype: str, n
     order = np_rng.permutation(11)
     b = a[order] @ random_rotation(np_rng) + np_rng.normal(scale=3.0, size=3)
     a_packed, b_packed = nk.shapes_pack(a, dtype=dtype), nk.shapes_pack(b, dtype=dtype)
-    distances, rotations = KINDS[kind](a_packed, b_packed, rotations=True, capabilities=capabilities)
+    rotations = rotations_buffer(a_packed, b_packed)
+    distances = KINDS[kind](a_packed, b_packed, rotations=rotations, capabilities=capabilities)
     assert_allclose(float(np.asarray(distances)[0, 0]), 0.0, atol=INPUT_TOLERANCES[dtype], rtol=0)
     a_centroid, b_centroid = np.asarray(a_packed.centroids)[0], np.asarray(b_packed.centroids)[0]
-    superposed = (b - b_centroid) @ np.asarray(rotations)[0, 0].T.astype(np.float64) + a_centroid
+    superposed = (b - b_centroid) @ rotations[0, 0].T.astype(np.float64) + a_centroid
     assert_allclose(superposed, a[order], atol=INPUT_TOLERANCES[dtype], rtol=0)
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@requires_numpy
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 def test_normalized_packs_ignore_size(capabilities, dtype: str, np_rng: np.random.Generator):
     """Normalized packs keep each RMS radius as the scale, and every kind scores a cloud about zero against
@@ -397,45 +404,63 @@ def test_normalized_packs_ignore_size(capabilities, dtype: str, np_rng: np.rando
         assert float(np.asarray(kernel(*plain, capabilities=capabilities))[0, 0]) > tolerance * scales[1], kind
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@requires_numpy
 @pytest.mark.parametrize("kind", list(KINDS))
 def test_empty_clouds(capabilities, kind: str, np_rng: np.random.Generator):
     """Two empty clouds are 0 apart, an empty and a non-empty one infinitely, with identity rotations."""
     packed = nk.shapes_pack([np.zeros((0, 3)), random_cloud(np_rng, 4)])
-    distances, rotations = KINDS[kind](packed, packed, rotations=True, capabilities=capabilities)
-    distances = np.asarray(distances)
+    rotations = rotations_buffer(packed, packed)
+    distances = np.asarray(KINDS[kind](packed, packed, rotations=rotations, capabilities=capabilities))
     assert distances[0, 0] == 0.0
     assert math.isinf(distances[0, 1]) and math.isinf(distances[1, 0])
     for row, column in ((0, 0), (0, 1), (1, 0)):
-        np.testing.assert_array_equal(np.asarray(rotations)[row, column], np.eye(3, dtype=np.float32))
+        np.testing.assert_array_equal(rotations[row, column], np.eye(3, dtype=np.float32))
 
 
 @requires_scipy
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
-def test_pack_headers(dtype: str, np_rng: np.random.Generator):
-    """The header recovers every input point through the frame, and the spreads are the packed moments."""
+def test_packed_poses(dtype: str, np_rng: np.random.Generator):
+    """The centroids are the input means, the frames unit quaternions, and the spreads and radii the moments
+    and norms of the packed points, the spreads also within a relative tolerance as squared lengths."""
     clouds = [random_cloud(np_rng, points) + np_rng.normal(scale=4.0, size=3) for points in (13, 1, 40)]
     packed = nk.shapes_pack(clouds, dtype=dtype)
-    np.testing.assert_array_equal(np.asarray(packed.points), [13, 1, 40])
-    header_dtype = DISTANCE_DTYPES[dtype]
-    centroids, frames, spreads = (np.asarray(array) for array in (packed.centroids, packed.frames, packed.spreads))
-    assert (centroids.shape, frames.shape, spreads.shape) == ((3, 3), (3, 4), (3, 3))
-    assert centroids.dtype == frames.dtype == spreads.dtype == header_dtype
-    input_tolerance, (packed_atol, packed_rtol) = INPUT_TOLERANCES[dtype], PACKED_TOLERANCES[dtype]
-    for cloud, coordinates, centroid, frame, spread in zip(
-        clouds, packed_coordinates(packed), centroids, frames, spreads
+    assert [packed[index].points for index in range(3)] == [13, 1, 40]
+    field_dtype = DISTANCE_DTYPES[dtype]
+    centroids, frames, spreads, max_radii = (
+        np.asarray(array) for array in (packed.centroids, packed.frames, packed.spreads, packed.max_radii)
+    )
+    assert (centroids.shape, frames.shape, spreads.shape, max_radii.shape) == ((3, 3), (3, 4), (3, 3), (3,))
+    assert centroids.dtype == frames.dtype == spreads.dtype == max_radii.dtype == field_dtype
+    tolerance = INPUT_TOLERANCES[dtype]
+    for cloud, coordinates, centroid, frame, spread, max_radius in zip(
+        clouds, packed_coordinates(packed), centroids, frames, spreads, max_radii
     ):
-        assert_allclose(centroid, cloud.mean(axis=0), atol=input_tolerance, rtol=0)
+        assert_allclose(centroid, cloud.mean(axis=0), atol=tolerance, rtol=0)
         assert_allclose(np.linalg.norm(frame), 1.0, atol=1e-12 if dtype == "float32" else 1e-6, rtol=0)
-        principal_axes = Rotation.from_quat(frame.astype(np.float64)).as_matrix()
-        recovered = coordinates @ principal_axes + centroid
-        assert_allclose(recovered, cloud, atol=input_tolerance, rtol=0)
         moments = np.sort(np.linalg.eigvalsh(coordinates.T @ coordinates / len(coordinates)))[::-1]
-        assert_allclose(spread, moments, atol=packed_atol, rtol=packed_rtol)
+        assert_allclose(spread, moments, atol=tolerance, rtol=tolerance)
         assert np.all(np.diff(spread) <= 0)
+        assert_allclose(max_radius, np.linalg.norm(coordinates, axis=1).max(), atol=tolerance, rtol=0)
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@requires_numpy
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+def test_unpack_round_trips(dtype: str, np_rng: np.random.Generator):
+    """Unpacking returns every input point in the pack dtype within storage rounding, and normalized packs
+    return them at their original scale."""
+    clouds = [random_cloud(np_rng, points) + np_rng.normal(scale=4.0, size=3) for points in (13, 1, 0)]
+    for pack in (nk.shapes_pack, nk.shapes_pack_normalized):
+        packed = pack(clouds, dtype=dtype)
+        for index, cloud in enumerate(clouds[:2]):
+            unpacked = np.asarray(packed.unpack(index))
+            assert unpacked.dtype == np.dtype(dtype)
+            assert_allclose(unpacked, cloud, atol=INPUT_TOLERANCES[dtype], rtol=0)
+        assert packed.unpack(-1).shape == (0, 3)
+        with pytest.raises(IndexError):
+            packed.unpack(3)
+
+
+@requires_numpy
 def test_pack_dtypes(np_rng: np.random.Generator):
     """float16 input packs as float16, anything else as float32, unless `dtype` says otherwise."""
     cloud = random_cloud(np_rng, 6)
@@ -444,41 +469,39 @@ def test_pack_dtypes(np_rng: np.random.Generator):
     assert nk.shapes_pack(cloud.astype(np.float32), dtype="float16").dtype == "float16"
     assert nk.shapes_pack([cloud.astype(np.float16), cloud], dtype="float32").dtype == "float32"
     strided = np.repeat(cloud, 2, axis=0)[::2]
-    np.testing.assert_array_equal(
-        np.asarray(nk.shapes_pack(strided).coordinates(0)), np.asarray(nk.shapes_pack(cloud).coordinates(0))
-    )
+    strided_packed, contiguous_packed = nk.shapes_pack(strided), nk.shapes_pack(cloud)
+    np.testing.assert_array_equal(np.asarray(strided_packed.unpack(0)), np.asarray(contiguous_packed.unpack(0)))
     for dtype, distance_dtype in DISTANCE_DTYPES.items():
         packed = nk.shapes_pack(cloud, dtype=dtype)
-        distances, rotations = nk.shapes_chamfers_packed(packed, packed, rotations=True)
-        assert np.asarray(distances).dtype == distance_dtype and np.asarray(distances).shape == (1, 1)
-        assert np.asarray(rotations).dtype == np.float32 and np.asarray(rotations).shape == (1, 1, 3, 3)
+        distances = np.asarray(nk.chamfers_packed(packed, packed))
+        assert distances.dtype == distance_dtype and distances.shape == (1, 1)
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@requires_numpy
 def test_packed_views(np_rng: np.random.Generator):
     """Indexing and slicing make views over the same packs that outlive the packed set."""
     clouds = [random_cloud(np_rng, points) for points in (3, 5, 8, 13, 21)]
     packed = nk.shapes_pack(clouds)
-    assert len(packed) == packed.count == 5
-    assert packed.nbytes % 64 == 0 and packed.nbytes > 0
+    assert len(packed) == packed.clouds == 5
+    assert packed.shape == (5, packed.points) == (5, 50)
+    assert packed.nbytes == sum(nk.ShapesPackedMatrix.pack_size(len(cloud), dtype="float32") for cloud in clouds)
+    assert packed.nbytes == sum(packed[index].nbytes for index in range(5))
     every_other = packed[::2]
-    assert len(every_other) == 3
-    np.testing.assert_array_equal(np.asarray(every_other.points), [3, 8, 21])
-    np.testing.assert_array_equal(np.asarray(packed[-1].coordinates(0)), np.asarray(packed.coordinates(4)))
-    assert sum(packed[index].nbytes for index in range(5)) == packed.nbytes
-    expected = np.asarray(nk.shapes_chamfers_packed(packed, packed))[::2, 2::2]
+    assert every_other.shape == (3, 3 + 8 + 21)
+    np.testing.assert_array_equal(np.asarray(packed[-1].unpack(0)), np.asarray(every_other.unpack(-1)))
+    expected = np.asarray(nk.chamfers_packed(packed, packed))[::2, 2::2]
     del packed
     gc.collect()
-    np.testing.assert_array_equal(np.asarray(nk.shapes_chamfers_packed(every_other, every_other[1:])), expected)
+    np.testing.assert_array_equal(np.asarray(nk.chamfers_packed(every_other, every_other[1:])), expected)
     with pytest.raises(IndexError):
         every_other[3]
     with pytest.raises(IndexError):
-        every_other.coordinates(-4)
+        every_other[-4]
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@requires_numpy
 def test_shapes_errors(np_rng: np.random.Generator):
-    """Malformed clouds, dtypes and operands raise before any kernel runs."""
+    """Malformed clouds, dtypes, operands and rotation buffers raise before any kernel runs."""
     cloud = random_cloud(np_rng, 4)
     with pytest.raises(ValueError):
         nk.shapes_pack(cloud[:, :2])
@@ -488,8 +511,18 @@ def test_shapes_errors(np_rng: np.random.Generator):
         nk.shapes_pack([cloud, "points"])
     half, single = nk.shapes_pack(cloud, dtype="float16"), nk.shapes_pack(cloud, dtype="float32")
     with pytest.raises(TypeError):
-        nk.shapes_chamfers_packed(half, single)
+        nk.chamfers_packed(half, single)
     with pytest.raises(TypeError):
-        nk.shapes_hausdorffs_packed(single, cloud)
+        nk.hausdorffs_packed(single, cloud)
     with pytest.raises(TypeError):
-        nk.shapes_wassersteinprocrustes_packed(single, single, True)
+        nk.wassersteinprocrustes_packed(single, single, True)
+    with pytest.raises(ValueError):
+        nk.chamfers_packed(single, single, rotations=np.zeros((1, 1, 3, 3)))
+    with pytest.raises(ValueError):
+        nk.chamfers_packed(single, single, rotations=np.zeros((1, 2, 3, 3), dtype=np.float32))
+    with pytest.raises(ValueError):
+        nk.chamfers_packed(single, single, rotations=np.zeros((1, 1, 3, 6), dtype=np.float32)[..., ::2])
+    read_only = np.zeros((1, 1, 3, 3), dtype=np.float32)
+    read_only.flags.writeable = False
+    with pytest.raises(BufferError):
+        nk.chamfers_packed(single, single, rotations=read_only)

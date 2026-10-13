@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/meshes.hpp
+ *  @file include/numkong/shapes.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief C++ bindings for many-to-many shape distances.
@@ -12,11 +12,12 @@
  *  std::span<nk::f32_t const> clouds[] = {first_cloud, second_cloud};
  *  auto [packs, status] = nk::shapes_packed<nk::f32_t>::make(clouds);
  *  nk::f64_t distances[4];
- *  status = nk::chamfers<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t), nullptr);
+ *  status = nk::chamfers_packed<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t),
+ *                                          nullptr);
  *  @endcode
  */
-#ifndef NUMKONG_MESHES_HPP
-#define NUMKONG_MESHES_HPP
+#ifndef NUMKONG_SHAPES_HPP
+#define NUMKONG_SHAPES_HPP
 
 #include <cstdint> // `std::uint32_t`, `std::uintptr_t`
 #include <cstring> // `std::memcpy`, `std::memset`, `std::memcmp`
@@ -26,8 +27,9 @@
 #include <type_traits> // `std::conditional_t`
 #include <utility>     // `std::exchange`, `std::swap`
 
-#include "numkong/meshes.h"
-#include "numkong/memory.hpp" // `aligned_allocator`
+#include "numkong/shapes.h"
+#include "numkong/shapes/serial.h" // `nk_shapes_packed_header_f32_t`, `nk_shapes_packed_axes_f16_serial_`
+#include "numkong/memory.hpp"      // `aligned_allocator`
 #include "numkong/types.hpp"
 
 namespace ashvardanian::numkong {
@@ -42,17 +44,17 @@ scalar_type_ det3x3_(scalar_type_ const *m) {
 }
 
 template <typename scalar_type_>
-void conditional_swap_(bool c, scalar_type_ *x, scalar_type_ *y) {
-    scalar_type_ temp = *x;
-    *x = c ? *y : *x;
-    *y = c ? temp : *y;
+void conditional_swap_(bool should_swap, scalar_type_ *x, scalar_type_ *y) {
+    scalar_type_ original_x = *x;
+    *x = should_swap ? *y : *x;
+    *y = should_swap ? original_x : *y;
 }
 
 template <typename scalar_type_>
-void conditional_negating_swap_(bool c, scalar_type_ *x, scalar_type_ *y) {
-    scalar_type_ neg_x = scalar_type_(0.0) - *x;
-    *x = c ? *y : *x;
-    *y = c ? neg_x : *y;
+void conditional_negating_swap_(bool should_swap, scalar_type_ *x, scalar_type_ *y) {
+    scalar_type_ negated_x = scalar_type_(0.0) - *x;
+    *x = should_swap ? *y : *x;
+    *y = should_swap ? negated_x : *y;
 }
 
 /** Whether @p scalar_type_ takes the single-precision constants of the C kernels' 3 × 3 solvers. */
@@ -309,7 +311,7 @@ void rotation_from_svd_(scalar_type_ const *svd_u, scalar_type_ const *svd_v, sc
 /** The header of packs of @p in_type_ points. */
 template <typename in_type_>
 using shapes_header_ =
-    std::conditional_t<std::is_same_v<in_type_, f16_t>, nk_shapes_header_f32_t, nk_shapes_header_f64_t>;
+    std::conditional_t<std::is_same_v<in_type_, f16_t>, nk_shapes_packed_header_f32_t, nk_shapes_packed_header_f64_t>;
 
 /** One pack, read through its header and its three axes. */
 template <typename in_type_>
@@ -325,8 +327,8 @@ struct shapes_cloud_ {
         : header(static_cast<shapes_header_<in_type_> const *>(packed)),
           points(static_cast<std::size_t>(header->points)) {
         nk_size_t stride = 0;
-        if constexpr (std::is_same_v<in_type_, f16_t>) axes = nk_shapes_axes_f16(packed, &stride);
-        else axes = nk_shapes_axes_f32(packed, &stride);
+        if constexpr (std::is_same_v<in_type_, f16_t>) axes = nk_shapes_packed_axes_f16_serial_(packed, &stride);
+        else axes = nk_shapes_packed_axes_f32_serial_(packed, &stride);
         axis_stride = stride;
     }
 
@@ -351,11 +353,11 @@ struct shapes_cloud_ {
     }
 };
 
-/** Bytes a pack of @p points takes, by the layout of @c meshes.h. */
+/** Bytes a pack of @p points takes, by the layout of @c shapes/serial.h. */
 template <typename in_type_>
 constexpr std::size_t shapes_pack_bytes_(std::size_t points) noexcept {
-    return nk_size_round_up_to_multiple_(sizeof(shapes_header_<in_type_>), nk_shapes_alignment_k) +
-           3 * nk_size_round_up_to_multiple_(points * sizeof(typename in_type_::raw_t), nk_shapes_alignment_k);
+    return nk_size_round_up_to_multiple_(sizeof(shapes_header_<in_type_>), nk_shapes_alignment_k_) +
+           3 * nk_size_round_up_to_multiple_(points * sizeof(typename in_type_::raw_t), nk_shapes_alignment_k_);
 }
 
 /** The type the transport duals and the Gromov-Wasserstein line search run in: at least @c f64. */
@@ -400,7 +402,7 @@ void shapes_flip_(unsigned flip, math_type_ *matrix) noexcept {
     for (unsigned axis = 0; axis != 3; ++axis) matrix[axis * 4] = math_type_((flip >> axis) & 1 ? -1.0 : 1.0);
 }
 
-/** Packs one cloud by the algorithm of @c meshes.h in @p math_type_, divided by its RMS distance
+/** Packs one cloud by the algorithm of @c shapes.h in @p math_type_, divided by its RMS distance
  *  from the centroid when @p kind_ is @c nk_kernel_shapes_pack_normalized_k. */
 template <typename in_type_, typename math_type_, nk_kernel_kind_t kind_>
 void shapes_pack_reference_(typename in_type_::raw_t const *points, std::size_t count, void *packed) noexcept {
@@ -448,8 +450,8 @@ void shapes_pack_reference_(typename in_type_::raw_t const *points, std::size_t 
         mat3x3_to_quaternion_(frame, quaternion);
         quaternion_to_mat3x3_(quaternion, frame);
 
-        std::size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(header_t), nk_shapes_alignment_k);
-        std::size_t const axis_stride = nk_size_round_up_to_multiple_(count * sizeof(raw_t), nk_shapes_alignment_k) /
+        std::size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(header_t), nk_shapes_alignment_k_);
+        std::size_t const axis_stride = nk_size_round_up_to_multiple_(count * sizeof(raw_t), nk_shapes_alignment_k_) /
                                         sizeof(raw_t);
         raw_t *axes = reinterpret_cast<raw_t *>(static_cast<char *>(packed) + header_bytes);
         math_t moments[6] {}, max_norm {};
@@ -492,7 +494,7 @@ void shapes_pack_reference_(typename in_type_::raw_t const *points, std::size_t 
     std::memcpy(packed, &header, sizeof(header));
 }
 
-/** Chamfer or Hausdorff of every pair in @p distance_type_, by the 8-flip passes of @c meshes.h. */
+/** Chamfer or Hausdorff of every pair in @p distance_type_, by the 8-flip passes of @c shapes.h. */
 template <typename in_type_, nk_kernel_kind_t kind_, typename distance_type_, typename rotation_type_>
 void shapes_nearest_reference_(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
                                std::size_t columns, distance_type_ *results, std::size_t results_stride,
@@ -539,7 +541,7 @@ void shapes_nearest_reference_(void const *const *a_packed, std::size_t rows, vo
                     backward_sum = backward_sum + root;
                     if (backward_max < root) backward_max = root;
                 }
-                math_t const score = kind_ == nk_kernel_shapes_chamfers_packed_k
+                math_t const score = kind_ == nk_kernel_chamfers_packed_k
                                          ? math_t(0.5) * (forward_sum / math_t(static_cast<double>(a.points)) +
                                                           backward_sum / math_t(static_cast<double>(b.points)))
                                          : (forward_max < backward_max ? backward_max : forward_max);
@@ -666,10 +668,8 @@ struct shapes_simplex_ {
     template <typename cost_type_>
     void solve(cost_type_ const &cost, dual_t tolerance) noexcept {
         std::size_t const arcs = rows * columns;
-        std::size_t block = static_cast<std::size_t>(std::sqrt(static_cast<double>(arcs)));
+        std::size_t block = 10;
         while (block * block < arcs) ++block;
-        while (block && (block - 1) * (block - 1) >= arcs) --block;
-        if (block < 10) block = 10;
         dual_t const threshold = dual_t(0.0) - tolerance;
         std::size_t cursor = 0;
         for (;;) {
@@ -756,7 +756,7 @@ struct shapes_simplex_ {
     }
 };
 
-/** The workspace arrays of the transport templates, each on its own 64-byte boundary. */
+/** The transport templates' workspace arrays, each on an @c nk_shapes_alignment_k_ boundary. */
 template <typename math_type_>
 struct shapes_transport_workspace_ {
     math_type_ *row_points = nullptr, *column_points = nullptr, *rotated_columns = nullptr;
@@ -765,22 +765,28 @@ struct shapes_transport_workspace_ {
     /** The best proper and improper plans, as (row, column, flow) triples. */
     std::uint32_t *proper_plan = nullptr, *improper_plan = nullptr;
     std::size_t proper_arcs = 0, improper_arcs = 0;
-    shapes_wide_<math_type_> *row_distances = nullptr, *column_distances = nullptr;
-    shapes_wide_<math_type_> *plan = nullptr, *gradient = nullptr, *vertex_gradient = nullptr;
+
+    /** The Gromov-Wasserstein plan, its gradient and a vertex's gradient, then one block of the
+     *  distances within the row cloud followed by those within the column cloud. */
+    shapes_wide_<math_type_> *plan = nullptr, *gradient = nullptr, *vertex_gradient = nullptr, *distances = nullptr;
 };
 
 template <typename value_type_>
 value_type_ *shapes_carve_(char *base, std::size_t &offset, std::size_t count) noexcept {
     value_type_ *carved = base ? reinterpret_cast<value_type_ *>(base + offset) : nullptr;
-    offset += nk_size_round_up_to_multiple_(count * sizeof(value_type_), nk_shapes_alignment_k);
+    offset += nk_size_round_up_to_multiple_(count * sizeof(value_type_), nk_shapes_alignment_k_);
     return carved;
 }
 
-/** Carves the workspace for clouds of up to @p points from @p base, or sizes it without one. */
+/** Carves the workspace for clouds of up to @p row_points and @p column_points from @p base, or
+ *  sizes it without one: the transport arrays for the larger side, then the Gromov-Wasserstein
+ *  matrices of @p row_points × @p column_points cells and @p row_points² + @p column_points²
+ *  distances, which fit either canonical order of a pair. */
 template <typename math_type_, nk_kernel_kind_t kind_>
 std::size_t shapes_transport_layout_(shapes_transport_workspace_<math_type_> &workspace, char *base,
-                                     std::size_t points) noexcept {
+                                     std::size_t row_points, std::size_t column_points) noexcept {
     std::size_t offset = 0;
+    std::size_t const points = row_points < column_points ? column_points : row_points;
     std::size_t const nodes = 2 * points, plan_values = 3 * nodes;
     workspace.row_points = shapes_carve_<math_type_>(base, offset, 3 * points);
     workspace.column_points = shapes_carve_<math_type_>(base, offset, 3 * points);
@@ -794,13 +800,14 @@ std::size_t shapes_transport_layout_(shapes_transport_workspace_<math_type_> &wo
     workspace.simplex.potential = shapes_carve_<typename shapes_simplex_<math_type_>::dual_t>(base, offset, nodes);
     workspace.proper_plan = shapes_carve_<std::uint32_t>(base, offset, plan_values);
     workspace.improper_plan = shapes_carve_<std::uint32_t>(base, offset, plan_values);
-    if constexpr (kind_ == nk_kernel_shapes_gromovwassersteins_packed_k) {
+    if constexpr (kind_ == nk_kernel_gromovwassersteins_packed_k) {
         using wide_t = shapes_wide_<math_type_>;
-        workspace.row_distances = shapes_carve_<wide_t>(base, offset, points * points);
-        workspace.column_distances = shapes_carve_<wide_t>(base, offset, points * points);
-        workspace.plan = shapes_carve_<wide_t>(base, offset, points * points);
-        workspace.gradient = shapes_carve_<wide_t>(base, offset, points * points);
-        workspace.vertex_gradient = shapes_carve_<wide_t>(base, offset, points * points);
+        std::size_t const cells = row_points * column_points;
+        workspace.plan = shapes_carve_<wide_t>(base, offset, cells);
+        workspace.gradient = shapes_carve_<wide_t>(base, offset, cells);
+        workspace.vertex_gradient = shapes_carve_<wide_t>(base, offset, cells);
+        workspace.distances = shapes_carve_<wide_t>(base, offset,
+                                                    row_points * row_points + column_points * column_points);
     }
     return offset;
 }
@@ -875,9 +882,10 @@ math_type_ shapes_procrustes_pair_(shapes_cloud_<in_type_> const &a, shapes_clou
             math_t cross[9] {};
             simplex.arcs([&](std::size_t i, std::size_t j, std::uint32_t moved) noexcept {
                 math_t const weight = math_t(static_cast<double>(moved)) / mass;
-                for (std::size_t r = 0; r != 3; ++r)
-                    for (std::size_t c = 0; c != 3; ++c)
-                        cross[r * 3 + c] = cross[r * 3 + c] + weight * b_points[j * 3 + r] * a_points[i * 3 + c];
+                for (std::size_t b_axis = 0; b_axis != 3; ++b_axis)
+                    for (std::size_t a_axis = 0; a_axis != 3; ++a_axis)
+                        cross[b_axis * 3 + a_axis] = cross[b_axis * 3 + a_axis] +
+                                                     weight * b_points[j * 3 + b_axis] * a_points[i * 3 + a_axis];
             });
             math_t svd_u[9], svd_v[9];
             svd3x3_(cross, svd_u, svd_v);
@@ -917,7 +925,7 @@ shapes_wide_<math_type_> shapes_gromov_pair_(shapes_cloud_<in_type_> const &a, s
     shapes_procrustes_pair_(a, b, workspace, procrustes_rotation);
 
     math_t const *const a_points = workspace.row_points, *const b_points = workspace.column_points;
-    wide_t *const dx = workspace.row_distances, *const dy = workspace.column_distances;
+    wide_t *const row_distances = workspace.distances, *const column_distances = workspace.distances + n * n;
     wide_t *const plan = workspace.plan, *const gradient = workspace.gradient;
     wide_t *const vertex_gradient = workspace.vertex_gradient;
     auto const distances = [](math_t const *points, std::size_t count, wide_t *matrix) noexcept {
@@ -935,7 +943,8 @@ shapes_wide_<math_type_> shapes_gromov_pair_(shapes_cloud_<in_type_> const &a, s
             }
         return sum / wide_t(static_cast<double>(count * count));
     };
-    wide_t const cx = distances(a_points, n, dx), cy = distances(b_points, m, dy);
+    wide_t const row_mean_square = distances(a_points, n, row_distances);
+    wide_t const column_mean_square = distances(b_points, m, column_distances);
 
     shapes_simplex_<math_t> &simplex = workspace.simplex;
     wide_t const mass = wide_t(static_cast<double>(n * m));
@@ -945,8 +954,9 @@ shapes_wide_<math_type_> shapes_gromov_pair_(shapes_cloud_<in_type_> const &a, s
         for (std::size_t cell = 0; cell != n * m; ++cell) target[cell] = wide_t(0.0);
         for_each_arc([&](std::size_t k, std::size_t l, wide_t weight) noexcept {
             for (std::size_t i = 0; i != n; ++i) {
-                wide_t const left = weight * dx[i * n + k];
-                for (std::size_t j = 0; j != m; ++j) target[i * m + j] = target[i * m + j] + left * dy[l * m + j];
+                wide_t const left = weight * row_distances[i * n + k];
+                for (std::size_t j = 0; j != m; ++j)
+                    target[i * m + j] = target[i * m + j] + left * column_distances[l * m + j];
             }
         });
     };
@@ -976,10 +986,10 @@ shapes_wide_<math_type_> shapes_gromov_pair_(shapes_cloud_<in_type_> const &a, s
             for (std::size_t cell = 0; cell != n * m; ++cell) plan[cell] = uniform;
             for (std::size_t i = 0; i != n; ++i) {
                 wide_t row_sum {};
-                for (std::size_t k = 0; k != n; ++k) row_sum = row_sum + dx[i * n + k];
+                for (std::size_t k = 0; k != n; ++k) row_sum = row_sum + row_distances[i * n + k];
                 for (std::size_t j = 0; j != m; ++j) {
                     wide_t column_sum {};
-                    for (std::size_t l = 0; l != m; ++l) column_sum = column_sum + dy[l * m + j];
+                    for (std::size_t l = 0; l != m; ++l) column_sum = column_sum + column_distances[l * m + j];
                     gradient[i * m + j] = row_sum * column_sum / mass;
                 }
             }
@@ -1021,17 +1031,18 @@ shapes_wide_<math_type_> shapes_gromov_pair_(shapes_cloud_<in_type_> const &a, s
             });
             gradient_plan = inner(gradient, plan);
         }
-        wide_t const loss = cx + cy - wide_t(2.0) * gradient_plan;
+        wide_t const loss = row_mean_square + column_mean_square - wide_t(2.0) * gradient_plan;
         if (!(loss < best_loss)) continue;
         best_loss = loss;
         for (wide_t &value : best_cross) value = wide_t(0.0);
         for (std::size_t i = 0; i != n; ++i)
             for (std::size_t j = 0; j != m; ++j)
-                for (std::size_t r = 0; r != 3; ++r)
-                    for (std::size_t c = 0; c != 3; ++c)
-                        best_cross[r * 3 + c] = best_cross[r * 3 + c] +
-                                                plan[i * m + j] * shapes_output_<wide_t>(b_points[j * 3 + r]) *
-                                                    shapes_output_<wide_t>(a_points[i * 3 + c]);
+                for (std::size_t b_axis = 0; b_axis != 3; ++b_axis)
+                    for (std::size_t a_axis = 0; a_axis != 3; ++a_axis)
+                        best_cross[b_axis * 3 + a_axis] = best_cross[b_axis * 3 + a_axis] +
+                                                          plan[i * m + j] *
+                                                              shapes_output_<wide_t>(b_points[j * 3 + b_axis]) *
+                                                              shapes_output_<wide_t>(a_points[i * 3 + a_axis]);
     }
     // The O(3) Procrustes fit: McAdams keeps U and V proper, folding the sign of det(H′) into σ₃
     wide_t svd_u[9], svd_v[9], fit[9];
@@ -1051,17 +1062,17 @@ status_t shapes_transport_reference_(void const *const *a_packed, std::size_t ro
     using math_t = distance_type_;
     if (!rows || !columns) return status_t::success_k;
     if (reinterpret_cast<std::uintptr_t>(workspace) % nk_default_alignment_k) return status_t::misaligned_k;
-    std::size_t largest = 0;
+    std::size_t row_points = 0, column_points = 0;
     for (std::size_t row = 0; row != rows; ++row)
-        if (std::size_t const points = shapes_cloud_<in_type_>(a_packed[row]).points; largest < points)
-            largest = points;
+        if (std::size_t const points = shapes_cloud_<in_type_>(a_packed[row]).points; row_points < points)
+            row_points = points;
     for (std::size_t column = 0; column != columns; ++column)
-        if (std::size_t const points = shapes_cloud_<in_type_>(b_packed[column]).points; largest < points)
-            largest = points;
+        if (std::size_t const points = shapes_cloud_<in_type_>(b_packed[column]).points; column_points < points)
+            column_points = points;
     shapes_transport_workspace_<math_t> arrays;
-    if (shapes_transport_layout_<math_t, kind_>(arrays, nullptr, largest) > workspace_bytes)
+    if (shapes_transport_layout_<math_t, kind_>(arrays, nullptr, row_points, column_points) > workspace_bytes)
         return status_t::unexpected_dimensions_k;
-    shapes_transport_layout_<math_t, kind_>(arrays, static_cast<char *>(workspace), largest);
+    shapes_transport_layout_<math_t, kind_>(arrays, static_cast<char *>(workspace), row_points, column_points);
 
     for (std::size_t row = 0; row != rows; ++row)
         for (std::size_t column = 0; column != columns; ++column) {
@@ -1077,7 +1088,7 @@ status_t shapes_transport_reference_(void const *const *a_packed, std::size_t ro
             bool const swapped = shapes_compare_(a, b) > 0;
             if (swapped) std::swap(a, b);
             math_t core[9];
-            if constexpr (kind_ == nk_kernel_shapes_wassersteinprocrustes_packed_k)
+            if constexpr (kind_ == nk_kernel_wassersteinprocrustes_packed_k)
                 result = shapes_procrustes_pair_(a, b, arrays, core).sqrt();
             else {
                 // ½ · √loss in the wide type, rounded once into the distance type
@@ -1091,17 +1102,18 @@ status_t shapes_transport_reference_(void const *const *a_packed, std::size_t ro
             a.frame(a_frame), b.frame(b_frame);
             shapes_write_rotation_(a_frame, core, b_frame, rotation);
             // A pair solved with its sides swapped took the row cloud onto the column cloud
-            if (swapped)
-                for (std::size_t row = 0; row != 3; ++row)
-                    for (std::size_t column = row + 1; column != 3; ++column)
-                        std::swap(rotation[row * 3 + column], rotation[column * 3 + row]);
+            if (swapped) {
+                std::swap(rotation[1], rotation[3]);
+                std::swap(rotation[2], rotation[6]);
+                std::swap(rotation[5], rotation[7]);
+            }
         }
     return status_t::success_k;
 }
 
 /**
  *  @brief Returns the bytes a pack of @p points takes.
- *  @param[in] capabilities Capabilities to pick from, or zero for the layout of @c meshes.h.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the layout of @c shapes/serial.h.
  *  @tparam in_type_ Point type, @c f16_t or @c f32_t.
  */
 template <shapes_dtype in_type_>
@@ -1118,9 +1130,9 @@ expected<std::size_t> shapes_pack_size(std::size_t points,
 }
 
 /**
- *  @brief Packs one cloud: centers it, rotates it onto its principal axes, and fills the header.
+ *  @brief Packs one cloud: centers it, rotates it onto its principal axes, and keeps its constants.
  *  @param[in] points The cloud, @p count × 3 interleaved values.
- *  @param[out] packed At least @c shapes_pack_size bytes.
+ *  @param[out] packed At least @c shapes_pack_size bytes, aligned to @c nk_default_alignment_k.
  *  @param[in] capabilities Capabilities to pick from, or zero for the template in @p math_type_.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *  @tparam math_type_ The template's arithmetic; kernels use @c in_type_::shapes_distance_t.
@@ -1140,7 +1152,7 @@ status_t shapes_pack(typename in_type_::raw_t const *points, std::size_t count, 
 }
 
 /** Packs one cloud like @c shapes_pack, also dividing it by its RMS distance from the centroid,
- *  which the header keeps as its scale, or by 1 when the cloud has no spread. */
+ *  which the pack keeps as its scale, or by 1 when the cloud has no spread. */
 template <shapes_dtype in_type_, typename math_type_ = typename in_type_::shapes_distance_t>
 status_t shapes_pack_normalized(typename in_type_::raw_t const *points, std::size_t count, void *packed,
                                 nk_capability_t capabilities = default_capabilities(),
@@ -1159,6 +1171,83 @@ status_t shapes_pack_normalized(typename in_type_::raw_t const *points, std::siz
 }
 
 /**
+ *  @brief Reads a pack's points and constants, skipping every null output.
+ *  @param[out] centroid Null, or the 3 coordinates of the mean input point.
+ *  @param[out] frame Null, or the unit quaternion (x, y, z, w) of 𝑄.
+ *  @param[out] spreads Null, or the 3 descending eigenvalues of the packed points' second moments.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the layout of @c shapes/serial.h.
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
+ */
+template <shapes_dtype in_type_>
+status_t shapes_packed_shape(void const *packed, std::size_t *points, typename in_type_::shapes_distance_t *centroid,
+                             typename in_type_::shapes_distance_t *frame, typename in_type_::shapes_distance_t *scale,
+                             typename in_type_::shapes_distance_t *spreads,
+                             typename in_type_::shapes_distance_t *max_radius,
+                             nk_capability_t capabilities = default_capabilities(),
+                             nk_stream_t stream = nullptr) noexcept {
+    using constant_t = typename in_type_::shapes_distance_t;
+    if (capabilities) {
+        auto const raw = [](constant_t *values) noexcept {
+            return reinterpret_cast<typename constant_t::raw_t *>(values);
+        };
+        nk_size_t count = 0;
+        nk_status_t status;
+        if constexpr (std::is_same_v<in_type_, f32_t>)
+            status = nk_shapes_packed_shape_f32_best(packed, &count, raw(centroid), raw(frame), raw(scale),
+                                                     raw(spreads), raw(max_radius), capabilities, stream);
+        else
+            status = nk_shapes_packed_shape_f16_best(packed, &count, raw(centroid), raw(frame), raw(scale),
+                                                     raw(spreads), raw(max_radius), capabilities, stream);
+        if (points) *points = static_cast<std::size_t>(count);
+        return static_cast<status_t>(status);
+    }
+    shapes_cloud_<in_type_> const cloud(packed);
+    if (points) *points = cloud.points;
+    for (std::size_t axis = 0; axis != 3; ++axis) {
+        if (centroid) centroid[axis] = constant_t::from_raw(cloud.header->centroid[axis]);
+        if (spreads) spreads[axis] = constant_t::from_raw(cloud.header->spreads[axis]);
+    }
+    for (std::size_t component = 0; component != 4; ++component)
+        if (frame) frame[component] = constant_t::from_raw(cloud.header->frame[component]);
+    if (scale) *scale = constant_t::from_raw(cloud.header->scale);
+    if (max_radius) *max_radius = constant_t::from_raw(cloud.header->max_radius);
+    return status_t::success_k;
+}
+
+/**
+ *  @brief Restores a pack's cloud as x = scale × 𝑄ᵀ × x′ + centroid, rounded once into @p in_type_.
+ *  @param[out] points The cloud, as many × 3 interleaved values as the pack holds points.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the template in @p math_type_.
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
+ *  @tparam math_type_ The template's arithmetic; kernels use @c in_type_::shapes_distance_t.
+ */
+template <shapes_dtype in_type_, typename math_type_ = typename in_type_::shapes_distance_t>
+status_t shapes_unpack(void const *packed, typename in_type_::raw_t *points,
+                       nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<math_type_, typename in_type_::shapes_distance_t>;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return static_cast<status_t>(nk_shapes_unpack_f32_best(packed, points, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return static_cast<status_t>(nk_shapes_unpack_f16_best(packed, points, capabilities, stream));
+    }
+    using math_t = math_type_;
+    shapes_cloud_<in_type_> const cloud(packed);
+    math_t frame[9];
+    cloud.frame(frame);
+    math_t const scale(static_cast<double>(cloud.header->scale));
+    for (std::size_t index = 0; index != cloud.points; ++index)
+        for (std::size_t axis = 0; axis != 3; ++axis) {
+            math_t restored {};
+            for (std::size_t column = 0; column != 3; ++column)
+                restored = restored + frame[axis * 3 + column] * cloud.template coordinate<math_t>(index, column);
+            restored = scale * restored + math_t(static_cast<double>(cloud.header->centroid[axis]));
+            points[index * 3 + axis] = in_type_(static_cast<double>(restored)).raw_;
+        }
+    return status_t::success_k;
+}
+
+/**
  *  @brief Chamfer distances between every row pack and every column pack, the best of 8 axis flips.
  *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
  *  @param[out] rotations Null, or the @b [rows,columns,3,3] rotations taking each column cloud onto
@@ -1168,52 +1257,54 @@ status_t shapes_pack_normalized(typename in_type_::raw_t const *points, std::siz
  */
 template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
           typename rotation_type_ = f32_t>
-status_t chamfers(void const *const *a_packed, std::size_t rows, void const *const *b_packed, std::size_t columns,
-                  distance_type_ *results, std::size_t results_stride, std::type_identity_t<rotation_type_> *rotations,
-                  nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+status_t chamfers_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
+                         std::size_t columns, distance_type_ *results, std::size_t results_stride,
+                         std::type_identity_t<rotation_type_> *rotations,
+                         nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
                               std::is_same_v<rotation_type_, f32_t>;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(
-                nk_shapes_chamfers_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                                                   reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+                nk_chamfers_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                                            reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
             return static_cast<status_t>(
-                nk_shapes_chamfers_packed_f16_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                                                   reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+                nk_chamfers_packed_f16_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                                            reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
     }
-    shapes_nearest_reference_<in_type_, nk_kernel_shapes_chamfers_packed_k>(a_packed, rows, b_packed, columns, results,
-                                                                            results_stride, rotations);
+    shapes_nearest_reference_<in_type_, nk_kernel_chamfers_packed_k>(a_packed, rows, b_packed, columns, results,
+                                                                     results_stride, rotations);
     return status_t::success_k;
 }
 
-/** Hausdorff distances between every row and column pack, with the parameters of @c chamfers. */
+/** Hausdorff distances between every row and column pack, taking what @c chamfers_packed takes. */
 template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
           typename rotation_type_ = f32_t>
-status_t hausdorffs(void const *const *a_packed, std::size_t rows, void const *const *b_packed, std::size_t columns,
-                    distance_type_ *results, std::size_t results_stride,
-                    std::type_identity_t<rotation_type_> *rotations,
-                    nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+status_t hausdorffs_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
+                           std::size_t columns, distance_type_ *results, std::size_t results_stride,
+                           std::type_identity_t<rotation_type_> *rotations,
+                           nk_capability_t capabilities = default_capabilities(),
+                           nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
                               std::is_same_v<rotation_type_, f32_t>;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(
-                nk_shapes_hausdorffs_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                                                     reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+                nk_hausdorffs_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                                              reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
             return static_cast<status_t>(
-                nk_shapes_hausdorffs_packed_f16_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                                                     reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+                nk_hausdorffs_packed_f16_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                                              reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
     }
-    shapes_nearest_reference_<in_type_, nk_kernel_shapes_hausdorffs_packed_k>(a_packed, rows, b_packed, columns,
-                                                                              results, results_stride, rotations);
+    shapes_nearest_reference_<in_type_, nk_kernel_hausdorffs_packed_k>(a_packed, rows, b_packed, columns, results,
+                                                                       results_stride, rotations);
     return status_t::success_k;
 }
 
 /**
- *  @brief Returns the workspace bytes of @c wassersteinprocrustes between clouds of up to
+ *  @brief Returns the workspace bytes of @c wassersteinprocrustes_packed between clouds of up to
  *      @p row_points and @p column_points points.
  *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
  */
@@ -1224,24 +1315,23 @@ expected<std::size_t> wassersteinprocrustes_workspace_size(
     if (capabilities) {
         nk_size_t bytes = 0;
         if constexpr (std::is_same_v<in_type_, f32_t> && dispatch) {
-            nk_status_t const status = nk_shapes_wassersteinprocrustes_workspace_size_f32_best(
-                row_points, column_points, capabilities, &bytes);
+            nk_status_t const status = nk_wassersteinprocrustes_workspace_size_f32_best(row_points, column_points,
+                                                                                        capabilities, &bytes);
             return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
         }
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch) {
-            nk_status_t const status = nk_shapes_wassersteinprocrustes_workspace_size_f16_best(
-                row_points, column_points, capabilities, &bytes);
+            nk_status_t const status = nk_wassersteinprocrustes_workspace_size_f16_best(row_points, column_points,
+                                                                                        capabilities, &bytes);
             return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
         }
     }
     shapes_transport_workspace_<distance_type_> layout;
-    std::size_t const points = row_points < column_points ? column_points : row_points;
-    return {shapes_transport_layout_<distance_type_, nk_kernel_shapes_wassersteinprocrustes_packed_k>(layout, nullptr,
-                                                                                                      points),
+    return {shapes_transport_layout_<distance_type_, nk_kernel_wassersteinprocrustes_packed_k>(
+                layout, nullptr, row_points, column_points),
             status_t::success_k};
 }
 
-/** The workspace bytes of @c gromovwassersteins, like @c wassersteinprocrustes_workspace_size. */
+/** The workspace bytes of @c gromovwassersteins_packed, queried like the Procrustes workspace. */
 template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
 expected<std::size_t> gromovwassersteins_workspace_size(
     std::size_t row_points, std::size_t column_points, nk_capability_t capabilities = default_capabilities()) noexcept {
@@ -1249,21 +1339,20 @@ expected<std::size_t> gromovwassersteins_workspace_size(
     if (capabilities) {
         nk_size_t bytes = 0;
         if constexpr (std::is_same_v<in_type_, f32_t> && dispatch) {
-            nk_status_t const status = nk_shapes_gromovwassersteins_workspace_size_f32_best(row_points, column_points,
-                                                                                            capabilities, &bytes);
+            nk_status_t const status = nk_gromovwassersteins_workspace_size_f32_best(row_points, column_points,
+                                                                                     capabilities, &bytes);
             return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
         }
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch) {
-            nk_status_t const status = nk_shapes_gromovwassersteins_workspace_size_f16_best(row_points, column_points,
-                                                                                            capabilities, &bytes);
+            nk_status_t const status = nk_gromovwassersteins_workspace_size_f16_best(row_points, column_points,
+                                                                                     capabilities, &bytes);
             return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
         }
     }
     shapes_transport_workspace_<distance_type_> layout;
-    std::size_t const points = row_points < column_points ? column_points : row_points;
-    return {
-        shapes_transport_layout_<distance_type_, nk_kernel_shapes_gromovwassersteins_packed_k>(layout, nullptr, points),
-        status_t::success_k};
+    return {shapes_transport_layout_<distance_type_, nk_kernel_gromovwassersteins_packed_k>(layout, nullptr, row_points,
+                                                                                            column_points),
+            status_t::success_k};
 }
 
 /**
@@ -1272,53 +1361,54 @@ expected<std::size_t> gromovwassersteins_workspace_size(
  *  @param[in] workspace_bytes What @c wassersteinprocrustes_workspace_size reports for the largest
  *      clouds, with the same capabilities and @p distance_type_, or more.
  *  @return @c success_k, @c misaligned_k, @c unexpected_dimensions_k for a short workspace, or
- *      @c missing_kernel_k. The other parameters match @c chamfers.
+ *      @c missing_kernel_k. The other parameters match @c chamfers_packed.
  */
 template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
           typename rotation_type_ = f32_t>
-status_t wassersteinprocrustes(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
-                               std::size_t columns, distance_type_ *results, std::size_t results_stride,
-                               std::type_identity_t<rotation_type_> *rotations, void *workspace,
-                               std::size_t workspace_bytes, nk_capability_t capabilities = default_capabilities(),
-                               nk_stream_t stream = nullptr) noexcept {
+status_t wassersteinprocrustes_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
+                                      std::size_t columns, distance_type_ *results, std::size_t results_stride,
+                                      std::type_identity_t<rotation_type_> *rotations, void *workspace,
+                                      std::size_t workspace_bytes,
+                                      nk_capability_t capabilities = default_capabilities(),
+                                      nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
                               std::is_same_v<rotation_type_, f32_t>;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_shapes_wassersteinprocrustes_packed_f32_best(
+            return static_cast<status_t>(nk_wassersteinprocrustes_packed_f32_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
                 reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_shapes_wassersteinprocrustes_packed_f16_best(
+            return static_cast<status_t>(nk_wassersteinprocrustes_packed_f16_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
                 reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
     }
-    return shapes_transport_reference_<in_type_, nk_kernel_shapes_wassersteinprocrustes_packed_k>(
+    return shapes_transport_reference_<in_type_, nk_kernel_wassersteinprocrustes_packed_k>(
         a_packed, rows, b_packed, columns, results, results_stride, rotations, workspace, workspace_bytes);
 }
 
 /** Gromov-Wasserstein distances between every row and column pack, with the parameters of
- *  @c wassersteinprocrustes and the workspace of @c gromovwassersteins_workspace_size. */
+ *  @c wassersteinprocrustes_packed and the workspace of @c gromovwassersteins_workspace_size. */
 template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
           typename rotation_type_ = f32_t>
-status_t gromovwassersteins(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
-                            std::size_t columns, distance_type_ *results, std::size_t results_stride,
-                            std::type_identity_t<rotation_type_> *rotations, void *workspace,
-                            std::size_t workspace_bytes, nk_capability_t capabilities = default_capabilities(),
-                            nk_stream_t stream = nullptr) noexcept {
+status_t gromovwassersteins_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
+                                   std::size_t columns, distance_type_ *results, std::size_t results_stride,
+                                   std::type_identity_t<rotation_type_> *rotations, void *workspace,
+                                   std::size_t workspace_bytes, nk_capability_t capabilities = default_capabilities(),
+                                   nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
                               std::is_same_v<rotation_type_, f32_t>;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_shapes_gromovwassersteins_packed_f32_best(
+            return static_cast<status_t>(nk_gromovwassersteins_packed_f32_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
                 reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_shapes_gromovwassersteins_packed_f16_best(
+            return static_cast<status_t>(nk_gromovwassersteins_packed_f16_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
                 reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
     }
-    return shapes_transport_reference_<in_type_, nk_kernel_shapes_gromovwassersteins_packed_k>(
+    return shapes_transport_reference_<in_type_, nk_kernel_gromovwassersteins_packed_k>(
         a_packed, rows, b_packed, columns, results, results_stride, rotations, workspace, workspace_bytes);
 }
 
@@ -1326,7 +1416,7 @@ status_t gromovwassersteins(void const *const *a_packed, std::size_t rows, void 
  *  @brief Owning, move-only set of packed clouds, the operand every many-to-many kernel takes.
  *
  *  One allocation holds the table of pack pointers, then the packs back to back, each on an
- *  @c nk_shapes_alignment_k boundary, so @c data() passes straight to @c chamfers and its siblings.
+ *  @c nk_default_alignment_k boundary, so @c data() passes straight to every shape kernel.
  */
 template <shapes_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>
 class shapes_packed {
@@ -1339,7 +1429,7 @@ class shapes_packed {
     [[no_unique_address]] allocator_type_ alloc_;
 
     std::size_t table_bytes_() const noexcept {
-        return nk_size_round_up_to_multiple_(count_ * sizeof(void const *), nk_shapes_alignment_k);
+        return nk_size_round_up_to_multiple_(count_ * sizeof(void const *), nk_default_alignment_k);
     }
 
   public:
@@ -1399,7 +1489,11 @@ class shapes_packed {
     std::size_t size() const noexcept { return count_; }
 
     /** The points in cloud @p index. */
-    std::size_t points(std::size_t index) const noexcept { return shapes_cloud_<value_type_>(data()[index]).points; }
+    std::size_t points(std::size_t index) const noexcept {
+        std::size_t count = 0;
+        shapes_packed_shape<value_type_>(data()[index], &count, nullptr, nullptr, nullptr, nullptr, nullptr);
+        return count;
+    }
 
     /** The largest cloud, which sizes the transport workspaces. */
     std::size_t max_points() const noexcept { return max_points_; }
@@ -1418,9 +1512,10 @@ class shapes_packed {
             if (cloud.size() % 3) return {shapes_packed(alloc), status_t::unexpected_dimensions_k};
             auto const bytes = shapes_pack_size<value_type_>(cloud.size() / 3, capabilities);
             if (!bytes) return {shapes_packed(alloc), bytes.status};
-            total += bytes.value;
+            total += nk_size_round_up_to_multiple_(bytes.value, nk_default_alignment_k);
             if (packs.max_points_ < cloud.size() / 3) packs.max_points_ = cloud.size() / 3;
         }
+        if (!total) return {std::move(packs), status_t::success_k};
         packs.size_bytes_ = total;
         packs.data_ = alloc_traits::allocate(packs.alloc_, total);
         if (!packs.data_) return {shapes_packed(alloc), status_t::bad_alloc_k};
@@ -1436,7 +1531,8 @@ class shapes_packed {
                                         : shapes_pack_normalized<value_type_>(cloud, points, packs.data_ + offset,
                                                                               capabilities);
             if (failed(status)) return {shapes_packed(alloc), status};
-            offset += shapes_pack_size<value_type_>(points, capabilities).value;
+            offset += nk_size_round_up_to_multiple_(shapes_pack_size<value_type_>(points, capabilities).value,
+                                                    nk_default_alignment_k);
         }
         return {std::move(packs), status_t::success_k};
     }
@@ -1444,4 +1540,4 @@ class shapes_packed {
 
 } // namespace ashvardanian::numkong
 
-#endif // NUMKONG_MESHES_HPP
+#endif // NUMKONG_SHAPES_HPP

@@ -18,7 +18,7 @@
 #include "numkong/curved/serial.h"
 #include "numkong/probability/serial.h"
 #include "numkong/geospatial/serial.h"
-#include "numkong/meshes/serial.h"
+#include "numkong/shapes/serial.h"
 #include "numkong/sparse/serial.h"
 #include "numkong/each/serial.h"
 #include "numkong/trigonometry/serial.h"

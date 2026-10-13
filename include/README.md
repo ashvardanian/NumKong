@@ -554,26 +554,34 @@ Packs are built one cloud at a time, so a caller passes whatever packs it holds 
 ```c
 nk_f32_t const query[] = {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};          // 4 points
 nk_f32_t const candidate[] = {0, 0, 0, 0, 2, 0, 0, 0, 2, 2, 0, 0, 1, 1, 1}; // 5 points
+nk_size_t const alignment = nk_default_alignment_k; // `aligned_alloc` sizes are whole multiples of it
 nk_size_t query_bytes = 0, candidate_bytes = 0;
 nk_shapes_pack_size_f32_best(4, capabilities, &query_bytes);
 nk_shapes_pack_size_f32_best(5, capabilities, &candidate_bytes);
-void *query_packed = aligned_alloc(64, query_bytes), *candidate_packed = aligned_alloc(64, candidate_bytes);
+void *query_packed = aligned_alloc(alignment, (query_bytes + alignment - 1) / alignment * alignment);
+void *candidate_packed = aligned_alloc(alignment, (candidate_bytes + alignment - 1) / alignment * alignment);
 nk_shapes_pack_f32_best(query, 4, query_packed, capabilities, NULL);
 nk_shapes_pack_f32_best(candidate, 5, candidate_packed, capabilities, NULL);
 
 void const *rows[] = {query_packed}, *columns[] = {candidate_packed};
 nk_f64_t chamfer = 0, procrustes = 0;
 nk_f32_t rotation[9]; // takes the candidate onto the query, through the centroids in the headers
-nk_shapes_chamfers_packed_f32_best(rows, 1, columns, 1, &chamfer, sizeof(nk_f64_t), rotation, capabilities, NULL);
+nk_chamfers_packed_f32_best(rows, 1, columns, 1, &chamfer, sizeof(nk_f64_t), rotation, capabilities, NULL);
 
 nk_size_t workspace_bytes = 0;
-nk_shapes_wassersteinprocrustes_workspace_size_f32_best(4, 5, capabilities, &workspace_bytes);
-void *workspace = aligned_alloc(nk_default_alignment_k, workspace_bytes);
-nk_shapes_wassersteinprocrustes_packed_f32_best(rows, 1, columns, 1, &procrustes, sizeof(nk_f64_t), NULL,
-                                                workspace, workspace_bytes, capabilities, NULL);
+nk_wassersteinprocrustes_workspace_size_f32_best(4, 5, capabilities, &workspace_bytes);
+void *workspace = aligned_alloc(alignment, (workspace_bytes + alignment - 1) / alignment * alignment);
+nk_wassersteinprocrustes_packed_f32_best(rows, 1, columns, 1, &procrustes, sizeof(nk_f64_t), NULL, workspace,
+                                         workspace_bytes, capabilities, NULL);
+
+nk_f64_t query_radius = 0, candidate_radius = 0; // |query_radius - candidate_radius| bounds Hausdorff from below
+nk_shapes_packed_shape_f32_best(query_packed, NULL, NULL, NULL, NULL, NULL, &query_radius, capabilities, NULL);
+nk_shapes_packed_shape_f32_best(candidate_packed, NULL, NULL, NULL, NULL, NULL, &candidate_radius, capabilities, NULL);
+nk_f32_t restored[15]; // the candidate again, within one rounding into `f32`
+nk_shapes_unpack_f32_best(candidate_packed, restored, capabilities, NULL);
 ```
 
-The packed header is public: it holds the centroid, the principal frame as a quaternion, the scale, the descending spreads, and the largest radius.
+A pack is opaque: `nk_shapes_packed_shape_*` reads its points, centroid, principal frame as a quaternion, scale, descending spreads, and largest radius, and `nk_shapes_unpack_*` restores its cloud.
 The spreads and radius bound Wasserstein-Procrustes and Hausdorff from below for free, the way vector norms bound dot products.
 Gromov-Wasserstein and Wasserstein-Procrustes take a caller's workspace, since a transport plan depends on both clouds and fits in neither pack.
 
@@ -584,10 +592,12 @@ Between normalized packs, a rotation takes column cloud `b` onto row cloud `a` a
 In C++, `nk::shapes_packed` owns many packs in one allocation and exposes the pointer array, and `make_normalized` packs them normalized:
 
 ```cpp
+nk::f32_t const query[] = {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};
+nk::f32_t const candidate[] = {0, 0, 0, 0, 2, 0, 0, 0, 2, 2, 0, 0, 1, 1, 1};
 std::span<nk::f32_t const> clouds[] = {query, candidate};
 auto [packs, status] = nk::shapes_packed<nk::f32_t>::make(clouds);
 nk::f64_t distances[4];
-status = nk::hausdorffs<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t), nullptr);
+status = nk::hausdorffs_packed<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t), nullptr);
 ```
 
 ## MaxSim and Late Interaction

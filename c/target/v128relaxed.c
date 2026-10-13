@@ -14,7 +14,7 @@
 #include "numkong/dot/v128relaxed.h"
 #include "numkong/spatial/v128relaxed.h"
 #include "numkong/geospatial/v128relaxed.h"
-#include "numkong/meshes/v128relaxed.h"
+#include "numkong/shapes/v128relaxed.h"
 #include "numkong/each/v128relaxed.h"
 #include "numkong/trigonometry/v128relaxed.h"
 #include "numkong/dots/v128relaxed.h"

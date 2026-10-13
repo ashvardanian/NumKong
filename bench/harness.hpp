@@ -22,7 +22,7 @@
  *  NUMWARS_DIMS_WIDTH            128      GEMM N dimension, like the query count for kNN
  *  NUMWARS_DIMS_DEPTH            1536     GEMM K dimension, like the vector dimension for kNN
  *  NUMKONG_CURVED_DIMS           64       Vector dimension for curved benchmarks
- *  NUMKONG_SHAPE_POINTS          64       Points per cloud for shape benchmarks
+ *  NUMKONG_SHAPE_POINTS          32       Points per cloud for shape benchmarks
  *  NUMKONG_SPARSE_FIRST_LENGTH   1024     Elements in the first sparse set
  *  NUMKONG_SPARSE_SECOND_LENGTH  8192     Elements in the second sparse set
  *  NUMKONG_SPARSE_INTERSECTION   0.5      Share of the smaller sparse set both sets hold, in (0, 1]
@@ -466,7 +466,7 @@ struct settings_t {
     std::size_t curved_dimensions = 64;
 
     /** Points per cloud for the many-to-many shape distances. */
-    std::size_t shape_points = 64;
+    std::size_t shape_points = 32;
 
     /** Elements in the first sparse set. */
     std::size_t sparse_first_count = 1024;

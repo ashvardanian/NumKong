@@ -101,7 +101,8 @@ All floating-point families report `max_abs` and `max_rel`; the rest of each row
   Fails on any `max_dist > 0`.
 - __`approximate_k`__ — results computed and stored in one type, measured against a ULP budget: trigonometry and elementwise sums.
   Fails on `max_ulp > NUMKONG_ULP_THRESHOLD_{F32,F16,BF16}`, picked by the type of the results.
-- __`bounded_k`__ — results held to the `nk_*_error_bound` of their family, like `nk_dot_error_bound`, on every backend: dot products, batched dots and distances, bilinear and Mahalanobis forms, sparse dots, moments, probability divergences, single-vector distances, MaxSim, geographic and shape distances, and elementwise scale, blend and FMA.
+- __`bounded_k`__ — results held to the `nk_*_error_bound` of their family, like `nk_dot_error_bound`, on every backend: dot products, batched dots and distances, bilinear and Mahalanobis forms, sparse dots, moments, probability divergences, single-vector distances, MaxSim, geographic distances, and elementwise scale, blend and FMA.
+  Shape distances have no `nk_*_error_bound`, so `test/shapes.cpp` derives each bound from the cloud sizes and radii, the unit roundoff of the distance type, and the transport tolerance.
   A result may land (roundings + 1) · bound · Σ|terms| from exact, plus the rounding into its output type, where `tracked` references carry the roundings and Σ|terms| through the same arithmetic.
   Roundings of products, quotients and functions count against the term's bound, and those of sums against the reduction's, which differ when a family sums in a wider type than it computes its terms in.
   Reports `max_bound`, the largest error as a share of its own bound, and fails when it exceeds 1.
@@ -261,7 +262,7 @@ python -m pytest -k "dot or spatial"              # pytest's own filter still ap
 | `NUMKONG_REPETITIONS`     |          `10` | Randomized test repeat count, `3` under `NUMKONG_IN_QEMU`          |
 | `NUMKONG_IN_QEMU`         |           `0` | Shrink dimensions and repetitions: `0`, `1`, `true` or `false`     |
 | `NUMKONG_SPARSE_DIMS`     |         `256` | Universe size for sparse tests                                     |
-| `NUMKONG_SHAPE_POINTS`    |        `1000` | Point count for shape distance tests                               |
+| `NUMKONG_SHAPE_POINTS`    |          `32` | Point count for shape distance tests                               |
 | `NUMKONG_MAX_COORD_ANGLE` |         `180` | Maximum angle in degrees for geospatial                            |
 | `NUMKONG_EXPECT_SIMD`     |           `1` | `0` skips the check that a SIMD-capable machine dispatches to SIMD |
 

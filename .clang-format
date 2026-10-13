@@ -122,6 +122,11 @@ StatementMacros:
   - nk_define_shapes_nearest_
   - nk_define_shapes_workspace_
   - nk_define_shapes_pricing_
+  - nk_define_shapes_pricing_neon_
+  - nk_define_shapes_pricing_haswell_
+  - nk_define_shapes_pricing_skylake_
+  - nk_define_shapes_pricing_rvv_
+  - nk_define_shapes_pricing_v128relaxed_
   - nk_define_shapes_network_simplex_
   - nk_define_shapes_wasserstein_procrustes_
   - nk_define_shapes_gromov_wasserstein_

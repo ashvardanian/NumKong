@@ -21,10 +21,10 @@
 #include "numkong/dots.h"         // GEMM-style MxN batched dot-products, like `nk_dots_pack_size_bf16_best`
 #include "numkong/each.h"         // Weighted Sum, Fused-Multiply-Add, like `nk_each_scale_f64_best`
 #include "numkong/geospatial.h"   // Haversine and Vincenty, like `nk_haversine_f64_best`
-#include "numkong/meshes.h"       // Many-to-many Chamfer, Hausdorff, WP, GW, like `nk_shapes_chamfers_packed_f32_best`
 #include "numkong/probability.h"  // Kullback-Leibler, Jensen-Shannon, like `nk_kld_f16_best`
 #include "numkong/reduce.h"       // Horizontal MinMax & Moments reductions, like `nk_reduce_moments_f64_best`
 #include "numkong/sets.h"         // Hamming & Jaccard for binary sets, like `nk_hammings_packed_u1_best`
+#include "numkong/shapes.h"       // Chamfer, Hausdorff, Wasserstein-Procrustes, Gromov-Wasserstein between point clouds
 #include "numkong/sparse.h"       // Set Intersections and Sparse Dot Products, like `nk_sparse_intersect_u16_best`
 #include "numkong/spatial.h"      // Euclidean, Angular, like `nk_euclidean_f64_best`
 #include "numkong/spatials.h"     // Batched Angular & Euclidean distances, like `nk_angulars_packed_f32_best`
@@ -64,10 +64,10 @@ NUMKONG_CONSTEXPR nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dt
     case nk_kernel_jsd_k: return nk_probability_output_dtype(input);
     case nk_kernel_sparse_dot_k: return nk_sparse_dot_output_dtype(input);
     case nk_kernel_maxsim_packed_k: return nk_maxsim_output_dtype(input);
-    case nk_kernel_shapes_chamfers_packed_k:
-    case nk_kernel_shapes_hausdorffs_packed_k:
-    case nk_kernel_shapes_wassersteinprocrustes_packed_k:
-    case nk_kernel_shapes_gromovwassersteins_packed_k: return nk_shapes_output_dtype(input);
+    case nk_kernel_chamfers_packed_k:
+    case nk_kernel_hausdorffs_packed_k:
+    case nk_kernel_wassersteinprocrustes_packed_k:
+    case nk_kernel_gromovwassersteins_packed_k: return nk_shapes_output_dtype(input);
     case nk_kernel_attention_packed_k:
     case nk_kernel_attention_packed_gradients_k: return nk_attention_output_dtype(input);
     default: return nk_dtype_unknown_k;

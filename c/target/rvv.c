@@ -15,7 +15,7 @@
 #include "numkong/curved/rvv.h"
 #include "numkong/probability/rvv.h"
 #include "numkong/geospatial/rvv.h"
-#include "numkong/meshes/rvv.h"
+#include "numkong/shapes/rvv.h"
 #include "numkong/each/rvv.h"
 #include "numkong/trigonometry/rvv.h"
 #include "numkong/dots/rvv.h"

@@ -1684,41 +1684,52 @@ def maxsim(
 
 # region Shapes
 
-class ShapesPacked:
+class ShapesPackedMatrix:
     """Point clouds packed by shapes_pack() or shapes_pack_normalized(), centered and rotated onto principal axes.
 
-    Indexing and slicing return views sharing the packs, which the shapes_*_packed() functions
-    score as rows or columns.
+    Indexing and slicing return views sharing the packs, which chamfers_packed() and its siblings
+    score as rows or columns. The pack layout is private: the properties report every cloud's pose
+    and bounds, and unpack() returns any cloud in its original pose.
     """
 
     @property
-    def count(self) -> int:
+    def clouds(self) -> int:
         """Number of packed clouds."""
         ...
 
     @property
-    def points(self) -> Tensor:
-        """Points in every cloud, uint64 [count]."""
+    def points(self) -> int:
+        """Total points across the packed clouds."""
+        ...
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        """Dimensions (clouds, points) of the packed set."""
         ...
 
     @property
     def centroids(self) -> Tensor:
-        """Mean input point of every cloud, [count,3], float32 for float16 packs and float64 for float32 ones."""
+        """Mean input point of every cloud, [clouds,3], float32 for float16 packs and float64 for float32 ones."""
         ...
 
     @property
     def frames(self) -> Tensor:
-        """Unit quaternions (x, y, z, w) of Q rotating every centered cloud onto its principal axes, [count,4]."""
+        """Unit quaternions (x, y, z, w) of Q rotating every centered cloud onto its principal axes, [clouds,4]."""
         ...
 
     @property
     def spreads(self) -> Tensor:
-        """Descending eigenvalues of every packed cloud's second moments, [count,3]."""
+        """Descending eigenvalues of every packed cloud's second moments, [clouds,3]."""
         ...
 
     @property
     def scales(self) -> Tensor:
-        """What every rotated cloud was divided by, its RMS distance from the centroid or 1, [count]."""
+        """What every rotated cloud was divided by, its RMS distance from the centroid or 1, [clouds]."""
+        ...
+
+    @property
+    def max_radii(self) -> Tensor:
+        """Largest packed point norm of every cloud, [clouds]."""
         ...
 
     @property
@@ -1731,18 +1742,20 @@ class ShapesPacked:
         """Size of the packs in bytes."""
         ...
 
-    def coordinates(self, index: int, /) -> Tensor:
-        """Return the packed points x′ of cloud `index`, [points,3] in the packed dtype.
+    @classmethod
+    def pack_size(cls, points: int, /, dtype: Literal["f16", "float16", "f32", "float32"] | type[float16]) -> int:
+        """Return the bytes one packed cloud of the given points and dtype takes."""
+        ...
 
-        The input point is recovered as x = scale·Qᵀ·x′ + centroid, with Q from the cloud's frame.
-        """
+    def unpack(self, index: int, /) -> Tensor:
+        """Return one cloud as [points,3] in the pack dtype and its original pose and scale, within one rounding."""
         ...
 
     def __len__(self) -> int:
         """Return the number of packed clouds."""
         ...
 
-    def __getitem__(self, key: int | slice, /) -> ShapesPacked:
+    def __getitem__(self, key: int | slice, /) -> ShapesPackedMatrix:
         """Return a view over one cloud or a slice of them, sharing the packs."""
         ...
 
@@ -1750,13 +1763,13 @@ class ShapesPacked:
         """Return a string representation."""
         ...
 
-# Pack one [points,3] cloud, or a list or tuple of clouds of any sizes, for shapes_*_packed().
+# Pack one [points,3] cloud, or a list or tuple of clouds of any sizes, for the shape distances.
 def shapes_pack(
     points: _BufferType | list[_BufferType] | tuple[_BufferType, ...],
     /,
     dtype: Literal["f16", "float16", "f32", "float32"] | type[float16] | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> ShapesPacked:
+) -> ShapesPackedMatrix:
     """Center every cloud and rotate it onto its principal axes, float16 input as float16, else float32."""
     ...
 
@@ -1766,34 +1779,55 @@ def shapes_pack_normalized(
     /,
     dtype: Literal["f16", "float16", "f32", "float32"] | type[float16] | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> ShapesPacked:
+) -> ShapesPackedMatrix:
     """Pack every cloud like shapes_pack() and divide it by its RMS radius, so every kind ignores its size."""
     ...
 
 # The many-to-many distances return [rows,columns] distances, float32 for float16 packs and float64
-# for float32 ones, and with `rotations=True` also the [rows,columns,3,3] float32 rotations taking
-# each column cloud onto each row cloud: aᵢ ≈ (scale_a / scale_b) × R × (bⱼ − b̄) + ā.
-def shapes_chamfers_packed(
-    a: ShapesPacked, b: ShapesPacked, /, *, rotations: bool = False, **dispatch: Unpack[_Dispatch]
-) -> Tensor | tuple[Tensor, Tensor]:
+# for float32 ones. A `rotations` buffer, writable C-contiguous float32 of shape [rows,columns,3,3],
+# receives the rotations taking each column cloud onto each row cloud:
+# aᵢ ≈ (scale_a / scale_b) × R × (bⱼ − b̄) + ā.
+def chamfers_packed(
+    a: ShapesPackedMatrix,
+    b: ShapesPackedMatrix,
+    /,
+    *,
+    rotations: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
+) -> Tensor:
     """Compute Chamfer distances, the mean nearest-partner distance both ways, halved, best of 8 axis flips."""
     ...
 
-def shapes_hausdorffs_packed(
-    a: ShapesPacked, b: ShapesPacked, /, *, rotations: bool = False, **dispatch: Unpack[_Dispatch]
-) -> Tensor | tuple[Tensor, Tensor]:
+def hausdorffs_packed(
+    a: ShapesPackedMatrix,
+    b: ShapesPackedMatrix,
+    /,
+    *,
+    rotations: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
+) -> Tensor:
     """Compute Hausdorff distances, the worst nearest-partner distance either way, best of 8 axis flips."""
     ...
 
-def shapes_wassersteinprocrustes_packed(
-    a: ShapesPacked, b: ShapesPacked, /, *, rotations: bool = False, **dispatch: Unpack[_Dispatch]
-) -> Tensor | tuple[Tensor, Tensor]:
+def wassersteinprocrustes_packed(
+    a: ShapesPackedMatrix,
+    b: ShapesPackedMatrix,
+    /,
+    *,
+    rotations: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
+) -> Tensor:
     """Compute Wasserstein-Procrustes distances, the exact transport RMSD after the best rotation or reflection."""
     ...
 
-def shapes_gromovwassersteins_packed(
-    a: ShapesPacked, b: ShapesPacked, /, *, rotations: bool = False, **dispatch: Unpack[_Dispatch]
-) -> Tensor | tuple[Tensor, Tensor]:
+def gromovwassersteins_packed(
+    a: ShapesPackedMatrix,
+    b: ShapesPackedMatrix,
+    /,
+    *,
+    rotations: _BufferType | None = None,
+    **dispatch: Unpack[_Dispatch],
+) -> Tensor:
     """Compute Gromov-Wasserstein distances between the clouds' own distance matrices."""
     ...
 

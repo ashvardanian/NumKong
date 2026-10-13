@@ -94,7 +94,7 @@
 #include "distance.h"
 #include "each.h"
 #include "trigonometry.h"
-#include "meshes.h"
+#include "shapes.h"
 #include "attention.h"
 #include "maxsim.h"
 #include "numpy_interop.h"
@@ -1339,14 +1339,12 @@ static PyMethodDef nk_methods[] = {
     {"shapes_pack", (PyCFunction)api_shapes_pack, METH_FASTCALL | METH_KEYWORDS, doc_shapes_pack},
     {"shapes_pack_normalized", (PyCFunction)api_shapes_pack_normalized, METH_FASTCALL | METH_KEYWORDS,
      doc_shapes_pack_normalized},
-    {"shapes_chamfers_packed", (PyCFunction)api_shapes_chamfers_packed, METH_FASTCALL | METH_KEYWORDS,
-     doc_shapes_chamfers_packed},
-    {"shapes_hausdorffs_packed", (PyCFunction)api_shapes_hausdorffs_packed, METH_FASTCALL | METH_KEYWORDS,
-     doc_shapes_hausdorffs_packed},
-    {"shapes_wassersteinprocrustes_packed", (PyCFunction)api_shapes_wassersteinprocrustes_packed,
-     METH_FASTCALL | METH_KEYWORDS, doc_shapes_wassersteinprocrustes_packed},
-    {"shapes_gromovwassersteins_packed", (PyCFunction)api_shapes_gromovwassersteins_packed,
-     METH_FASTCALL | METH_KEYWORDS, doc_shapes_gromovwassersteins_packed},
+    {"chamfers_packed", (PyCFunction)api_chamfers_packed, METH_FASTCALL | METH_KEYWORDS, doc_chamfers_packed},
+    {"hausdorffs_packed", (PyCFunction)api_hausdorffs_packed, METH_FASTCALL | METH_KEYWORDS, doc_hausdorffs_packed},
+    {"wassersteinprocrustes_packed", (PyCFunction)api_wassersteinprocrustes_packed, METH_FASTCALL | METH_KEYWORDS,
+     doc_wassersteinprocrustes_packed},
+    {"gromovwassersteins_packed", (PyCFunction)api_gromovwassersteins_packed, METH_FASTCALL | METH_KEYWORDS,
+     doc_gromovwassersteins_packed},
 
     // Matrix multiplication with pre-packed matrices
     {"dots_pack", (PyCFunction)api_dots_pack, METH_FASTCALL | METH_KEYWORDS, doc_dots_pack},
@@ -1455,7 +1453,7 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     if (PyType_Ready(&PackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&MaxSimPackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&AttentionPackedMatrixType) < 0) return NULL;
-    if (PyType_Ready(&ShapesPackedType) < 0) return NULL;
+    if (PyType_Ready(&ShapesPackedMatrixType) < 0) return NULL;
 
     m = PyModule_Create(&nk_module);
     if (m == NULL) return NULL;
@@ -1517,10 +1515,10 @@ PyMODINIT_FUNC PyInit__numkong(void) {
         return NULL;
     }
 
-    // Register ShapesPacked type
-    Py_INCREF(&ShapesPackedType);
-    if (PyModule_AddObject(m, "ShapesPacked", (PyObject *)&ShapesPackedType) < 0) {
-        Py_XDECREF(&ShapesPackedType);
+    // Register ShapesPackedMatrix type
+    Py_INCREF(&ShapesPackedMatrixType);
+    if (PyModule_AddObject(m, "ShapesPackedMatrix", (PyObject *)&ShapesPackedMatrixType) < 0) {
+        Py_XDECREF(&ShapesPackedMatrixType);
         Py_XDECREF(m);
         return NULL;
     }

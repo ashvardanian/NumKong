@@ -16,7 +16,7 @@
 //! - [`set`]: Binary set similarity — Hamming, Jaccard
 //! - [`probability`]: Probability divergences — KL, JS
 //! - [`curved`]: Curved metric spaces — Bilinear, Mahalanobis
-//! - [`meshes`]: Shape distances — Chamfer, Hausdorff, Wasserstein-Procrustes, Gromov-Wasserstein
+//! - [`shapes`]: Shape distances — Chamfer, Hausdorff, Wasserstein-Procrustes, Gromov-Wasserstein
 //! - [`geospatial`]: Geospatial distances — Haversine, Vincenty
 //! - [`sparse`]: Sparse set operations
 //! - [`mod@cast`]: Type casting between scalar formats
@@ -130,11 +130,11 @@ pub mod dot;
 pub mod each;
 pub mod geospatial;
 pub mod maxsim;
-pub mod meshes;
 pub mod probability;
 pub mod reduce;
 pub mod scalar;
 pub mod set;
+pub mod shapes;
 pub mod sparse;
 pub mod spatial;
 pub mod trigonometry;
@@ -179,7 +179,7 @@ pub use trigonometry::{TrigAtan, TrigAtanOps, TrigCos, TrigCosOps, TrigSin, Trig
 pub use curved::{Bilinear, Mahalanobis};
 
 // Re-export many-to-many shape distances
-pub use meshes::{Shapes, ShapesPacked};
+pub use shapes::{Shapes, ShapesPackedMatrix};
 
 // Re-export geospatial
 pub use geospatial::{Geospatial, Haversine, Vincenty};

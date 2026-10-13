@@ -343,6 +343,7 @@ check_member_docs_not_trailing() {
 
 # Rejects a plain `//` or `/* */` comment trailing a field or enumerator, because hover shows only a
 # comment above the declaration; inside a struct, union or enum body, each gets its own `/** ... */`.
+# Type alias tables keep their aligned trailing comments.
 check_member_comments_above() {
     local trailing
     trailing=$(scan_staged_file_marking_added_lines '
@@ -354,7 +355,7 @@ check_member_comments_above() {
             gsub(/"([^"\\]|\\.)*"/, "\"\"", code)
             depth += gsub(/\{/, "{", code) - gsub(/\}/, "}", code)
             if (depth <= 0) { depth = 0; next }
-            if (code ~ /\\[[:space:]]*$/ || code ~ /^[[:space:]]*(\/\/|\/\*|\*)/) next
+            if (code ~ /\\[[:space:]]*$/ || code ~ /^[[:space:]]*(\/\/|\/\*|\*|using[[:space:]])/) next
             if ((FNR in added) && code ~ /[A-Za-z0-9_\]);,][[:space:]]*(\/\/([^\/!]|$)|\/\*[^*])/) print "+" $0
         }' || true)
     [ -z "$trailing" ] || reject_with_reason "$trailing" \
@@ -3103,7 +3104,7 @@ check_register_names_carry_dtype_and_width() {
                 sub(/^[[:space:]]*(const[[:space:]]+)?[*[:space:]]*/, "", text)
                 name = text; sub(/[^A-Za-z0-9_].*/, "", name)
                 rest = substr(text, length(name) + 1)
-                if (rest ~ /^[[:space:]]*\(/) return
+                if (rest ~ /^[[:space:]]*(\(|##)/) return
                 if (name != "" && !name_exempt(name) && !(is_mask ? mask_name_valid(name) : vector_name_valid(name)))
                     printf "line %d: %s %s\n", FNR, type, name
                 if (!multiple) return

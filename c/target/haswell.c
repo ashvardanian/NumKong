@@ -15,7 +15,7 @@
 #include "numkong/curved/haswell.h"
 #include "numkong/probability/haswell.h"
 #include "numkong/geospatial/haswell.h"
-#include "numkong/meshes/haswell.h"
+#include "numkong/shapes/haswell.h"
 #include "numkong/sparse/haswell.h"
 #include "numkong/each/haswell.h"
 #include "numkong/trigonometry/haswell.h"
