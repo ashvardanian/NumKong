@@ -22,7 +22,7 @@
  *  NUMWARS_DIMS_WIDTH            128      GEMM N dimension, like the query count for kNN
  *  NUMWARS_DIMS_DEPTH            1536     GEMM K dimension, like the vector dimension for kNN
  *  NUMKONG_CURVED_DIMS           64       Vector dimension for curved benchmarks
- *  NUMKONG_MESH_POINTS           1000     Point count for mesh benchmarks
+ *  NUMKONG_SHAPE_POINTS          64       Points per cloud for shape benchmarks
  *  NUMKONG_SPARSE_FIRST_LENGTH   1024     Elements in the first sparse set
  *  NUMKONG_SPARSE_SECOND_LENGTH  8192     Elements in the second sparse set
  *  NUMKONG_SPARSE_INTERSECTION   0.5      Share of the smaller sparse set both sets hold, in (0, 1]
@@ -465,8 +465,8 @@ struct settings_t {
     /** Curved metric dimensions, quadratic in cost. */
     std::size_t curved_dimensions = 64;
 
-    /** Number of 3D points for mesh metrics, like RMSD. */
-    std::size_t mesh_points = 1000;
+    /** Points per cloud for the many-to-many shape distances. */
+    std::size_t shape_points = 64;
 
     /** Elements in the first sparse set. */
     std::size_t sparse_first_count = 1024;
@@ -525,7 +525,7 @@ inline settings_t read_settings() noexcept {
     settings.matrix_width = env_count("NUMWARS_DIMS_WIDTH", settings.matrix_width);
     settings.matrix_depth = env_count("NUMWARS_DIMS_DEPTH", settings.matrix_depth);
     settings.curved_dimensions = env_count("NUMKONG_CURVED_DIMS", settings.curved_dimensions);
-    settings.mesh_points = env_count("NUMKONG_MESH_POINTS", settings.mesh_points);
+    settings.shape_points = env_count("NUMKONG_SHAPE_POINTS", settings.shape_points);
     settings.sparse_first_count = env_count("NUMKONG_SPARSE_FIRST_LENGTH", settings.sparse_first_count);
     settings.sparse_second_count = env_count("NUMKONG_SPARSE_SECOND_LENGTH", settings.sparse_second_count);
     settings.sparse_intersection_share = number_where(
@@ -554,7 +554,7 @@ inline void print(settings_t const &settings) {
     fmt::println("- Dims width: {}", settings.matrix_width);
     fmt::println("- Dims depth: {}", settings.matrix_depth);
     fmt::println("- Curved dims: {}", settings.curved_dimensions);
-    fmt::println("- Mesh points: {}", settings.mesh_points);
+    fmt::println("- Shape points: {}", settings.shape_points);
     fmt::println("- Sparse first length: {}", settings.sparse_first_count);
     fmt::println("- Sparse second length: {}", settings.sparse_second_count);
     fmt::println("- Sparse intersection: {}", settings.sparse_intersection_share);
@@ -972,7 +972,7 @@ void bench_probability(environment_t const &env);
 void bench_each(environment_t const &env);
 void bench_trigonometry(environment_t const &env);
 void bench_geospatial(environment_t const &env);
-void bench_mesh(environment_t const &env);
+void bench_shapes(environment_t const &env);
 void bench_sparse(environment_t const &env);
 void bench_sparse_dot(environment_t const &env);
 void bench_cast(environment_t const &env);

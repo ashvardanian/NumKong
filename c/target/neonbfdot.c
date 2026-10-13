@@ -12,7 +12,6 @@
 #include "numkong/dot/neonbfdot.h"
 #include "numkong/spatial/neonbfdot.h"
 #include "numkong/curved/neonbfdot.h"
-#include "numkong/meshes/neonbfdot.h"
 #include "numkong/each/neonbfdot.h"
 #include "numkong/dots/neonbfdot.h"
 #include "numkong/spatials/neonbfdot.h"

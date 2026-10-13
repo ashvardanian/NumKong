@@ -2,31 +2,45 @@
  *  @file include/numkong/meshes.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
- *  @brief C++ bindings for mesh-distance kernels.
+ *  @brief C++ bindings for many-to-many shape distances.
  *
+ *  Every wrapper dispatches to the C kernels over a nonzero capability mask, and otherwise runs a
+ *  C++ template of the same algorithm in its distance type, which tests instantiate in @c f118_t
+ *  and @c f64_t as the reference the kernels are checked against.
+ *
+ *  @code{.cpp}
+ *  std::span<nk::f32_t const> clouds[] = {first_cloud, second_cloud};
+ *  auto [packs, status] = nk::shapes_packed<nk::f32_t>::make(clouds);
+ *  nk::f64_t distances[4];
+ *  status = nk::chamfers<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t), nullptr);
+ *  @endcode
  */
-#ifndef NUMKONG_MESH_HPP
-#define NUMKONG_MESH_HPP
+#ifndef NUMKONG_MESHES_HPP
+#define NUMKONG_MESHES_HPP
 
-#include <cstdint>
-#include <type_traits>
-#include <utility>
+#include <cstdint> // `std::uint32_t`, `std::uintptr_t`
+#include <cstring> // `std::memcpy`, `std::memset`, `std::memcmp`
+
+#include <memory>      // `std::allocator_traits`
+#include <span>        // `std::span`
+#include <type_traits> // `std::conditional_t`
+#include <utility>     // `std::exchange`, `std::swap`
 
 #include "numkong/meshes.h"
-
+#include "numkong/memory.hpp" // `aligned_allocator`
 #include "numkong/types.hpp"
 
 namespace ashvardanian::numkong {
 
-#pragma region SVD Helpers for Scalar Fallbacks
+/** The point types of shape packs: @c f16_t computes in @c f32_t, and @c f32_t in @c f64_t. */
+template <typename in_type_>
+concept shapes_dtype = std::is_same_v<in_type_, f16_t> || std::is_same_v<in_type_, f32_t>;
 
-/** 3x3 matrix determinant. */
 template <typename scalar_type_>
 scalar_type_ det3x3_(scalar_type_ const *m) {
     return m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) + m[2] * (m[3] * m[7] - m[4] * m[6]);
 }
 
-/** Conditional swap helper. */
 template <typename scalar_type_>
 void conditional_swap_(bool c, scalar_type_ *x, scalar_type_ *y) {
     scalar_type_ temp = *x;
@@ -34,7 +48,6 @@ void conditional_swap_(bool c, scalar_type_ *x, scalar_type_ *y) {
     *y = c ? temp : *y;
 }
 
-/** Conditional negating swap helper. */
 template <typename scalar_type_>
 void conditional_negating_swap_(bool c, scalar_type_ *x, scalar_type_ *y) {
     scalar_type_ neg_x = scalar_type_(0.0) - *x;
@@ -42,23 +55,27 @@ void conditional_negating_swap_(bool c, scalar_type_ *x, scalar_type_ *y) {
     *y = c ? neg_x : *y;
 }
 
-/** Approximate Givens quaternion for Jacobi eigenanalysis. */
+/** Whether @p scalar_type_ takes the single-precision constants of the C kernels' 3 × 3 solvers. */
+template <typename scalar_type_>
+inline constexpr bool shapes_single_precision_ = sizeof(scalar_type_) == sizeof(nk_f32_t);
+
 template <typename scalar_type_>
 void approximate_givens_quaternion_(scalar_type_ a11, scalar_type_ a12, scalar_type_ a22, scalar_type_ *cos_half,
                                     scalar_type_ *sin_half) {
-    constexpr scalar_type_ gamma_k = scalar_type_(5.828427124746190);  // gamma = (sqrt8 + 3)^2 / 4
-    constexpr scalar_type_ cstar_k = scalar_type_(0.9238795325112867); // cos(pi/8)
-    constexpr scalar_type_ sstar_k = scalar_type_(0.3826834323650898); // sin(pi/8)
+    constexpr bool single_k = shapes_single_precision_<scalar_type_>;
+    // γ = (√8 + 3)² / 4, with cos(π/8) and sin(π/8)
+    scalar_type_ const gamma = single_k ? scalar_type_(5.828427124f) : scalar_type_(5.828427124746190);
+    scalar_type_ const cstar = single_k ? scalar_type_(0.923879532f) : scalar_type_(0.9238795325112867);
+    scalar_type_ const sstar = single_k ? scalar_type_(0.3826834323f) : scalar_type_(0.3826834323650898);
 
     *cos_half = scalar_type_(2.0) * (a11 - a22);
     *sin_half = a12;
-    bool use_givens = gamma_k * (*sin_half) * (*sin_half) < (*cos_half) * (*cos_half);
+    bool use_givens = gamma * (*sin_half) * (*sin_half) < (*cos_half) * (*cos_half);
     scalar_type_ w = ((*cos_half) * (*cos_half) + (*sin_half) * (*sin_half)).rsqrt();
-    *cos_half = use_givens ? w * (*cos_half) : cstar_k;
-    *sin_half = use_givens ? w * (*sin_half) : sstar_k;
+    *cos_half = use_givens ? w * (*cos_half) : cstar;
+    *sin_half = use_givens ? w * (*sin_half) : sstar;
 }
 
-/** Jacobi conjugation step for eigenanalysis. */
 template <typename scalar_type_>
 void jacobi_conjugation_(int idx_x, int idx_y, int idx_z, scalar_type_ *s11, scalar_type_ *s21, scalar_type_ *s22,
                          scalar_type_ *s31, scalar_type_ *s32, scalar_type_ *s33, scalar_type_ *quat) {
@@ -81,7 +98,6 @@ void jacobi_conjugation_(int idx_x, int idx_y, int idx_z, scalar_type_ *s11, sca
     *s32 = (scalar_type_(0.0) - sin_theta) * s31_old + cos_theta * s32_old;
     *s33 = s33_old;
 
-    // Update quaternion accumulator
     scalar_type_ quat_temp[3];
     quat_temp[0] = quat[0] * sin_half;
     quat_temp[1] = quat[1] * sin_half;
@@ -95,12 +111,11 @@ void jacobi_conjugation_(int idx_x, int idx_y, int idx_z, scalar_type_ *s11, sca
     quat[3] = quat[3] - quat_temp[idx_z];
     quat[idx_x] = quat[idx_x] + quat_temp[idx_y];
     quat[idx_y] = quat[idx_y] - quat_temp[idx_x];
-    // Cyclic permutation of matrix elements
     s11_old = *s22, s21_old = *s32, s22_old = *s33, s31_old = *s21, s32_old = *s31, s33_old = *s11;
     *s11 = s11_old, *s21 = s21_old, *s22 = s22_old, *s31 = s31_old, *s32 = s32_old, *s33 = s33_old;
 }
 
-/** Convert quaternion to 3x3 rotation matrix. */
+/** The row-major rotation of the unit quaternion (x, y, z, w). */
 template <typename scalar_type_>
 void quaternion_to_mat3x3_(scalar_type_ const *quat, scalar_type_ *matrix) {
     scalar_type_ w = quat[3], x = quat[0], y = quat[1], z = quat[2];
@@ -118,7 +133,33 @@ void quaternion_to_mat3x3_(scalar_type_ const *quat, scalar_type_ *matrix) {
     matrix[8] = scalar_type_(1.0) - scalar_type_(2.0) * (q_xx + q_yy);
 }
 
-/** Jacobi eigenanalysis for symmetric 3x3 matrix. */
+/** The unit quaternion (x, y, z, w) of a row-major rotation, by Shepperd's method. */
+template <typename scalar_type_>
+void mat3x3_to_quaternion_(scalar_type_ const *m, scalar_type_ *quat) {
+    scalar_type_ const one(1.0), two(2.0), quarter(0.25);
+    scalar_type_ const trace = m[0] + m[4] + m[8];
+    if (trace > scalar_type_(0.0)) {
+        scalar_type_ const s = two * (trace + one).sqrt();
+        quat[3] = s * quarter, quat[0] = (m[7] - m[5]) / s, quat[1] = (m[2] - m[6]) / s, quat[2] = (m[3] - m[1]) / s;
+    }
+    else if (m[0] > m[4] && m[0] > m[8]) {
+        scalar_type_ const s = two * (one + m[0] - m[4] - m[8]).sqrt();
+        quat[3] = (m[7] - m[5]) / s, quat[0] = s * quarter, quat[1] = (m[1] + m[3]) / s, quat[2] = (m[2] + m[6]) / s;
+    }
+    else if (m[4] > m[8]) {
+        scalar_type_ const s = two * (one + m[4] - m[0] - m[8]).sqrt();
+        quat[3] = (m[2] - m[6]) / s, quat[0] = (m[1] + m[3]) / s, quat[1] = s * quarter, quat[2] = (m[5] + m[7]) / s;
+    }
+    else {
+        scalar_type_ const s = two * (one + m[8] - m[0] - m[4]).sqrt();
+        quat[3] = (m[3] - m[1]) / s, quat[0] = (m[2] + m[6]) / s, quat[1] = (m[5] + m[7]) / s, quat[2] = s * quarter;
+    }
+    scalar_type_ const norm = (quat[0] * quat[0] + quat[1] * quat[1] + quat[2] * quat[2] + quat[3] * quat[3]).rsqrt();
+    for (int i = 0; i != 4; ++i) quat[i] = quat[i] * norm;
+}
+
+/** Diagonalizes the symmetric 3 × 3 matrix in place, leaving its eigenvalues on the diagonal and
+ *  the quaternion of the eigenvector columns in @p quat. */
 template <typename scalar_type_>
 void jacobi_eigenanalysis_(scalar_type_ *s11, scalar_type_ *s21, scalar_type_ *s22, scalar_type_ *s31,
                            scalar_type_ *s32, scalar_type_ *s33, scalar_type_ *quat) {
@@ -126,7 +167,6 @@ void jacobi_eigenanalysis_(scalar_type_ *s11, scalar_type_ *s21, scalar_type_ *s
     quat[1] = scalar_type_(0.0);
     quat[2] = scalar_type_(0.0);
     quat[3] = scalar_type_(1.0);
-    // 16 iterations for better convergence
     for (unsigned int iter = 0; iter < 16; iter++) {
         jacobi_conjugation_(0, 1, 2, s11, s21, s22, s31, s32, s33, quat);
         jacobi_conjugation_(1, 2, 0, s11, s21, s22, s31, s32, s33, quat);
@@ -139,17 +179,29 @@ void jacobi_eigenanalysis_(scalar_type_ *s11, scalar_type_ *s21, scalar_type_ *s
     quat[3] = quat[3] * norm;
 }
 
-/** QR Givens quaternion for QR decomposition. */
+/** Sorts three eigenvalues descending, swapping their eigenvector columns and negating one of each
+ *  swapped pair, so the determinant stays. */
+template <typename scalar_type_>
+void sort_eigenvectors_(scalar_type_ *values, scalar_type_ *vectors) {
+    auto const step = [&](int first, int second) {
+        bool const should_swap = values[first] < values[second];
+        conditional_swap_(should_swap, &values[first], &values[second]);
+        for (int row = 0; row != 3; ++row)
+            conditional_negating_swap_(should_swap, &vectors[row * 3 + first], &vectors[row * 3 + second]);
+    };
+    step(0, 1), step(0, 2), step(1, 2);
+}
+
 template <typename scalar_type_>
 void qr_givens_quaternion_(scalar_type_ a1, scalar_type_ a2, scalar_type_ *cos_half, scalar_type_ *sin_half) {
-    constexpr scalar_type_ epsilon_k = scalar_type_(1e-12);
+    scalar_type_ const epsilon = shapes_single_precision_<scalar_type_> ? scalar_type_(1e-6f) : scalar_type_(1e-12);
 
     scalar_type_ a1_sq_plus_a2_sq = a1 * a1 + a2 * a2;
     scalar_type_ rho = a1_sq_plus_a2_sq * a1_sq_plus_a2_sq.rsqrt();
-    rho = a1_sq_plus_a2_sq > epsilon_k ? rho : scalar_type_(0.0);
-    *sin_half = rho > epsilon_k ? a2 : scalar_type_(0.0);
+    rho = a1_sq_plus_a2_sq > epsilon ? rho : scalar_type_(0.0);
+    *sin_half = rho > epsilon ? a2 : scalar_type_(0.0);
     scalar_type_ abs_a1 = a1 < scalar_type_(0.0) ? (scalar_type_(0.0) - a1) : a1;
-    scalar_type_ max_rho = rho > epsilon_k ? rho : epsilon_k;
+    scalar_type_ max_rho = rho > epsilon ? rho : epsilon;
     *cos_half = abs_a1 + max_rho;
     bool should_swap = a1 < scalar_type_(0.0);
     conditional_swap_(should_swap, sin_half, cos_half);
@@ -158,14 +210,12 @@ void qr_givens_quaternion_(scalar_type_ a1, scalar_type_ a2, scalar_type_ *cos_h
     *sin_half = (*sin_half) * w;
 }
 
-/** Sort singular values in descending order. */
 template <typename scalar_type_>
 void sort_singular_values_(scalar_type_ *b, scalar_type_ *v) {
     scalar_type_ rho1 = b[0] * b[0] + b[3] * b[3] + b[6] * b[6];
     scalar_type_ rho2 = b[1] * b[1] + b[4] * b[4] + b[7] * b[7];
     scalar_type_ rho3 = b[2] * b[2] + b[5] * b[5] + b[8] * b[8];
     bool should_swap;
-    // Sort columns by descending singular value magnitude
     should_swap = rho1 < rho2;
     conditional_negating_swap_(should_swap, &b[0], &b[1]);
     conditional_negating_swap_(should_swap, &v[0], &v[1]);
@@ -191,640 +241,1207 @@ void sort_singular_values_(scalar_type_ *b, scalar_type_ *v) {
     conditional_negating_swap_(should_swap, &v[7], &v[8]);
 }
 
-/** QR decomposition of 3x3 matrix. */
+/** The orthogonal factor of a 3 × 3 QR decomposition by three Givens rotations. */
 template <typename scalar_type_>
-void qr_decomposition_(scalar_type_ const *input, scalar_type_ *q, scalar_type_ *r) {
-    scalar_type_ cos_half_1, sin_half_1;
-    scalar_type_ cos_half_2, sin_half_2;
-    scalar_type_ cos_half_3, sin_half_3;
-    scalar_type_ cos_theta, sin_theta;
-    scalar_type_ rotation_temp[9], matrix_temp[9];
-    // First Givens rotation (zero input[3])
+void qr_orthogonal_factor_(scalar_type_ const *input, scalar_type_ *q) {
+    scalar_type_ const one(1.0), two(2.0), four(4.0), eight(8.0);
+    scalar_type_ cos_half_1, sin_half_1, cos_half_2, sin_half_2, cos_half_3, sin_half_3;
     qr_givens_quaternion_(input[0], input[3], &cos_half_1, &sin_half_1);
-    cos_theta = scalar_type_(1.0) - scalar_type_(2.0) * sin_half_1 * sin_half_1;
-    sin_theta = scalar_type_(2.0) * cos_half_1 * sin_half_1;
-    rotation_temp[0] = cos_theta * input[0] + sin_theta * input[3];
-    rotation_temp[1] = cos_theta * input[1] + sin_theta * input[4];
-    rotation_temp[2] = cos_theta * input[2] + sin_theta * input[5];
-    rotation_temp[3] = (scalar_type_(0.0) - sin_theta) * input[0] + cos_theta * input[3];
-    rotation_temp[4] = (scalar_type_(0.0) - sin_theta) * input[1] + cos_theta * input[4];
-    rotation_temp[5] = (scalar_type_(0.0) - sin_theta) * input[2] + cos_theta * input[5];
-    rotation_temp[6] = input[6];
-    rotation_temp[7] = input[7];
-    rotation_temp[8] = input[8];
-    // Second Givens rotation (zero rotation_temp[6])
-    qr_givens_quaternion_(rotation_temp[0], rotation_temp[6], &cos_half_2, &sin_half_2);
-    cos_theta = scalar_type_(1.0) - scalar_type_(2.0) * sin_half_2 * sin_half_2;
-    sin_theta = scalar_type_(2.0) * cos_half_2 * sin_half_2;
-    matrix_temp[0] = cos_theta * rotation_temp[0] + sin_theta * rotation_temp[6];
-    matrix_temp[1] = cos_theta * rotation_temp[1] + sin_theta * rotation_temp[7];
-    matrix_temp[2] = cos_theta * rotation_temp[2] + sin_theta * rotation_temp[8];
-    matrix_temp[3] = rotation_temp[3];
-    matrix_temp[4] = rotation_temp[4];
-    matrix_temp[5] = rotation_temp[5];
-    matrix_temp[6] = (scalar_type_(0.0) - sin_theta) * rotation_temp[0] + cos_theta * rotation_temp[6];
-    matrix_temp[7] = (scalar_type_(0.0) - sin_theta) * rotation_temp[1] + cos_theta * rotation_temp[7];
-    matrix_temp[8] = (scalar_type_(0.0) - sin_theta) * rotation_temp[2] + cos_theta * rotation_temp[8];
-    // Third Givens rotation (zero matrix_temp[7])
-    qr_givens_quaternion_(matrix_temp[4], matrix_temp[7], &cos_half_3, &sin_half_3);
-    cos_theta = scalar_type_(1.0) - scalar_type_(2.0) * sin_half_3 * sin_half_3;
-    sin_theta = scalar_type_(2.0) * cos_half_3 * sin_half_3;
-    r[0] = matrix_temp[0];
-    r[1] = matrix_temp[1];
-    r[2] = matrix_temp[2];
-    r[3] = cos_theta * matrix_temp[3] + sin_theta * matrix_temp[6];
-    r[4] = cos_theta * matrix_temp[4] + sin_theta * matrix_temp[7];
-    r[5] = cos_theta * matrix_temp[5] + sin_theta * matrix_temp[8];
-    r[6] = (scalar_type_(0.0) - sin_theta) * matrix_temp[3] + cos_theta * matrix_temp[6];
-    r[7] = (scalar_type_(0.0) - sin_theta) * matrix_temp[4] + cos_theta * matrix_temp[7];
-    r[8] = (scalar_type_(0.0) - sin_theta) * matrix_temp[5] + cos_theta * matrix_temp[8];
-    // Construct Q = Q1 * Q2 * Q3 (closed-form expressions)
-    scalar_type_ sin_half_1_sq = sin_half_1 * sin_half_1;
-    scalar_type_ sin_half_2_sq = sin_half_2 * sin_half_2;
-    scalar_type_ sin_half_3_sq = sin_half_3 * sin_half_3;
-    q[0] = (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_1_sq) *
-           (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_2_sq);
-    q[1] = scalar_type_(4.0) * cos_half_2 * cos_half_3 * (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_1_sq) *
-               sin_half_2 * sin_half_3 +
-           scalar_type_(2.0) * cos_half_1 * sin_half_1 * (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_3_sq);
-    q[2] = scalar_type_(4.0) * cos_half_1 * cos_half_3 * sin_half_1 * sin_half_3 -
-           scalar_type_(2.0) * cos_half_2 * (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_1_sq) * sin_half_2 *
-               (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_3_sq);
-    q[3] = scalar_type_(2.0) * cos_half_1 * sin_half_1 * (scalar_type_(1.0) - scalar_type_(2.0) * sin_half_2_sq);
-    q[4] = scalar_type_(-8.0) * cos_half_1 * cos_half_2 * cos_half_3 * sin_half_1 * sin_half_2 * sin_half_3 +
-           (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_1_sq) *
-               (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_3_sq);
-    q[5] = scalar_type_(-2.0) * cos_half_3 * sin_half_3 +
-           scalar_type_(4.0) * sin_half_1 *
-               (cos_half_3 * sin_half_1 * sin_half_3 +
-                cos_half_1 * cos_half_2 * sin_half_2 * (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_3_sq));
-    q[6] = scalar_type_(2.0) * cos_half_2 * sin_half_2;
-    q[7] = scalar_type_(2.0) * cos_half_3 * (scalar_type_(1.0) - scalar_type_(2.0) * sin_half_2_sq) * sin_half_3;
-    q[8] = (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_2_sq) *
-           (scalar_type_(-1.0) + scalar_type_(2.0) * sin_half_3_sq);
+    scalar_type_ cos_theta = one - two * sin_half_1 * sin_half_1;
+    scalar_type_ sin_theta = two * cos_half_1 * sin_half_1;
+    scalar_type_ const rotated_1 = cos_theta * input[1] + sin_theta * input[4];
+    scalar_type_ const rotated_4 = -sin_theta * input[1] + cos_theta * input[4];
+    qr_givens_quaternion_(input[0] * cos_theta + sin_theta * input[3], input[6], &cos_half_2, &sin_half_2);
+    cos_theta = one - two * sin_half_2 * sin_half_2;
+    sin_theta = two * cos_half_2 * sin_half_2;
+    qr_givens_quaternion_(rotated_4, -sin_theta * rotated_1 + cos_theta * input[7], &cos_half_3, &sin_half_3);
+    scalar_type_ const sin_half_1_sq = sin_half_1 * sin_half_1;
+    scalar_type_ const sin_half_2_sq = sin_half_2 * sin_half_2;
+    scalar_type_ const sin_half_3_sq = sin_half_3 * sin_half_3;
+    q[0] = (-one + two * sin_half_1_sq) * (-one + two * sin_half_2_sq);
+    q[1] = four * cos_half_2 * cos_half_3 * (-one + two * sin_half_1_sq) * sin_half_2 * sin_half_3 +
+           two * cos_half_1 * sin_half_1 * (-one + two * sin_half_3_sq);
+    q[2] = four * cos_half_1 * cos_half_3 * sin_half_1 * sin_half_3 -
+           two * cos_half_2 * (-one + two * sin_half_1_sq) * sin_half_2 * (-one + two * sin_half_3_sq);
+    q[3] = two * cos_half_1 * sin_half_1 * (one - two * sin_half_2_sq);
+    q[4] = -eight * cos_half_1 * cos_half_2 * cos_half_3 * sin_half_1 * sin_half_2 * sin_half_3 +
+           (-one + two * sin_half_1_sq) * (-one + two * sin_half_3_sq);
+    q[5] = -two * cos_half_3 * sin_half_3 + four * sin_half_1 *
+                                                (cos_half_3 * sin_half_1 * sin_half_3 +
+                                                 cos_half_1 * cos_half_2 * sin_half_2 * (-one + two * sin_half_3_sq));
+    q[6] = two * cos_half_2 * sin_half_2;
+    q[7] = two * cos_half_3 * (one - two * sin_half_2_sq) * sin_half_3;
+    q[8] = (-one + two * sin_half_2_sq) * (-one + two * sin_half_3_sq);
 }
 
-/** 3x3 SVD: A = U * S * Vt using McAdams algorithm. */
+/** The 3 × 3 SVD A = U × Σ × Vᵀ by McAdams' method, keeping only the orthogonal factors. */
 template <typename scalar_type_>
-void svd3x3_(scalar_type_ const *a, scalar_type_ *svd_u, scalar_type_ *svd_s, scalar_type_ *svd_v) {
-    // Compute At * A (symmetric)
+void svd3x3_(scalar_type_ const *a, scalar_type_ *svd_u, scalar_type_ *svd_v) {
     scalar_type_ ata[9];
     ata[0] = a[0] * a[0] + a[3] * a[3] + a[6] * a[6];
     ata[1] = a[0] * a[1] + a[3] * a[4] + a[6] * a[7];
     ata[2] = a[0] * a[2] + a[3] * a[5] + a[6] * a[8];
-    ata[3] = ata[1];
     ata[4] = a[1] * a[1] + a[4] * a[4] + a[7] * a[7];
     ata[5] = a[1] * a[2] + a[4] * a[5] + a[7] * a[8];
-    ata[6] = ata[2];
-    ata[7] = ata[5];
     ata[8] = a[2] * a[2] + a[5] * a[5] + a[8] * a[8];
-    // Jacobi eigenanalysis of At * A
     scalar_type_ quat[4];
     jacobi_eigenanalysis_(&ata[0], &ata[1], &ata[4], &ata[2], &ata[5], &ata[8], quat);
     quaternion_to_mat3x3_(quat, svd_v);
-    // B = A * V
     scalar_type_ product[9];
-    product[0] = a[0] * svd_v[0] + a[1] * svd_v[3] + a[2] * svd_v[6];
-    product[1] = a[0] * svd_v[1] + a[1] * svd_v[4] + a[2] * svd_v[7];
-    product[2] = a[0] * svd_v[2] + a[1] * svd_v[5] + a[2] * svd_v[8];
-    product[3] = a[3] * svd_v[0] + a[4] * svd_v[3] + a[5] * svd_v[6];
-    product[4] = a[3] * svd_v[1] + a[4] * svd_v[4] + a[5] * svd_v[7];
-    product[5] = a[3] * svd_v[2] + a[4] * svd_v[5] + a[5] * svd_v[8];
-    product[6] = a[6] * svd_v[0] + a[7] * svd_v[3] + a[8] * svd_v[6];
-    product[7] = a[6] * svd_v[1] + a[7] * svd_v[4] + a[8] * svd_v[7];
-    product[8] = a[6] * svd_v[2] + a[7] * svd_v[5] + a[8] * svd_v[8];
-    // Sort singular values and update V
+    for (int row = 0; row != 3; ++row)
+        for (int column = 0; column != 3; ++column)
+            product[row * 3 + column] = a[row * 3 + 0] * svd_v[0 * 3 + column] +
+                                        a[row * 3 + 1] * svd_v[1 * 3 + column] + a[row * 3 + 2] * svd_v[2 * 3 + column];
     sort_singular_values_(product, svd_v);
-    // Compute singular values from column norms of sorted B
-    scalar_type_ s1_sq = product[0] * product[0] + product[3] * product[3] + product[6] * product[6];
-    scalar_type_ s2_sq = product[1] * product[1] + product[4] * product[4] + product[7] * product[7];
-    scalar_type_ s3_sq = product[2] * product[2] + product[5] * product[5] + product[8] * product[8];
-    // QR decomposition: B = U * R
-    scalar_type_ qr_r[9];
-    qr_decomposition_(product, svd_u, qr_r);
-    // Store singular values in diagonal of svd_s
-    svd_s[0] = s1_sq.sqrt();
-    svd_s[1] = scalar_type_(0.0);
-    svd_s[2] = scalar_type_(0.0);
-    svd_s[3] = scalar_type_(0.0);
-    svd_s[4] = s2_sq.sqrt();
-    svd_s[5] = scalar_type_(0.0);
-    svd_s[6] = scalar_type_(0.0);
-    svd_s[7] = scalar_type_(0.0);
-    svd_s[8] = s3_sq.sqrt();
+    qr_orthogonal_factor_(product, svd_u);
 }
 
-#pragma endregion SVD Helpers for Scalar Fallbacks
-
-#pragma region Mesh Alignment Kernels
-
-/**
- *  @brief Root Mean Square Deviation between two 3D point clouds (no alignment)
- *  @param[in] a,b Point clouds [n x 3] interleaved (x0,y0,z0, x1,y1,z1, ...)
- *  @param[in] n Number of 3D points
- *  @param[out] a_centroid,b_centroid Centroids (3 values each), can be nullptr
- *  @param[out] rotation 3x3 rotation matrix (9 values), always identity, can be nullptr
- *  @param[out] scale Scale factor, always 1.0, can be nullptr
- *  @param[out] metric Output RMSD value
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
- *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
- *
- *  @tparam in_type_ Input point type (f32_t, f64_t, f16_t, bf16_t)
- *  @tparam transform_type_ Type of centroids, rotation, and scale outputs
- *  @tparam metric_type_ Type of the scalar fit metric output
- */
-template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
-          typename metric_type_ = typename in_type_::mesh_metric_t>
-status_t rmsd(                                           //
-    in_type_ const *a, in_type_ const *b, std::size_t n, //
-    transform_type_ *a_centroid, transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
-    metric_type_ *metric, nk_capability_t capabilities = default_capabilities(),
-    nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
-                              std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
-
-    if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(nk_rmsd_f64_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
-                                                          &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
-                                                          stream));
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_rmsd_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
-                                                          &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
-                                                          stream));
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_rmsd_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
-                                                          &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
-                                                          stream));
-        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return static_cast<status_t>(nk_rmsd_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
-                                                           &rotation->raw_, scale ? &scale->raw_ : nullptr,
-                                                           &metric->raw_, capabilities, stream));
-    }
-    // Scalar fallback: raw √(Σ‖aᵢ − bᵢ‖² / n), no centering
-    if (a_centroid)
-        a_centroid[0] = transform_type_(0.0), a_centroid[1] = transform_type_(0.0),
-        a_centroid[2] = transform_type_(0.0);
-    if (b_centroid)
-        b_centroid[0] = transform_type_(0.0), b_centroid[1] = transform_type_(0.0),
-        b_centroid[2] = transform_type_(0.0);
-    if (rotation) {
-        rotation[0] = transform_type_(1.0), rotation[1] = transform_type_(0.0), rotation[2] = transform_type_(0.0);
-        rotation[3] = transform_type_(0.0), rotation[4] = transform_type_(1.0), rotation[5] = transform_type_(0.0);
-        rotation[6] = transform_type_(0.0), rotation[7] = transform_type_(0.0), rotation[8] = transform_type_(1.0);
-    }
-    if (scale) *scale = transform_type_(1.0);
-
-    metric_type_ sum_squared {};
-    for (std::size_t i = 0; i < n; i++) {
-        metric_type_ dx = metric_type_(a[i * 3 + 0]) - metric_type_(b[i * 3 + 0]);
-        metric_type_ dy = metric_type_(a[i * 3 + 1]) - metric_type_(b[i * 3 + 1]);
-        metric_type_ dz = metric_type_(a[i * 3 + 2]) - metric_type_(b[i * 3 + 2]);
-        sum_squared = sum_squared + dx * dx + dy * dy + dz * dz;
-    }
-
-    *metric = n == 0 ? metric_type_(0.0) : (sum_squared / metric_type_(static_cast<double>(n))).sqrt();
-    return status_t::success_k;
+/** R = V × Uᵀ, the rotation an SVD of a cross-covariance yields. */
+template <typename scalar_type_>
+void rotation_from_svd_(scalar_type_ const *svd_u, scalar_type_ const *svd_v, scalar_type_ *rotation) {
+    for (int row = 0; row != 3; ++row)
+        for (int column = 0; column != 3; ++column)
+            rotation[row * 3 + column] = svd_v[row * 3 + 0] * svd_u[column * 3 + 0] +
+                                         svd_v[row * 3 + 1] * svd_u[column * 3 + 1] +
+                                         svd_v[row * 3 + 2] * svd_u[column * 3 + 2];
 }
 
-/**
- *  @brief Kabsch algorithm: min ‖P − R × Q‖² over rotation R ∈ SO(3)
- *  @param[in] a,b Point clouds [n x 3] interleaved (source and target)
- *  @param[in] n Number of 3D points
- *  @param[out] a_centroid,b_centroid Centroids (3 values each), can be nullptr
- *  @param[out] rotation 3x3 rotation matrix (9 values, row-major), can be nullptr
- *  @param[out] scale Scale factor, always 1.0 for Kabsch, can be nullptr
- *  @param[out] metric Output RMSD after optimal rotation
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
- *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
- *
- *  @tparam in_type_ Input point type (f32_t, f64_t, f16_t, bf16_t)
- *  @tparam transform_type_ Type of centroids, rotation, and scale outputs
- *  @tparam metric_type_ Type of the scalar fit metric output
- */
-template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
-          typename metric_type_ = typename in_type_::mesh_metric_t>
-status_t kabsch(                                         //
-    in_type_ const *a, in_type_ const *b, std::size_t n, //
-    transform_type_ *a_centroid, transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
-    metric_type_ *metric, nk_capability_t capabilities = default_capabilities(),
-    nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
-                              std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
+/** The header of packs of @p in_type_ points. */
+template <typename in_type_>
+using shapes_header_ =
+    std::conditional_t<std::is_same_v<in_type_, f16_t>, nk_shapes_header_f32_t, nk_shapes_header_f64_t>;
 
-    if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(
-                nk_kabsch_f64_best(&a->raw_, &b->raw_, n, a_centroid ? &a_centroid->raw_ : nullptr, &b_centroid->raw_,
-                                   &rotation->raw_, &scale->raw_, &metric->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_kabsch_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
-                                                            &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
-                                                            stream));
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_kabsch_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_, &b_centroid->raw_,
-                                                            &rotation->raw_, &scale->raw_, &metric->raw_, capabilities,
-                                                            stream));
-        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return static_cast<status_t>(nk_kabsch_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_,
-                                                             &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                                                             &metric->raw_, capabilities, stream));
-    }
-    // Degenerate empty cloud: the neutral identity, no 1/n division.
-    if (n == 0) {
-        if (a_centroid)
-            a_centroid[0] = transform_type_(0.0), a_centroid[1] = transform_type_(0.0),
-            a_centroid[2] = transform_type_(0.0);
-        if (b_centroid)
-            b_centroid[0] = transform_type_(0.0), b_centroid[1] = transform_type_(0.0),
-            b_centroid[2] = transform_type_(0.0);
-        if (rotation) {
-            rotation[0] = transform_type_(1.0), rotation[1] = transform_type_(0.0), rotation[2] = transform_type_(0.0);
-            rotation[3] = transform_type_(0.0), rotation[4] = transform_type_(1.0), rotation[5] = transform_type_(0.0);
-            rotation[6] = transform_type_(0.0), rotation[7] = transform_type_(0.0), rotation[8] = transform_type_(1.0);
-        }
-        if (scale) *scale = transform_type_(1.0);
-        *metric = metric_type_(0.0);
-        return status_t::success_k;
-    }
-    // Compute centroids
-    metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
-    metric_type_ sum_b_x {}, sum_b_y {}, sum_b_z {};
-    metric_type_ val_a_x, val_a_y, val_a_z, val_b_x, val_b_y, val_b_z;
+/** One pack, read through its header and its three axes. */
+template <typename in_type_>
+struct shapes_cloud_ {
+    using raw_t = typename in_type_::raw_t;
 
-    for (std::size_t i = 0; i < n; i++) {
-        val_a_x = metric_type_(a[i * 3 + 0]), val_a_y = metric_type_(a[i * 3 + 1]),
-        val_a_z = metric_type_(a[i * 3 + 2]);
-        val_b_x = metric_type_(b[i * 3 + 0]), val_b_y = metric_type_(b[i * 3 + 1]),
-        val_b_z = metric_type_(b[i * 3 + 2]);
-        sum_a_x = sum_a_x + val_a_x, sum_a_y = sum_a_y + val_a_y, sum_a_z = sum_a_z + val_a_z;
-        sum_b_x = sum_b_x + val_b_x, sum_b_y = sum_b_y + val_b_y, sum_b_z = sum_b_z + val_b_z;
+    shapes_header_<in_type_> const *header = nullptr;
+    raw_t const *axes = nullptr;
+    std::size_t axis_stride = 0;
+    std::size_t points = 0;
+
+    explicit shapes_cloud_(void const *packed) noexcept
+        : header(static_cast<shapes_header_<in_type_> const *>(packed)),
+          points(static_cast<std::size_t>(header->points)) {
+        nk_size_t stride = 0;
+        if constexpr (std::is_same_v<in_type_, f16_t>) axes = nk_shapes_axes_f16(packed, &stride);
+        else axes = nk_shapes_axes_f32(packed, &stride);
+        axis_stride = stride;
     }
 
-    metric_type_ inv_n = metric_type_(1.0) / metric_type_(static_cast<double>(n));
-    metric_type_ centroid_a_x = sum_a_x * inv_n;
-    metric_type_ centroid_a_y = sum_a_y * inv_n;
-    metric_type_ centroid_a_z = sum_a_z * inv_n;
-    metric_type_ centroid_b_x = sum_b_x * inv_n;
-    metric_type_ centroid_b_y = sum_b_y * inv_n;
-    metric_type_ centroid_b_z = sum_b_z * inv_n;
-
-    if (a_centroid)
-        a_centroid[0] = transform_type_(centroid_a_x), a_centroid[1] = transform_type_(centroid_a_y),
-        a_centroid[2] = transform_type_(centroid_a_z);
-
-    if (b_centroid)
-        b_centroid[0] = transform_type_(centroid_b_x), b_centroid[1] = transform_type_(centroid_b_y),
-        b_centroid[2] = transform_type_(centroid_b_z);
-
-    // Build 3x3 covariance matrix H = (A - A_bar)^T x (B - B_bar)
-    metric_type_ cross_covariance[9] = {};
-    for (std::size_t i = 0; i < n; i++) {
-        val_a_x = metric_type_(a[i * 3 + 0]) - centroid_a_x, val_a_y = metric_type_(a[i * 3 + 1]) - centroid_a_y,
-        val_a_z = metric_type_(a[i * 3 + 2]) - centroid_a_z;
-        val_b_x = metric_type_(b[i * 3 + 0]) - centroid_b_x, val_b_y = metric_type_(b[i * 3 + 1]) - centroid_b_y,
-        val_b_z = metric_type_(b[i * 3 + 2]) - centroid_b_z;
-        cross_covariance[0] = cross_covariance[0] + val_a_x * val_b_x;
-        cross_covariance[1] = cross_covariance[1] + val_a_x * val_b_y;
-        cross_covariance[2] = cross_covariance[2] + val_a_x * val_b_z;
-        cross_covariance[3] = cross_covariance[3] + val_a_y * val_b_x;
-        cross_covariance[4] = cross_covariance[4] + val_a_y * val_b_y;
-        cross_covariance[5] = cross_covariance[5] + val_a_y * val_b_z;
-        cross_covariance[6] = cross_covariance[6] + val_a_z * val_b_x;
-        cross_covariance[7] = cross_covariance[7] + val_a_z * val_b_y;
-        cross_covariance[8] = cross_covariance[8] + val_a_z * val_b_z;
+    template <typename math_type_>
+    math_type_ coordinate(std::size_t point, std::size_t axis) const noexcept {
+        return math_type_(static_cast<double>(in_type_::from_raw(axes[axis * axis_stride + point])));
     }
 
-    // SVD of H = U * S * Vt
-    metric_type_ svd_u[9], svd_s[9], svd_v[9];
-    svd3x3_(cross_covariance, svd_u, svd_s, svd_v);
-
-    // R = V * Ut
-    metric_type_ rotation_matrix[9];
-    rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    rotation_matrix[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    rotation_matrix[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    rotation_matrix[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    rotation_matrix[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    rotation_matrix[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    rotation_matrix[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    rotation_matrix[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-
-    // Handle reflection: if det(R) < 0, negate third column of V and recompute R
-    metric_type_ rotation_det = det3x3_(rotation_matrix);
-    if (rotation_det < metric_type_(0.0)) {
-        svd_v[2] = metric_type_(0.0) - svd_v[2];
-        svd_v[5] = metric_type_(0.0) - svd_v[5];
-        svd_v[8] = metric_type_(0.0) - svd_v[8];
-        rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        rotation_matrix[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        rotation_matrix[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        rotation_matrix[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        rotation_matrix[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        rotation_matrix[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        rotation_matrix[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        rotation_matrix[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
+    /** V, the transpose of the header's frame 𝑄, whose columns are the principal axes. */
+    template <typename math_type_>
+    void frame(math_type_ *matrix) const noexcept {
+        math_type_ quaternion[4], rotation[9];
+        for (int i = 0; i != 4; ++i) quaternion[i] = math_type_(static_cast<double>(header->frame[i]));
+        quaternion_to_mat3x3_(quaternion, rotation);
+        for (int row = 0; row != 3; ++row)
+            for (int column = 0; column != 3; ++column) matrix[row * 3 + column] = rotation[column * 3 + row];
     }
 
-    // Output rotation matrix and scale=1.0
-    if (rotation) {
-        for (unsigned int j = 0; j < 9; j++) rotation[j] = transform_type_(rotation_matrix[j]);
+    template <typename math_type_>
+    math_type_ max_radius() const noexcept {
+        return math_type_(static_cast<double>(header->max_radius));
     }
-    if (scale) *scale = transform_type_(1.0);
-
-    // Compute RMSD after rotation
-    metric_type_ sum_squared {};
-    for (std::size_t i = 0; i < n; i++) {
-        metric_type_ point_a[3], point_b[3], rotated_point_a[3];
-        point_a[0] = metric_type_(a[i * 3 + 0]) - centroid_a_x, point_a[1] = metric_type_(a[i * 3 + 1]) - centroid_a_y,
-        point_a[2] = metric_type_(a[i * 3 + 2]) - centroid_a_z;
-        point_b[0] = metric_type_(b[i * 3 + 0]) - centroid_b_x, point_b[1] = metric_type_(b[i * 3 + 1]) - centroid_b_y,
-        point_b[2] = metric_type_(b[i * 3 + 2]) - centroid_b_z;
-        rotated_point_a[0] = rotation_matrix[0] * point_a[0] + rotation_matrix[1] * point_a[1] +
-                             rotation_matrix[2] * point_a[2];
-        rotated_point_a[1] = rotation_matrix[3] * point_a[0] + rotation_matrix[4] * point_a[1] +
-                             rotation_matrix[5] * point_a[2];
-        rotated_point_a[2] = rotation_matrix[6] * point_a[0] + rotation_matrix[7] * point_a[1] +
-                             rotation_matrix[8] * point_a[2];
-        metric_type_ dx = rotated_point_a[0] - point_b[0];
-        metric_type_ dy = rotated_point_a[1] - point_b[1];
-        metric_type_ dz = rotated_point_a[2] - point_b[2];
-        sum_squared = sum_squared + dx * dx + dy * dy + dz * dz;
-    }
-
-    *metric = (sum_squared * inv_n).sqrt();
-    return status_t::success_k;
-}
-
-/**
- *  @brief Umeyama algorithm: min ‖P − s × R × Q‖² over R ∈ SO(3), s ∈ ℝ⁺
- *  @param[in] a,b Point clouds [n x 3] interleaved (source and target)
- *  @param[in] n Number of 3D points
- *  @param[out] a_centroid Centroid of @p a, 3 values, can be nullptr
- *  @param[out] b_centroid Centroid of @p b, 3 values, can be nullptr
- *  @param[out] rotation 3x3 rotation matrix (9 values, row-major), can be nullptr
- *  @param[out] scale Uniform scale factor, can be nullptr
- *  @param[out] metric Output RMSD after optimal transformation
- *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
- *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
- *
- *  @tparam in_type_ Input point type (f32_t, f64_t, f16_t, bf16_t)
- *  @tparam transform_type_ Type of centroids, rotation, and scale outputs
- *  @tparam metric_type_ Type of the scalar fit metric output
- */
-template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
-          typename metric_type_ = typename in_type_::mesh_metric_t>
-status_t umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type_ *a_centroid,
-                 transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale, metric_type_ *metric,
-                 nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
-                              std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
-
-    if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(nk_umeyama_f64_best(&a->raw_, &b->raw_, n, &a_centroid->raw_,
-                                                             &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                                                             &metric->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_umeyama_f32_best(&a->raw_, &b->raw_, n, &a_centroid->raw_,
-                                                             &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                                                             &metric->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_umeyama_f16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_,
-                                                             &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                                                             &metric->raw_, capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
-            return static_cast<status_t>(nk_umeyama_bf16_best(&a->raw_, &b->raw_, n, &a_centroid->raw_,
-                                                              &b_centroid->raw_, &rotation->raw_, &scale->raw_,
-                                                              &metric->raw_, capabilities, stream));
-    }
-    // Degenerate empty cloud: the neutral identity, no 1/n division.
-    if (n == 0) {
-        if (a_centroid)
-            a_centroid[0] = transform_type_(0.0), a_centroid[1] = transform_type_(0.0),
-            a_centroid[2] = transform_type_(0.0);
-        if (b_centroid)
-            b_centroid[0] = transform_type_(0.0), b_centroid[1] = transform_type_(0.0),
-            b_centroid[2] = transform_type_(0.0);
-        if (rotation) {
-            rotation[0] = transform_type_(1.0), rotation[1] = transform_type_(0.0), rotation[2] = transform_type_(0.0);
-            rotation[3] = transform_type_(0.0), rotation[4] = transform_type_(1.0), rotation[5] = transform_type_(0.0);
-            rotation[6] = transform_type_(0.0), rotation[7] = transform_type_(0.0), rotation[8] = transform_type_(1.0);
-        }
-        if (scale) *scale = transform_type_(1.0);
-        *metric = metric_type_(0.0);
-        return status_t::success_k;
-    }
-    // Compute centroids
-    metric_type_ sum_a_x {}, sum_a_y {}, sum_a_z {};
-    metric_type_ sum_b_x {}, sum_b_y {}, sum_b_z {};
-    metric_type_ val_a_x, val_a_y, val_a_z, val_b_x, val_b_y, val_b_z;
-
-    for (std::size_t i = 0; i < n; i++) {
-        val_a_x = metric_type_(a[i * 3 + 0]), val_a_y = metric_type_(a[i * 3 + 1]),
-        val_a_z = metric_type_(a[i * 3 + 2]);
-        val_b_x = metric_type_(b[i * 3 + 0]), val_b_y = metric_type_(b[i * 3 + 1]),
-        val_b_z = metric_type_(b[i * 3 + 2]);
-        sum_a_x = sum_a_x + val_a_x, sum_a_y = sum_a_y + val_a_y, sum_a_z = sum_a_z + val_a_z;
-        sum_b_x = sum_b_x + val_b_x, sum_b_y = sum_b_y + val_b_y, sum_b_z = sum_b_z + val_b_z;
-    }
-
-    metric_type_ inv_n = metric_type_(1.0) / metric_type_(static_cast<double>(n));
-    metric_type_ centroid_a_x = sum_a_x * inv_n;
-    metric_type_ centroid_a_y = sum_a_y * inv_n;
-    metric_type_ centroid_a_z = sum_a_z * inv_n;
-    metric_type_ centroid_b_x = sum_b_x * inv_n;
-    metric_type_ centroid_b_y = sum_b_y * inv_n;
-    metric_type_ centroid_b_z = sum_b_z * inv_n;
-
-    if (a_centroid)
-        a_centroid[0] = transform_type_(centroid_a_x), a_centroid[1] = transform_type_(centroid_a_y),
-        a_centroid[2] = transform_type_(centroid_a_z);
-
-    if (b_centroid)
-        b_centroid[0] = transform_type_(centroid_b_x), b_centroid[1] = transform_type_(centroid_b_y),
-        b_centroid[2] = transform_type_(centroid_b_z);
-
-    // Build covariance matrix H and compute variance of A
-    metric_type_ cross_covariance[9] = {};
-    metric_type_ variance_a {};
-    for (std::size_t i = 0; i < n; i++) {
-        val_a_x = metric_type_(a[i * 3 + 0]) - centroid_a_x;
-        val_a_y = metric_type_(a[i * 3 + 1]) - centroid_a_y;
-        val_a_z = metric_type_(a[i * 3 + 2]) - centroid_a_z;
-        val_b_x = metric_type_(b[i * 3 + 0]) - centroid_b_x;
-        val_b_y = metric_type_(b[i * 3 + 1]) - centroid_b_y;
-        val_b_z = metric_type_(b[i * 3 + 2]) - centroid_b_z;
-        variance_a = variance_a + val_a_x * val_a_x + val_a_y * val_a_y + val_a_z * val_a_z;
-        cross_covariance[0] = cross_covariance[0] + val_a_x * val_b_x;
-        cross_covariance[1] = cross_covariance[1] + val_a_x * val_b_y;
-        cross_covariance[2] = cross_covariance[2] + val_a_x * val_b_z;
-        cross_covariance[3] = cross_covariance[3] + val_a_y * val_b_x;
-        cross_covariance[4] = cross_covariance[4] + val_a_y * val_b_y;
-        cross_covariance[5] = cross_covariance[5] + val_a_y * val_b_z;
-        cross_covariance[6] = cross_covariance[6] + val_a_z * val_b_x;
-        cross_covariance[7] = cross_covariance[7] + val_a_z * val_b_y;
-        cross_covariance[8] = cross_covariance[8] + val_a_z * val_b_z;
-    }
-    variance_a = variance_a * inv_n;
-
-    // SVD of H = U * S * Vt
-    metric_type_ svd_u[9], svd_s[9], svd_v[9];
-    svd3x3_(cross_covariance, svd_u, svd_s, svd_v);
-
-    // R = V * Ut
-    metric_type_ rotation_matrix[9];
-    rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-    rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-    rotation_matrix[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-    rotation_matrix[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-    rotation_matrix[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-    rotation_matrix[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-    rotation_matrix[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-    rotation_matrix[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-    rotation_matrix[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-
-    // Handle reflection and compute scale: c = trace(D*S) / variance_a.
-    // D = diag(1, 1, det(R)), svd_s contains singular values on diagonal.
-    metric_type_ rotation_det = det3x3_(rotation_matrix);
-    metric_type_ sign_det = rotation_det < metric_type_(0.0) ? metric_type_(-1.0) : metric_type_(1.0);
-    metric_type_ trace_scaled_s = svd_s[0] + svd_s[4] + sign_det * svd_s[8];
-    metric_type_ scale_factor = trace_scaled_s / (metric_type_(static_cast<double>(n)) * variance_a);
-
-    if (scale) *scale = transform_type_(scale_factor);
-
-    if (rotation_det < metric_type_(0.0)) {
-        svd_v[2] = metric_type_(0.0) - svd_v[2];
-        svd_v[5] = metric_type_(0.0) - svd_v[5];
-        svd_v[8] = metric_type_(0.0) - svd_v[8];
-        rotation_matrix[0] = svd_v[0] * svd_u[0] + svd_v[1] * svd_u[1] + svd_v[2] * svd_u[2];
-        rotation_matrix[1] = svd_v[0] * svd_u[3] + svd_v[1] * svd_u[4] + svd_v[2] * svd_u[5];
-        rotation_matrix[2] = svd_v[0] * svd_u[6] + svd_v[1] * svd_u[7] + svd_v[2] * svd_u[8];
-        rotation_matrix[3] = svd_v[3] * svd_u[0] + svd_v[4] * svd_u[1] + svd_v[5] * svd_u[2];
-        rotation_matrix[4] = svd_v[3] * svd_u[3] + svd_v[4] * svd_u[4] + svd_v[5] * svd_u[5];
-        rotation_matrix[5] = svd_v[3] * svd_u[6] + svd_v[4] * svd_u[7] + svd_v[5] * svd_u[8];
-        rotation_matrix[6] = svd_v[6] * svd_u[0] + svd_v[7] * svd_u[1] + svd_v[8] * svd_u[2];
-        rotation_matrix[7] = svd_v[6] * svd_u[3] + svd_v[7] * svd_u[4] + svd_v[8] * svd_u[5];
-        rotation_matrix[8] = svd_v[6] * svd_u[6] + svd_v[7] * svd_u[7] + svd_v[8] * svd_u[8];
-    }
-
-    // Output rotation matrix
-    if (rotation) {
-        for (unsigned int j = 0; j < 9; j++) rotation[j] = transform_type_(rotation_matrix[j]);
-    }
-
-    // Compute RMSD after similarity transform: ||c * R * a - b||
-    metric_type_ sum_squared {};
-    for (std::size_t i = 0; i < n; i++) {
-        metric_type_ point_a[3], point_b[3], rotated_point_a[3];
-        point_a[0] = metric_type_(a[i * 3 + 0]) - centroid_a_x, point_a[1] = metric_type_(a[i * 3 + 1]) - centroid_a_y,
-        point_a[2] = metric_type_(a[i * 3 + 2]) - centroid_a_z;
-        point_b[0] = metric_type_(b[i * 3 + 0]) - centroid_b_x, point_b[1] = metric_type_(b[i * 3 + 1]) - centroid_b_y,
-        point_b[2] = metric_type_(b[i * 3 + 2]) - centroid_b_z;
-        rotated_point_a[0] = scale_factor * (rotation_matrix[0] * point_a[0] + rotation_matrix[1] * point_a[1] +
-                                             rotation_matrix[2] * point_a[2]);
-        rotated_point_a[1] = scale_factor * (rotation_matrix[3] * point_a[0] + rotation_matrix[4] * point_a[1] +
-                                             rotation_matrix[5] * point_a[2]);
-        rotated_point_a[2] = scale_factor * (rotation_matrix[6] * point_a[0] + rotation_matrix[7] * point_a[1] +
-                                             rotation_matrix[8] * point_a[2]);
-        metric_type_ dx = rotated_point_a[0] - point_b[0];
-        metric_type_ dy = rotated_point_a[1] - point_b[1];
-        metric_type_ dz = rotated_point_a[2] - point_b[2];
-        sum_squared = sum_squared + dx * dx + dy * dy + dz * dz;
-    }
-
-    *metric = (sum_squared * inv_n).sqrt();
-    return status_t::success_k;
-}
-
-#pragma endregion Mesh Alignment Kernels
-
-#pragma region Mesh Alignment Views
-
-/** What a mesh alignment reports: both centroids, the transform from @b a onto @b b, its RMSD. */
-template <typename transform_type_, typename metric_type_>
-struct mesh_result {
-
-    /** Centroid of the first point cloud. */
-    transform_type_ a_centroid[3] {};
-
-    /** Centroid of the second point cloud. */
-    transform_type_ b_centroid[3] {};
-
-    /** Row-major 3 × 3 rotation, the identity for @c rmsd. */
-    transform_type_ rotation[9] {};
-
-    /** Uniform scale, 1 for @c rmsd and @c kabsch. */
-    transform_type_ scale {};
-
-    /** Root mean square deviation after the transform. */
-    metric_type_ rmsd {};
 };
 
-/** RMSD of two interleaved @b [points,3] clouds without alignment; @c unexpected_dimensions_k when
- *  their sizes differ, are not a multiple of 3, or either run is strided or ends mid-value. */
-template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
-          typename metric_type_ = typename in_type_::mesh_metric_t, vector_of<in_type_> a_type_,
-          vector_of<in_type_> b_type_>
-expected<mesh_result<transform_type_, metric_type_>> rmsd(
-    a_type_ const &a, b_type_ const &b, nk_capability_t capabilities = default_capabilities()) noexcept {
-    auto a_values = contiguous_values_<in_type_ const>(a);
-    auto b_values = contiguous_values_<in_type_ const>(b);
-    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
-    if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>() ||
-        dimensions % 3)
-        return {{}, status_t::unexpected_dimensions_k};
-    mesh_result<transform_type_, metric_type_> fit {};
-    status_t status = rmsd<in_type_, transform_type_, metric_type_>(a_values.value.data(), b_values.value.data(),
-                                                                    dimensions / 3, fit.a_centroid, fit.b_centroid,
-                                                                    fit.rotation, &fit.scale, &fit.rmsd, capabilities);
-    return {fit, status};
+/** Bytes a pack of @p points takes, by the layout of @c meshes.h. */
+template <typename in_type_>
+constexpr std::size_t shapes_pack_bytes_(std::size_t points) noexcept {
+    return nk_size_round_up_to_multiple_(sizeof(shapes_header_<in_type_>), nk_shapes_alignment_k) +
+           3 * nk_size_round_up_to_multiple_(points * sizeof(typename in_type_::raw_t), nk_shapes_alignment_k);
 }
 
-/** Kabsch rigid alignment of two interleaved @b [points,3] clouds, failing like the concept
- *  @c rmsd. */
-template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
-          typename metric_type_ = typename in_type_::mesh_metric_t, vector_of<in_type_> a_type_,
-          vector_of<in_type_> b_type_>
-expected<mesh_result<transform_type_, metric_type_>> kabsch(
-    a_type_ const &a, b_type_ const &b, nk_capability_t capabilities = default_capabilities()) noexcept {
-    auto a_values = contiguous_values_<in_type_ const>(a);
-    auto b_values = contiguous_values_<in_type_ const>(b);
-    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
-    if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>() ||
-        dimensions % 3)
-        return {{}, status_t::unexpected_dimensions_k};
-    mesh_result<transform_type_, metric_type_> fit {};
-    status_t status = kabsch<in_type_, transform_type_, metric_type_>(
-        a_values.value.data(), b_values.value.data(), dimensions / 3, fit.a_centroid, fit.b_centroid, fit.rotation,
-        &fit.scale, &fit.rmsd, capabilities);
-    return {fit, status};
+/** The type the transport duals and the Gromov-Wasserstein line search run in: at least @c f64. */
+template <typename math_type_>
+using shapes_wide_ = std::conditional_t<(sizeof(math_type_) < sizeof(f64_t)), f64_t, math_type_>;
+
+/** Converts @p value of the math type into an output, skipping @c double when both types match. */
+template <typename output_type_, typename math_type_>
+output_type_ shapes_output_(math_type_ value) noexcept {
+    if constexpr (std::is_same_v<output_type_, math_type_>) return value;
+    else return output_type_(static_cast<double>(value));
 }
 
-/** Umeyama similarity alignment of two interleaved @b [points,3] clouds, failing like the
- *  concept @c rmsd. */
-template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
-          typename metric_type_ = typename in_type_::mesh_metric_t, vector_of<in_type_> a_type_,
-          vector_of<in_type_> b_type_>
-expected<mesh_result<transform_type_, metric_type_>> umeyama(
-    a_type_ const &a, b_type_ const &b, nk_capability_t capabilities = default_capabilities()) noexcept {
-    auto a_values = contiguous_values_<in_type_ const>(a);
-    auto b_values = contiguous_values_<in_type_ const>(b);
-    std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
-    if (!a_values || !b_values || dimensions != b_values.value.size() * dimensions_per_value<in_type_>() ||
-        dimensions % 3)
-        return {{}, status_t::unexpected_dimensions_k};
-    mesh_result<transform_type_, metric_type_> fit {};
-    status_t status = umeyama<in_type_, transform_type_, metric_type_>(
-        a_values.value.data(), b_values.value.data(), dimensions / 3, fit.a_centroid, fit.b_centroid, fit.rotation,
-        &fit.scale, &fit.rmsd, capabilities);
-    return {fit, status};
+/** Writes the rotation V_a × core × V_bᵀ. */
+template <typename math_type_, typename rotation_type_>
+void shapes_write_rotation_(math_type_ const *a_frame, math_type_ const *core, math_type_ const *b_frame,
+                            rotation_type_ *rotation) noexcept {
+    math_type_ right[9];
+    for (int row = 0; row != 3; ++row)
+        for (int column = 0; column != 3; ++column)
+            right[row * 3 + column] = core[row * 3 + 0] * b_frame[column * 3 + 0] +
+                                      core[row * 3 + 1] * b_frame[column * 3 + 1] +
+                                      core[row * 3 + 2] * b_frame[column * 3 + 2];
+    for (int row = 0; row != 3; ++row)
+        for (int column = 0; column != 3; ++column) {
+            math_type_ const value = a_frame[row * 3 + 0] * right[0 * 3 + column] +
+                                     a_frame[row * 3 + 1] * right[1 * 3 + column] +
+                                     a_frame[row * 3 + 2] * right[2 * 3 + column];
+            rotation[row * 3 + column] = shapes_output_<rotation_type_>(value);
+        }
 }
 
-#pragma endregion Mesh Alignment Views
+template <typename rotation_type_>
+void shapes_write_identity_(rotation_type_ *rotation) noexcept {
+    for (int i = 0; i != 9; ++i) rotation[i] = rotation_type_(i % 4 == 0 ? 1.0 : 0.0);
+}
+
+/** The diagonal of flip @p flip: bit k negates axis k. */
+template <typename math_type_>
+void shapes_flip_(unsigned flip, math_type_ *matrix) noexcept {
+    for (int i = 0; i != 9; ++i) matrix[i] = math_type_(0.0);
+    for (unsigned axis = 0; axis != 3; ++axis) matrix[axis * 4] = math_type_((flip >> axis) & 1 ? -1.0 : 1.0);
+}
+
+/** Packs one cloud by the algorithm of @c meshes.h in @p math_type_, divided by its RMS distance
+ *  from the centroid when @p kind_ is @c nk_kernel_shapes_pack_normalized_k. */
+template <typename in_type_, typename math_type_, nk_kernel_kind_t kind_>
+void shapes_pack_reference_(typename in_type_::raw_t const *points, std::size_t count, void *packed) noexcept {
+    using raw_t = typename in_type_::raw_t;
+    using header_t = shapes_header_<in_type_>;
+    using math_t = math_type_;
+    using constant_t = std::remove_cvref_t<decltype(header_t {}.max_radius)>;
+
+    std::memset(packed, 0, shapes_pack_bytes_<in_type_>(count));
+    header_t header {};
+    header.points = static_cast<decltype(header.points)>(count);
+    header.frame[3] = 1, header.scale = 1;
+    if (count) {
+        auto const widen = [](raw_t value) noexcept { return math_t(static_cast<double>(in_type_::from_raw(value))); };
+        math_t const count_math = math_t(static_cast<double>(count));
+        math_t centroid[3] {};
+        for (std::size_t i = 0; i != count; ++i)
+            for (std::size_t axis = 0; axis != 3; ++axis) centroid[axis] = centroid[axis] + widen(points[i * 3 + axis]);
+        for (math_t &value : centroid) value = value / count_math;
+
+        // The 6 unique entries in the order Jacobi takes them: c00, c10, c11, c20, c21, c22
+        math_t covariance[6] {};
+        for (std::size_t i = 0; i != count; ++i) {
+            math_t const x = widen(points[i * 3 + 0]) - centroid[0], y = widen(points[i * 3 + 1]) - centroid[1],
+                         z = widen(points[i * 3 + 2]) - centroid[2];
+            covariance[0] = covariance[0] + x * x, covariance[1] = covariance[1] + y * x;
+            covariance[2] = covariance[2] + y * y, covariance[3] = covariance[3] + z * x;
+            covariance[4] = covariance[4] + z * y, covariance[5] = covariance[5] + z * z;
+        }
+        for (math_t &value : covariance) value = value / count_math;
+        // Coincident points keep a scale of 1, however their rounded centroid spreads them
+        math_t scale(1.0);
+        if constexpr (kind_ == nk_kernel_shapes_pack_normalized_k) {
+            bool coincident = true;
+            for (std::size_t i = 0; i != count * 3; ++i) coincident &= widen(points[i]) == widen(points[i % 3]);
+            math_t const spread = covariance[0] + covariance[2] + covariance[5];
+            if (!coincident && math_t(0.0) < spread) scale = spread.sqrt();
+        }
+        math_t quaternion[4], frame[9];
+        jacobi_eigenanalysis_(&covariance[0], &covariance[1], &covariance[2], &covariance[3], &covariance[4],
+                              &covariance[5], quaternion);
+        quaternion_to_mat3x3_(quaternion, frame);
+        math_t eigenvalues[3] = {covariance[0], covariance[2], covariance[5]};
+        sort_eigenvectors_(eigenvalues, frame);
+        mat3x3_to_quaternion_(frame, quaternion);
+        quaternion_to_mat3x3_(quaternion, frame);
+
+        std::size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(header_t), nk_shapes_alignment_k);
+        std::size_t const axis_stride = nk_size_round_up_to_multiple_(count * sizeof(raw_t), nk_shapes_alignment_k) /
+                                        sizeof(raw_t);
+        raw_t *axes = reinterpret_cast<raw_t *>(static_cast<char *>(packed) + header_bytes);
+        math_t moments[6] {}, max_norm {};
+        for (std::size_t i = 0; i != count; ++i) {
+            math_t const centered[3] = {widen(points[i * 3 + 0]) - centroid[0], widen(points[i * 3 + 1]) - centroid[1],
+                                        widen(points[i * 3 + 2]) - centroid[2]};
+            math_t stored[3];
+            for (std::size_t axis = 0; axis != 3; ++axis) {
+                math_t const projected = (frame[0 * 3 + axis] * centered[0] + frame[1 * 3 + axis] * centered[1] +
+                                          frame[2 * 3 + axis] * centered[2]) /
+                                         scale;
+                axes[axis * axis_stride + i] = in_type_(static_cast<double>(projected)).raw_;
+                stored[axis] = widen(axes[axis * axis_stride + i]);
+            }
+            moments[0] = moments[0] + stored[0] * stored[0], moments[1] = moments[1] + stored[1] * stored[0];
+            moments[2] = moments[2] + stored[1] * stored[1], moments[3] = moments[3] + stored[2] * stored[0];
+            moments[4] = moments[4] + stored[2] * stored[1], moments[5] = moments[5] + stored[2] * stored[2];
+            math_t const norm = stored[0] * stored[0] + stored[1] * stored[1] + stored[2] * stored[2];
+            if (max_norm < norm) max_norm = norm;
+        }
+        for (math_t &value : moments) value = value / count_math;
+        math_t moments_frame[4];
+        jacobi_eigenanalysis_(&moments[0], &moments[1], &moments[2], &moments[3], &moments[4], &moments[5],
+                              moments_frame);
+        math_t spreads[3] = {moments[0], moments[2], moments[5]};
+        if (spreads[0] < spreads[1]) std::swap(spreads[0], spreads[1]);
+        if (spreads[0] < spreads[2]) std::swap(spreads[0], spreads[2]);
+        if (spreads[1] < spreads[2]) std::swap(spreads[1], spreads[2]);
+
+        for (std::size_t axis = 0; axis != 3; ++axis)
+            header.centroid[axis] = static_cast<constant_t>(static_cast<double>(centroid[axis])),
+            header.spreads[axis] = static_cast<constant_t>(static_cast<double>(spreads[axis]));
+        // The header keeps 𝑄 = Vᵀ, whose quaternion is the conjugate of V's
+        for (std::size_t i = 0; i != 3; ++i)
+            header.frame[i] = static_cast<constant_t>(-static_cast<double>(quaternion[i]));
+        header.frame[3] = static_cast<constant_t>(static_cast<double>(quaternion[3]));
+        header.scale = static_cast<constant_t>(static_cast<double>(scale));
+        header.max_radius = static_cast<constant_t>(static_cast<double>(max_norm.sqrt()));
+    }
+    std::memcpy(packed, &header, sizeof(header));
+}
+
+/** Chamfer or Hausdorff of every pair in @p distance_type_, by the 8-flip passes of @c meshes.h. */
+template <typename in_type_, nk_kernel_kind_t kind_, typename distance_type_, typename rotation_type_>
+void shapes_nearest_reference_(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
+                               std::size_t columns, distance_type_ *results, std::size_t results_stride,
+                               rotation_type_ *rotations) noexcept {
+    using math_t = distance_type_;
+    for (std::size_t row = 0; row != rows; ++row)
+        for (std::size_t column = 0; column != columns; ++column) {
+            shapes_cloud_<in_type_> const a(a_packed[row]), b(b_packed[column]);
+            distance_type_ &result = reinterpret_cast<distance_type_ *>(reinterpret_cast<char *>(results) +
+                                                                        row * results_stride)[column];
+            rotation_type_ *rotation = rotations ? rotations + (row * columns + column) * 9 : nullptr;
+            if (!a.points || !b.points) {
+                result = a.points == b.points ? math_t(0.0) : math_t::positive_infinity();
+                if (rotation) shapes_write_identity_(rotation);
+                continue;
+            }
+            auto const squared = [&](std::size_t i, std::size_t j, unsigned flip) noexcept {
+                math_t sum {};
+                for (std::size_t axis = 0; axis != 3; ++axis) {
+                    math_t const ai = a.template coordinate<math_t>(i, axis);
+                    math_t const bj = b.template coordinate<math_t>(j, axis);
+                    math_t const difference = (flip >> axis) & 1 ? ai + bj : ai - bj;
+                    sum = sum + difference * difference;
+                }
+                return sum;
+            };
+            math_t best = math_t::positive_infinity();
+            unsigned best_flip = 0;
+            for (unsigned flip = 0; flip != 8; ++flip) {
+                math_t forward_sum {}, forward_max {}, backward_sum {}, backward_max {};
+                for (std::size_t i = 0; i != a.points; ++i) {
+                    math_t nearest = math_t::positive_infinity();
+                    for (std::size_t j = 0; j != b.points; ++j)
+                        if (math_t const value = squared(i, j, flip); value < nearest) nearest = value;
+                    math_t const root = nearest.sqrt();
+                    forward_sum = forward_sum + root;
+                    if (forward_max < root) forward_max = root;
+                }
+                for (std::size_t j = 0; j != b.points; ++j) {
+                    math_t nearest = math_t::positive_infinity();
+                    for (std::size_t i = 0; i != a.points; ++i)
+                        if (math_t const value = squared(i, j, flip); value < nearest) nearest = value;
+                    math_t const root = nearest.sqrt();
+                    backward_sum = backward_sum + root;
+                    if (backward_max < root) backward_max = root;
+                }
+                math_t const score = kind_ == nk_kernel_shapes_chamfers_packed_k
+                                         ? math_t(0.5) * (forward_sum / math_t(static_cast<double>(a.points)) +
+                                                          backward_sum / math_t(static_cast<double>(b.points)))
+                                         : (forward_max < backward_max ? backward_max : forward_max);
+                if (score < best) best = score, best_flip = flip;
+            }
+            result = best;
+            if (!rotation) continue;
+            math_t a_frame[9], b_frame[9], flip_matrix[9];
+            a.frame(a_frame), b.frame(b_frame), shapes_flip_(best_flip, flip_matrix);
+            shapes_write_rotation_(a_frame, flip_matrix, b_frame, rotation);
+        }
+}
+
+/** Orders two packs by points, spreads, max_radius, and then their coordinate bytes. */
+template <typename in_type_>
+int shapes_compare_(shapes_cloud_<in_type_> const &a, shapes_cloud_<in_type_> const &b) noexcept {
+    if (a.points != b.points) return a.points < b.points ? -1 : 1;
+    for (std::size_t axis = 0; axis != 3; ++axis)
+        if (a.header->spreads[axis] != b.header->spreads[axis])
+            return a.header->spreads[axis] < b.header->spreads[axis] ? -1 : 1;
+    if (a.header->max_radius != b.header->max_radius) return a.header->max_radius < b.header->max_radius ? -1 : 1;
+    for (std::size_t axis = 0; axis != 3; ++axis)
+        if (int const order = std::memcmp(a.axes + axis * a.axis_stride, b.axes + axis * b.axis_stride,
+                                          a.points * sizeof(typename in_type_::raw_t)))
+            return order;
+    return 0;
+}
+
+/** The stopping tolerance of the network simplex in every math type, relative to its cost scale. */
+inline constexpr double shapes_transport_epsilon_k = 1e-12;
+
+/**
+ *  @brief Network simplex over the uniform transport between @c rows sources and @c columns sinks.
+ *
+ *  Rows are nodes 0 … rows − 1 and supply @c columns units each, columns are the following nodes
+ *  and demand @c rows units each. The spanning tree hangs from row 0, every non-root node holding
+ *  the flow of the arc to its parent, which always runs from the row to the column. Costs come in
+ *  the math type, and the duals widen them to at least @c f64, so they solve the LP of those
+ *  rounded costs exactly.
+ */
+template <typename math_type_>
+struct shapes_simplex_ {
+    using dual_t = shapes_wide_<math_type_>;
+    static constexpr std::uint32_t no_node = 0xFFFFFFFFu;
+
+    std::size_t rows = 0, columns = 0;
+    std::uint32_t *parent = nullptr, *flow = nullptr, *depth = nullptr;
+    std::uint32_t *first_child = nullptr, *next_sibling = nullptr, *previous_sibling = nullptr;
+    dual_t *potential = nullptr;
+
+    void attach_(std::uint32_t node, std::uint32_t above) noexcept {
+        parent[node] = above, previous_sibling[node] = no_node, next_sibling[node] = first_child[above];
+        if (first_child[above] != no_node) previous_sibling[first_child[above]] = node;
+        first_child[above] = node;
+    }
+
+    void detach_(std::uint32_t node) noexcept {
+        if (previous_sibling[node] != no_node) next_sibling[previous_sibling[node]] = next_sibling[node];
+        else first_child[parent[node]] = next_sibling[node];
+        if (next_sibling[node] != no_node) previous_sibling[next_sibling[node]] = previous_sibling[node];
+    }
+
+    /** Visits every descendant of @p root in preorder. */
+    template <typename visitor_type_>
+    void descendants_(std::uint32_t root, visitor_type_ &&visit) noexcept {
+        std::uint32_t node = first_child[root];
+        while (node != no_node) {
+            visit(node);
+            if (first_child[node] != no_node) {
+                node = first_child[node];
+                continue;
+            }
+            while (node != root && next_sibling[node] == no_node) node = parent[node];
+            node = node == root ? no_node : next_sibling[node];
+        }
+    }
+
+    template <typename cost_type_>
+    dual_t parent_cost_(std::uint32_t node, cost_type_ const &cost) const noexcept {
+        return shapes_output_<dual_t>(node < rows ? cost(node, parent[node] - rows) : cost(parent[node], node - rows));
+    }
+
+    template <typename cost_type_>
+    void potential_from_parent_(std::uint32_t node, cost_type_ const &cost) noexcept {
+        dual_t const arc_cost = parent_cost_(node, cost);
+        potential[node] = node < rows ? potential[parent[node]] + arc_cost : potential[parent[node]] - arc_cost;
+    }
+
+    /** Starts from the northwest-corner staircase, with potentials in insertion order. */
+    template <typename cost_type_>
+    void northwest_corner(cost_type_ const &cost) noexcept {
+        std::size_t const nodes = rows + columns;
+        for (std::size_t node = 0; node != nodes; ++node)
+            parent[node] = first_child[node] = next_sibling[node] = previous_sibling[node] = no_node,
+            flow[node] = depth[node] = 0;
+        potential[0] = dual_t(0.0);
+        std::size_t row = 0, column = 0, supply = columns, demand = rows;
+        std::uint32_t node = static_cast<std::uint32_t>(rows), above = 0;
+        for (;;) {
+            attach_(node, above);
+            std::size_t const moved = supply < demand ? supply : demand;
+            flow[node] = static_cast<std::uint32_t>(moved), supply -= moved, demand -= moved;
+            depth[node] = depth[above] + 1;
+            potential_from_parent_(node, cost);
+            if (row + 1 == rows && column + 1 == columns) break;
+            if (supply == 0 && row + 1 < rows)
+                ++row, supply = columns, node = static_cast<std::uint32_t>(row),
+                       above = static_cast<std::uint32_t>(rows + column);
+            else
+                ++column, demand = rows, node = static_cast<std::uint32_t>(rows + column),
+                          above = static_cast<std::uint32_t>(row);
+        }
+    }
+
+    /** Keeps the tree as a warm start under new costs, recomputing potentials from the root. */
+    template <typename cost_type_>
+    void recompute_potentials(cost_type_ const &cost) noexcept {
+        potential[0] = dual_t(0.0);
+        descendants_(0, [&](std::uint32_t node) noexcept { potential_from_parent_(node, cost); });
+    }
+
+    /** Pivots by block pricing from a cursor restarting at arc 0, until no arc's reduced cost
+     *  falls below `-tolerance`. */
+    template <typename cost_type_>
+    void solve(cost_type_ const &cost, dual_t tolerance) noexcept {
+        std::size_t const arcs = rows * columns;
+        std::size_t block = static_cast<std::size_t>(std::sqrt(static_cast<double>(arcs)));
+        while (block * block < arcs) ++block;
+        while (block && (block - 1) * (block - 1) >= arcs) --block;
+        if (block < 10) block = 10;
+        dual_t const threshold = dual_t(0.0) - tolerance;
+        std::size_t cursor = 0;
+        for (;;) {
+            dual_t entering_cost {};
+            std::size_t entering = arcs, arc = cursor, in_block = 0;
+            bool found = false;
+            for (std::size_t scanned = 0; scanned != arcs; ++scanned) {
+                std::size_t const row = arc / columns, column = arc % columns;
+                dual_t const reduced = shapes_output_<dual_t>(cost(row, column)) - potential[row] +
+                                       potential[rows + column];
+                if (reduced < entering_cost) entering_cost = reduced, entering = arc;
+                arc = arc + 1 == arcs ? 0 : arc + 1;
+                if (++in_block == block || scanned + 1 == arcs) {
+                    if (entering_cost < threshold) {
+                        found = true;
+                        break;
+                    }
+                    in_block = 0;
+                }
+            }
+            if (!found) return;
+            cursor = arc;
+            pivot_(entering / columns, entering % columns, entering_cost);
+        }
+    }
+
+    void pivot_(std::size_t row, std::size_t column, dual_t reduced) noexcept {
+        std::uint32_t const tail = static_cast<std::uint32_t>(row), head = static_cast<std::uint32_t>(rows + column);
+        std::uint32_t first = tail, second = head;
+        while (first != second) {
+            if (depth[first] > depth[second]) first = parent[first];
+            else if (depth[second] > depth[first]) second = parent[second];
+            else first = parent[first], second = parent[second];
+        }
+        std::uint32_t const join = first;
+
+        // Cunningham's rule: the last blocking arc in the cycle order join → tail → head → join
+        std::uint64_t tail_delta = ~std::uint64_t(0), head_delta = ~std::uint64_t(0);
+        std::uint32_t tail_leaving = no_node, head_leaving = no_node;
+        for (std::uint32_t node = tail; node != join; node = parent[node])
+            if (node < rows && flow[node] < tail_delta) tail_delta = flow[node], tail_leaving = node;
+        for (std::uint32_t node = head; node != join; node = parent[node])
+            if (node >= rows && flow[node] <= head_delta) head_delta = flow[node], head_leaving = node;
+        bool const leaves_head_side = head_delta <= tail_delta;
+        std::uint32_t const delta = static_cast<std::uint32_t>(leaves_head_side ? head_delta : tail_delta);
+        for (std::uint32_t node = tail; node != join; node = parent[node])
+            flow[node] = node < rows ? flow[node] - delta : flow[node] + delta;
+        for (std::uint32_t node = head; node != join; node = parent[node])
+            flow[node] = node < rows ? flow[node] + delta : flow[node] - delta;
+
+        std::uint32_t const moved_root = leaves_head_side ? head : tail;
+        std::uint32_t const leaving = leaves_head_side ? head_leaving : tail_leaving;
+        std::uint32_t above = leaves_head_side ? tail : head, carried = delta;
+        for (std::uint32_t node = moved_root;;) {
+            std::uint32_t const next = parent[node], kept = flow[node];
+            detach_(node), attach_(node, above), flow[node] = carried;
+            if (node == leaving) break;
+            above = node, carried = kept, node = next;
+        }
+        dual_t const shift = leaves_head_side ? dual_t(0.0) - reduced : reduced;
+        depth[moved_root] = depth[parent[moved_root]] + 1, potential[moved_root] = potential[moved_root] + shift;
+        descendants_(moved_root, [&](std::uint32_t node) noexcept {
+            depth[node] = depth[parent[node]] + 1, potential[node] = potential[node] + shift;
+        });
+    }
+
+    /** Visits every tree arc as (row, column, flow). */
+    template <typename visitor_type_>
+    void arcs(visitor_type_ &&visit) const noexcept {
+        for (std::size_t node = 0; node != rows + columns; ++node) {
+            if (parent[node] == no_node) continue;
+            if (node < rows) visit(node, parent[node] - rows, flow[node]);
+            else visit(static_cast<std::size_t>(parent[node]), node - rows, flow[node]);
+        }
+    }
+
+    template <typename cost_type_>
+    math_type_ plan_value(cost_type_ const &cost) const noexcept {
+        math_type_ sum {};
+        arcs([&](std::size_t row, std::size_t column, std::uint32_t moved) noexcept {
+            sum = sum + math_type_(static_cast<double>(moved)) * cost(row, column);
+        });
+        return sum / math_type_(static_cast<double>(rows * columns));
+    }
+};
+
+/** The workspace arrays of the transport templates, each on its own 64-byte boundary. */
+template <typename math_type_>
+struct shapes_transport_workspace_ {
+    math_type_ *row_points = nullptr, *column_points = nullptr, *rotated_columns = nullptr;
+    shapes_simplex_<math_type_> simplex;
+
+    /** The best proper and improper plans, as (row, column, flow) triples. */
+    std::uint32_t *proper_plan = nullptr, *improper_plan = nullptr;
+    std::size_t proper_arcs = 0, improper_arcs = 0;
+    shapes_wide_<math_type_> *row_distances = nullptr, *column_distances = nullptr;
+    shapes_wide_<math_type_> *plan = nullptr, *gradient = nullptr, *vertex_gradient = nullptr;
+};
+
+template <typename value_type_>
+value_type_ *shapes_carve_(char *base, std::size_t &offset, std::size_t count) noexcept {
+    value_type_ *carved = base ? reinterpret_cast<value_type_ *>(base + offset) : nullptr;
+    offset += nk_size_round_up_to_multiple_(count * sizeof(value_type_), nk_shapes_alignment_k);
+    return carved;
+}
+
+/** Carves the workspace for clouds of up to @p points from @p base, or sizes it without one. */
+template <typename math_type_, nk_kernel_kind_t kind_>
+std::size_t shapes_transport_layout_(shapes_transport_workspace_<math_type_> &workspace, char *base,
+                                     std::size_t points) noexcept {
+    std::size_t offset = 0;
+    std::size_t const nodes = 2 * points, plan_values = 3 * nodes;
+    workspace.row_points = shapes_carve_<math_type_>(base, offset, 3 * points);
+    workspace.column_points = shapes_carve_<math_type_>(base, offset, 3 * points);
+    workspace.rotated_columns = shapes_carve_<math_type_>(base, offset, 3 * points);
+    workspace.simplex.parent = shapes_carve_<std::uint32_t>(base, offset, nodes);
+    workspace.simplex.flow = shapes_carve_<std::uint32_t>(base, offset, nodes);
+    workspace.simplex.depth = shapes_carve_<std::uint32_t>(base, offset, nodes);
+    workspace.simplex.first_child = shapes_carve_<std::uint32_t>(base, offset, nodes);
+    workspace.simplex.next_sibling = shapes_carve_<std::uint32_t>(base, offset, nodes);
+    workspace.simplex.previous_sibling = shapes_carve_<std::uint32_t>(base, offset, nodes);
+    workspace.simplex.potential = shapes_carve_<typename shapes_simplex_<math_type_>::dual_t>(base, offset, nodes);
+    workspace.proper_plan = shapes_carve_<std::uint32_t>(base, offset, plan_values);
+    workspace.improper_plan = shapes_carve_<std::uint32_t>(base, offset, plan_values);
+    if constexpr (kind_ == nk_kernel_shapes_gromovwassersteins_packed_k) {
+        using wide_t = shapes_wide_<math_type_>;
+        workspace.row_distances = shapes_carve_<wide_t>(base, offset, points * points);
+        workspace.column_distances = shapes_carve_<wide_t>(base, offset, points * points);
+        workspace.plan = shapes_carve_<wide_t>(base, offset, points * points);
+        workspace.gradient = shapes_carve_<wide_t>(base, offset, points * points);
+        workspace.vertex_gradient = shapes_carve_<wide_t>(base, offset, points * points);
+    }
+    return offset;
+}
+
+/**
+ *  @brief Wasserstein-Procrustes of one ordered pair, the best squared plan value of 8 flip starts.
+ *  @param[out] rotation The best start's rotation in the packed frames, taking @p b onto @p a.
+ *
+ *  It leaves the widened clouds and the best proper and improper plans in @p workspace, where
+ *  Gromov-Wasserstein reads them.
+ */
+template <typename in_type_, typename math_type_>
+math_type_ shapes_procrustes_pair_(shapes_cloud_<in_type_> const &a, shapes_cloud_<in_type_> const &b,
+                                   shapes_transport_workspace_<math_type_> &workspace, math_type_ *rotation) noexcept {
+    using math_t = math_type_;
+    std::size_t const n = a.points, m = b.points;
+    math_t *const a_points = workspace.row_points, *const b_points = workspace.column_points;
+    math_t *const rotated = workspace.rotated_columns;
+    for (std::size_t i = 0; i != n; ++i)
+        for (std::size_t axis = 0; axis != 3; ++axis) a_points[i * 3 + axis] = a.template coordinate<math_t>(i, axis);
+    for (std::size_t j = 0; j != m; ++j)
+        for (std::size_t axis = 0; axis != 3; ++axis) b_points[j * 3 + axis] = b.template coordinate<math_t>(j, axis);
+
+    shapes_simplex_<math_t> &simplex = workspace.simplex;
+    simplex.rows = n, simplex.columns = m;
+    math_t const mass = math_t(static_cast<double>(n * m));
+    math_t const radii = a.template max_radius<math_t>() + b.template max_radius<math_t>();
+    using dual_t = typename shapes_simplex_<math_t>::dual_t;
+    dual_t const tolerance = shapes_output_<dual_t>(radii * radii) * dual_t(shapes_transport_epsilon_k);
+    auto const cost = [&](std::size_t i, std::size_t j) noexcept {
+        math_t squared {};
+        for (std::size_t axis = 0; axis != 3; ++axis) {
+            math_t const difference = a_points[i * 3 + axis] - rotated[j * 3 + axis];
+            squared = squared + difference * difference;
+        }
+        return squared;
+    };
+    auto const save_plan = [&](std::uint32_t *plan, std::size_t &arcs) noexcept {
+        arcs = 0;
+        simplex.arcs([&](std::size_t row, std::size_t column, std::uint32_t moved) noexcept {
+            plan[arcs * 3 + 0] = static_cast<std::uint32_t>(row),
+                            plan[arcs * 3 + 1] = static_cast<std::uint32_t>(column);
+            plan[arcs * 3 + 2] = moved, ++arcs;
+        });
+    };
+
+    math_t best = math_t::positive_infinity();
+    math_t best_proper = math_t::positive_infinity(), best_improper = math_t::positive_infinity();
+    for (unsigned flip = 0; flip != 8; ++flip) {
+        bool const proper = (((flip >> 0) ^ (flip >> 1) ^ (flip >> 2)) & 1) == 0;
+        math_t current[9], start_rotation[9];
+        shapes_flip_(flip, current);
+        math_t start_best = math_t::positive_infinity();
+        for (std::size_t round = 0;; ++round) {
+            for (std::size_t j = 0; j != m; ++j)
+                for (std::size_t axis = 0; axis != 3; ++axis)
+                    rotated[j * 3 + axis] = current[axis * 3 + 0] * b_points[j * 3 + 0] +
+                                            current[axis * 3 + 1] * b_points[j * 3 + 1] +
+                                            current[axis * 3 + 2] * b_points[j * 3 + 2];
+            if (round == 0) simplex.northwest_corner(cost);
+            else simplex.recompute_potentials(cost);
+            simplex.solve(cost, tolerance);
+            math_t const value = simplex.plan_value(cost);
+            if (!(value < start_best)) break;
+            start_best = value;
+            for (int i = 0; i != 9; ++i) start_rotation[i] = current[i];
+            if (proper && value < best_proper)
+                best_proper = value, save_plan(workspace.proper_plan, workspace.proper_arcs);
+            if (!proper && value < best_improper)
+                best_improper = value, save_plan(workspace.improper_plan, workspace.improper_arcs);
+
+            math_t cross[9] {};
+            simplex.arcs([&](std::size_t i, std::size_t j, std::uint32_t moved) noexcept {
+                math_t const weight = math_t(static_cast<double>(moved)) / mass;
+                for (std::size_t r = 0; r != 3; ++r)
+                    for (std::size_t c = 0; c != 3; ++c)
+                        cross[r * 3 + c] = cross[r * 3 + c] + weight * b_points[j * 3 + r] * a_points[i * 3 + c];
+            });
+            math_t svd_u[9], svd_v[9];
+            svd3x3_(cross, svd_u, svd_v);
+            rotation_from_svd_(svd_u, svd_v, current);
+            // Each start stays proper or improper with its flip
+            if (det3x3_(current) * math_t(proper ? 1.0 : -1.0) < math_t(0.0)) {
+                svd_v[2] = math_t(0.0) - svd_v[2], svd_v[5] = math_t(0.0) - svd_v[5], svd_v[8] = math_t(0.0) - svd_v[8];
+                rotation_from_svd_(svd_u, svd_v, current);
+            }
+        }
+        if (start_best < best) {
+            best = start_best;
+            for (int i = 0; i != 9; ++i) rotation[i] = start_rotation[i];
+        }
+    }
+    return best;
+}
+
+/**
+ *  @brief Gromov-Wasserstein of one ordered pair: Frank-Wolfe from the best proper and improper
+ *      Wasserstein-Procrustes plans and the product plan, returning the least square loss.
+ *  @param[out] rotation The orthogonal Procrustes fit of the best plan in the packed frames,
+ *      proper or improper, taking @p b onto @p a.
+ *
+ *  Only the coordinates come in the math type: the distances, plans, gradients, line search and
+ *  loss all stay at least @c f64, as a non-convex search would otherwise follow narrower rounding
+ *  into other optima.
+ */
+template <typename in_type_, typename math_type_>
+shapes_wide_<math_type_> shapes_gromov_pair_(shapes_cloud_<in_type_> const &a, shapes_cloud_<in_type_> const &b,
+                                             shapes_transport_workspace_<math_type_> &workspace,
+                                             math_type_ *rotation) noexcept {
+    using math_t = math_type_;
+    using wide_t = shapes_wide_<math_t>;
+    std::size_t const n = a.points, m = b.points;
+    math_t procrustes_rotation[9];
+    shapes_procrustes_pair_(a, b, workspace, procrustes_rotation);
+
+    math_t const *const a_points = workspace.row_points, *const b_points = workspace.column_points;
+    wide_t *const dx = workspace.row_distances, *const dy = workspace.column_distances;
+    wide_t *const plan = workspace.plan, *const gradient = workspace.gradient;
+    wide_t *const vertex_gradient = workspace.vertex_gradient;
+    auto const distances = [](math_t const *points, std::size_t count, wide_t *matrix) noexcept {
+        wide_t sum {};
+        for (std::size_t i = 0; i != count; ++i)
+            for (std::size_t k = 0; k != count; ++k) {
+                wide_t squared {};
+                for (std::size_t axis = 0; axis != 3; ++axis) {
+                    wide_t const difference = shapes_output_<wide_t>(points[i * 3 + axis]) -
+                                              shapes_output_<wide_t>(points[k * 3 + axis]);
+                    squared = squared + difference * difference;
+                }
+                matrix[i * count + k] = squared.sqrt();
+                sum = sum + matrix[i * count + k] * matrix[i * count + k];
+            }
+        return sum / wide_t(static_cast<double>(count * count));
+    };
+    wide_t const cx = distances(a_points, n, dx), cy = distances(b_points, m, dy);
+
+    shapes_simplex_<math_t> &simplex = workspace.simplex;
+    wide_t const mass = wide_t(static_cast<double>(n * m));
+    auto const cost = [&](std::size_t i, std::size_t j) noexcept { return wide_t(0.0) - gradient[i * m + j]; };
+    // Dx × V × Dy for a plan V of weighted arcs, written into `target`
+    auto const sparse_product = [&](auto &&for_each_arc, wide_t *target) noexcept {
+        for (std::size_t cell = 0; cell != n * m; ++cell) target[cell] = wide_t(0.0);
+        for_each_arc([&](std::size_t k, std::size_t l, wide_t weight) noexcept {
+            for (std::size_t i = 0; i != n; ++i) {
+                wide_t const left = weight * dx[i * n + k];
+                for (std::size_t j = 0; j != m; ++j) target[i * m + j] = target[i * m + j] + left * dy[l * m + j];
+            }
+        });
+    };
+    auto const inner = [&](wide_t const *left, wide_t const *right) noexcept {
+        wide_t sum {};
+        for (std::size_t cell = 0; cell != n * m; ++cell) sum = sum + left[cell] * right[cell];
+        return sum;
+    };
+
+    wide_t best_loss = wide_t::positive_infinity(), best_cross[9] {};
+    for (unsigned start = 0; start != 3; ++start) {
+        std::uint32_t const *saved = start == 0 ? workspace.proper_plan : workspace.improper_plan;
+        std::size_t const saved_arcs = start == 0 ? workspace.proper_arcs : workspace.improper_arcs;
+        auto const saved_arc_weights = [&](auto &&visit) noexcept {
+            for (std::size_t arc = 0; arc != saved_arcs; ++arc)
+                if (saved[arc * 3 + 2])
+                    visit(saved[arc * 3 + 0], saved[arc * 3 + 1],
+                          wide_t(static_cast<double>(saved[arc * 3 + 2])) / mass);
+        };
+        if (start < 2) {
+            for (std::size_t cell = 0; cell != n * m; ++cell) plan[cell] = wide_t(0.0);
+            saved_arc_weights([&](std::size_t k, std::size_t l, wide_t weight) noexcept { plan[k * m + l] = weight; });
+            sparse_product(saved_arc_weights, gradient);
+        }
+        else {
+            wide_t const uniform = wide_t(1.0) / mass;
+            for (std::size_t cell = 0; cell != n * m; ++cell) plan[cell] = uniform;
+            for (std::size_t i = 0; i != n; ++i) {
+                wide_t row_sum {};
+                for (std::size_t k = 0; k != n; ++k) row_sum = row_sum + dx[i * n + k];
+                for (std::size_t j = 0; j != m; ++j) {
+                    wide_t column_sum {};
+                    for (std::size_t l = 0; l != m; ++l) column_sum = column_sum + dy[l * m + j];
+                    gradient[i * m + j] = row_sum * column_sum / mass;
+                }
+            }
+        }
+        wide_t gradient_plan = inner(gradient, plan);
+        for (std::size_t step = 0; step != 32; ++step) {
+            wide_t largest {};
+            for (std::size_t cell = 0; cell != n * m; ++cell)
+                if (largest < gradient[cell].abs()) largest = gradient[cell].abs();
+            if (step == 0) simplex.northwest_corner(cost);
+            else simplex.recompute_potentials(cost);
+            simplex.solve(cost, largest * wide_t(shapes_transport_epsilon_k));
+            auto const vertex_arc_weights = [&](auto &&visit) noexcept {
+                simplex.arcs([&](std::size_t k, std::size_t l, std::uint32_t moved) noexcept {
+                    if (moved) visit(k, l, wide_t(static_cast<double>(moved)) / mass);
+                });
+            };
+            sparse_product(vertex_arc_weights, vertex_gradient);
+            wide_t gradient_vertex {}, vertex_vertex {};
+            vertex_arc_weights([&](std::size_t k, std::size_t l, wide_t weight) noexcept {
+                gradient_vertex = gradient_vertex + gradient[k * m + l] * weight;
+                vertex_vertex = vertex_vertex + vertex_gradient[k * m + l] * weight;
+            });
+            wide_t const linear = gradient_vertex - gradient_plan;
+            wide_t const quadratic = vertex_vertex - wide_t(2.0) * gradient_vertex + gradient_plan;
+            wide_t const curvature = wide_t(-2.0) * quadratic, slope = wide_t(-4.0) * linear;
+            wide_t gamma = curvature + slope < wide_t(0.0) ? wide_t(1.0) : wide_t(0.0);
+            if (wide_t(0.0) < curvature) {
+                gamma = (wide_t(0.0) - slope) / (wide_t(2.0) * curvature);
+                if (gamma < wide_t(0.0)) gamma = wide_t(0.0);
+                if (wide_t(1.0) < gamma) gamma = wide_t(1.0);
+            }
+            if (gamma == wide_t(0.0)) break;
+            wide_t const keep = wide_t(1.0) - gamma;
+            for (std::size_t cell = 0; cell != n * m; ++cell)
+                plan[cell] = keep * plan[cell], gradient[cell] = keep * gradient[cell] + gamma * vertex_gradient[cell];
+            vertex_arc_weights([&](std::size_t k, std::size_t l, wide_t weight) noexcept {
+                plan[k * m + l] = plan[k * m + l] + gamma * weight;
+            });
+            gradient_plan = inner(gradient, plan);
+        }
+        wide_t const loss = cx + cy - wide_t(2.0) * gradient_plan;
+        if (!(loss < best_loss)) continue;
+        best_loss = loss;
+        for (wide_t &value : best_cross) value = wide_t(0.0);
+        for (std::size_t i = 0; i != n; ++i)
+            for (std::size_t j = 0; j != m; ++j)
+                for (std::size_t r = 0; r != 3; ++r)
+                    for (std::size_t c = 0; c != 3; ++c)
+                        best_cross[r * 3 + c] = best_cross[r * 3 + c] +
+                                                plan[i * m + j] * shapes_output_<wide_t>(b_points[j * 3 + r]) *
+                                                    shapes_output_<wide_t>(a_points[i * 3 + c]);
+    }
+    // The O(3) Procrustes fit: McAdams keeps U and V proper, folding the sign of det(H′) into σ₃
+    wide_t svd_u[9], svd_v[9], fit[9];
+    svd3x3_(best_cross, svd_u, svd_v);
+    if (det3x3_(best_cross) < wide_t(0.0))
+        svd_v[2] = wide_t(0.0) - svd_v[2], svd_v[5] = wide_t(0.0) - svd_v[5], svd_v[8] = wide_t(0.0) - svd_v[8];
+    rotation_from_svd_(svd_u, svd_v, fit);
+    for (int i = 0; i != 9; ++i) rotation[i] = shapes_output_<math_t>(fit[i]);
+    return best_loss;
+}
+
+/** The transport kinds between every pair, in canonical order, by the templates above. */
+template <typename in_type_, nk_kernel_kind_t kind_, typename distance_type_, typename rotation_type_>
+status_t shapes_transport_reference_(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
+                                     std::size_t columns, distance_type_ *results, std::size_t results_stride,
+                                     rotation_type_ *rotations, void *workspace, std::size_t workspace_bytes) noexcept {
+    using math_t = distance_type_;
+    if (!rows || !columns) return status_t::success_k;
+    if (reinterpret_cast<std::uintptr_t>(workspace) % nk_default_alignment_k) return status_t::misaligned_k;
+    std::size_t largest = 0;
+    for (std::size_t row = 0; row != rows; ++row)
+        if (std::size_t const points = shapes_cloud_<in_type_>(a_packed[row]).points; largest < points)
+            largest = points;
+    for (std::size_t column = 0; column != columns; ++column)
+        if (std::size_t const points = shapes_cloud_<in_type_>(b_packed[column]).points; largest < points)
+            largest = points;
+    shapes_transport_workspace_<math_t> arrays;
+    if (shapes_transport_layout_<math_t, kind_>(arrays, nullptr, largest) > workspace_bytes)
+        return status_t::unexpected_dimensions_k;
+    shapes_transport_layout_<math_t, kind_>(arrays, static_cast<char *>(workspace), largest);
+
+    for (std::size_t row = 0; row != rows; ++row)
+        for (std::size_t column = 0; column != columns; ++column) {
+            shapes_cloud_<in_type_> a(a_packed[row]), b(b_packed[column]);
+            distance_type_ &result = reinterpret_cast<distance_type_ *>(reinterpret_cast<char *>(results) +
+                                                                        row * results_stride)[column];
+            rotation_type_ *rotation = rotations ? rotations + (row * columns + column) * 9 : nullptr;
+            if (!a.points || !b.points) {
+                result = a.points == b.points ? math_t(0.0) : math_t::positive_infinity();
+                if (rotation) shapes_write_identity_(rotation);
+                continue;
+            }
+            bool const swapped = shapes_compare_(a, b) > 0;
+            if (swapped) std::swap(a, b);
+            math_t core[9];
+            if constexpr (kind_ == nk_kernel_shapes_wassersteinprocrustes_packed_k)
+                result = shapes_procrustes_pair_(a, b, arrays, core).sqrt();
+            else {
+                // ½ · √loss in the wide type, rounded once into the distance type
+                shapes_wide_<math_t> const loss = shapes_gromov_pair_(a, b, arrays, core);
+                result = shapes_output_<distance_type_>(
+                    (loss < shapes_wide_<math_t>(0.0) ? shapes_wide_<math_t>(0.0) : loss).sqrt() *
+                    shapes_wide_<math_t>(0.5));
+            }
+            if (!rotation) continue;
+            math_t a_frame[9], b_frame[9];
+            a.frame(a_frame), b.frame(b_frame);
+            shapes_write_rotation_(a_frame, core, b_frame, rotation);
+            // A pair solved with its sides swapped took the row cloud onto the column cloud
+            if (swapped)
+                for (std::size_t row = 0; row != 3; ++row)
+                    for (std::size_t column = row + 1; column != 3; ++column)
+                        std::swap(rotation[row * 3 + column], rotation[column * 3 + row]);
+        }
+    return status_t::success_k;
+}
+
+/**
+ *  @brief Returns the bytes a pack of @p points takes.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the layout of @c meshes.h.
+ *  @tparam in_type_ Point type, @c f16_t or @c f32_t.
+ */
+template <shapes_dtype in_type_>
+expected<std::size_t> shapes_pack_size(std::size_t points,
+                                       nk_capability_t capabilities = default_capabilities()) noexcept {
+    nk_size_t bytes = shapes_pack_bytes_<in_type_>(points);
+    nk_status_t status = nk_success_k;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t>)
+            status = nk_shapes_pack_size_f32_best(points, capabilities, &bytes);
+        else status = nk_shapes_pack_size_f16_best(points, capabilities, &bytes);
+    }
+    return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+}
+
+/**
+ *  @brief Packs one cloud: centers it, rotates it onto its principal axes, and fills the header.
+ *  @param[in] points The cloud, @p count × 3 interleaved values.
+ *  @param[out] packed At least @c shapes_pack_size bytes.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the template in @p math_type_.
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
+ *  @tparam math_type_ The template's arithmetic; kernels use @c in_type_::shapes_distance_t.
+ */
+template <shapes_dtype in_type_, typename math_type_ = typename in_type_::shapes_distance_t>
+status_t shapes_pack(typename in_type_::raw_t const *points, std::size_t count, void *packed,
+                     nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<math_type_, typename in_type_::shapes_distance_t>;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return static_cast<status_t>(nk_shapes_pack_f32_best(points, count, packed, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return static_cast<status_t>(nk_shapes_pack_f16_best(points, count, packed, capabilities, stream));
+    }
+    shapes_pack_reference_<in_type_, math_type_, nk_kernel_shapes_pack_k>(points, count, packed);
+    return status_t::success_k;
+}
+
+/** Packs one cloud like @c shapes_pack, also dividing it by its RMS distance from the centroid,
+ *  which the header keeps as its scale, or by 1 when the cloud has no spread. */
+template <shapes_dtype in_type_, typename math_type_ = typename in_type_::shapes_distance_t>
+status_t shapes_pack_normalized(typename in_type_::raw_t const *points, std::size_t count, void *packed,
+                                nk_capability_t capabilities = default_capabilities(),
+                                nk_stream_t stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<math_type_, typename in_type_::shapes_distance_t>;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return static_cast<status_t>(
+                nk_shapes_pack_normalized_f32_best(points, count, packed, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return static_cast<status_t>(
+                nk_shapes_pack_normalized_f16_best(points, count, packed, capabilities, stream));
+    }
+    shapes_pack_reference_<in_type_, math_type_, nk_kernel_shapes_pack_normalized_k>(points, count, packed);
+    return status_t::success_k;
+}
+
+/**
+ *  @brief Chamfer distances between every row pack and every column pack, the best of 8 axis flips.
+ *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
+ *  @param[out] rotations Null, or the @b [rows,columns,3,3] rotations taking each column cloud onto
+ *      each row cloud through the centroids.
+ *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
+ */
+template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
+          typename rotation_type_ = f32_t>
+status_t chamfers(void const *const *a_packed, std::size_t rows, void const *const *b_packed, std::size_t columns,
+                  distance_type_ *results, std::size_t results_stride, std::type_identity_t<rotation_type_> *rotations,
+                  nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
+                              std::is_same_v<rotation_type_, f32_t>;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return static_cast<status_t>(
+                nk_shapes_chamfers_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                                                   reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return static_cast<status_t>(
+                nk_shapes_chamfers_packed_f16_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                                                   reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+    }
+    shapes_nearest_reference_<in_type_, nk_kernel_shapes_chamfers_packed_k>(a_packed, rows, b_packed, columns, results,
+                                                                            results_stride, rotations);
+    return status_t::success_k;
+}
+
+/** Hausdorff distances between every row and column pack, with the parameters of @c chamfers. */
+template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
+          typename rotation_type_ = f32_t>
+status_t hausdorffs(void const *const *a_packed, std::size_t rows, void const *const *b_packed, std::size_t columns,
+                    distance_type_ *results, std::size_t results_stride,
+                    std::type_identity_t<rotation_type_> *rotations,
+                    nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
+                              std::is_same_v<rotation_type_, f32_t>;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return static_cast<status_t>(
+                nk_shapes_hausdorffs_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                                                     reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return static_cast<status_t>(
+                nk_shapes_hausdorffs_packed_f16_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                                                     reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+    }
+    shapes_nearest_reference_<in_type_, nk_kernel_shapes_hausdorffs_packed_k>(a_packed, rows, b_packed, columns,
+                                                                              results, results_stride, rotations);
+    return status_t::success_k;
+}
+
+/**
+ *  @brief Returns the workspace bytes of @c wassersteinprocrustes between clouds of up to
+ *      @p row_points and @p column_points points.
+ *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
+ */
+template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
+expected<std::size_t> wassersteinprocrustes_workspace_size(
+    std::size_t row_points, std::size_t column_points, nk_capability_t capabilities = default_capabilities()) noexcept {
+    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t>;
+    if (capabilities) {
+        nk_size_t bytes = 0;
+        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch) {
+            nk_status_t const status = nk_shapes_wassersteinprocrustes_workspace_size_f32_best(
+                row_points, column_points, capabilities, &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch) {
+            nk_status_t const status = nk_shapes_wassersteinprocrustes_workspace_size_f16_best(
+                row_points, column_points, capabilities, &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
+    }
+    shapes_transport_workspace_<distance_type_> layout;
+    std::size_t const points = row_points < column_points ? column_points : row_points;
+    return {shapes_transport_layout_<distance_type_, nk_kernel_shapes_wassersteinprocrustes_packed_k>(layout, nullptr,
+                                                                                                      points),
+            status_t::success_k};
+}
+
+/** The workspace bytes of @c gromovwassersteins, like @c wassersteinprocrustes_workspace_size. */
+template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
+expected<std::size_t> gromovwassersteins_workspace_size(
+    std::size_t row_points, std::size_t column_points, nk_capability_t capabilities = default_capabilities()) noexcept {
+    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t>;
+    if (capabilities) {
+        nk_size_t bytes = 0;
+        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch) {
+            nk_status_t const status = nk_shapes_gromovwassersteins_workspace_size_f32_best(row_points, column_points,
+                                                                                            capabilities, &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch) {
+            nk_status_t const status = nk_shapes_gromovwassersteins_workspace_size_f16_best(row_points, column_points,
+                                                                                            capabilities, &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
+    }
+    shapes_transport_workspace_<distance_type_> layout;
+    std::size_t const points = row_points < column_points ? column_points : row_points;
+    return {
+        shapes_transport_layout_<distance_type_, nk_kernel_shapes_gromovwassersteins_packed_k>(layout, nullptr, points),
+        status_t::success_k};
+}
+
+/**
+ *  @brief Wasserstein-Procrustes distances between every row pack and every column pack.
+ *  @param[in] workspace At least @p workspace_bytes, aligned to @c nk_default_alignment_k.
+ *  @param[in] workspace_bytes What @c wassersteinprocrustes_workspace_size reports for the largest
+ *      clouds, with the same capabilities and @p distance_type_, or more.
+ *  @return @c success_k, @c misaligned_k, @c unexpected_dimensions_k for a short workspace, or
+ *      @c missing_kernel_k. The other parameters match @c chamfers.
+ */
+template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
+          typename rotation_type_ = f32_t>
+status_t wassersteinprocrustes(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
+                               std::size_t columns, distance_type_ *results, std::size_t results_stride,
+                               std::type_identity_t<rotation_type_> *rotations, void *workspace,
+                               std::size_t workspace_bytes, nk_capability_t capabilities = default_capabilities(),
+                               nk_stream_t stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
+                              std::is_same_v<rotation_type_, f32_t>;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return static_cast<status_t>(nk_shapes_wassersteinprocrustes_packed_f32_best(
+                a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return static_cast<status_t>(nk_shapes_wassersteinprocrustes_packed_f16_best(
+                a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+    }
+    return shapes_transport_reference_<in_type_, nk_kernel_shapes_wassersteinprocrustes_packed_k>(
+        a_packed, rows, b_packed, columns, results, results_stride, rotations, workspace, workspace_bytes);
+}
+
+/** Gromov-Wasserstein distances between every row and column pack, with the parameters of
+ *  @c wassersteinprocrustes and the workspace of @c gromovwassersteins_workspace_size. */
+template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
+          typename rotation_type_ = f32_t>
+status_t gromovwassersteins(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
+                            std::size_t columns, distance_type_ *results, std::size_t results_stride,
+                            std::type_identity_t<rotation_type_> *rotations, void *workspace,
+                            std::size_t workspace_bytes, nk_capability_t capabilities = default_capabilities(),
+                            nk_stream_t stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
+                              std::is_same_v<rotation_type_, f32_t>;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return static_cast<status_t>(nk_shapes_gromovwassersteins_packed_f32_best(
+                a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return static_cast<status_t>(nk_shapes_gromovwassersteins_packed_f16_best(
+                a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+    }
+    return shapes_transport_reference_<in_type_, nk_kernel_shapes_gromovwassersteins_packed_k>(
+        a_packed, rows, b_packed, columns, results, results_stride, rotations, workspace, workspace_bytes);
+}
+
+/**
+ *  @brief Owning, move-only set of packed clouds, the operand every many-to-many kernel takes.
+ *
+ *  One allocation holds the table of pack pointers, then the packs back to back, each on an
+ *  @c nk_shapes_alignment_k boundary, so @c data() passes straight to @c chamfers and its siblings.
+ */
+template <shapes_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>
+class shapes_packed {
+    using alloc_traits = std::allocator_traits<allocator_type_>;
+
+    char *data_ = nullptr;
+    std::size_t size_bytes_ = 0;
+    std::size_t count_ = 0;
+    std::size_t max_points_ = 0;
+    [[no_unique_address]] allocator_type_ alloc_;
+
+    std::size_t table_bytes_() const noexcept {
+        return nk_size_round_up_to_multiple_(count_ * sizeof(void const *), nk_shapes_alignment_k);
+    }
+
+  public:
+    shapes_packed() noexcept = default;
+    explicit shapes_packed(allocator_type_ const &alloc) noexcept : alloc_(alloc) {}
+
+    ~shapes_packed() noexcept {
+        if (data_) alloc_traits::deallocate(alloc_, data_, size_bytes_);
+    }
+
+    shapes_packed(shapes_packed &&o) noexcept
+        : data_(std::exchange(o.data_, nullptr)), size_bytes_(std::exchange(o.size_bytes_, 0)),
+          count_(std::exchange(o.count_, 0)), max_points_(std::exchange(o.max_points_, 0)),
+          alloc_(std::move(o.alloc_)) {}
+
+    shapes_packed &operator=(shapes_packed &&o) noexcept {
+        if (this != &o) {
+            if (data_) alloc_traits::deallocate(alloc_, data_, size_bytes_);
+            if constexpr (alloc_traits::propagate_on_container_move_assignment::value) alloc_ = std::move(o.alloc_);
+            data_ = std::exchange(o.data_, nullptr);
+            size_bytes_ = std::exchange(o.size_bytes_, 0);
+            count_ = std::exchange(o.count_, 0);
+            max_points_ = std::exchange(o.max_points_, 0);
+        }
+        return *this;
+    }
+
+    shapes_packed(shapes_packed const &) = delete;
+    shapes_packed &operator=(shapes_packed const &) = delete;
+
+    /**
+     *  @brief Packs every cloud of @p clouds, each @b [points,3] interleaved.
+     *  @param[in] capabilities Capabilities to pack with; measure with the same ones.
+     *  @return The packs; @c unexpected_dimensions_k when a cloud's length is not a multiple of 3,
+     *      @c missing_kernel_k, @c bad_alloc_k, or the packing kernel's failure.
+     */
+    static expected<shapes_packed> make(std::span<std::span<value_type_ const> const> clouds,
+                                        allocator_type_ alloc = {},
+                                        nk_capability_t capabilities = default_capabilities()) noexcept {
+        return make_<nk_kernel_shapes_pack_k>(clouds, alloc, capabilities);
+    }
+
+    /** Packs every cloud like @c make, each divided by its RMS distance from the centroid. */
+    static expected<shapes_packed> make_normalized(std::span<std::span<value_type_ const> const> clouds,
+                                                   allocator_type_ alloc = {},
+                                                   nk_capability_t capabilities = default_capabilities()) noexcept {
+        return make_<nk_kernel_shapes_pack_normalized_k>(clouds, alloc, capabilities);
+    }
+
+    /** The table of pack pointers the kernels take. */
+    void const *const *data() const noexcept { return reinterpret_cast<void const *const *>(data_); }
+
+    /** The pack of cloud @p index. */
+    void const *operator[](std::size_t index) const noexcept { return data()[index]; }
+
+    /** The number of packed clouds. */
+    std::size_t size() const noexcept { return count_; }
+
+    /** The points in cloud @p index. */
+    std::size_t points(std::size_t index) const noexcept { return shapes_cloud_<value_type_>(data()[index]).points; }
+
+    /** The largest cloud, which sizes the transport workspaces. */
+    std::size_t max_points() const noexcept { return max_points_; }
+
+    bool empty() const noexcept { return data_ == nullptr; }
+    std::size_t size_bytes() const noexcept { return size_bytes_; }
+
+  private:
+    template <nk_kernel_kind_t kind_>
+    static expected<shapes_packed> make_(std::span<std::span<value_type_ const> const> clouds, allocator_type_ alloc,
+                                         nk_capability_t capabilities) noexcept {
+        shapes_packed packs(alloc);
+        packs.count_ = clouds.size();
+        std::size_t total = packs.table_bytes_();
+        for (std::span<value_type_ const> cloud : clouds) {
+            if (cloud.size() % 3) return {shapes_packed(alloc), status_t::unexpected_dimensions_k};
+            auto const bytes = shapes_pack_size<value_type_>(cloud.size() / 3, capabilities);
+            if (!bytes) return {shapes_packed(alloc), bytes.status};
+            total += bytes.value;
+            if (packs.max_points_ < cloud.size() / 3) packs.max_points_ = cloud.size() / 3;
+        }
+        packs.size_bytes_ = total;
+        packs.data_ = alloc_traits::allocate(packs.alloc_, total);
+        if (!packs.data_) return {shapes_packed(alloc), status_t::bad_alloc_k};
+
+        void const **table = reinterpret_cast<void const **>(packs.data_);
+        std::size_t offset = packs.table_bytes_();
+        for (std::size_t index = 0; index != clouds.size(); ++index) {
+            std::size_t const points = clouds[index].size() / 3;
+            auto const *cloud = reinterpret_cast<typename value_type_::raw_t const *>(clouds[index].data());
+            table[index] = packs.data_ + offset;
+            status_t const status = kind_ == nk_kernel_shapes_pack_k
+                                        ? shapes_pack<value_type_>(cloud, points, packs.data_ + offset, capabilities)
+                                        : shapes_pack_normalized<value_type_>(cloud, points, packs.data_ + offset,
+                                                                              capabilities);
+            if (failed(status)) return {shapes_packed(alloc), status};
+            offset += shapes_pack_size<value_type_>(points, capabilities).value;
+        }
+        return {std::move(packs), status_t::success_k};
+    }
+};
 
 } // namespace ashvardanian::numkong
 
-#endif // NUMKONG_MESH_HPP
+#endif // NUMKONG_MESHES_HPP

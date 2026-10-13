@@ -9,7 +9,6 @@
 #include "numkong/types.h"
 #include "numkong/dot/genoa.h" // `nk_dot_bf16_genoa`
 #include "numkong/attention/genoa.h"
-#include "numkong/meshes/genoa.h"
 
 int main(void) {
     nk_bf16_t a[64] = {0}, b[64] = {0};

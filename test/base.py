@@ -149,13 +149,13 @@ class Settings:
     dims_depth: list[int]
     curved_dims: list[int]
     sparse_dims: list[int]
-    mesh_points: int
+    shape_points: int
     max_coord_angle_degrees: float
     expect_simd: bool
 
     @property
     def reduced_repetitions(self) -> int:
-        """A fifth of `repetitions`, for the costlier matrix and mesh sweeps."""
+        """A fifth of `repetitions`, for the costlier matrix and shape sweeps."""
         return max(1, self.repetitions // 5)
 
     def selects(self, name: str) -> bool:
@@ -196,7 +196,7 @@ def read_settings() -> Settings:
         dims_depth=sampled("NUMKONG_DIMS_DEPTH", 44, 6),
         curved_dims=sampled("NUMKONG_CURVED_DIMS", 45, 5),
         sparse_dims=env_parsed("NUMKONG_SPARSE_DIMS", [256], parse_dims, "positive counts like 64,128"),
-        mesh_points=env_count("NUMKONG_MESH_POINTS", 1000),
+        shape_points=env_count("NUMKONG_SHAPE_POINTS", 1000),
         max_coord_angle_degrees=env_parsed(
             "NUMKONG_MAX_COORD_ANGLE", 180.0, parse_angle_degrees, "a number in [0, 180]"
         ),

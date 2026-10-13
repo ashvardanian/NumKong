@@ -105,10 +105,6 @@ StatementMacros:
   - nk_define_sqeuclidean_serial_
   - nk_define_euclidean_
   - nk_define_angular_
-  - nk_define_rmsd_
-  - nk_define_kabsch_
-  - nk_define_umeyama_
-  - nk_define_mesh_
   - nk_define_cond_swap_
   - nk_define_conditional_negating_swap_
   - nk_define_approximate_givens_quaternion_
@@ -120,6 +116,19 @@ StatementMacros:
   - nk_define_qr_orthogonal_factor_
   - nk_define_svd3x3_
   - nk_define_det3x3_
+  - nk_define_sum_two_products_
+  - nk_define_shapes_pack_
+  - nk_define_shapes_headers_
+  - nk_define_shapes_nearest_
+  - nk_define_shapes_workspace_
+  - nk_define_shapes_pricing_
+  - nk_define_shapes_network_simplex_
+  - nk_define_shapes_wasserstein_procrustes_
+  - nk_define_shapes_gromov_wasserstein_
+  - nk_define_shapes_transport_
+  - nk_define_shapes_flip_kernels_
+  - nk_define_shapes_transport_kernels_
+  - nk_define_shapes_
   - nk_define_cross_pack_size_
   - nk_define_cross_packed_shape_
   - nk_define_cross_pack_

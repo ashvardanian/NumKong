@@ -378,15 +378,6 @@ typedef enum {
     /** Jensen-Shannon divergence. */
     nk_kernel_jsd_k = 's',
 
-    /** RMSD without optimal superposition. */
-    nk_kernel_rmsd_k = 'r',
-
-    /** Kabsch RMSD with optimal rotation. */
-    nk_kernel_kabsch_k = 'K',
-
-    /** Umeyama RMSD with optimal rotation and scale. */
-    nk_kernel_umeyama_k = 'U',
-
     /** Sparse dot product with weighted indices. */
     nk_kernel_sparse_dot_k = 'd',
 
@@ -480,6 +471,33 @@ typedef enum {
     /** MaxSim packed shape read (vectors, depth). */
     nk_kernel_maxsim_packed_shape_k = 'q',
 
+    /** Packed cloud buffer size in bytes. */
+    nk_kernel_shapes_pack_size_k = '3',
+
+    /** Cloud packing: centering, principal axes and the pose header. */
+    nk_kernel_shapes_pack_k = '4',
+
+    /** Cloud packing that also divides each cloud by its RMS distance from the centroid. */
+    nk_kernel_shapes_pack_normalized_k = '7',
+
+    /** Many-to-many Chamfer over principal-frame flips. */
+    nk_kernel_shapes_chamfers_packed_k = 'r',
+
+    /** Many-to-many Hausdorff over principal-frame flips. */
+    nk_kernel_shapes_hausdorffs_packed_k = 'K',
+
+    /** Workspace bytes of many-to-many Wasserstein-Procrustes. */
+    nk_kernel_shapes_wassersteinprocrustes_workspace_size_k = '5',
+
+    /** Many-to-many Wasserstein-Procrustes: exact transport alternated with Kabsch. */
+    nk_kernel_shapes_wassersteinprocrustes_packed_k = 'U',
+
+    /** Workspace bytes of many-to-many Gromov-Wasserstein. */
+    nk_kernel_shapes_gromovwassersteins_workspace_size_k = '6',
+
+    /** Many-to-many Gromov-Wasserstein over plain distances within each cloud. */
+    nk_kernel_shapes_gromovwassersteins_packed_k = 'c',
+
     /** Attention packed KV-cache Buffer size in Bytes. */
     nk_kernel_attention_pack_size_k = 'B',
 
@@ -520,9 +538,6 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_vincenty_k: return "vincenty";
     case nk_kernel_kld_k: return "kld";
     case nk_kernel_jsd_k: return "jsd";
-    case nk_kernel_rmsd_k: return "rmsd";
-    case nk_kernel_kabsch_k: return "kabsch";
-    case nk_kernel_umeyama_k: return "umeyama";
     case nk_kernel_sparse_dot_k: return "sparse_dot";
     case nk_kernel_sparse_intersect_k: return "sparse_intersect";
     case nk_kernel_each_scale_k: return "each_scale";
@@ -554,6 +569,15 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_maxsim_pack_k: return "maxsim_pack";
     case nk_kernel_maxsim_packed_k: return "maxsim_packed";
     case nk_kernel_maxsim_packed_shape_k: return "maxsim_packed_shape";
+    case nk_kernel_shapes_pack_size_k: return "shapes_pack_size";
+    case nk_kernel_shapes_pack_k: return "shapes_pack";
+    case nk_kernel_shapes_pack_normalized_k: return "shapes_pack_normalized";
+    case nk_kernel_shapes_chamfers_packed_k: return "shapes_chamfers_packed";
+    case nk_kernel_shapes_hausdorffs_packed_k: return "shapes_hausdorffs_packed";
+    case nk_kernel_shapes_wassersteinprocrustes_workspace_size_k: return "shapes_wassersteinprocrustes_workspace_size";
+    case nk_kernel_shapes_wassersteinprocrustes_packed_k: return "shapes_wassersteinprocrustes_packed";
+    case nk_kernel_shapes_gromovwassersteins_workspace_size_k: return "shapes_gromovwassersteins_workspace_size";
+    case nk_kernel_shapes_gromovwassersteins_packed_k: return "shapes_gromovwassersteins_packed";
     case nk_kernel_attention_pack_size_k: return "attention_pack_size";
     case nk_kernel_attention_pack_k: return "attention_pack";
     case nk_kernel_attention_packed_k: return "attention_packed";
@@ -581,9 +605,6 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "vincenty")) return nk_kernel_vincenty_k;
     if (nk_same_literal_(name, length, "kld")) return nk_kernel_kld_k;
     if (nk_same_literal_(name, length, "jsd")) return nk_kernel_jsd_k;
-    if (nk_same_literal_(name, length, "rmsd")) return nk_kernel_rmsd_k;
-    if (nk_same_literal_(name, length, "kabsch")) return nk_kernel_kabsch_k;
-    if (nk_same_literal_(name, length, "umeyama")) return nk_kernel_umeyama_k;
     if (nk_same_literal_(name, length, "sparse_dot")) return nk_kernel_sparse_dot_k;
     if (nk_same_literal_(name, length, "sparse_intersect")) return nk_kernel_sparse_intersect_k;
     if (nk_same_literal_(name, length, "each_scale")) return nk_kernel_each_scale_k;
@@ -615,6 +636,19 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "maxsim_pack")) return nk_kernel_maxsim_pack_k;
     if (nk_same_literal_(name, length, "maxsim_packed")) return nk_kernel_maxsim_packed_k;
     if (nk_same_literal_(name, length, "maxsim_packed_shape")) return nk_kernel_maxsim_packed_shape_k;
+    if (nk_same_literal_(name, length, "shapes_pack_size")) return nk_kernel_shapes_pack_size_k;
+    if (nk_same_literal_(name, length, "shapes_pack")) return nk_kernel_shapes_pack_k;
+    if (nk_same_literal_(name, length, "shapes_pack_normalized")) return nk_kernel_shapes_pack_normalized_k;
+    if (nk_same_literal_(name, length, "shapes_chamfers_packed")) return nk_kernel_shapes_chamfers_packed_k;
+    if (nk_same_literal_(name, length, "shapes_hausdorffs_packed")) return nk_kernel_shapes_hausdorffs_packed_k;
+    if (nk_same_literal_(name, length, "shapes_wassersteinprocrustes_workspace_size"))
+        return nk_kernel_shapes_wassersteinprocrustes_workspace_size_k;
+    if (nk_same_literal_(name, length, "shapes_wassersteinprocrustes_packed"))
+        return nk_kernel_shapes_wassersteinprocrustes_packed_k;
+    if (nk_same_literal_(name, length, "shapes_gromovwassersteins_workspace_size"))
+        return nk_kernel_shapes_gromovwassersteins_workspace_size_k;
+    if (nk_same_literal_(name, length, "shapes_gromovwassersteins_packed"))
+        return nk_kernel_shapes_gromovwassersteins_packed_k;
     if (nk_same_literal_(name, length, "attention_pack_size")) return nk_kernel_attention_pack_size_k;
     if (nk_same_literal_(name, length, "attention_pack")) return nk_kernel_attention_pack_k;
     if (nk_same_literal_(name, length, "attention_packed")) return nk_kernel_attention_packed_k;
@@ -655,10 +689,6 @@ typedef nk_status_t (*nk_each_fma_punned_t)(void const *a, void const *b, void c
                                             void const *alpha, void const *beta, void *y, nk_stream_t stream);
 
 typedef nk_status_t (*nk_kernel_trig_punned_t)(void const *x, nk_size_t count, void *y, nk_stream_t stream);
-
-typedef nk_status_t (*nk_metric_mesh_punned_t)(void const *a, void const *b, nk_size_t points_count, void *a_centroid,
-                                               void *b_centroid, void *rotation, void *scale, void *result,
-                                               nk_stream_t stream);
 
 typedef nk_status_t (*nk_reduce_moments_punned_t)(void const *data, nk_size_t count, nk_size_t stride, void *sum,
                                                   void *sumsq, nk_stream_t stream);
@@ -717,6 +747,24 @@ typedef nk_dots_symmetric_punned_t nk_euclideans_symmetric_punned_t;
 typedef nk_status_t (*nk_maxsim_packed_punned_t)(void const *query_packed, void const *document_packed,
                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
                                                  void *result, nk_stream_t stream);
+
+typedef nk_status_t (*nk_shapes_pack_size_punned_t)(nk_size_t points, nk_size_t *bytes);
+
+typedef nk_status_t (*nk_shapes_pack_punned_t)(void const *points, nk_size_t count, void *packed, nk_stream_t stream);
+
+/** Workspace sizes are host arithmetic, like pack sizes, so they take no stream. */
+typedef nk_status_t (*nk_shapes_workspace_size_punned_t)(nk_size_t row_points, nk_size_t column_points,
+                                                         nk_size_t *bytes);
+
+typedef nk_status_t (*nk_shapes_packed_punned_t)(void const *const *a_packed, nk_size_t rows,
+                                                 void const *const *b_packed, nk_size_t columns, void *results,
+                                                 nk_size_t results_stride, void *rotations, nk_stream_t stream);
+
+typedef nk_status_t (*nk_shapes_packed_workspace_punned_t)(void const *const *a_packed, nk_size_t rows,
+                                                           void const *const *b_packed, nk_size_t columns,
+                                                           void *results, nk_size_t results_stride, void *rotations,
+                                                           void *workspace, nk_size_t workspace_bytes,
+                                                           nk_stream_t stream);
 
 typedef nk_status_t (*nk_attention_packed_shape_punned_t)(void const *packed, nk_size_t *key_value_head_count,
                                                           nk_size_t *depth, nk_size_t *segments, nk_stream_t stream);

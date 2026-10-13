@@ -1335,10 +1335,18 @@ static PyMethodDef nk_methods[] = {
     {"cos", (PyCFunction)api_cos, METH_FASTCALL | METH_KEYWORDS, doc_cos},
     {"atan", (PyCFunction)api_atan, METH_FASTCALL | METH_KEYWORDS, doc_atan},
 
-    // Mesh alignment (point cloud registration)
-    {"kabsch", (PyCFunction)api_kabsch, METH_FASTCALL | METH_KEYWORDS, doc_kabsch},
-    {"umeyama", (PyCFunction)api_umeyama, METH_FASTCALL | METH_KEYWORDS, doc_umeyama},
-    {"rmsd", (PyCFunction)api_rmsd, METH_FASTCALL | METH_KEYWORDS, doc_rmsd},
+    // Many-to-many shape distances over packed point clouds
+    {"shapes_pack", (PyCFunction)api_shapes_pack, METH_FASTCALL | METH_KEYWORDS, doc_shapes_pack},
+    {"shapes_pack_normalized", (PyCFunction)api_shapes_pack_normalized, METH_FASTCALL | METH_KEYWORDS,
+     doc_shapes_pack_normalized},
+    {"shapes_chamfers_packed", (PyCFunction)api_shapes_chamfers_packed, METH_FASTCALL | METH_KEYWORDS,
+     doc_shapes_chamfers_packed},
+    {"shapes_hausdorffs_packed", (PyCFunction)api_shapes_hausdorffs_packed, METH_FASTCALL | METH_KEYWORDS,
+     doc_shapes_hausdorffs_packed},
+    {"shapes_wassersteinprocrustes_packed", (PyCFunction)api_shapes_wassersteinprocrustes_packed,
+     METH_FASTCALL | METH_KEYWORDS, doc_shapes_wassersteinprocrustes_packed},
+    {"shapes_gromovwassersteins_packed", (PyCFunction)api_shapes_gromovwassersteins_packed,
+     METH_FASTCALL | METH_KEYWORDS, doc_shapes_gromovwassersteins_packed},
 
     // Matrix multiplication with pre-packed matrices
     {"dots_pack", (PyCFunction)api_dots_pack, METH_FASTCALL | METH_KEYWORDS, doc_dots_pack},
@@ -1447,7 +1455,7 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     if (PyType_Ready(&PackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&MaxSimPackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&AttentionPackedMatrixType) < 0) return NULL;
-    if (PyType_Ready(&MeshAlignmentResultType) < 0) return NULL;
+    if (PyType_Ready(&ShapesPackedType) < 0) return NULL;
 
     m = PyModule_Create(&nk_module);
     if (m == NULL) return NULL;
@@ -1509,10 +1517,10 @@ PyMODINIT_FUNC PyInit__numkong(void) {
         return NULL;
     }
 
-    // Register MeshAlignmentResult type
-    Py_INCREF(&MeshAlignmentResultType);
-    if (PyModule_AddObject(m, "MeshAlignmentResult", (PyObject *)&MeshAlignmentResultType) < 0) {
-        Py_XDECREF(&MeshAlignmentResultType);
+    // Register ShapesPacked type
+    Py_INCREF(&ShapesPackedType);
+    if (PyModule_AddObject(m, "ShapesPacked", (PyObject *)&ShapesPackedType) < 0) {
+        Py_XDECREF(&ShapesPackedType);
         Py_XDECREF(m);
         return NULL;
     }

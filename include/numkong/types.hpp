@@ -469,11 +469,12 @@ struct f32_t {
     using curved_result_t = f64_t;        // `nk_bilinear_f32` output
     using geospatial_result_t = f32_t;    // `nk_haversine_f32` output
     using probability_result_t = f64_t;   // `nk_kld_f32` output
-    using mesh_transform_t = f32_t;       // `nk_kabsch_f32` transform outputs
-    using mesh_metric_t = f64_t;          // `nk_rmsd_f32` scalar output
     using reduce_moments_sum_t = f64_t;   // `nk_reduce_moments_f32` sum output
     using reduce_moments_sumsq_t = f64_t; // `nk_reduce_moments_f32` sumsq output
     using reduce_minmax_value_t = f32_t;  // `nk_reduce_minmax_f32` value output
+
+    /** The output of @c nk_shapes_chamfers_packed_f32 and the type of its pack header. */
+    using shapes_distance_t = f64_t;
     using maxsim_result_t = f64_t;
 
     using dot_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_stream_t);
@@ -485,8 +486,14 @@ struct f32_t {
     using geospatial_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, raw_t const *, raw_t const *, nk_size_t,
                                                 raw_t *, nk_stream_t);
     using probability_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_stream_t);
-    using mesh_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f32_t *, nk_f32_t *, nk_f32_t *,
-                                          nk_f32_t *, nk_f64_t *, nk_stream_t);
+    using shapes_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t *);
+    using shapes_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, void *, nk_stream_t);
+    using shapes_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
+    using shapes_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                                   nk_f64_t *, nk_size_t, nk_f32_t *, nk_stream_t);
+    using shapes_packed_workspace_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *,
+                                                             nk_size_t, nk_f64_t *, nk_size_t, nk_f32_t *, void *,
+                                                             nk_size_t, nk_stream_t);
     using sparse_dot_kernel_t = nk_status_t (*)(nk_u32_t const *, nk_u32_t const *, raw_t const *, raw_t const *,
                                                 nk_size_t, nk_size_t, nk_f64_t *, nk_stream_t);
     using scale_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, scale_t const *, scale_t const *, raw_t *,
@@ -756,8 +763,6 @@ struct f64_t {
     using curved_result_t = f64_t;        // `nk_bilinear_f64` output
     using geospatial_result_t = f64_t;    // `nk_haversine_f64` output
     using probability_result_t = f64_t;   // `nk_kld_f64` output
-    using mesh_transform_t = f64_t;       // `nk_kabsch_f64` transform outputs
-    using mesh_metric_t = f64_t;          // `nk_rmsd_f64` output
     using reduce_moments_sum_t = f64_t;   // `nk_reduce_moments_f64` sum output
     using reduce_moments_sumsq_t = f64_t; // `nk_reduce_moments_f64` sumsq output
     using reduce_minmax_value_t = f64_t;  // `nk_reduce_minmax_f64` value output
@@ -771,8 +776,6 @@ struct f64_t {
     using geospatial_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, raw_t const *, raw_t const *, nk_size_t,
                                                 raw_t *, nk_stream_t);
     using probability_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_stream_t);
-    using mesh_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_f64_t *, nk_f64_t *,
-                                          nk_f64_t *, nk_f64_t *, nk_stream_t);
     using scale_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, scale_t const *, scale_t const *, raw_t *,
                                            nk_stream_t);
     using sum_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, raw_t *, nk_stream_t);
@@ -1526,11 +1529,12 @@ struct f16_t {
     using angular_result_t = f32_t;       // `nk_angular_f16` output
     using curved_result_t = f32_t;        // `nk_bilinear_f16` output
     using probability_result_t = f32_t;   // `nk_kld_f16` output
-    using mesh_transform_t = f32_t;       // `nk_kabsch_f16` transform outputs
-    using mesh_metric_t = f32_t;          // `nk_rmsd_f16` output
     using reduce_moments_sum_t = f32_t;   // `nk_reduce_moments_f16` sum output
     using reduce_moments_sumsq_t = f32_t; // `nk_reduce_moments_f16` sumsq output
     using reduce_minmax_value_t = f16_t;  // `nk_reduce_minmax_f16` value output
+
+    /** The output of @c nk_shapes_chamfers_packed_f16 and the type of its pack header. */
+    using shapes_distance_t = f32_t;
     using attention_result_t = f32_t;
     using maxsim_result_t = f32_t;
 
@@ -1541,8 +1545,14 @@ struct f16_t {
     using curved_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, raw_t const *, nk_size_t, nk_f32_t *,
                                             nk_stream_t);
     using probability_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f32_t *, nk_stream_t);
-    using mesh_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f32_t *, nk_f32_t *, nk_f32_t *,
-                                          nk_f32_t *, nk_f32_t *, nk_stream_t);
+    using shapes_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t *);
+    using shapes_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, void *, nk_stream_t);
+    using shapes_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
+    using shapes_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                                   nk_f32_t *, nk_size_t, nk_f32_t *, nk_stream_t);
+    using shapes_packed_workspace_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *,
+                                                             nk_size_t, nk_f32_t *, nk_size_t, nk_f32_t *, void *,
+                                                             nk_size_t, nk_stream_t);
     using scale_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, scale_t const *, scale_t const *, raw_t *,
                                            nk_stream_t);
     using sum_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, raw_t *, nk_stream_t);
@@ -1795,8 +1805,6 @@ struct bf16_t {
     using euclidean_result_t = f32_t;     // `nk_euclidean_bf16` output
     using angular_result_t = f32_t;       // `nk_angular_bf16` output
     using curved_result_t = f32_t;        // `nk_bilinear_bf16` output
-    using mesh_transform_t = f32_t;       // `nk_kabsch_bf16` transform outputs
-    using mesh_metric_t = f32_t;          // `nk_rmsd_bf16` output
     using probability_result_t = f32_t;   // `nk_kld_bf16` output
     using reduce_moments_sum_t = f32_t;   // `nk_reduce_moments_bf16` sum output
     using reduce_moments_sumsq_t = f32_t; // `nk_reduce_moments_bf16` sumsq output
@@ -1810,8 +1818,6 @@ struct bf16_t {
     using curved_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, raw_t const *, nk_size_t, nk_f32_t *,
                                             nk_stream_t);
     using probability_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f32_t *, nk_stream_t);
-    using mesh_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f32_t *, nk_f32_t *, nk_f32_t *,
-                                          nk_f32_t *, nk_f32_t *, nk_stream_t);
     using sparse_dot_kernel_t = nk_status_t (*)(nk_u16_t const *, nk_u16_t const *, raw_t const *, raw_t const *,
                                                 nk_size_t, nk_size_t, nk_f32_t *, nk_stream_t);
     using scale_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, scale_t const *, scale_t const *, raw_t *,

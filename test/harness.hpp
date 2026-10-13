@@ -18,7 +18,7 @@
  *  NUMKONG_DIMS                 1536       Vector dimension for dot and spatial tests, the first of a list
  *  NUMKONG_CURVED_DIMS          64         Vector dimension for curved tests, the first of a list
  *  NUMKONG_SPARSE_DIMS          256        Vector dimension for sparse tests, the first of a list
- *  NUMKONG_MESH_POINTS          1000       Point count for mesh tests
+ *  NUMKONG_SHAPE_POINTS         32         Points per cloud for shape tests
  *  NUMKONG_DIMS_HEIGHT          1024       GEMM M dimension, the first of a list
  *  NUMKONG_DIMS_WIDTH           128        GEMM N dimension, the first of a list
  *  NUMKONG_DIMS_DEPTH           1536       GEMM K dimension, the first of a list
@@ -476,8 +476,8 @@ struct settings_t {
     /** For sparse set intersection and sparse dot. */
     std::size_t sparse_dimensions = 256;
 
-    /** Number of 3D points for RMSD, Kabsch. */
-    std::size_t mesh_points = 1000;
+    /** Points per cloud for the many-to-many shape distances. */
+    std::size_t shape_points = 32;
 
     /** Max geospatial angular separation. */
     float max_coord_angle_degrees = 180.0f;
@@ -566,7 +566,7 @@ inline settings_t read_settings(char const *program) noexcept {
     settings.matrix_depth = first_dim("NUMKONG_DIMS_DEPTH", settings.matrix_depth);
     settings.curved_dimensions = first_dim("NUMKONG_CURVED_DIMS", settings.curved_dimensions);
     settings.sparse_dimensions = first_dim("NUMKONG_SPARSE_DIMS", settings.sparse_dimensions);
-    settings.mesh_points = env_count("NUMKONG_MESH_POINTS", settings.mesh_points);
+    settings.shape_points = env_count("NUMKONG_SHAPE_POINTS", settings.shape_points);
     settings.max_coord_angle_degrees = static_cast<float>(
         number_within("NUMKONG_MAX_COORD_ANGLE", settings.max_coord_angle_degrees, 0, 180, "a number in [0, 180]"));
 
@@ -577,7 +577,7 @@ inline settings_t read_settings(char const *program) noexcept {
         settings.matrix_height = std::max<std::size_t>(1, settings.matrix_height / 4);
         settings.matrix_width = std::max<std::size_t>(1, settings.matrix_width / 4);
         settings.matrix_depth = std::max<std::size_t>(1, settings.matrix_depth / 4);
-        settings.mesh_points = std::max<std::size_t>(1, settings.mesh_points / 4);
+        settings.shape_points = std::max<std::size_t>(1, settings.shape_points / 4);
     }
     return settings;
 }
@@ -605,7 +605,7 @@ inline void print(settings_t const &settings) {
     fmt::println("- Dims depth: {}", settings.matrix_depth);
     fmt::println("- Curved dims: {}", settings.curved_dimensions);
     fmt::println("- Sparse dims: {}", settings.sparse_dimensions);
-    fmt::println("- Mesh points: {}", settings.mesh_points);
+    fmt::println("- Shape points: {}", settings.shape_points);
     fmt::println("- Max coord angle: {}", settings.max_coord_angle_degrees);
     fmt::println("- Rerun one test: NUMKONG_SEED={} NUMKONG_FILTER='^<name>$' {}", settings.seed.value,
                  settings.program);
@@ -1401,7 +1401,7 @@ void test_probability(error_stats_section_t &check);
 void test_each(error_stats_section_t &check);
 void test_trigonometry(error_stats_section_t &check);
 void test_geospatial(error_stats_section_t &check);
-void test_mesh(error_stats_section_t &check);
+void test_shapes(error_stats_section_t &check);
 void test_sparse(error_stats_section_t &check);
 void test_vector_types(error_stats_section_t &check);
 void test_tensor_ops(error_stats_section_t &check);

@@ -16,7 +16,7 @@
 //! - [`set`]: Binary set similarity — Hamming, Jaccard
 //! - [`probability`]: Probability divergences — KL, JS
 //! - [`curved`]: Curved metric spaces — Bilinear, Mahalanobis
-//! - [`mesh`]: Mesh alignment — Kabsch, Umeyama, RMSD
+//! - [`meshes`]: Shape distances — Chamfer, Hausdorff, Wasserstein-Procrustes, Gromov-Wasserstein
 //! - [`geospatial`]: Geospatial distances — Haversine, Vincenty
 //! - [`sparse`]: Sparse set operations
 //! - [`mod@cast`]: Type casting between scalar formats
@@ -178,8 +178,8 @@ pub use trigonometry::{TrigAtan, TrigAtanOps, TrigCos, TrigCosOps, TrigSin, Trig
 // Re-export curved metric traits
 pub use curved::{Bilinear, Mahalanobis};
 
-// Re-export mesh alignment
-pub use meshes::{MeshAlignment, MeshAlignmentResult};
+// Re-export many-to-many shape distances
+pub use meshes::{Shapes, ShapesPacked};
 
 // Re-export geospatial
 pub use geospatial::{Geospatial, Haversine, Vincenty};

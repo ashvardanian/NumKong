@@ -2,7 +2,7 @@
 
 NumKong for Python is the main high-level SDK in the project.
 It targets the gap between `numpy` and low-level native kernels: you keep buffer-protocol interoperability and shape-aware outputs, but you stop giving up mixed precision, widened accumulators, packed reuse, and backend-specific optimizations every time you leave `float64`.
-It combines NumPy-friendly buffers with native mixed-precision kernels, zero-copy tensor views, packed and symmetric matrix operations, sparse helpers, geometric mesh alignment, and MaxSim.
+It combines NumPy-friendly buffers with native mixed-precision kernels, zero-copy tensor views, packed and symmetric matrix operations, sparse helpers, many-to-many shape distances, and MaxSim.
 The API feels NumPy-shaped with familiar scalar, batched, and all-pairs entrypoints, while `Tensor` keeps shape, dtype, and strides visible through a memoryview-backed container.
 Low-precision dtypes (BFloat16, Float8, Float6, packed bits) flow through the same API, and dense, packed, and symmetric kernels release the GIL around native work.
 
@@ -10,7 +10,7 @@ Low-precision dtypes (BFloat16, Float8, Float6, packed bits) flow through the sa
 
 | Feature                         | NumKong                                                                                                                      | [NumPy][numpy]/[SciPy][scipy]                                          | [PyTorch][pytorch]                                                          |
 | :------------------------------ | :--------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------- | :-------------------------------------------------------------------------- |
-| Operation families              | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig          | dots, distances, elementwise, reductions, some probability via `cdist` | dots, distances, elementwise, reductions                                    |
+| Operation families              | dots, distances, binary, probability, geospatial, curved, shapes, sparse, MaxSim, elementwise, reductions, cast, trig        | dots, distances, elementwise, reductions, some probability via `cdist` | dots, distances, elementwise, reductions                                    |
 | Precision                       | BFloat16 through sub-byte — Float8, Float6, Int4, packed bits; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float16, partial BFloat16; no auto-widening; standard accuracy         | Float16, BFloat16, partial Float8; explicit AMP required; standard accuracy |
 | Runtime SIMD dispatch           | picks the best ISA per call, from a capability mask, at runtime on x86, ARM, RISC-V                                          | compile-time only                                                      | CPU: compile-time; CUDA: runtime                                            |
 | Packed matrix, GEMM-like        | pack once, reuse across query batches                                                                                        | `np.dot`/`@` — no persistent packing                                   | `torch.mm` — no persistent distance-oriented packing                        |
@@ -630,35 +630,39 @@ It is naturally partitioned by row windows of one square output.
 `angulars_symmetric` and `euclideans_symmetric` also benefit from reuse of dot-product-derived work inside the symmetric sweep.
 That is why these APIs are faster than a nested Python loop over `angular(a[i], a[j])`.
 
-## Geometric Mesh Alignment
+## Many-to-Many Shape Distances
 
-Mesh alignment returns a structured result object.
-The current implementation exposes `rotation`, `scale`, `rmsd`, `a_centroid`, and `b_centroid`.
+Point clouds are packed once each, centered on their centroids and rotated onto their principal axes.
+The packed sets then score every row cloud against every column cloud, and the clouds may differ in size.
+Chamfer and Hausdorff compare nearest partners under the 8 sign flips of the principal axes.
+Wasserstein-Procrustes solves for the exact transport plan and the best rotation or reflection together, and equals the Kabsch RMSD when the correspondence is known.
+Gromov-Wasserstein compares the clouds' own distance matrices.
 
 ```python
 import numpy as np
 import numkong as nk
 
-source = np.array(
-    [[0.0, 0.0, 0.0],
-     [1.0, 0.0, 0.0],
-     [0.0, 1.0, 0.0]],
-    dtype=np.float32,
-)
+molecules = [np.random.randn(atoms, 3) for atoms in (20, 31, 60)]
+rows = nk.shapes_pack(molecules)  # float64 input packs as float32
+columns = nk.shapes_pack(molecules[1:])
 
-result = nk.kabsch(source, source.copy())
-assert np.asarray(result.rotation).shape == (3, 3)
-assert float(np.asarray(result.scale)) == 1.0
+distances, rotations = nk.shapes_wassersteinprocrustes_packed(rows, columns, rotations=True)
+assert np.asarray(distances).shape == (3, 2) and np.asarray(rotations).shape == (3, 2, 3, 3)
+assert np.asarray(distances)[1, 0] < 1e-6, "a molecule against itself"
 
-# Umeyama with known 2x scaling
-target = source * 2.0
-result = nk.umeyama(source, target)
-assert float(np.asarray(result.rmsd)) < 1e-6, "umeyama should recover exact alignment"
-assert abs(float(np.asarray(result.scale)) - 2.0) < 0.01, "umeyama should recover 2x scale"
+chamfers = nk.shapes_chamfers_packed(rows[:1], columns)  # slices are views over the same packs
+assert np.asarray(chamfers).dtype == np.float64
+
+grown = nk.shapes_pack_normalized([molecules[0] * 3.7 + 1.0])  # divided by its RMS radius
+originals = nk.shapes_pack_normalized(molecules)
+assert np.asarray(nk.shapes_wassersteinprocrustes_packed(originals, grown))[0, 0] < 1e-5
 ```
 
-That field-level check is the right style for this API family.
-It tells the reader exactly what the result object owns.
+Each rotation takes column cloud `b` onto row cloud `a` through the centroids: `a ≈ (b - b.mean(0)) @ R.T + a.mean(0)`.
+`nk.shapes_pack_normalized` also divides every cloud by its RMS distance from the centroid, so every kind ignores size as well as pose.
+Between normalized packs, the rotation also scales by `scale_a / scale_b`, and each kind compares the packed coordinates, so mixing absolute and normalized packs in one call is the caller's choice.
+The `centroids`, `frames`, `scales` and `spreads` properties read the pack headers, and `coordinates(i)` returns the packed points of cloud `i`.
+Wasserstein-Procrustes and Gromov-Wasserstein allocate their workspace inside the call.
 
 ## MaxSim and ColBERT-Style Late Interaction
 

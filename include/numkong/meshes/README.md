@@ -1,99 +1,125 @@
-# Point Cloud Alignment in NumKong
+# Many-to-Many Shape Distances in NumKong
 
-NumKong implements three algorithms for 3D point cloud comparison and alignment, used in structural biology (protein alignment), robotics (point cloud registration), and computer graphics (mesh registration).
+NumKong compares 3D point clouds of any size, with no correspondence between their points, scoring every cloud of one list against every cloud of another.
+The uses are shape search over molecules and conformers, protein structures, and scanned or sampled surfaces.
+Every kind is invariant to rotation, reflection and translation, and between normalized packs to scale as well.
 
-RMSD measures raw point-pair deviation without centering or alignment:
-
-$$
-\text{RMSD} = \sqrt{\frac{1}{n}\sum \|a_i - b_i\|^2}
-$$
-
-Kabsch finds the optimal rotation $R$ that minimizes RMSD after centering both clouds at their centroids $\bar{a}$, $\bar{b}$, recovering $R$ from the SVD of the cross-covariance matrix $H$:
+Chamfer charges every point the distance to its nearest partner in the other cloud, in both directions, and Hausdorff keeps the worst of those charges:
 
 $$
-H = \sum (a_i - \bar{a})(b_i - \bar{b})^T = U \Sigma V^T, \quad R = V U^T
+\text{Chamfer}(A, B) = \frac{1}{2} \left( \frac{1}{n} \sum_i \min_j \|a_i - b_j\| + \frac{1}{m} \sum_j \min_i \|a_i - b_j\| \right)
 $$
 
-Umeyama extends Kabsch with a uniform scale factor $s$ derived from the singular values and source variance $\sigma_a^2$:
-
 $$
-s = \frac{\text{tr}(\Sigma)}{n \cdot \sigma_a^2}, \quad \text{RMSD} = \sqrt{\frac{1}{n}\sum \|s \cdot R(a_i - \bar{a}) - (b_i - \bar{b})\|^2}
+\text{Hausdorff}(A, B) = \max\left( \max_i \min_j \|a_i - b_j\|, \max_j \min_i \|a_i - b_j\| \right)
 $$
 
-Reformulating as Python pseudocode:
+Both are taken over the 8 sign flips of the two clouds' principal axes, keeping the best.
+Wasserstein-Procrustes pairs points by an exact optimal transport plan $P$ between uniform weights and superposes them by the best rotation or reflection:
+
+$$
+\text{WP}(A, B) = \min_{R \in O(3)} \min_P \sqrt{\sum_{ij} P_{ij} \|a_i - R b_j\|^2}
+$$
+
+On equal sizes with a known correspondence it is the Kabsch RMSD.
+Gromov-Wasserstein compares the clouds' own distance matrices, so it needs no superposition at all:
+
+$$
+\text{GW}(A, B) = \frac{1}{2} \min_P \sqrt{\sum_{ijkl} \left( \|a_i - a_k\| - \|b_j - b_l\| \right)^2 P_{ij} P_{kl}}
+$$
+
+Reformulating as Python pseudocode over clouds already centered and rotated onto their principal axes:
 
 ```python
 import numpy as np
+from itertools import product
+from scipy.optimize import linprog
+from scipy.spatial.distance import cdist
 
-def kabsch(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    a_c, b_c = a - a.mean(0), b - b.mean(0)
-    H = a_c.T @ b_c
-    U, S, Vt = np.linalg.svd(H)
-    d = np.sign(np.linalg.det(Vt.T @ U.T))
-    R = Vt.T @ np.diag([1, 1, d]) @ U.T
-    return R
+flips = [np.array(signs) for signs in product([1, -1], repeat=3)]
 
-def umeyama(a: np.ndarray, b: np.ndarray) -> tuple:
-    a_c, b_c = a - a.mean(0), b - b.mean(0)
-    H = a_c.T @ b_c
-    U, S, Vt = np.linalg.svd(H)
-    d = np.sign(np.linalg.det(Vt.T @ U.T))
-    R = Vt.T @ np.diag([1, 1, d]) @ U.T
-    scale = S.sum() / (len(a) * np.var(a_c))
-    return R, scale
+def chamfer(a: np.ndarray, b: np.ndarray) -> float:
+    return min(0.5 * (d.min(1).mean() + d.min(0).mean()) for d in (cdist(a, b * s) for s in flips))
 
-def rmsd(a: np.ndarray, b: np.ndarray) -> float:
-    return np.sqrt(np.mean(np.sum((a - b) ** 2, axis=1)))
+def hausdorff(a: np.ndarray, b: np.ndarray) -> float:
+    return min(max(d.min(1).max(), d.min(0).max()) for d in (cdist(a, b * s) for s in flips))
+
+def transport(cost: np.ndarray) -> np.ndarray:
+    n, m = cost.shape
+    rows = np.kron(np.eye(n), np.ones(m)); columns = np.kron(np.ones(n), np.eye(m))
+    plan = linprog(cost.ravel(), A_eq=np.vstack([rows, columns]),
+                   b_eq=np.concatenate([np.full(n, 1 / n), np.full(m, 1 / m)])).x
+    return plan.reshape(n, m)
+
+def wasserstein_procrustes(a: np.ndarray, b: np.ndarray) -> float:
+    best = np.inf
+    for s in flips:
+        rotation, value = np.diag(s), np.inf
+        while True:
+            plan = transport(cdist(a, b @ rotation.T, "sqeuclidean"))
+            new = (plan * cdist(a, b @ rotation.T, "sqeuclidean")).sum()
+            if not new < value: break
+            value = new
+            u, _, vt = np.linalg.svd(b.T @ plan.T @ a)
+            sign = np.sign(np.linalg.det(vt.T @ u.T)) * np.prod(s)
+            rotation = vt.T @ np.diag([1, 1, sign]) @ u.T
+        best = min(best, value)
+    return np.sqrt(best)
 ```
 
 ## Input & Output Types
 
-| Input Type | Output Type | Description                                    |
-| :--------- | :---------- | :--------------------------------------------- |
-| `f64`      | `f64`       | 64-bit IEEE 754 double precision               |
-| `f32`      | `f64`       | 32-bit IEEE 754 single precision, widened RMSD |
-| `f16`      | `f32`       | 16-bit IEEE 754 half precision, widened output |
-| `bf16`     | `f32`       | 16-bit brain float, widened output             |
+| Input Type | Math Type | Distance Type | Pack Header              |
+| :--------- | :-------- | :------------ | :----------------------- |
+| `f32`      | `f64`     | `f64`         | `nk_shapes_header_f64_t` |
+| `f16`      | `f32`     | `f32`         | `nk_shapes_header_f32_t` |
 
-The output type above is the RMSD result.
-The centroid, rotation, and scale outputs use the transform type instead: `f64` for `f64` inputs, `f32` for `f32`, `f16`, and `bf16` inputs.
+Rotations are `f32` for both, row-major 3 × 3, taking each column cloud onto each row cloud through the centroids in the headers.
+The transport solver keeps its duals and Gromov-Wasserstein its line search in `f64` for both, since a near-tie between two plans otherwise lands the search in a different local optimum.
+
+## Packing
+
+A pack is a public header followed by the x, y and z arrays in the input type, each on a 64-byte boundary from the start of the pack and zero-padded to the next one.
+Packing centers the cloud, rotates it onto the eigenvectors of its covariance in descending eigenvalue order, and rounds the result once into the input type.
+The header keeps the centroid, the frame as a unit quaternion, the scale, the descending spreads of the packed points, and their largest norm.
+Packing is one serial routine for every capability, written so no compiler can contract it, so a pack is byte-identical on every machine.
+
+Normalized packing also divides the centered cloud by its RMS distance from the centroid, $s = \sqrt{\operatorname{tr} C}$ over its covariance $C$, before rounding, and keeps $s$ as the scale, which stays 1 for an empty cloud, a single point or coincident points.
+An input point comes back as $x = s \, Q^T x' + \bar{x}$, and a rotation between normalized packs takes column cloud $b$ onto row cloud $a$ as $a_i \approx (s_a / s_b) \, R \, (b_j - \bar{b}) + \bar{a}$.
+Every kind compares the packed coordinates, so it sees only shape between normalized packs, and mixing absolute and normalized packs in one call is the caller's choice.
+
+The header's constants bound the expensive kinds from below, the way vector norms bound dot products:
+
+- Wasserstein-Procrustes ≥ $\sqrt{\sum_k (\sqrt{\lambda_{a,k}} - \sqrt{\lambda_{b,k}})^2}$ over the descending spreads, from Gelbrich's bound between second moments
+- Hausdorff ≥ $|r_a - r_b|$ over the largest radii
+
+On 200 pools of real molecules the first skips 65% of random candidates and 16% of near neighbors before any transport, with no violation.
 
 ## Optimizations
 
-### McAdams Branching-Free 3×3 SVD
+### Principal Frames and 8 Flips
 
-`nk_kabsch_f32_serial`, `nk_kabsch_f64_haswell`, `nk_umeyama_f32_neon` use a Jacobi eigenanalysis with fixed 16 iterations (no convergence check) for deterministic behavior.
-Quaternion-accumulated rotations: each Jacobi sweep updates a 4-element quaternion instead of recomputing eigenvectors.
-Approximate Givens angles via `nk_approximate_givens_quaternion_` — a γ-threshold test selects between computed angles and precomputed cos(π/8), sin(π/8) constants.
-Cyclic permutation of matrix elements avoids explicit sorting of eigenvalues.
+Two clouds rotated onto their own principal axes differ by at most a sign per axis, so Chamfer and Hausdorff compare them under the 8 sign patterns instead of searching rotations.
+4 patterns are rotations and 4 are reflections, and all 8 are kept, so mirror images score as equals and the determinant of the returned rotation tells them apart.
+Each squared distance takes the difference form $(a - b)^2$ or $(a + b)^2$ per axis, never $\|a\|^2 + \|b\|^2 - 2 a \cdot b$, which cancels for the near neighbors that set the minima.
+Wasserstein-Procrustes starts from the same 8 frames, since its alternation only descends to the nearest local optimum.
 
-### Stride-3 Deinterleaving
+### Exact Transport by Network Simplex
 
-Point clouds are stored interleaved as [x₀,y₀,z₀, x₁,y₁,z₁, ...].
-NEON uses `vld3q_f32` to hardware-deinterleave 4 XYZ triplets in one instruction — no gather needed.
-Haswell uses `_mm256_i32gather_ps` with indices [0,3,6,9,12,15,18,21] to load 8 x-coordinates from 8 points.
-RVV uses indexed loads with dynamic stride to adapt to variable vector length.
+Uniform weights become integer masses, $m$ units per row point and $n$ per column point, so plans stay exact.
+The solver starts from the northwest-corner staircase, prices arcs in blocks of $\sqrt{nm}$, picks the leaving arc by Cunningham's strongly feasible rule against cycling, and keeps parent, child and sibling links so a pivot only revisits the moved subtree.
+Arc costs come from the coordinates on the fly, so Wasserstein-Procrustes needs $\Theta(n + m)$ workspace.
+Each alternation round warm-starts from the previous basis, which stays primal feasible under the new rotation.
 
-### Reflection Correction
+### Canonical Pair Order
 
-`nk_kabsch_f32_haswell`, `nk_kabsch_f64_skylake` check for improper rotations after computing $R = V U^T$ from the SVD of the cross-covariance matrix $H = U \Sigma V^T$.
-If $\det(R) = -1$ (a reflection rather than a rotation), the last column of $V$ is negated before recomputing $R$.
-This ensures the output is always a proper rotation matrix with $\det(R) = +1$.
+The transport kinds order each pair by points, spreads, radius and bytes before solving, so swapping the two sides returns the same distance bit for bit and the transposed rotation.
+Chamfer and Hausdorff are symmetric by construction.
 
-### Pre-Scaled Rotation for Umeyama
+### Gromov-Wasserstein Starts
 
-`nk_umeyama_f32_haswell`, `nk_umeyama_f64_skylake` fold the computed scale factor $s$ into the rotation matrix before applying to points.
-The Umeyama transform is $b_i = s R a_i + t$; by precomputing $R' = s R$ once, the per-point operation reduces to $b_i = R' a_i + t$, avoiding a per-point scalar multiply.
-
-### Pivot-Shifted Moments and Residual SSD
-
-Kabsch and Umeyama shift every point by the first one of its cloud before accumulating the sums and products, so the centering correction scales with the spread of the cloud rather than its distance from the origin.
-`f64` and `f32` inputs then take a second pass, summing $\|s R (a_i - \bar{a}) - (b_i - \bar{b})\|^2$ directly, as folding it into $\|A\|^2 + \|B\|^2 - 2 s \operatorname{tr}(R H)$ cancels to $\sqrt{\varepsilon}$ once the clouds align.
-`f32` inputs run both passes in `f64`.
-`f16` and `bf16` inputs keep a single pass with the folded form, clamped at zero, since its $\sqrt{\varepsilon}$ of `f32` stays below their own quantization.
-FMLAL shifts `f16` points with FP16 subtraction, while BFDOT and VDPBF16PS shift `bf16` points in `f32` and round them back, each rounding by at most half a ULP of the shifted value.
-Clouds with a point over 65504 away from its pivot overflow the FP16 shift and take the widening NEON pass instead.
-Tests judge these kernels against a bound derived from that arithmetic: the input type's unit roundoff over the clouds' RMS distance from their pivots, plus $n$ roundings of the `f32` moments.
+From the product plan alone, Gromov-Wasserstein lands more than 1% worse than its best start in 70% of molecule pairs.
+It starts from the best proper and the best mirrored Wasserstein-Procrustes plans as well, then takes a fixed budget of Frank-Wolfe steps with exact transport plans and closed-form line searches.
 
 ### Why SME and SVE Were Removed
 
@@ -105,129 +131,4 @@ Three approaches were explored in a design document that never landed in the rep
 (2) streaming SVE with `svld3` — hardware stride-3 deinterleaving processes 16 points per iteration vs NEON's 4, but `SMSTART`/`SMSTOP` mode transitions cost ~100 cycles and the 3×3 SVD step cannot use streaming mode at all;
 (3) SME for SVD — the 3×3 matrix cannot fill even one 16×16 tile.
 Performance estimates from the design document: NEON baseline ~2.25N cycles for N points; streaming SVE ~1.2N cycles but with ~100-cycle mode transition overhead — for typical protein alignment workloads (N = 100–500 atoms), the overhead dominates.
-Experimental SVE mesh kernels (`sve.h`, `svehalf.h`, 112 lines total) were removed in the same commit — variable vector length added complexity without clear benefit over fixed-width NEON for the 3D point cloud problem.
-
-## Performance
-
-The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
-The input size is controlled by the `NUMKONG_MESH_POINTS` environment variable and set to 256, 1024, and 4096 points.
-Each alignment computes centroids, covariance, and a 3×3 SVD over $N$ point pairs, so cost is $O(N)$ per alignment with a large constant.
-The throughput is measured in mp/s as millions of 3D points aligned per second.
-
-### Intel Xeon 6 with B300
-
-Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Rapids part.
-Serial kernels compiled with `-fno-tree-vectorize`.
-
-#### Native
-
-| Kernel                    |                      256 |                     1024 |                     4096 |
-| :------------------------ | -----------------------: | -----------------------: | -----------------------: |
-| __f64__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f64_serial`      |       73.1 mp/s, 0.5 ulp |       46.3 mp/s, 0.5 ulp |       47.5 mp/s, 0.5 ulp |
-| `nk_kabsch_f64_serial`    |       8.68 mp/s, 0.8 ulp |       8.62 mp/s, 0.8 ulp |       10.7 mp/s, 0.8 ulp |
-| `nk_umeyama_f64_serial`   |       7.34 mp/s, 0.3 ulp |       7.84 mp/s, 0.3 ulp |       9.06 mp/s, 0.3 ulp |
-| `nk_rmsd_f64_haswell`     |        495 mp/s, 0.3 ulp |        514 mp/s, 0.4 ulp |        268 mp/s, 0.8 ulp |
-| `nk_kabsch_f64_haswell`   |       51.7 mp/s, 0.5 ulp |        126 mp/s, 0.9 ulp |        130 mp/s, 1.5 ulp |
-| `nk_umeyama_f64_haswell`  |       51.0 mp/s, 0.5 ulp |        106 mp/s, 0.8 ulp |        123 mp/s, 1.5 ulp |
-| `nk_rmsd_f64_skylake`     |        502 mp/s, 0.2 ulp |        539 mp/s, 0.3 ulp |        235 mp/s, 0.4 ulp |
-| `nk_kabsch_f64_skylake`   |       51.3 mp/s, 0.4 ulp |        117 mp/s, 0.5 ulp |        125 mp/s, 0.8 ulp |
-| `nk_umeyama_f64_skylake`  |       51.3 mp/s, 0.3 ulp |        114 mp/s, 0.5 ulp |        126 mp/s, 0.8 ulp |
-| __f32__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f32_serial`      |       50.3 mp/s, 0.5 ulp |       49.5 mp/s, 0.5 ulp |       50.0 mp/s, 0.5 ulp |
-| `nk_kabsch_f32_serial`    |       7.42 mp/s, 0.8 ulp |       7.73 mp/s, 0.8 ulp |       8.58 mp/s, 0.9 ulp |
-| `nk_umeyama_f32_serial`   |       7.18 mp/s, 0.3 ulp |       7.82 mp/s, 0.3 ulp |       8.31 mp/s, 0.4 ulp |
-| `nk_rmsd_f32_haswell`     |        582 mp/s, 0.3 ulp |        644 mp/s, 0.5 ulp |        377 mp/s, 0.9 ulp |
-| `nk_kabsch_f32_haswell`   |       52.1 mp/s, 0.9 ulp |       94.5 mp/s, 1.3 ulp |        119 mp/s, 7.6 ulp |
-| `nk_umeyama_f32_haswell`  |       51.3 mp/s, 0.3 ulp |       91.7 mp/s, 0.4 ulp |        120 mp/s, 0.7 ulp |
-| `nk_rmsd_f32_skylake`     |        841 mp/s, 1.2 ulp |        972 mp/s, 1.2 ulp |        697 mp/s, 4.3 ulp |
-| `nk_kabsch_f32_skylake`   |       58.3 mp/s, 0.9 ulp |        129 mp/s, 4.1 ulp |        154 mp/s, 3.1 ulp |
-| `nk_umeyama_f32_skylake`  |       57.0 mp/s, 0.6 ulp |        126 mp/s, 2.9 ulp |        149 mp/s, 2.1 ulp |
-| __bf16__                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_bf16_haswell`    |        209 mp/s, 0.3 ulp |        205 mp/s, 3.5 ulp |       193 mp/s, 12.8 ulp |
-| `nk_kabsch_bf16_haswell`  |       28.9 mp/s, 0.4 ulp |       79.9 mp/s, 7.6 ulp |       134 mp/s, 33.0 ulp |
-| `nk_umeyama_bf16_haswell` |       29.0 mp/s, 0.3 ulp |       75.8 mp/s, 5.3 ulp |       124 mp/s, 23.1 ulp |
-| `nk_rmsd_bf16_skylake`    |      1,538 mp/s, 0.4 ulp |      1,922 mp/s, 5.4 ulp |     2,053 mp/s, 11.8 ulp |
-| `nk_kabsch_bf16_skylake`  |       30.8 mp/s, 0.3 ulp |        114 mp/s, 3.2 ulp |       260 mp/s, 20.4 ulp |
-| `nk_umeyama_bf16_skylake` |       31.1 mp/s, 0.3 ulp |        110 mp/s, 2.2 ulp |       254 mp/s, 14.3 ulp |
-| `nk_rmsd_bf16_genoa`      |      1,543 mp/s, 0.3 ulp |      1,859 mp/s, 3.1 ulp |     2,068 mp/s, 20.2 ulp |
-| `nk_kabsch_bf16_genoa`    |       30.5 mp/s, 0.3 ulp |        106 mp/s, 3.2 ulp |       188 mp/s, 20.3 ulp |
-| `nk_umeyama_bf16_genoa`   |       30.7 mp/s, 0.3 ulp |       98.9 mp/s, 2.2 ulp |       215 mp/s, 14.3 ulp |
-| __f16__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f16_haswell`     |        204 mp/s, 0.2 ulp |        209 mp/s, 0.7 ulp |        197 mp/s, 2.5 ulp |
-| `nk_kabsch_f16_haswell`   |       29.8 mp/s, 0.5 ulp |       82.4 mp/s, 1.8 ulp |        131 mp/s, 8.2 ulp |
-| `nk_umeyama_f16_haswell`  |       30.0 mp/s, 0.4 ulp |       80.4 mp/s, 1.2 ulp |        133 mp/s, 5.7 ulp |
-| `nk_rmsd_f16_skylake`     |      1,567 mp/s, 0.3 ulp |      1,947 mp/s, 1.3 ulp |      2,006 mp/s, 3.9 ulp |
-| `nk_kabsch_f16_skylake`   |       31.6 mp/s, 0.7 ulp |        108 mp/s, 0.5 ulp |        279 mp/s, 4.7 ulp |
-| `nk_umeyama_f16_skylake`  |       31.5 mp/s, 0.5 ulp |        109 mp/s, 0.4 ulp |        266 mp/s, 3.3 ulp |
-
-#### WASM
-
-Measured with wasmtime 49.0.2, Cranelift.
-
-| Kernel                       |                      256 |                     1024 |                     4096 |
-| :--------------------------- | -----------------------: | -----------------------: | -----------------------: |
-| __f64__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f64_serial`         |       68.2 mp/s, 0.5 ulp |       66.8 mp/s, 0.5 ulp |       64.9 mp/s, 0.5 ulp |
-| `nk_rmsd_f64_v128relaxed`    |        546 mp/s, 0.4 ulp |        586 mp/s, 0.7 ulp |        576 mp/s, 1.3 ulp |
-| `nk_kabsch_f64_serial`       |       9.37 mp/s, 0.8 ulp |       10.5 mp/s, 0.8 ulp |       10.9 mp/s, 0.9 ulp |
-| `nk_kabsch_f64_v128relaxed`  |       48.7 mp/s, 0.9 ulp |       96.2 mp/s, 1.7 ulp |        128 mp/s, 3.1 ulp |
-| `nk_umeyama_f64_serial`      |       6.45 mp/s, 0.3 ulp |       6.88 mp/s, 0.3 ulp |       7.19 mp/s, 0.4 ulp |
-| `nk_umeyama_f64_v128relaxed` |       47.2 mp/s, 0.8 ulp |       94.1 mp/s, 1.6 ulp |        125 mp/s, 3.2 ulp |
-| __f32__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f32_serial`         |       58.2 mp/s, 0.5 ulp |       57.8 mp/s, 0.5 ulp |       54.4 mp/s, 0.5 ulp |
-| `nk_rmsd_f32_v128relaxed`    |        356 mp/s, 1.5 ulp |        369 mp/s, 1.3 ulp |        370 mp/s, 4.8 ulp |
-| `nk_kabsch_f32_serial`       |       7.84 mp/s, 0.8 ulp |       8.60 mp/s, 0.9 ulp |       8.82 mp/s, 0.8 ulp |
-| `nk_kabsch_f32_v128relaxed`  |       43.9 mp/s, 4.2 ulp |       66.2 mp/s, 3.9 ulp |      98.4 mp/s, 14.3 ulp |
-| `nk_umeyama_f32_serial`      |       5.67 mp/s, 0.3 ulp |       6.04 mp/s, 0.3 ulp |       6.22 mp/s, 0.3 ulp |
-| `nk_umeyama_f32_v128relaxed` |       43.3 mp/s, 2.8 ulp |       65.1 mp/s, 2.8 ulp |      93.8 mp/s, 10.1 ulp |
-
-### Apple M5
-
-#### Native
-
-| Kernel                      |                      256 |                     1024 |                     4096 |
-| :-------------------------- | -----------------------: | -----------------------: | -----------------------: |
-| __f64__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f64_serial`        |        279 mp/s, 0.5 ulp |        267 mp/s, 0.5 ulp |        279 mp/s, 0.5 ulp |
-| `nk_kabsch_f64_serial`      |       40.4 mp/s, 1.4 ulp |       47.3 mp/s, 2.6 ulp |       50.2 mp/s, 5.4 ulp |
-| `nk_umeyama_f64_serial`     |       34.5 mp/s, 1.0 ulp |       39.2 mp/s, 1.9 ulp |       41.6 mp/s, 3.7 ulp |
-| `nk_rmsd_f64_neon`          |      1,776 mp/s, 0.4 ulp |      1,536 mp/s, 0.7 ulp |      2,037 mp/s, 1.3 ulp |
-| `nk_kabsch_f64_neon`        |        119 mp/s, 0.8 ulp |        222 mp/s, 1.3 ulp |        304 mp/s, 2.2 ulp |
-| `nk_umeyama_f64_neon`       |        115 mp/s, 0.4 ulp |        220 mp/s, 0.8 ulp |        296 mp/s, 1.6 ulp |
-| __f32__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f32_serial`        |        264 mp/s, 0.5 ulp |        264 mp/s, 0.5 ulp |        261 mp/s, 0.5 ulp |
-| `nk_kabsch_f32_serial`      |       39.4 mp/s, 1.4 ulp |       46.0 mp/s, 2.7 ulp |       49.9 mp/s, 5.0 ulp |
-| `nk_umeyama_f32_serial`     |       33.6 mp/s, 0.9 ulp |       38.8 mp/s, 1.8 ulp |       41.4 mp/s, 3.5 ulp |
-| `nk_rmsd_f32_neon`          |      1,912 mp/s, 1.5 ulp |      2,239 mp/s, 1.3 ulp |      1,966 mp/s, 4.8 ulp |
-| `nk_kabsch_f32_neon`        |        135 mp/s, 0.7 ulp |        288 mp/s, 0.9 ulp |        385 mp/s, 1.4 ulp |
-| `nk_umeyama_f32_neon`       |        130 mp/s, 0.3 ulp |        272 mp/s, 0.4 ulp |        367 mp/s, 0.8 ulp |
-| __bf16__                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_bf16_neonbfdot`    |      3,728 mp/s, 0.4 ulp |      3,756 mp/s, 6.0 ulp |     3,769 mp/s, 10.0 ulp |
-| `nk_kabsch_bf16_neonbfdot`  |        180 mp/s, 0.7 ulp |        448 mp/s, 0.9 ulp |        726 mp/s, 1.3 ulp |
-| `nk_umeyama_bf16_neonbfdot` |        176 mp/s, 0.2 ulp |        433 mp/s, 0.4 ulp |        705 mp/s, 0.8 ulp |
-| __f16__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f16_neon`          |      2,998 mp/s, 0.4 ulp |      3,215 mp/s, 1.7 ulp |      3,216 mp/s, 4.6 ulp |
-| `nk_kabsch_f16_neon`        |        178 mp/s, 0.9 ulp |        443 mp/s, 1.3 ulp |        711 mp/s, 2.4 ulp |
-| `nk_umeyama_f16_neon`       |        175 mp/s, 0.4 ulp |        408 mp/s, 0.8 ulp |        620 mp/s, 1.5 ulp |
-
-#### WASM
-
-Measured with Wasmtime v43 (Cranelift backend).
-
-| Kernel                       |                      256 |                     1024 |                     4096 |
-| :--------------------------- | -----------------------: | -----------------------: | -----------------------: |
-| __f64__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f64_serial`         |        137 mp/s, 2.6 ulp |        134 mp/s, 2.6 ulp |        142 mp/s, 2.6 ulp |
-| `nk_rmsd_f64_v128relaxed`    |      1,377 mp/s, 0.8 ulp |      1,038 mp/s, 0.8 ulp |      1,566 mp/s, 0.8 ulp |
-| `nk_kabsch_f64_serial`       |       42.3 mp/s, 2.7 ulp |       50.4 mp/s, 2.7 ulp |       55.5 mp/s, 2.7 ulp |
-| `nk_kabsch_f64_v128relaxed`  |        121 mp/s, 2.2 ulp |        225 mp/s, 2.2 ulp |        345 mp/s, 2.2 ulp |
-| `nk_umeyama_f64_serial`      |       36.1 mp/s, 1.8 ulp |       41.3 mp/s, 1.8 ulp |       46.0 mp/s, 1.8 ulp |
-| `nk_umeyama_f64_v128relaxed` |        112 mp/s, 1.5 ulp |        207 mp/s, 1.5 ulp |        293 mp/s, 1.5 ulp |
-| __f32__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_rmsd_f32_serial`         |        120 mp/s, 2.7 ulp |        120 mp/s, 2.7 ulp |        124 mp/s, 2.7 ulp |
-| `nk_rmsd_f32_v128relaxed`    |      1,025 mp/s, 0.5 ulp |      1,038 mp/s, 0.5 ulp |      1,093 mp/s, 0.5 ulp |
-| `nk_kabsch_f32_serial`       |       39.6 mp/s, 2.6 ulp |       47.6 mp/s, 2.6 ulp |       51.4 mp/s, 2.6 ulp |
-| `nk_kabsch_f32_v128relaxed`  |        125 mp/s, 1.3 ulp |        255 mp/s, 1.3 ulp |        366 mp/s, 1.3 ulp |
-| `nk_umeyama_f32_serial`      |       30.5 mp/s, 1.8 ulp |       35.0 mp/s, 1.8 ulp |       38.9 mp/s, 1.8 ulp |
-| `nk_umeyama_f32_v128relaxed` |        118 mp/s, 0.8 ulp |        240 mp/s, 0.8 ulp |        338 mp/s, 0.8 ulp |
+Experimental SVE shape kernels (`sve.h`, `svehalf.h`, 112 lines total) were removed in the same commit — variable vector length added complexity without clear benefit over fixed-width NEON for the 3D point cloud problem.

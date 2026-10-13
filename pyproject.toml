@@ -64,9 +64,9 @@ environment-pass = [
     "NUMKONG_FILTER",
     "NUMKONG_IN_QEMU",
     "NUMKONG_MAX_COORD_ANGLE",
-    "NUMKONG_MESH_POINTS",
     "NUMKONG_REPETITIONS",
     "NUMKONG_SEED",
+    "NUMKONG_SHAPE_POINTS",
     "NUMKONG_SPARSE_DIMS",
 ]
 # Lock the glibc floor for the popular architectures. These match cibuildwheel's current defaults,

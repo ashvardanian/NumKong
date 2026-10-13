@@ -1682,62 +1682,119 @@ def maxsim(
 
 # endregion MaxSim
 
-# region Mesh Alignment
+# region Shapes
 
-class MeshAlignmentResult:
-    """Result of a Kabsch, Umeyama, or RMSD mesh alignment.
+class ShapesPacked:
+    """Point clouds packed by shapes_pack() or shapes_pack_normalized(), centered and rotated onto principal axes.
 
-    Supports iteration and indexing, in field order, for destructuring.
+    Indexing and slicing return views sharing the packs, which the shapes_*_packed() functions
+    score as rows or columns.
     """
 
     @property
-    def rotation(self) -> Tensor:
-        """Rotation matrix, [3,3] or, batched, [batch,3,3]."""
+    def count(self) -> int:
+        """Number of packed clouds."""
         ...
 
     @property
-    def scale(self) -> Tensor:
-        """Scale factor, a 0D tensor or, batched, [batch]."""
+    def points(self) -> Tensor:
+        """Points in every cloud, uint64 [count]."""
         ...
 
     @property
-    def rmsd(self) -> Tensor:
-        """Root mean square deviation, a 0D tensor or, batched, [batch]."""
+    def centroids(self) -> Tensor:
+        """Mean input point of every cloud, [count,3], float32 for float16 packs and float64 for float32 ones."""
         ...
 
     @property
-    def a_centroid(self) -> Tensor:
-        """Centroid of the first point cloud, [3] or, batched, [batch,3]."""
+    def frames(self) -> Tensor:
+        """Unit quaternions (x, y, z, w) of Q rotating every centered cloud onto its principal axes, [count,4]."""
         ...
 
     @property
-    def b_centroid(self) -> Tensor:
-        """Centroid of the second point cloud, [3] or, batched, [batch,3]."""
+    def spreads(self) -> Tensor:
+        """Descending eigenvalues of every packed cloud's second moments, [count,3]."""
+        ...
+
+    @property
+    def scales(self) -> Tensor:
+        """What every rotated cloud was divided by, its RMS distance from the centroid or 1, [count]."""
+        ...
+
+    @property
+    def dtype(self) -> Literal["float16", "float32"]:
+        """Data type of the packed points."""
+        ...
+
+    @property
+    def nbytes(self) -> int:
+        """Size of the packs in bytes."""
+        ...
+
+    def coordinates(self, index: int, /) -> Tensor:
+        """Return the packed points x′ of cloud `index`, [points,3] in the packed dtype.
+
+        The input point is recovered as x = scale·Qᵀ·x′ + centroid, with Q from the cloud's frame.
+        """
         ...
 
     def __len__(self) -> int:
-        """Return 5, the number of fields."""
+        """Return the number of packed clouds."""
         ...
 
-    def __getitem__(self, index: int) -> Tensor:
-        """Return the field at `index`, in the order rotation, scale, rmsd, a_centroid, b_centroid."""
+    def __getitem__(self, key: int | slice, /) -> ShapesPacked:
+        """Return a view over one cloud or a slice of them, sharing the packs."""
         ...
 
-# Point clouds accepted by kabsch, umeyama, and rmsd: shape [points,3] for a single pair, or
-# [batch,points,3] for a batch, float16, bfloat16, float32, or float64.
-def kabsch(a: _BufferType, b: _BufferType, /, **dispatch: Unpack[_Dispatch]) -> MeshAlignmentResult:
-    """Compute the optimal rigid transformation, the Kabsch algorithm, aligning `a` onto `b`."""
+    def __repr__(self) -> str:
+        """Return a string representation."""
+        ...
+
+# Pack one [points,3] cloud, or a list or tuple of clouds of any sizes, for shapes_*_packed().
+def shapes_pack(
+    points: _BufferType | list[_BufferType] | tuple[_BufferType, ...],
+    /,
+    dtype: Literal["f16", "float16", "f32", "float32"] | type[float16] | None = None,
+    **dispatch: Unpack[_Dispatch],
+) -> ShapesPacked:
+    """Center every cloud and rotate it onto its principal axes, float16 input as float16, else float32."""
     ...
 
-def umeyama(a: _BufferType, b: _BufferType, /, **dispatch: Unpack[_Dispatch]) -> MeshAlignmentResult:
-    """Compute the optimal similarity transformation, the Umeyama algorithm, aligning `a` onto `b`."""
+# Pack like shapes_pack(), dividing each cloud by its RMS radius, which `scales` keeps.
+def shapes_pack_normalized(
+    points: _BufferType | list[_BufferType] | tuple[_BufferType, ...],
+    /,
+    dtype: Literal["f16", "float16", "f32", "float32"] | type[float16] | None = None,
+    **dispatch: Unpack[_Dispatch],
+) -> ShapesPacked:
+    """Pack every cloud like shapes_pack() and divide it by its RMS radius, so every kind ignores its size."""
     ...
 
-def rmsd(a: _BufferType, b: _BufferType, /, **dispatch: Unpack[_Dispatch]) -> MeshAlignmentResult:
-    """Compute raw RMSD between `a` and `b` without centering or alignment.
-
-    Returns identity rotation, scale 1.0, and zeroed centroids alongside the RMSD.
-    """
+# The many-to-many distances return [rows,columns] distances, float32 for float16 packs and float64
+# for float32 ones, and with `rotations=True` also the [rows,columns,3,3] float32 rotations taking
+# each column cloud onto each row cloud: aᵢ ≈ (scale_a / scale_b) × R × (bⱼ − b̄) + ā.
+def shapes_chamfers_packed(
+    a: ShapesPacked, b: ShapesPacked, /, *, rotations: bool = False, **dispatch: Unpack[_Dispatch]
+) -> Tensor | tuple[Tensor, Tensor]:
+    """Compute Chamfer distances, the mean nearest-partner distance both ways, halved, best of 8 axis flips."""
     ...
 
-# endregion Mesh Alignment
+def shapes_hausdorffs_packed(
+    a: ShapesPacked, b: ShapesPacked, /, *, rotations: bool = False, **dispatch: Unpack[_Dispatch]
+) -> Tensor | tuple[Tensor, Tensor]:
+    """Compute Hausdorff distances, the worst nearest-partner distance either way, best of 8 axis flips."""
+    ...
+
+def shapes_wassersteinprocrustes_packed(
+    a: ShapesPacked, b: ShapesPacked, /, *, rotations: bool = False, **dispatch: Unpack[_Dispatch]
+) -> Tensor | tuple[Tensor, Tensor]:
+    """Compute Wasserstein-Procrustes distances, the exact transport RMSD after the best rotation or reflection."""
+    ...
+
+def shapes_gromovwassersteins_packed(
+    a: ShapesPacked, b: ShapesPacked, /, *, rotations: bool = False, **dispatch: Unpack[_Dispatch]
+) -> Tensor | tuple[Tensor, Tensor]:
+    """Compute Gromov-Wasserstein distances between the clouds' own distance matrices."""
+    ...
+
+# endregion Shapes

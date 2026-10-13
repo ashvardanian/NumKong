@@ -1,7 +1,7 @@
 # NumKong for C and C++
 
 NumKong's native SDK is the reference surface for the project.
-The plain C ABI exposes every kernel family directly: dot products, dense distances, binary metrics, probability divergences, geospatial solvers, curved-space kernels, sparse intersections, mesh alignment, packed matrix multiplication, symmetric self-similarity, late-interaction scoring, elementwise arithmetic, reductions, type conversions, scalar math, and trigonometry.
+The plain C ABI exposes every kernel family directly: dot products, dense distances, binary metrics, probability divergences, geospatial solvers, curved-space kernels, sparse intersections, many-to-many shape distances, packed matrix multiplication, symmetric self-similarity, late-interaction scoring, elementwise arithmetic, reductions, type conversions, scalar math, and trigonometry.
 The ABI is stable, versioned, and callable from any language that can load a shared library.
 There is no runtime overhead: no hidden thread pool, no implicit allocation, no garbage collector interaction.
 The C++ layer stays thin, typed, allocator-aware, and close enough to inline through, adding type-level result promotion and owning containers without hiding the dispatch model or the mixed-precision policy.
@@ -49,7 +49,7 @@ Packing handles internal layout itself and does not require caller-side alignmen
 
 | Feature                      | NumKong                                                                                                                             | [OpenBLAS][openblas]                                              | [Eigen][eigen]                                                                          |
 | :--------------------------- | :---------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------- | :-------------------------------------------------------------------------------------- |
-| Operation families           | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig                 | dense linear algebra only                                         | dense LA, some reductions and elementwise                                               |
+| Operation families           | dots, distances, binary, probability, geospatial, curved, shapes, sparse, MaxSim, elementwise, reductions, cast, trig               | dense linear algebra only                                         | dense LA, some reductions and elementwise                                               |
 | Precision                    | Sub-byte to Float64 dtypes; automatic widening per scalar type; Kahan-compensated summation; 0 ULP Float32/Float64 where applicable | Float32, Float64 only; same-type in/out; no compensated summation | Float16/BFloat16 partial; no Float8 or sub-byte; manual casts; no compensated summation |
 | Runtime SIMD dispatch        | per call, by capability mask, across x86, Arm, RISC-V, and GPUs                                                                     | load-time CPU detection; one kernel set per process               | compile-time ISA flags only                                                             |
 | Packed matrix, GEMM-like     | `packed_matrix` — pack once, reuse across query batches                                                                             | internal opaque packing per GEMM call; no persistent packed form  | no equivalent packed reuse abstraction                                                  |
@@ -157,7 +157,7 @@ Standard containers count storage values, so an `std::vector<nk::u1x8_t>` of 4 b
 Runs must fill whole storage values, so odd bit and nibble lengths pad with zero bits up to the next byte, and a view ending mid-value is refused.
 Strided views are refused with `nk::status_t::unexpected_dimensions_k`, and `vector_view::values()` turns a contiguous view into an `std::span` or refuses the same way.
 Outputs of elementwise kernels, like `nk::scale<nk::f32_t>(a, 2.0f, 1.0f, out)`, are any mutable run of the same size, and the call returns an `nk::status_t`.
-Multi-part results come back as small structs: `nk::reduce_moments` returns `{sum, sumsq}`, `nk::reduce_minmax` a `minmax_result`, and `nk::kabsch` a `mesh_result`.
+Multi-part results come back as small structs: `nk::reduce_moments` returns `{sum, sumsq}`, `nk::reduce_minmax` a `minmax_result`, and `nk::shapes_packed::make` an owner of many packs.
 
 Every wrapper ends in the two arguments of its dispatch point, defaulted to `nk::default_capabilities()` and a null stream, and returns an `nk::status_t`.
 That scoped enum mirrors `nk_status_t` value for value, converts to it with `static_cast`, and is tested with `nk::succeeded` and `nk::failed` rather than as a `bool`.
@@ -545,32 +545,50 @@ assert(result > 0 && "weighted dot over shared indices");
 This family deserves explicit mention because it is not just sparse dot.
 Set intersection itself is often the workload.
 
-## Geometric Mesh Alignment
+## Many-to-Many Shape Distances
 
-Mesh alignment returns structured outputs, not just one scalar.
-The native API covers `rmsd`, `kabsch`, and `umeyama`.
+Shape kernels compare 3D point clouds of any size, with no correspondence between points: Chamfer, Hausdorff, Wasserstein-Procrustes, and Gromov-Wasserstein.
+Each cloud is packed once, centered and rotated onto its principal axes, and every kernel scores a list of row packs against a list of column packs.
+Packs are built one cloud at a time, so a caller passes whatever packs it holds as an array of pointers.
 
 ```c
-// Three 3D points, target is source scaled by 2x
-nk_f32_t source[] = {0, 0, 0, 1, 0, 0, 0, 1, 0};
-nk_f32_t target[] = {0, 0, 0, 2, 0, 0, 0, 2, 0};
-nk_f32_t a_centroid[3], b_centroid[3], rotation[9];
-nk_f32_t scale = 0;
-nk_f64_t rmsd = 0; // widened f32 → f64 output
+nk_f32_t const query[] = {0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1};          // 4 points
+nk_f32_t const candidate[] = {0, 0, 0, 0, 2, 0, 0, 0, 2, 2, 0, 0, 1, 1, 1}; // 5 points
+nk_size_t query_bytes = 0, candidate_bytes = 0;
+nk_shapes_pack_size_f32_best(4, capabilities, &query_bytes);
+nk_shapes_pack_size_f32_best(5, capabilities, &candidate_bytes);
+void *query_packed = aligned_alloc(64, query_bytes), *candidate_packed = aligned_alloc(64, candidate_bytes);
+nk_shapes_pack_f32_best(query, 4, query_packed, capabilities, NULL);
+nk_shapes_pack_f32_best(candidate, 5, candidate_packed, capabilities, NULL);
 
-nk_umeyama_f32_best(source, target, 3, a_centroid, b_centroid, rotation, &scale, &rmsd, capabilities, NULL);
-assert(rmsd < 1e-6 && "umeyama should recover exact alignment");
-assert(scale > 1.99f && scale < 2.01f && "umeyama should recover 2x scale");
+void const *rows[] = {query_packed}, *columns[] = {candidate_packed};
+nk_f64_t chamfer = 0, procrustes = 0;
+nk_f32_t rotation[9]; // takes the candidate onto the query, through the centroids in the headers
+nk_shapes_chamfers_packed_f32_best(rows, 1, columns, 1, &chamfer, sizeof(nk_f64_t), rotation, capabilities, NULL);
+
+nk_size_t workspace_bytes = 0;
+nk_shapes_wassersteinprocrustes_workspace_size_f32_best(4, 5, capabilities, &workspace_bytes);
+void *workspace = aligned_alloc(nk_default_alignment_k, workspace_bytes);
+nk_shapes_wassersteinprocrustes_packed_f32_best(rows, 1, columns, 1, &procrustes, sizeof(nk_f64_t), NULL,
+                                                workspace, workspace_bytes, capabilities, NULL);
 ```
 
-In C++, the concept overloads return all of it at once:
+The packed header is public: it holds the centroid, the principal frame as a quaternion, the scale, the descending spreads, and the largest radius.
+The spreads and radius bound Wasserstein-Procrustes and Hausdorff from below for free, the way vector norms bound dot products.
+Gromov-Wasserstein and Wasserstein-Procrustes take a caller's workspace, since a transport plan depends on both clouds and fits in neither pack.
+
+`nk_shapes_pack_normalized_*` takes the same arguments and also divides each cloud by its RMS distance from the centroid, which it keeps as the scale, so every kind ignores size as well as pose.
+Each kind compares the packed coordinates, so mixing absolute and normalized packs in one call is the caller's choice.
+Between normalized packs, a rotation takes column cloud `b` onto row cloud `a` as aᵢ ≈ (scale_a / scale_b) × R × (bⱼ − b̄) + ā.
+
+In C++, `nk::shapes_packed` owns many packs in one allocation and exposes the pointer array, and `make_normalized` packs them normalized:
 
 ```cpp
-std::array<nk::f32_t, 9> source {0, 0, 0, 1, 0, 0, 0, 1, 0}, target {0, 0, 0, 2, 0, 0, 0, 2, 0};
-auto [fit, status] = nk::umeyama<nk::f32_t>(source, target); // fit.a_centroid, .b_centroid, .rotation, .scale, .rmsd
+std::span<nk::f32_t const> clouds[] = {query, candidate};
+auto [packs, status] = nk::shapes_packed<nk::f32_t>::make(clouds);
+nk::f64_t distances[4];
+status = nk::hausdorffs<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t), nullptr);
 ```
-
-This family is separate from curved metrics because the output is a transform, not just a distance.
 
 ## MaxSim and Late Interaction
 

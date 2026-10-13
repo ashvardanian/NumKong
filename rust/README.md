@@ -42,15 +42,15 @@ The `parallel` feature is the intended native orchestration layer.
 
 ## Ecosystem Comparison
 
-| Feature                      | NumKong                                                                                                             | [nalgebra][nalgebra]                                 | [ndarray][ndarray]                                   |
-| :--------------------------- | :------------------------------------------------------------------------------------------------------------------ | :--------------------------------------------------- | :--------------------------------------------------- |
-| Operation families           | dots, distances, binary, probability, geospatial, curved, mesh, sparse, MaxSim, elementwise, reductions, cast, trig | linear algebra, decompositions                       | general n-dimensional arithmetic                     |
-| Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation; 0 ULP in Float32/Float64                            | Float32/Float64 only; no widening; standard accuracy | Float32/Float64 only; no widening; standard accuracy |
-| Runtime SIMD dispatch        | per call, the highest capability the CPU runs and the build holds, across x86, Arm, RISC-V                          | none                                                 | none                                                 |
-| Packed matrix, GEMM-like     | pack once, reuse across query batches                                                                               | standard matmul; no persistent packing               | `dot` for matmul; no persistent packing              |
-| Symmetric kernels, SYRK-like | skip duplicate pairs, up to 2x speedup for self-distance                                                            | no duplicate-pair skipping                           | no duplicate-pair skipping                           |
-| Memory model                 | Caller-owned; `Tensor`/`DotsPackedMatrix` support custom allocators                                                 | Heap-allocated matrices; custom storage trait        | Heap-allocated; no custom allocator support          |
-| Host-side parallelism        | row-range partitioning via reusable `ThreadPool`; no hidden threads                                                 | Rayon-based parallelism possible                     | Rayon-based parallelism possible                     |
+| Feature                      | NumKong                                                                                                               | [nalgebra][nalgebra]                                 | [ndarray][ndarray]                                   |
+| :--------------------------- | :-------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------- | :--------------------------------------------------- |
+| Operation families           | dots, distances, binary, probability, geospatial, curved, shapes, sparse, MaxSim, elementwise, reductions, cast, trig | linear algebra, decompositions                       | general n-dimensional arithmetic                     |
+| Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation; 0 ULP in Float32/Float64                              | Float32/Float64 only; no widening; standard accuracy | Float32/Float64 only; no widening; standard accuracy |
+| Runtime SIMD dispatch        | per call, the highest capability the CPU runs and the build holds, across x86, Arm, RISC-V                            | none                                                 | none                                                 |
+| Packed matrix, GEMM-like     | pack once, reuse across query batches                                                                                 | standard matmul; no persistent packing               | `dot` for matmul; no persistent packing              |
+| Symmetric kernels, SYRK-like | skip duplicate pairs, up to 2x speedup for self-distance                                                              | no duplicate-pair skipping                           | no duplicate-pair skipping                           |
+| Memory model                 | Caller-owned; `Tensor`/`DotsPackedMatrix` support custom allocators                                                   | Heap-allocated matrices; custom storage trait        | Heap-allocated; no custom allocator support          |
+| Host-side parallelism        | row-range partitioning via reusable `ThreadPool`; no hidden threads                                                   | Rayon-based parallelism possible                     | Rayon-based parallelism possible                     |
 
 [nalgebra]: https://github.com/dimforge/nalgebra
 [ndarray]: https://github.com/rust-ndarray/ndarray
@@ -596,27 +596,40 @@ let score = queries_packed.score(&docs_packed).unwrap();
 assert!(score.is_finite());
 ```
 
-## Geometric Mesh Alignment
+## Many-to-Many Shape Distances
 
-Mesh alignment returns transforms, scales, and RMSD values.
-That is a different API shape from the scalar metric families.
+`ShapesPacked` packs point clouds of any sizes once each, centered and rotated onto their principal axes.
+Its methods score every cloud of one set against every cloud of another into caller-provided slices.
+Distances are `f64` for `f32` clouds and `f32` for `f16` ones, and the optional rotations are row-major `[f32; 9]` matrices taking each column cloud onto each row cloud.
 
 ```rust
-use numkong::MeshAlignment;
+use numkong::ShapesPacked;
 
-let source = [[0.0_f32, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
-let target = [[0.0_f32, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+let tetrahedron = [[0.0_f32, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]];
+let triangle = [[1.0_f32, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 
-let result = f32::kabsch(&source, &target).unwrap();
-assert!(result.rmsd < 1e-6);
-assert!((result.scale - 1.0).abs() < 1e-6);
+let rows = ShapesPacked::new(&[&tetrahedron[..]]).unwrap();
+let columns = ShapesPacked::new(&[&tetrahedron[..], &triangle[..]]).unwrap();
 
-// Umeyama with known 2x scaling
-let scaled = [[0.0_f32, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 2.0, 0.0]];
-let result = f32::umeyama(&source, &scaled).unwrap();
-assert!(result.rmsd < 1e-6);
-assert!((result.scale - 2.0).abs() < 0.01);
+let mut distances = [0.0_f64; 2];
+let mut rotations = [[0.0_f32; 9]; 2];
+rows.wassersteinprocrustes(&columns, &mut distances, Some(&mut rotations)).unwrap();
+assert!(distances[0] < 1e-6);
+
+rows.chamfers(&columns, &mut distances, None).unwrap();
+assert_eq!((rows.points(0).unwrap(), columns.points(1).unwrap()), (4, 3));
+
+let grown = tetrahedron.map(|point| point.map(|value| value * 3.7 + 1.0));
+let similar = ShapesPacked::new_normalized(&[&grown[..]]).unwrap();
+let normalized = ShapesPacked::new_normalized(&[&tetrahedron[..]]).unwrap();
+normalized.wassersteinprocrustes(&similar, &mut distances[..1], None).unwrap();
+assert!(distances[0] < 1e-6 && similar.scale(0).unwrap() > 3.0 * normalized.scale(0).unwrap());
 ```
+
+`ShapesPacked::new_normalized` also divides every cloud by its RMS distance from the centroid, kept as `scale(i)`, so every kind ignores size as well as pose.
+Between normalized packs, the rotation also scales by `scale_a / scale_b`, and each kind compares the packed coordinates, so mixing absolute and normalized packs in one call is the caller's choice.
+
+The transport kinds, `wassersteinprocrustes` and `gromovwassersteins`, allocate their workspace through the row set's allocator for the call.
 
 ## Tolerance Comparison
 

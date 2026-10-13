@@ -84,7 +84,6 @@ NumKong covers 18 numeric types — from 4-bit floats to 128-bit complex numbers
 | [Spatial] Metric            |         ●          |      ●       |     ●      |        ●         |       ●        |      ●       |
 | [Set] Similarity            |         ●          |      ●       |     ●      |        ●         |       ●        |      ●       |
 | [Geo]spatial                |         ●          |      ●       |     ●      |        ·         |       ●        |      ●       |
-| [Mesh] Alignment            |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
 | [Sparse] Products           |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
 | [Probability] Divergences   |         ●          |      ●       |     ●      |        ●         |       ·        |      ●       |
 | [Curved] Spaces             |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
@@ -93,6 +92,7 @@ NumKong covers 18 numeric types — from 4-bit floats to 128-bit complex numbers
 | "[Spatials]" Metrics        |         ●          |      ●       |     ●      |        ●         |       ●        |      ●       |
 | "[Sets]" Similarities       |         ●          |      ●       |     ●      |        ·         |       ●        |      ●       |
 | [MaxSim] Scoring            |         ●          |      ●       |     ●      |        ·         |       ●        |      ●       |
+| "[Shapes]" Distances        |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
 | [Attention] SDPA            |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
 | __Scalar Ops__              |                    |              |            |                  |                |              |
 | [Cast]                      |         ●          |      ●       |     ●      |        ●         |       ·        |      ·       |
@@ -111,7 +111,7 @@ NumKong covers 18 numeric types — from 4-bit floats to 128-bit complex numbers
 [Trigonometry]: include/numkong/trigonometry/README.md
 [MaxSim]: include/numkong/maxsim/README.md
 [Attention]: include/numkong/attention/README.md
-[Mesh]: include/numkong/meshes/README.md
+[Shapes]: include/numkong/meshes/README.md
 [Each]: include/numkong/each/README.md
 [Sparse]: include/numkong/sparse/README.md
 [Probability]: include/numkong/probability/README.md

@@ -96,7 +96,7 @@ int main() {
     bench_each(env);
     bench_trigonometry(env);
     bench_geospatial(env);
-    bench_mesh(env);
+    bench_shapes(env);
     bench_sparse(env);
     bench_sparse_dot(env);
     bench_cast(env);

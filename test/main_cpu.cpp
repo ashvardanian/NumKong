@@ -408,9 +408,6 @@ static error_stats_t test_find_kernel(settings_t const &) {
         nk_kernel_vincenty_k,
         nk_kernel_kld_k,
         nk_kernel_jsd_k,
-        nk_kernel_rmsd_k,
-        nk_kernel_kabsch_k,
-        nk_kernel_umeyama_k,
         nk_kernel_sparse_dot_k,
         nk_kernel_sparse_intersect_k,
         nk_kernel_each_scale_k,
@@ -442,6 +439,15 @@ static error_stats_t test_find_kernel(settings_t const &) {
         nk_kernel_maxsim_pack_k,
         nk_kernel_maxsim_packed_k,
         nk_kernel_maxsim_packed_shape_k,
+        nk_kernel_shapes_pack_size_k,
+        nk_kernel_shapes_pack_k,
+        nk_kernel_shapes_pack_normalized_k,
+        nk_kernel_shapes_chamfers_packed_k,
+        nk_kernel_shapes_hausdorffs_packed_k,
+        nk_kernel_shapes_wassersteinprocrustes_workspace_size_k,
+        nk_kernel_shapes_wassersteinprocrustes_packed_k,
+        nk_kernel_shapes_gromovwassersteins_workspace_size_k,
+        nk_kernel_shapes_gromovwassersteins_packed_k,
         nk_kernel_attention_pack_size_k,
         nk_kernel_attention_pack_k,
         nk_kernel_attention_packed_k,
@@ -670,7 +676,7 @@ int main(int, char **argv) {
     test_trigonometry(check);
     test_reduce(check);
     test_geospatial(check);
-    test_mesh(check);
+    test_shapes(check);
     test_sparse(check);
     test_maxsim(check);
 

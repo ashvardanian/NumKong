@@ -2,44 +2,49 @@
  *  @file include/numkong/meshes/v128relaxed.h
  *  @author Ash Vardanian
  *  @date March 10, 2026
- *  @brief SIMD-accelerated point cloud alignment for WASM Relaxed SIMD.
+ *  @brief Many-to-many shape distances between 3D point clouds for WASM Relaxed SIMD.
  *
  *  @sa include/numkong/meshes.h
  *
- *  @section wasm_mesh_instructions Key WASM Relaxed SIMD Mesh Instructions
+ *  Chamfer and Hausdorff run the serial pair driver around a nearest-partner pass over a vector of
+ *  inner points: each outer point keeps 8 running minima, one per axis flip, in the serial
+ *  difference form and summation order. A shuffle tree folds the 8 minima into lanes of one vector
+ *  per 4 flips, so the square roots, sums and maxima of a pass run across flips. Squared distances
+ *  are never −0 or NaN for finite packs, so the relaxed minima and maxima match the serial ones.
  *
- *  Point cloud operations use these WASM Relaxed SIMD instructions:
+ *  - @c f32 packs widen 2 points at a time to @c f64, and an odd last point pairs with an x of +∞
+ *  - @c f16 packs widen once per block of outer points into an @c f32 chunk on the stack, whose x
+ *    rounds up to whole vectors with +∞, since WASM has no @c f16 lanes
+ *
+ *  The transport kinds run the serial solvers around vector passes: block pricing two arcs at a
+ *  time, and the f64 Gromov-Wasserstein gradient products, plan steps and scores. Arc costs round
+ *  in separate multiplies and adds, never @c relaxed_madd, whose fusing differs between engines,
+ *  and the scalar cost behind the tree's potentials runs the same lanes, so tree arcs keep a zero
+ *  reduced cost. Odd tails stay out of the inner loops, as a mask in every step slows
+ *  Gromov-Wasserstein by a fifth.
+ *
+ *  @section shapes_v128relaxed_instructions Key WASM Shape Instructions
  *
  *  @verbatim
- *  Intrinsic                       Operation
- *  wasm_f32x4_relaxed_madd         Fused multiply-add (4-way f32)
- *  wasm_f64x2_relaxed_madd         Fused multiply-add (2-way f64)
- *  wasm_f32x4_mul                  Multiply (4-way f32)
- *  wasm_f64x2_mul                  Multiply (2-way f64)
- *  wasm_f32x4_add/sub              Add/subtract (4-way f32)
- *  wasm_f64x2_add/sub              Add/subtract (2-way f64)
- *  wasm_f32x4_splat                Broadcast scalar to all lanes
- *  wasm_f64x2_splat                Broadcast scalar to all lanes
- *  wasm_i32x4_shuffle              Cross-vector lane permutation (f32)
- *  wasm_i64x2_shuffle              Cross-vector lane permutation (f64)
+ *  Intrinsic                               Operation
+ *  wasm_f64x2_promote_low_f32x4            Widens 2 f32 coordinates to f64
+ *  wasm_f32x4_relaxed_min                  Running minima, 1 instruction where pmin takes 2 on Arm
+ *  wasm_i32x4_shuffle, wasm_i64x2_shuffle  Fold tree from 8 minima vectors to flips in lanes
+ *  wasm_f32x4_sqrt, wasm_f64x2_sqrt        Distances of 4 or 2 flips at once
+ *  wasm_v128_bitselect                     Infinite reduced costs past a row's priced arcs
+ *  wasm_i64x2_bitmask                      First lane reaching a block's least reduced cost
  *  @endverbatim
- *
- *  WASM lacks hardware stride-3 deinterleaving, no LD3 equivalent, so XYZ deinterleaving is done
- *  via shuffle chains. No dual-accumulator unrolling is used since WASM engines already handle
- *  instruction scheduling.
  */
-#ifndef NUMKONG_MESH_V128RELAXED_H
-#define NUMKONG_MESH_V128RELAXED_H
+#ifndef NUMKONG_MESHES_V128RELAXED_H
+#define NUMKONG_MESHES_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
 #if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
-#include "numkong/meshes/serial.h"
-#include "numkong/dot/v128relaxed.h"
-#include "numkong/reduce/v128.h" // `nk_reduce_add_f64x2_v128_`
-#include "numkong/reduce/v128relaxed.h"
-#include "numkong/scalar/v128relaxed.h"
+#include "numkong/cast/serial.h"      // `nk_load_b64_serial_`
+#include "numkong/cast/v128relaxed.h" // `nk_f16x4_to_f32x4_v128relaxed_`
+#include "numkong/meshes/serial.h"    // `nk_define_shapes_network_simplex_`, `nk_shapes_workspace_f64_serial_t`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -49,902 +54,437 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
 
-/*  Deinterleave 12 contiguous f32 values (4 XYZ triplets) into separate x, y, z vectors.
- *
- *  Input:  [x0,y0,z0, x1,y1,z1, x2,y2,z2, x3,y3,z3]
- *  Output: x[4], y[4], z[4] vectors */
-NUMKONG_INLINE void nk_deinterleave_f32x4_v128relaxed_(nk_f32_t const *ptr, v128_t *xs_f32x4, v128_t *ys_f32x4,
-                                                       v128_t *zs_f32x4) {
-    v128_t v0_f32x4 = wasm_v128_load(ptr);     // x0 y0 z0 x1
-    v128_t v1_f32x4 = wasm_v128_load(ptr + 4); // y1 z1 x2 y2
-    v128_t v2_f32x4 = wasm_v128_load(ptr + 8); // z2 x3 y3 z3
-    // x0 x1 x2 x3
-    v128_t x_partial_f32x4 = wasm_i32x4_shuffle(v0_f32x4, v1_f32x4, 0, 3, 6, 0); // x0 x1 x2 _
-    *xs_f32x4 = wasm_i32x4_shuffle(x_partial_f32x4, v2_f32x4, 0, 1, 2, 5);       // x0 x1 x2 x3
-    // y0 y1 y2 y3
-    v128_t y_partial_f32x4 = wasm_i32x4_shuffle(v0_f32x4, v1_f32x4, 1, 4, 7, 0); // y0 y1 y2 _
-    *ys_f32x4 = wasm_i32x4_shuffle(y_partial_f32x4, v2_f32x4, 0, 1, 2, 6);       // y0 y1 y2 y3
-    // z0 z1 z2 z3
-    v128_t z_partial_f32x4 = wasm_i32x4_shuffle(v0_f32x4, v1_f32x4, 2, 5, 0, 0); // z0 z1 _ _
-    *zs_f32x4 = wasm_i32x4_shuffle(z_partial_f32x4, v2_f32x4, 0, 1, 4, 7);       // z0 z1 z2 z3
+/** Lowers the 8 running minima of one outer point by a vector of inner points. */
+NUMKONG_INLINE void nk_shapes_lower_nearest_f32x4_v128relaxed_(v128_t *nearest_f32x4, v128_t outer_x_f32x4,
+                                                               v128_t outer_y_f32x4, v128_t outer_z_f32x4,
+                                                               v128_t inner_x_f32x4, v128_t inner_y_f32x4,
+                                                               v128_t inner_z_f32x4) {
+    // A flip negates an inner axis, turning its difference into a sum
+    v128_t const minus_x_f32x4 = wasm_f32x4_sub(outer_x_f32x4, inner_x_f32x4);
+    v128_t const plus_x_f32x4 = wasm_f32x4_add(outer_x_f32x4, inner_x_f32x4);
+    v128_t const minus_y_f32x4 = wasm_f32x4_sub(outer_y_f32x4, inner_y_f32x4);
+    v128_t const plus_y_f32x4 = wasm_f32x4_add(outer_y_f32x4, inner_y_f32x4);
+    v128_t const minus_z_f32x4 = wasm_f32x4_sub(outer_z_f32x4, inner_z_f32x4);
+    v128_t const plus_z_f32x4 = wasm_f32x4_add(outer_z_f32x4, inner_z_f32x4);
+    v128_t const minus_xx_f32x4 = wasm_f32x4_mul(minus_x_f32x4, minus_x_f32x4);
+    v128_t const plus_xx_f32x4 = wasm_f32x4_mul(plus_x_f32x4, plus_x_f32x4);
+    v128_t const minus_yy_f32x4 = wasm_f32x4_mul(minus_y_f32x4, minus_y_f32x4);
+    v128_t const plus_yy_f32x4 = wasm_f32x4_mul(plus_y_f32x4, plus_y_f32x4);
+    v128_t const minus_zz_f32x4 = wasm_f32x4_mul(minus_z_f32x4, minus_z_f32x4);
+    v128_t const plus_zz_f32x4 = wasm_f32x4_mul(plus_z_f32x4, plus_z_f32x4);
+    v128_t const planar_f32x4[4] = {
+        wasm_f32x4_add(minus_xx_f32x4, minus_yy_f32x4), wasm_f32x4_add(plus_xx_f32x4, minus_yy_f32x4),
+        wasm_f32x4_add(minus_xx_f32x4, plus_yy_f32x4), wasm_f32x4_add(plus_xx_f32x4, plus_yy_f32x4)};
+    for (int flip = 0; flip != 8; ++flip)
+        nearest_f32x4[flip] = wasm_f32x4_relaxed_min(
+            nearest_f32x4[flip], wasm_f32x4_add(planar_f32x4[flip & 3], (flip & 4) ? plus_zz_f32x4 : minus_zz_f32x4));
 }
 
-/*  Deinterleave 6 contiguous f64 values (2 XYZ triplets) into separate x, y, z vectors.
- *
- *  Input:  [x0,y0,z0, x1,y1,z1]
- *  Output: x[2], y[2], z[2] vectors */
-NUMKONG_INLINE void nk_deinterleave_f64x2_v128relaxed_(nk_f64_t const *ptr, v128_t *xs_f64x2, v128_t *ys_f64x2,
-                                                       v128_t *zs_f64x2) {
-    v128_t v0_f64x2 = wasm_v128_load(ptr);                    // x0 y0
-    v128_t v1_f64x2 = wasm_v128_load(ptr + 2);                // z0 x1
-    v128_t v2_f64x2 = wasm_v128_load(ptr + 4);                // y1 z1
-    *xs_f64x2 = wasm_i64x2_shuffle(v0_f64x2, v1_f64x2, 0, 3); // x0 x1
-    *ys_f64x2 = wasm_i64x2_shuffle(v0_f64x2, v2_f64x2, 1, 2); // y0 y1
-    *zs_f64x2 = wasm_i64x2_shuffle(v1_f64x2, v2_f64x2, 0, 3); // z0 z1
+/** Lowers the 8 running minima of one outer point by a vector of inner points. */
+NUMKONG_INLINE void nk_shapes_lower_nearest_f64x2_v128relaxed_(v128_t *nearest_f64x2, v128_t outer_x_f64x2,
+                                                               v128_t outer_y_f64x2, v128_t outer_z_f64x2,
+                                                               v128_t inner_x_f64x2, v128_t inner_y_f64x2,
+                                                               v128_t inner_z_f64x2) {
+    v128_t const minus_x_f64x2 = wasm_f64x2_sub(outer_x_f64x2, inner_x_f64x2);
+    v128_t const plus_x_f64x2 = wasm_f64x2_add(outer_x_f64x2, inner_x_f64x2);
+    v128_t const minus_y_f64x2 = wasm_f64x2_sub(outer_y_f64x2, inner_y_f64x2);
+    v128_t const plus_y_f64x2 = wasm_f64x2_add(outer_y_f64x2, inner_y_f64x2);
+    v128_t const minus_z_f64x2 = wasm_f64x2_sub(outer_z_f64x2, inner_z_f64x2);
+    v128_t const plus_z_f64x2 = wasm_f64x2_add(outer_z_f64x2, inner_z_f64x2);
+    v128_t const minus_xx_f64x2 = wasm_f64x2_mul(minus_x_f64x2, minus_x_f64x2);
+    v128_t const plus_xx_f64x2 = wasm_f64x2_mul(plus_x_f64x2, plus_x_f64x2);
+    v128_t const minus_yy_f64x2 = wasm_f64x2_mul(minus_y_f64x2, minus_y_f64x2);
+    v128_t const plus_yy_f64x2 = wasm_f64x2_mul(plus_y_f64x2, plus_y_f64x2);
+    v128_t const minus_zz_f64x2 = wasm_f64x2_mul(minus_z_f64x2, minus_z_f64x2);
+    v128_t const plus_zz_f64x2 = wasm_f64x2_mul(plus_z_f64x2, plus_z_f64x2);
+    v128_t const planar_f64x2[4] = {
+        wasm_f64x2_add(minus_xx_f64x2, minus_yy_f64x2), wasm_f64x2_add(plus_xx_f64x2, minus_yy_f64x2),
+        wasm_f64x2_add(minus_xx_f64x2, plus_yy_f64x2), wasm_f64x2_add(plus_xx_f64x2, plus_yy_f64x2)};
+    for (int flip = 0; flip != 8; ++flip)
+        nearest_f64x2[flip] = wasm_f64x2_relaxed_min(
+            nearest_f64x2[flip], wasm_f64x2_add(planar_f64x2[flip & 3], (flip & 4) ? plus_zz_f64x2 : minus_zz_f64x2));
 }
 
-NUMKONG_INLINE nk_f64_t nk_reduce_stable_f64x2_v128relaxed_(v128_t values_f64x2) {
-    nk_b128_vec_t values;
-    values.v128 = values_f64x2;
-    nk_f64_t sum = 0.0, compensation = 0.0;
-    nk_accumulate_sum_f64_serial_(&sum, &compensation, values.f64s[0]);
-    nk_accumulate_sum_f64_serial_(&sum, &compensation, values.f64s[1]);
-    return sum + compensation;
-}
-
-/** Adds @p value² to the lanes of @p sum, with TwoProd and TwoSum errors into @p compensation. */
-NUMKONG_INLINE void nk_accumulate_square_f64x2_v128relaxed_(v128_t *sum_f64x2, v128_t *compensation_f64x2,
-                                                            v128_t value_f64x2) {
-    v128_t const product_f64x2 = wasm_f64x2_mul(value_f64x2, value_f64x2);
-    v128_t const product_error_f64x2 = wasm_f64x2_relaxed_madd(value_f64x2, value_f64x2, wasm_f64x2_neg(product_f64x2));
-    v128_t const tentative_sum_f64x2 = wasm_f64x2_add(*sum_f64x2, product_f64x2);
-    v128_t const virtual_addend_f64x2 = wasm_f64x2_sub(tentative_sum_f64x2, *sum_f64x2);
-    v128_t const sum_error_f64x2 = wasm_f64x2_add(
-        wasm_f64x2_sub(*sum_f64x2, wasm_f64x2_sub(tentative_sum_f64x2, virtual_addend_f64x2)),
-        wasm_f64x2_sub(product_f64x2, virtual_addend_f64x2));
-    *sum_f64x2 = tentative_sum_f64x2;
-    *compensation_f64x2 = wasm_f64x2_add(*compensation_f64x2, wasm_f64x2_add(sum_error_f64x2, product_error_f64x2));
-}
-
-/** Σ‖s · R · (aᵢ − ā) − (bᵢ − b̄)‖² summed from the residuals, since folding it via trace(R · H)
- *  cancels to √ε once the clouds align. */
-NUMKONG_INLINE nk_f64_t nk_transformed_ssd_f64_v128relaxed_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                            nk_f64_t const *centroid_a, nk_f64_t const *centroid_b,
-                                                            nk_f64_t const *rotation, nk_f64_t scale) {
-    nk_f64_t r[9];
-    for (int j = 0; j < 9; ++j) r[j] = scale * rotation[j];
-    v128_t const centroid_a_x_f64x2 = wasm_f64x2_splat(centroid_a[0]),
-                 centroid_a_y_f64x2 = wasm_f64x2_splat(centroid_a[1]),
-                 centroid_a_z_f64x2 = wasm_f64x2_splat(centroid_a[2]);
-    v128_t const centroid_b_x_f64x2 = wasm_f64x2_splat(centroid_b[0]),
-                 centroid_b_y_f64x2 = wasm_f64x2_splat(centroid_b[1]),
-                 centroid_b_z_f64x2 = wasm_f64x2_splat(centroid_b[2]);
-    v128_t const r0_f64x2 = wasm_f64x2_splat(r[0]), r1_f64x2 = wasm_f64x2_splat(r[1]),
-                 r2_f64x2 = wasm_f64x2_splat(r[2]);
-    v128_t const r3_f64x2 = wasm_f64x2_splat(r[3]), r4_f64x2 = wasm_f64x2_splat(r[4]),
-                 r5_f64x2 = wasm_f64x2_splat(r[5]);
-    v128_t const r6_f64x2 = wasm_f64x2_splat(r[6]), r7_f64x2 = wasm_f64x2_splat(r[7]),
-                 r8_f64x2 = wasm_f64x2_splat(r[8]);
-    v128_t sum_squared_f64x2 = wasm_f64x2_splat(0), compensation_f64x2 = wasm_f64x2_splat(0);
-    v128_t a_x_f64x2, a_y_f64x2, a_z_f64x2, b_x_f64x2, b_y_f64x2, b_z_f64x2;
-    nk_size_t i = 0;
-    for (; i + 2 <= n; i += 2) {
-        nk_deinterleave_f64x2_v128relaxed_(a + i * 3, &a_x_f64x2, &a_y_f64x2, &a_z_f64x2);
-        nk_deinterleave_f64x2_v128relaxed_(b + i * 3, &b_x_f64x2, &b_y_f64x2, &b_z_f64x2);
-        a_x_f64x2 = wasm_f64x2_sub(a_x_f64x2, centroid_a_x_f64x2),
-        a_y_f64x2 = wasm_f64x2_sub(a_y_f64x2, centroid_a_y_f64x2),
-        a_z_f64x2 = wasm_f64x2_sub(a_z_f64x2, centroid_a_z_f64x2);
-        b_x_f64x2 = wasm_f64x2_sub(b_x_f64x2, centroid_b_x_f64x2),
-        b_y_f64x2 = wasm_f64x2_sub(b_y_f64x2, centroid_b_y_f64x2),
-        b_z_f64x2 = wasm_f64x2_sub(b_z_f64x2, centroid_b_z_f64x2);
-        v128_t delta_x_f64x2 = wasm_f64x2_relaxed_madd(
-            r2_f64x2, a_z_f64x2,
-            wasm_f64x2_relaxed_madd(r1_f64x2, a_y_f64x2,
-                                    wasm_f64x2_relaxed_madd(r0_f64x2, a_x_f64x2, wasm_f64x2_neg(b_x_f64x2))));
-        v128_t delta_y_f64x2 = wasm_f64x2_relaxed_madd(
-            r5_f64x2, a_z_f64x2,
-            wasm_f64x2_relaxed_madd(r4_f64x2, a_y_f64x2,
-                                    wasm_f64x2_relaxed_madd(r3_f64x2, a_x_f64x2, wasm_f64x2_neg(b_y_f64x2))));
-        v128_t delta_z_f64x2 = wasm_f64x2_relaxed_madd(
-            r8_f64x2, a_z_f64x2,
-            wasm_f64x2_relaxed_madd(r7_f64x2, a_y_f64x2,
-                                    wasm_f64x2_relaxed_madd(r6_f64x2, a_x_f64x2, wasm_f64x2_neg(b_z_f64x2))));
-        nk_accumulate_square_f64x2_v128relaxed_(&sum_squared_f64x2, &compensation_f64x2, delta_x_f64x2);
-        nk_accumulate_square_f64x2_v128relaxed_(&sum_squared_f64x2, &compensation_f64x2, delta_y_f64x2);
-        nk_accumulate_square_f64x2_v128relaxed_(&sum_squared_f64x2, &compensation_f64x2, delta_z_f64x2);
-    }
-    nk_f64_t sum_squared = nk_dot_stable_sum_f64x2_v128_(sum_squared_f64x2, compensation_f64x2);
-    nk_f64_t sum_squared_compensation = 0.0;
-    for (; i < n; ++i) {
-        nk_f64_t ax = a[i * 3 + 0] - centroid_a[0], ay = a[i * 3 + 1] - centroid_a[1],
-                 az = a[i * 3 + 2] - centroid_a[2];
-        nk_f64_t bx = b[i * 3 + 0] - centroid_b[0], by = b[i * 3 + 1] - centroid_b[1],
-                 bz = b[i * 3 + 2] - centroid_b[2];
-        nk_accumulate_square_f64_serial_(&sum_squared, &sum_squared_compensation,
-                                         r[0] * ax + r[1] * ay + r[2] * az - bx);
-        nk_accumulate_square_f64_serial_(&sum_squared, &sum_squared_compensation,
-                                         r[3] * ax + r[4] * ay + r[5] * az - by);
-        nk_accumulate_square_f64_serial_(&sum_squared, &sum_squared_compensation,
-                                         r[6] * ax + r[7] * ay + r[8] * az - bz);
-    }
-    return sum_squared + sum_squared_compensation;
-}
-
-/** Promotes the low or the high pair of f32 lanes to f64. */
-NUMKONG_INLINE v128_t nk_promote_half_f32x4_v128relaxed_(v128_t values_f32x4, int half) {
-    return wasm_f64x2_promote_low_f32x4(half ? wasm_i32x4_shuffle(values_f32x4, values_f32x4, 2, 3, 0, 1)
-                                             : values_f32x4);
-}
-
-/** Centroids, centered cross-covariance and ‖a − ā‖² of f32 clouds in a pivot-shifted f64 pass. */
-NUMKONG_INLINE void nk_centered_moments_f32_v128relaxed_(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                         nk_f64_t *centroid_a, nk_f64_t *centroid_b,
-                                                         nk_f64_t *cross_covariance,
-                                                         nk_f64_t *centered_norm_squared_a) {
-    nk_f64_t const pivot_a[3] = {a[0], a[1], a[2]}, pivot_b[3] = {b[0], b[1], b[2]};
-    v128_t pivot_a_f64x2[3], pivot_b_f64x2[3], sum_a_f64x2[3], sum_b_f64x2[3], covariance_f64x2[9];
-    v128_t norm_squared_a_f64x2 = wasm_f64x2_splat(0);
-    for (int j = 0; j != 3; ++j)
-        pivot_a_f64x2[j] = wasm_f64x2_splat(pivot_a[j]), pivot_b_f64x2[j] = wasm_f64x2_splat(pivot_b[j]),
-        sum_a_f64x2[j] = wasm_f64x2_splat(0), sum_b_f64x2[j] = wasm_f64x2_splat(0);
-    for (int j = 0; j != 9; ++j) covariance_f64x2[j] = wasm_f64x2_splat(0);
-    nk_size_t i = 0;
-    for (; i + 4 <= n; i += 4) {
-        v128_t a_f32x4[3], b_f32x4[3];
-        nk_deinterleave_f32x4_v128relaxed_(a + i * 3, &a_f32x4[0], &a_f32x4[1], &a_f32x4[2]);
-        nk_deinterleave_f32x4_v128relaxed_(b + i * 3, &b_f32x4[0], &b_f32x4[1], &b_f32x4[2]);
-        for (int half = 0; half != 2; ++half) {
-            v128_t a_f64x2[3], b_f64x2[3];
-            for (int j = 0; j != 3; ++j) {
-                a_f64x2[j] = wasm_f64x2_sub(nk_promote_half_f32x4_v128relaxed_(a_f32x4[j], half), pivot_a_f64x2[j]);
-                b_f64x2[j] = wasm_f64x2_sub(nk_promote_half_f32x4_v128relaxed_(b_f32x4[j], half), pivot_b_f64x2[j]);
-                sum_a_f64x2[j] = wasm_f64x2_add(sum_a_f64x2[j], a_f64x2[j]);
-                sum_b_f64x2[j] = wasm_f64x2_add(sum_b_f64x2[j], b_f64x2[j]);
-                norm_squared_a_f64x2 = wasm_f64x2_relaxed_madd(a_f64x2[j], a_f64x2[j], norm_squared_a_f64x2);
-            }
-            for (int j = 0; j != 9; ++j)
-                covariance_f64x2[j] = wasm_f64x2_relaxed_madd(a_f64x2[j / 3], b_f64x2[j % 3], covariance_f64x2[j]);
-        }
-    }
-    nk_f64_t sum_a[3], sum_b[3], covariance[9];
-    nk_f64_t norm_squared_a = nk_reduce_stable_f64x2_v128relaxed_(norm_squared_a_f64x2);
-    for (int j = 0; j != 3; ++j)
-        sum_a[j] = nk_reduce_stable_f64x2_v128relaxed_(sum_a_f64x2[j]),
-        sum_b[j] = nk_reduce_stable_f64x2_v128relaxed_(sum_b_f64x2[j]);
-    for (int j = 0; j != 9; ++j) covariance[j] = nk_reduce_stable_f64x2_v128relaxed_(covariance_f64x2[j]);
-    for (; i < n; ++i) {
-        nk_f64_t a_point[3], b_point[3];
-        for (int j = 0; j != 3; ++j) a_point[j] = a[i * 3 + j] - pivot_a[j], b_point[j] = b[i * 3 + j] - pivot_b[j];
-        nk_centered_moments_update_f64_serial_(a_point, b_point, sum_a, sum_b, covariance, &norm_squared_a);
-    }
-    nk_centered_moments_finalize_f64_serial_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, centroid_a,
-                                             centroid_b, cross_covariance, centered_norm_squared_a);
-}
-
-/** Σ‖s · R · (aᵢ − ā) − (bᵢ − b̄)‖² of f32 clouds in f64, from residuals like the f64 variant. */
-NUMKONG_INLINE nk_f64_t nk_transformed_ssd_f32_v128relaxed_(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                            nk_f64_t const *centroid_a, nk_f64_t const *centroid_b,
-                                                            nk_f64_t const *rotation, nk_f64_t scale) {
-    nk_f64_t r[9];
-    v128_t r_f64x2[9], centroid_a_f64x2[3], centroid_b_f64x2[3];
-    v128_t sum_squared_f64x2 = wasm_f64x2_splat(0), compensation_f64x2 = wasm_f64x2_splat(0);
-    for (int j = 0; j != 9; ++j) r[j] = scale * rotation[j], r_f64x2[j] = wasm_f64x2_splat(r[j]);
-    for (int j = 0; j != 3; ++j)
-        centroid_a_f64x2[j] = wasm_f64x2_splat(centroid_a[j]), centroid_b_f64x2[j] = wasm_f64x2_splat(centroid_b[j]);
-    nk_size_t i = 0;
-    for (; i + 4 <= n; i += 4) {
-        v128_t a_f32x4[3], b_f32x4[3];
-        nk_deinterleave_f32x4_v128relaxed_(a + i * 3, &a_f32x4[0], &a_f32x4[1], &a_f32x4[2]);
-        nk_deinterleave_f32x4_v128relaxed_(b + i * 3, &b_f32x4[0], &b_f32x4[1], &b_f32x4[2]);
-        for (int half = 0; half != 2; ++half) {
-            v128_t a_f64x2[3], b_f64x2[3];
-            for (int j = 0; j != 3; ++j)
-                a_f64x2[j] = wasm_f64x2_sub(nk_promote_half_f32x4_v128relaxed_(a_f32x4[j], half), centroid_a_f64x2[j]),
-                b_f64x2[j] = wasm_f64x2_sub(nk_promote_half_f32x4_v128relaxed_(b_f32x4[j], half), centroid_b_f64x2[j]);
-            for (int j = 0; j != 3; ++j) {
-                v128_t delta_f64x2 = wasm_f64x2_neg(b_f64x2[j]);
-                for (int k = 0; k != 3; ++k)
-                    delta_f64x2 = wasm_f64x2_relaxed_madd(r_f64x2[j * 3 + k], a_f64x2[k], delta_f64x2);
-                nk_accumulate_square_f64x2_v128relaxed_(&sum_squared_f64x2, &compensation_f64x2, delta_f64x2);
+/** One directed pass of Chamfer and Hausdorff over @c f16 packs, like the serial one. The inner
+ *  cloud widens into an @c f32 chunk once per block of outer points, whose minima persist across
+ *  chunks, so the conversion cost spreads over the whole block. */
+NUMKONG_INLINE void nk_shapes_nearest_f16_v128relaxed_(nk_f16_t const *outer_axes, nk_size_t outer_stride,
+                                                       nk_size_t outer_count, nk_f16_t const *inner_axes,
+                                                       nk_size_t inner_stride, nk_size_t inner_count, nk_f32_t *sums,
+                                                       nk_f32_t *maxima) {
+    enum { chunk_capacity = 256, block_capacity = 32 };
+    nk_f32_t chunk[3][chunk_capacity];
+    v128_t block_nearest_f32x4[block_capacity][2];
+    v128_t const infinity_f32x4 = wasm_f32x4_splat(NUMKONG_F32_INF);
+    v128_t sums_f32x4[2] = {wasm_v128_load(sums), wasm_v128_load(sums + 4)};
+    v128_t maxima_f32x4[2] = {wasm_v128_load(maxima), wasm_v128_load(maxima + 4)};
+    for (nk_size_t block_start = 0; block_start < outer_count; block_start += block_capacity) {
+        nk_size_t const block_count = outer_count - block_start < block_capacity ? outer_count - block_start
+                                                                                 : block_capacity;
+        for (nk_size_t outer = 0; outer != block_count; ++outer)
+            block_nearest_f32x4[outer][0] = infinity_f32x4, block_nearest_f32x4[outer][1] = infinity_f32x4;
+        for (nk_size_t chunk_start = 0; chunk_start < inner_count; chunk_start += chunk_capacity) {
+            nk_size_t const chunk_count = inner_count - chunk_start < chunk_capacity ? inner_count - chunk_start
+                                                                                     : chunk_capacity;
+            for (nk_size_t inner = 0; inner < chunk_count; inner += 4)
+                for (int axis = 0; axis != 3; ++axis) {
+                    nk_b64_vec_t inner_f16_vec;
+                    nk_load_b64_serial_(inner_axes + axis * inner_stride + chunk_start + inner, &inner_f16_vec);
+                    wasm_v128_store(chunk[axis] + inner, nk_f16x4_to_f32x4_v128relaxed_(inner_f16_vec).v128);
+                }
+            // The last vector reads the pack's zero padding, and an x of +∞ never wins a minimum
+            for (nk_size_t inner = chunk_count; inner % 4; ++inner) chunk[0][inner] = NUMKONG_F32_INF;
+            for (nk_size_t outer = 0; outer != block_count; ++outer) {
+                nk_f32_t outer_x, outer_y, outer_z;
+                nk_f16_to_f32_serial_(outer_axes + block_start + outer, &outer_x);
+                nk_f16_to_f32_serial_(outer_axes + outer_stride + block_start + outer, &outer_y);
+                nk_f16_to_f32_serial_(outer_axes + 2 * outer_stride + block_start + outer, &outer_z);
+                v128_t const outer_x_f32x4 = wasm_f32x4_splat(outer_x), outer_y_f32x4 = wasm_f32x4_splat(outer_y);
+                v128_t const outer_z_f32x4 = wasm_f32x4_splat(outer_z);
+                v128_t nearest_f32x4[8];
+                for (int flip = 0; flip != 8; ++flip) nearest_f32x4[flip] = infinity_f32x4;
+                for (nk_size_t inner = 0; inner < chunk_count; inner += 4)
+                    nk_shapes_lower_nearest_f32x4_v128relaxed_(
+                        nearest_f32x4, outer_x_f32x4, outer_y_f32x4, outer_z_f32x4, wasm_v128_load(chunk[0] + inner),
+                        wasm_v128_load(chunk[1] + inner), wasm_v128_load(chunk[2] + inner));
+                v128_t pairs_f32x4[4];
+                for (int pair = 0; pair != 4; ++pair)
+                    pairs_f32x4[pair] = wasm_f32x4_relaxed_min(
+                        wasm_i32x4_shuffle(nearest_f32x4[2 * pair], nearest_f32x4[2 * pair + 1], 0, 1, 4, 5),
+                        wasm_i32x4_shuffle(nearest_f32x4[2 * pair], nearest_f32x4[2 * pair + 1], 2, 3, 6, 7));
+                for (int half = 0; half != 2; ++half)
+                    block_nearest_f32x4[outer][half] = wasm_f32x4_relaxed_min(
+                        block_nearest_f32x4[outer][half],
+                        wasm_f32x4_relaxed_min(
+                            wasm_i32x4_shuffle(pairs_f32x4[2 * half], pairs_f32x4[2 * half + 1], 0, 2, 4, 6),
+                            wasm_i32x4_shuffle(pairs_f32x4[2 * half], pairs_f32x4[2 * half + 1], 1, 3, 5, 7)));
             }
         }
+        for (nk_size_t outer = 0; outer != block_count; ++outer)
+            for (int half = 0; half != 2; ++half) {
+                v128_t const distance_f32x4 = wasm_f32x4_sqrt(block_nearest_f32x4[outer][half]);
+                sums_f32x4[half] = wasm_f32x4_add(sums_f32x4[half], distance_f32x4);
+                maxima_f32x4[half] = wasm_f32x4_relaxed_max(maxima_f32x4[half], distance_f32x4);
+            }
     }
-    nk_f64_t sum_squared = nk_dot_stable_sum_f64x2_v128_(sum_squared_f64x2, compensation_f64x2);
-    nk_f64_t sum_squared_compensation = 0.0;
-    for (; i < n; ++i) {
-        nk_f64_t a_point[3], b_point[3];
-        for (int j = 0; j != 3; ++j)
-            a_point[j] = a[i * 3 + j] - centroid_a[j], b_point[j] = b[i * 3 + j] - centroid_b[j];
-        nk_accumulate_residual_f64_serial_(&sum_squared, &sum_squared_compensation, r, a_point, b_point);
-    }
-    return sum_squared + sum_squared_compensation;
+    wasm_v128_store(sums, sums_f32x4[0]), wasm_v128_store(sums + 4, sums_f32x4[1]);
+    wasm_v128_store(maxima, maxima_f32x4[0]), wasm_v128_store(maxima + 4, maxima_f32x4[1]);
 }
 
-NUMKONG_API nk_status_t nk_rmsd_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
-                                                nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
-                                                nk_f64_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (rotation)
-        rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
-        rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
-    if (scale) *scale = 1.0f;
-
-    if (n == 0) {
-        *result = 0;
-        return nk_success_k;
+/** One directed pass of Chamfer and Hausdorff over @c f32 packs, like the serial one. */
+NUMKONG_INLINE void nk_shapes_nearest_f32_v128relaxed_(nk_f32_t const *outer_axes, nk_size_t outer_stride,
+                                                       nk_size_t outer_count, nk_f32_t const *inner_axes,
+                                                       nk_size_t inner_stride, nk_size_t inner_count, nk_f64_t *sums,
+                                                       nk_f64_t *maxima) {
+    nk_size_t const paired_count = inner_count & ~(nk_size_t)1;
+    v128_t const infinity_f64x2 = wasm_f64x2_splat(NUMKONG_F64_INF);
+    v128_t odd_x_f64x2 = infinity_f64x2, odd_y_f64x2 = infinity_f64x2, odd_z_f64x2 = infinity_f64x2;
+    if (inner_count & 1) {
+        odd_x_f64x2 = wasm_f64x2_replace_lane(infinity_f64x2, 0, inner_axes[paired_count]);
+        odd_y_f64x2 = wasm_f64x2_splat(inner_axes[inner_stride + paired_count]);
+        odd_z_f64x2 = wasm_f64x2_splat(inner_axes[2 * inner_stride + paired_count]);
     }
-    if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
-    if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
-
-    v128_t zero_f64x2 = wasm_f64x2_splat(0.0);
-    v128_t sum_sq_x_low_f64x2 = zero_f64x2, sum_sq_x_high_f64x2 = zero_f64x2;
-    v128_t sum_sq_y_low_f64x2 = zero_f64x2, sum_sq_y_high_f64x2 = zero_f64x2;
-    v128_t sum_sq_z_low_f64x2 = zero_f64x2, sum_sq_z_high_f64x2 = zero_f64x2;
-    nk_size_t index = 0;
-
-    for (; index + 4 <= n; index += 4) {
-        v128_t a_x_f32x4, a_y_f32x4, a_z_f32x4, b_x_f32x4, b_y_f32x4, b_z_f32x4;
-        nk_deinterleave_f32x4_v128relaxed_(a + index * 3, &a_x_f32x4, &a_y_f32x4, &a_z_f32x4);
-        nk_deinterleave_f32x4_v128relaxed_(b + index * 3, &b_x_f32x4, &b_y_f32x4, &b_z_f32x4);
-
-        // Promote lower and upper halves to f64 for precision.
-        v128_t a_x_low_f64x2 = wasm_f64x2_promote_low_f32x4(a_x_f32x4);
-        v128_t a_x_high_f64x2 = wasm_f64x2_promote_low_f32x4(wasm_i32x4_shuffle(a_x_f32x4, a_x_f32x4, 2, 3, 0, 1));
-        v128_t a_y_low_f64x2 = wasm_f64x2_promote_low_f32x4(a_y_f32x4);
-        v128_t a_y_high_f64x2 = wasm_f64x2_promote_low_f32x4(wasm_i32x4_shuffle(a_y_f32x4, a_y_f32x4, 2, 3, 0, 1));
-        v128_t a_z_low_f64x2 = wasm_f64x2_promote_low_f32x4(a_z_f32x4);
-        v128_t a_z_high_f64x2 = wasm_f64x2_promote_low_f32x4(wasm_i32x4_shuffle(a_z_f32x4, a_z_f32x4, 2, 3, 0, 1));
-        v128_t b_x_low_f64x2 = wasm_f64x2_promote_low_f32x4(b_x_f32x4);
-        v128_t b_x_high_f64x2 = wasm_f64x2_promote_low_f32x4(wasm_i32x4_shuffle(b_x_f32x4, b_x_f32x4, 2, 3, 0, 1));
-        v128_t b_y_low_f64x2 = wasm_f64x2_promote_low_f32x4(b_y_f32x4);
-        v128_t b_y_high_f64x2 = wasm_f64x2_promote_low_f32x4(wasm_i32x4_shuffle(b_y_f32x4, b_y_f32x4, 2, 3, 0, 1));
-        v128_t b_z_low_f64x2 = wasm_f64x2_promote_low_f32x4(b_z_f32x4);
-        v128_t b_z_high_f64x2 = wasm_f64x2_promote_low_f32x4(wasm_i32x4_shuffle(b_z_f32x4, b_z_f32x4, 2, 3, 0, 1));
-
-        // Accumulate squared differences in f64.
-        v128_t dx_low_f64x2 = wasm_f64x2_sub(a_x_low_f64x2, b_x_low_f64x2);
-        v128_t dx_high_f64x2 = wasm_f64x2_sub(a_x_high_f64x2, b_x_high_f64x2);
-        v128_t dy_low_f64x2 = wasm_f64x2_sub(a_y_low_f64x2, b_y_low_f64x2);
-        v128_t dy_high_f64x2 = wasm_f64x2_sub(a_y_high_f64x2, b_y_high_f64x2);
-        v128_t dz_low_f64x2 = wasm_f64x2_sub(a_z_low_f64x2, b_z_low_f64x2);
-        v128_t dz_high_f64x2 = wasm_f64x2_sub(a_z_high_f64x2, b_z_high_f64x2);
-
-        sum_sq_x_low_f64x2 = wasm_f64x2_relaxed_madd(dx_low_f64x2, dx_low_f64x2, sum_sq_x_low_f64x2);
-        sum_sq_x_high_f64x2 = wasm_f64x2_relaxed_madd(dx_high_f64x2, dx_high_f64x2, sum_sq_x_high_f64x2);
-        sum_sq_y_low_f64x2 = wasm_f64x2_relaxed_madd(dy_low_f64x2, dy_low_f64x2, sum_sq_y_low_f64x2);
-        sum_sq_y_high_f64x2 = wasm_f64x2_relaxed_madd(dy_high_f64x2, dy_high_f64x2, sum_sq_y_high_f64x2);
-        sum_sq_z_low_f64x2 = wasm_f64x2_relaxed_madd(dz_low_f64x2, dz_low_f64x2, sum_sq_z_low_f64x2);
-        sum_sq_z_high_f64x2 = wasm_f64x2_relaxed_madd(dz_high_f64x2, dz_high_f64x2, sum_sq_z_high_f64x2);
-    }
-
-    nk_f64_t sum_sq_x = nk_reduce_add_f64x2_v128_(wasm_f64x2_add(sum_sq_x_low_f64x2, sum_sq_x_high_f64x2));
-    nk_f64_t sum_sq_y = nk_reduce_add_f64x2_v128_(wasm_f64x2_add(sum_sq_y_low_f64x2, sum_sq_y_high_f64x2));
-    nk_f64_t sum_sq_z = nk_reduce_add_f64x2_v128_(wasm_f64x2_add(sum_sq_z_low_f64x2, sum_sq_z_high_f64x2));
-
-    // Scalar tail.
-    for (; index < n; ++index) {
-        nk_f64_t ax = a[index * 3 + 0], ay = a[index * 3 + 1], az = a[index * 3 + 2];
-        nk_f64_t bx = b[index * 3 + 0], by = b[index * 3 + 1], bz = b[index * 3 + 2];
-        nk_f64_t dx = ax - bx, dy = ay - by, dz = az - bz;
-        sum_sq_x += dx * dx, sum_sq_y += dy * dy, sum_sq_z += dz * dz;
-    }
-
-    *result = wasm_f64x2_extract_lane(wasm_f64x2_sqrt(wasm_f64x2_splat((sum_sq_x + sum_sq_y + sum_sq_z) / (nk_f64_t)n)),
-                                      0);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_rmsd_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *a_centroid,
-                                                nk_f64_t *b_centroid, nk_f64_t *rotation, nk_f64_t *scale,
-                                                nk_f64_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (rotation)
-        rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
-        rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
-    if (scale) *scale = 1.0;
-
-    if (n == 0) {
-        *result = 0;
-        return nk_success_k;
-    }
-    if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
-    if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
-
-    v128_t const zeros_f64x2 = wasm_f64x2_splat(0);
-
-    // Accumulators for squared differences
-    v128_t sum_squared_x_f64x2 = zeros_f64x2, sum_squared_y_f64x2 = zeros_f64x2, sum_squared_z_f64x2 = zeros_f64x2;
-
-    v128_t a_x_f64x2, a_y_f64x2, a_z_f64x2, b_x_f64x2, b_y_f64x2, b_z_f64x2;
-    nk_size_t i = 0;
-
-    // Main loop processing 2 points at a time
-    for (; i + 2 <= n; i += 2) {
-        nk_deinterleave_f64x2_v128relaxed_(a + i * 3, &a_x_f64x2, &a_y_f64x2, &a_z_f64x2);
-        nk_deinterleave_f64x2_v128relaxed_(b + i * 3, &b_x_f64x2, &b_y_f64x2, &b_z_f64x2);
-
-        v128_t delta_x_f64x2 = wasm_f64x2_sub(a_x_f64x2, b_x_f64x2);
-        v128_t delta_y_f64x2 = wasm_f64x2_sub(a_y_f64x2, b_y_f64x2);
-        v128_t delta_z_f64x2 = wasm_f64x2_sub(a_z_f64x2, b_z_f64x2);
-
-        sum_squared_x_f64x2 = wasm_f64x2_relaxed_madd(delta_x_f64x2, delta_x_f64x2, sum_squared_x_f64x2);
-        sum_squared_y_f64x2 = wasm_f64x2_relaxed_madd(delta_y_f64x2, delta_y_f64x2, sum_squared_y_f64x2);
-        sum_squared_z_f64x2 = wasm_f64x2_relaxed_madd(delta_z_f64x2, delta_z_f64x2, sum_squared_z_f64x2);
-    }
-
-    // Reduce vectors to scalars.
-    nk_f64_t total_squared_x = nk_reduce_stable_f64x2_v128relaxed_(sum_squared_x_f64x2),
-             total_squared_x_compensation = 0.0;
-    nk_f64_t total_squared_y = nk_reduce_stable_f64x2_v128relaxed_(sum_squared_y_f64x2),
-             total_squared_y_compensation = 0.0;
-    nk_f64_t total_squared_z = nk_reduce_stable_f64x2_v128relaxed_(sum_squared_z_f64x2),
-             total_squared_z_compensation = 0.0;
-
-    // Scalar tail
-    for (; i < n; ++i) {
-        nk_f64_t ax = a[i * 3 + 0], ay = a[i * 3 + 1], az = a[i * 3 + 2];
-        nk_f64_t bx = b[i * 3 + 0], by = b[i * 3 + 1], bz = b[i * 3 + 2];
-        nk_f64_t delta_x = ax - bx, delta_y = ay - by, delta_z = az - bz;
-        nk_accumulate_square_f64_serial_(&total_squared_x, &total_squared_x_compensation, delta_x);
-        nk_accumulate_square_f64_serial_(&total_squared_y, &total_squared_y_compensation, delta_y);
-        nk_accumulate_square_f64_serial_(&total_squared_z, &total_squared_z_compensation, delta_z);
-    }
-
-    total_squared_x += total_squared_x_compensation, total_squared_y += total_squared_y_compensation,
-        total_squared_z += total_squared_z_compensation;
-
-    nk_f64_t const mean_squared = (total_squared_x + total_squared_y + total_squared_z) / (nk_f64_t)n;
-    *result = wasm_f64x2_extract_lane(wasm_f64x2_sqrt(wasm_f64x2_splat(mean_squared)), 0);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_kabsch_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                  nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                  nk_f32_t *scale, nk_f64_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (n == 0) {
-        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
-        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
-        if (rotation)
-            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
-            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
-        if (scale) *scale = 1.0f;
-        *result = 0;
-        return nk_success_k;
-    }
-
-    nk_f64_t centroid_a[3], centroid_b[3], cross_covariance[9];
-    nk_centered_moments_f32_v128relaxed_(a, b, n, centroid_a, centroid_b, cross_covariance, NUMKONG_NULL);
-    if (a_centroid)
-        a_centroid[0] = (nk_f32_t)centroid_a[0], a_centroid[1] = (nk_f32_t)centroid_a[1],
-        a_centroid[2] = (nk_f32_t)centroid_a[2];
-    if (b_centroid)
-        b_centroid[0] = (nk_f32_t)centroid_b[0], b_centroid[1] = (nk_f32_t)centroid_b[1],
-        b_centroid[2] = (nk_f32_t)centroid_b[2];
-
-    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I.
-    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
-                                                cross_covariance[4] * cross_covariance[4] +
-                                                cross_covariance[8] * cross_covariance[8];
-    nk_f64_t covariance_offdiagonal_norm_squared =
-        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
-        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
-        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
-    nk_f64_t optimal_rotation[9];
-    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
-        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
-        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
-        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
-        optimal_rotation[8] = 1;
-    }
-    else {
-        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
-
-        optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
-        optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
-        optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
-        optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
-        optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
-        optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
-        optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
-        optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
-        optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
-
-        // Handle reflection: if det(R) < 0, negate third column of V and recompute R.
-        if (nk_det3x3_f64_serial_(optimal_rotation) < 0) {
-            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
-            optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
-            optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
-            optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
-            optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
-            optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
-            optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
-            optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
-            optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
-            optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
+    v128_t sums_f64x2[4], maxima_f64x2[4];
+    for (int pair = 0; pair != 4; ++pair)
+        sums_f64x2[pair] = wasm_v128_load(sums + 2 * pair), maxima_f64x2[pair] = wasm_v128_load(maxima + 2 * pair);
+    for (nk_size_t outer = 0; outer != outer_count; ++outer) {
+        v128_t const outer_x_f64x2 = wasm_f64x2_splat(outer_axes[outer]);
+        v128_t const outer_y_f64x2 = wasm_f64x2_splat(outer_axes[outer_stride + outer]);
+        v128_t const outer_z_f64x2 = wasm_f64x2_splat(outer_axes[2 * outer_stride + outer]);
+        v128_t nearest_f64x2[8];
+        for (int flip = 0; flip != 8; ++flip) nearest_f64x2[flip] = infinity_f64x2;
+        for (nk_size_t inner = 0; inner != paired_count; inner += 2)
+            nk_shapes_lower_nearest_f64x2_v128relaxed_(
+                nearest_f64x2, outer_x_f64x2, outer_y_f64x2, outer_z_f64x2,
+                wasm_f64x2_promote_low_f32x4(wasm_v128_load64_zero(inner_axes + inner)),
+                wasm_f64x2_promote_low_f32x4(wasm_v128_load64_zero(inner_axes + inner_stride + inner)),
+                wasm_f64x2_promote_low_f32x4(wasm_v128_load64_zero(inner_axes + 2 * inner_stride + inner)));
+        if (inner_count & 1)
+            nk_shapes_lower_nearest_f64x2_v128relaxed_(nearest_f64x2, outer_x_f64x2, outer_y_f64x2, outer_z_f64x2,
+                                                       odd_x_f64x2, odd_y_f64x2, odd_z_f64x2);
+        for (int pair = 0; pair != 4; ++pair) {
+            v128_t const distance_f64x2 = wasm_f64x2_sqrt(
+                wasm_f64x2_relaxed_min(wasm_i64x2_shuffle(nearest_f64x2[2 * pair], nearest_f64x2[2 * pair + 1], 0, 2),
+                                       wasm_i64x2_shuffle(nearest_f64x2[2 * pair], nearest_f64x2[2 * pair + 1], 1, 3)));
+            sums_f64x2[pair] = wasm_f64x2_add(sums_f64x2[pair], distance_f64x2);
+            maxima_f64x2[pair] = wasm_f64x2_relaxed_max(maxima_f64x2[pair], distance_f64x2);
         }
     }
-
-    if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
-    if (scale) *scale = 1.0f;
-
-    nk_f64_t sum_squared = nk_transformed_ssd_f32_v128relaxed_(a, b, n, centroid_a, centroid_b, optimal_rotation, 1.0);
-    *result = wasm_f64x2_extract_lane(wasm_f64x2_sqrt(wasm_f64x2_splat(sum_squared / (nk_f64_t)n)), 0);
-    return nk_success_k;
+    for (int pair = 0; pair != 4; ++pair)
+        wasm_v128_store(sums + 2 * pair, sums_f64x2[pair]), wasm_v128_store(maxima + 2 * pair, maxima_f64x2[pair]);
 }
 
-NUMKONG_API nk_status_t nk_kabsch_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                  nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
-                                                  nk_f64_t *scale, nk_f64_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (n == 0) {
-        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
-        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
-        if (rotation)
-            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
-            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
-        if (scale) *scale = 1.0;
-        *result = 0;
-        return nk_success_k;
+/** Squared distances from a broadcast row point to the column points in the lanes, unfused, the
+ *  rounding both the block pricing and the scalar cost behind the potentials share. */
+NUMKONG_INLINE v128_t nk_shapes_point_costs_f64x2_v128relaxed_(v128_t row_x_f64x2, v128_t row_y_f64x2,
+                                                               v128_t row_z_f64x2, v128_t column_x_f64x2,
+                                                               v128_t column_y_f64x2, v128_t column_z_f64x2) {
+    v128_t const delta_x_f64x2 = wasm_f64x2_sub(row_x_f64x2, column_x_f64x2);
+    v128_t const delta_y_f64x2 = wasm_f64x2_sub(row_y_f64x2, column_y_f64x2);
+    v128_t const delta_z_f64x2 = wasm_f64x2_sub(row_z_f64x2, column_z_f64x2);
+    v128_t const planar_f64x2 = wasm_f64x2_add(wasm_f64x2_mul(delta_x_f64x2, delta_x_f64x2),
+                                               wasm_f64x2_mul(delta_y_f64x2, delta_y_f64x2));
+    return wasm_f64x2_add(planar_f64x2, wasm_f64x2_mul(delta_z_f64x2, delta_z_f64x2));
+}
+
+/** @copydoc nk_shapes_point_costs_f64x2_v128relaxed_ */
+NUMKONG_INLINE v128_t nk_shapes_point_costs_f32x4_v128relaxed_(v128_t row_x_f32x4, v128_t row_y_f32x4,
+                                                               v128_t row_z_f32x4, v128_t column_x_f32x4,
+                                                               v128_t column_y_f32x4, v128_t column_z_f32x4) {
+    v128_t const delta_x_f32x4 = wasm_f32x4_sub(row_x_f32x4, column_x_f32x4);
+    v128_t const delta_y_f32x4 = wasm_f32x4_sub(row_y_f32x4, column_y_f32x4);
+    v128_t const delta_z_f32x4 = wasm_f32x4_sub(row_z_f32x4, column_z_f32x4);
+    v128_t const planar_f32x4 = wasm_f32x4_add(wasm_f32x4_mul(delta_x_f32x4, delta_x_f32x4),
+                                               wasm_f32x4_mul(delta_y_f32x4, delta_y_f32x4));
+    return wasm_f32x4_add(planar_f32x4, wasm_f32x4_mul(delta_z_f32x4, delta_z_f32x4));
+}
+
+/** The cost of one arc between a row point and a rotated column point, rounded as in pricing. */
+NUMKONG_INLINE nk_f64_t nk_shapes_point_cost_f64_v128relaxed_(nk_shapes_workspace_f64_serial_t const *views,
+                                                              nk_size_t row, nk_size_t column) {
+    nk_size_t const stride = views->points_stride;
+    nk_f64_t const *row_points = views->row_points, *rotated_points = views->rotated_points;
+    return wasm_f64x2_extract_lane(
+        nk_shapes_point_costs_f64x2_v128relaxed_(
+            wasm_v128_load64_splat(row_points + row), wasm_v128_load64_splat(row_points + stride + row),
+            wasm_v128_load64_splat(row_points + 2 * stride + row), wasm_v128_load64_splat(rotated_points + column),
+            wasm_v128_load64_splat(rotated_points + stride + column),
+            wasm_v128_load64_splat(rotated_points + 2 * stride + column)),
+        0);
+}
+
+/** @copydoc nk_shapes_point_cost_f64_v128relaxed_ */
+NUMKONG_INLINE nk_f32_t nk_shapes_point_cost_f32_v128relaxed_(nk_shapes_workspace_f32_serial_t const *views,
+                                                              nk_size_t row, nk_size_t column) {
+    nk_size_t const stride = views->points_stride;
+    nk_f32_t const *row_points = views->row_points, *rotated_points = views->rotated_points;
+    return wasm_f32x4_extract_lane(
+        nk_shapes_point_costs_f32x4_v128relaxed_(
+            wasm_v128_load32_splat(row_points + row), wasm_v128_load32_splat(row_points + stride + row),
+            wasm_v128_load32_splat(row_points + 2 * stride + row), wasm_v128_load32_splat(rotated_points + column),
+            wasm_v128_load32_splat(rotated_points + stride + column),
+            wasm_v128_load32_splat(rotated_points + 2 * stride + column)),
+        0);
+}
+
+/** The reduced costs c(i, j) − πᵢ + πⱼ of row @p row's arcs to column @p column and the next, with
+ *  matrix costs −G taken as πⱼ − (G + πᵢ), which rounds the same. */
+NUMKONG_INLINE v128_t nk_shapes_reduced_costs_f64_v128relaxed_(nk_shapes_workspace_f64_serial_t const *views,
+                                                               nk_f64_t const *gradient, nk_size_t rows,
+                                                               nk_size_t columns, nk_size_t row, nk_size_t column) {
+    nk_size_t const stride = views->points_stride;
+    nk_f64_t const *row_points = views->row_points, *rotated_points = views->rotated_points;
+    v128_t const row_potential_f64x2 = wasm_v128_load64_splat(views->potential + row);
+    v128_t const column_potentials_f64x2 = wasm_v128_load(views->potential + rows + column);
+    if (gradient)
+        return wasm_f64x2_sub(column_potentials_f64x2,
+                              wasm_f64x2_add(wasm_v128_load(gradient + row * columns + column), row_potential_f64x2));
+    v128_t const costs_f64x2 = nk_shapes_point_costs_f64x2_v128relaxed_(
+        wasm_v128_load64_splat(row_points + row), wasm_v128_load64_splat(row_points + stride + row),
+        wasm_v128_load64_splat(row_points + 2 * stride + row), wasm_v128_load(rotated_points + column),
+        wasm_v128_load(rotated_points + stride + column), wasm_v128_load(rotated_points + 2 * stride + column));
+    return wasm_f64x2_add(wasm_f64x2_sub(costs_f64x2, row_potential_f64x2), column_potentials_f64x2);
+}
+
+/** @copydoc nk_shapes_reduced_costs_f64_v128relaxed_ */
+NUMKONG_INLINE v128_t nk_shapes_reduced_costs_f32_v128relaxed_(nk_shapes_workspace_f32_serial_t const *views,
+                                                               nk_f64_t const *gradient, nk_size_t rows,
+                                                               nk_size_t columns, nk_size_t row, nk_size_t column) {
+    nk_size_t const stride = views->points_stride;
+    nk_f32_t const *row_points = views->row_points, *rotated_points = views->rotated_points;
+    v128_t const row_potential_f64x2 = wasm_v128_load64_splat(views->potential + row);
+    v128_t const column_potentials_f64x2 = wasm_v128_load(views->potential + rows + column);
+    if (gradient)
+        return wasm_f64x2_sub(column_potentials_f64x2,
+                              wasm_f64x2_add(wasm_v128_load(gradient + row * columns + column), row_potential_f64x2));
+    v128_t const costs_f64x2 = wasm_f64x2_promote_low_f32x4(nk_shapes_point_costs_f32x4_v128relaxed_(
+        wasm_v128_load32_splat(row_points + row), wasm_v128_load32_splat(row_points + stride + row),
+        wasm_v128_load32_splat(row_points + 2 * stride + row), wasm_v128_load64_zero(rotated_points + column),
+        wasm_v128_load64_zero(rotated_points + stride + column),
+        wasm_v128_load64_zero(rotated_points + 2 * stride + column)));
+    return wasm_f64x2_add(wasm_f64x2_sub(costs_f64x2, row_potential_f64x2), column_potentials_f64x2);
+}
+
+/** Scans @p count reduced costs from the cursor in row-major order and keeps the first most
+ *  negative one below @p entering_cost, as the serial scan does. A first pass takes their least two
+ *  columns at a time, and only a block whose least beats @p entering_cost is scanned again for the
+ *  first arc reaching it. Lanes past the scanned part of a row read neighbouring workspace and take
+ *  an infinite cost. */
+NUMKONG_INLINE void nk_shapes_price_block_f64_v128relaxed_(nk_shapes_workspace_f64_serial_t const *views,
+                                                           nk_f64_t const *gradient, nk_size_t rows, nk_size_t columns,
+                                                           nk_size_t count, nk_size_t *cursor_row,
+                                                           nk_size_t *cursor_column, nk_f64_t *entering_cost,
+                                                           nk_size_t *entering_row, nk_size_t *entering_column) {
+    v128_t const infinity_f64x2 = wasm_f64x2_splat(NUMKONG_F64_INF), first_lane_u64x2 = wasm_i64x2_make(-1, 0);
+    nk_size_t const start_row = *cursor_row, start_column = *cursor_column;
+    nk_size_t row = start_row, column = start_column;
+    v128_t least_f64x2 = infinity_f64x2;
+    for (nk_size_t offset = 0; offset != count;) {
+        nk_size_t const segment = columns - column < count - offset ? columns - column : count - offset;
+        nk_size_t const paired = segment & ~(nk_size_t)1;
+        for (nk_size_t step = 0; step != paired; step += 2)
+            least_f64x2 = wasm_f64x2_relaxed_min(least_f64x2, nk_shapes_reduced_costs_f64_v128relaxed_(
+                                                                  views, gradient, rows, columns, row, column + step));
+        if (segment & 1)
+            least_f64x2 = wasm_f64x2_relaxed_min(
+                least_f64x2, wasm_v128_bitselect(nk_shapes_reduced_costs_f64_v128relaxed_(
+                                                     views, gradient, rows, columns, row, column + paired),
+                                                 infinity_f64x2, first_lane_u64x2));
+        offset += segment, column += segment;
+        if (column == columns) column = 0, row = row + 1 == rows ? 0 : row + 1;
     }
-
-    v128_t const zeros_f64x2 = wasm_f64x2_splat(0);
-
-    // Single set of accumulators (1x unrolling)
-    v128_t sum_a_x_f64x2 = zeros_f64x2, sum_a_y_f64x2 = zeros_f64x2, sum_a_z_f64x2 = zeros_f64x2;
-    v128_t sum_b_x_f64x2 = zeros_f64x2, sum_b_y_f64x2 = zeros_f64x2, sum_b_z_f64x2 = zeros_f64x2;
-
-    v128_t covariance_xx_f64x2 = zeros_f64x2, covariance_xy_f64x2 = zeros_f64x2, covariance_xz_f64x2 = zeros_f64x2;
-    v128_t covariance_yx_f64x2 = zeros_f64x2, covariance_yy_f64x2 = zeros_f64x2, covariance_yz_f64x2 = zeros_f64x2;
-    v128_t covariance_zx_f64x2 = zeros_f64x2, covariance_zy_f64x2 = zeros_f64x2, covariance_zz_f64x2 = zeros_f64x2;
-    // The first-point shift keeps the centering correction from cancelling far from the origin.
-    v128_t const pivot_a_x_f64x2 = wasm_f64x2_splat(a[0]), pivot_a_y_f64x2 = wasm_f64x2_splat(a[1]),
-                 pivot_a_z_f64x2 = wasm_f64x2_splat(a[2]);
-    v128_t const pivot_b_x_f64x2 = wasm_f64x2_splat(b[0]), pivot_b_y_f64x2 = wasm_f64x2_splat(b[1]),
-                 pivot_b_z_f64x2 = wasm_f64x2_splat(b[2]);
-
-    nk_size_t i = 0;
-    v128_t a_x_f64x2, a_y_f64x2, a_z_f64x2, b_x_f64x2, b_y_f64x2, b_z_f64x2;
-
-    // Main loop: 2 points per iteration
-    for (; i + 2 <= n; i += 2) {
-        nk_deinterleave_f64x2_v128relaxed_(a + i * 3, &a_x_f64x2, &a_y_f64x2, &a_z_f64x2);
-        nk_deinterleave_f64x2_v128relaxed_(b + i * 3, &b_x_f64x2, &b_y_f64x2, &b_z_f64x2);
-        a_x_f64x2 = wasm_f64x2_sub(a_x_f64x2, pivot_a_x_f64x2), a_y_f64x2 = wasm_f64x2_sub(a_y_f64x2, pivot_a_y_f64x2),
-        a_z_f64x2 = wasm_f64x2_sub(a_z_f64x2, pivot_a_z_f64x2);
-        b_x_f64x2 = wasm_f64x2_sub(b_x_f64x2, pivot_b_x_f64x2), b_y_f64x2 = wasm_f64x2_sub(b_y_f64x2, pivot_b_y_f64x2),
-        b_z_f64x2 = wasm_f64x2_sub(b_z_f64x2, pivot_b_z_f64x2);
-
-        sum_a_x_f64x2 = wasm_f64x2_add(sum_a_x_f64x2, a_x_f64x2);
-        sum_a_y_f64x2 = wasm_f64x2_add(sum_a_y_f64x2, a_y_f64x2);
-        sum_a_z_f64x2 = wasm_f64x2_add(sum_a_z_f64x2, a_z_f64x2);
-        sum_b_x_f64x2 = wasm_f64x2_add(sum_b_x_f64x2, b_x_f64x2);
-        sum_b_y_f64x2 = wasm_f64x2_add(sum_b_y_f64x2, b_y_f64x2);
-        sum_b_z_f64x2 = wasm_f64x2_add(sum_b_z_f64x2, b_z_f64x2);
-
-        covariance_xx_f64x2 = wasm_f64x2_relaxed_madd(a_x_f64x2, b_x_f64x2, covariance_xx_f64x2);
-        covariance_xy_f64x2 = wasm_f64x2_relaxed_madd(a_x_f64x2, b_y_f64x2, covariance_xy_f64x2);
-        covariance_xz_f64x2 = wasm_f64x2_relaxed_madd(a_x_f64x2, b_z_f64x2, covariance_xz_f64x2);
-        covariance_yx_f64x2 = wasm_f64x2_relaxed_madd(a_y_f64x2, b_x_f64x2, covariance_yx_f64x2);
-        covariance_yy_f64x2 = wasm_f64x2_relaxed_madd(a_y_f64x2, b_y_f64x2, covariance_yy_f64x2);
-        covariance_yz_f64x2 = wasm_f64x2_relaxed_madd(a_y_f64x2, b_z_f64x2, covariance_yz_f64x2);
-        covariance_zx_f64x2 = wasm_f64x2_relaxed_madd(a_z_f64x2, b_x_f64x2, covariance_zx_f64x2);
-        covariance_zy_f64x2 = wasm_f64x2_relaxed_madd(a_z_f64x2, b_y_f64x2, covariance_zy_f64x2);
-        covariance_zz_f64x2 = wasm_f64x2_relaxed_madd(a_z_f64x2, b_z_f64x2, covariance_zz_f64x2);
+    *cursor_row = row, *cursor_column = column;
+    nk_f64_t const least_low = wasm_f64x2_extract_lane(least_f64x2, 0);
+    nk_f64_t const least_high = wasm_f64x2_extract_lane(least_f64x2, 1);
+    nk_f64_t const least = least_low < least_high ? least_low : least_high;
+    if (!(least < *entering_cost)) return;
+    v128_t const least_splat_f64x2 = wasm_f64x2_splat(least);
+    *entering_cost = least, row = start_row, column = start_column;
+    for (;;) {
+        nk_size_t const segment = columns - column;
+        for (nk_size_t step = 0; step < segment; step += 2) {
+            v128_t reduced_f64x2 = nk_shapes_reduced_costs_f64_v128relaxed_(views, gradient, rows, columns, row,
+                                                                            column + step);
+            if (step + 2 > segment)
+                reduced_f64x2 = wasm_v128_bitselect(reduced_f64x2, infinity_f64x2, first_lane_u64x2);
+            int const equal_lanes = wasm_i64x2_bitmask(wasm_f64x2_eq(reduced_f64x2, least_splat_f64x2));
+            if (!equal_lanes) continue;
+            *entering_row = row, *entering_column = column + step + !(equal_lanes & 1);
+            return;
+        }
+        column = 0, row = row + 1 == rows ? 0 : row + 1;
     }
+}
 
-    // Reduce vector accumulators.
-    nk_f64_t sum_a_x = nk_reduce_stable_f64x2_v128relaxed_(sum_a_x_f64x2), sum_a_x_compensation = 0.0;
-    nk_f64_t sum_a_y = nk_reduce_stable_f64x2_v128relaxed_(sum_a_y_f64x2), sum_a_y_compensation = 0.0;
-    nk_f64_t sum_a_z = nk_reduce_stable_f64x2_v128relaxed_(sum_a_z_f64x2), sum_a_z_compensation = 0.0;
-    nk_f64_t sum_b_x = nk_reduce_stable_f64x2_v128relaxed_(sum_b_x_f64x2), sum_b_x_compensation = 0.0;
-    nk_f64_t sum_b_y = nk_reduce_stable_f64x2_v128relaxed_(sum_b_y_f64x2), sum_b_y_compensation = 0.0;
-    nk_f64_t sum_b_z = nk_reduce_stable_f64x2_v128relaxed_(sum_b_z_f64x2), sum_b_z_compensation = 0.0;
-
-    nk_f64_t covariance_x_x = nk_reduce_stable_f64x2_v128relaxed_(covariance_xx_f64x2),
-             covariance_x_x_compensation = 0.0;
-    nk_f64_t covariance_x_y = nk_reduce_stable_f64x2_v128relaxed_(covariance_xy_f64x2),
-             covariance_x_y_compensation = 0.0;
-    nk_f64_t covariance_x_z = nk_reduce_stable_f64x2_v128relaxed_(covariance_xz_f64x2),
-             covariance_x_z_compensation = 0.0;
-    nk_f64_t covariance_y_x = nk_reduce_stable_f64x2_v128relaxed_(covariance_yx_f64x2),
-             covariance_y_x_compensation = 0.0;
-    nk_f64_t covariance_y_y = nk_reduce_stable_f64x2_v128relaxed_(covariance_yy_f64x2),
-             covariance_y_y_compensation = 0.0;
-    nk_f64_t covariance_y_z = nk_reduce_stable_f64x2_v128relaxed_(covariance_yz_f64x2),
-             covariance_y_z_compensation = 0.0;
-    nk_f64_t covariance_z_x = nk_reduce_stable_f64x2_v128relaxed_(covariance_zx_f64x2),
-             covariance_z_x_compensation = 0.0;
-    nk_f64_t covariance_z_y = nk_reduce_stable_f64x2_v128relaxed_(covariance_zy_f64x2),
-             covariance_z_y_compensation = 0.0;
-    nk_f64_t covariance_z_z = nk_reduce_stable_f64x2_v128relaxed_(covariance_zz_f64x2),
-             covariance_z_z_compensation = 0.0;
-
-    // Scalar tail
-    for (; i < n; ++i) {
-        nk_f64_t ax = a[i * 3 + 0] - a[0], ay = a[i * 3 + 1] - a[1], az = a[i * 3 + 2] - a[2];
-        nk_f64_t bx = b[i * 3 + 0] - b[0], by = b[i * 3 + 1] - b[1], bz = b[i * 3 + 2] - b[2];
-        nk_accumulate_sum_f64_serial_(&sum_a_x, &sum_a_x_compensation, ax),
-            nk_accumulate_sum_f64_serial_(&sum_a_y, &sum_a_y_compensation, ay),
-            nk_accumulate_sum_f64_serial_(&sum_a_z, &sum_a_z_compensation, az);
-        nk_accumulate_sum_f64_serial_(&sum_b_x, &sum_b_x_compensation, bx),
-            nk_accumulate_sum_f64_serial_(&sum_b_y, &sum_b_y_compensation, by),
-            nk_accumulate_sum_f64_serial_(&sum_b_z, &sum_b_z_compensation, bz);
-        nk_accumulate_product_f64_serial_(&covariance_x_x, &covariance_x_x_compensation, ax, bx),
-            nk_accumulate_product_f64_serial_(&covariance_x_y, &covariance_x_y_compensation, ax, by),
-            nk_accumulate_product_f64_serial_(&covariance_x_z, &covariance_x_z_compensation, ax, bz);
-        nk_accumulate_product_f64_serial_(&covariance_y_x, &covariance_y_x_compensation, ay, bx),
-            nk_accumulate_product_f64_serial_(&covariance_y_y, &covariance_y_y_compensation, ay, by),
-            nk_accumulate_product_f64_serial_(&covariance_y_z, &covariance_y_z_compensation, ay, bz);
-        nk_accumulate_product_f64_serial_(&covariance_z_x, &covariance_z_x_compensation, az, bx),
-            nk_accumulate_product_f64_serial_(&covariance_z_y, &covariance_z_y_compensation, az, by),
-            nk_accumulate_product_f64_serial_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
+/** @copydoc nk_shapes_price_block_f64_v128relaxed_ */
+NUMKONG_INLINE void nk_shapes_price_block_f32_v128relaxed_(nk_shapes_workspace_f32_serial_t const *views,
+                                                           nk_f64_t const *gradient, nk_size_t rows, nk_size_t columns,
+                                                           nk_size_t count, nk_size_t *cursor_row,
+                                                           nk_size_t *cursor_column, nk_f64_t *entering_cost,
+                                                           nk_size_t *entering_row, nk_size_t *entering_column) {
+    v128_t const infinity_f64x2 = wasm_f64x2_splat(NUMKONG_F64_INF), first_lane_u64x2 = wasm_i64x2_make(-1, 0);
+    nk_size_t const start_row = *cursor_row, start_column = *cursor_column;
+    nk_size_t row = start_row, column = start_column;
+    v128_t least_f64x2 = infinity_f64x2;
+    for (nk_size_t offset = 0; offset != count;) {
+        nk_size_t const segment = columns - column < count - offset ? columns - column : count - offset;
+        nk_size_t const paired = segment & ~(nk_size_t)1;
+        for (nk_size_t step = 0; step != paired; step += 2)
+            least_f64x2 = wasm_f64x2_relaxed_min(least_f64x2, nk_shapes_reduced_costs_f32_v128relaxed_(
+                                                                  views, gradient, rows, columns, row, column + step));
+        if (segment & 1)
+            least_f64x2 = wasm_f64x2_relaxed_min(
+                least_f64x2, wasm_v128_bitselect(nk_shapes_reduced_costs_f32_v128relaxed_(
+                                                     views, gradient, rows, columns, row, column + paired),
+                                                 infinity_f64x2, first_lane_u64x2));
+        offset += segment, column += segment;
+        if (column == columns) column = 0, row = row + 1 == rows ? 0 : row + 1;
     }
-
-    sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
-    sum_b_x += sum_b_x_compensation, sum_b_y += sum_b_y_compensation, sum_b_z += sum_b_z_compensation;
-    covariance_x_x += covariance_x_x_compensation, covariance_x_y += covariance_x_y_compensation,
-        covariance_x_z += covariance_x_z_compensation;
-    covariance_y_x += covariance_y_x_compensation, covariance_y_y += covariance_y_y_compensation,
-        covariance_y_z += covariance_y_z_compensation;
-    covariance_z_x += covariance_z_x_compensation, covariance_z_y += covariance_z_y_compensation,
-        covariance_z_z += covariance_z_z_compensation;
-
-    // Compute centroids
-    nk_f64_t inv_points_count = 1.0 / (nk_f64_t)n;
-    nk_f64_t mean_a_x = sum_a_x * inv_points_count, mean_a_y = sum_a_y * inv_points_count,
-             mean_a_z = sum_a_z * inv_points_count;
-    nk_f64_t mean_b_x = sum_b_x * inv_points_count, mean_b_y = sum_b_y * inv_points_count,
-             mean_b_z = sum_b_z * inv_points_count;
-    nk_f64_t centroid_a_x = a[0] + mean_a_x, centroid_a_y = a[1] + mean_a_y, centroid_a_z = a[2] + mean_a_z;
-    nk_f64_t centroid_b_x = b[0] + mean_b_x, centroid_b_y = b[1] + mean_b_y, centroid_b_z = b[2] + mean_b_z;
-    if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
-    if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-
-    // Apply the centering correction to the sums shifted by the first point:
-    // H_centered = H - n * mean_a * mean_bᵀ
-    covariance_x_x -= n * mean_a_x * mean_b_x;
-    covariance_x_y -= n * mean_a_x * mean_b_y;
-    covariance_x_z -= n * mean_a_x * mean_b_z;
-    covariance_y_x -= n * mean_a_y * mean_b_x;
-    covariance_y_y -= n * mean_a_y * mean_b_y;
-    covariance_y_z -= n * mean_a_y * mean_b_z;
-    covariance_z_x -= n * mean_a_z * mean_b_x;
-    covariance_z_y -= n * mean_a_z * mean_b_y;
-    covariance_z_z -= n * mean_a_z * mean_b_z;
-
-    // Compute SVD and optimal rotation
-    nk_f64_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
-                                    covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
-
-    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I.
-    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
-                                                cross_covariance[4] * cross_covariance[4] +
-                                                cross_covariance[8] * cross_covariance[8];
-    nk_f64_t covariance_offdiagonal_norm_squared =
-        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
-        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
-        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
-    nk_f64_t optimal_rotation[9];
-    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
-        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
-        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
-        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
-        optimal_rotation[8] = 1;
+    *cursor_row = row, *cursor_column = column;
+    nk_f64_t const least_low = wasm_f64x2_extract_lane(least_f64x2, 0);
+    nk_f64_t const least_high = wasm_f64x2_extract_lane(least_f64x2, 1);
+    nk_f64_t const least = least_low < least_high ? least_low : least_high;
+    if (!(least < *entering_cost)) return;
+    v128_t const least_splat_f64x2 = wasm_f64x2_splat(least);
+    *entering_cost = least, row = start_row, column = start_column;
+    for (;;) {
+        nk_size_t const segment = columns - column;
+        for (nk_size_t step = 0; step < segment; step += 2) {
+            v128_t reduced_f64x2 = nk_shapes_reduced_costs_f32_v128relaxed_(views, gradient, rows, columns, row,
+                                                                            column + step);
+            if (step + 2 > segment)
+                reduced_f64x2 = wasm_v128_bitselect(reduced_f64x2, infinity_f64x2, first_lane_u64x2);
+            int const equal_lanes = wasm_i64x2_bitmask(wasm_f64x2_eq(reduced_f64x2, least_splat_f64x2));
+            if (!equal_lanes) continue;
+            *entering_row = row, *entering_column = column + step + !(equal_lanes & 1);
+            return;
+        }
+        column = 0, row = row + 1 == rows ? 0 : row + 1;
     }
-    else {
-        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
-        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+}
 
-        // Handle reflection: if det(R) < 0, negate third column of V and recompute R
-        if (nk_det3x3_f64_serial_(optimal_rotation) < 0) {
-            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
-            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
+/** Dx × V × Dy into @p gradient for a plan V given by its arcs, two columns at a time down every
+ *  row, each arc adding its mass times a row of Dx and a row of Dy. An odd row length spills each
+ *  row's last pair into the next row, so that lane adds a zero, kept out of the inner loop. */
+NUMKONG_INLINE void nk_shapes_distance_gradient_f64_v128relaxed_(nk_u32_t const *plan, nk_size_t plan_stride,
+                                                                 nk_size_t arcs, nk_f64_t mass,
+                                                                 nk_f64_t const *row_distances, nk_size_t rows,
+                                                                 nk_f64_t const *column_distances, nk_size_t columns,
+                                                                 nk_f64_t *gradient) {
+    nk_size_t const paired = columns & ~(nk_size_t)1;
+    for (nk_size_t cell = 0; cell < rows * columns; cell += 2) wasm_v128_store(gradient + cell, wasm_f64x2_splat(0));
+    for (nk_size_t arc = 0; arc != arcs; ++arc) {
+        if (!plan[2 * plan_stride + arc]) continue;
+        nk_f64_t const weight = (nk_f64_t)plan[2 * plan_stride + arc] / mass;
+        nk_f64_t const *row_distances_from = row_distances + plan[arc] * rows;
+        nk_f64_t const *column_distances_from = column_distances + plan[plan_stride + arc] * columns;
+        v128_t const odd_distance_f64x2 = wasm_f64x2_replace_lane(wasm_f64x2_splat(0), 0,
+                                                                  columns & 1 ? column_distances_from[paired] : 0);
+        for (nk_size_t row = 0; row != rows; ++row) {
+            v128_t const weighted_f64x2 = wasm_f64x2_splat(weight * row_distances_from[row]);
+            nk_f64_t *gradient_row = gradient + row * columns;
+            for (nk_size_t column = 0; column != paired; column += 2)
+                wasm_v128_store(
+                    gradient_row + column,
+                    wasm_f64x2_add(wasm_v128_load(gradient_row + column),
+                                   wasm_f64x2_mul(weighted_f64x2, wasm_v128_load(column_distances_from + column))));
+            if (columns & 1)
+                wasm_v128_store(gradient_row + paired,
+                                wasm_f64x2_add(wasm_v128_load(gradient_row + paired),
+                                               wasm_f64x2_mul(weighted_f64x2, odd_distance_f64x2)));
         }
     }
-
-    // Output rotation matrix and scale=1.0
-    if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
-
-    if (scale) *scale = 1.0;
-
-    nk_f64_t const centroid_a[3] = {centroid_a_x, centroid_a_y, centroid_a_z};
-    nk_f64_t const centroid_b[3] = {centroid_b_x, centroid_b_y, centroid_b_z};
-    nk_f64_t sum_squared = nk_transformed_ssd_f64_v128relaxed_(a, b, n, centroid_a, centroid_b, optimal_rotation, 1.0);
-    *result = wasm_f64x2_extract_lane(wasm_f64x2_sqrt(wasm_f64x2_splat(sum_squared * inv_points_count)), 0);
-    return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_umeyama_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
-                                                   nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                   nk_f32_t *scale, nk_f64_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (n == 0) {
-        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
-        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
-        if (rotation)
-            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
-            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
-        if (scale) *scale = 1.0f;
-        *result = 0;
-        return nk_success_k;
+/** @copydoc nk_shapes_plan_step_f64_serial_ */
+NUMKONG_INLINE void nk_shapes_plan_step_f64_v128relaxed_(nk_f64_t *plan, nk_f64_t *gradient,
+                                                         nk_f64_t const *vertex_gradient, nk_size_t cells,
+                                                         nk_f64_t keep, nk_f64_t step) {
+    v128_t const keep_f64x2 = wasm_f64x2_splat(keep), step_f64x2 = wasm_f64x2_splat(step);
+    for (nk_size_t cell = 0; cell < cells; cell += 2) {
+        wasm_v128_store(plan + cell, wasm_f64x2_mul(wasm_v128_load(plan + cell), keep_f64x2));
+        wasm_v128_store(gradient + cell,
+                        wasm_f64x2_add(wasm_f64x2_mul(keep_f64x2, wasm_v128_load(gradient + cell)),
+                                       wasm_f64x2_mul(step_f64x2, wasm_v128_load(vertex_gradient + cell))));
     }
-
-    nk_f64_t centroid_a[3], centroid_b[3], cross_covariance[9], centered_norm_squared_a;
-    nk_centered_moments_f32_v128relaxed_(a, b, n, centroid_a, centroid_b, cross_covariance, &centered_norm_squared_a);
-    if (a_centroid)
-        a_centroid[0] = (nk_f32_t)centroid_a[0], a_centroid[1] = (nk_f32_t)centroid_a[1],
-        a_centroid[2] = (nk_f32_t)centroid_a[2];
-    if (b_centroid)
-        b_centroid[0] = (nk_f32_t)centroid_b[0], b_centroid[1] = (nk_f32_t)centroid_b[1],
-        b_centroid[2] = (nk_f32_t)centroid_b[2];
-
-    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
-    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
-                                                cross_covariance[4] * cross_covariance[4] +
-                                                cross_covariance[8] * cross_covariance[8];
-    nk_f64_t covariance_offdiagonal_norm_squared =
-        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
-        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
-        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
-    nk_f64_t optimal_rotation[9];
-    nk_f64_t computed_scale;
-    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
-        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
-        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
-        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
-        optimal_rotation[8] = 1;
-        computed_scale = (cross_covariance[0] + cross_covariance[4] + cross_covariance[8]) / centered_norm_squared_a;
-    }
-    else {
-        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
-
-        optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
-        optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
-        optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
-        optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
-        optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
-        optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
-        optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
-        optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
-        optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
-
-        nk_f64_t det = nk_det3x3_f64_serial_(optimal_rotation);
-        if (det < 0) {
-            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
-            optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
-            optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
-            optimal_rotation[2] = svd_right[0] * svd_left[6] + svd_right[1] * svd_left[7] + svd_right[2] * svd_left[8];
-            optimal_rotation[3] = svd_right[3] * svd_left[0] + svd_right[4] * svd_left[1] + svd_right[5] * svd_left[2];
-            optimal_rotation[4] = svd_right[3] * svd_left[3] + svd_right[4] * svd_left[4] + svd_right[5] * svd_left[5];
-            optimal_rotation[5] = svd_right[3] * svd_left[6] + svd_right[4] * svd_left[7] + svd_right[5] * svd_left[8];
-            optimal_rotation[6] = svd_right[6] * svd_left[0] + svd_right[7] * svd_left[1] + svd_right[8] * svd_left[2];
-            optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
-            optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
-        }
-
-        nk_f64_t trace_signed_singular_values = svd_diagonal[0] + svd_diagonal[4] +
-                                                (det < 0 ? -svd_diagonal[8] : svd_diagonal[8]);
-        computed_scale = trace_signed_singular_values / centered_norm_squared_a;
-    }
-    if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = (nk_f32_t)optimal_rotation[j];
-    if (scale) *scale = (nk_f32_t)computed_scale;
-
-    nk_f64_t sum_squared = nk_transformed_ssd_f32_v128relaxed_(a, b, n, centroid_a, centroid_b, optimal_rotation,
-                                                               computed_scale);
-    *result = wasm_f64x2_extract_lane(wasm_f64x2_sqrt(wasm_f64x2_splat(sum_squared / (nk_f64_t)n)), 0);
-    return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                   nk_f64_t *a_centroid, nk_f64_t *b_centroid, nk_f64_t *rotation,
-                                                   nk_f64_t *scale, nk_f64_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (n == 0) {
-        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
-        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
-        if (rotation)
-            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
-            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
-        if (scale) *scale = 1.0;
-        *result = 0;
-        return nk_success_k;
+/** @copydoc nk_shapes_plan_score_f64_serial_ */
+NUMKONG_INLINE nk_f64_t nk_shapes_plan_score_f64_v128relaxed_(nk_f64_t const *gradient, nk_f64_t const *plan,
+                                                              nk_size_t cells, nk_f64_t *gradient_scale) {
+    nk_size_t const paired = cells & ~(nk_size_t)1;
+    v128_t score_f64x2 = wasm_f64x2_splat(0), scale_f64x2 = wasm_f64x2_splat(0);
+    for (nk_size_t cell = 0; cell != paired; cell += 2) {
+        v128_t const gradient_f64x2 = wasm_v128_load(gradient + cell);
+        score_f64x2 = wasm_f64x2_add(score_f64x2, wasm_f64x2_mul(gradient_f64x2, wasm_v128_load(plan + cell)));
+        scale_f64x2 = wasm_f64x2_relaxed_max(scale_f64x2, wasm_f64x2_abs(gradient_f64x2));
     }
-
-    v128_t const zeros_f64x2 = wasm_f64x2_splat(0);
-
-    // Single set of accumulators (1x unrolling)
-    v128_t sum_a_x_f64x2 = zeros_f64x2, sum_a_y_f64x2 = zeros_f64x2, sum_a_z_f64x2 = zeros_f64x2;
-    v128_t sum_b_x_f64x2 = zeros_f64x2, sum_b_y_f64x2 = zeros_f64x2, sum_b_z_f64x2 = zeros_f64x2;
-
-    v128_t covariance_xx_f64x2 = zeros_f64x2, covariance_xy_f64x2 = zeros_f64x2, covariance_xz_f64x2 = zeros_f64x2;
-    v128_t covariance_yx_f64x2 = zeros_f64x2, covariance_yy_f64x2 = zeros_f64x2, covariance_yz_f64x2 = zeros_f64x2;
-    v128_t covariance_zx_f64x2 = zeros_f64x2, covariance_zy_f64x2 = zeros_f64x2, covariance_zz_f64x2 = zeros_f64x2;
-    v128_t norm_squared_a_f64x2 = zeros_f64x2;
-    // The first-point shift keeps the centering correction from cancelling far from the origin.
-    v128_t const pivot_a_x_f64x2 = wasm_f64x2_splat(a[0]), pivot_a_y_f64x2 = wasm_f64x2_splat(a[1]),
-                 pivot_a_z_f64x2 = wasm_f64x2_splat(a[2]);
-    v128_t const pivot_b_x_f64x2 = wasm_f64x2_splat(b[0]), pivot_b_y_f64x2 = wasm_f64x2_splat(b[1]),
-                 pivot_b_z_f64x2 = wasm_f64x2_splat(b[2]);
-
-    nk_size_t i = 0;
-    v128_t a_x_f64x2, a_y_f64x2, a_z_f64x2, b_x_f64x2, b_y_f64x2, b_z_f64x2;
-
-    // Main loop: 2 points per iteration
-    for (; i + 2 <= n; i += 2) {
-        nk_deinterleave_f64x2_v128relaxed_(a + i * 3, &a_x_f64x2, &a_y_f64x2, &a_z_f64x2);
-        nk_deinterleave_f64x2_v128relaxed_(b + i * 3, &b_x_f64x2, &b_y_f64x2, &b_z_f64x2);
-        a_x_f64x2 = wasm_f64x2_sub(a_x_f64x2, pivot_a_x_f64x2), a_y_f64x2 = wasm_f64x2_sub(a_y_f64x2, pivot_a_y_f64x2),
-        a_z_f64x2 = wasm_f64x2_sub(a_z_f64x2, pivot_a_z_f64x2);
-        b_x_f64x2 = wasm_f64x2_sub(b_x_f64x2, pivot_b_x_f64x2), b_y_f64x2 = wasm_f64x2_sub(b_y_f64x2, pivot_b_y_f64x2),
-        b_z_f64x2 = wasm_f64x2_sub(b_z_f64x2, pivot_b_z_f64x2);
-
-        sum_a_x_f64x2 = wasm_f64x2_add(sum_a_x_f64x2, a_x_f64x2);
-        sum_a_y_f64x2 = wasm_f64x2_add(sum_a_y_f64x2, a_y_f64x2);
-        sum_a_z_f64x2 = wasm_f64x2_add(sum_a_z_f64x2, a_z_f64x2);
-        sum_b_x_f64x2 = wasm_f64x2_add(sum_b_x_f64x2, b_x_f64x2);
-        sum_b_y_f64x2 = wasm_f64x2_add(sum_b_y_f64x2, b_y_f64x2);
-        sum_b_z_f64x2 = wasm_f64x2_add(sum_b_z_f64x2, b_z_f64x2);
-
-        covariance_xx_f64x2 = wasm_f64x2_relaxed_madd(a_x_f64x2, b_x_f64x2, covariance_xx_f64x2);
-        covariance_xy_f64x2 = wasm_f64x2_relaxed_madd(a_x_f64x2, b_y_f64x2, covariance_xy_f64x2);
-        covariance_xz_f64x2 = wasm_f64x2_relaxed_madd(a_x_f64x2, b_z_f64x2, covariance_xz_f64x2);
-        covariance_yx_f64x2 = wasm_f64x2_relaxed_madd(a_y_f64x2, b_x_f64x2, covariance_yx_f64x2);
-        covariance_yy_f64x2 = wasm_f64x2_relaxed_madd(a_y_f64x2, b_y_f64x2, covariance_yy_f64x2);
-        covariance_yz_f64x2 = wasm_f64x2_relaxed_madd(a_y_f64x2, b_z_f64x2, covariance_yz_f64x2);
-        covariance_zx_f64x2 = wasm_f64x2_relaxed_madd(a_z_f64x2, b_x_f64x2, covariance_zx_f64x2);
-        covariance_zy_f64x2 = wasm_f64x2_relaxed_madd(a_z_f64x2, b_y_f64x2, covariance_zy_f64x2);
-        covariance_zz_f64x2 = wasm_f64x2_relaxed_madd(a_z_f64x2, b_z_f64x2, covariance_zz_f64x2);
-
-        norm_squared_a_f64x2 = wasm_f64x2_relaxed_madd(a_x_f64x2, a_x_f64x2, norm_squared_a_f64x2);
-        norm_squared_a_f64x2 = wasm_f64x2_relaxed_madd(a_y_f64x2, a_y_f64x2, norm_squared_a_f64x2);
-        norm_squared_a_f64x2 = wasm_f64x2_relaxed_madd(a_z_f64x2, a_z_f64x2, norm_squared_a_f64x2);
+    if (cells & 1) {
+        v128_t const gradient_f64x2 = wasm_v128_load64_zero(gradient + paired);
+        score_f64x2 = wasm_f64x2_add(score_f64x2, wasm_f64x2_mul(gradient_f64x2, wasm_v128_load64_zero(plan + paired)));
+        scale_f64x2 = wasm_f64x2_relaxed_max(scale_f64x2, wasm_f64x2_abs(gradient_f64x2));
     }
-
-    // Reduce vector accumulators.
-    nk_f64_t sum_a_x = nk_reduce_stable_f64x2_v128relaxed_(sum_a_x_f64x2), sum_a_x_compensation = 0.0;
-    nk_f64_t sum_a_y = nk_reduce_stable_f64x2_v128relaxed_(sum_a_y_f64x2), sum_a_y_compensation = 0.0;
-    nk_f64_t sum_a_z = nk_reduce_stable_f64x2_v128relaxed_(sum_a_z_f64x2), sum_a_z_compensation = 0.0;
-    nk_f64_t sum_b_x = nk_reduce_stable_f64x2_v128relaxed_(sum_b_x_f64x2), sum_b_x_compensation = 0.0;
-    nk_f64_t sum_b_y = nk_reduce_stable_f64x2_v128relaxed_(sum_b_y_f64x2), sum_b_y_compensation = 0.0;
-    nk_f64_t sum_b_z = nk_reduce_stable_f64x2_v128relaxed_(sum_b_z_f64x2), sum_b_z_compensation = 0.0;
-    nk_f64_t covariance_x_x = nk_reduce_stable_f64x2_v128relaxed_(covariance_xx_f64x2),
-             covariance_x_x_compensation = 0.0;
-    nk_f64_t covariance_x_y = nk_reduce_stable_f64x2_v128relaxed_(covariance_xy_f64x2),
-             covariance_x_y_compensation = 0.0;
-    nk_f64_t covariance_x_z = nk_reduce_stable_f64x2_v128relaxed_(covariance_xz_f64x2),
-             covariance_x_z_compensation = 0.0;
-    nk_f64_t covariance_y_x = nk_reduce_stable_f64x2_v128relaxed_(covariance_yx_f64x2),
-             covariance_y_x_compensation = 0.0;
-    nk_f64_t covariance_y_y = nk_reduce_stable_f64x2_v128relaxed_(covariance_yy_f64x2),
-             covariance_y_y_compensation = 0.0;
-    nk_f64_t covariance_y_z = nk_reduce_stable_f64x2_v128relaxed_(covariance_yz_f64x2),
-             covariance_y_z_compensation = 0.0;
-    nk_f64_t covariance_z_x = nk_reduce_stable_f64x2_v128relaxed_(covariance_zx_f64x2),
-             covariance_z_x_compensation = 0.0;
-    nk_f64_t covariance_z_y = nk_reduce_stable_f64x2_v128relaxed_(covariance_zy_f64x2),
-             covariance_z_y_compensation = 0.0;
-    nk_f64_t covariance_z_z = nk_reduce_stable_f64x2_v128relaxed_(covariance_zz_f64x2),
-             covariance_z_z_compensation = 0.0;
-    nk_f64_t norm_squared_a_sum = nk_reduce_stable_f64x2_v128relaxed_(norm_squared_a_f64x2),
-             norm_squared_a_compensation = 0.0;
-
-    // Scalar tail
-    for (; i < n; ++i) {
-        nk_f64_t ax = a[i * 3 + 0] - a[0], ay = a[i * 3 + 1] - a[1], az = a[i * 3 + 2] - a[2];
-        nk_f64_t bx = b[i * 3 + 0] - b[0], by = b[i * 3 + 1] - b[1], bz = b[i * 3 + 2] - b[2];
-        nk_accumulate_sum_f64_serial_(&sum_a_x, &sum_a_x_compensation, ax),
-            nk_accumulate_sum_f64_serial_(&sum_a_y, &sum_a_y_compensation, ay),
-            nk_accumulate_sum_f64_serial_(&sum_a_z, &sum_a_z_compensation, az);
-        nk_accumulate_sum_f64_serial_(&sum_b_x, &sum_b_x_compensation, bx),
-            nk_accumulate_sum_f64_serial_(&sum_b_y, &sum_b_y_compensation, by),
-            nk_accumulate_sum_f64_serial_(&sum_b_z, &sum_b_z_compensation, bz);
-        nk_accumulate_product_f64_serial_(&covariance_x_x, &covariance_x_x_compensation, ax, bx),
-            nk_accumulate_product_f64_serial_(&covariance_x_y, &covariance_x_y_compensation, ax, by),
-            nk_accumulate_product_f64_serial_(&covariance_x_z, &covariance_x_z_compensation, ax, bz);
-        nk_accumulate_product_f64_serial_(&covariance_y_x, &covariance_y_x_compensation, ay, bx),
-            nk_accumulate_product_f64_serial_(&covariance_y_y, &covariance_y_y_compensation, ay, by),
-            nk_accumulate_product_f64_serial_(&covariance_y_z, &covariance_y_z_compensation, ay, bz);
-        nk_accumulate_product_f64_serial_(&covariance_z_x, &covariance_z_x_compensation, az, bx),
-            nk_accumulate_product_f64_serial_(&covariance_z_y, &covariance_z_y_compensation, az, by),
-            nk_accumulate_product_f64_serial_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
-        nk_accumulate_square_f64_serial_(&norm_squared_a_sum, &norm_squared_a_compensation, ax),
-            nk_accumulate_square_f64_serial_(&norm_squared_a_sum, &norm_squared_a_compensation, ay),
-            nk_accumulate_square_f64_serial_(&norm_squared_a_sum, &norm_squared_a_compensation, az);
-    }
-
-    sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
-    sum_b_x += sum_b_x_compensation, sum_b_y += sum_b_y_compensation, sum_b_z += sum_b_z_compensation;
-    covariance_x_x += covariance_x_x_compensation, covariance_x_y += covariance_x_y_compensation,
-        covariance_x_z += covariance_x_z_compensation;
-    covariance_y_x += covariance_y_x_compensation, covariance_y_y += covariance_y_y_compensation,
-        covariance_y_z += covariance_y_z_compensation;
-    covariance_z_x += covariance_z_x_compensation, covariance_z_y += covariance_z_y_compensation,
-        covariance_z_z += covariance_z_z_compensation;
-    norm_squared_a_sum += norm_squared_a_compensation;
-
-    // Compute centroids
-    nk_f64_t inv_points_count = 1.0 / (nk_f64_t)n;
-    nk_f64_t mean_a_x = sum_a_x * inv_points_count, mean_a_y = sum_a_y * inv_points_count,
-             mean_a_z = sum_a_z * inv_points_count;
-    nk_f64_t mean_b_x = sum_b_x * inv_points_count, mean_b_y = sum_b_y * inv_points_count,
-             mean_b_z = sum_b_z * inv_points_count;
-    nk_f64_t centroid_a_x = a[0] + mean_a_x, centroid_a_y = a[1] + mean_a_y, centroid_a_z = a[2] + mean_a_z;
-    nk_f64_t centroid_b_x = b[0] + mean_b_x, centroid_b_y = b[1] + mean_b_y, centroid_b_z = b[2] + mean_b_z;
-    if (a_centroid) a_centroid[0] = centroid_a_x, a_centroid[1] = centroid_a_y, a_centroid[2] = centroid_a_z;
-    if (b_centroid) b_centroid[0] = centroid_b_x, b_centroid[1] = centroid_b_y, b_centroid[2] = centroid_b_z;
-
-    // Centered norm-squared via parallel-axis identity; clamp at zero for numeric safety.
-    nk_f64_t centered_norm_squared_a = norm_squared_a_sum -
-                                       (nk_f64_t)n * (mean_a_x * mean_a_x + mean_a_y * mean_a_y + mean_a_z * mean_a_z);
-    if (centered_norm_squared_a < 0.0) centered_norm_squared_a = 0.0;
-
-    // Apply the centering correction to the sums shifted by the first point:
-    // H_centered = H - n * mean_a * mean_bᵀ
-    covariance_x_x -= n * mean_a_x * mean_b_x;
-    covariance_x_y -= n * mean_a_x * mean_b_y;
-    covariance_x_z -= n * mean_a_x * mean_b_z;
-    covariance_y_x -= n * mean_a_y * mean_b_x;
-    covariance_y_y -= n * mean_a_y * mean_b_y;
-    covariance_y_z -= n * mean_a_y * mean_b_z;
-    covariance_z_x -= n * mean_a_z * mean_b_x;
-    covariance_z_y -= n * mean_a_z * mean_b_y;
-    covariance_z_z -= n * mean_a_z * mean_b_z;
-
-    // Compute SVD
-    nk_f64_t cross_covariance[9] = {covariance_x_x, covariance_x_y, covariance_x_z, covariance_y_x, covariance_y_y,
-                                    covariance_y_z, covariance_z_x, covariance_z_y, covariance_z_z};
-
-    // Identity-dominant short-circuit: if H ≈ diag(positive), R = I and trace(R · H) = trace(H).
-    nk_f64_t covariance_diagonal_norm_squared = cross_covariance[0] * cross_covariance[0] +
-                                                cross_covariance[4] * cross_covariance[4] +
-                                                cross_covariance[8] * cross_covariance[8];
-    nk_f64_t covariance_offdiagonal_norm_squared =
-        cross_covariance[1] * cross_covariance[1] + cross_covariance[2] * cross_covariance[2] +
-        cross_covariance[3] * cross_covariance[3] + cross_covariance[5] * cross_covariance[5] +
-        cross_covariance[6] * cross_covariance[6] + cross_covariance[7] * cross_covariance[7];
-    nk_f64_t optimal_rotation[9];
-    nk_f64_t computed_scale;
-    if (covariance_offdiagonal_norm_squared < 1e-20 * covariance_diagonal_norm_squared && cross_covariance[0] > 0.0 &&
-        cross_covariance[4] > 0.0 && cross_covariance[8] > 0.0) {
-        optimal_rotation[0] = 1, optimal_rotation[1] = 0, optimal_rotation[2] = 0, optimal_rotation[3] = 0,
-        optimal_rotation[4] = 1, optimal_rotation[5] = 0, optimal_rotation[6] = 0, optimal_rotation[7] = 0,
-        optimal_rotation[8] = 1;
-        computed_scale = (cross_covariance[0] + cross_covariance[4] + cross_covariance[8]) / centered_norm_squared_a;
-    }
-    else {
-        nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
-        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
-
-        // Handle reflection and compute scale
-        nk_f64_t det = nk_det3x3_f64_serial_(optimal_rotation);
-        nk_f64_t trace_d_s = svd_diagonal[0] + svd_diagonal[4] + (det < 0 ? -svd_diagonal[8] : svd_diagonal[8]);
-        computed_scale = trace_d_s / centered_norm_squared_a;
-
-        if (det < 0) {
-            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
-            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
-        }
-    }
-
-    if (rotation)
-        for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
-    if (scale) *scale = computed_scale;
-
-    nk_f64_t const centroid_a[3] = {centroid_a_x, centroid_a_y, centroid_a_z};
-    nk_f64_t const centroid_b[3] = {centroid_b_x, centroid_b_y, centroid_b_z};
-    nk_f64_t sum_squared = nk_transformed_ssd_f64_v128relaxed_(a, b, n, centroid_a, centroid_b, optimal_rotation,
-                                                               computed_scale);
-    *result = wasm_f64x2_extract_lane(wasm_f64x2_sqrt(wasm_f64x2_splat(sum_squared * inv_points_count)), 0);
-    return nk_success_k;
+    nk_f64_t const scale_low = wasm_f64x2_extract_lane(scale_f64x2, 0);
+    nk_f64_t const scale_high = wasm_f64x2_extract_lane(scale_f64x2, 1);
+    *gradient_scale = scale_low > scale_high ? scale_low : scale_high;
+    return wasm_f64x2_extract_lane(score_f64x2, 0) + wasm_f64x2_extract_lane(score_f64x2, 1);
 }
+
+nk_define_shapes_network_simplex_(f32, v128relaxed, nk_shapes_point_cost_f32_v128relaxed_,
+                                  nk_shapes_price_block_f32_v128relaxed_)
+nk_define_shapes_network_simplex_(f64, v128relaxed, nk_shapes_point_cost_f64_v128relaxed_,
+                                  nk_shapes_price_block_f64_v128relaxed_)
+nk_define_shapes_wasserstein_procrustes_(f32, v128relaxed, NUMKONG_F32_INF)
+nk_define_shapes_wasserstein_procrustes_(f64, v128relaxed, NUMKONG_F64_INF)
+nk_define_shapes_gromov_wasserstein_(f32, v128relaxed, nk_shapes_distance_gradient_f64_v128relaxed_,
+                                     nk_shapes_plan_step_f64_v128relaxed_, nk_shapes_plan_score_f64_v128relaxed_)
+nk_define_shapes_gromov_wasserstein_(f64, v128relaxed, nk_shapes_distance_gradient_f64_v128relaxed_,
+                                     nk_shapes_plan_step_f64_v128relaxed_, nk_shapes_plan_score_f64_v128relaxed_)
+
+nk_define_shapes_flip_kernels_(f16, f32, v128relaxed, nk_shapes_nearest_f16_v128relaxed_, NUMKONG_F32_INF)
+nk_define_shapes_flip_kernels_(f32, f64, v128relaxed, nk_shapes_nearest_f32_v128relaxed_, NUMKONG_F64_INF)
+nk_define_shapes_transport_kernels_(f16, f32, v128relaxed, nk_sqrt_f32_serial_, NUMKONG_F32_INF)
+nk_define_shapes_transport_kernels_(f32, f64, v128relaxed, nk_sqrt_f64_serial_, NUMKONG_F64_INF)
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -956,4 +496,4 @@ NUMKONG_API nk_status_t nk_umeyama_f64_v128relaxed(nk_f64_t const *a, nk_f64_t c
 
 #endif // NUMKONG_TARGET_V128RELAXED
 #endif // NUMKONG_ARCH_WASM_
-#endif // NUMKONG_MESH_V128RELAXED_H
+#endif // NUMKONG_MESHES_V128RELAXED_H

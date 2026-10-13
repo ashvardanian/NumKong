@@ -29,9 +29,6 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     case nk_kernel_vincenty_k: return nk_geospatial_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_kld_k:
     case nk_kernel_jsd_k: return nk_probability_find_kernel(kind, dtype, capabilities, kernel, capability);
-    case nk_kernel_rmsd_k:
-    case nk_kernel_kabsch_k:
-    case nk_kernel_umeyama_k: return nk_mesh_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_sparse_dot_k:
     case nk_kernel_sparse_intersect_k: return nk_sparse_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_each_scale_k:
@@ -64,6 +61,16 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     case nk_kernel_maxsim_pack_k:
     case nk_kernel_maxsim_packed_k:
     case nk_kernel_maxsim_packed_shape_k: return nk_maxsim_find_kernel(kind, dtype, capabilities, kernel, capability);
+    case nk_kernel_shapes_pack_size_k:
+    case nk_kernel_shapes_pack_k:
+    case nk_kernel_shapes_pack_normalized_k:
+    case nk_kernel_shapes_chamfers_packed_k:
+    case nk_kernel_shapes_hausdorffs_packed_k:
+    case nk_kernel_shapes_wassersteinprocrustes_workspace_size_k:
+    case nk_kernel_shapes_wassersteinprocrustes_packed_k:
+    case nk_kernel_shapes_gromovwassersteins_workspace_size_k:
+    case nk_kernel_shapes_gromovwassersteins_packed_k:
+        return nk_shapes_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_attention_pack_size_k:
     case nk_kernel_attention_pack_k:
     case nk_kernel_attention_packed_k:

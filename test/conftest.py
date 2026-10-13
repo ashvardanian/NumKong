@@ -36,7 +36,7 @@ def pytest_report_header() -> list[str]:
         f"- Dims depth: {','.join(map(str, SETTINGS.dims_depth))}",
         f"- Curved dims: {','.join(map(str, SETTINGS.curved_dims))}",
         f"- Sparse dims: {','.join(map(str, SETTINGS.sparse_dims))}",
-        f"- Mesh points: {SETTINGS.mesh_points}",
+        f"- Shape points: {SETTINGS.shape_points}",
         f"- Max coord angle: {SETTINGS.max_coord_angle_degrees:g}",
         f"- Expect SIMD: {str(SETTINGS.expect_simd).lower()}",
     ]
