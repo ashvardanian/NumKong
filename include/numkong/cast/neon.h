@@ -1204,12 +1204,12 @@ NUMKONG_INLINE void nk_cast_elementwise_neon_(void const *from, nk_dtype_t from_
         switch (to_type) {
         case nk_e2m1_k: nk_store_u32x4_as_u4_neon_(to_ptr, nk_f32x4_to_e2m1x4_neon_(hub_vec.f32x4)); break;
         case nk_i4_k:
-            nk_store_u32x4_as_u4_neon_(to_ptr, vreinterpretq_u32_s32(vcvtq_s32_f32(vmaxq_f32(
+            nk_store_u32x4_as_u4_neon_(to_ptr, vreinterpretq_u32_s32(vcvtnq_s32_f32(vmaxq_f32(
                                                    vdupq_n_f32(-8), vminq_f32(vdupq_n_f32(7), hub_vec.f32x4)))));
             break;
         case nk_u4_k:
             nk_store_u32x4_as_u4_neon_(
-                to_ptr, vcvtq_u32_f32(vmaxq_f32(vdupq_n_f32(0), vminq_f32(vdupq_n_f32(15), hub_vec.f32x4))));
+                to_ptr, vcvtnq_u32_f32(vmaxq_f32(vdupq_n_f32(0), vminq_f32(vdupq_n_f32(15), hub_vec.f32x4))));
             break;
         case nk_f32_k: nk_store_f32x4_as_f32_neon_((nk_f32_t *)to_ptr, hub_vec.f32x4); break;
         case nk_f16_k: nk_store_f32x4_as_f16_neon_((nk_f16_t *)to_ptr, hub_vec.f32x4); break;

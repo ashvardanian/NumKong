@@ -1984,22 +1984,24 @@ NUMKONG_INLINE void nk_scalar_buffers_from_f64c_serial_(    //
     case nk_i4_k: {
         nk_u8_t *p = (nk_u8_t *)to_ptr;
         for (i = 0; i < to_count / NUMKONG_NIBBLES_PER_BYTE; ++i) {
-            nk_f64_t high = from_buffers[i * 2].f64c.real;
-            nk_f64_t low = (i * 2 + 1 < to_count) ? from_buffers[i * 2 + 1].f64c.real : 0.0;
+            nk_f64_t high = from_buffers[i * 2].f64c.real, low = from_buffers[i * 2 + 1].f64c.real;
+            nk_i8_t high_code, low_code;
             high = high > 7 ? 7 : (high < -8 ? -8 : high);
             low = low > 7 ? 7 : (low < -8 ? -8 : low);
-            p[i] = (nk_u8_t)((((nk_i8_t)high & 0x0F) << 4) | ((nk_i8_t)low & 0x0F));
+            nk_f64_to_i8_serial_(&high, &high_code), nk_f64_to_i8_serial_(&low, &low_code);
+            p[i] = (nk_u8_t)(((high_code & 0x0F) << 4) | (low_code & 0x0F));
         }
     } break;
     // Sub-byte: u4 - 8 nibbles to 4 bytes, high nibble = even index
     case nk_u4_k: {
         nk_u8_t *p = (nk_u8_t *)to_ptr;
         for (i = 0; i < to_count / NUMKONG_NIBBLES_PER_BYTE; ++i) {
-            nk_f64_t high = from_buffers[i * 2].f64c.real;
-            nk_f64_t low = (i * 2 + 1 < to_count) ? from_buffers[i * 2 + 1].f64c.real : 0.0;
+            nk_f64_t high = from_buffers[i * 2].f64c.real, low = from_buffers[i * 2 + 1].f64c.real;
+            nk_u8_t high_code, low_code;
             high = high > 15 ? 15 : (high < 0 ? 0 : high);
             low = low > 15 ? 15 : (low < 0 ? 0 : low);
-            p[i] = (nk_u8_t)(((nk_u8_t)high << 4) | (nk_u8_t)low);
+            nk_f64_to_u8_serial_(&high, &high_code), nk_f64_to_u8_serial_(&low, &low_code);
+            p[i] = (nk_u8_t)((high_code << 4) | low_code);
         }
     } break;
     // Sub-byte: e2m1 - 8 nibbles to 4 bytes, high nibble = even index

@@ -119,6 +119,23 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
             stats.accumulate(target_bytes[i], reference_bytes[i]);
     };
 
+    // Halves pin the rounding of packed integers: ties to even, saturation, and NaN to zero
+    if constexpr (from_type_::dtype() == nk_f32_k && (to_type_::dtype() == nk_i4_k || to_type_::dtype() == nk_u4_k))
+        if (dimensions >= 16) {
+            constexpr nk_f32_t halves[16] = {
+                0.5f,  1.5f, 2.5f, 3.5f,  -0.5f, -1.5f, -2.5f,  0.9f,
+                -0.9f, 6.5f, 7.5f, -7.5f, -8.5f, 20.0f, -20.0f, std::numeric_limits<nk_f32_t>::quiet_NaN()};
+            constexpr int signed_codes[16] = {0, 2, 2, 4, 0, -2, -2, 1, -1, 6, 7, -8, -8, 7, -8, 0};
+            constexpr int unsigned_codes[16] = {0, 2, 2, 4, 0, 0, 0, 1, 0, 6, 8, 0, 0, 15, 0, 0};
+            for (std::size_t i = 0; i != 16; ++i) source.elements[i].raw_ = halves[i];
+            backend.call(kernel, static_cast<void const *>(source_operand), from_type_::dtype(), target_operand,
+                         to_type_::dtype(), nk_size_t(16));
+            if (!stats.expect(backend.synchronize())) return stats;
+            for (std::size_t i = 0; i != 16; ++i)
+                stats.accumulate(int(read_element_(target.elements, i)),
+                                 to_type_::dtype() == nk_i4_k ? signed_codes[i] : unsigned_codes[i]);
+        }
+
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         if constexpr (source_t::scaled) {
             fill_random(settings, generator, source_floats);

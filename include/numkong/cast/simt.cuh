@@ -407,14 +407,13 @@ NUMKONG_DEVICE void nk_cast_store_f32c_simt_(nk_f32c_t const *value, unsigned ch
 }
 
 /** The code of @p value in a packed @p dtype, as the serial F64 hub packs a value F32 holds
- *  exactly: integers truncated after clamping, bits set by any nonzero value. */
+ *  exactly: integers clamped and rounded to nearest even, bits set by any nonzero value. */
 NUMKONG_DEVICE nk_u32_t nk_cast_code_f32c_simt_(nk_f32c_t const *value, nk_dtype_t dtype) {
     nk_f32_t const real = value->real;
     nk_u8_t code = 0;
     switch (dtype) {
-    case nk_i4_k:
-        return real != real ? 0u : (nk_u32_t)(nk_i32_t)(real > 7.0f ? 7.0f : real < -8.0f ? -8.0f : real) & 0x0Fu;
-    case nk_u4_k: return real != real ? 0u : (nk_u32_t)(real > 15.0f ? 15.0f : real < 0.0f ? 0.0f : real);
+    case nk_i4_k: return (nk_u32_t)nk_cast_f32_rint_simt_(real, -8.0f, 7.0f) & 0x0Fu;
+    case nk_u4_k: return (nk_u32_t)nk_cast_f32_rint_simt_(real, 0.0f, 15.0f);
     case nk_u1_k: return real != 0.0f;
     case nk_e2m1_k: nk_f32_to_e2m1_nibble_serial_(real, &code); return code;
     default: return 0;
@@ -477,8 +476,9 @@ NUMKONG_DEVICE nk_u32_t nk_cast_code_f64c_simt_(nk_f64c_t const *value, nk_dtype
     nk_f64_t const real = value->real;
     nk_f32c_t narrow;
     switch (dtype) {
-    case nk_i4_k: return real != real ? 0u : (nk_u32_t)(nk_i32_t)(real > 7.0 ? 7.0 : real < -8.0 ? -8.0 : real) & 0x0Fu;
-    case nk_u4_k: return real != real ? 0u : (nk_u32_t)(real > 15.0 ? 15.0 : real < 0.0 ? 0.0 : real);
+    case nk_i4_k:
+        return real != real ? 0u : (nk_u32_t)__double2int_rn(real > 7.0 ? 7.0 : real < -8.0 ? -8.0 : real) & 0x0Fu;
+    case nk_u4_k: return real != real ? 0u : __double2uint_rn(real > 15.0 ? 15.0 : real < 0.0 ? 0.0 : real);
     case nk_u1_k: return real != 0.0;
     default:
         nk_f64_to_f32_simt_(&value->real, &narrow.real), narrow.imag = 0;

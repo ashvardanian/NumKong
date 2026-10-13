@@ -36,6 +36,8 @@ void test_casts(error_stats_section_t &check) {
     check("cast_i8_to_f64_serial", test_cast<i8_t, f64_t>, nk_cast_serial);
     check("cast_i8_to_i32_serial", test_cast<i8_t, i32_t>, nk_cast_serial);
     check("cast_u8_to_f32_serial", test_cast<u8_t, f32_t>, nk_cast_serial);
+    check("cast_f32_to_i4_serial", test_cast<f32_t, i4x2_t>, nk_cast_serial);
+    check("cast_f32_to_u4_serial", test_cast<f32_t, u4x2_t>, nk_cast_serial);
     check("cast_block_scaled_serial", test_cast_block_scaled<>, nk_cast_serial);
 
 #if !NUMKONG_HEADER_ONLY
@@ -197,6 +199,8 @@ void test_casts(error_stats_section_t &check) {
     check("cast_e5m2_to_f32_neon", test_cast<e5m2_t, f32_t>, nk_cast_neon);
     check("cast_e5m2_to_f16_neon", test_cast<e5m2_t, f16_t>, nk_cast_neon);
     check("cast_f32_to_e5m2_neon", test_cast<f32_t, e5m2_t>, nk_cast_neon);
+    check("cast_f32_to_i4_neon", test_cast<f32_t, i4x2_t>, nk_cast_neon);
+    check("cast_f32_to_u4_neon", test_cast<f32_t, u4x2_t>, nk_cast_neon);
     check("cast_block_scaled_neon", test_cast_block_scaled<>, nk_cast_neon);
 #endif // NUMKONG_TARGET_NEON
 

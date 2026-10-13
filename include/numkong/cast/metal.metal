@@ -174,16 +174,6 @@ inline ulong nk_f64_to_integer_metal_(ulong bits, ulong2 limits) {
     return nk_cast_saturate_metal_(magnitude, bits >> 63, limits);
 }
 
-/** The magnitude of the F64 of @p bits rounded toward zero, at most 16, and NaN to zero. */
-inline uint nk_f64_truncated_nibble_metal_(ulong bits) {
-    uint const exponent = uint(bits >> 52) & 0x7FFu;
-    ulong const mantissa = bits & 0xFFFFFFFFFFFFFul;
-    if (exponent == 0x7FF && mantissa) return 0;
-    if (exponent < 1023) return 0;
-    if (exponent >= 1023 + 4) return 16;
-    return uint((mantissa | (1ul << 52)) >> (1023 + 52 - exponent));
-}
-
 /** Widens one F16 code to F32 bits, exactly, keeping NaN payloads. */
 inline uint nk_f32_from_f16_metal_(uint code) {
     uint const sign = (code & 0x8000u) << 16, exponent = (code >> 10) & 0x1Fu, mantissa = code & 0x3FFu;
@@ -503,13 +493,11 @@ inline void nk_cast_store_f64c_metal_(ulong2 value, device uchar *bytes, uint dt
 }
 
 /** The code of the F64 of @p bits in a packed @p dtype, like the serial F64 hub packs it: I4 and
- *  U4 clamped and rounded toward zero, U1 for any nonzero, and E2M1 through F32. */
+ *  U4 saturated and rounded to nearest even, U1 for any nonzero, and E2M1 through F32. */
 inline uint nk_cast_code_f64_metal_(ulong bits, uint dtype) {
-    bool const negative = bits >> 63;
-    uint const truncated = nk_f64_truncated_nibble_metal_(bits);
     switch (dtype) {
-    case nk_i4_k: return negative ? (0u - min(truncated, 8u)) & 0xFu : min(truncated, 7u);
-    case nk_u4_k: return negative ? 0 : min(truncated, 15u);
+    case nk_i4_k: return uint(nk_f64_to_integer_metal_(bits, ulong2(8, 7))) & 0xFu;
+    case nk_u4_k: return uint(nk_f64_to_integer_metal_(bits, ulong2(0, 15)));
     case nk_u1_k: return (bits << 1) != 0;
     default: return nk_f32_to_e2m1_metal_(nk_f32_from_f64_metal_(bits));
     }
