@@ -20,7 +20,6 @@ void test_each_metal(error_stats_section_t &check) {
     check("each_swiglu_f16_metal", test_swiglu<f16_t, metal_backend_t>, nk_each_swiglu_f16_metal);
     check("each_swiglu_bf16_metal", test_swiglu<bf16_t, metal_backend_t>, nk_each_swiglu_bf16_metal);
     check("each_swiglu_e4m3_metal", test_swiglu<e4m3_t, metal_backend_t>, nk_each_swiglu_e4m3_metal);
-    check("each_rmsnorm_f32_metal", test_rmsnorm<f32_t, metal_backend_t>, nk_each_rmsnorm_f32_metal);
     check("each_rmsnorm_f16_metal", test_rmsnorm<f16_t, metal_backend_t>, nk_each_rmsnorm_f16_metal);
     check("each_rmsnorm_bf16_metal", test_rmsnorm<bf16_t, metal_backend_t>, nk_each_rmsnorm_bf16_metal);
     check("each_rmsnorm_e4m3_metal", test_rmsnorm<e4m3_t, metal_backend_t>, nk_each_rmsnorm_e4m3_metal);

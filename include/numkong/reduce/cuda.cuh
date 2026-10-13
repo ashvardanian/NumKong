@@ -56,134 +56,27 @@ NUMKONG_INLINE nk_status_t nk_reduce_minmax_launch_cuda_(void const *kernel, voi
     return status == nk_success_k ? nk_launch_cuda_(finish_kernel, 1, 1, launch_arguments, 0, stream) : status;
 }
 
-/** Sums F64 values and their squares with Neumaier compensation, like the serial kernel. Misaligned
- *  values run in order on one thread, as the CPU tiers fall back to the serial loop for them, so a
- *  sum overflowing midway overflows at the same step. */
-NUMKONG_DEVICE void nk_reduce_f64_moments_cuda_(nk_dtype_t dtype, nk_reduce_arguments_t const *arguments) {
-    nk_size_t const lane = nk_reduce_lane_simt_();
-    nk_size_t const first = arguments->aligned ? lane : lane ? arguments->count : 0;
-    nk_size_t const step = arguments->aligned ? nk_reduce_lanes_simt_() : 1;
-    nk_reduce_f64_moments_t state;
-    state.sum = 0, state.sum_compensation = 0, state.sumsq = 0, state.sumsq_compensation = 0;
-    for (nk_size_t batch = first; batch < arguments->count; batch += step * nk_reduce_batch_simt_k) {
-        nk_u64_t raws[nk_reduce_batch_simt_k];
-        nk_reduce_batch_simt_(dtype, arguments, batch, step, arguments->count, raws);
-#pragma unroll
-        for (unsigned slot = 0; slot != nk_reduce_batch_simt_k; ++slot) {
-            if (batch + slot * step >= arguments->count) break;
-            nk_f64_t const value = __longlong_as_double((long long)raws[slot]);
-            nk_reduce_neumaier_f64_simt_(&state.sum, &state.sum_compensation, value);
-            nk_reduce_neumaier_f64_simt_(&state.sumsq, &state.sumsq_compensation, nk_f64_mul_rn_cuda_(value, value));
-        }
-    }
-    nk_reduce_f64_moments_merge_simt_(&state);
-    if (threadIdx.x) return;
-    atomicAdd((nk_f64_t *)arguments->first, state.sum + state.sum_compensation);
-    atomicAdd((nk_f64_t *)arguments->second, state.sumsq + state.sumsq_compensation);
-}
-
-/** Sums the narrow float @p dtype values and their squares in F32 with Neumaier compensation, their
- *  squares exact in F32. */
-NUMKONG_DEVICE void nk_reduce_f32_moments_cuda_(nk_dtype_t dtype, nk_reduce_arguments_t const *arguments) {
-    __shared__ nk_reduce_f32_moments_t states[nk_reduce_threads_simt_k];
-    nk_reduce_f32_moments_t state;
-    state.sum = 0, state.sum_compensation = 0, state.sumsq = 0, state.sumsq_compensation = 0;
-    for (nk_size_t first = nk_reduce_lane_simt_(); first < arguments->count;
-         first += nk_reduce_lanes_simt_() * nk_reduce_batch_simt_k) {
-        nk_u64_t raws[nk_reduce_batch_simt_k];
-        nk_reduce_batch_simt_(dtype, arguments, first, nk_reduce_lanes_simt_(), arguments->count, raws);
-#pragma unroll
-        for (unsigned slot = 0; slot != nk_reduce_batch_simt_k; ++slot) {
-            if (first + slot * nk_reduce_lanes_simt_() >= arguments->count) break;
-            nk_f32_t const value = nk_reduce_f32_simt_(dtype, raws[slot]);
-            nk_f32_two_sum_simt_(value, &state.sum, &state.sum_compensation);
-            nk_f32_two_sum_simt_(nk_f32_mul_rn_cuda_(value, value), &state.sumsq, &state.sumsq_compensation);
-        }
-    }
-    states[threadIdx.x] = state;
-    __syncthreads();
-    for (unsigned half = blockDim.x / 2; half; half >>= 1) {
-        if (threadIdx.x < half) {
-            nk_reduce_f32_moments_t *into = &states[threadIdx.x];
-            nk_reduce_f32_moments_t const *other = &states[threadIdx.x + half];
-            nk_f32_two_sum_simt_(other->sum, &into->sum, &into->sum_compensation);
-            nk_f32_two_sum_simt_(other->sumsq, &into->sumsq, &into->sumsq_compensation);
-            into->sum_compensation += other->sum_compensation, into->sumsq_compensation += other->sumsq_compensation;
-        }
-        __syncthreads();
-    }
-    if (threadIdx.x) return;
-    atomicAdd((nk_f32_t *)arguments->first, states[0].sum + states[0].sum_compensation);
-    atomicAdd((nk_f32_t *)arguments->second, states[0].sumsq + states[0].sumsq_compensation);
-}
-
-/** Sums F32 or BF16 values and their squares into F64 totals, mostly without F64 arithmetic: values
- *  F32 can square exactly sum as unevaluated F32 pairs, their squares split exactly by an FMA, and
- *  the rest take a second walk of the thread's values in F64. */
-NUMKONG_DEVICE void nk_reduce_pairs_moments_cuda_(nk_dtype_t dtype, nk_reduce_arguments_t const *arguments) {
-    nk_f32_t sum_high = 0, sum_low = 0, sumsq_high = 0, sumsq_low = 0;
-    nk_reduce_f64_moments_t state;
-    int rest = 0;
-    state.sum = 0, state.sum_compensation = 0, state.sumsq = 0, state.sumsq_compensation = 0;
-    for (nk_size_t first = nk_reduce_lane_simt_(); first < arguments->count;
-         first += nk_reduce_lanes_simt_() * nk_reduce_batch_simt_k) {
-        nk_u64_t raws[nk_reduce_batch_simt_k];
-        nk_reduce_batch_simt_(dtype, arguments, first, nk_reduce_lanes_simt_(), arguments->count, raws);
-#pragma unroll
-        for (unsigned slot = 0; slot != nk_reduce_batch_simt_k; ++slot) {
-            if (first + slot * nk_reduce_lanes_simt_() >= arguments->count) break;
-            nk_f32_t const value = nk_reduce_f32_simt_(dtype, raws[slot]);
-            nk_f32_t const square = nk_f32_mul_rn_cuda_(value, value);
-            if (!nk_reduce_pairs_hold_simt_(value)) {
-                rest = 1;
-                continue;
-            }
-            nk_reduce_two_sum_f32_simt_(&sum_high, &sum_low, value);
-            nk_reduce_two_sum_f32_simt_(&sumsq_high, &sumsq_low, square);
-            sumsq_low += __fmaf_rn(value, value, -square);
-        }
-    }
-    if (rest)
-        for (nk_size_t index = nk_reduce_lane_simt_(); index < arguments->count; index += nk_reduce_lanes_simt_()) {
-            nk_f64_t const value = nk_reduce_f32_simt_(dtype, nk_reduce_raw_simt_(dtype, arguments, index));
-            if (nk_reduce_pairs_hold_simt_((nk_f32_t)value)) continue;
-            state.sum += value, state.sumsq += nk_f64_mul_rn_cuda_(value, value);
-        }
-    nk_reduce_neumaier_f64_simt_(&state.sum, &state.sum_compensation, sum_high);
-    nk_reduce_neumaier_f64_simt_(&state.sum, &state.sum_compensation, sum_low);
-    nk_reduce_neumaier_f64_simt_(&state.sumsq, &state.sumsq_compensation, sumsq_high);
-    nk_reduce_neumaier_f64_simt_(&state.sumsq, &state.sumsq_compensation, sumsq_low);
-    nk_reduce_f64_moments_merge_simt_(&state);
-    if (threadIdx.x) return;
-    nk_f64_t const sum = state.sum + state.sum_compensation, sumsq = state.sumsq + state.sumsq_compensation;
-    if (dtype == nk_f32_k)
-        atomicAdd((nk_f64_t *)arguments->first, sum), atomicAdd((nk_f64_t *)arguments->second, sumsq);
-    else
-        atomicAdd((nk_f32_t *)arguments->first, (nk_f32_t)sum),
-            atomicAdd((nk_f32_t *)arguments->second, (nk_f32_t)sumsq);
-}
-
 #if NUMKONG_TARGET_CUDA
-nk_define_reduce_moments_simt_(f64, f64, nk_reduce_f64_moments_cuda_, f64, f64, cuda, cuda)
-nk_define_reduce_moments_simt_(f32, f32, nk_reduce_pairs_moments_cuda_, f64, f64, cuda, cuda)
-nk_define_reduce_moments_simt_(f16, f16, nk_reduce_f32_moments_cuda_, f32, f32, cuda, cuda)
-nk_define_reduce_moments_simt_(bf16, bf16, nk_reduce_pairs_moments_cuda_, f32, f32, cuda, cuda)
-nk_define_reduce_moments_simt_(e4m3, e4m3, nk_reduce_f32_moments_cuda_, f32, f32, cuda, cuda)
-nk_define_reduce_moments_simt_(e5m2, e5m2, nk_reduce_f32_moments_cuda_, f32, f32, cuda, cuda)
-nk_define_reduce_moments_simt_(e2m3, e2m3, nk_reduce_f32_moments_cuda_, f32, f32, cuda, cuda)
-nk_define_reduce_moments_simt_(e3m2, e3m2, nk_reduce_f32_moments_cuda_, f32, f32, cuda, cuda)
-nk_define_reduce_moments_simt_(e2m1, e2m1x2, nk_reduce_integer_moments_simt_, f32, f32, cuda, cuda)
-nk_define_reduce_moments_simt_(i8, i8, nk_reduce_integer_moments_simt_, i64, u64, cuda, cuda)
-nk_define_reduce_moments_simt_(u8, u8, nk_reduce_integer_moments_simt_, u64, u64, cuda, cuda)
-nk_define_reduce_moments_simt_(i16, i16, nk_reduce_integer_moments_simt_, i64, u64, cuda, cuda)
-nk_define_reduce_moments_simt_(u16, u16, nk_reduce_integer_moments_simt_, u64, u64, cuda, cuda)
-nk_define_reduce_moments_simt_(i32, i32, nk_reduce_integer_moments_simt_, i64, u64, cuda, cuda)
-nk_define_reduce_moments_simt_(u32, u32, nk_reduce_integer_moments_simt_, u64, u64, cuda, cuda)
-nk_define_reduce_moments_simt_(i64, i64, nk_reduce_integer_moments_simt_, i64, u64, cuda, cuda)
-nk_define_reduce_moments_simt_(u64, u64, nk_reduce_integer_moments_simt_, u64, u64, cuda, cuda)
-nk_define_reduce_moments_simt_(i4, i4x2, nk_reduce_integer_moments_simt_, i64, u64, cuda, cuda)
-nk_define_reduce_moments_simt_(u4, u4x2, nk_reduce_integer_moments_simt_, u64, u64, cuda, cuda)
-nk_define_reduce_moments_simt_(u1, u1x8, nk_reduce_integer_moments_simt_, u64, u64, cuda, cuda)
+nk_define_reduce_moments_simt_(f64, f64, 1, compensated, f64, f64, cuda, cuda, nk_assign_from_to_)
+nk_define_reduce_moments_simt_(f32, f32, 1, f64, f64, f64, cuda, cuda, nk_assign_from_to_)
+nk_define_reduce_moments_simt_(f16, f16, 1, f32, f32, f32, cuda, cuda, nk_f16_to_f32_simt_)
+nk_define_reduce_moments_simt_(bf16, bf16, 1, f32, f32, f32, cuda, cuda, nk_bf16_to_f32_simt_)
+nk_define_reduce_moments_simt_(e4m3, e4m3, 1, f32, f32, f32, cuda, cuda, nk_e4m3_to_f32_simt_)
+nk_define_reduce_moments_simt_(e5m2, e5m2, 1, f32, f32, f32, cuda, cuda, nk_e5m2_to_f32_simt_)
+nk_define_reduce_moments_simt_(e2m3, e2m3, 1, f32, f32, f32, cuda, cuda, nk_e2m3_to_f32_simt_)
+nk_define_reduce_moments_simt_(e3m2, e3m2, 1, f32, f32, f32, cuda, cuda, nk_e3m2_to_f32_simt_)
+nk_define_reduce_moments_simt_(e2m1, e2m1x2, 2, e2m1, f32, f32, cuda, cuda, nk_e2m1x2_to_f32x2_simt_)
+nk_define_reduce_moments_simt_(i8, i8, 1, i64, i64, u64, cuda, cuda, nk_assign_from_to_)
+nk_define_reduce_moments_simt_(u8, u8, 1, u64, u64, u64, cuda, cuda, nk_assign_from_to_)
+nk_define_reduce_moments_simt_(i16, i16, 1, i64, i64, u64, cuda, cuda, nk_assign_from_to_)
+nk_define_reduce_moments_simt_(u16, u16, 1, u64, u64, u64, cuda, cuda, nk_assign_from_to_)
+nk_define_reduce_moments_simt_(i32, i32, 1, i64, i64, u64, cuda, cuda, nk_assign_from_to_)
+nk_define_reduce_moments_simt_(u32, u32, 1, u64, u64, u64, cuda, cuda, nk_assign_from_to_)
+nk_define_reduce_moments_simt_(i64, i64, 1, i64, i64, u64, cuda, cuda, nk_assign_from_to_)
+nk_define_reduce_moments_simt_(u64, u64, 1, u64, u64, u64, cuda, cuda, nk_assign_from_to_)
+nk_define_reduce_moments_simt_(i4, i4x2, 2, i64, i64, u64, cuda, cuda, nk_i4x2_to_i64x2_simt_)
+nk_define_reduce_moments_simt_(u4, u4x2, 2, u64, u64, u64, cuda, cuda, nk_u4x2_to_u64x2_simt_)
+nk_define_reduce_moments_simt_(u1, u1x8, 8, u64, u64, u64, cuda, cuda, nk_u1x8_to_u64x8_simt_)
 nk_define_reduce_minmax_simt_(f64, f64, f64, 0x7FF0000000000000ull, 0xFFF0000000000000ull, cuda, cuda)
 nk_define_reduce_minmax_simt_(f32, f32, f32, 0x7F800000u, 0xFF800000u, cuda, cuda)
 nk_define_reduce_minmax_simt_(f16, f16, f16, 0x7BFFu, 0xFBFFu, cuda, cuda)

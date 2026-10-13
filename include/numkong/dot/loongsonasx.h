@@ -199,13 +199,11 @@ NUMKONG_API nk_status_t nk_dot_i8_loongsonasx(nk_i8_t const *a_scalars, nk_i8_t 
     for (; index_scalars + 32 <= count_scalars; index_scalars += 32) {
         __m256i a_i8x32 = __lasx_xvld(a_scalars + index_scalars, 0);
         __m256i b_i8x32 = __lasx_xvld(b_scalars + index_scalars, 0);
-        // Widening multiply i8 × i8 → i16 (even and odd elements separately)
-        __m256i accumulator_i16x16 = __lasx_xvreplgr2vr_h(0);
-        accumulator_i16x16 = __lasx_xvmaddwev_h_b(accumulator_i16x16, a_i8x32, b_i8x32);
-        accumulator_i16x16 = __lasx_xvmaddwod_h_b(accumulator_i16x16, a_i8x32, b_i8x32);
-        // Horizontal pairwise i16 → i32, then accumulate
-        __m256i widened_i32x8 = __lasx_xvhaddw_w_h(accumulator_i16x16, accumulator_i16x16);
-        sum_i32x8 = __lasx_xvadd_w(sum_i32x8, widened_i32x8);
+        // Products widen to i32 before pairing, as two −128 × −128 products overflow i16
+        __m256i products_even_i16x16 = __lasx_xvmulwev_h_b(a_i8x32, b_i8x32);
+        __m256i products_odd_i16x16 = __lasx_xvmulwod_h_b(a_i8x32, b_i8x32);
+        sum_i32x8 = __lasx_xvadd_w(sum_i32x8, __lasx_xvaddwev_w_h(products_even_i16x16, products_odd_i16x16));
+        sum_i32x8 = __lasx_xvadd_w(sum_i32x8, __lasx_xvaddwod_w_h(products_even_i16x16, products_odd_i16x16));
     }
     nk_i32_t sum = nk_reduce_add_i32x8_loongsonasx_(sum_i32x8);
     for (; index_scalars < count_scalars; ++index_scalars)
@@ -222,13 +220,11 @@ NUMKONG_API nk_status_t nk_dot_u8_loongsonasx(nk_u8_t const *a_scalars, nk_u8_t 
     for (; index_scalars + 32 <= count_scalars; index_scalars += 32) {
         __m256i a_u8x32 = __lasx_xvld(a_scalars + index_scalars, 0);
         __m256i b_u8x32 = __lasx_xvld(b_scalars + index_scalars, 0);
-        // Unsigned widening multiply u8 × u8 → u16 (even and odd elements separately)
-        __m256i accumulator_u16x16 = __lasx_xvreplgr2vr_h(0);
-        accumulator_u16x16 = __lasx_xvmaddwev_h_bu(accumulator_u16x16, a_u8x32, b_u8x32);
-        accumulator_u16x16 = __lasx_xvmaddwod_h_bu(accumulator_u16x16, a_u8x32, b_u8x32);
-        // Unsigned horizontal pairwise u16 → u32, then accumulate
-        __m256i widened_u32x8 = __lasx_xvhaddw_wu_hu(accumulator_u16x16, accumulator_u16x16);
-        sum_i32x8 = __lasx_xvadd_w(sum_i32x8, widened_u32x8);
+        // Products widen to u32 before pairing, as two 255 × 255 products overflow u16
+        __m256i products_even_u16x16 = __lasx_xvmulwev_h_bu(a_u8x32, b_u8x32);
+        __m256i products_odd_u16x16 = __lasx_xvmulwod_h_bu(a_u8x32, b_u8x32);
+        sum_i32x8 = __lasx_xvadd_w(sum_i32x8, __lasx_xvaddwev_w_hu(products_even_u16x16, products_odd_u16x16));
+        sum_i32x8 = __lasx_xvadd_w(sum_i32x8, __lasx_xvaddwod_w_hu(products_even_u16x16, products_odd_u16x16));
     }
     nk_u32_t sum = (nk_u32_t)nk_reduce_add_i32x8_loongsonasx_(sum_i32x8);
     for (; index_scalars < count_scalars; ++index_scalars)
@@ -450,11 +446,11 @@ NUMKONG_INLINE void nk_dot_i8x32_update_loongsonasx(nk_dot_i8x32_state_loongsona
                                                     nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    __m256i accumulator_i16x16 = __lasx_xvreplgr2vr_h(0);
-    accumulator_i16x16 = __lasx_xvmaddwev_h_b(accumulator_i16x16, a.ymm, b.ymm);
-    accumulator_i16x16 = __lasx_xvmaddwod_h_b(accumulator_i16x16, a.ymm, b.ymm);
-    __m256i widened_i32x8 = __lasx_xvhaddw_w_h(accumulator_i16x16, accumulator_i16x16);
-    state->sum_i32x8 = __lasx_xvadd_w(state->sum_i32x8, widened_i32x8);
+    __m256i products_even_i16x16 = __lasx_xvmulwev_h_b(a.ymm, b.ymm);
+    __m256i products_odd_i16x16 = __lasx_xvmulwod_h_b(a.ymm, b.ymm);
+    __m256i sum_i32x8 = __lasx_xvadd_w(state->sum_i32x8,
+                                       __lasx_xvaddwev_w_h(products_even_i16x16, products_odd_i16x16));
+    state->sum_i32x8 = __lasx_xvadd_w(sum_i32x8, __lasx_xvaddwod_w_h(products_even_i16x16, products_odd_i16x16));
 }
 
 NUMKONG_INLINE void nk_dot_i8x32_finalize_loongsonasx(                                                //
@@ -479,11 +475,11 @@ NUMKONG_INLINE void nk_dot_u8x32_update_loongsonasx(nk_dot_u8x32_state_loongsona
                                                     nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    __m256i accumulator_u16x16 = __lasx_xvreplgr2vr_h(0);
-    accumulator_u16x16 = __lasx_xvmaddwev_h_bu(accumulator_u16x16, a.ymm, b.ymm);
-    accumulator_u16x16 = __lasx_xvmaddwod_h_bu(accumulator_u16x16, a.ymm, b.ymm);
-    __m256i widened_u32x8 = __lasx_xvhaddw_wu_hu(accumulator_u16x16, accumulator_u16x16);
-    state->sum_i32x8 = __lasx_xvadd_w(state->sum_i32x8, widened_u32x8);
+    __m256i products_even_u16x16 = __lasx_xvmulwev_h_bu(a.ymm, b.ymm);
+    __m256i products_odd_u16x16 = __lasx_xvmulwod_h_bu(a.ymm, b.ymm);
+    __m256i sum_i32x8 = __lasx_xvadd_w(state->sum_i32x8,
+                                       __lasx_xvaddwev_w_hu(products_even_u16x16, products_odd_u16x16));
+    state->sum_i32x8 = __lasx_xvadd_w(sum_i32x8, __lasx_xvaddwod_w_hu(products_even_u16x16, products_odd_u16x16));
 }
 
 NUMKONG_INLINE void nk_dot_u8x32_finalize_loongsonasx(                                                //

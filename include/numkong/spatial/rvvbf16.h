@@ -18,7 +18,7 @@
 #if NUMKONG_TARGET_RVVBF16
 
 #include "numkong/types.h"
-#include "numkong/spatial/rvv.h" // `nk_f32_rsqrt_newton_rvv_`
+#include "numkong/spatial/rvv.h" // `nk_rsqrt_f32_rvv_`
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v,+zvfbfwma"))), apply_to = function)
@@ -116,7 +116,7 @@ NUMKONG_API nk_status_t nk_angular_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_b
     if (a_sq == 0.0f && b_sq == 0.0f) { *result = 0.0f; }
     else if (dot == 0.0f) { *result = 1.0f; }
     else {
-        nk_f32_t unclipped = 1.0f - dot * nk_f32_rsqrt_newton_rvv_(a_sq) * nk_f32_rsqrt_newton_rvv_(b_sq);
+        nk_f32_t unclipped = 1.0f - dot * nk_rsqrt_f32_rvv_(a_sq) * nk_rsqrt_f32_rvv_(b_sq);
         *result = unclipped > 0.0f ? unclipped : 0.0f;
     }
     return nk_success_k;

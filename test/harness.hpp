@@ -994,7 +994,8 @@ struct error_stats_t {
 
     /** Records a result against a tracked reference: integers exactly once it rounds into them,
      *  floats within @c term_error_bound of its magnitude per rounding of a term, and
-     *  @c sum_error_bound per rounding of a sum. */
+     *  @c sum_error_bound per rounding of a sum. Once that magnitude passes the result's finite
+     *  range, a partial sum may overflow before later terms cancel, so either infinity passes. */
     template <typename actual_type_, typename value_type_>
     void accumulate(actual_type_ actual, tracked<value_type_> const &expected) noexcept {
         nk_f64_t const bound = ((expected.term_roundings + 1) * term_error_bound +
@@ -1005,6 +1006,9 @@ struct error_stats_t {
         else if constexpr (nk::is_complex_dtype<actual_type_>())
             accumulate_bounded(actual.real(), expected.value.real(), bound),
                 accumulate_bounded(actual.imag(), expected.value.imag(), bound);
+        else if (std::isinf(static_cast<nk_f64_t>(actual)) &&
+                 expected.magnitude > static_cast<nk_f64_t>(actual_type_::finite_max()))
+            accumulate_scalar(actual, static_cast<nk_f64_t>(actual));
         else accumulate_bounded(actual, expected.value, bound);
     }
 

@@ -8,7 +8,7 @@ Portable mixed-precision math, linear-algebra, & retrieval library with 2'000+ S
 
 Most libraries return dot products in the __same type as the input__ — Float16 × Float16 → Float16, Int8 × Int8 → Int8.
 This leads to quiet overflow: a 2048-dimensional `i8` dot product can reach ±10 million, but `i8` maxes out at 127.
-NumKong promotes to wider accumulators — Float16 → Float32, BFloat16 → Float32, Int8 → Int32, Float32 → Float64 — so results stay in range.
+NumKong promotes to wider accumulators — Float16 → Float32, BFloat16 → Float32, Int8 → Int32, Float32 → Float64 — so results stay in range, and kernels that write a narrower type, like RMSNorm into BFloat16, reduce one tier above that output.
 
 | Input  |     NumPy + OpenBLAS |        PyTorch + MKL |                  JAX |               NumKong |
 | :----- | -------------------: | -------------------: | -------------------: | --------------------: |
@@ -387,14 +387,15 @@ It picks exactly what the dispatch point picks for the same mask, and returns `n
 
 ### Float64 & Float32: IEEE Precision
 
-__Float64__ — NumKong uses __compensated summation__ that tracks numerical errors separately.
+__Float64__ — Kernels that read and write Float64 use __compensated summation__ that tracks numerical errors separately.
 On serial paths, we use __[Neumaier's algorithm](https://en.wikipedia.org/wiki/Kahan_summation_algorithm#Further_enhancements)__ (1974), an improvement over Kahan-Babuška that correctly handles cases where added terms are larger than the running sum, achieving $O(1)$ error growth instead of $O(n)$.
 On SIMD paths with FMA support, we implement the __Dot2 algorithm__ (Ogita-Rump-Oishi, 2005), maintaining separate error compensators for both multiplication and accumulation via `TwoProd` and `TwoSum` operations.
+The same compensated accumulation strategy applies to Mahalanobis distance, bilinear forms, and KL/JS divergences.
 The accuracy differences are visible in the [benchmark tables above](#latency-throughput--numerical-stability) — compensated Float64 suits scientific computing where numerical stability matters more than raw speed.
 
 __Float32__ — SIMD implementations load Float32 values, upcast to Float64 for full-precision multiplication and accumulation, then downcast only during finalization.
 This avoids catastrophic cancellation at minimal cost since modern CPUs have dedicated Float64 vector units operating at nearly the same throughput as Float32.
-The same compensated accumulation strategy applies to Mahalanobis distance, bilinear forms, and KL/JS divergences.
+Plain Float64 accumulation already absorbs the rounding error of a Float32 result, so Float32 kernels and Float64 kernels with Float32 results skip compensation.
 
 ```c
 // Dot2 TwoProd: Capture multiplication rounding error

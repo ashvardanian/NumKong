@@ -10,9 +10,10 @@
  *  SwiGLU runs a grid of 16-byte chunks by rows, each thread one chunk of one row. RMSNorm gives
  *  each normalized vector one threadgroup, in a grid of groups by rows, whose threads take 16-byte
  *  chunks of the output a threadgroup apart, reading the input twice rather than keeping it.
- *  Squares sum as compensated F32 pairs, TwoProduct through FMA and TwoSum, merged down each
- *  SIMD-group through shuffles and then across SIMD-groups. The host picks the kernel for a
- *  missing @c up or @c gamma, so no thread branches on either.
+ *  Squares sum in plain F32, merged down each SIMD-group through shuffles and then across
+ *  SIMD-groups. Only the RMSNorm of F32 stays out, as it reduces in F64, which no Apple GPU has,
+ *  while the downcasts from F32 reduce in F32. The host picks the kernel for a missing @c up or
+ *  @c gamma, so no thread branches on either.
  */
 
 /** The launch record of SwiGLU, laid out as the C launcher's record of the same name. */
@@ -88,43 +89,19 @@ void nk_each_swiglu_metal_(device uchar const *gate, device uchar const *up, dev
     }
 }
 
-/** Adds @p addend to the compensated pair of @p sum and @p compensation by TwoSum. */
-inline void nk_each_two_sum_metal_(float addend, thread float &sum, thread float &compensation) {
-#pragma clang fp contract(off) reassociate(off)
-    float const total = sum + addend, virtual_addend = total - sum;
-    compensation += (sum - (total - virtual_addend)) + (addend - virtual_addend);
-    sum = total;
-}
-
-/** The inverse RMS of @p count values from each thread's compensated sum of their squares, the
- *  same in every thread: down each SIMD-group through shuffles, then across the SIMD-groups of
- *  @p threads through @p partials, eight sums followed by eight compensations. */
-inline float nk_each_inverse_rms_metal_(float sum, float compensation, uint count, float epsilon, uint lane,
-                                        uint threads, threadgroup float *partials) {
-#pragma clang fp contract(off) reassociate(off)
+/** The inverse RMS of @p count values from each thread's sum of their squares, the same in every
+ *  thread: down each SIMD-group through shuffles, then across the SIMD-groups of @p threads through
+ *  @p partials, one sum per SIMD-group. */
+inline float nk_each_inverse_rms_metal_(float sum, uint count, float epsilon, uint lane, uint threads,
+                                        threadgroup float *partials) {
     uint const simd_lane = lane % 32, simd_group = lane / 32, simd_groups = threads / 32;
-    for (uint offset = 16; offset; offset >>= 1) {
-        float const other_sum = simd_shuffle_down(sum, offset);
-        float const other_compensation = simd_shuffle_down(compensation, offset);
-        if (simd_lane < offset) {
-            compensation += other_compensation;
-            nk_each_two_sum_metal_(other_sum, sum, compensation);
-        }
-    }
-    if (!simd_lane) partials[simd_group] = sum, partials[8 + simd_group] = compensation;
+    for (uint offset = 16; offset; offset >>= 1) sum += simd_shuffle_down(sum, offset);
+    if (!simd_lane) partials[simd_group] = sum;
     threadgroup_barrier(mem_flags::mem_threadgroup);
     if (!simd_group) {
         sum = simd_lane < simd_groups ? partials[simd_lane] : 0;
-        compensation = simd_lane < simd_groups ? partials[8 + simd_lane] : 0;
-        for (uint offset = 4; offset; offset >>= 1) {
-            float const other_sum = simd_shuffle_down(sum, offset);
-            float const other_compensation = simd_shuffle_down(compensation, offset);
-            if (simd_lane < offset) {
-                compensation += other_compensation;
-                nk_each_two_sum_metal_(other_sum, sum, compensation);
-            }
-        }
-        if (!simd_lane) partials[0] = precise::divide(sum + compensation, float(count));
+        for (uint offset = 4; offset; offset >>= 1) sum += simd_shuffle_down(sum, offset);
+        if (!simd_lane) partials[0] = precise::divide(sum, float(count));
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
     return precise::divide(1.0f, precise::sqrt(partials[0] + epsilon));
@@ -141,18 +118,16 @@ void nk_each_rmsnorm_metal_(device uchar const *x, device float const *gamma, de
     ulong const first = ulong(vector.x) * columns;
     x += vector.y * arguments.x_stride + first * sizeof(typename input_::raw_t);
     y += vector.y * arguments.y_stride + first * sizeof(typename output_::raw_t);
-    float sum = 0, compensation = 0;
+    float sum = 0;
     for (uint chunk = lane; chunk < chunks; chunk += threads) {
         uint const begin = chunk * output_::chunk_values;
         uint const end = begin + min(columns - begin, output_::chunk_values);
         for (uint column = begin; column != end; ++column) {
-            float const value = input_::load(x, column), square = value * value;
-            compensation += fma(value, value, -square);
-            nk_each_two_sum_metal_(square, sum, compensation);
+            float const value = input_::load(x, column);
+            sum += value * value;
         }
     }
-    float const inverse_rms = nk_each_inverse_rms_metal_(sum, compensation, columns, arguments.epsilon, lane, threads,
-                                                         partials);
+    float const inverse_rms = nk_each_inverse_rms_metal_(sum, columns, arguments.epsilon, lane, threads, partials);
     for (uint chunk = lane; chunk < chunks; chunk += threads) {
         uint const begin = chunk * output_::chunk_values;
         uint const end = begin + min(columns - begin, output_::chunk_values);
@@ -219,29 +194,11 @@ kernel void nk_each_swiglu_e4m3_ungated_metal_kernel_(
     nk_each_swiglu_metal_<nk::e4m3_t, nk_each_ungated_metal_t>(gate, up, y, arguments, position);
 }
 
-kernel void nk_each_rmsnorm_f32_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
-    nk_each_rmsnorm_metal_<nk::f32_t, nk::f32_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
-                                                                         threads.x, partials);
-}
-
-kernel void nk_each_rmsnorm_f32_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
-    nk_each_rmsnorm_metal_<nk::f32_t, nk::f32_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
-                                                                           threads.x, partials);
-}
-
 kernel void nk_each_rmsnorm_f16_scaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f16_t, nk::f16_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                          threads.x, partials);
 }
@@ -250,7 +207,7 @@ kernel void nk_each_rmsnorm_f16_unscaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f16_t, nk::f16_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                            threads.x, partials);
 }
@@ -259,7 +216,7 @@ kernel void nk_each_rmsnorm_bf16_scaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::bf16_t, nk::bf16_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                            threads.x, partials);
 }
@@ -268,7 +225,7 @@ kernel void nk_each_rmsnorm_bf16_unscaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::bf16_t, nk::bf16_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                              threads.x, partials);
 }
@@ -277,7 +234,7 @@ kernel void nk_each_rmsnorm_e4m3_scaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::e4m3_t, nk::e4m3_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                            threads.x, partials);
 }
@@ -286,7 +243,7 @@ kernel void nk_each_rmsnorm_e4m3_unscaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::e4m3_t, nk::e4m3_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                              threads.x, partials);
 }
@@ -295,7 +252,7 @@ kernel void nk_each_rmscast_bf16_scaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::bf16_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
@@ -304,7 +261,7 @@ kernel void nk_each_rmscast_bf16_unscaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::bf16_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                             threads.x, partials);
 }
@@ -313,7 +270,7 @@ kernel void nk_each_rmscast_f16_scaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::f16_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                          threads.x, partials);
 }
@@ -322,7 +279,7 @@ kernel void nk_each_rmscast_f16_unscaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::f16_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                            threads.x, partials);
 }
@@ -331,7 +288,7 @@ kernel void nk_each_rmscast_e4m3_scaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e4m3_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
@@ -340,7 +297,7 @@ kernel void nk_each_rmscast_e4m3_unscaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e4m3_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                             threads.x, partials);
 }
@@ -349,7 +306,7 @@ kernel void nk_each_rmscast_e5m2_scaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e5m2_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
@@ -358,7 +315,7 @@ kernel void nk_each_rmscast_e5m2_unscaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e5m2_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                             threads.x, partials);
 }
@@ -367,7 +324,7 @@ kernel void nk_each_rmscast_e2m3_scaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e2m3_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
@@ -376,7 +333,7 @@ kernel void nk_each_rmscast_e2m3_unscaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e2m3_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                             threads.x, partials);
 }
@@ -385,7 +342,7 @@ kernel void nk_each_rmscast_e3m2_scaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e3m2_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
@@ -394,7 +351,7 @@ kernel void nk_each_rmscast_e3m2_unscaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e3m2_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                             threads.x, partials);
 }
@@ -403,7 +360,7 @@ kernel void nk_each_rmscast_i8_scaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::i32_t, nk::i8_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane, threads.x,
                                                                         partials);
 }
@@ -412,7 +369,7 @@ kernel void nk_each_rmscast_i8_unscaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::i32_t, nk::i8_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
@@ -421,7 +378,7 @@ kernel void nk_each_rmscast_u8_scaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::u32_t, nk::u8_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane, threads.x,
                                                                         partials);
 }
@@ -430,7 +387,7 @@ kernel void nk_each_rmscast_u8_unscaled_metal_kernel_(
     device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
     constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
     uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
-    threadgroup float partials[16];
+    threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::u32_t, nk::u8_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }

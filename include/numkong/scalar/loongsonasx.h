@@ -51,7 +51,7 @@ NUMKONG_INLINE __m256d nk_xvfreplgr2vr_d_loongsonasx_(double x) {
 }
 
 /** Reciprocal square root of @p x in the first lane of a full-precision @c xvfrsqrt.s. */
-NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_lane_loongsonasx_(nk_f32_t x) {
+NUMKONG_INLINE nk_f32_t nk_rsqrt_f32_loongsonasx_(nk_f32_t x) {
     __m256 x_f32x8 = nk_xvfreplgr2vr_s_loongsonasx_(x);
     __m256 result_f32x8 = __lasx_xvfrsqrt_s(x_f32x8);
     nk_fui32_t c;
@@ -59,8 +59,17 @@ NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_lane_loongsonasx_(nk_f32_t x) {
     return c.f;
 }
 
+/** Square root of @p x in the first lane of @c xvfsqrt.s. */
+NUMKONG_INLINE nk_f32_t nk_sqrt_f32_loongsonasx_(nk_f32_t x) {
+    __m256 x_f32x8 = nk_xvfreplgr2vr_s_loongsonasx_(x);
+    __m256 result_f32x8 = __lasx_xvfsqrt_s(x_f32x8);
+    nk_fui32_t c;
+    c.u = (nk_u32_t)__lasx_xvpickve2gr_w((__m256i)result_f32x8, 0);
+    return c.f;
+}
+
 /** Square root of @p x in the first lane of @c xvfsqrt.d. */
-NUMKONG_INLINE nk_f64_t nk_f64_sqrt_lane_loongsonasx_(nk_f64_t x) {
+NUMKONG_INLINE nk_f64_t nk_sqrt_f64_loongsonasx_(nk_f64_t x) {
     __m256d x_f64x4 = nk_xvfreplgr2vr_d_loongsonasx_(x);
     __m256d result_f64x4 = __lasx_xvfsqrt_d(x_f64x4);
     nk_fui64_t c;
@@ -68,18 +77,13 @@ NUMKONG_INLINE nk_f64_t nk_f64_sqrt_lane_loongsonasx_(nk_f64_t x) {
     return c.f;
 }
 
-NUMKONG_API nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) { return nk_f32_rsqrt_lane_loongsonasx_(x); }
+NUMKONG_API nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) { return nk_rsqrt_f32_loongsonasx_(x); }
 
-NUMKONG_API nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) {
-    __m256 result_f32x8 = __lasx_xvfsqrt_s(nk_xvfreplgr2vr_s_loongsonasx_(x));
-    nk_fui32_t conv;
-    conv.u = (nk_u32_t)__lasx_xvpickve2gr_w((__m256i)result_f32x8, 0);
-    return x > 0 ? conv.f : 0;
-}
+NUMKONG_API nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) { return x > 0 ? nk_sqrt_f32_loongsonasx_(x) : 0; }
 
-NUMKONG_API nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) { return nk_f64_sqrt_lane_loongsonasx_(x); }
+NUMKONG_API nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) { return nk_sqrt_f64_loongsonasx_(x); }
 
-NUMKONG_API nk_f64_t nk_f64_rsqrt_loongsonasx(nk_f64_t x) { return 1.0 / nk_f64_sqrt_lane_loongsonasx_(x); }
+NUMKONG_API nk_f64_t nk_f64_rsqrt_loongsonasx(nk_f64_t x) { return 1.0 / nk_sqrt_f64_loongsonasx_(x); }
 
 #if defined(__clang__)
 #pragma clang attribute pop

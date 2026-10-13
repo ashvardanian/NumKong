@@ -465,6 +465,11 @@ NUMKONG_API nk_status_t nk_each_swiglu_e4m3_best(nk_e4m3_t const *gate, nk_e4m3_
  *  Scaling x leaves y unchanged but for @p epsilon, so FP8 codes need no input scale: pass epsilon
  *  in units of the codes squared, and fold the output scale of FP8 y into @p gamma.
  *
+ *  Types narrower than F32 stay in F32 throughout: the sum of squares, its mean, epsilon, the
+ *  inverse root and the products with x and gamma, so rows whose squares overflow F32 normalize to
+ *  zeros. F32 rows sum their squares and take the inverse root in F64, then multiply in F32 through
+ *  a power of two that keeps tiny and huge rows in range.
+ *
  *  @param[in] x Input matrix; each row holds @p groups separately normalized @p columns-vectors.
  *  @param[in] gamma Per-column gain, length @p columns, shared by groups and rows; NULL is unit.
  *  @param[out] y Output matrix, same shape and dtype as @p x; may alias @p x for in-place use.
@@ -508,6 +513,11 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_best(nk_e4m3_t const *x, nk_f32_t c
  *  included, so a GEMM output becomes the next GEMM's input in one pass. Epsilon adds to mean(x²)
  *  of the raw input. Integer outputs are saturate(round_to_nearest_even(x / rms(x) × gamma)), where
  *  gamma carries the output quantization scale, and U8 suits only non-negative activations.
+ *
+ *  F32 inputs stay in F32 throughout, like the RMSNorm of types narrower than F32. F64 inputs stay
+ *  in F64, from a sum of squares rescaled where squares leave its range through the products with
+ *  gamma, rounding once into F32. I32 and U32 inputs sum in F64 and round their mean square to F32,
+ *  where epsilon adds and everything after runs.
  *
  *  @param[in] x Input matrix of the wider type; each row holds @p groups separate vectors.
  *  @param[in] gamma Per-column gain, length @p columns, shared by groups and rows; NULL is unit.
@@ -2418,10 +2428,6 @@ NUMKONG_API nk_status_t nk_each_swiglu_e4m3_metal(nk_e4m3_t const *gate, nk_e4m3
                                                   nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
                                                   nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
                                                   nk_f32_t output_scale, nk_stream_t stream);
-/** @copydoc nk_each_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_each_rmsnorm_f32_metal(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
-                                                  nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
-                                                  nk_size_t y_stride, nk_f32_t epsilon, nk_stream_t stream);
 /** @copydoc nk_each_rmsnorm_f16_best */
 NUMKONG_API nk_status_t nk_each_rmsnorm_f16_metal(nk_f16_t const *x, nk_f32_t const *gamma, nk_f16_t *y, nk_size_t rows,
                                                   nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
@@ -2509,12 +2515,22 @@ NUMKONG_INLINE nk_f64_t nk_each_error_bound(nk_dtype_t dtype) {
     return nk_accumulation_error_bound(nk_each_scale_input_dtype(dtype));
 }
 
-/** Returns the error bound of RMSNorm outputs before they round into their type: 6 roundings in
- *  F32, which every input type rescales in, through the descale, the mean, the root, its
- *  reciprocal, and the products with it and with γ. */
-NUMKONG_INLINE nk_f64_t nk_each_rmsnorm_error_bound(nk_dtype_t dtype) {
-    nk_unused_(dtype);
-    return 6 * nk_accumulation_error_bound(nk_f32_k);
+/** Returns the type RMSNorm and RMSCast reduce in, never compensated: one tier above the narrower
+ *  of @p input_dtype and @p output_dtype, F64 when both are at least 32 bits and F32 otherwise. */
+NUMKONG_CONSTEXPR nk_dtype_t nk_each_rmsnorm_reduction_dtype(nk_dtype_t input_dtype, nk_dtype_t output_dtype) {
+    nk_size_t const narrower_bits = nk_dtype_bits(input_dtype) < nk_dtype_bits(output_dtype)
+                                        ? nk_dtype_bits(input_dtype)
+                                        : nk_dtype_bits(output_dtype);
+    return narrower_bits >= 32 ? nk_f64_k : nk_f32_k;
+}
+
+/** Returns the RMSNorm and RMSCast error bound: @p columns positive squares sum within @p columns
+ *  unit roundoffs, halved by the inverse root into eighths of the tier bound, plus 3 per tier. */
+NUMKONG_INLINE nk_f64_t nk_each_rmsnorm_error_bound(nk_dtype_t input_dtype, nk_dtype_t output_dtype,
+                                                    nk_size_t columns) {
+    nk_dtype_t const reduction_dtype = nk_each_rmsnorm_reduction_dtype(input_dtype, output_dtype);
+    return (columns / 8.0 + 3) * nk_accumulation_error_bound(reduction_dtype) +
+           3 * nk_accumulation_error_bound(nk_each_scale_input_dtype(input_dtype));
 }
 
 /** Returns the error bound of SwiGLU outputs before they round into @p dtype: 5 roundings, through

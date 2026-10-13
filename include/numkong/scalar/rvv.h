@@ -29,7 +29,7 @@ extern "C" {
 #endif
 
 /** Reciprocal square root of @p number: a 7-bit @c vfrsqrt7 estimate and two Newton steps. */
-NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_newton_rvv_(nk_f32_t number) {
+NUMKONG_INLINE nk_f32_t nk_rsqrt_f32_rvv_(nk_f32_t number) {
     nk_fui32_t conv;
     conv.f = number;
     nk_u32_t const result_mask = (nk_u32_t)0 - (conv.u != 0x7F800000u);
@@ -56,7 +56,7 @@ NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_newton_rvv_(nk_f32_t number) {
 }
 
 /** Reciprocal square root of @p number: a 7-bit @c vfrsqrt7 estimate and three Newton steps. */
-NUMKONG_INLINE nk_f64_t nk_f64_rsqrt_newton_rvv_(nk_f64_t number) {
+NUMKONG_INLINE nk_f64_t nk_rsqrt_f64_rvv_(nk_f64_t number) {
     nk_fui64_t conv;
     conv.f = number;
     nk_u64_t const result_mask = (nk_u64_t)0 - (conv.u != 0x7FF0000000000000ULL);
@@ -88,14 +88,14 @@ NUMKONG_INLINE nk_f64_t nk_f64_rsqrt_newton_rvv_(nk_f64_t number) {
 }
 
 #if NUMKONG_TARGET_RVV
-NUMKONG_API nk_f32_t nk_f32_rsqrt_rvv(nk_f32_t number) { return nk_f32_rsqrt_newton_rvv_(number); }
+NUMKONG_API nk_f32_t nk_f32_rsqrt_rvv(nk_f32_t number) { return nk_rsqrt_f32_rvv_(number); }
 
 NUMKONG_API nk_f32_t nk_f32_sqrt_rvv(nk_f32_t number) {
     vfloat32m1_t x_f32m1 = __riscv_vfmv_s_f_f32m1(number, 1);
     return __riscv_vfmv_f_s_f32m1_f32(__riscv_vfsqrt_v_f32m1(x_f32m1, 1));
 }
 
-NUMKONG_API nk_f64_t nk_f64_rsqrt_rvv(nk_f64_t number) { return nk_f64_rsqrt_newton_rvv_(number); }
+NUMKONG_API nk_f64_t nk_f64_rsqrt_rvv(nk_f64_t number) { return nk_rsqrt_f64_rvv_(number); }
 
 NUMKONG_API nk_f64_t nk_f64_sqrt_rvv(nk_f64_t number) {
     vfloat64m1_t x_f64m1 = __riscv_vfmv_s_f_f64m1(number, 1);

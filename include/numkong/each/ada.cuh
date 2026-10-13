@@ -31,9 +31,12 @@ nk_define_each_scale_cuda_(e4m3, f32, ada, nk_e4m3_to_f32_ada_, nk_f32_to_e4m3_a
 nk_define_each_blend_cuda_(e4m3, f32, ada, nk_e4m3_to_f32_ada_, nk_f32_to_e4m3_ada_)
 nk_define_each_fma_cuda_(e4m3, f32, ada, nk_e4m3_to_f32_ada_, nk_f32_to_e4m3_ada_)
 nk_define_each_swiglu_cuda_(e4m3, ada, nk_e4m3_to_f32_ada_, nk_f32_to_e4m3_ada_)
-nk_define_each_rmsnorm_simt_(rmsnorm, e4m3, e4m3, ada, cuda, nk_e4m3_to_f32_ada_, nk_f32_to_e4m3_ada_)
-nk_define_each_rmsnorm_simt_(rmscast, f32, e4m3, ada, cuda, nk_assign_from_to_, nk_f32_to_e4m3_ada_)
-nk_define_each_rmsnorm_simt_(rmscast, f32, e5m2, ada, cuda, nk_assign_from_to_, nk_f32_to_e5m2_ada_)
+nk_define_each_rmsnorm_simt_(rmsnorm, e4m3, e4m3, f32, f32, nk_each_inverse_rms_f32_simt_, ada, cuda,
+                             nk_e4m3_to_f32_ada_, nk_f32_to_e4m3_ada_)
+nk_define_each_rmsnorm_simt_(rmscast, f32, e4m3, f32, f32, nk_each_inverse_rms_f32_simt_, ada, cuda, nk_assign_from_to_,
+                             nk_f32_to_e4m3_ada_)
+nk_define_each_rmsnorm_simt_(rmscast, f32, e5m2, f32, f32, nk_each_inverse_rms_f32_simt_, ada, cuda, nk_assign_from_to_,
+                             nk_f32_to_e5m2_ada_)
 #endif // NUMKONG_TARGET_ADA
 
 #if defined(__cplusplus)

@@ -21,6 +21,7 @@
 
 #include "numkong/cuda.cuh"
 #include "numkong/each/simt.cuh"
+#include "numkong/scalar/serial.h" // `nk_saturating_add_i64_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -263,41 +264,6 @@ NUMKONG_INLINE nk_status_t nk_each_rmsnorm_launch_cuda_(void const *kernel, nk_s
                                                 sizeof(nk_##input_type##_t), sizeof(nk_##accumulator_type##_t), a, b, \
                                                 c, alpha, beta, n, result, stream);                                   \
     }
-
-/** Adds the square of @p value to the compensated @p sum: TwoProduct through FMA, then TwoSum.
- *  @p exact_squares skips the product's error for the values narrower than F32, as F32 holds
- *  their squares exactly. */
-NUMKONG_DEVICE void nk_each_square_add_cuda_(nk_f32_t value, int exact_squares, nk_f32_t *sum, nk_f32_t *compensation) {
-    nk_f32_t const square = nk_f32_mul_rn_cuda_(value, value);
-    if (!exact_squares) *compensation += fmaf(value, value, -square);
-    nk_f32_two_sum_simt_(square, sum, compensation);
-}
-
-/** Merges the compensated sums of squares of every thread of the block into the inverse RMS of
- *  @p count values, the same in every thread: across each team's lanes through xor shuffles, then
- *  across teams through @p partials, two values per team, in the same order everywhere. */
-NUMKONG_DEVICE nk_f32_t nk_each_inverse_rms_cuda_(nk_f32_t sum, nk_f32_t compensation, nk_size_t count,
-                                                  nk_f32_t epsilon, nk_f32_t *partials) {
-    unsigned const teams = blockDim.x / nk_each_team_lanes_simt_k;
-    for (unsigned offset = nk_each_team_lanes_simt_k / 2; offset; offset >>= 1) {
-        nk_f32_t const other_sum = nk_shuffle_xor_f32_cuda_(sum, offset);
-        compensation += nk_shuffle_xor_f32_cuda_(compensation, offset);
-        nk_f32_two_sum_simt_(other_sum, &sum, &compensation);
-    }
-    if (teams > 1) {
-        unsigned const team = threadIdx.x / nk_each_team_lanes_simt_k;
-        if (threadIdx.x % nk_each_team_lanes_simt_k == 0) partials[team] = sum, partials[teams + team] = compensation;
-        __syncthreads();
-        sum = partials[0], compensation = partials[teams];
-        for (unsigned other = 1; other < teams; ++other) {
-            compensation += partials[teams + other];
-            nk_f32_two_sum_simt_(partials[other], &sum, &compensation);
-        }
-        __syncthreads();
-    }
-    nk_f32_t const mean_square = (nk_f32_t)(((nk_f64_t)sum + (nk_f64_t)compensation) / (nk_f64_t)count);
-    return 1.0f / sqrtf(mean_square + epsilon);
-}
 
 #if NUMKONG_TARGET_CUDA
 nk_define_each_sum_cuda_(f64, f64, cuda, nk_assign_from_to_, nk_assign_from_to_)
@@ -557,18 +523,30 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_cuda(nk_f64c_t const *a, nk_f64c_t cons
                                             sizeof(nk_f64_t), a, b, c, alpha, beta, n, result, stream);
 }
 
-nk_define_each_rmsnorm_simt_(rmsnorm, f32, f32, cuda, cuda, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_each_rmsnorm_simt_(rmsnorm, bf16, bf16, cuda, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
-nk_define_each_rmsnorm_simt_(rmsnorm, e4m3, e4m3, cuda, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
-nk_define_each_rmsnorm_simt_(rmscast, f32, bf16, cuda, cuda, nk_assign_from_to_, nk_f32_to_bf16_simt_)
-nk_define_each_rmsnorm_simt_(rmscast, f32, f16, cuda, cuda, nk_assign_from_to_, nk_f32_to_f16_simt_)
-nk_define_each_rmsnorm_simt_(rmscast, f32, e4m3, cuda, cuda, nk_assign_from_to_, nk_f32_to_e4m3_simt_)
-nk_define_each_rmsnorm_simt_(rmscast, f32, e5m2, cuda, cuda, nk_assign_from_to_, nk_f32_to_e5m2_simt_)
-nk_define_each_rmsnorm_simt_(rmscast, f32, e2m3, cuda, cuda, nk_assign_from_to_, nk_f32_to_e2m3_simt_)
-nk_define_each_rmsnorm_simt_(rmscast, f32, e3m2, cuda, cuda, nk_assign_from_to_, nk_f32_to_e3m2_simt_)
-nk_define_each_rmsnorm_simt_(rmscast, f64, f32, cuda, cuda, nk_f64_to_f32_simt_, nk_assign_from_to_)
-nk_define_each_rmsnorm_simt_(rmscast, i32, i8, cuda, cuda, nk_assign_from_to_, nk_f32_to_i8_simt_)
-nk_define_each_rmsnorm_simt_(rmscast, u32, u8, cuda, cuda, nk_assign_from_to_, nk_f32_to_u8_simt_)
+nk_define_each_rmsnorm_simt_(rmsnorm, f32, f32, f64, f32, nk_each_inverse_rms_f64_to_f32_simt_, cuda, cuda,
+                             nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_rmsnorm_simt_(rmsnorm, bf16, bf16, f32, f32, nk_each_inverse_rms_f32_simt_, cuda, cuda,
+                             nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_each_rmsnorm_simt_(rmsnorm, e4m3, e4m3, f32, f32, nk_each_inverse_rms_f32_simt_, cuda, cuda,
+                             nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
+nk_define_each_rmsnorm_simt_(rmscast, f32, bf16, f32, f32, nk_each_inverse_rms_f32_simt_, cuda, cuda,
+                             nk_assign_from_to_, nk_f32_to_bf16_simt_)
+nk_define_each_rmsnorm_simt_(rmscast, f32, f16, f32, f32, nk_each_inverse_rms_f32_simt_, cuda, cuda, nk_assign_from_to_,
+                             nk_f32_to_f16_simt_)
+nk_define_each_rmsnorm_simt_(rmscast, f32, e4m3, f32, f32, nk_each_inverse_rms_f32_simt_, cuda, cuda,
+                             nk_assign_from_to_, nk_f32_to_e4m3_simt_)
+nk_define_each_rmsnorm_simt_(rmscast, f32, e5m2, f32, f32, nk_each_inverse_rms_f32_simt_, cuda, cuda,
+                             nk_assign_from_to_, nk_f32_to_e5m2_simt_)
+nk_define_each_rmsnorm_simt_(rmscast, f32, e2m3, f32, f32, nk_each_inverse_rms_f32_simt_, cuda, cuda,
+                             nk_assign_from_to_, nk_f32_to_e2m3_simt_)
+nk_define_each_rmsnorm_simt_(rmscast, f32, e3m2, f32, f32, nk_each_inverse_rms_f32_simt_, cuda, cuda,
+                             nk_assign_from_to_, nk_f32_to_e3m2_simt_)
+nk_define_each_rmsnorm_simt_(rmscast, f64, f32, f64, f64, nk_each_inverse_rms_f64_simt_, cuda, cuda, nk_assign_from_to_,
+                             nk_f64_to_f32_simt_)
+nk_define_each_rmsnorm_simt_(rmscast, i32, i8, f32, f32, nk_each_inverse_rms_integer_simt_, cuda, cuda,
+                             nk_assign_from_to_, nk_f32_to_i8_simt_)
+nk_define_each_rmsnorm_simt_(rmscast, u32, u8, f32, f32, nk_each_inverse_rms_integer_simt_, cuda, cuda,
+                             nk_assign_from_to_, nk_f32_to_u8_simt_)
 nk_define_each_swiglu_cuda_(f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
 nk_define_each_swiglu_cuda_(bf16, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
 nk_define_each_swiglu_cuda_(e4m3, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)

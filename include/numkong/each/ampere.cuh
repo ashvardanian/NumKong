@@ -31,8 +31,10 @@ nk_define_each_scale_cuda_(bf16, f32, ampere, nk_bf16_to_f32_simt_, nk_f32_to_bf
 nk_define_each_blend_cuda_(bf16, f32, ampere, nk_bf16_to_f32_simt_, nk_f32_to_bf16_ampere_)
 nk_define_each_fma_cuda_(bf16, f32, ampere, nk_bf16_to_f32_simt_, nk_f32_to_bf16_ampere_)
 nk_define_each_swiglu_cuda_(bf16, ampere, nk_bf16_to_f32_simt_, nk_f32_to_bf16_ampere_)
-nk_define_each_rmsnorm_simt_(rmsnorm, bf16, bf16, ampere, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_ampere_)
-nk_define_each_rmsnorm_simt_(rmscast, f32, bf16, ampere, cuda, nk_assign_from_to_, nk_f32_to_bf16_ampere_)
+nk_define_each_rmsnorm_simt_(rmsnorm, bf16, bf16, f32, f32, nk_each_inverse_rms_f32_simt_, ampere, cuda,
+                             nk_bf16_to_f32_simt_, nk_f32_to_bf16_ampere_)
+nk_define_each_rmsnorm_simt_(rmscast, f32, bf16, f32, f32, nk_each_inverse_rms_f32_simt_, ampere, cuda,
+                             nk_assign_from_to_, nk_f32_to_bf16_ampere_)
 #endif // NUMKONG_TARGET_AMPERE
 
 #if defined(__cplusplus)

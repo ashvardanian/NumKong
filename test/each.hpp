@@ -208,9 +208,10 @@ error_stats_t test_sum(settings_t const &settings, typename scalar_type_::sum_ke
 }
 
 /** Grouped RMSNorm of @p input_type_ rows into @p scalar_type_ ones, padded, against an F64
- *  reference: ragged vectors with a learned γ as a pre-norm and without one as a QK-norm over
- *  heads, then whole 16-byte chunks as a QK-norm, as a pre-norm, and past what registers keep.
- *  A downcast also meets rows whose exact results pin its rounding, saturation and non-finites. */
+ *  reference within the bound of the input's tier: ragged vectors with a learned γ as a pre-norm
+ *  and without one as a QK-norm over heads, then whole 16-byte chunks as a QK-norm, as a pre-norm,
+ *  and past what registers keep, and rows whose squares leave the tier below the reduction's. A
+ *  downcast also meets rows whose exact results pin its rounding, saturation and non-finites. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename input_type_ = scalar_type_,
           typename rmsnorm_kernel_type_>
 error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsnorm_fn) {
@@ -224,11 +225,19 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
     };
 
     backend_type_ backend = make_backend<backend_type_>(settings);
-    error_stats_t stats(nk_each_rmsnorm_error_bound(scalar_t::dtype()));
+    error_stats_t stats(comparison_family_t::bounded_k);
     std::mt19937 generator(settings.seed.value);
     std::uniform_real_distribution<float> gain_distribution(0.5f, 1.5f);
     nk_f32_t const epsilon = 1e-6f;
     std::size_t const rows = 33;
+    auto normalize = [&](inputs_t &x, nk_f32_t const *gains, scalars_t &y, std::size_t rows, std::size_t groups,
+                         std::size_t columns, std::size_t row_values, nk_f32_t epsilon) {
+        nk_status_t const status = backend.call(rmsnorm_fn, x.raw_values_data(), gains, y.raw_values_data(), rows,
+                                                groups, columns, row_values * sizeof(input_t),
+                                                row_values * sizeof(scalar_t), epsilon);
+        nk_status_t const synchronized = backend.synchronize();
+        return status != nk_success_k ? status : synchronized;
+    };
 
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;)
@@ -236,6 +245,7 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
              {layout {1, 99}, layout {3, 16385}, layout {8, 128}, layout {1, 2048}, layout {1, 36864}}) {
             std::size_t const groups = vectors.groups, columns = vectors.columns;
             std::size_t const row_values = groups * columns + 16;
+            nk_f64_t const bound = nk_each_rmsnorm_error_bound(input_t::dtype(), scalar_t::dtype(), columns);
             auto x = inputs_t::zeros(rows * row_values, allocator_of<input_t>(backend)).value;
             auto y = scalars_t::zeros(rows * row_values, allocator_of<scalar_t>(backend)).value;
             auto gamma = gains_t::zeros(columns, allocator_of<f32_t>(backend)).value;
@@ -243,15 +253,8 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
             for (std::size_t col = 0; col < columns; col++) gamma[col] = gain_distribution(generator);
             nk_f32_t const *gains = groups == 1 ? gamma.raw_values_data() : nullptr;
 
-            if (nk_status_t const status = backend.call(rmsnorm_fn, x.raw_values_data(), gains, y.raw_values_data(),
-                                                        rows, groups, columns, row_values * sizeof(input_t),
-                                                        row_values * sizeof(scalar_t), epsilon);
+            if (nk_status_t const status = normalize(x, gains, y, rows, groups, columns, row_values, epsilon);
                 status != nk_success_k) {
-                stats.expect(status);
-                stats.expect(backend.synchronize());
-                return stats;
-            }
-            if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
                 stats.expect(status);
                 return stats;
             }
@@ -268,14 +271,13 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
                     for (std::size_t col = 0; col < columns; col++) {
                         double const expected = static_cast<double>(x[first + col]) * inverse_rms *
                                                 (gains ? gains[col] : 1.0f);
-                        stats.accumulate_bounded(y[first + col], expected,
-                                                 stats.term_error_bound * std::fabs(expected));
+                        stats.accumulate_bounded(y[first + col], expected, bound * std::fabs(expected));
                     }
                 }
         }
 
-    // Values of ±8 give every backend an inverse RMS of exactly 1/8, so each output is the cast of
-    // ±γ: ties rounding either way, saturation, overflow, a zero row, and rows a NaN or ∞ poisons
+    // Values of ±8 give an inverse RMS within the tier bound of 1/8, so outputs are casts of ±γ or,
+    // at a tie, of its neighbour: saturation, overflow, a zero row, and rows a NaN or ∞ poisons
     if constexpr (!std::is_same_v<input_t, scalar_t>) {
         constexpr float edge_gains[] = {0.5f,        1.5f,        2.5f,           -2.5f,    3.5f,   126.5f,
                                         127.5f,      -128.5f,     254.5f,         255.5f,   300.0f, -300.0f,
@@ -283,6 +285,7 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
                                         26.0f,       57344.0f,    61440.0f,       65520.0f, 3.0e5f, -0.0f};
         constexpr bool non_finite = input_t::has_infinity() && scalar_t::has_nan();
         std::size_t const columns = 32, edge_rows = 4;
+        nk_f64_t const bound = nk_each_rmsnorm_error_bound(input_t::dtype(), scalar_t::dtype(), columns);
         auto x = inputs_t::zeros(edge_rows * columns, allocator_of<input_t>(backend)).value;
         auto y = scalars_t::zeros(edge_rows * columns, allocator_of<scalar_t>(backend)).value;
         auto gamma = gains_t::zeros(columns, allocator_of<f32_t>(backend)).value;
@@ -292,32 +295,68 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
             x[2 * columns + col] = input_t(8), x[3 * columns + col] = input_t(8);
         }
         if constexpr (non_finite) x[2 * columns] = input_t::quiet_nan(), x[3 * columns] = input_t::positive_infinity();
-        if (nk_status_t const status = backend.call(rmsnorm_fn, x.raw_values_data(), gamma.raw_values_data(),
-                                                    y.raw_values_data(), edge_rows, 1, columns,
-                                                    columns * sizeof(input_t), columns * sizeof(scalar_t), epsilon);
+        if (nk_status_t const status = normalize(x, gamma.raw_values_data(), y, edge_rows, 1, columns, columns,
+                                                 epsilon);
             status != nk_success_k) {
-            stats.expect(status);
-            stats.expect(backend.synchronize());
-            return stats;
-        }
-        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
             stats.expect(status);
             return stats;
         }
         for (std::size_t col = 0; col < columns; col++) {
             nk_f32_t const gain = edge_gains[col % std::size(edge_gains)];
-            nk_f32_t const products[2] = {(input_t::is_signed() && col % 2 ? -gain : gain), 0.0f * gain};
-            for (std::size_t row = 0; row < 2; row++) {
-                scalar_t expected, actual = y[row * columns + col];
-                stats.expect(nk_cast_serial(products + row, nk_f32_k, &expected, scalar_t::dtype(), 1, nullptr));
-                stats.expect(std::memcmp(&expected, &actual, sizeof(scalar_t)) == 0,
-                             row ? "a zero row stays a signed zero" : "±γ rounds like the serial cast");
-            }
+            nk_f64_t const signed_gain = input_t::is_signed() && col % 2 ? -gain : gain;
+            nk_f32_t const products[3] = {(nk_f32_t)(signed_gain * (1 - bound)), (nk_f32_t)(signed_gain * (1 + bound)),
+                                          0.0f * gain};
+            scalar_t expected[3], normalized = y[col], zero = y[columns + col];
+            stats.expect(nk_cast_serial(products, nk_f32_k, expected, scalar_t::dtype(), 3, nullptr));
+            stats.expect(std::memcmp(&expected[0], &normalized, sizeof(scalar_t)) == 0 ||
+                             std::memcmp(&expected[1], &normalized, sizeof(scalar_t)) == 0,
+                         "±γ rounds like the serial cast of either bound around it");
+            stats.expect(std::memcmp(&expected[2], &zero, sizeof(scalar_t)) == 0, "a zero row stays a signed zero");
             if constexpr (non_finite)
                 stats.expect(std::isnan(static_cast<double>(y[2 * columns + col])), "a NaN poisons its vector");
         }
         if constexpr (non_finite)
             stats.expect(std::isnan(static_cast<double>(y[3 * columns])), "an infinity normalizes to NaN");
+    }
+
+    // Rows whose squares leave the tier below the reduction's: F32 RMSNorm and F64 RMSCast
+    // normalize them like rows near one; F32-tier kernels overflow 2⁷⁰ squares into signed zeros
+    constexpr nk_dtype_t reduction_dtype = nk_each_rmsnorm_reduction_dtype(input_t::dtype(), scalar_t::dtype());
+    constexpr bool wide_tier = reduction_dtype == nk_f64_k;
+    constexpr bool narrow_tier = reduction_dtype == nk_f32_k &&
+                                 (std::is_same_v<input_t, bf16_t> || std::is_same_v<input_t, f32_t>);
+    if constexpr (wide_tier || narrow_tier) {
+        std::vector<double> const magnitudes = std::is_same_v<input_t, f64_t> ? std::vector {1e-160, 1e-170, 1e200}
+                                               : wide_tier                    ? std::vector {1e-25, 1e-40, 1e30}
+                                                                              : std::vector {0x1p70};
+        std::size_t const columns = 77, rows = magnitudes.size();
+        nk_f64_t const bound = nk_each_rmsnorm_error_bound(input_t::dtype(), scalar_t::dtype(), columns);
+        auto x = inputs_t::zeros(rows * columns, allocator_of<input_t>(backend)).value;
+        auto y = scalars_t::zeros(rows * columns, allocator_of<scalar_t>(backend)).value;
+        std::uniform_real_distribution<double> unit_distribution(0.5, 1.5);
+        for (std::size_t row = 0; row < rows; row++)
+            for (std::size_t col = 0; col < columns; col++)
+                x[row * columns + col] = input_t((col % 3 ? 1 : -1) * unit_distribution(generator) * magnitudes[row]);
+        if (nk_status_t const status = normalize(x, nullptr, y, rows, 1, columns, columns, 0.0f);
+            status != nk_success_k) {
+            stats.expect(status);
+            return stats;
+        }
+        for (std::size_t row = 0; row < rows; row++) {
+            double sum_squares = 0;
+            for (std::size_t col = 0; col < columns; col++)
+                sum_squares += std::pow(static_cast<double>(x[row * columns + col]) / magnitudes[row], 2);
+            double const inverse_rms = 1 / std::sqrt(sum_squares / columns);
+            for (std::size_t col = 0; col < columns; col++) {
+                double const output = static_cast<double>(y[row * columns + col]);
+                if constexpr (narrow_tier)
+                    stats.expect(output == 0 && std::signbit(output) == (col % 3 == 0), "F32 squares overflow to zero");
+                else {
+                    double const expected = static_cast<double>(x[row * columns + col]) / magnitudes[row] * inverse_rms;
+                    stats.accumulate_bounded(y[row * columns + col], expected, bound * std::fabs(expected));
+                }
+            }
+        }
     }
     return stats;
 }

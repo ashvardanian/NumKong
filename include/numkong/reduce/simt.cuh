@@ -14,13 +14,13 @@
  *  indices there, swapped in while their values win, and a one-thread launch then writes the
  *  values. Values sit any number of bytes apart; misaligned ones load byte by byte.
  *
- *  Integers sum exactly in 128 bits per block and saturate into the outputs, so unsigned sums and
- *  all squares match the serial ones, and signed sums do unless a block's partial overflows I64.
- *  F64 inputs sum in F64 with Neumaier compensation like their serial kernel. F32 and BF16 inputs
- *  sum as unevaluated F32 pairs and the other narrow floats in F32 with Neumaier compensation,
- *  sparing the F64 units, which run at 2 results per clock per SM on the B300. Both loops square
- *  through the vendor's rounded product, so they live in `cuda.cuh` beside this file. E2M1 sums
- *  twice its values as exact integers.
+ *  One generator emits every moments kernel from typed pieces: the input's value type, the
+ *  converter that widens it, and the accumulator its values add into. Floats sum one tier above
+ *  their input, F32 ones in plain F64 and the narrower ones in plain F32, and only F64 inputs,
+ *  whose sums stay F64, sum with Neumaier compensation like their serial kernel. Signed integers
+ *  sum exactly in 128 bits per block and saturate into the outputs, so their sums match the serial
+ *  ones unless a block's partial overflows I64, unsigned sums and all squares saturate in U64 like
+ *  the serial ones, and E2M1 sums twice its values as exact integers.
  *
  *  Min/max orders every value by a signed key: the narrow floats by the sign-magnitude order of
  *  `nk_*_order_`, -0 below +0, and F32 and F64 by value, ±0 tied, both skipping NaNs. Ties go to
@@ -249,130 +249,72 @@ NUMKONG_DEVICE void nk_reduce_minmax_simt_(nk_dtype_t dtype, nk_reduce_arguments
     nk_reduce_minmax_offer_simt_(dtype, arguments, states[0].max_key, states[0].max_index, arguments->second_index, 0);
 }
 
-/** One thread's or one block's integer sums: a 128-bit sum and a saturating sum of squares. */
-typedef struct {
-    nk_u64_t sum_low;
-    nk_i64_t sum_high;
-    nk_u64_t sumsq;
-} nk_reduce_integer_moments_t;
-
-/** Adds the 128-bit value @p high : @p low to the sum and @p square to the sum of squares. */
-NUMKONG_DEVICE void nk_reduce_integer_moments_add_simt_(nk_reduce_integer_moments_t *state, nk_u64_t low, nk_i64_t high,
-                                                        nk_u64_t square) {
-    nk_u64_t const sum_low = state->sum_low + low;
-    state->sum_high += high + (sum_low < low);
-    state->sum_low = sum_low, state->sumsq = nk_saturating_add_u64_serial_(state->sumsq, square);
+/** Copies the @p bytes of a misaligned value from @p source to @p target, one at a time. */
+NUMKONG_DEVICE void nk_reduce_copy_simt_(void *target, unsigned char const *source, nk_size_t bytes) {
+    unsigned char *target_bytes = (unsigned char *)target;
+    for (nk_size_t byte = 0; byte != bytes; ++byte) target_bytes[byte] = source[byte];
 }
 
-/** Adds the integer @p dtype value with @p raw bits, E2M1 as twice its value, an integer. */
-NUMKONG_DEVICE void nk_reduce_integer_moments_raw_simt_(nk_dtype_t dtype, nk_u64_t raw,
-                                                        nk_reduce_integer_moments_t *state) {
-    nk_i64_t value;
-    switch (dtype) {
-    case nk_u4_k:
-    case nk_u1_k:
-    case nk_u8_k:
-    case nk_u16_k:
-    case nk_u32_k: nk_reduce_integer_moments_add_simt_(state, raw, 0, raw * raw); return;
-    case nk_u64_k: nk_reduce_integer_moments_add_simt_(state, raw, 0, nk_saturating_mul_u64_serial_(raw, raw)); return;
-    case nk_i64_k:
-        value = (nk_i64_t)raw;
-        nk_reduce_integer_moments_add_simt_(state, raw, value >> 63,
-                                            (nk_u64_t)nk_saturating_mul_i64_serial_(value, value));
-        return;
-    default:
-        value = dtype == nk_i16_k    ? (nk_i16_t)raw
-                : dtype == nk_i32_k  ? (nk_i32_t)raw
-                : dtype == nk_e2m1_k ? nk_e2m1_nibble_to_i8x2_simt_((nk_u32_t)raw)
-                                     : (nk_i8_t)raw;
-        nk_reduce_integer_moments_add_simt_(state, (nk_u64_t)value, value >> 63, (nk_u64_t)(value * value));
-        return;
-    }
+/** Widens the two I4 nibbles of one byte to I64, the high nibble first. */
+NUMKONG_DEVICE void nk_i4x2_to_i64x2_simt_(nk_i4x2_t const *src, nk_i64_t *dest) {
+    dest[0] = nk_i4x2_high_(*src), dest[1] = nk_i4x2_low_(*src);
 }
 
-/** Sums integer @p dtype values and their squares: signed sums saturate from 128 bits into I64,
- *  unsigned ones into U64, and E2M1's doubled sums halve into F32 like the serial kernels. */
-NUMKONG_DEVICE void nk_reduce_integer_moments_simt_(nk_dtype_t dtype, nk_reduce_arguments_t const *arguments) {
-    __shared__ nk_reduce_integer_moments_t states[nk_reduce_threads_simt_k];
-    nk_size_t const limit = dtype == nk_i4_k || dtype == nk_u4_k ? nk_size_round_up_to_multiple_(arguments->count, 2)
-                            : dtype == nk_u1_k                   ? nk_size_round_up_to_multiple_(arguments->count, 8)
-                                                                 : arguments->count;
-    nk_reduce_integer_moments_t state;
-    state.sum_low = 0, state.sum_high = 0, state.sumsq = 0;
-    for (nk_size_t first = nk_reduce_lane_simt_(); first < limit;
-         first += nk_reduce_lanes_simt_() * nk_reduce_batch_simt_k) {
-        nk_u64_t raws[nk_reduce_batch_simt_k];
-        nk_reduce_batch_simt_(dtype, arguments, first, nk_reduce_lanes_simt_(), limit, raws);
-#pragma unroll
-        for (unsigned slot = 0; slot != nk_reduce_batch_simt_k; ++slot) {
-            if (first + slot * nk_reduce_lanes_simt_() >= limit) break;
-            nk_reduce_integer_moments_raw_simt_(dtype, raws[slot], &state);
-        }
-    }
-    states[threadIdx.x] = state;
-    __syncthreads();
-    for (unsigned half = blockDim.x / 2; half; half >>= 1) {
-        if (threadIdx.x < half)
-            nk_reduce_integer_moments_add_simt_(&states[threadIdx.x], states[threadIdx.x + half].sum_low,
-                                                states[threadIdx.x + half].sum_high, states[threadIdx.x + half].sumsq);
-        __syncthreads();
-    }
-    if (threadIdx.x) return;
-    state = states[0];
-    nk_i64_t const sum_low_signed = (nk_i64_t)state.sum_low;
-    switch (dtype) {
-    case nk_e2m1_k:
-        atomicAdd((nk_f32_t *)arguments->first, (nk_f32_t)sum_low_signed * 0.5f);
-        atomicAdd((nk_f32_t *)arguments->second, (nk_f32_t)(nk_i64_t)state.sumsq * 0.25f);
-        return;
-    case nk_i8_k:
-    case nk_i16_k:
-    case nk_i32_k:
-    case nk_i64_k:
-    case nk_i4_k:
-        nk_reduce_add_i64_simt_((nk_i64_t *)arguments->first, state.sum_high == (sum_low_signed >> 63) ? sum_low_signed
-                                                              : state.sum_high >= 0 ? NUMKONG_I64_MAX
-                                                                                    : NUMKONG_I64_MIN);
-        break;
-    default:
-        nk_reduce_add_u64_simt_((nk_u64_t *)arguments->first, state.sum_high ? NUMKONG_U64_MAX : state.sum_low);
-        break;
-    }
-    nk_reduce_add_u64_simt_((nk_u64_t *)arguments->second, state.sumsq);
+/** Widens the two U4 nibbles of one byte to U64, the high nibble first. */
+NUMKONG_DEVICE void nk_u4x2_to_u64x2_simt_(nk_u4x2_t const *src, nk_u64_t *dest) {
+    dest[0] = nk_u4x2_high_(*src), dest[1] = nk_u4x2_low_(*src);
 }
 
-/** Widens the float @p dtype value with @p raw bits to F32, exactly. */
-NUMKONG_DEVICE nk_f32_t nk_reduce_f32_simt_(nk_dtype_t dtype, nk_u64_t raw) {
-    nk_u8_t const code = (nk_u8_t)raw;
-    nk_u16_t const half = (nk_u16_t)raw;
-    nk_f32_t value = 0;
-    switch (dtype) {
-    case nk_f32_k: value = __uint_as_float((nk_u32_t)raw); break;
-    case nk_f16_k: nk_f16_to_f32_simt_((nk_f16_t const *)&half, &value); break;
-    case nk_bf16_k: nk_bf16_to_f32_simt_((nk_bf16_t const *)&half, &value); break;
-    case nk_e4m3_k: nk_e4m3_to_f32_simt_(&code, &value); break;
-    case nk_e5m2_k: nk_e5m2_to_f32_simt_(&code, &value); break;
-    case nk_e2m3_k: nk_e2m3_to_f32_simt_(&code, &value); break;
-    case nk_e3m2_k: nk_e3m2_to_f32_simt_(&code, &value); break;
-    default: break;
-    }
-    return value;
+/** Widens the eight bits of one byte to U64, the most significant first. */
+NUMKONG_DEVICE void nk_u1x8_to_u64x8_simt_(nk_u1x8_t const *src, nk_u64_t *dest) {
+    for (unsigned bit = 0; bit != NUMKONG_BITS_PER_BYTE; ++bit) dest[bit] = (*src >> (7 - bit)) & 1u;
 }
 
-/** Adds @p addend to @p sum through TwoSum, gathering the rounding error into @p compensation. */
-NUMKONG_DEVICE void nk_f32_two_sum_simt_(nk_f32_t addend, nk_f32_t *sum, nk_f32_t *compensation) {
-    nk_f32_t const total = *sum + addend, virtual_addend = total - *sum;
-    *compensation += (*sum - (total - virtual_addend)) + (addend - virtual_addend);
-    *sum = total;
-}
-
-/** One thread's or one block's compensated F32 sums. */
+/** One thread's or one block's plain F32 sums, which narrow floats widen into exactly. */
 typedef struct {
     nk_f32_t sum;
-    nk_f32_t sum_compensation;
     nk_f32_t sumsq;
-    nk_f32_t sumsq_compensation;
 } nk_reduce_f32_moments_t;
+
+/** Adds @p value and its square to the sums in @p state. */
+NUMKONG_DEVICE void nk_reduce_f32_moments_add_simt_(nk_reduce_f32_moments_t *state, nk_f32_t value) {
+    state->sum += value, state->sumsq += value * value;
+}
+
+/** Adds the sums in @p other to those in @p state. */
+NUMKONG_DEVICE void nk_reduce_f32_moments_merge_simt_(nk_reduce_f32_moments_t *state,
+                                                      nk_reduce_f32_moments_t const *other) {
+    state->sum += other->sum, state->sumsq += other->sumsq;
+}
+
+/** Adds the block's sums in @p state to the outputs. */
+NUMKONG_DEVICE void nk_reduce_f32_moments_store_simt_(nk_reduce_f32_moments_t const *state,
+                                                      nk_reduce_arguments_t const *arguments) {
+    atomicAdd((nk_f32_t *)arguments->first, state->sum), atomicAdd((nk_f32_t *)arguments->second, state->sumsq);
+}
+
+/** One thread's or one block's plain F64 sums, which hold the squares of F32 values exactly. */
+typedef struct {
+    nk_f64_t sum;
+    nk_f64_t sumsq;
+} nk_reduce_f64_moments_t;
+
+/** Adds @p value and its square to the sums in @p state. */
+NUMKONG_DEVICE void nk_reduce_f64_moments_add_simt_(nk_reduce_f64_moments_t *state, nk_f64_t value) {
+    state->sum += value, state->sumsq += value * value;
+}
+
+/** Adds the sums in @p other to those in @p state. */
+NUMKONG_DEVICE void nk_reduce_f64_moments_merge_simt_(nk_reduce_f64_moments_t *state,
+                                                      nk_reduce_f64_moments_t const *other) {
+    state->sum += other->sum, state->sumsq += other->sumsq;
+}
+
+/** Adds the block's sums in @p state to the outputs. */
+NUMKONG_DEVICE void nk_reduce_f64_moments_store_simt_(nk_reduce_f64_moments_t const *state,
+                                                      nk_reduce_arguments_t const *arguments) {
+    atomicAdd((nk_f64_t *)arguments->first, state->sum), atomicAdd((nk_f64_t *)arguments->second, state->sumsq);
+}
 
 /** Adds @p value to the Neumaier sum @p sum with its running @p compensation in F64, as the serial
  *  F64 moments do. */
@@ -382,63 +324,170 @@ NUMKONG_DEVICE void nk_reduce_neumaier_f64_simt_(nk_f64_t *sum, nk_f64_t *compen
     *sum = tentative;
 }
 
-/** Adds @p value to the unevaluated F32 sum @p high + @p low, keeping each rounding error with
- *  TwoSum, so the pair carries twice the F32 precision. */
-NUMKONG_DEVICE void nk_reduce_two_sum_f32_simt_(nk_f32_t *high, nk_f32_t *low, nk_f32_t value) {
-    nk_f32_t const sum = *high + value, value_part = sum - *high;
-    nk_f32_t const error = (*high - (sum - value_part)) + (value - value_part) + *low;
-    *high = sum + error, *low = error - (*high - sum);
-}
-
 /** One thread's or one block's F64 sums with their Neumaier compensations. */
 typedef struct {
     nk_f64_t sum;
     nk_f64_t sum_compensation;
     nk_f64_t sumsq;
     nk_f64_t sumsq_compensation;
-} nk_reduce_f64_moments_t;
+} nk_reduce_compensated_moments_t;
 
-/** Merges every thread's @p state across the block with Neumaier compensation, leaving the totals
- *  in thread 0's @p state. */
-NUMKONG_DEVICE void nk_reduce_f64_moments_merge_simt_(nk_reduce_f64_moments_t *state) {
-    __shared__ nk_reduce_f64_moments_t states[nk_reduce_threads_simt_k];
-    states[threadIdx.x] = *state;
-    __syncthreads();
-    for (unsigned half = blockDim.x / 2; half; half >>= 1) {
-        if (threadIdx.x < half) {
-            nk_reduce_f64_moments_t *into = &states[threadIdx.x];
-            nk_reduce_f64_moments_t const *other = &states[threadIdx.x + half];
-            nk_reduce_neumaier_f64_simt_(&into->sum, &into->sum_compensation, other->sum);
-            nk_reduce_neumaier_f64_simt_(&into->sumsq, &into->sumsq_compensation, other->sumsq);
-            into->sum_compensation += other->sum_compensation, into->sumsq_compensation += other->sumsq_compensation;
-        }
-        __syncthreads();
-    }
-    *state = states[0];
+/** Adds @p value and its square to the compensated sums in @p state. */
+NUMKONG_DEVICE void nk_reduce_compensated_moments_add_simt_(nk_reduce_compensated_moments_t *state, nk_f64_t value) {
+    nk_reduce_neumaier_f64_simt_(&state->sum, &state->sum_compensation, value);
+    nk_reduce_neumaier_f64_simt_(&state->sumsq, &state->sumsq_compensation, value * value);
 }
 
-/** Whether F32 squares @p value exactly and sums a thread's squares without overflow: zero, or a
- *  magnitude from 2⁻⁵⁰ up to 2⁵¹. */
-NUMKONG_DEVICE int nk_reduce_pairs_hold_simt_(nk_f32_t value) {
-    return ((__float_as_uint(value) >> 23) & 0xFFu) - 77u <= 100u || value == 0;
+/** Adds the compensated sums in @p other to those in @p state. */
+NUMKONG_DEVICE void nk_reduce_compensated_moments_merge_simt_(nk_reduce_compensated_moments_t *state,
+                                                              nk_reduce_compensated_moments_t const *other) {
+    nk_reduce_neumaier_f64_simt_(&state->sum, &state->sum_compensation, other->sum);
+    nk_reduce_neumaier_f64_simt_(&state->sumsq, &state->sumsq_compensation, other->sumsq);
+    state->sum_compensation += other->sum_compensation, state->sumsq_compensation += other->sumsq_compensation;
 }
 
-/** Generates the moments kernel of @p input_type for @p isa_suffix, summing through @p moments_fn,
- *  and its entry point, launched through the helpers of @p vendor, @c cuda or @c rocm . */
-#define nk_define_reduce_moments_simt_(input_type, input_value_type, moments_fn, sum_type, sumsq_type, isa_suffix, \
-                                       vendor)                                                                     \
-    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                             \
-        nk_reduce_moments_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {                 \
-        moments_fn(nk_##input_type##_k, &arguments);                                                               \
-    }                                                                                                              \
-    NUMKONG_API nk_status_t nk_reduce_moments_##input_type##_##isa_suffix(                                         \
-        nk_##input_value_type##_t const *data, nk_size_t count, nk_size_t stride, nk_##sum_type##_t *sum,          \
-        nk_##sumsq_type##_t *sumsq, nk_stream_t stream) {                                                          \
-        return nk_reduce_moments_launch_##vendor##_(                                                               \
-            (void const *)&nk_reduce_moments_##input_type##_##isa_suffix##_kernel_,                                \
-            nk_reduce_arguments_simt_(sizeof(nk_##input_value_type##_t), data, count, stride, sum, NUMKONG_NULL,   \
-                                      sumsq, NUMKONG_NULL),                                                        \
-            sizeof(nk_##sum_type##_t), sizeof(nk_##sumsq_type##_t), stream);                                       \
+/** Adds the block's compensated sums in @p state to the outputs. */
+NUMKONG_DEVICE void nk_reduce_compensated_moments_store_simt_(nk_reduce_compensated_moments_t const *state,
+                                                              nk_reduce_arguments_t const *arguments) {
+    atomicAdd((nk_f64_t *)arguments->first, state->sum + state->sum_compensation);
+    atomicAdd((nk_f64_t *)arguments->second, state->sumsq + state->sumsq_compensation);
+}
+
+/** One thread's or one block's signed sums: a 128-bit sum and a saturating sum of squares. */
+typedef struct {
+    nk_u64_t sum_low;
+    nk_i64_t sum_high;
+    nk_u64_t sumsq;
+} nk_reduce_i64_moments_t;
+
+/** Adds the 128-bit sum and the sum of squares in @p other to those in @p state. */
+NUMKONG_DEVICE void nk_reduce_i64_moments_merge_simt_(nk_reduce_i64_moments_t *state,
+                                                      nk_reduce_i64_moments_t const *other) {
+    nk_u64_t const sum_low = state->sum_low + other->sum_low;
+    state->sum_high += other->sum_high + (sum_low < other->sum_low);
+    state->sum_low = sum_low, state->sumsq = nk_saturating_add_u64_serial_(state->sumsq, other->sumsq);
+}
+
+/** Adds @p value and its square, saturating at I64 like the serial kernels, to @p state. */
+NUMKONG_DEVICE void nk_reduce_i64_moments_add_simt_(nk_reduce_i64_moments_t *state, nk_i64_t value) {
+    nk_reduce_i64_moments_t const single = {(nk_u64_t)value, value >> 63,
+                                            (nk_u64_t)nk_saturating_mul_i64_serial_(value, value)};
+    nk_reduce_i64_moments_merge_simt_(state, &single);
+}
+
+/** Adds the block's sums in @p state to the outputs, its 128-bit sum saturated into I64. */
+NUMKONG_DEVICE void nk_reduce_i64_moments_store_simt_(nk_reduce_i64_moments_t const *state,
+                                                      nk_reduce_arguments_t const *arguments) {
+    nk_i64_t const sum_low = (nk_i64_t)state->sum_low;
+    nk_reduce_add_i64_simt_((nk_i64_t *)arguments->first, state->sum_high == (sum_low >> 63) ? sum_low
+                                                          : state->sum_high >= 0             ? NUMKONG_I64_MAX
+                                                                                             : NUMKONG_I64_MIN);
+    nk_reduce_add_u64_simt_((nk_u64_t *)arguments->second, state->sumsq);
+}
+
+/** One thread's or one block's unsigned integer sums, saturating in U64, which no order of
+ *  non-negative terms alters. */
+typedef struct {
+    nk_u64_t sum;
+    nk_u64_t sumsq;
+} nk_reduce_u64_moments_t;
+
+/** Adds @p value and its square to the saturating sums in @p state. */
+NUMKONG_DEVICE void nk_reduce_u64_moments_add_simt_(nk_reduce_u64_moments_t *state, nk_u64_t value) {
+    state->sum = nk_saturating_add_u64_serial_(state->sum, value);
+    state->sumsq = nk_saturating_add_u64_serial_(state->sumsq, nk_saturating_mul_u64_serial_(value, value));
+}
+
+/** Adds the saturating sums in @p other to those in @p state. */
+NUMKONG_DEVICE void nk_reduce_u64_moments_merge_simt_(nk_reduce_u64_moments_t *state,
+                                                      nk_reduce_u64_moments_t const *other) {
+    state->sum = nk_saturating_add_u64_serial_(state->sum, other->sum);
+    state->sumsq = nk_saturating_add_u64_serial_(state->sumsq, other->sumsq);
+}
+
+/** Adds the block's saturating sums in @p state to the outputs. */
+NUMKONG_DEVICE void nk_reduce_u64_moments_store_simt_(nk_reduce_u64_moments_t const *state,
+                                                      nk_reduce_arguments_t const *arguments) {
+    nk_reduce_add_u64_simt_((nk_u64_t *)arguments->first, state->sum);
+    nk_reduce_add_u64_simt_((nk_u64_t *)arguments->second, state->sumsq);
+}
+
+/** One thread's or one block's E2M1 sums as the exact integers that twice every value and four
+ *  times every square are. */
+typedef struct {
+    nk_i64_t doubled_sum;
+    nk_i64_t quadrupled_sumsq;
+} nk_reduce_e2m1_moments_t;
+
+/** Adds the E2M1 @p value, widened to F32, and its square to the integer sums in @p state. */
+NUMKONG_DEVICE void nk_reduce_e2m1_moments_add_simt_(nk_reduce_e2m1_moments_t *state, nk_f32_t value) {
+    nk_i64_t const doubled = (nk_i64_t)(value * 2);
+    state->doubled_sum += doubled, state->quadrupled_sumsq += doubled * doubled;
+}
+
+/** Adds the integer sums in @p other to those in @p state. */
+NUMKONG_DEVICE void nk_reduce_e2m1_moments_merge_simt_(nk_reduce_e2m1_moments_t *state,
+                                                       nk_reduce_e2m1_moments_t const *other) {
+    state->doubled_sum += other->doubled_sum, state->quadrupled_sumsq += other->quadrupled_sumsq;
+}
+
+/** Adds the block's integer sums in @p state, halved and quartered into F32, to the outputs. */
+NUMKONG_DEVICE void nk_reduce_e2m1_moments_store_simt_(nk_reduce_e2m1_moments_t const *state,
+                                                       nk_reduce_arguments_t const *arguments) {
+    atomicAdd((nk_f32_t *)arguments->first, (nk_f32_t)state->doubled_sum * 0.5f);
+    atomicAdd((nk_f32_t *)arguments->second, (nk_f32_t)state->quadrupled_sumsq * 0.25f);
+}
+
+/** Generates the moments kernel of @p input_type for @p isa_suffix and its entry point, launched
+ *  through the helpers of @p vendor, @c cuda or @c rocm . Each thread loads @p input_value_type
+ *  values a grid apart, widens each to @p dimensions_per_value values of @p sum_type through
+ *  @p load_and_convert, and adds them to its @c nk_reduce_<accumulator>_moments_t , which the
+ *  block merges in shared memory before thread 0 adds it to the outputs. */
+#define nk_define_reduce_moments_simt_(input_type, input_value_type, dimensions_per_value, accumulator, sum_type, \
+                                       sumsq_type, isa_suffix, vendor, load_and_convert)                          \
+    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                            \
+        nk_reduce_moments_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {                \
+        __shared__ nk_reduce_##accumulator##_moments_t states[nk_reduce_threads_simt_k];                          \
+        nk_reduce_##accumulator##_moments_t state = {0};                                                          \
+        nk_size_t const lanes = nk_reduce_lanes_simt_();                                                          \
+        nk_size_t const values = nk_size_divide_round_up_(arguments.count, dimensions_per_value);                 \
+        for (nk_size_t first = nk_reduce_lane_simt_(); first < values; first += lanes * nk_reduce_batch_simt_k) { \
+            nk_##input_value_type##_t batch[nk_reduce_batch_simt_k];                                              \
+            _Pragma("unroll") for (unsigned slot = 0; slot != nk_reduce_batch_simt_k; ++slot) {                   \
+                if (first + slot * lanes >= values) break;                                                        \
+                unsigned char const *address = arguments.data + (first + slot * lanes) * arguments.stride;        \
+                if (arguments.aligned) batch[slot] = *(nk_##input_value_type##_t const *)address;                 \
+                else nk_reduce_copy_simt_(batch + slot, address, sizeof(*batch));                                 \
+            }                                                                                                     \
+            _Pragma("unroll") for (unsigned slot = 0; slot != nk_reduce_batch_simt_k; ++slot) {                   \
+                nk_size_t const index = first + slot * lanes;                                                     \
+                nk_##sum_type##_t dimensions[dimensions_per_value];                                               \
+                if (index >= values) break;                                                                       \
+                load_and_convert(batch + slot, dimensions);                                                       \
+                _Pragma("unroll") for (unsigned dimension = 0; dimension != dimensions_per_value; ++dimension) {  \
+                    if (index * dimensions_per_value + dimension < arguments.count)                               \
+                        nk_reduce_##accumulator##_moments_add_simt_(&state, dimensions[dimension]);               \
+                }                                                                                                 \
+            }                                                                                                     \
+        }                                                                                                         \
+        states[threadIdx.x] = state;                                                                              \
+        __syncthreads();                                                                                          \
+        for (unsigned half = blockDim.x / 2; half; half >>= 1) {                                                  \
+            if (threadIdx.x < half)                                                                               \
+                nk_reduce_##accumulator##_moments_merge_simt_(&states[threadIdx.x], &states[threadIdx.x + half]); \
+            __syncthreads();                                                                                      \
+        }                                                                                                         \
+        if (threadIdx.x) return;                                                                                  \
+        nk_reduce_##accumulator##_moments_store_simt_(&states[0], &arguments);                                    \
+    }                                                                                                             \
+    NUMKONG_API nk_status_t nk_reduce_moments_##input_type##_##isa_suffix(                                        \
+        nk_##input_value_type##_t const *data, nk_size_t count, nk_size_t stride, nk_##sum_type##_t *sum,         \
+        nk_##sumsq_type##_t *sumsq, nk_stream_t stream) {                                                         \
+        return nk_reduce_moments_launch_##vendor##_(                                                              \
+            (void const *)&nk_reduce_moments_##input_type##_##isa_suffix##_kernel_,                               \
+            nk_reduce_arguments_simt_(sizeof(nk_##input_value_type##_t), data, count, stride, sum, NUMKONG_NULL,  \
+                                      sumsq, NUMKONG_NULL),                                                       \
+            sizeof(nk_##sum_type##_t), sizeof(nk_##sumsq_type##_t), stream);                                      \
     }
 
 /** Generates the entry point and the min/max and finishing kernels of @p input_type for

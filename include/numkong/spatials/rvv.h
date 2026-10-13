@@ -34,7 +34,7 @@ NUMKONG_INLINE vfloat32m1_t nk_angular_f32m1_from_dot_rvv_(vfloat32m1_t dots_f32
     vfloat32m1_t target_rsqrt_f32m1 = nk_rsqrt_f32m1_rvv_(target_norms_sq_f32m1, vector_length);
     vbool32_t infinite_b32 = __riscv_vmfeq_vf_f32m1_b32(target_norms_sq_f32m1, NUMKONG_F32_INF, vector_length);
     target_rsqrt_f32m1 = __riscv_vfmerge_vfm_f32m1(target_rsqrt_f32m1, 0.0f, infinite_b32, vector_length);
-    vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1, nk_f32_rsqrt_newton_rvv_(query_norm_sq_f32),
+    vfloat32m1_t rsqrt_f32m1 = __riscv_vfmul_vf_f32m1(target_rsqrt_f32m1, nk_rsqrt_f32_rvv_(query_norm_sq_f32),
                                                       vector_length);
     vfloat32m1_t angular_f32m1 = __riscv_vfrsub_vf_f32m1(__riscv_vfmul_vv_f32m1(dots_f32m1, rsqrt_f32m1, vector_length),
                                                          1.0f, vector_length);
@@ -58,7 +58,7 @@ NUMKONG_INLINE vfloat64m1_t nk_angular_f64m1_from_dot_rvv_(vfloat64m1_t dots_f64
     vfloat64m1_t target_rsqrt_f64m1 = nk_rsqrt_f64m1_rvv_(target_norms_sq_f64m1, vector_length);
     vbool64_t infinite_b64 = __riscv_vmfeq_vf_f64m1_b64(target_norms_sq_f64m1, NUMKONG_F64_INF, vector_length);
     target_rsqrt_f64m1 = __riscv_vfmerge_vfm_f64m1(target_rsqrt_f64m1, 0.0, infinite_b64, vector_length);
-    vfloat64m1_t rsqrt_f64m1 = __riscv_vfmul_vf_f64m1(target_rsqrt_f64m1, nk_f64_rsqrt_newton_rvv_(query_norm_sq_f64),
+    vfloat64m1_t rsqrt_f64m1 = __riscv_vfmul_vf_f64m1(target_rsqrt_f64m1, nk_rsqrt_f64_rvv_(query_norm_sq_f64),
                                                       vector_length);
     vfloat64m1_t angular_f64m1 = __riscv_vfrsub_vf_f64m1(__riscv_vfmul_vv_f64m1(dots_f64m1, rsqrt_f64m1, vector_length),
                                                          1.0, vector_length);

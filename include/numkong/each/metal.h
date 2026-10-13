@@ -188,14 +188,6 @@ NUMKONG_API nk_status_t nk_each_swiglu_e4m3_metal(nk_e4m3_t const *gate, nk_e4m3
         up, y, rows, columns, gate_stride, up_stride, y_stride, gate_scale, output_scale, stream);
 }
 
-NUMKONG_API nk_status_t nk_each_rmsnorm_f32_metal(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
-                                                  nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
-                                                  nk_size_t y_stride, nk_f32_t epsilon, nk_stream_t stream) {
-    return nk_each_rmsnorm_launch_metal_(
-        "nk_each_rmsnorm_f32_scaled_metal_kernel_", "nk_each_rmsnorm_f32_unscaled_metal_kernel_", sizeof(nk_f32_t),
-        sizeof(nk_f32_t), x, gamma, y, rows, groups, columns, x_stride, y_stride, epsilon, stream);
-}
-
 NUMKONG_API nk_status_t nk_each_rmsnorm_f16_metal(nk_f16_t const *x, nk_f32_t const *gamma, nk_f16_t *y, nk_size_t rows,
                                                   nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
                                                   nk_size_t y_stride, nk_f32_t epsilon, nk_stream_t stream) {

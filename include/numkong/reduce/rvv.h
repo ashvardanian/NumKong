@@ -1942,9 +1942,9 @@ NUMKONG_INLINE void nk_reduce_minmax_strided_u64_rvv_(           //
 NUMKONG_INLINE void nk_reduce_moments_contiguous_bf16_rvv_( //
     nk_bf16_t const *data_ptr, nk_size_t count,             //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
-    vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-    vfloat64m4_t sumsq_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
+    vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
+    vfloat32m2_t sumsq_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
 
     for (nk_size_t vector_length; count > 0; count -= vector_length, data_ptr += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(count);
@@ -1952,28 +1952,23 @@ NUMKONG_INLINE void nk_reduce_moments_contiguous_bf16_rvv_( //
 
         // Convert bf16 → f32 (m1 → m2)
         vfloat32m2_t data_f32m2 = nk_bf16m1_to_f32m2_rvv_(data_u16m1, vector_length);
-
-        // Widen f32 → f64 (m2 → m4)
-        vfloat64m4_t data_f64m4 = __riscv_vfwcvt_f_f_v_f64m4(data_f32m2, vector_length);
-        sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(sum_f64m4, sum_f64m4, data_f64m4, vector_length);
-
-        // Sumsq via widening FMA: f32 × f32 → f64
-        sumsq_f64m4 = __riscv_vfwmacc_vv_f64m4_tu(sumsq_f64m4, data_f32m2, data_f32m2, vector_length);
+        sum_f32m2 = __riscv_vfadd_vv_f32m2_tu(sum_f32m2, sum_f32m2, data_f32m2, vector_length);
+        sumsq_f32m2 = __riscv_vfmacc_vv_f32m2_tu(sumsq_f32m2, data_f32m2, data_f32m2, vector_length);
     }
 
     // Horizontal reduction
-    vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
-    *sum_ptr = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, max_vector_length)),
-    *sumsq_ptr = __riscv_vfmv_f_s_f64m1_f64(
-        __riscv_vfredusum_vs_f64m4_f64m1(sumsq_f64m4, zero_f64m1, max_vector_length));
+    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
+    *sum_ptr = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)),
+    *sumsq_ptr = __riscv_vfmv_f_s_f32m1_f32(
+        __riscv_vfredusum_vs_f32m2_f32m1(sumsq_f32m2, zero_f32m1, max_vector_length));
 }
 
 NUMKONG_INLINE void nk_reduce_moments_strided_bf16_rvv_(          //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
-    vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-    vfloat64m4_t sumsq_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
+    vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
+    vfloat32m2_t sumsq_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     unsigned char const *ptr = (unsigned char const *)data_ptr;
 
     for (nk_size_t vector_length; count > 0; count -= vector_length, ptr += vector_length * stride) {
@@ -1982,20 +1977,15 @@ NUMKONG_INLINE void nk_reduce_moments_strided_bf16_rvv_(          //
 
         // Convert bf16 → f32 (m1 → m2)
         vfloat32m2_t data_f32m2 = nk_bf16m1_to_f32m2_rvv_(data_u16m1, vector_length);
-
-        // Widen f32 → f64 (m2 → m4)
-        vfloat64m4_t data_f64m4 = __riscv_vfwcvt_f_f_v_f64m4(data_f32m2, vector_length);
-        sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(sum_f64m4, sum_f64m4, data_f64m4, vector_length);
-
-        // Sumsq via widening FMA: f32 × f32 → f64
-        sumsq_f64m4 = __riscv_vfwmacc_vv_f64m4_tu(sumsq_f64m4, data_f32m2, data_f32m2, vector_length);
+        sum_f32m2 = __riscv_vfadd_vv_f32m2_tu(sum_f32m2, sum_f32m2, data_f32m2, vector_length);
+        sumsq_f32m2 = __riscv_vfmacc_vv_f32m2_tu(sumsq_f32m2, data_f32m2, data_f32m2, vector_length);
     }
 
     // Horizontal reduction
-    vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
-    *sum_ptr = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, max_vector_length)),
-    *sumsq_ptr = __riscv_vfmv_f_s_f64m1_f64(
-        __riscv_vfredusum_vs_f64m4_f64m1(sumsq_f64m4, zero_f64m1, max_vector_length));
+    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
+    *sum_ptr = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)),
+    *sumsq_ptr = __riscv_vfmv_f_s_f32m1_f32(
+        __riscv_vfredusum_vs_f32m2_f32m1(sumsq_f32m2, zero_f32m1, max_vector_length));
 }
 
 NUMKONG_INLINE vuint16m1_t nk_fp16m1_to_comparable_u16m1_rvv_(vuint16m1_t raw_u16m1, nk_size_t vector_length) {
@@ -2153,9 +2143,9 @@ NUMKONG_INLINE void nk_reduce_minmax_strided_bf16_rvv_(           //
 NUMKONG_INLINE void nk_reduce_moments_contiguous_f16_rvv_( //
     nk_f16_t const *data_ptr, nk_size_t count,             //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
-    vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-    vfloat64m4_t sumsq_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
+    vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
+    vfloat32m2_t sumsq_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
 
     for (nk_size_t vector_length; count > 0; count -= vector_length, data_ptr += vector_length) {
         vector_length = __riscv_vsetvl_e16m1(count);
@@ -2163,28 +2153,23 @@ NUMKONG_INLINE void nk_reduce_moments_contiguous_f16_rvv_( //
 
         // Convert f16 → f32 (m1 → m2)
         vfloat32m2_t data_f32m2 = nk_f16m1_to_f32m2_rvv_(data_u16m1, vector_length);
-
-        // Widen f32 → f64 (m2 → m4)
-        vfloat64m4_t data_f64m4 = __riscv_vfwcvt_f_f_v_f64m4(data_f32m2, vector_length);
-        sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(sum_f64m4, sum_f64m4, data_f64m4, vector_length);
-
-        // Sumsq via widening FMA: f32 × f32 → f64
-        sumsq_f64m4 = __riscv_vfwmacc_vv_f64m4_tu(sumsq_f64m4, data_f32m2, data_f32m2, vector_length);
+        sum_f32m2 = __riscv_vfadd_vv_f32m2_tu(sum_f32m2, sum_f32m2, data_f32m2, vector_length);
+        sumsq_f32m2 = __riscv_vfmacc_vv_f32m2_tu(sumsq_f32m2, data_f32m2, data_f32m2, vector_length);
     }
 
     // Horizontal reduction
-    vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
-    *sum_ptr = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, max_vector_length)),
-    *sumsq_ptr = __riscv_vfmv_f_s_f64m1_f64(
-        __riscv_vfredusum_vs_f64m4_f64m1(sumsq_f64m4, zero_f64m1, max_vector_length));
+    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
+    *sum_ptr = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)),
+    *sumsq_ptr = __riscv_vfmv_f_s_f32m1_f32(
+        __riscv_vfredusum_vs_f32m2_f32m1(sumsq_f32m2, zero_f32m1, max_vector_length));
 }
 
 NUMKONG_INLINE void nk_reduce_moments_strided_f16_rvv_(          //
     nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
-    vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-    vfloat64m4_t sumsq_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
+    vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
+    vfloat32m2_t sumsq_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
     unsigned char const *ptr = (unsigned char const *)data_ptr;
 
     for (nk_size_t vector_length; count > 0; count -= vector_length, ptr += vector_length * stride) {
@@ -2193,20 +2178,15 @@ NUMKONG_INLINE void nk_reduce_moments_strided_f16_rvv_(          //
 
         // Convert f16 → f32 (m1 → m2)
         vfloat32m2_t data_f32m2 = nk_f16m1_to_f32m2_rvv_(data_u16m1, vector_length);
-
-        // Widen f32 → f64 (m2 → m4)
-        vfloat64m4_t data_f64m4 = __riscv_vfwcvt_f_f_v_f64m4(data_f32m2, vector_length);
-        sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(sum_f64m4, sum_f64m4, data_f64m4, vector_length);
-
-        // Sumsq via widening FMA: f32 × f32 → f64
-        sumsq_f64m4 = __riscv_vfwmacc_vv_f64m4_tu(sumsq_f64m4, data_f32m2, data_f32m2, vector_length);
+        sum_f32m2 = __riscv_vfadd_vv_f32m2_tu(sum_f32m2, sum_f32m2, data_f32m2, vector_length);
+        sumsq_f32m2 = __riscv_vfmacc_vv_f32m2_tu(sumsq_f32m2, data_f32m2, data_f32m2, vector_length);
     }
 
     // Horizontal reduction
-    vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
-    *sum_ptr = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, max_vector_length)),
-    *sumsq_ptr = __riscv_vfmv_f_s_f64m1_f64(
-        __riscv_vfredusum_vs_f64m4_f64m1(sumsq_f64m4, zero_f64m1, max_vector_length));
+    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
+    *sum_ptr = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length)),
+    *sumsq_ptr = __riscv_vfmv_f_s_f32m1_f32(
+        __riscv_vfredusum_vs_f32m2_f32m1(sumsq_f32m2, zero_f32m1, max_vector_length));
 }
 
 NUMKONG_INLINE void nk_reduce_minmax_contiguous_f16_rvv_( //

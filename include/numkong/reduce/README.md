@@ -1,7 +1,7 @@
 # Horizontal Reductions in NumKong
 
 NumKong implements single-pass horizontal reductions over dense vectors: statistical moments (sum + sum-of-squares) and extrema (min + max with argmin + argmax).
-Both reductions traverse the input once, producing scalar outputs with compensated arithmetic for numerical stability.
+Both reductions traverse the input once, producing scalar outputs, and moments accumulate one tier wider than their input.
 The only module with full stride support — `stride` controls the byte distance between consecutive logical elements, enabling column extraction from row-major matrices and strided array views without copying.
 Used internally by packing routines for norm precomputation and by distance kernels for normalization.
 
@@ -86,11 +86,11 @@ RVV uses native strided loads (`__riscv_vlse32_v_f32m1`) that accept arbitrary b
 
 ### Kahan-Neumaier Compensated Summation
 
-`nk_reduce_moments_f32_serial`, `nk_reduce_moments_f64_serial` use Neumaier's variant of Kahan summation — maintaining a running compensation term that captures rounding errors.
+`nk_reduce_moments_f64_serial` uses Neumaier's variant of Kahan summation — maintaining a running compensation term that captures rounding errors.
 Standard pairwise summation accumulates $O(\sqrt{n})$ ULP error for n elements; Neumaier compensation bounds error to $O(1)$ ULP regardless of vector length.
 The serial path uses Neumaier's adaptive branch: `if (abs(sum) >= abs(val))` selects the larger summand first, minimizing relative error in the compensation term.
 SIMD backends (`nk_reduce_moments_f64_haswell`, `nk_reduce_moments_f64_skylake`) carry 4 or 8 independent compensation lanes in a YMM or ZMM register — computing `round_error = tentative - sum; correction = (sum - (tentative - round_error)) + (val - round_error)` without branches, folding all lanes into a single scalar correction at the end.
-The Float32 SIMD kernels skip compensation: they widen every input to Float64 first, and the wider accumulator already absorbs the rounding error.
+The Float32 kernels skip compensation: they widen every input to Float64 first, and the wider accumulator already absorbs the rounding error.
 
 ### Fused Moments in a Single Pass
 

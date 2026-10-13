@@ -92,27 +92,17 @@ NUMKONG_CONSTEXPR int nk_is_nan_bf16_serial_(nk_bf16_t x) {
     return (x_fui.u & 0x7FFF) > 0x7F80;
 }
 
-/** Sums F32 values @p stride apart, and their squares, in F64 with Neumaier compensation. */
+/** Sums F32 values @p stride apart, and their squares, in F64. */
 NUMKONG_INLINE void nk_reduce_moments_strided_f32_serial_(   //
     nk_f32_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
-    nk_f64_t running_sum = 0, sum_compensation = 0;
-    nk_f64_t running_sumsq = 0, sumsq_compensation = 0;
+    nk_f64_t sum = 0, sumsq = 0;
     unsigned char const *ptr = (unsigned char const *)data;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride) {
-        nk_f64_t val = (nk_f64_t)(*(nk_f32_t const *)ptr);
-        nk_f64_t tentative_sum = running_sum + val;
-        if (nk_f64_abs_(running_sum) >= nk_f64_abs_(val)) sum_compensation += (running_sum - tentative_sum) + val;
-        else sum_compensation += (val - tentative_sum) + running_sum;
-        running_sum = tentative_sum;
-
-        nk_f64_t squared_value = val * val;
-        nk_f64_t tentative_sumsq = running_sumsq + squared_value;
-        if (running_sumsq >= squared_value) sumsq_compensation += (running_sumsq - tentative_sumsq) + squared_value;
-        else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
-        running_sumsq = tentative_sumsq;
+        nk_f64_t const val = *(nk_f32_t const *)ptr;
+        sum += val, sumsq += val * val;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
 /** Sums F64 values @p stride apart, and their squares, with Neumaier compensation. */
@@ -275,123 +265,74 @@ NUMKONG_INLINE void nk_reduce_moments_strided_u64_serial_(   //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-/** Sums F16 values @p stride apart, and their squares, in F32 with Neumaier compensation. */
+/** Sums F16 values @p stride apart, and their squares, in F32. */
 NUMKONG_INLINE void nk_reduce_moments_strided_f16_serial_(   //
     nk_f16_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    nk_f32_t running_sum = 0, sum_compensation = 0;
-    nk_f32_t running_sumsq = 0, sumsq_compensation = 0;
+    nk_f32_t sum = 0, sumsq = 0;
     unsigned char const *ptr = (unsigned char const *)data;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride) {
         nk_f32_t val;
         nk_f16_to_f32_serial_((nk_f16_t const *)ptr, &val);
-        nk_f32_t tentative_sum = running_sum + val;
-        nk_f32_t abs_running_sum = nk_f32_abs_(running_sum);
-        nk_f32_t abs_val = nk_f32_abs_(val);
-        if (abs_running_sum >= abs_val) sum_compensation += (running_sum - tentative_sum) + val;
-        else sum_compensation += (val - tentative_sum) + running_sum;
-        running_sum = tentative_sum;
-
-        nk_f32_t squared_value = val * val;
-        nk_f32_t tentative_sumsq = running_sumsq + squared_value;
-        if (running_sumsq >= squared_value) sumsq_compensation += (running_sumsq - tentative_sumsq) + squared_value;
-        else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
-        running_sumsq = tentative_sumsq;
+        sum += val, sumsq += val * val;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-/** Sums BF16 values @p stride apart, and their squares, in F64. */
+/** Sums BF16 values @p stride apart, and their squares, in F32. */
 NUMKONG_INLINE void nk_reduce_moments_strided_bf16_serial_(   //
     nk_bf16_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    // F64 holds BF16 squares exactly and can't overflow, so only narrowing turns totals into ±inf
-    nk_f64_t sum = 0, sumsq = 0;
+    nk_f32_t sum = 0, sumsq = 0;
     unsigned char const *ptr = (unsigned char const *)data;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride) {
         nk_f32_t val;
         nk_bf16_to_f32_serial_((nk_bf16_t const *)ptr, &val);
-        sum += val, sumsq += (nk_f64_t)val * val;
+        sum += val, sumsq += val * val;
     }
-    *sum_ptr = (nk_f32_t)sum, *sumsq_ptr = (nk_f32_t)sumsq;
+    *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-/** Sums E4M3 values @p stride apart, and their squares, in F32 with Neumaier compensation. */
+/** Sums E4M3 values @p stride apart, and their squares, in F32. */
 NUMKONG_INLINE void nk_reduce_moments_strided_e4m3_serial_(   //
     nk_e4m3_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    nk_f32_t running_sum = 0, sum_compensation = 0;
-    nk_f32_t running_sumsq = 0, sumsq_compensation = 0;
+    nk_f32_t sum = 0, sumsq = 0;
     unsigned char const *ptr = (unsigned char const *)data;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride) {
         nk_f32_t val;
         nk_e4m3_to_f32_serial_((nk_e4m3_t const *)ptr, &val);
-        nk_f32_t tentative_sum = running_sum + val;
-        nk_f32_t abs_running_sum = nk_f32_abs_(running_sum);
-        nk_f32_t abs_val = nk_f32_abs_(val);
-        if (abs_running_sum >= abs_val) sum_compensation += (running_sum - tentative_sum) + val;
-        else sum_compensation += (val - tentative_sum) + running_sum;
-        running_sum = tentative_sum;
-
-        nk_f32_t squared_value = val * val;
-        nk_f32_t tentative_sumsq = running_sumsq + squared_value;
-        if (running_sumsq >= squared_value) sumsq_compensation += (running_sumsq - tentative_sumsq) + squared_value;
-        else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
-        running_sumsq = tentative_sumsq;
+        sum += val, sumsq += val * val;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-/** Sums E5M2 values @p stride apart, and their squares, in F32 with Neumaier compensation. */
+/** Sums E5M2 values @p stride apart, and their squares, in F32. */
 NUMKONG_INLINE void nk_reduce_moments_strided_e5m2_serial_(   //
     nk_e5m2_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    nk_f32_t running_sum = 0, sum_compensation = 0;
-    nk_f32_t running_sumsq = 0, sumsq_compensation = 0;
+    nk_f32_t sum = 0, sumsq = 0;
     unsigned char const *ptr = (unsigned char const *)data;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride) {
         nk_f32_t val;
         nk_e5m2_to_f32_serial_((nk_e5m2_t const *)ptr, &val);
-        nk_f32_t tentative_sum = running_sum + val;
-        nk_f32_t abs_running_sum = nk_f32_abs_(running_sum);
-        nk_f32_t abs_val = nk_f32_abs_(val);
-        if (abs_running_sum >= abs_val) sum_compensation += (running_sum - tentative_sum) + val;
-        else sum_compensation += (val - tentative_sum) + running_sum;
-        running_sum = tentative_sum;
-
-        nk_f32_t squared_value = val * val;
-        nk_f32_t tentative_sumsq = running_sumsq + squared_value;
-        if (running_sumsq >= squared_value) sumsq_compensation += (running_sumsq - tentative_sumsq) + squared_value;
-        else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
-        running_sumsq = tentative_sumsq;
+        sum += val, sumsq += val * val;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
-/** Sums E2M3 values @p stride apart, and their squares, in F32 with Neumaier compensation. */
+/** Sums E2M3 values @p stride apart, and their squares, in F32. */
 NUMKONG_INLINE void nk_reduce_moments_strided_e2m3_serial_(   //
     nk_e2m3_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    nk_f32_t running_sum = 0, sum_compensation = 0;
-    nk_f32_t running_sumsq = 0, sumsq_compensation = 0;
+    nk_f32_t sum = 0, sumsq = 0;
     unsigned char const *ptr = (unsigned char const *)data;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride) {
         nk_f32_t val;
         nk_e2m3_to_f32_serial_((nk_e2m3_t const *)ptr, &val);
-        nk_f32_t tentative_sum = running_sum + val;
-        nk_f32_t abs_running_sum = nk_f32_abs_(running_sum);
-        nk_f32_t abs_val = nk_f32_abs_(val);
-        if (abs_running_sum >= abs_val) sum_compensation += (running_sum - tentative_sum) + val;
-        else sum_compensation += (val - tentative_sum) + running_sum;
-        running_sum = tentative_sum;
-
-        nk_f32_t squared_value = val * val;
-        nk_f32_t tentative_sumsq = running_sumsq + squared_value;
-        if (running_sumsq >= squared_value) sumsq_compensation += (running_sumsq - tentative_sumsq) + squared_value;
-        else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
-        running_sumsq = tentative_sumsq;
+        sum += val, sumsq += val * val;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
 /** Sums E2M1 nibbles in bytes @p stride apart, and their squares, exactly in integers. */
@@ -408,30 +349,18 @@ NUMKONG_INLINE void nk_reduce_moments_strided_e2m1_serial_(     //
     *sum_ptr = (nk_f32_t)doubled_sum * 0.5f, *sumsq_ptr = (nk_f32_t)quadrupled_sumsq * 0.25f;
 }
 
-/** Sums E3M2 values @p stride apart, and their squares, in F32 with Neumaier compensation. */
+/** Sums E3M2 values @p stride apart, and their squares, in F32. */
 NUMKONG_INLINE void nk_reduce_moments_strided_e3m2_serial_(   //
     nk_e3m2_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    nk_f32_t running_sum = 0, sum_compensation = 0;
-    nk_f32_t running_sumsq = 0, sumsq_compensation = 0;
+    nk_f32_t sum = 0, sumsq = 0;
     unsigned char const *ptr = (unsigned char const *)data;
     for (nk_size_t i = 0; i < count; ++i, ptr += stride) {
         nk_f32_t val;
         nk_e3m2_to_f32_serial_((nk_e3m2_t const *)ptr, &val);
-        nk_f32_t tentative_sum = running_sum + val;
-        nk_f32_t abs_running_sum = nk_f32_abs_(running_sum);
-        nk_f32_t abs_val = nk_f32_abs_(val);
-        if (abs_running_sum >= abs_val) sum_compensation += (running_sum - tentative_sum) + val;
-        else sum_compensation += (val - tentative_sum) + running_sum;
-        running_sum = tentative_sum;
-
-        nk_f32_t squared_value = val * val;
-        nk_f32_t tentative_sumsq = running_sumsq + squared_value;
-        if (running_sumsq >= squared_value) sumsq_compensation += (running_sumsq - tentative_sumsq) + squared_value;
-        else sumsq_compensation += (squared_value - tentative_sumsq) + running_sumsq;
-        running_sumsq = tentative_sumsq;
+        sum += val, sumsq += val * val;
     }
-    *sum_ptr = running_sum + sum_compensation, *sumsq_ptr = running_sumsq + sumsq_compensation;
+    *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
 /** Sums I4 nibble pairs in bytes @p stride apart, and their squares, in 64-bit integers. */

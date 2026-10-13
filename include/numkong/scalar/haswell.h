@@ -37,11 +37,8 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-#if NUMKONG_TARGET_HASWELL
-
-NUMKONG_API nk_f32_t nk_f32_sqrt_haswell(nk_f32_t x) { return _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(x))); }
-NUMKONG_API nk_f64_t nk_f64_sqrt_haswell(nk_f64_t x) { return _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(x))); }
-NUMKONG_API nk_f32_t nk_f32_rsqrt_haswell(nk_f32_t x) {
+/** Reciprocal square root: the hardware estimate refined by one Newton step. */
+NUMKONG_INLINE nk_f32_t nk_rsqrt_f32_haswell_(nk_f32_t x) {
     nk_fui32_t conv;
     conv.f = x;
     nk_u32_t const result_mask = (nk_u32_t)0 - (conv.u != 0x7F800000u);
@@ -55,6 +52,12 @@ NUMKONG_API nk_f32_t nk_f32_rsqrt_haswell(nk_f32_t x) {
     conv.u &= result_mask;
     return _mm_cvtss_f32(_mm_mul_ss(_mm_mul_ss(_mm_set_ss(0.5f), estimate_f32x4), refinement_f32x4)) * conv.f;
 }
+
+#if NUMKONG_TARGET_HASWELL
+
+NUMKONG_API nk_f32_t nk_f32_sqrt_haswell(nk_f32_t x) { return _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(x))); }
+NUMKONG_API nk_f64_t nk_f64_sqrt_haswell(nk_f64_t x) { return _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(x))); }
+NUMKONG_API nk_f32_t nk_f32_rsqrt_haswell(nk_f32_t x) { return nk_rsqrt_f32_haswell_(x); }
 NUMKONG_API nk_f64_t nk_f64_rsqrt_haswell(nk_f64_t x) { return 1.0 / _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(x))); }
 NUMKONG_API nk_f32_t nk_f32_fma_haswell(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
     return _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(a), _mm_set_ss(b), _mm_set_ss(c)));

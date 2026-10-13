@@ -504,6 +504,8 @@ To add a new operation family, for example `foo`:
    Compilers inline a pointer argument but not one stored in a struct whose address escapes, which then costs an indirect call per element.
    The public punned kernel types and the `_best` capability lists are the only function pointers.
    Block-scaled kernels rebase into F32 and fall back to the exact F32 path, never F64.
+   A reduction accumulates one tier above the narrowest type it reads or writes, F32 for anything narrower than F32 and F64 for F32, and compensates only when input and output are both F64.
+   Its element-wise steps run at their input's working precision, and family headers state the reduction type in a `nk_<family>_*_dtype` helper.
    SME kernels finish in predicated streaming SVE, never NEON, which faults in streaming mode.
    A new `nk_define_*` macro needs approval: add it to `approved_codegen_macros` in the same commit.
 3. __Library__: create `c/dispatch/foo.c` with a `static` capability list per dispatch point, like `nk_foo_f32_capabilities`, the `_best` body that picks from it, and `nk_foo_find_kernel`.

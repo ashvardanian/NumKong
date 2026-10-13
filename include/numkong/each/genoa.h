@@ -16,8 +16,9 @@
 #if NUMKONG_TARGET_GENOA
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"  // `nk_bf16_to_f32_serial_`, `nk_f32_to_e4m3_serial_`
-#include "numkong/reduce/genoa.h" // `nk_reduce_moments_chunked_bf16_genoa_`
+#include "numkong/cast/serial.h"    // `nk_bf16_to_f32_serial_`, `nk_f32_to_e4m3_serial_`
+#include "numkong/reduce/genoa.h"   // `nk_reduce_moments_chunked_bf16_genoa_`
+#include "numkong/scalar/haswell.h" // `nk_rsqrt_f32_haswell_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -43,7 +44,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_genoa(nk_bf16_t const *x, nk_f32_t 
         for (nk_size_t group = 0; group != groups; ++group) {
             nk_bf16_t const *group_input = x_row + group * columns;
             nk_bf16_t *group_output = y_row + group * columns;
-            nk_f64_t sumsq = 0;
+            nk_f32_t sumsq = 0;
             // Short F32 reductions bound error independently of row width
             for (nk_size_t start = 0; start < columns; start += 64) {
                 nk_size_t const count = columns - start < 64 ? columns - start : 64;
@@ -52,8 +53,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_genoa(nk_bf16_t const *x, nk_f32_t 
                                                       &partial_sumsq);
                 sumsq += partial_sumsq;
             }
-            nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
-            nk_f32_t gain = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            nk_f32_t const gain = nk_rsqrt_f32_haswell_(sumsq / (nk_f32_t)columns + epsilon);
             for (nk_size_t c = 0; c != columns; ++c) {
                 nk_f32_t value;
                 nk_bf16_to_f32_serial_(group_input + c, &value);
@@ -78,8 +78,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_genoa(nk_e4m3_t const *x, nk_f32_t 
             nk_e4m3_t *group_output = y_row + group * columns;
             nk_f32_t sum, sumsq;
             nk_reduce_moments_chunked_e4m3_genoa_(group_input, columns, sizeof(nk_e4m3_t), &sum, &sumsq);
-            nk_f32_t mean_square = (nk_f32_t)((nk_f64_t)sumsq / (nk_f64_t)columns) + epsilon;
-            nk_f32_t gain = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            nk_f32_t const gain = nk_rsqrt_f32_haswell_(sumsq / (nk_f32_t)columns + epsilon);
             for (nk_size_t c = 0; c != columns; ++c) {
                 nk_f32_t value;
                 nk_e4m3_to_f32_serial_(group_input + c, &value);

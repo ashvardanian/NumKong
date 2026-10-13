@@ -78,6 +78,13 @@ Complex element-wise operations:
 | `f64c`     | `f64c`      | 64-bit complex pairs |
 | `f32c`     | `f32c`      | 32-bit complex pairs |
 
+Fused SwiGLU and grouped RMSNorm support F32, F16, BF16, and E4M3.
+The downcasting `nk_each_rmscast_<type>` reverses a dot product of `<type>`: it reads the F32 of BF16, F16, E4M3, E5M2, E2M3 and E3M2 dots, the F64 of F32 dots, or the I32 and U32 of I8 and U8 dots, and normalizes it into `<type>`.
+Integer outputs round to nearest even and saturate, with γ carrying the quantization scale.
+RMSNorm and RMSCast reduce one tier above the narrower of their input and output, in the type `nk_each_rmsnorm_reduction_dtype` returns.
+Every type has serial, CUDA and ROCm kernels, Haswell, Skylake and NEON follow their RMSNorm types, Ampere narrows BF16 and Ada narrows E4M3 and E5M2.
+Metal has every kernel but the F32 RMSNorm, which reduces in F64.
+
 ## Optimizations
 
 ### Widening-Narrowing Pipeline for Sub-32-bit Types
@@ -95,13 +102,8 @@ Serial fallback implements saturation via branch-free min/max: `result = min(max
 ### Complex Number Layout
 
 `nk_each_fma_f32c_serial`, `nk_each_blend_f64c_serial` operate on interleaved real/imaginary pairs: `[re0, im0, re1, im1, ...]`.
-Addition and scaling treat complex vectors as 2N-length real vectors — no special handling needed.
-FMA requires cross-lane operations for the imaginary part: `re(a*b) = re(a)*re(b) - im(a)*im(b)`, implemented via `VFMADDSUB231PS` which alternates add/subtract across even/odd lanes.
-
-Fused SwiGLU and grouped RMSNorm support F32, F16, BF16, and E4M3.
-The downcasting `nk_each_rmscast_<type>` reverses a dot product of `<type>`: it reads the F32 of BF16, F16, E4M3, E5M2, E2M3 and E3M2 dots, the F64 of F32 dots, or the I32 and U32 of I8 and U8 dots, and normalizes it into `<type>`.
-Integer outputs round to nearest even and saturate, with γ carrying the quantization scale.
-Every type has serial, CUDA, ROCm and Metal kernels, Haswell, Skylake and NEON follow their RMSNorm types, Ampere narrows BF16 and Ada narrows E4M3 and E5M2.
+Addition treats complex vectors as 2N-length real vectors — no special handling needed.
+Scales, blends and FMAs multiply complex pairs, $(a + bi)(c + di) = (ac - bd) + (ad + bc)i$: Haswell multiplies $b$ by the swapped pair $(d, c)$, and `VFMADDSUB231PS` subtracts that from $a \cdot (c, d)$ in even lanes and adds it in odd ones.
 
 ## Performance
 

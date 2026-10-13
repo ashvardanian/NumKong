@@ -27,7 +27,7 @@
 #include "numkong/spatial/serial.h"
 #include "numkong/dot/loongsonasx.h"    // `nk_dot_stable_sum_f64x4_loongsonasx_`
 #include "numkong/cast/loongsonasx.h"   // `nk_f16x8_to_f32x8_loongsonasx_`
-#include "numkong/scalar/loongsonasx.h" // `nk_f32_rsqrt_lane_loongsonasx_`, `nk_f64_sqrt_lane_loongsonasx_`
+#include "numkong/scalar/loongsonasx.h" // `nk_rsqrt_f32_loongsonasx_`, `nk_sqrt_f64_loongsonasx_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -45,15 +45,15 @@ extern "C" {
 NUMKONG_INLINE nk_f64_t nk_angular_normalize_f64_loongsonasx_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
     if (a2 == 0 && b2 == 0) return 0;
     else if (ab == 0) return 1;
-    nk_f64_t result = 1 - ab / (nk_f64_sqrt_lane_loongsonasx_(a2) * nk_f64_sqrt_lane_loongsonasx_(b2));
+    nk_f64_t result = 1 - ab / (nk_sqrt_f64_loongsonasx_(a2) * nk_sqrt_f64_loongsonasx_(b2));
     return result > 0 ? result : 0;
 }
 
 NUMKONG_INLINE nk_f32_t nk_angular_normalize_i32_loongsonasx_(nk_i32_t ab, nk_i32_t a2, nk_i32_t b2) {
     if (a2 == 0 && b2 == 0) return 0;
     else if (ab == 0) return 1;
-    nk_f32_t result = 1.0f - (nk_f32_t)ab * nk_f32_rsqrt_lane_loongsonasx_((nk_f32_t)a2) *
-                                 nk_f32_rsqrt_lane_loongsonasx_((nk_f32_t)b2);
+    nk_f32_t result = 1.0f -
+                      (nk_f32_t)ab * nk_rsqrt_f32_loongsonasx_((nk_f32_t)a2) * nk_rsqrt_f32_loongsonasx_((nk_f32_t)b2);
     return result > 0 ? result : 0;
 }
 
@@ -277,11 +277,12 @@ NUMKONG_INLINE void nk_squared_distance_i8_loongsonasx_(nk_i8_t const *a, nk_i8_
     for (; i + 32 <= n; i += 32) {
         __m256i a_i8x32 = __lasx_xvld(a + i, 0);
         __m256i b_i8x32 = __lasx_xvld(b + i, 0);
-        __m256i diff_i8x32 = __lasx_xvsub_b(a_i8x32, b_i8x32);
-        __m256i sq_i16x16 = __lasx_xvreplgr2vr_h(0);
-        sq_i16x16 = __lasx_xvmaddwev_h_b(sq_i16x16, diff_i8x32, diff_i8x32);
-        sq_i16x16 = __lasx_xvmaddwod_h_b(sq_i16x16, diff_i8x32, diff_i8x32);
-        sum_i32x8 = __lasx_xvadd_w(sum_i32x8, __lasx_xvhaddw_w_h(sq_i16x16, sq_i16x16));
+        __m256i diff_even_i16x16 = __lasx_xvsubwev_h_b(a_i8x32, b_i8x32);
+        __m256i diff_odd_i16x16 = __lasx_xvsubwod_h_b(a_i8x32, b_i8x32);
+        sum_i32x8 = __lasx_xvmaddwev_w_h(sum_i32x8, diff_even_i16x16, diff_even_i16x16);
+        sum_i32x8 = __lasx_xvmaddwod_w_h(sum_i32x8, diff_even_i16x16, diff_even_i16x16);
+        sum_i32x8 = __lasx_xvmaddwev_w_h(sum_i32x8, diff_odd_i16x16, diff_odd_i16x16);
+        sum_i32x8 = __lasx_xvmaddwod_w_h(sum_i32x8, diff_odd_i16x16, diff_odd_i16x16);
     }
     nk_i32_t sum = nk_reduce_add_i32x8_loongsonasx_(sum_i32x8);
     for (; i < n; ++i) {
@@ -304,7 +305,7 @@ NUMKONG_API nk_status_t nk_euclidean_i8_loongsonasx(nk_i8_t const *a, nk_i8_t co
     nk_u32_t distance_sq_u32;
     nk_squared_distance_i8_loongsonasx_(a, b, n, &distance_sq_u32);
     nk_f32_t distance_sq = (nk_f32_t)distance_sq_u32;
-    *result = distance_sq > 0 ? distance_sq * nk_f32_rsqrt_lane_loongsonasx_(distance_sq) : 0;
+    *result = distance_sq > 0 ? nk_sqrt_f32_loongsonasx_(distance_sq) : 0;
     return nk_success_k;
 }
 
@@ -318,21 +319,20 @@ NUMKONG_API nk_status_t nk_angular_i8_loongsonasx(nk_i8_t const *a, nk_i8_t cons
     for (; i + 32 <= n; i += 32) {
         __m256i a_i8x32 = __lasx_xvld(a + i, 0);
         __m256i b_i8x32 = __lasx_xvld(b + i, 0);
-        // dot(a, b)
-        __m256i ab_i16x16 = __lasx_xvreplgr2vr_h(0);
-        ab_i16x16 = __lasx_xvmaddwev_h_b(ab_i16x16, a_i8x32, b_i8x32);
-        ab_i16x16 = __lasx_xvmaddwod_h_b(ab_i16x16, a_i8x32, b_i8x32);
-        dot_i32x8 = __lasx_xvadd_w(dot_i32x8, __lasx_xvhaddw_w_h(ab_i16x16, ab_i16x16));
-        // norm_sq(a)
-        __m256i aa_i16x16 = __lasx_xvreplgr2vr_h(0);
-        aa_i16x16 = __lasx_xvmaddwev_h_b(aa_i16x16, a_i8x32, a_i8x32);
-        aa_i16x16 = __lasx_xvmaddwod_h_b(aa_i16x16, a_i8x32, a_i8x32);
-        a_sq_i32x8 = __lasx_xvadd_w(a_sq_i32x8, __lasx_xvhaddw_w_h(aa_i16x16, aa_i16x16));
-        // norm_sq(b)
-        __m256i bb_i16x16 = __lasx_xvreplgr2vr_h(0);
-        bb_i16x16 = __lasx_xvmaddwev_h_b(bb_i16x16, b_i8x32, b_i8x32);
-        bb_i16x16 = __lasx_xvmaddwod_h_b(bb_i16x16, b_i8x32, b_i8x32);
-        b_sq_i32x8 = __lasx_xvadd_w(b_sq_i32x8, __lasx_xvhaddw_w_h(bb_i16x16, bb_i16x16));
+        // dot(a, b), widened before pairing, as two −128 × −128 products overflow i16
+        __m256i ab_even_i16x16 = __lasx_xvmulwev_h_b(a_i8x32, b_i8x32);
+        __m256i ab_odd_i16x16 = __lasx_xvmulwod_h_b(a_i8x32, b_i8x32);
+        dot_i32x8 = __lasx_xvadd_w(dot_i32x8, __lasx_xvaddwev_w_h(ab_even_i16x16, ab_odd_i16x16));
+        dot_i32x8 = __lasx_xvadd_w(dot_i32x8, __lasx_xvaddwod_w_h(ab_even_i16x16, ab_odd_i16x16));
+        // Two squares pair to at most 32768, which only fits u16, so the norms widen as unsigned
+        __m256i aa_u16x16 = __lasx_xvreplgr2vr_h(0);
+        aa_u16x16 = __lasx_xvmaddwev_h_b(aa_u16x16, a_i8x32, a_i8x32);
+        aa_u16x16 = __lasx_xvmaddwod_h_b(aa_u16x16, a_i8x32, a_i8x32);
+        a_sq_i32x8 = __lasx_xvadd_w(a_sq_i32x8, __lasx_xvhaddw_wu_hu(aa_u16x16, aa_u16x16));
+        __m256i bb_u16x16 = __lasx_xvreplgr2vr_h(0);
+        bb_u16x16 = __lasx_xvmaddwev_h_b(bb_u16x16, b_i8x32, b_i8x32);
+        bb_u16x16 = __lasx_xvmaddwod_h_b(bb_u16x16, b_i8x32, b_i8x32);
+        b_sq_i32x8 = __lasx_xvadd_w(b_sq_i32x8, __lasx_xvhaddw_wu_hu(bb_u16x16, bb_u16x16));
     }
     nk_i32_t dot = nk_reduce_add_i32x8_loongsonasx_(dot_i32x8);
     nk_i32_t a_sq = nk_reduce_add_i32x8_loongsonasx_(a_sq_i32x8);
@@ -389,7 +389,7 @@ NUMKONG_API nk_status_t nk_euclidean_u8_loongsonasx(nk_u8_t const *a, nk_u8_t co
     nk_u32_t distance_sq_u32;
     nk_squared_distance_u8_loongsonasx_(a, b, n, &distance_sq_u32);
     nk_f32_t distance_sq = (nk_f32_t)distance_sq_u32;
-    *result = distance_sq > 0 ? distance_sq * nk_f32_rsqrt_lane_loongsonasx_(distance_sq) : 0;
+    *result = distance_sq > 0 ? nk_sqrt_f32_loongsonasx_(distance_sq) : 0;
     return nk_success_k;
 }
 
@@ -484,7 +484,7 @@ NUMKONG_API nk_status_t nk_euclidean_f32_loongsonasx(nk_f32_t const *a, nk_f32_t
                                                      nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f32_loongsonasx_(a, b, n, result);
-    *result = nk_f64_sqrt_lane_loongsonasx_(*result);
+    *result = nk_sqrt_f64_loongsonasx_(*result);
     return nk_success_k;
 }
 
@@ -551,7 +551,7 @@ NUMKONG_API nk_status_t nk_euclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t
                                                      nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f64_loongsonasx_(a, b, n, result);
-    *result = nk_f64_sqrt_lane_loongsonasx_(*result);
+    *result = nk_sqrt_f64_loongsonasx_(*result);
     return nk_success_k;
 }
 
@@ -590,7 +590,7 @@ NUMKONG_API nk_status_t nk_angular_f64_loongsonasx(nk_f64_t const *a, nk_f64_t c
 NUMKONG_INLINE nk_f32_t nk_angular_normalize_f32_loongsonasx_(nk_f32_t ab, nk_f32_t a2, nk_f32_t b2) {
     if (a2 == 0.0f && b2 == 0.0f) return 0.0f;
     else if (ab == 0.0f) return 1.0f;
-    nk_f32_t result = 1.0f - ab * nk_f32_rsqrt_lane_loongsonasx_(a2) * nk_f32_rsqrt_lane_loongsonasx_(b2);
+    nk_f32_t result = 1.0f - ab * nk_rsqrt_f32_loongsonasx_(a2) * nk_rsqrt_f32_loongsonasx_(b2);
     return result > 0.0f ? result : 0.0f;
 }
 
@@ -647,7 +647,7 @@ NUMKONG_API nk_status_t nk_euclidean_bf16_loongsonasx(nk_bf16_t const *a, nk_bf1
                                                       nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_loongsonasx_(a, b, n, result);
-    *result = *result > 0 ? *result * nk_f32_rsqrt_lane_loongsonasx_(*result) : 0;
+    *result = *result > 0 ? nk_sqrt_f32_loongsonasx_(*result) : 0;
     return nk_success_k;
 }
 
@@ -722,7 +722,7 @@ NUMKONG_API nk_status_t nk_euclidean_f16_loongsonasx(nk_f16_t const *a, nk_f16_t
                                                      nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f16_loongsonasx_(a, b, n, result);
-    *result = *result > 0 ? *result * nk_f32_rsqrt_lane_loongsonasx_(*result) : 0;
+    *result = *result > 0 ? nk_sqrt_f32_loongsonasx_(*result) : 0;
     return nk_success_k;
 }
 

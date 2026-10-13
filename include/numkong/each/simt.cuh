@@ -16,16 +16,18 @@
  *  of 32 lanes and takes separate gate and up rows, so a fused @b [rows,2×ffn] buffer passes gate =
  *  base and up = base + ffn with one row stride, and a NULL @c up is plain SiLU.
  *
- *  RMSNorm, and its downcasting form reading F32, give each normalized vector one block, sized so
- *  that every thread keeps at most 8 16-byte pieces of it in registers between the two passes,
- *  reloading any beyond. A chunk there is 16 bytes of the narrower side, so every store moves 16
- *  bytes. Squares sum as compensated F32 pairs, TwoProduct through FMA and TwoSum, rather than in
- *  F64, which sm_103 runs at 2 results per clock per SM. The pairs merge through xor shuffles
- *  across a team's lanes and through shared memory across teams, and their mean rounds once in F64.
+ *  RMSNorm, and its downcasting form, give each normalized vector one block, sized so that every
+ *  thread keeps at most 8 16-byte pieces of it in registers between the two passes, reloading any
+ *  beyond. A chunk there is 16 bytes of the narrower side, so every store moves 16 bytes. Squares
+ *  sum plainly one tier above the narrower of the input and output: in F64 for the RMSNorm of F32
+ *  and the downcast of F64 to F32, and in F32 for the rest, downcasts from F32 and 32-bit integers
+ *  included. The sums merge through xor shuffles across a team's lanes and through shared memory
+ *  across teams, and their inverse RMS comes out in that same tier, while every value scales in
+ *  F32, but F64 ones in F64.
  *
  *  The element-wise kernels live here, and each vendor launches and exports them from its own host
- *  side, in `cuda.cuh` and `rocm.cuh` beside this file, with the sums of squares of RMSNorm, which
- *  round and shuffle through that vendor's primitives.
+ *  side, in `cuda.cuh` and `rocm.cuh` beside this file, whose rounded products and shuffles the
+ *  RMSNorm kernels call.
  *
  *  @sa include/numkong/each/cuda.cuh
  *  @sa include/numkong/each/rocm.cuh
@@ -35,8 +37,7 @@
 
 #if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
 
-#include "numkong/cast/simt.cuh"   // `nk_bf16_to_f32_simt_`
-#include "numkong/reduce/simt.cuh" // `nk_f32_two_sum_simt_`
+#include "numkong/cast/simt.cuh" // `nk_bf16_to_f32_simt_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -136,121 +137,171 @@ typedef struct {
     nk_f32_t epsilon;
 } nk_each_rmsnorm_arguments_t;
 
+/** The unit @p scale and the F32 inverse RMS @p factor of @p count values from the merged F32 sum
+ *  of their squares, all in F32, the inverse from the vendor's @c rsqrtf. */
+NUMKONG_DEVICE void nk_each_inverse_rms_f32_simt_(nk_f32_t sum, nk_size_t count, nk_f32_t epsilon, nk_f32_t *scale,
+                                                  nk_f32_t *factor) {
+    *scale = 1.0f, *factor = rsqrtf(sum / (nk_f32_t)count + epsilon);
+}
+
+/** The unit @p scale and the F32 inverse RMS @p factor of @p count 32-bit integers from the merged
+ *  F32 sum of their squares, whose mean rounds once from F64 to F32 before adding @p epsilon. */
+NUMKONG_DEVICE void nk_each_inverse_rms_integer_simt_(nk_f32_t sum, nk_size_t count, nk_f32_t epsilon, nk_f32_t *scale,
+                                                      nk_f32_t *factor) {
+    nk_f32_t const mean_square = (nk_f32_t)((nk_f64_t)sum / (nk_f64_t)count);
+    *scale = 1.0f, *factor = 1.0f / sqrtf(mean_square + epsilon);
+}
+
+/** The unit @p scale and the F64 inverse RMS @p factor of @p count values from the merged F64 sum
+ *  of their squares, all in F64. */
+NUMKONG_DEVICE void nk_each_inverse_rms_f64_simt_(nk_f64_t sum, nk_size_t count, nk_f32_t epsilon, nk_f64_t *scale,
+                                                  nk_f64_t *factor) {
+    *scale = 1.0, *factor = 1.0 / sqrt(sum / (nk_f64_t)count + (nk_f64_t)epsilon);
+}
+
+/** The F64 inverse RMS of @p count F32 values, from the merged F64 sum of their squares, as a power
+ *  of two @p scale and the F32 @p factor rounded from the rest within 2⁶⁴ of one, which F32 values
+ *  multiply by without leaving the F32 range, like @c nk_each_prescale_f32_serial_. */
+NUMKONG_DEVICE void nk_each_inverse_rms_f64_to_f32_simt_(nk_f64_t sum, nk_size_t count, nk_f32_t epsilon,
+                                                         nk_f32_t *scale, nk_f32_t *factor) {
+    nk_f64_t unit, inverse_rms;
+    nk_each_inverse_rms_f64_simt_(sum, count, epsilon, &unit, &inverse_rms);
+    nk_u64_t const bits = (nk_u64_t)__double_as_longlong(inverse_rms);
+    int const exponent = (int)((bits >> 52) & 0x7FFu) - 1023;
+    int const shift = exponent > 64 ? exponent - 64 : exponent < -64 ? exponent + 64 : 0;
+    nk_f64_t const power = __longlong_as_double((long long)((nk_u64_t)(1023 + shift) << 52));
+    nk_f64_t const remainder = __longlong_as_double((long long)((nk_u64_t)(1023 - shift) << 52));
+    *scale = (nk_f32_t)power, *factor = (nk_f32_t)(inverse_rms * remainder);
+}
+
 /** Generates @p verb for @p isa_suffix, an RMSNorm of @p input_type vectors into @p output_type
  *  ones after @c nk_define_each_rmsnorm_ of the serial backend: the helper that normalizes one
  *  chunk out of its 16-byte @c pieces, the kernel, one block per vector, and the entry point.
- *  The squares, the inverse RMS and the launch go through the helpers of @p vendor, @c cuda or
- *  @c rocm . */
-#define nk_define_each_rmsnorm_simt_(verb, input_type, output_type, isa_suffix, vendor, load_and_convert,            \
-                                     convert_and_store)                                                              \
-    NUMKONG_DEVICE void nk_each_##verb##_##output_type##_##isa_suffix##_chunk_(                                      \
-        nk_b128_vec_t const *pieces, nk_f32_t const *gamma, nk_f32_t inverse_rms, nk_##output_type##_t *y) {         \
-        unsigned const piece_values = 16 / sizeof(nk_##input_type##_t);                                              \
-        unsigned const chunk_values = 16 / sizeof(nk_##output_type##_t) < piece_values                               \
-                                          ? piece_values                                                             \
-                                          : 16 / sizeof(nk_##output_type##_t);                                       \
-        uint4 gains[4], normalized;                                                                                  \
-        nk_b128_vec_t const *const gain_vectors = (nk_b128_vec_t const *)gains;                                      \
-        nk_##output_type##_t *const outputs = ((nk_b128_vec_t *)&normalized)->output_type##s;                        \
-        nk_f32_t value, result;                                                                                      \
-        uint4 const *gamma_chunks = (uint4 const *)gamma;                                                            \
-        if (gamma) {                                                                                                 \
-            _Pragma("unroll") for (unsigned quad = 0; quad != chunk_values / 4; ++quad)                              \
-                gains[quad] = gamma_chunks[quad];                                                                    \
-        }                                                                                                            \
-        _Pragma("unroll") for (unsigned offset = 0; offset != chunk_values; ++offset) {                              \
-            load_and_convert(pieces[offset / piece_values].input_type##s + offset % piece_values, &value);           \
-            result = value * inverse_rms * (gamma ? gain_vectors[offset / 4].f32s[offset % 4] : 1.0f);               \
-            convert_and_store(&result, outputs + offset);                                                            \
-        }                                                                                                            \
-        *(uint4 *)y = normalized;                                                                                    \
-    }                                                                                                                \
-    static __global__ void nk_each_##verb##_##output_type##_##isa_suffix##_kernel_(                                  \
-        nk_each_rmsnorm_arguments_t arguments) {                                                                     \
-        __shared__ nk_f32_t partials[2 * nk_each_threads_simt_k / nk_each_team_lanes_simt_k];                        \
-        unsigned const piece_values = 16 / sizeof(nk_##input_type##_t);                                              \
-        unsigned const chunk_values = 16 / sizeof(nk_##output_type##_t) < piece_values                               \
-                                          ? piece_values                                                             \
-                                          : 16 / sizeof(nk_##output_type##_t);                                       \
-        unsigned const chunk_pieces = chunk_values / piece_values;                                                   \
-        unsigned const kept_chunks = nk_each_kept_pieces_simt_k / chunk_pieces;                                      \
-        int const exact_squares = sizeof(nk_##input_type##_t) < sizeof(nk_f32_t);                                    \
-        nk_f32_t const *gamma = arguments.gamma;                                                                     \
-        int const aligned = arguments.columns % chunk_values == 0 &&                                                 \
-                            !(((nk_size_t)arguments.x | arguments.x_stride | (nk_size_t)arguments.y |                \
-                               arguments.y_stride | (nk_size_t)gamma) &                                              \
-                              15);                                                                                   \
-        nk_size_t const chunks = aligned ? arguments.columns / chunk_values : 0;                                     \
-        nk_b128_vec_t kept[nk_each_kept_pieces_simt_k], loaded[4];                                                   \
-        for (nk_size_t vector = blockIdx.x; vector < arguments.vectors; vector += gridDim.x) {                       \
-            nk_size_t const row = vector / arguments.groups, first = vector % arguments.groups * arguments.columns;  \
-            nk_##input_type##_t const *x = (nk_##input_type##_t const *)(arguments.x + row * arguments.x_stride) +   \
-                                           first;                                                                    \
-            nk_##output_type##_t *y = (nk_##output_type##_t *)(arguments.y + row * arguments.y_stride) + first;      \
-            nk_f32_t sum = 0, compensation = 0, value;                                                               \
-            _Pragma("unroll") for (unsigned piece = 0; piece != nk_each_kept_pieces_simt_k; ++piece) {               \
-                nk_size_t const chunk = threadIdx.x + piece / chunk_pieces * blockDim.x;                             \
-                if (chunk >= chunks) continue;                                                                       \
-                uint4 const bits = *(uint4 const *)(x + chunk * chunk_values + piece % chunk_pieces * piece_values); \
-                nk_b128_vec_t const vector = {.u32s = {bits.x, bits.y, bits.z, bits.w}};                             \
-                kept[piece] = vector;                                                                                \
-            }                                                                                                        \
-            _Pragma("unroll") for (unsigned piece = 0; piece != nk_each_kept_pieces_simt_k; ++piece) {               \
-                if (threadIdx.x + piece / chunk_pieces * blockDim.x >= chunks) break;                                \
-                _Pragma("unroll") for (unsigned offset = 0; offset != piece_values; ++offset) {                      \
-                    load_and_convert(kept[piece].input_type##s + offset, &value);                                    \
-                    nk_each_square_add_##vendor##_(value, exact_squares, &sum, &compensation);                       \
-                }                                                                                                    \
-            }                                                                                                        \
-            for (nk_size_t chunk = threadIdx.x + kept_chunks * blockDim.x; chunk < chunks; chunk += blockDim.x)      \
-                _Pragma("unroll") for (unsigned piece = 0; piece != chunk_pieces; ++piece) {                         \
-                    uint4 const bits = *(uint4 const *)(x + chunk * chunk_values + piece * piece_values);            \
-                    nk_b128_vec_t const vector = {.u32s = {bits.x, bits.y, bits.z, bits.w}};                         \
-                    loaded[0] = vector;                                                                              \
-                    _Pragma("unroll") for (unsigned offset = 0; offset != piece_values; ++offset) {                  \
-                        load_and_convert(loaded[0].input_type##s + offset, &value);                                  \
-                        nk_each_square_add_##vendor##_(value, exact_squares, &sum, &compensation);                   \
-                    }                                                                                                \
-                }                                                                                                    \
-            for (nk_size_t column = chunks * chunk_values + threadIdx.x; column < arguments.columns;                 \
-                 column += blockDim.x) {                                                                             \
-                load_and_convert(x + column, &value);                                                                \
-                nk_each_square_add_##vendor##_(value, exact_squares, &sum, &compensation);                           \
-            }                                                                                                        \
-            nk_f32_t const inverse_rms = nk_each_inverse_rms_##vendor##_(sum, compensation, arguments.columns,       \
-                                                                         arguments.epsilon, partials);               \
-            _Pragma("unroll") for (unsigned slot = 0; slot != kept_chunks; ++slot) {                                 \
-                nk_size_t const chunk = threadIdx.x + slot * blockDim.x;                                             \
-                if (chunk >= chunks) break;                                                                          \
-                nk_each_##verb##_##output_type##_##isa_suffix##_chunk_(                                              \
-                    kept + slot * chunk_pieces, gamma ? gamma + chunk * chunk_values : NUMKONG_NULL, inverse_rms,    \
-                    y + chunk * chunk_values);                                                                       \
-            }                                                                                                        \
-            for (nk_size_t chunk = threadIdx.x + kept_chunks * blockDim.x; chunk < chunks; chunk += blockDim.x) {    \
-                _Pragma("unroll") for (unsigned piece = 0; piece != chunk_pieces; ++piece) {                         \
-                    uint4 const bits = *(uint4 const *)(x + chunk * chunk_values + piece * piece_values);            \
-                    nk_b128_vec_t const vector = {.u32s = {bits.x, bits.y, bits.z, bits.w}};                         \
-                    loaded[piece] = vector;                                                                          \
-                }                                                                                                    \
-                nk_each_##verb##_##output_type##_##isa_suffix##_chunk_(                                              \
-                    loaded, gamma ? gamma + chunk * chunk_values : NUMKONG_NULL, inverse_rms,                        \
-                    y + chunk * chunk_values);                                                                       \
-            }                                                                                                        \
-            for (nk_size_t column = chunks * chunk_values + threadIdx.x; column < arguments.columns;                 \
-                 column += blockDim.x) {                                                                             \
-                load_and_convert(x + column, &value);                                                                \
-                nk_f32_t const result = value * inverse_rms * (gamma ? gamma[column] : 1.0f);                        \
-                convert_and_store(&result, y + column);                                                              \
-            }                                                                                                        \
-        }                                                                                                            \
-    }                                                                                                                \
-    NUMKONG_API nk_status_t nk_each_##verb##_##output_type##_##isa_suffix(                                           \
-        nk_##input_type##_t const *x, nk_f32_t const *gamma, nk_##output_type##_t *y, nk_size_t rows,                \
-        nk_size_t groups, nk_size_t columns, nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,               \
-        nk_stream_t stream) {                                                                                        \
-        return nk_each_rmsnorm_launch_##vendor##_(                                                                   \
-            (void const *)&nk_each_##verb##_##output_type##_##isa_suffix##_kernel_, sizeof(nk_##input_type##_t),     \
-            sizeof(nk_##output_type##_t), x, gamma, y, rows, groups, columns, x_stride, y_stride, epsilon, stream);  \
+ *  Squares sum in @p reduction_type, rounded and shuffled through the primitives of @p vendor,
+ *  @c cuda or @c rocm, the @p inverse_rms helper turns them into a scale and a factor of
+ *  @p element_type, and every value scales in that @p element_type. */
+#define nk_define_each_rmsnorm_simt_(verb, input_type, output_type, reduction_type, element_type, inverse_rms,         \
+                                     isa_suffix, vendor, load_and_convert, convert_and_store)                          \
+    NUMKONG_DEVICE void nk_each_##verb##_##output_type##_##isa_suffix##_chunk_(                                        \
+        nk_b128_vec_t const *pieces, nk_f32_t const *gamma, nk_##element_type##_t scale, nk_##element_type##_t factor, \
+        nk_##output_type##_t *y) {                                                                                     \
+        unsigned const piece_values = 16 / sizeof(nk_##input_type##_t);                                                \
+        unsigned const chunk_values = 16 / sizeof(nk_##output_type##_t) < piece_values                                 \
+                                          ? piece_values                                                               \
+                                          : 16 / sizeof(nk_##output_type##_t);                                         \
+        uint4 gains[4], normalized;                                                                                    \
+        nk_b128_vec_t const *const gain_vectors = (nk_b128_vec_t const *)gains;                                        \
+        nk_##output_type##_t *const outputs = ((nk_b128_vec_t *)&normalized)->output_type##s;                          \
+        nk_##element_type##_t value, result;                                                                           \
+        uint4 const *gamma_chunks = (uint4 const *)gamma;                                                              \
+        if (gamma) {                                                                                                   \
+            _Pragma("unroll") for (unsigned quad = 0; quad != chunk_values / 4; ++quad)                                \
+                gains[quad] = gamma_chunks[quad];                                                                      \
+        }                                                                                                              \
+        _Pragma("unroll") for (unsigned offset = 0; offset != chunk_values; ++offset) {                                \
+            load_and_convert(pieces[offset / piece_values].input_type##s + offset % piece_values, &value);             \
+            result = value * scale * factor * (gamma ? gain_vectors[offset / 4].f32s[offset % 4] : 1.0f);              \
+            convert_and_store(&result, outputs + offset);                                                              \
+        }                                                                                                              \
+        *(uint4 *)y = normalized;                                                                                      \
+    }                                                                                                                  \
+    static __global__ void nk_each_##verb##_##output_type##_##isa_suffix##_kernel_(                                    \
+        nk_each_rmsnorm_arguments_t arguments) {                                                                       \
+        __shared__ nk_##reduction_type##_t partials[nk_each_threads_simt_k / nk_each_team_lanes_simt_k];               \
+        unsigned const piece_values = 16 / sizeof(nk_##input_type##_t);                                                \
+        unsigned const chunk_values = 16 / sizeof(nk_##output_type##_t) < piece_values                                 \
+                                          ? piece_values                                                               \
+                                          : 16 / sizeof(nk_##output_type##_t);                                         \
+        unsigned const chunk_pieces = chunk_values / piece_values;                                                     \
+        unsigned const kept_chunks = nk_each_kept_pieces_simt_k / chunk_pieces;                                        \
+        unsigned const teams = blockDim.x / nk_each_team_lanes_simt_k;                                                 \
+        nk_f32_t const *gamma = arguments.gamma;                                                                       \
+        int const aligned = arguments.columns % chunk_values == 0 &&                                                   \
+                            !(((nk_size_t)arguments.x | arguments.x_stride | (nk_size_t)arguments.y |                  \
+                               arguments.y_stride | (nk_size_t)gamma) &                                                \
+                              15);                                                                                     \
+        nk_size_t const chunks = aligned ? arguments.columns / chunk_values : 0;                                       \
+        nk_b128_vec_t kept[nk_each_kept_pieces_simt_k], loaded[4];                                                     \
+        for (nk_size_t vector = blockIdx.x; vector < arguments.vectors; vector += gridDim.x) {                         \
+            nk_size_t const row = vector / arguments.groups, first = vector % arguments.groups * arguments.columns;    \
+            nk_##input_type##_t const *x = (nk_##input_type##_t const *)(arguments.x + row * arguments.x_stride) +     \
+                                           first;                                                                      \
+            nk_##output_type##_t *y = (nk_##output_type##_t *)(arguments.y + row * arguments.y_stride) + first;        \
+            nk_##reduction_type##_t sum = 0;                                                                           \
+            nk_##element_type##_t value;                                                                               \
+            _Pragma("unroll") for (unsigned piece = 0; piece != nk_each_kept_pieces_simt_k; ++piece) {                 \
+                nk_size_t const chunk = threadIdx.x + piece / chunk_pieces * blockDim.x;                               \
+                if (chunk >= chunks) continue;                                                                         \
+                uint4 const bits = *(uint4 const *)(x + chunk * chunk_values + piece % chunk_pieces * piece_values);   \
+                nk_b128_vec_t const vector = {.u32s = {bits.x, bits.y, bits.z, bits.w}};                               \
+                kept[piece] = vector;                                                                                  \
+            }                                                                                                          \
+            _Pragma("unroll") for (unsigned piece = 0; piece != nk_each_kept_pieces_simt_k; ++piece) {                 \
+                if (threadIdx.x + piece / chunk_pieces * blockDim.x >= chunks) break;                                  \
+                _Pragma("unroll") for (unsigned offset = 0; offset != piece_values; ++offset) {                        \
+                    load_and_convert(kept[piece].input_type##s + offset, &value);                                      \
+                    sum += nk_##reduction_type##_mul_rn_##vendor##_(value, value);                                     \
+                }                                                                                                      \
+            }                                                                                                          \
+            for (nk_size_t chunk = threadIdx.x + kept_chunks * blockDim.x; chunk < chunks; chunk += blockDim.x)        \
+                _Pragma("unroll") for (unsigned piece = 0; piece != chunk_pieces; ++piece) {                           \
+                    uint4 const bits = *(uint4 const *)(x + chunk * chunk_values + piece * piece_values);              \
+                    nk_b128_vec_t const vector = {.u32s = {bits.x, bits.y, bits.z, bits.w}};                           \
+                    loaded[0] = vector;                                                                                \
+                    _Pragma("unroll") for (unsigned offset = 0; offset != piece_values; ++offset) {                    \
+                        load_and_convert(loaded[0].input_type##s + offset, &value);                                    \
+                        sum += nk_##reduction_type##_mul_rn_##vendor##_(value, value);                                 \
+                    }                                                                                                  \
+                }                                                                                                      \
+            for (nk_size_t column = chunks * chunk_values + threadIdx.x; column < arguments.columns;                   \
+                 column += blockDim.x) {                                                                               \
+                load_and_convert(x + column, &value);                                                                  \
+                sum += nk_##reduction_type##_mul_rn_##vendor##_(value, value);                                         \
+            }                                                                                                          \
+            for (unsigned offset = nk_each_team_lanes_simt_k / 2; offset; offset >>= 1)                                \
+                sum += nk_shuffle_xor_##reduction_type##_##vendor##_(sum, offset);                                     \
+            if (teams > 1) {                                                                                           \
+                if (threadIdx.x % nk_each_team_lanes_simt_k == 0)                                                      \
+                    partials[threadIdx.x / nk_each_team_lanes_simt_k] = sum;                                           \
+                __syncthreads();                                                                                       \
+                sum = partials[0];                                                                                     \
+                for (unsigned team = 1; team < teams; ++team) sum += partials[team];                                   \
+                __syncthreads();                                                                                       \
+            }                                                                                                          \
+            nk_##element_type##_t scale, factor;                                                                       \
+            inverse_rms(sum, arguments.columns, arguments.epsilon, &scale, &factor);                                   \
+            _Pragma("unroll") for (unsigned slot = 0; slot != kept_chunks; ++slot) {                                   \
+                nk_size_t const chunk = threadIdx.x + slot * blockDim.x;                                               \
+                if (chunk >= chunks) break;                                                                            \
+                nk_each_##verb##_##output_type##_##isa_suffix##_chunk_(                                                \
+                    kept + slot * chunk_pieces, gamma ? gamma + chunk * chunk_values : NUMKONG_NULL, scale, factor,    \
+                    y + chunk * chunk_values);                                                                         \
+            }                                                                                                          \
+            for (nk_size_t chunk = threadIdx.x + kept_chunks * blockDim.x; chunk < chunks; chunk += blockDim.x) {      \
+                _Pragma("unroll") for (unsigned piece = 0; piece != chunk_pieces; ++piece) {                           \
+                    uint4 const bits = *(uint4 const *)(x + chunk * chunk_values + piece * piece_values);              \
+                    nk_b128_vec_t const vector = {.u32s = {bits.x, bits.y, bits.z, bits.w}};                           \
+                    loaded[piece] = vector;                                                                            \
+                }                                                                                                      \
+                nk_each_##verb##_##output_type##_##isa_suffix##_chunk_(                                                \
+                    loaded, gamma ? gamma + chunk * chunk_values : NUMKONG_NULL, scale, factor,                        \
+                    y + chunk * chunk_values);                                                                         \
+            }                                                                                                          \
+            for (nk_size_t column = chunks * chunk_values + threadIdx.x; column < arguments.columns;                   \
+                 column += blockDim.x) {                                                                               \
+                load_and_convert(x + column, &value);                                                                  \
+                nk_##element_type##_t const result = value * scale * factor * (gamma ? gamma[column] : 1.0f);          \
+                convert_and_store(&result, y + column);                                                                \
+            }                                                                                                          \
+        }                                                                                                              \
+    }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_each_##verb##_##output_type##_##isa_suffix(                                             \
+        nk_##input_type##_t const *x, nk_f32_t const *gamma, nk_##output_type##_t *y, nk_size_t rows,                  \
+        nk_size_t groups, nk_size_t columns, nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,                 \
+        nk_stream_t stream) {                                                                                          \
+        return nk_each_rmsnorm_launch_##vendor##_(                                                                     \
+            (void const *)&nk_each_##verb##_##output_type##_##isa_suffix##_kernel_, sizeof(nk_##input_type##_t),       \
+            sizeof(nk_##output_type##_t), x, gamma, y, rows, groups, columns, x_stride, y_stride, epsilon, stream);    \
     }
 
 #if defined(__cplusplus)
