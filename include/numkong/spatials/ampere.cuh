@@ -11,8 +11,9 @@
  *  column vectors too, accumulate from the staged slabs while the products do, and @c packed reads
  *  the column norms its pack stored. Integer codes square exactly through @c dp4a, E2M3 and E2M1
  *  included; the other narrow floats sum each slab apart in F32 before adding it to the running F32
- *  sum. F32 and F64 use @c cuda. Output precision, zero-norm handling and the triangle @c symmetric
- *  writes follow the serial backends: F32 outputs, with I8 and I4 norms read as I32.
+ *  sum. F32 squares its rows in Dot2 before the first slab, as the @c cuda tile orders them, and
+ *  outputs F64. Output precision, zero-norm handling and the triangle @c symmetric writes follow
+ *  the serial kernels: F32 outputs for the other types, with I8 and I4 norms read as I32.
  */
 #ifndef NUMKONG_SPATIALS_AMPERE_CUH
 #define NUMKONG_SPATIALS_AMPERE_CUH
@@ -29,6 +30,15 @@ extern "C" {
 
 /*  Later generations include this header and emit only their own kernels. */
 #if NUMKONG_TARGET_AMPERE
+
+#pragma region F32
+
+nk_define_cross_cuda_(angular, f32, ampere, f32_ampere, f32, f32, f64, /*depth_simd_dimensions=*/4,
+                      /*dimensions_per_value=*/1)
+nk_define_cross_cuda_(euclidean, f32, ampere, f32_ampere, f32, f32, f64, /*depth_simd_dimensions=*/4,
+                      /*dimensions_per_value=*/1)
+
+#pragma endregion F32
 
 #pragma region BF16
 

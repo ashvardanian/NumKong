@@ -4153,9 +4153,27 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_cuda(nk_u4x2_t const *vectors
                                                         nk_size_t rows_end, nk_stream_t stream);
 #endif // NUMKONG_TARGET_CUDA
 
-/*  NVIDIA backends from Ampere on, reusing the CUDA dots packs and tiles with the metric applied
- *  in the epilogue, every output F32. */
+/*  NVIDIA backends from Ampere on, reusing the Ampere dots packs and tiles with the metric applied
+ *  in the epilogue: F64 outputs for F32 inputs, and F32 outputs for every other type. */
 #if NUMKONG_TARGET_AMPERE
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_ampere(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
+                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_ampere(nk_f32_t const *vectors, nk_size_t vector_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t rows_begin,
+                                                         nk_size_t rows_end, nk_stream_t stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_ampere(nk_f32_t const *a, void const *b_packed, nk_f64_t *c,
+                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_ampere(nk_f32_t const *vectors, nk_size_t vector_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                           nk_size_t result_stride, nk_size_t rows_begin,
+                                                           nk_size_t rows_end, nk_stream_t stream);
 /** @copydoc nk_angulars_packed_bf16_best */
 NUMKONG_API nk_status_t nk_angulars_packed_bf16_ampere(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,
                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,

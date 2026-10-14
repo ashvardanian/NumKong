@@ -9,8 +9,8 @@
  *  Four warps own a @b [128,128] output tile, streaming 64-byte depth slabs through a three-stage
  *  `cp.async` pipeline into swizzled shared memory, so dtypes differ only in how each 32-byte
  *  sub-slab is multiplied. Float8 and E3M2 widen exactly into F16; E2M3, E2M1, I4 and U4 widen into
- *  I8 for exact integer MMA, with one output multiply undoing each widening's power of two. F64 and
- *  F32 have no tensor-core path worth taking and stay on the @c cuda capability.
+ *  I8 for exact integer MMA, with one output multiply undoing each widening's power of two. F32
+ *  widens exactly into F64 for DMMA, whose FMA chains round as the @c cuda tile's scalar ones do.
  */
 #ifndef NUMKONG_DOTS_AMPERE_CUH
 #define NUMKONG_DOTS_AMPERE_CUH
@@ -40,6 +40,22 @@ typedef union {
     unsigned char stages[nk_cross_stages_ampere_k][2][nk_cross_stage_bytes_ampere_k];
     nk_fui32_t norms[2 * nk_cross_tile_ampere_k];
 } nk_cross_shared_ampere_t;
+
+/*  F32 inputs keep F64 accumulators, 64 per thread for a [128,128] tile, so twice the warps share
+ *  it and each thread squares 8 of the rows a metric needs, 16 lanes to a row. */
+enum {
+    nk_cross_threads_f32_ampere_k = 256,
+    nk_cross_tile_f32_ampere_k = nk_cross_tile_ampere_k,
+    nk_cross_norm_steps_f32_ampere_k = (int)nk_cross_tile_ampere_k * (int)nk_cross_slab_simt_k /
+                                       nk_cross_threads_f32_ampere_k,
+};
+
+/** Shared memory of an F32 tile: two stages of F32 slabs, A then B in each, and the squared norms
+ *  of its rows and columns, which a metric computes before the first slab. */
+typedef struct {
+    unsigned char stages[2][2][nk_cross_stage_bytes_ampere_k];
+    nk_f64_t norms[2][nk_cross_tile_ampere_k];
+} nk_cross_shared_f32_ampere_t;
 
 /*  Each dtype launches the one shape under its own stem, so the generators paste it. */
 enum {
@@ -152,6 +168,14 @@ NUMKONG_DEVICE void nk_mma_u8i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t cons
                  "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
                  : "+r"(accumulator[0].u), "+r"(accumulator[1].u), "+r"(accumulator[2].u), "+r"(accumulator[3].u)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
+}
+
+/** Adds an 8 × 4 by 4 × 8 F64 product into @p accumulator as one IEEE FMA chain per output, in
+ *  depth order from the accumulator, exactly as four scalar FMAs would. */
+NUMKONG_DEVICE void nk_mma_f64_ampere_(nk_f64_t accumulator[2], nk_f64_t a, nk_f64_t b) {
+    asm volatile("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0, %1}, {%2}, {%3}, {%0, %1};\n"
+                 : "+d"(accumulator[0]), "+d"(accumulator[1])
+                 : "d"(a), "d"(b));
 }
 
 /** The first byte at or past @p pointer whose shared-memory address is a multiple of @p alignment,
@@ -1317,6 +1341,209 @@ NUMKONG_DEVICE void nk_cross_tile_u4_ampere_(nk_cross_metric_t metric, nk_diagon
 
 #pragma endregion Tiles
 
+/*  F32 products are exact in F64, and DMMA adds each output's four products in depth order from its
+ *  accumulator, one FMA at a time, so this tile rounds exactly as the @c cuda one does at every
+ *  step, padding included. Eight warps own a [128,128] output tile, each a [64,32] grid of 8 × 8
+ *  DMMA tiles, over 16-deep F32 slabs that `cp.async` copies into two swizzled stages; fragments
+ *  widen to F64 as they leave shared memory, on a pipe other than the DMMA one. A metric squares
+ *  its rows first, in the @c cuda tile's Dot2 order. */
+#pragma region F32 Tiles
+
+/** Issues one 64-byte depth slab of the A and B rows of a tile into a stage, 16 bytes per copy, 4
+ *  copies per thread. */
+NUMKONG_DEVICE void nk_cross_stage_f32_ampere_(unsigned char *a_stage, unsigned char *b_stage,
+                                               nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                               nk_size_t first_column, nk_size_t slab_offset) {
+#pragma unroll
+    for (unsigned chunk = threadIdx.x; chunk < nk_cross_stage_bytes_ampere_k / 16;
+         chunk += nk_cross_threads_f32_ampere_k) {
+        unsigned const tile_row = chunk >> 2, column = chunk & 3;
+        unsigned const swizzled = nk_swizzled_offset_simt_(tile_row, column << 4, nk_cross_slab_bytes_ampere_k);
+        nk_size_t const byte = slab_offset + (column << 4);
+        nk_u32_t const valid = byte < arguments->depth_bytes
+                                   ? (nk_u32_t)(arguments->depth_bytes - byte < 16 ? arguments->depth_bytes - byte : 16)
+                                   : 0;
+        nk_size_t const row = first_row + tile_row;
+        unsigned char const *a_source = row < arguments->rows_end ? arguments->a + row * arguments->a_stride + byte
+                                                                  : arguments->a;
+        nk_copy_b128_async_ampere_(nk_shared_address_ampere_(a_stage + swizzled), a_source,
+                                   row < arguments->rows_end ? valid : 0);
+        nk_size_t const b_row = first_column + tile_row;
+        unsigned char const *b_source = b_row < arguments->column_count
+                                            ? arguments->b + b_row * arguments->b_stride + byte
+                                            : arguments->b;
+        nk_copy_b128_async_ampere_(nk_shared_address_ampere_(b_stage + swizzled), b_source,
+                                   b_row < arguments->column_count ? valid : 0);
+    }
+}
+
+/** Squared norms of the 128 F32 rows from @p first into @p norms, zero past @p count: 16 lanes sum
+ *  every 16th element of a row in Dot2 and merge as the @c cuda tile's do, so both round alike. */
+NUMKONG_DEVICE void nk_cross_norms_f32_ampere_(unsigned char const *rows, nk_size_t stride, nk_size_t first,
+                                               nk_size_t count, nk_size_t depth,
+                                               nk_f64_t norms[nk_cross_tile_ampere_k]) {
+    unsigned const offset = threadIdx.x % nk_cross_slab_simt_k, tile_row = threadIdx.x / nk_cross_slab_simt_k;
+    unsigned const rows_per_step = (unsigned)nk_cross_threads_f32_ampere_k / nk_cross_slab_simt_k;
+    nk_f64_t sums[nk_cross_norm_steps_f32_ampere_k] = {0}, compensations[nk_cross_norm_steps_f32_ampere_k] = {0};
+    // Rows past the end alias the last one, whose norm is never stored, so loads need no predicate.
+    nk_f32_t const *elements[nk_cross_norm_steps_f32_ampere_k];
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_norm_steps_f32_ampere_k; ++step) {
+        nk_size_t const row = first + tile_row + step * rows_per_step;
+        elements[step] = (nk_f32_t const *)(rows + (row < count ? row : count - 1) * stride);
+    }
+    // Four depths of loads per row go out before any square, since L2 latency bounds this loop.
+    nk_size_t index = offset;
+    for (; index + 3 * nk_cross_slab_simt_k < depth; index += 4 * nk_cross_slab_simt_k) {
+        nk_f32_t values[4][nk_cross_norm_steps_f32_ampere_k];
+#pragma unroll
+        for (unsigned unrolled = 0; unrolled < 4; ++unrolled)
+#pragma unroll
+            for (unsigned step = 0; step < nk_cross_norm_steps_f32_ampere_k; ++step)
+                values[unrolled][step] = elements[step][index + unrolled * nk_cross_slab_simt_k];
+#pragma unroll
+        for (unsigned unrolled = 0; unrolled < 4; ++unrolled)
+#pragma unroll
+            for (unsigned step = 0; step < nk_cross_norm_steps_f32_ampere_k; ++step) {
+                nk_f64_t const value = values[unrolled][step];
+                nk_cross_step_dot2_f64_cuda_(value, value, &sums[step], &compensations[step]);
+            }
+    }
+    for (; index < depth; index += nk_cross_slab_simt_k)
+#pragma unroll
+        for (unsigned step = 0; step < nk_cross_norm_steps_f32_ampere_k; ++step) {
+            nk_f64_t const value = elements[step][index];
+            nk_cross_step_dot2_f64_cuda_(value, value, &sums[step], &compensations[step]);
+        }
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_norm_steps_f32_ampere_k; ++step) {
+#pragma unroll
+        for (unsigned lanes = nk_cross_slab_simt_k / 2; lanes != 0; lanes >>= 1)
+            nk_cross_merge_lanes_dot2_f64_cuda_(lanes, &sums[step], &compensations[step]);
+        if (offset == 0) norms[tile_row + step * rows_per_step] = nk_f64_add_rn_cuda_(sums[step], compensations[step]);
+    }
+}
+
+/** Adds one staged slab into this warp's [64,32] grid, four depths per DMMA, each F32 value widened
+ *  to F64 as it leaves shared memory. */
+NUMKONG_DEVICE void nk_dots_f32_multiply_ampere_(nk_f64_t accumulators[8][4][2], unsigned char const *a_stage,
+                                                 unsigned char const *b_stage) {
+    unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
+    unsigned const group = lane >> 2, quad = lane & 3;
+    unsigned const warp_row = (warp >> 2) * 64 + group, warp_column = (warp & 3) * 32 + group;
+#pragma unroll
+    for (unsigned step = 0; step < 4; ++step) {
+        unsigned const byte = step * 16 + quad * 4;
+        nk_f64_t a_values[8], b_values[4];
+#pragma unroll
+        for (unsigned row_tile = 0; row_tile < 8; ++row_tile) {
+            unsigned const offset = nk_swizzled_offset_simt_(warp_row + row_tile * 8, byte,
+                                                             nk_cross_slab_bytes_ampere_k);
+            nk_f32_t const value = *(nk_f32_t const *)(a_stage + offset);
+            a_values[row_tile] = (nk_f64_t)value;
+        }
+#pragma unroll
+        for (unsigned column_tile = 0; column_tile < 4; ++column_tile) {
+            unsigned const offset = nk_swizzled_offset_simt_(warp_column + column_tile * 8, byte,
+                                                             nk_cross_slab_bytes_ampere_k);
+            nk_f32_t const value = *(nk_f32_t const *)(b_stage + offset);
+            b_values[column_tile] = (nk_f64_t)value;
+        }
+#pragma unroll
+        for (unsigned row_tile = 0; row_tile < 8; ++row_tile)
+#pragma unroll
+            for (unsigned column_tile = 0; column_tile < 4; ++column_tile)
+                nk_mma_f64_ampere_(accumulators[row_tile][column_tile], a_values[row_tile], b_values[column_tile]);
+    }
+}
+
+/** Writes this warp's [64,32] outputs as F64: the dots, or metrics with zeros on the diagonal of a
+ *  Gram matrix. Lane `4g + q` holds row g and columns 2q and 2q + 1 of each 8 × 8 tile. */
+NUMKONG_DEVICE void nk_cross_store_f32_ampere_(nk_cross_shared_f32_ampere_t const *shared,
+                                               nk_f64_t accumulators[8][4][2], nk_cross_metric_t metric,
+                                               nk_diagonal_band_t band, nk_size_t first_row, nk_size_t first_column,
+                                               nk_cross_tile_arguments_t const *arguments) {
+    unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
+    unsigned const group = lane >> 2, quad = lane & 3;
+    unsigned const warp_row = (warp >> 2) * 64 + group, warp_column = (warp & 3) * 32 + quad * 2;
+#pragma unroll
+    for (unsigned row_tile = 0; row_tile < 8; ++row_tile) {
+        unsigned const tile_row = warp_row + row_tile * 8;
+        nk_size_t const row = first_row + tile_row;
+        if (row >= arguments->rows_end) continue;
+        nk_size_t column_begin, column_end;
+        nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
+        nk_f64_t *output = (nk_f64_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
+#pragma unroll
+        for (unsigned column_tile = 0; column_tile < 4; ++column_tile)
+#pragma unroll
+            for (unsigned pair = 0; pair < 2; ++pair) {
+                unsigned const tile_column = warp_column + column_tile * 8 + pair;
+                nk_size_t const column = first_column + tile_column;
+                if (column < column_begin || column >= column_end) continue;
+                nk_f64_t const dot = accumulators[row_tile][column_tile][pair];
+                if (metric == nk_cross_metric_dot_k) output[column] = dot;
+                else if (nk_cross_symmetric_simt_(band) && column == row) output[column] = 0;
+                else if (metric == nk_cross_metric_angular_k)
+                    output[column] = nk_f64_angular_simt_(dot, shared->norms[0][tile_row],
+                                                          shared->norms[1][tile_column]);
+                else
+                    output[column] = nk_f64_euclidean_simt_(dot, shared->norms[0][tile_row],
+                                                            shared->norms[1][tile_column]);
+            }
+    }
+}
+
+/** One [128,128] output tile of F32 inputs on DMMA, rounding as the @c cuda tile does. */
+NUMKONG_DEVICE void nk_cross_tile_f32_ampere_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                              nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __align__(128) nk_cross_shared_f32_ampere_t shared;
+    nk_f64_t accumulators[8][4][2];
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's last stage and norm reads must retire before this tile refills them.
+        __syncthreads();
+        nk_size_t first_row, first_column;
+        if (!nk_cross_tile_origin_ampere_(band, arguments, tile, &first_row, &first_column)) continue;
+        if (arguments->depth_slabs)
+            nk_cross_stage_f32_ampere_(shared.stages[0][0], shared.stages[0][1], arguments, first_row, first_column, 0);
+        nk_commit_async_ampere_();
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_norms_f32_ampere_(arguments->a, arguments->a_stride, first_row, arguments->rows_end,
+                                       arguments->depth, shared.norms[0]);
+            if (nk_cross_symmetric_simt_(band))
+                nk_cross_norms_f32_ampere_(arguments->b, arguments->b_stride, first_column, arguments->column_count,
+                                           arguments->depth, shared.norms[1]);
+            else if (threadIdx.x < nk_cross_tile_ampere_k) {
+                nk_size_t const column = first_column + threadIdx.x;
+                nk_f64_t const *column_norms = (nk_f64_t const *)arguments->b_norms;
+                shared.norms[1][threadIdx.x] = column < arguments->column_count ? column_norms[column] : 0;
+            }
+        }
+#pragma unroll
+        for (unsigned row_tile = 0; row_tile < 8; ++row_tile)
+#pragma unroll
+            for (unsigned column_tile = 0; column_tile < 4; ++column_tile)
+                accumulators[row_tile][column_tile][0] = 0, accumulators[row_tile][column_tile][1] = 0;
+        for (nk_size_t slab = 0; slab < arguments->depth_slabs; ++slab) {
+            unsigned const stage = slab & 1;
+            nk_wait_async_ampere_(0);
+            __syncthreads();
+            // The next slab lands while this one multiplies.
+            if (slab + 1 < arguments->depth_slabs)
+                nk_cross_stage_f32_ampere_(shared.stages[stage ^ 1][0], shared.stages[stage ^ 1][1], arguments,
+                                           first_row, first_column, (slab + 1) * nk_cross_slab_bytes_ampere_k);
+            nk_commit_async_ampere_();
+            nk_dots_f32_multiply_ampere_(accumulators, shared.stages[stage][0], shared.stages[stage][1]);
+        }
+        // Without slabs the norms still need a barrier before other threads read them.
+        __syncthreads();
+        nk_cross_store_f32_ampere_(&shared, accumulators, metric, band, first_row, first_column, arguments);
+    }
+}
+
+#pragma endregion F32 Tiles
+
 /*  Block-scaled tiles keep the codes compact through shared memory and widen each warp's fragments
  *  in registers right before the products. NVFP4 scales are exact in F16, so its codes widen to F16
  *  through one byte table, take the scale by one HMUL2 per pair and multiply in F16 unrebased.
@@ -2260,6 +2487,17 @@ NUMKONG_DEVICE void nk_cross_tile_mxfp8e5m2_ampere_(nk_cross_metric_t metric, nk
 
 /*  Later generations read the helpers above and emit only their own kernels. */
 #if NUMKONG_TARGET_AMPERE
+
+#pragma region F32
+
+nk_define_cross_pack_size_simt_(f32, ampere, f32, f64, /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_cuda_(f32, ampere)
+nk_define_cross_pack_rows_cuda_(f32, ampere, f32, f32, nk_load_b8_simt_, f64, nk_f32_lane_sumsq_cuda_,
+                                /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
+nk_define_cross_cuda_(dot, f32, ampere, f32_ampere, f32, f32, f64, /*depth_simd_dimensions=*/4,
+                      /*dimensions_per_value=*/1)
+
+#pragma endregion F32
 
 #pragma region BF16
 

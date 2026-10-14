@@ -290,6 +290,14 @@ void test_cross_cuda(error_stats_section_t &check) {
 
 #if NUMKONG_TARGET_AMPERE
     check.section("Cross Ampere", nk_cap_ampere_k);
+    check("dots_packed_f32_ampere", test_dots_packed<f32_t, cuda_backend_t>, nk_dots_pack_size_f32_ampere,
+          nk_dots_pack_f32_ampere, nk_dots_packed_f32_ampere);
+    check("dots_pack_f32_ampere", test_dots_pack_layout<f32_t, cuda_backend_t, nk_dots_pack_size_f32_ampere,
+                                                        nk_dots_packed_shape_f32_ampere, nk_dots_pack_f32_ampere>);
+    check("dots_contract_f32_ampere",
+          test_dots_launch_contract<f32_t, cuda_backend_t, nk_dots_pack_size_f32_ampere, nk_dots_packed_f32_ampere,
+                                    nk_dots_symmetric_f32_ampere>);
+    check("dots_symmetric_f32_ampere", test_dots_symmetric<f32_t, cuda_backend_t>, nk_dots_symmetric_f32_ampere);
     check("dots_packed_bf16_ampere", test_dots_packed<bf16_t, cuda_backend_t>, nk_dots_pack_size_bf16_ampere,
           nk_dots_pack_bf16_ampere, nk_dots_packed_bf16_ampere);
     check("dots_pack_bf16_ampere", test_dots_pack_layout<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_ampere,
@@ -412,6 +420,14 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("dots_contract_u4_ampere", test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_ampere,
                                                                nk_dots_packed_u4_ampere, nk_dots_symmetric_u4_ampere>);
     check("dots_symmetric_u4_ampere", test_dots_symmetric<u4x2_t, cuda_backend_t>, nk_dots_symmetric_u4_ampere);
+    check("angulars_packed_f32_ampere", test_angulars_packed<f32_t, cuda_backend_t>, nk_dots_pack_size_f32_ampere,
+          nk_dots_pack_f32_ampere, nk_angulars_packed_f32_ampere);
+    check("angulars_symmetric_f32_ampere", test_angulars_symmetric<f32_t, cuda_backend_t>,
+          nk_angulars_symmetric_f32_ampere);
+    check("euclideans_packed_f32_ampere", test_euclideans_packed<f32_t, cuda_backend_t>, nk_dots_pack_size_f32_ampere,
+          nk_dots_pack_f32_ampere, nk_euclideans_packed_f32_ampere);
+    check("euclideans_symmetric_f32_ampere", test_euclideans_symmetric<f32_t, cuda_backend_t>,
+          nk_euclideans_symmetric_f32_ampere);
     check("angulars_packed_bf16_ampere", test_angulars_packed<bf16_t, cuda_backend_t>, nk_dots_pack_size_bf16_ampere,
           nk_dots_pack_bf16_ampere, nk_angulars_packed_bf16_ampere);
     check("angulars_symmetric_bf16_ampere", test_angulars_symmetric<bf16_t, cuda_backend_t>,

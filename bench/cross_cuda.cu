@@ -94,6 +94,8 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
                         [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_AMPERE
     if (!(enabled & nk_cap_ampere_k)) return;
+    run_dots_packed<nk_f32_k>(env, "dots_packed_f32_ampere", nk_dots_pack_size_f32_ampere, nk_dots_pack_f32_ampere,
+                              nk_dots_packed_f32_ampere, backend);
     run_dots_packed<nk_bf16_k>(env, "dots_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere, nk_dots_pack_bf16_ampere,
                                nk_dots_packed_bf16_ampere, backend);
     run_dots_packed<nk_f16_k>(env, "dots_packed_f16_ampere", nk_dots_pack_size_f16_ampere, nk_dots_pack_f16_ampere,
@@ -125,6 +127,7 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_dots_packed<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_ampere", nk_dots_pack_size_mxfp8e5m2_ampere,
                                     nk_dots_pack_mxfp8e5m2_ampere, nk_dots_packed_mxfp8e5m2_ampere, backend);
 
+    run_dots_symmetric<nk_f32_k>(env, "dots_symmetric_f32_ampere", nk_dots_symmetric_f32_ampere, backend);
     run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_ampere", nk_dots_symmetric_bf16_ampere, backend);
     run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_ampere", nk_dots_symmetric_f16_ampere, backend);
     run_dots_symmetric<nk_e5m2_k>(env, "dots_symmetric_e5m2_ampere", nk_dots_symmetric_e5m2_ampere, backend);
@@ -143,6 +146,8 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_dots_symmetric<nk_mxfp8e5m2_k>(env, "dots_symmetric_mxfp8e5m2_ampere", nk_dots_symmetric_mxfp8e5m2_ampere,
                                        backend);
 
+    run_angulars_packed<nk_f32_k>(env, "angulars_packed_f32_ampere", nk_dots_pack_size_f32_ampere,
+                                  nk_dots_pack_f32_ampere, nk_angulars_packed_f32_ampere, backend);
     run_angulars_packed<nk_bf16_k>(env, "angulars_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere,
                                    nk_dots_pack_bf16_ampere, nk_angulars_packed_bf16_ampere, backend);
     run_angulars_packed<nk_f16_k>(env, "angulars_packed_f16_ampere", nk_dots_pack_size_f16_ampere,
@@ -166,6 +171,7 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_angulars_packed<nk_u4_k>(env, "angulars_packed_u4_ampere", nk_dots_pack_size_u4_ampere, nk_dots_pack_u4_ampere,
                                  nk_angulars_packed_u4_ampere, backend);
 
+    run_angulars_symmetric<nk_f32_k>(env, "angulars_symmetric_f32_ampere", nk_angulars_symmetric_f32_ampere, backend);
     run_angulars_symmetric<nk_bf16_k>(env, "angulars_symmetric_bf16_ampere", nk_angulars_symmetric_bf16_ampere,
                                       backend);
     run_angulars_symmetric<nk_f16_k>(env, "angulars_symmetric_f16_ampere", nk_angulars_symmetric_f16_ampere, backend);
@@ -184,6 +190,8 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_angulars_symmetric<nk_u8_k>(env, "angulars_symmetric_u8_ampere", nk_angulars_symmetric_u8_ampere, backend);
     run_angulars_symmetric<nk_u4_k>(env, "angulars_symmetric_u4_ampere", nk_angulars_symmetric_u4_ampere, backend);
 
+    run_euclideans_packed<nk_f32_k>(env, "euclideans_packed_f32_ampere", nk_dots_pack_size_f32_ampere,
+                                    nk_dots_pack_f32_ampere, nk_euclideans_packed_f32_ampere, backend);
     run_euclideans_packed<nk_bf16_k>(env, "euclideans_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere,
                                      nk_dots_pack_bf16_ampere, nk_euclideans_packed_bf16_ampere, backend);
     run_euclideans_packed<nk_f16_k>(env, "euclideans_packed_f16_ampere", nk_dots_pack_size_f16_ampere,
@@ -207,6 +215,8 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_euclideans_packed<nk_u4_k>(env, "euclideans_packed_u4_ampere", nk_dots_pack_size_u4_ampere,
                                    nk_dots_pack_u4_ampere, nk_euclideans_packed_u4_ampere, backend);
 
+    run_euclideans_symmetric<nk_f32_k>(env, "euclideans_symmetric_f32_ampere", nk_euclideans_symmetric_f32_ampere,
+                                       backend);
     run_euclideans_symmetric<nk_bf16_k>(env, "euclideans_symmetric_bf16_ampere", nk_euclideans_symmetric_bf16_ampere,
                                         backend);
     run_euclideans_symmetric<nk_f16_k>(env, "euclideans_symmetric_f16_ampere", nk_euclideans_symmetric_f16_ampere,

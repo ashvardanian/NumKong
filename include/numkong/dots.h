@@ -4314,9 +4314,27 @@ NUMKONG_API nk_status_t nk_dots_symmetric_u4_cuda(nk_u4x2_t const *vectors, nk_s
                                                   nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 #endif // NUMKONG_TARGET_CUDA
 
-/*  NVIDIA backends from Ampere on: BF16, F16 and the integers through warp-level `mma.sync`, E2M3
- *  and E2M1 scaled into exact integers, the other Float8 and Float6 widened into F16. */
+/*  NVIDIA backends from Ampere on: F32 widened into F64 for DMMA, rounding as the CUDA baseline
+ *  does, BF16, F16 and the integers through warp-level `mma.sync`, E2M3 and E2M1 scaled into exact
+ *  integers, the other Float8 and Float6 widened into F16. */
 #if NUMKONG_TARGET_AMPERE
+/** @copydoc nk_dots_pack_size_f32_best */
+NUMKONG_API nk_status_t nk_dots_pack_size_f32_ampere(nk_size_t columns, nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_dots_packed_shape_f32_best */
+NUMKONG_API nk_status_t nk_dots_packed_shape_f32_ampere(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
+                                                        nk_stream_t stream);
+/** @copydoc nk_dots_pack_f32_best */
+NUMKONG_API nk_status_t nk_dots_pack_f32_ampere(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
+                                                nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
+                                                nk_size_t columns_end, nk_stream_t stream);
+/** @copydoc nk_dots_packed_f32_best */
+NUMKONG_API nk_status_t nk_dots_packed_f32_ampere(nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
+                                                  nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
+                                                  nk_size_t c_stride, nk_stream_t stream);
+/** @copydoc nk_dots_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_dots_symmetric_f32_ampere(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                     nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
+                                                     nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
 /** @copydoc nk_dots_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_dots_pack_size_bf16_ampere(nk_size_t columns, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_dots_packed_shape_bf16_best */
