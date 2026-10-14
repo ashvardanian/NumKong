@@ -29,7 +29,7 @@ name = "numkong"
 readme = "rust/README.md"
 repository = "https://github.com/ashvardanian/NumKong"
 rust-version = "1.100" # `core::alloc::Allocator`, which every owning container is generic over
-version = "7.8.2"
+version = "8.0.0-rc.1"
 
 [lib]
 name = "numkong"
@@ -57,7 +57,7 @@ parallel = ["dep:forkunion", "std"]
 std = ["alloc"]
 
 [dependencies]
-forkunion = { version = "3.0", optional = true }
+forkunion = { version = "4.0.0-rc.1", optional = true }
 
 [dev-dependencies]
 half = { version = "2.6.0" }

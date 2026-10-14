@@ -115,6 +115,8 @@ endif ()
 
 # Every binding reads its version from `VERSION`, which the release bumps.
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" NUMKONG_VERSION_ LIMIT_COUNT 1)
+# CMake versions are numeric, so the pre-release suffix of `VERSION` stays out of `PROJECT_VERSION`.
+string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" NUMKONG_VERSION_ "${NUMKONG_VERSION_}")
 project(
     numkong
     VERSION ${NUMKONG_VERSION_}

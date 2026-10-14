@@ -44,6 +44,8 @@ fn main() {
     // `rust/*.rs` link `numkong`, which names the archive CMake calls `numkong_static`.
     println!("cargo:rustc-link-lib=static=numkong:numkong_static");
     println!("cargo:include={}", manifest.join("include").display());
+    // The whole tree, so a dependent's CMake adds the checkout Cargo resolved as a subdirectory.
+    println!("cargo:source={}", manifest.display());
 
     if enabled("CUDA") || enabled("ROCM") {
         // The runtimes come from wherever CMake found the toolkits it compiled the units with, and
