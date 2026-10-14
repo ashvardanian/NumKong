@@ -27,8 +27,6 @@ PyObject *api_jaccard(PyObject *self, PyObject *const *args, Py_ssize_t nargs, P
 PyObject *api_cdist(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_bilinear(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_mahalanobis(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-PyObject *api_haversine(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
-PyObject *api_vincenty(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_intersect(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
@@ -54,8 +52,6 @@ extern char const doc_jaccard[];
 extern char const doc_cdist[];
 extern char const doc_bilinear[];
 extern char const doc_mahalanobis[];
-extern char const doc_haversine[];
-extern char const doc_vincenty[];
 extern char const doc_intersect[];
 extern char const doc_sparse_dot[];
 extern char const doc_euclidean_pointer[];

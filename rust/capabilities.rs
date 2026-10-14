@@ -765,7 +765,7 @@ mod tests {
 
     #[test]
     fn unified_memory_follows_the_group() {
-        use crate::tensor::{Tensor, SIMD_ALIGNMENT};
+        use crate::tensor::{Tensor, DEFAULT_ALIGNMENT};
 
         let cpu = Capabilities::cpu_enabled();
         let allocator = UnifiedAllocator::new(cpu);
@@ -778,7 +778,7 @@ mod tests {
         }
         let ones = Tensor::<f32, UnifiedAllocator>::ones_in(&[3, 5], UnifiedAllocator::new(cpu)).unwrap();
         assert!(ones.as_slice().iter().all(|&one| one == 1.0));
-        assert_eq!(ones.as_slice().as_ptr() as usize % SIMD_ALIGNMENT, 0);
+        assert_eq!(ones.as_slice().as_ptr() as usize % DEFAULT_ALIGNMENT, 0);
         assert_eq!(unsafe { cpu.synchronize(core::ptr::null_mut()) }, Ok(()));
 
         // A group without a device, or missing from this build, hands out nothing

@@ -1433,6 +1433,9 @@ class shapes_packed {
     }
 
   public:
+    /** The allocator of the packs' one block, which uses-allocator construction looks up. */
+    using allocator_type = allocator_type_;
+
     shapes_packed() noexcept = default;
     explicit shapes_packed(allocator_type_ const &alloc) noexcept : alloc_(alloc) {}
 
@@ -1491,8 +1494,9 @@ class shapes_packed {
     /** The points in cloud @p index. */
     std::size_t points(std::size_t index) const noexcept {
         std::size_t count = 0;
-        shapes_packed_shape<value_type_>(data()[index], &count, nullptr, nullptr, nullptr, nullptr, nullptr);
-        return count;
+        status_t const status = shapes_packed_shape<value_type_>(data()[index], &count, nullptr, nullptr, nullptr,
+                                                                 nullptr, nullptr);
+        return succeeded(status) ? count : 0;
     }
 
     /** The largest cloud, which sizes the transport workspaces. */
@@ -1500,6 +1504,9 @@ class shapes_packed {
 
     bool empty() const noexcept { return data_ == nullptr; }
     std::size_t size_bytes() const noexcept { return size_bytes_; }
+
+    /** The allocator the packs came from, so a replacement can be packed from the same one. */
+    allocator_type get_allocator() const noexcept { return alloc_; }
 
   private:
     template <nk_kernel_kind_t kind_>

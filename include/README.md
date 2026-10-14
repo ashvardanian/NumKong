@@ -312,24 +312,30 @@ Naive implementations are usually dominated by repeated scalar transcendental ca
 
 ## Geospatial Metrics
 
-The native SDK exposes both the fast spherical approximation and the more accurate ellipsoidal solver.
+The native SDK exposes both the fast spherical approximation and the more accurate ellipsoidal solver, each between every row and every column of two packed point sets.
 Inputs are in radians.
 Outputs are in meters.
 
 ```c
-// Statue of Liberty (40.6892°N, 74.0445°W) → Big Ben (51.5007°N, 0.1246°W)
-nk_f64_t liberty_lat[] = {0.7101605100}, liberty_lon[] = {-1.2923203180};
-nk_f64_t big_ben_lat[] = {0.8988567821}, big_ben_lon[] = {-0.0021746802};
+// Statue of Liberty (40.6892°N, 74.0445°W) and Big Ben (51.5007°N, 0.1246°W)
+nk_f64_t latitudes[] = {0.7101605100, 0.8988567821}, longitudes[] = {-1.2923203180, -0.0021746802};
 
-nk_f64_t distance[1];
-nk_vincenty_f64_best(liberty_lat, liberty_lon, big_ben_lat, big_ben_lon, 1, distance, capabilities, NULL);  // ≈ 5,589,857 m (ellipsoidal, baseline)
-nk_haversine_f64_best(liberty_lat, liberty_lon, big_ben_lat, big_ben_lon, 1, distance, capabilities, NULL); // ≈ 5,543,723 m (spherical, ~46 km less)
+// A pack is built once per point set, on an `nk_default_alignment_k` boundary
+nk_size_t bytes = 0;
+nk_vincentys_pack_size_f64_best(2, capabilities, &bytes);
+void *vincentys_pack = aligned_alloc(nk_default_alignment_k, bytes);
+nk_vincentys_pack_f64_best(latitudes, longitudes, 2, vincentys_pack, capabilities, NULL);
 
-// Vincenty in f32 — drifts ~2 m from f64
-nk_f32_t liberty_lat32[] = {0.7101605100f}, liberty_lon32[] = {-1.2923203180f};
-nk_f32_t big_ben_lat32[] = {0.8988567821f}, big_ben_lon32[] = {-0.0021746802f};
-nk_f32_t distance_f32[1];
-nk_vincenty_f32_best(liberty_lat32, liberty_lon32, big_ben_lat32, big_ben_lon32, 1, distance_f32, capabilities, NULL); // ≈ 5,589,859 m (+2 m drift)
+// Every row against every column, so the diagonal is zero
+nk_f64_t distances[2][2];
+nk_vincentys_packed_f64_best(vincentys_pack, vincentys_pack, &distances[0][0], 2 * sizeof(nk_f64_t), capabilities,
+                             NULL); // distances[0][1] ≈ 5,589,857 m on WGS-84
+
+nk_haversines_pack_size_f64_best(2, capabilities, &bytes);
+void *haversines_pack = aligned_alloc(nk_default_alignment_k, bytes);
+nk_haversines_pack_f64_best(latitudes, longitudes, 2, haversines_pack, capabilities, NULL);
+nk_haversines_packed_f64_best(haversines_pack, haversines_pack, &distances[0][0], 2 * sizeof(nk_f64_t),
+                              capabilities, NULL); // distances[0][1] ≈ 5,574,848 m on the mean sphere, 15 km less
 ```
 
 ## Curved Metrics

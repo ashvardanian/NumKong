@@ -51,7 +51,6 @@ func viaBuffers<T: BinaryFloatingPoint>(
 
 let kernels: [Kernel] = {
     let c64 = newYorkLondon
-    let c32 = newYorkLondon.map(Float32.init)
     var kernels = [
         Kernel("Int8 angular", 0) { [Int8](arrayLiteral: 3, 97, 127).angular([3, 97, 127]).map(Double.init) },
         Kernel("Float32 angular", 0) { [Float32](arrayLiteral: 1, 2, 3).angular([1, 2, 3]) },
@@ -91,29 +90,19 @@ let kernels: [Kernel] = {
             [U1x8(0xFF), U1x8(0xFF)].hamming([U1x8(0x00), U1x8(0x00)]).map(Double.init)
         },
         Kernel("U1x8 jaccard", 0) { [U1x8(0xFF)].jaccard([U1x8(0xFF)]).map(Double.init) },
-        Kernel("Float64 haversine buffers", 5_539_000, within: 5_000) {
-            viaBuffers(Float64.haversine(aLat:aLon:bLat:bLon:result:), c64)
+        Kernel("Float64 haversines buffers", 5_570_000, within: 5_000) {
+            viaBuffers(Float64.haversines(aLatitudes:aLongitudes:bLatitudes:bLongitudes:results:), c64)
         },
-        Kernel("Float32 haversine buffers", 5_539_000, within: 5_000) {
-            viaBuffers(Float32.haversine(aLat:aLon:bLat:bLon:result:), c32)
+        Kernel("Float64 vincentys buffers", 5_585_000, within: 20_000) {
+            viaBuffers(Float64.vincentys(aLatitudes:aLongitudes:bLatitudes:bLongitudes:results:), c64)
         },
-        Kernel("Float64 vincenty buffers", 5_570_000, within: 20_000) {
-            viaBuffers(Float64.vincenty(aLat:aLon:bLat:bLon:result:), c64)
+        Kernel("Float64 haversines", 5_570_000, within: 5_000) {
+            haversines(aLatitudes: [c64[0]], aLongitudes: [c64[1]], bLatitudes: [c64[2]], bLongitudes: [c64[3]])?
+                .first
         },
-        Kernel("Float32 vincenty buffers", 5_570_000, within: 50_000) {
-            viaBuffers(Float32.vincenty(aLat:aLon:bLat:bLon:result:), c32)
-        },
-        Kernel("Float64 haversine", 5_539_000, within: 5_000) {
-            haversine(aLat: [c64[0]], aLon: [c64[1]], bLat: [c64[2]], bLon: [c64[3]])?.first
-        },
-        Kernel("Float32 haversine", 5_539_000, within: 5_000) {
-            haversine(aLat: [c32[0]], aLon: [c32[1]], bLat: [c32[2]], bLon: [c32[3]])?.first.map(Double.init)
-        },
-        Kernel("Float64 vincenty", 5_570_000, within: 20_000) {
-            vincenty(aLat: [c64[0]], aLon: [c64[1]], bLat: [c64[2]], bLon: [c64[3]])?.first
-        },
-        Kernel("Float32 vincenty", 5_570_000, within: 50_000) {
-            vincenty(aLat: [c32[0]], aLon: [c32[1]], bLat: [c32[2]], bLon: [c32[3]])?.first.map(Double.init)
+        Kernel("Float64 vincentys", 5_585_000, within: 20_000) {
+            vincentys(aLatitudes: [c64[0]], aLongitudes: [c64[1]], bLatitudes: [c64[2]], bLongitudes: [c64[3]])?
+                .first
         },
     ]
     #if !((os(macOS) || targetEnvironment(macCatalyst)) && arch(x86_64))

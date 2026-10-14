@@ -3017,7 +3017,7 @@ impl<Scalar: Dots, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symmetric
 mod tests {
     use super::*;
     use crate::{
-        tensor::SIMD_ALIGNMENT,
+        tensor::DEFAULT_ALIGNMENT,
         types::{align_depth, assert_upper_triangle_eq, init_thread, FloatLike, NumberLike, TestableType, DIMS},
     };
 
@@ -3445,9 +3445,9 @@ mod tests {
             let matrix_stride = b.stride_bytes(0) as usize;
 
             let pack_with_fill = |fill: u8| -> Vec<u8> {
-                let mut backing = vec![fill; size + SIMD_ALIGNMENT];
+                let mut backing = vec![fill; size + DEFAULT_ALIGNMENT];
                 let base = backing.as_mut_ptr();
-                let packed = unsafe { base.add(base.align_offset(SIMD_ALIGNMENT)) };
+                let packed = unsafe { base.add(base.align_offset(DEFAULT_ALIGNMENT)) };
                 unsafe {
                     <Scalar as Dots>::dots_pack(matrix_ptr, columns, depth, matrix_stride, packed, 0, columns).unwrap();
                     core::slice::from_raw_parts(packed, size).to_vec()

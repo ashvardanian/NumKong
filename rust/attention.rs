@@ -1995,7 +1995,7 @@ impl AttentionRope for e4m3 {
 mod tests {
     use super::*;
     use crate::{
-        tensor::SIMD_ALIGNMENT,
+        tensor::DEFAULT_ALIGNMENT,
         types::{assert_close, FloatLike, TestableType},
     };
 
@@ -2146,9 +2146,9 @@ mod tests {
         let values_stride = values_view.stride_bytes(0) as usize;
 
         let pack_with_fill = |fill: u8| -> Vec<u8> {
-            let mut backing = vec![fill; size + SIMD_ALIGNMENT];
+            let mut backing = vec![fill; size + DEFAULT_ALIGNMENT];
             let base = backing.as_mut_ptr();
-            let packed = unsafe { base.add(base.align_offset(SIMD_ALIGNMENT)) };
+            let packed = unsafe { base.add(base.align_offset(DEFAULT_ALIGNMENT)) };
             unsafe {
                 <bf16 as Attention>::attention_pack(
                     heads,

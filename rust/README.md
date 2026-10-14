@@ -158,7 +158,7 @@ The crate root re-exports the main metric families:
 - `Dot`, `VDot`, `Angular`, `Euclidean`
 - `Hamming`, `Jaccard`
 - `KullbackLeibler`, `JensenShannon`
-- `Haversine`, `Vincenty`
+- `SqEuclideans3D`
 - `Bilinear`, `Mahalanobis`
 - `ReduceMoments`, `ReduceMinMax`
 - `EachScale`, `EachSum`, `EachBlend`, `EachFma`
@@ -292,25 +292,40 @@ assert!((js_forward - js_reverse).abs() < 1e-6, "JSD is symmetric");
 Inputs are latitudes and longitudes in radians.
 Outputs are meters.
 
+`HaversinesPackedMatrix` and `VincentysPackedMatrix` pack a set of points once each.
+Their methods score every point of one set, the rows, against every point of another, the columns, into a caller's row-major slice of __rows × columns__ entries.
+
 ```rust
-use numkong::{Haversine, Vincenty};
+use numkong::{HaversinesPackedMatrix, VincentysPackedMatrix};
 
 // Statue of Liberty (40.6892°N, 74.0445°W) → Big Ben (51.5007°N, 0.1246°W)
-let liberty_lat = [0.7101605100_f64];
-let liberty_lon = [-1.2923203180_f64];
-let big_ben_lat = [0.8988567821_f64];
-let big_ben_lon = [-0.0021746802_f64];
+let liberty_latitudes = [0.7101605100_f64];
+let liberty_longitudes = [-1.2923203180_f64];
+let big_ben_latitudes = [0.8988567821_f64];
+let big_ben_longitudes = [-0.0021746802_f64];
 let mut distance = [0.0_f64; 1];
-f64::vincenty(&liberty_lat, &liberty_lon, &big_ben_lat, &big_ben_lon, &mut distance).unwrap();  // ≈ 5,589,857 m (ellipsoidal, baseline)
-f64::haversine(&liberty_lat, &liberty_lon, &big_ben_lat, &big_ben_lon, &mut distance).unwrap(); // ≈ 5,543,723 m (spherical, ~46 km less)
 
-// Vincenty in f32 — drifts ~2 m from f64
-let liberty_lat32 = [0.7101605100_f32];
-let liberty_lon32 = [-1.2923203180_f32];
-let big_ben_lat32 = [0.8988567821_f32];
-let big_ben_lon32 = [-0.0021746802_f32];
-let mut distance_f32 = [0.0_f32; 1];
-f32::vincenty(&liberty_lat32, &liberty_lon32, &big_ben_lat32, &big_ben_lon32, &mut distance_f32).unwrap(); // ≈ 5,589,859 m (+2 m drift)
+let liberty = VincentysPackedMatrix::new(&liberty_latitudes, &liberty_longitudes).unwrap();
+let big_ben = VincentysPackedMatrix::new(&big_ben_latitudes, &big_ben_longitudes).unwrap();
+liberty.vincentys(&big_ben, &mut distance).unwrap(); // ≈ 5,589,857 m (ellipsoidal, baseline)
+
+let liberty = HaversinesPackedMatrix::new(&liberty_latitudes, &liberty_longitudes).unwrap();
+let big_ben = HaversinesPackedMatrix::new(&big_ben_latitudes, &big_ben_longitudes).unwrap();
+liberty.haversines(&big_ben, &mut distance).unwrap(); // ≈ 5,574,848 m (spherical, ~15 km less)
+```
+
+Haversine uses the IUGG mean radius of 6,371,008.8 m, and Vincenty the WGS-84 ellipsoid.
+`SqEuclideans3D` scores `[x, y, z]` points the same way, with no packing.
+`i32` coordinates, like Earth-fixed centimeters, give exact `u64` squares, and `f64` ones give `f64`.
+
+```rust
+use numkong::SqEuclideans3D;
+
+let satellites = [[637_813_700_i32, 0, 0], [0, 637_813_700, 0]];
+let stations = [[-637_813_700_i32, 0, 0], [0, 0, 637_813_700], [637_813_600, 0, 0]];
+let mut squares = [0_u64; 6];
+i32::sqeuclideans3d(&satellites, &stations, &mut squares).unwrap();
+assert_eq!(squares[2], 10_000); // a meter apart
 ```
 
 ## Curved Metrics
@@ -349,7 +364,7 @@ The allocator story is explicit.
 `Tensor` and `DotsPackedMatrix` are generic over `core::alloc::Allocator` and default to `numkong::Global`, which forwards to the system heap.
 Views and spans borrow their owner's allocator, and every allocating operation, like `view.sin()` or `view.dots_packed(&packed)`, allocates its result through a clone of its first operand's allocator.
 An arena that is not `Clone` works by reference, as `&Arena`, and views over foreign memory report `Global`.
-The underlying layout uses `SIMD_ALIGNMENT == 64` for owned allocations.
+Owned allocations start on `DEFAULT_ALIGNMENT`, the C library's boundary: 128 bytes on Arm and x86, 64 on WASM, 256 on IBM Z.
 That does _not_ mean callers must align their source buffers manually.
 It means owned outputs and packed payloads are allocated in a SIMD-friendly way when the crate owns them.
 

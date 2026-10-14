@@ -377,7 +377,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     ///
     /// # Safety
     /// - `data` must point to an allocation obtained from `alloc`, aligned to
-    ///   [`crate::SIMD_ALIGNMENT`], whose backing buffer is sized for the storage count
+    ///   [`crate::DEFAULT_ALIGNMENT`], whose backing buffer is sized for the storage count
     ///   implied by `dims` (`Scalar::dimensions_to_values(dims)` slots of `Scalar`).
     /// - The caller must not free the memory — this vector takes ownership.
     pub unsafe fn from_raw_parts_in(data: NonNull<Scalar>, dims: usize, alloc: Alloc) -> Self {

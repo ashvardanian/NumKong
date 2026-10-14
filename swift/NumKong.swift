@@ -10,235 +10,197 @@ import CNumKong
 
 // MARK: - Geospatial Protocols
 
-/// A type that can compute SIMD-accelerated great-circle Haversine distances.
-public protocol NumKongHaversine: BinaryFloatingPoint {
-    static func haversine(
-        aLat: UnsafeBufferPointer<Self>,
-        aLon: UnsafeBufferPointer<Self>,
-        bLat: UnsafeBufferPointer<Self>,
-        bLon: UnsafeBufferPointer<Self>,
-        result: UnsafeMutableBufferPointer<Self>
+/// A type that can compute SIMD-accelerated great-circle Haversine distances from every point of
+/// one set to every point of another, row-major with one row per `a` point.
+public protocol NumKongHaversines: BinaryFloatingPoint {
+    static func haversines(
+        aLatitudes: UnsafeBufferPointer<Self>,
+        aLongitudes: UnsafeBufferPointer<Self>,
+        bLatitudes: UnsafeBufferPointer<Self>,
+        bLongitudes: UnsafeBufferPointer<Self>,
+        results: UnsafeMutableBufferPointer<Self>
     ) -> Bool
 
-    static func haversine<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
-        aLat: A, aLon: B, bLat: C, bLon: D
+    static func haversines<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
+        aLatitudes: A, aLongitudes: B, bLatitudes: C, bLongitudes: D
     ) -> [Self]?
     where A.Element == Self, B.Element == Self, C.Element == Self, D.Element == Self
 }
 
-/// A type that can compute SIMD-accelerated Vincenty ellipsoidal geodesic distances.
-public protocol NumKongVincenty: BinaryFloatingPoint {
-    static func vincenty(
-        aLat: UnsafeBufferPointer<Self>,
-        aLon: UnsafeBufferPointer<Self>,
-        bLat: UnsafeBufferPointer<Self>,
-        bLon: UnsafeBufferPointer<Self>,
-        result: UnsafeMutableBufferPointer<Self>
+/// A type that can compute SIMD-accelerated Vincenty ellipsoidal geodesic distances from every
+/// point of one set to every point of another, row-major with one row per `a` point.
+public protocol NumKongVincentys: BinaryFloatingPoint {
+    static func vincentys(
+        aLatitudes: UnsafeBufferPointer<Self>,
+        aLongitudes: UnsafeBufferPointer<Self>,
+        bLatitudes: UnsafeBufferPointer<Self>,
+        bLongitudes: UnsafeBufferPointer<Self>,
+        results: UnsafeMutableBufferPointer<Self>
     ) -> Bool
 
-    static func vincenty<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
-        aLat: A, aLon: B, bLat: C, bLon: D
+    static func vincentys<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
+        aLatitudes: A, aLongitudes: B, bLatitudes: C, bLongitudes: D
     ) -> [Self]?
     where A.Element == Self, B.Element == Self, C.Element == Self, D.Element == Self
 }
 
 /// Convenience alias for types supporting both Haversine and Vincenty geospatial distances.
-public typealias NumKongGeospatial = NumKongHaversine & NumKongVincenty
+public typealias NumKongGeospatial = NumKongHaversines & NumKongVincentys
 
-extension Float64: NumKongHaversine {
+extension Float64: NumKongHaversines {
     @inlinable @inline(__always)
-    public static func haversine(
-        aLat: UnsafeBufferPointer<Float64>,
-        aLon: UnsafeBufferPointer<Float64>,
-        bLat: UnsafeBufferPointer<Float64>,
-        bLon: UnsafeBufferPointer<Float64>,
-        result: UnsafeMutableBufferPointer<Float64>
+    public static func haversines(
+        aLatitudes: UnsafeBufferPointer<Float64>,
+        aLongitudes: UnsafeBufferPointer<Float64>,
+        bLatitudes: UnsafeBufferPointer<Float64>,
+        bLongitudes: UnsafeBufferPointer<Float64>,
+        results: UnsafeMutableBufferPointer<Float64>
     ) -> Bool {
-        let n = aLat.count
-        guard
-            n > 0 && n == aLon.count && n == bLat.count && n == bLon.count
-                && n == result.count
-        else {
-            return false
-        }
-        return nk_haversine_f64_best(
-            aLat.baseAddress!,
-            aLon.baseAddress!,
-            bLat.baseAddress!,
-            bLon.baseAddress!,
-            nk_size_t(n),
-            result.baseAddress!,
-            Capabilities.cpus.native,
-            nil
-        ) == nk_success_k
+        _nkGeodesics(
+            aLatitudes, aLongitudes, bLatitudes, bLongitudes, results,
+            packSize: nk_haversines_pack_size_f64_best,
+            pack: nk_haversines_pack_f64_best,
+            packed: nk_haversines_packed_f64_best
+        )
     }
 }
 
-extension Float64: NumKongVincenty {
+extension Float64: NumKongVincentys {
     @inlinable @inline(__always)
-    public static func vincenty(
-        aLat: UnsafeBufferPointer<Float64>,
-        aLon: UnsafeBufferPointer<Float64>,
-        bLat: UnsafeBufferPointer<Float64>,
-        bLon: UnsafeBufferPointer<Float64>,
-        result: UnsafeMutableBufferPointer<Float64>
+    public static func vincentys(
+        aLatitudes: UnsafeBufferPointer<Float64>,
+        aLongitudes: UnsafeBufferPointer<Float64>,
+        bLatitudes: UnsafeBufferPointer<Float64>,
+        bLongitudes: UnsafeBufferPointer<Float64>,
+        results: UnsafeMutableBufferPointer<Float64>
     ) -> Bool {
-        let n = aLat.count
-        guard
-            n > 0 && n == aLon.count && n == bLat.count && n == bLon.count
-                && n == result.count
-        else {
-            return false
-        }
-        return nk_vincenty_f64_best(
-            aLat.baseAddress!,
-            aLon.baseAddress!,
-            bLat.baseAddress!,
-            bLon.baseAddress!,
-            nk_size_t(n),
-            result.baseAddress!,
-            Capabilities.cpus.native,
-            nil
-        ) == nk_success_k
+        _nkGeodesics(
+            aLatitudes, aLongitudes, bLatitudes, bLongitudes, results,
+            packSize: nk_vincentys_pack_size_f64_best,
+            pack: nk_vincentys_pack_f64_best,
+            packed: nk_vincentys_packed_f64_best
+        )
     }
 }
 
-extension Float32: NumKongHaversine {
-    @inlinable @inline(__always)
-    public static func haversine(
-        aLat: UnsafeBufferPointer<Float32>,
-        aLon: UnsafeBufferPointer<Float32>,
-        bLat: UnsafeBufferPointer<Float32>,
-        bLon: UnsafeBufferPointer<Float32>,
-        result: UnsafeMutableBufferPointer<Float32>
-    ) -> Bool {
-        let n = aLat.count
-        guard
-            n > 0 && n == aLon.count && n == bLat.count && n == bLon.count
-                && n == result.count
-        else {
-            return false
-        }
-        return nk_haversine_f32_best(
-            aLat.baseAddress!,
-            aLon.baseAddress!,
-            bLat.baseAddress!,
-            bLon.baseAddress!,
-            nk_size_t(n),
-            result.baseAddress!,
-            Capabilities.cpus.native,
-            nil
-        ) == nk_success_k
+/// Packs both point sets with `pack` into `nk_default_alignment_k`-aligned buffers `packSize`
+/// sizes, then fills `results` with `packed`, reporting whether every call succeeded.
+@usableFromInline
+func _nkGeodesics(
+    _ aLatitudes: UnsafeBufferPointer<Float64>,
+    _ aLongitudes: UnsafeBufferPointer<Float64>,
+    _ bLatitudes: UnsafeBufferPointer<Float64>,
+    _ bLongitudes: UnsafeBufferPointer<Float64>,
+    _ results: UnsafeMutableBufferPointer<Float64>,
+    packSize: (nk_size_t, nk_capability_t, UnsafeMutablePointer<nk_size_t>?) -> nk_status_t,
+    pack: (
+        UnsafePointer<Float64>?, UnsafePointer<Float64>?, nk_size_t, UnsafeMutableRawPointer?, nk_capability_t,
+        OpaquePointer?
+    ) -> nk_status_t,
+    packed: (
+        UnsafeRawPointer?, UnsafeRawPointer?, UnsafeMutablePointer<Float64>?, nk_size_t, nk_capability_t,
+        OpaquePointer?
+    ) -> nk_status_t
+) -> Bool {
+    let rows = aLatitudes.count
+    let columns = bLatitudes.count
+    guard
+        rows > 0 && columns > 0 && rows == aLongitudes.count && columns == bLongitudes.count
+            && rows * columns == results.count
+    else {
+        return false
     }
-}
-
-extension Float32: NumKongVincenty {
-    @inlinable @inline(__always)
-    public static func vincenty(
-        aLat: UnsafeBufferPointer<Float32>,
-        aLon: UnsafeBufferPointer<Float32>,
-        bLat: UnsafeBufferPointer<Float32>,
-        bLon: UnsafeBufferPointer<Float32>,
-        result: UnsafeMutableBufferPointer<Float32>
-    ) -> Bool {
-        let n = aLat.count
-        guard
-            n > 0 && n == aLon.count && n == bLat.count && n == bLon.count
-                && n == result.count
-        else {
-            return false
-        }
-        return nk_vincenty_f32_best(
-            aLat.baseAddress!,
-            aLon.baseAddress!,
-            bLat.baseAddress!,
-            bLon.baseAddress!,
-            nk_size_t(n),
-            result.baseAddress!,
-            Capabilities.cpus.native,
-            nil
-        ) == nk_success_k
+    let capabilities = Capabilities.cpus.native
+    var aBytes: nk_size_t = 0
+    var bBytes: nk_size_t = 0
+    guard
+        packSize(nk_size_t(rows), capabilities, &aBytes) == nk_success_k
+            && packSize(nk_size_t(columns), capabilities, &bBytes) == nk_success_k
+    else {
+        return false
     }
+    let alignment = Int(nk_default_alignment_k)
+    let aPacked = UnsafeMutableRawPointer.allocate(byteCount: Int(aBytes), alignment: alignment)
+    defer { aPacked.deallocate() }
+    let bPacked = UnsafeMutableRawPointer.allocate(byteCount: Int(bBytes), alignment: alignment)
+    defer { bPacked.deallocate() }
+    let resultsStride = nk_size_t(columns * MemoryLayout<Float64>.stride)
+    return pack(aLatitudes.baseAddress, aLongitudes.baseAddress, nk_size_t(rows), aPacked, capabilities, nil)
+        == nk_success_k
+        && pack(bLatitudes.baseAddress, bLongitudes.baseAddress, nk_size_t(columns), bPacked, capabilities, nil)
+            == nk_success_k
+        && packed(aPacked, bPacked, results.baseAddress, resultsStride, capabilities, nil) == nk_success_k
 }
 
 // MARK: - Geospatial Sequence Extensions
 
 extension Float64 {
     @inlinable @inline(__always)
-    public static func haversine<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
-        aLat: A, aLon: B, bLat: C, bLon: D
+    public static func haversines<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
+        aLatitudes: A, aLongitudes: B, bLatitudes: C, bLongitudes: D
     ) -> [Float64]?
     where A.Element == Float64, B.Element == Float64, C.Element == Float64, D.Element == Float64 {
-        _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_haversine_f64_best(a, b, c, d, nk_size_t(n), r, Capabilities.cpus.native, nil)
-        }
+        _nkWithGeodesicsBuffers(
+            Array(aLatitudes), Array(aLongitudes), Array(bLatitudes), Array(bLongitudes),
+            haversines(aLatitudes:aLongitudes:bLatitudes:bLongitudes:results:)
+        )
     }
 
     @inlinable @inline(__always)
-    public static func vincenty<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
-        aLat: A, aLon: B, bLat: C, bLon: D
+    public static func vincentys<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
+        aLatitudes: A, aLongitudes: B, bLatitudes: C, bLongitudes: D
     ) -> [Float64]?
     where A.Element == Float64, B.Element == Float64, C.Element == Float64, D.Element == Float64 {
-        _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_vincenty_f64_best(a, b, c, d, nk_size_t(n), r, Capabilities.cpus.native, nil)
-        }
+        _nkWithGeodesicsBuffers(
+            Array(aLatitudes), Array(aLongitudes), Array(bLatitudes), Array(bLongitudes),
+            vincentys(aLatitudes:aLongitudes:bLatitudes:bLongitudes:results:)
+        )
     }
 }
 
-extension Float32 {
-    @inlinable @inline(__always)
-    public static func haversine<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
-        aLat: A, aLon: B, bLat: C, bLon: D
-    ) -> [Float32]?
-    where A.Element == Float32, B.Element == Float32, C.Element == Float32, D.Element == Float32 {
-        _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_haversine_f32_best(a, b, c, d, nk_size_t(n), r, Capabilities.cpus.native, nil)
+/// Runs `body` over the buffers of four coordinate arrays and of one result per pair, returning the
+/// results when `body` succeeds.
+@usableFromInline
+func _nkWithGeodesicsBuffers(
+    _ aLatitudes: [Float64], _ aLongitudes: [Float64], _ bLatitudes: [Float64], _ bLongitudes: [Float64],
+    _ body: (
+        UnsafeBufferPointer<Float64>, UnsafeBufferPointer<Float64>, UnsafeBufferPointer<Float64>,
+        UnsafeBufferPointer<Float64>, UnsafeMutableBufferPointer<Float64>
+    ) -> Bool
+) -> [Float64]? {
+    var results = [Float64](repeating: 0, count: aLatitudes.count * bLatitudes.count)
+    let succeeded = aLatitudes.withUnsafeBufferPointer { aLatitudes in
+        aLongitudes.withUnsafeBufferPointer { aLongitudes in
+            bLatitudes.withUnsafeBufferPointer { bLatitudes in
+                bLongitudes.withUnsafeBufferPointer { bLongitudes in
+                    results.withUnsafeMutableBufferPointer { results in
+                        body(aLatitudes, aLongitudes, bLatitudes, bLongitudes, results)
+                    }
+                }
+            }
         }
     }
-
-    @inlinable @inline(__always)
-    public static func vincenty<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
-        aLat: A, aLon: B, bLat: C, bLon: D
-    ) -> [Float32]?
-    where A.Element == Float32, B.Element == Float32, C.Element == Float32, D.Element == Float32 {
-        _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_vincenty_f32_best(a, b, c, d, nk_size_t(n), r, Capabilities.cpus.native, nil)
-        }
-    }
+    return succeeded ? results : nil
 }
 
 // MARK: - Geospatial Functions
 
 @inlinable @inline(__always)
-public func haversine<A: Sequence>(
-    aLat: A, aLon: A, bLat: A, bLon: A
+public func haversines<A: Sequence>(
+    aLatitudes: A, aLongitudes: A, bLatitudes: A, bLongitudes: A
 ) -> [Float64]?
 where A.Element == Float64 {
-    Float64.haversine(aLat: aLat, aLon: aLon, bLat: bLat, bLon: bLon)
+    Float64.haversines(
+        aLatitudes: aLatitudes, aLongitudes: aLongitudes, bLatitudes: bLatitudes, bLongitudes: bLongitudes)
 }
 
 @inlinable @inline(__always)
-public func haversine<A: Sequence>(
-    aLat: A, aLon: A, bLat: A, bLon: A
-) -> [Float32]?
-where A.Element == Float32 {
-    Float32.haversine(aLat: aLat, aLon: aLon, bLat: bLat, bLon: bLon)
-}
-
-@inlinable @inline(__always)
-public func vincenty<A: Sequence>(
-    aLat: A, aLon: A, bLat: A, bLon: A
+public func vincentys<A: Sequence>(
+    aLatitudes: A, aLongitudes: A, bLatitudes: A, bLongitudes: A
 ) -> [Float64]?
 where A.Element == Float64 {
-    Float64.vincenty(aLat: aLat, aLon: aLon, bLat: bLat, bLon: bLon)
-}
-
-@inlinable @inline(__always)
-public func vincenty<A: Sequence>(
-    aLat: A, aLon: A, bLat: A, bLon: A
-) -> [Float32]?
-where A.Element == Float32 {
-    Float32.vincenty(aLat: aLat, aLon: aLon, bLat: bLat, bLon: bLon)
+    Float64.vincentys(
+        aLatitudes: aLatitudes, aLongitudes: aLongitudes, bLatitudes: bLatitudes, bLongitudes: bLongitudes)
 }
 
 // MARK: - Capabilities and Devices

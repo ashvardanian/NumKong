@@ -1,7 +1,14 @@
 # Geospatial Distances in NumKong
 
-NumKong implements geodesic distance functions for points on Earth's surface: Haversine computes great-circle distance on a perfect sphere, while Vincenty solves the inverse geodesic problem on an oblate spheroid, using the IERS-2003 ellipsoid constants by default.
-Both operate on arrays of latitude/longitude pairs in radians and produce distances in meters.
+NumKong implements many-to-many distances between points on and around the Earth, and the terrain visibility they feed.
+Every family takes a set of row points and a set of column points and fills a row-major matrix of results:
+
+- `sqeuclideans3d`: squared Euclidean distances between 3D points, exact for `i32` Earth-fixed centimetres and compensated for `f64`.
+- `haversines`: great-circle distances on the mean sphere, from latitudes and longitudes packed once per point set.
+- `vincentys`: geodesic distances on the WGS-84 ellipsoid, from packs of the same kind.
+- `terrain` and `clearances`: heights under points of a grid, and the margin by which every sight line clears it.
+
+Latitudes and longitudes are in radians, distances, heights and clearances in metres.
 
 The Haversine formula computes the great-circle distance between two points:
 
@@ -9,7 +16,12 @@ $$
 \text{haversine}(\phi_1, \lambda_1, \phi_2, \lambda_2) = 2R \arcsin\sqrt{\sin^2\frac{\phi_2 - \phi_1}{2} + \cos\phi_1 \cos\phi_2 \sin^2\frac{\lambda_2 - \lambda_1}{2}}
 $$
 
-where $R$ is the Earth radius from `NUMKONG_EARTH_MEDIATORIAL_RADIUS`, 6,335,439 m by default, and $(\phi, \lambda)$ are latitude and longitude in radians.
+where $R$ is the Earth radius from `NUMKONG_EARTH_MEAN_RADIUS`, the IUGG mean radius of 6,371,008.8 m by default, and $(\phi, \lambda)$ are latitude and longitude in radians.
+The kernels evaluate the same angle from unit vectors $\mathbf{a}$ and $\mathbf{b}$, which a pack holds, in a form that stays conditioned from coincident to antipodal points:
+
+$$
+\text{haversine}(\mathbf{a}, \mathbf{b}) = 2R \cdot \operatorname{atan2}(\lVert \mathbf{a} - \mathbf{b} \rVert, \lVert \mathbf{a} + \mathbf{b} \rVert)
+$$
 
 Vincenty's formula solves the inverse geodesic problem on an oblate spheroid, iteratively refining the reduced latitude difference until convergence:
 
@@ -18,59 +30,81 @@ $$
 $$
 
 where $a$ and $b$ are the equatorial and polar semi-axes of the configured Earth ellipsoid, $\sigma$ is the angular separation, and $\Delta\sigma$ is the correction term computed through iterative convergence.
+The ellipsoid is WGS-84, the one GPS reports on, through `NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS` and `NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING`.
 
 Reformulating as Python pseudocode:
 
 ```python
 import numpy as np
 
-def haversine(lat1, lon1, lat2, lon2, R=6335439):
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
-    return 2 * R * np.arcsin(np.sqrt(a))
+def haversines(a_latitudes, a_longitudes, b_latitudes, b_longitudes, R=6371008.8):
+    def unit(latitudes, longitudes):
+        return np.stack([np.cos(latitudes) * np.cos(longitudes), np.cos(latitudes) * np.sin(longitudes), np.sin(latitudes)], axis=-1)
+
+    a = unit(a_latitudes, a_longitudes)[:, None, :]
+    b = unit(b_latitudes, b_longitudes)[None, :, :]
+    return 2 * R * np.arctan2(np.linalg.norm(a - b, axis=-1), np.linalg.norm(a + b, axis=-1))
 ```
 
-Input coordinates are in radians, output distances are in meters.
+A clearance runs from a viewpoint to a target over a north-up grid of heights.
+The terrain is sampled wherever the sight line crosses a row or column line through cell centres, each sample lowered by the Earth's curvature drop of $(1 - k) \cdot s^2 / 2R$ at ground distance $s$, where $k$ is the refraction, 1/7 for light and 0.25 for radio.
+The clearance is the least gap between the sight line and those samples: positive or zero means visible by that margin, negative is the deepest obstruction, NaN means an endpoint lies off the grid, and $-\infty$ means the target lies outside the viewpoint's view cone or range.
 
 ## Input & Output Types
 
-| Input Type | Output Type | Description             |
-| :--------- | :---------- | :---------------------- |
-| `f64`      | `f64`       | 64-bit double precision |
-| `f32`      | `f32`       | 32-bit single precision |
+| Family                    | Input Type | Output Type | Description                                       |
+| :------------------------ | :--------- | :---------- | :------------------------------------------------ |
+| `sqeuclideans3d`          | `i32`      | `u64`       | Exact squares of 32-bit integer coordinates       |
+| `sqeuclideans3d`          | `f64`      | `f64`       | 64-bit double precision, summed in Dot2           |
+| `haversines`, `vincentys` | `f64`      | `f64`       | 64-bit double precision                           |
+| `terrain`, `clearances`   | `f32`      | `f32`       | 32-bit heights and positions, computed in 64 bits |
 
 ## Optimizations
 
+### Packing Once per Point Set
+
+`nk_haversines_pack_f64` stores each point as a unit vector and `nk_vincentys_pack_f64` stores its longitude with the sine and cosine of its reduced latitude, in planar arrays every capability reads alike.
+A rows × columns product then evaluates no trigonometry per point: Haversine reduces to two compensated norms and one `atan2` per pair, and Vincenty starts its iteration from precomputed reduced latitudes instead of an `atan` per pair.
+The pack routine is serial for every capability, so a pack built once is byte-identical wherever it is read.
+
+### Exact 3D Squares
+
+`nk_sqeuclideans3d_i32` subtracts 32-bit coordinates and squares the differences into 64-bit lanes, which stays exact for Earth-fixed centimetres below 4,359 km of altitude.
+NEON de-interleaves rows with `LD3` and squares with `SMULL` and `SMLAL`, x86 with `VPMULDQ` after a permute, WASM with `i64x2.extmul`, and RVV with segmented loads and `vwmul`.
+The library build turns auto-vectorization off, so every capability carries its own explicit SIMD body.
+
 ### Trigonometric Polynomial Approximations
 
-`nk_haversine_f32_haswell`, `nk_haversine_f32_skylake`, `nk_haversine_f32_neon` replace `libm` sin, cos, atan2, and asin with SIMD polynomial approximations achieving approximately 3.5 ULP accuracy.
+Vincenty's iteration and every final `atan2` replace `libm` with SIMD polynomial approximations.
 Range reduction maps the input angle to $[-\pi/2, \pi/2]$ using Cody-Waite extended precision constants, then an odd-degree minimax polynomial evaluates sin, and cos reuses the same polynomial after shifting the argument by $\pi/2$.
-The `f32` kernels use 5-term polynomials while `f64` kernels use 10-term polynomials for the extra precision required by double-precision inputs.
-This avoids the latency of scalar `libm` calls — each trigonometric evaluation would otherwise serialize through a single execution port, while the polynomial chains pipeline across multiple FMA units.
+The `f64` kernels use 10-term polynomials.
+This avoids the latency of scalar `libm` calls, each of which would otherwise serialize through a single execution port, while the polynomial chains pipeline across multiple FMA units.
 
 ### Vincenty Iterative Convergence with Masked Lanes
 
-`nk_vincenty_f64_haswell`, `nk_vincenty_f64_skylake`, `nk_vincenty_f64_neon` implement the full Vincenty inverse formula with up to 100 iterations and a convergence threshold of $10^{-12}$ radians (approximately 6 micrometers on Earth's surface).
-Each SIMD lane may converge at a different iteration count, so the kernel accumulates a `converged_mask` via `_mm256_or_pd(converged_mask, newly_converged)` and selectively freezes converged lanes with `_mm256_blendv_pd(lambda_new, lambda, converged_mask)`.
-Early exit uses `_mm256_movemask_pd` — when all 4 bits (for `f64`) or 8 bits (for `f32`) are set, the loop breaks.
-Coincident points and equatorial edge cases are handled by blending safe values (ones) into the intermediate terms to avoid division by zero, without requiring branches that would diverge across SIMD lanes.
+`nk_vincentys_packed_f64_haswell`, `nk_vincentys_packed_f64_skylake`, `nk_vincentys_packed_f64_neon` implement the full Vincenty inverse formula with up to 100 iterations and a convergence threshold of $10^{-12}$ radians, approximately 6 micrometers on Earth's surface.
+Each SIMD lane may converge at a different iteration count, so the kernel accumulates a mask via `_mm256_or_pd(converged_mask_f64x4, newly_converged_f64x4)` and selectively freezes converged lanes with `_mm256_blendv_pd(lambda_next_f64x4, lambda_f64x4, converged_mask_f64x4)`.
+Early exit uses `_mm256_movemask_pd`: when all 4 bits are set, the loop breaks.
+Coincident points, where $\sin\sigma = 0$, and equatorial pairs, where $\cos^2\alpha = 0$, are detected exactly as the serial kernel detects them, and blend safe values into the intermediate terms to avoid division by zero without branches that would diverge across SIMD lanes.
 
-### Potential Optimization: Haversine Without Final Arc Conversion
+### Terrain Pyramid
 
-The haversine formula computes $d = 2R \cdot \text{asin}(\sqrt{h})$ where $h = \sin^2(\Delta\phi/2) + \cos\phi_1 \cos\phi_2 \cdot \sin^2(\Delta\lambda/2)$.
-Since both `asin` and `sqrt` are monotonically increasing, comparing $h$ values directly produces the same ordering as comparing full haversine distances.
-For ranking-only use cases, a future "similarity mode" could skip the final `sqrt`/`atan2` conversion and return $h$ directly, eliminating the two most expensive operations in the pipeline.
-Currently, all kernels compute the full distance.
+`nk_terrain_pack_f32` keeps the maximum of every $2^k \times 2^k$ block of the grid, one ring wider than the block, beside the caller's heights, which it never copies.
+`nk_clearances_packed_f32` walks each sight line through the coarsest blocks first and skips a block whose maximum, lowered by the curvature at its nearest point, cannot undercut the running minimum.
+Skipping only drops samples that cannot lower the result, so every clearance equals the one a full visit of every crossing gives.
+
+### Ranking by Chord
+
+On a sphere the great-circle angle grows monotonically with the chord $\lVert \mathbf{a} - \mathbf{b} \rVert$, so ranking by `sqeuclideans3d` over unit vectors or Earth-fixed coordinates orders pairs as Haversine does, without `atan2` or square roots.
 
 ## Performance
 
 The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by the `NUMKONG_MAX_COORD_ANGLE` environment variable and set to ≤1°, ≤30°, and ≤180° maximum angular separation between pairs of coordinates.
 The larger the angular separation between pairs, the longer the algorithm may take to converge and the higher the error.
-The throughput is measured in MP/s as the number of Millions of pairwise point distances computed per second - amortized for a large batch size, with `NUMWARS_DIMS=1536` by default.
-Current `numkong_cpu_test` output reports geospatial accuracy in two forms: mean/max absolute error in meters against Vincenty's formula computed at double-double (f118) precision, and mean/max ULP against the matching high-precision implementation of the same formula.
-The historical tables below use the meter-based summary where it has been remeasured; older x86 rows still retain their original ULP figures until rerun.
+The throughput is measured in MP/s as the number of Millions of pairwise point distances computed per second, over a `NUMWARS_DIMS_HEIGHT` × `NUMWARS_DIMS_WIDTH` matrix, 1024 × 128 by default.
+Current `numkong_cpu_test` output reports geospatial accuracy in two forms: mean/max absolute error in meters against the same formula computed at double-double (f118) precision, and mean/max ULP against the matching high-precision implementation of the same formula.
+Every row reads `?` until the many-to-many kernels are remeasured.
 
 ### Intel Xeon 6 with B300
 
@@ -78,70 +112,70 @@ Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Ra
 
 #### Native
 
-| Kernel                     |                      ≤1° |                     ≤30° |                    ≤180° |
-| :------------------------- | -----------------------: | -----------------------: | -----------------------: |
-| __f64__                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f64_serial`  |       2.93 mp/s, 0.8 ulp |       2.90 mp/s, 0.8 ulp |       2.49 mp/s, 1.7 ulp |
-| `nk_vincenty_f64_serial`   |       0.829 mp/s, 82 ulp |      0.730 mp/s, 3.9 ulp |      0.555 mp/s, 1.1 ulp |
-| `nk_haversine_f64_haswell` |       72.5 mp/s, 0.6 ulp |       83.0 mp/s, 0.6 ulp |       69.0 mp/s, 1.5 ulp |
-| `nk_vincenty_f64_haswell`  |        12.0 mp/s, 80 ulp |       10.4 mp/s, 3.6 ulp |       6.82 mp/s, 1.1 ulp |
-| `nk_haversine_f64_skylake` |        130 mp/s, 0.6 ulp |        129 mp/s, 0.6 ulp |       99.5 mp/s, 1.5 ulp |
-| `nk_vincenty_f64_skylake`  |      19.7 mp/s, 171K ulp |     17.4 mp/s, 6.57K ulp |     9.91 mp/s, 1.02K ulp |
-| __f32__                    | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f32_serial`  |       8.30 mp/s, 3.4 ulp |       8.25 mp/s, 2.9 ulp |        7.21 mp/s, 55 ulp |
-| `nk_vincenty_f32_serial`   |     3.58 mp/s, 58.3K ulp |       2.68 mp/s, 306 ulp |       1.84 mp/s, 103 ulp |
-| `nk_haversine_f32_haswell` |        291 mp/s, 3.2 ulp |        293 mp/s, 2.7 ulp |         243 mp/s, 54 ulp |
-| `nk_vincenty_f32_haswell`  |     50.5 mp/s, 26.2K ulp |       43.7 mp/s, 289 ulp |        14.2 mp/s, 61 ulp |
-| `nk_haversine_f32_skylake` |        442 mp/s, 3.1 ulp |        442 mp/s, 2.7 ulp |         339 mp/s, 53 ulp |
-| `nk_vincenty_f32_skylake`  |     81.0 mp/s, 7.16K ulp |       77.5 mp/s, 406 ulp |       17.9 mp/s, 105 ulp |
+| Kernel                             |                      ≤1° |                     ≤30° |                    ≤180° |
+| :--------------------------------- | -----------------------: | -----------------------: | -----------------------: |
+| __f64__                            | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_haversines_packed_f64_serial`  |                        ? |                        ? |                        ? |
+| `nk_vincentys_packed_f64_serial`   |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_f64_serial`     |                        ? |                        ? |                        ? |
+| `nk_haversines_packed_f64_haswell` |                        ? |                        ? |                        ? |
+| `nk_vincentys_packed_f64_haswell`  |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_f64_haswell`    |                        ? |                        ? |                        ? |
+| `nk_haversines_packed_f64_skylake` |                        ? |                        ? |                        ? |
+| `nk_vincentys_packed_f64_skylake`  |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_f64_skylake`    |                        ? |                        ? |                        ? |
+| __i32__                            | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_sqeuclideans3d_i32_serial`     |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_i32_haswell`    |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_i32_skylake`    |                        ? |                        ? |                        ? |
 
 #### WASM
 
 Measured with wasmtime 49.0.2, Cranelift.
 
-| Kernel                         |                      ≤1° |                     ≤30° |                    ≤180° |
-| :----------------------------- | -----------------------: | -----------------------: | -----------------------: |
-| __f64__                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f64_serial`      |                2.83 mp/s |                2.85 mp/s |                2.82 mp/s |
-| `nk_vincenty_f64_serial`       |               0.767 mp/s |               0.682 mp/s |               0.590 mp/s |
-| `nk_haversine_f64_v128relaxed` |                37.7 mp/s |                39.0 mp/s |                39.8 mp/s |
-| `nk_vincenty_f64_v128relaxed`  |                5.60 mp/s |                5.00 mp/s |                4.06 mp/s |
-| __f32__                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f32_serial`      |                7.75 mp/s |                8.05 mp/s |                7.88 mp/s |
-| `nk_vincenty_f32_serial`       |                3.48 mp/s |                2.68 mp/s |                2.03 mp/s |
-| `nk_haversine_f32_v128relaxed` |                 115 mp/s |                 120 mp/s |                 122 mp/s |
-| `nk_vincenty_f32_v128relaxed`  |                23.9 mp/s |                19.9 mp/s |                10.7 mp/s |
+| Kernel                                 |                      ≤1° |                     ≤30° |                    ≤180° |
+| :------------------------------------- | -----------------------: | -----------------------: | -----------------------: |
+| __f64__                                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_haversines_packed_f64_serial`      |                        ? |                        ? |                        ? |
+| `nk_vincentys_packed_f64_serial`       |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_f64_serial`         |                        ? |                        ? |                        ? |
+| `nk_haversines_packed_f64_v128relaxed` |                        ? |                        ? |                        ? |
+| `nk_vincentys_packed_f64_v128relaxed`  |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_f64_v128relaxed`    |                        ? |                        ? |                        ? |
+| __i32__                                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_sqeuclideans3d_i32_serial`         |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_i32_v128relaxed`    |                        ? |                        ? |                        ? |
 
 ### Apple M4
 
 #### Native
 
-| Kernel                    |                      ≤1° |                     ≤30° |                    ≤180° |
-| :------------------------ | -----------------------: | -----------------------: | -----------------------: |
-| __f64__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f64_serial` |       3.47 mp/s, 1.12 km |       3.47 mp/s, 32.8 km |        3.48 mp/s, 150 km |
-| `nk_vincenty_f64_serial`  |      0.888 mp/s, 2.20 nm |      0.770 mp/s, 2.79 nm |       0.662 mp/s, 622 nm |
-| `nk_haversine_f64_neon`   |       72.8 mp/s, 1.12 km |       72.5 mp/s, 32.8 km |        72.8 mp/s, 150 km |
-| `nk_vincenty_f64_neon`    |       9.34 mp/s, 2.12 nm |       7.61 mp/s, 2.33 nm |        5.99 mp/s, 622 nm |
-| __f32__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f32_serial` |       14.1 mp/s, 1.12 km |       13.8 mp/s, 32.8 km |        14.0 mp/s, 146 km |
-| `nk_vincenty_f32_serial`  |        4.54 mp/s, 12.0 m |        3.25 mp/s, 12.5 m |        2.42 mp/s, 22.0 m |
-| `nk_haversine_f32_neon`   |        247 mp/s, 1.12 km |        235 mp/s, 32.8 km |         252 mp/s, 146 km |
-| `nk_vincenty_f32_neon`    |        45.7 mp/s, 12.2 m |        37.9 mp/s, 12.8 m |        15.7 mp/s, 22.0 m |
+| Kernel                            |                      ≤1° |                     ≤30° |                    ≤180° |
+| :-------------------------------- | -----------------------: | -----------------------: | -----------------------: |
+| __f64__                           | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_haversines_packed_f64_serial` |                        ? |                        ? |                        ? |
+| `nk_vincentys_packed_f64_serial`  |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_f64_serial`    |                        ? |                        ? |                        ? |
+| `nk_haversines_packed_f64_neon`   |                        ? |                        ? |                        ? |
+| `nk_vincentys_packed_f64_neon`    |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_f64_neon`      |                        ? |                        ? |                        ? |
+| __i32__                           | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_sqeuclideans3d_i32_serial`    |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_i32_neon`      |                        ? |                        ? |                        ? |
 
 #### WASM
 
 Measured with Wasmtime v43 (Cranelift backend).
 
-| Kernel                         |                      ≤1° |                     ≤30° |                    ≤180° |
-| :----------------------------- | -----------------------: | -----------------------: | -----------------------: |
-| __f64__                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f64_serial`      |       5.12 mp/s, 1.12 km |       5.12 mp/s, 32.8 km |        5.07 mp/s, 148 km |
-| `nk_vincenty_f64_serial`       |       1.27 mp/s, 1.86 nm |       1.11 mp/s, 2.33 nm |        1.02 mp/s, 594 nm |
-| `nk_haversine_f64_v128relaxed` |        109 mp/s, 1.12 km |        109 mp/s, 32.8 km |         109 mp/s, 148 km |
-| `nk_vincenty_f64_v128relaxed`  |       12.8 mp/s, 1.89 nm |       10.4 mp/s, 2.33 nm |        8.28 mp/s, 594 nm |
-| __f32__                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_haversine_f32_serial`      |     20.9 mp/s, 20,000 km |       20.9 mp/s, 32.7 km |        21.0 mp/s, 136 km |
-| `nk_vincenty_f32_serial`       |     6.11 mp/s, 20,000 km |        4.30 mp/s, 12.0 m |        3.27 mp/s, 22.0 m |
-| `nk_haversine_f32_v128relaxed` |      523 mp/s, 20,000 km |        524 mp/s, 32.7 km |         524 mp/s, 153 km |
-| `nk_vincenty_f32_v128relaxed`  |        76.9 mp/s, 12.0 m |        68.2 mp/s, 16.2 m |        26.8 mp/s, 18.0 m |
+| Kernel                                 |                      ≤1° |                     ≤30° |                    ≤180° |
+| :------------------------------------- | -----------------------: | -----------------------: | -----------------------: |
+| __f64__                                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_haversines_packed_f64_serial`      |                        ? |                        ? |                        ? |
+| `nk_vincentys_packed_f64_serial`       |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_f64_serial`         |                        ? |                        ? |                        ? |
+| `nk_haversines_packed_f64_v128relaxed` |                        ? |                        ? |                        ? |
+| `nk_vincentys_packed_f64_v128relaxed`  |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_f64_v128relaxed`    |                        ? |                        ? |                        ? |
+| __i32__                                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
+| `nk_sqeuclideans3d_i32_serial`         |                        ? |                        ? |                        ? |
+| `nk_sqeuclideans3d_i32_v128relaxed`    |                        ? |                        ? |                        ? |

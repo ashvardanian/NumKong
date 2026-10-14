@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Test geospatial distances: nk.haversine, nk.vincenty.
+"""Test the many-to-many geospatial distances: nk.sqeuclideans3d and the packed nk.haversines and nk.vincentys.
 
-DTypes: float64, float32.
-Baselines: NumPy great-circle and iterative Vincenty formulas.
-Vincenty at float32 shows high relative error near antipodal points.
+DTypes: float64, int32.
+Baselines: NumPy unit-vector Haversine, NumPy Vincenty inverse formula, NumPy squared differences.
 Matches C++ suite: test/geospatial.cpp.
 
 File: test/geospatial.py
@@ -13,7 +12,6 @@ Date: December 22, 2025
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import pytest
@@ -24,235 +22,226 @@ if TYPE_CHECKING:
 
 try:
     import numpy as np
-
-    numpy_available = True
 except Exception:
-    numpy_available = False
+    pass
 
-from base import (
-    SETTINGS,
-    assert_allclose,
-    collect_errors,
-    numpy_available,
-    timed_call,
-)
+from base import SETTINGS, assert_allclose, collect_errors, numpy_available, timed_call
 
 import numkong as nk
 
 
-_max_angle_rad = np.radians(SETTINGS.max_coord_angle_degrees) if numpy_available else None
+requires_numpy = pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 
-earth_radius_meters = 6335439.0
+EARTH_MEAN_RADIUS = 6371008.8
+"""The IUGG mean radius R₁ in metres, the sphere of `haversines_packed`."""
+EQUATORIAL_RADIUS, FLATTENING = 6378137.0, 1 / 298.257223563
+"""The WGS-84 ellipsoid of `vincentys_packed`."""
+POLAR_RADIUS = EQUATORIAL_RADIUS * (1 - FLATTENING)
+ROWS, COLUMNS = 33, 17
+"""Odd sizes, so every SIMD body also runs its tails."""
 
 
-def baseline_haversine(first_latitude, first_longitude, second_latitude, second_longitude):
-    """Haversine distance using NumPy. All inputs in radians, output in meters."""
-    latitude_difference = second_latitude - first_latitude
-    longitude_difference = second_longitude - first_longitude
-    haversine_term = (
-        np.sin(latitude_difference / 2) ** 2
-        + np.cos(first_latitude) * np.cos(second_latitude) * np.sin(longitude_difference / 2) ** 2
+def random_points(
+    generator: np.random.Generator, count: int, latitude_degrees: float, longitude_degrees: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """`count` latitudes within ±`latitude_degrees` and longitudes within ±`longitude_degrees`, in radians."""
+    latitudes = np.radians(generator.uniform(-latitude_degrees, latitude_degrees, count))
+    longitudes = np.radians(generator.uniform(-longitude_degrees, longitude_degrees, count))
+    return latitudes, longitudes
+
+
+def unit_vectors(latitudes: np.ndarray, longitudes: np.ndarray) -> np.ndarray:
+    """The [points,3] unit vectors of points on the sphere."""
+    return np.stack(
+        [np.cos(latitudes) * np.cos(longitudes), np.cos(latitudes) * np.sin(longitudes), np.sin(latitudes)], axis=-1
     )
-    central_angle = 2 * np.arctan2(np.sqrt(haversine_term), np.sqrt(1 - haversine_term))
-    return earth_radius_meters * central_angle
 
 
-def baseline_vincenty(
-    first_latitude, first_longitude, second_latitude, second_longitude, max_iterations=100, tolerance=1e-12
-):
-    """Vincenty distance using NumPy. All inputs in radians, output in meters."""
-    equatorial_radius = 6378136.6
-    polar_radius = 6356751.9
-    flattening = (equatorial_radius - polar_radius) / equatorial_radius
+def reference_haversines(
+    a_latitudes: np.ndarray, a_longitudes: np.ndarray, b_latitudes: np.ndarray, b_longitudes: np.ndarray
+) -> np.ndarray:
+    """2R · atan2(‖a − b‖, ‖a + b‖) between every row and every column unit vector."""
+    a = unit_vectors(a_latitudes, a_longitudes)[:, None, :]
+    b = unit_vectors(b_latitudes, b_longitudes)[None, :, :]
+    return 2 * EARTH_MEAN_RADIUS * np.arctan2(np.linalg.norm(a - b, axis=-1), np.linalg.norm(a + b, axis=-1))
 
-    reduced_latitude_first = np.arctan((1 - flattening) * np.tan(first_latitude))
-    reduced_latitude_second = np.arctan((1 - flattening) * np.tan(second_latitude))
-    longitude_difference = second_longitude - first_longitude
 
-    sin_reduced_first = np.sin(reduced_latitude_first)
-    cos_reduced_first = np.cos(reduced_latitude_first)
-    sin_reduced_second = np.sin(reduced_latitude_second)
-    cos_reduced_second = np.cos(reduced_latitude_second)
-
-    lambda_current = longitude_difference
-    for _ in range(max_iterations):
-        sin_lambda = np.sin(lambda_current)
-        cos_lambda = np.cos(lambda_current)
-
-        sin_sigma = np.sqrt(
-            (cos_reduced_second * sin_lambda) ** 2
-            + (cos_reduced_first * sin_reduced_second - sin_reduced_first * cos_reduced_second * cos_lambda) ** 2
+def reference_vincentys(
+    a_latitudes: np.ndarray, a_longitudes: np.ndarray, b_latitudes: np.ndarray, b_longitudes: np.ndarray
+) -> np.ndarray:
+    """Vincenty's inverse formula on WGS-84 between every row and every column, iterated until every pair settles."""
+    a_reduced = np.arctan2((1 - FLATTENING) * np.sin(a_latitudes), np.cos(a_latitudes))[:, None]
+    b_reduced = np.arctan2((1 - FLATTENING) * np.sin(b_latitudes), np.cos(b_latitudes))[None, :]
+    a_sin, a_cos, b_sin, b_cos = np.sin(a_reduced), np.cos(a_reduced), np.sin(b_reduced), np.cos(b_reduced)
+    longitude_difference = b_longitudes[None, :] - a_longitudes[:, None]
+    auxiliary_longitude = longitude_difference
+    for _ in range(100):
+        auxiliary_sin, auxiliary_cos = np.sin(auxiliary_longitude), np.cos(auxiliary_longitude)
+        sigma_sin = np.hypot(b_cos * auxiliary_sin, a_cos * b_sin - a_sin * b_cos * auxiliary_cos)
+        sigma_cos = a_sin * b_sin + a_cos * b_cos * auxiliary_cos
+        sigma = np.arctan2(sigma_sin, sigma_cos)
+        azimuth_sin = a_cos * b_cos * auxiliary_sin / sigma_sin
+        azimuth_cos_squared = 1 - azimuth_sin**2
+        midpoint_cos = sigma_cos - 2 * a_sin * b_sin / azimuth_cos_squared
+        correction = FLATTENING / 16 * azimuth_cos_squared * (4 + FLATTENING * (4 - 3 * azimuth_cos_squared))
+        previous_longitude = auxiliary_longitude
+        auxiliary_longitude = longitude_difference + (1 - correction) * FLATTENING * azimuth_sin * (
+            sigma + correction * sigma_sin * (midpoint_cos + correction * sigma_cos * (2 * midpoint_cos**2 - 1))
         )
-        cos_sigma = sin_reduced_first * sin_reduced_second + cos_reduced_first * cos_reduced_second * cos_lambda
-        sigma = np.arctan2(sin_sigma, cos_sigma)
-
-        sin_azimuth = cos_reduced_first * cos_reduced_second * sin_lambda / sin_sigma
-        cos_squared_azimuth = 1 - sin_azimuth**2
-        cos_two_sigma_midpoint = (
-            cos_sigma - 2 * sin_reduced_first * sin_reduced_second / cos_squared_azimuth
-            if cos_squared_azimuth != 0
-            else 0
-        )
-
-        correction_term = flattening / 16 * cos_squared_azimuth * (4 + flattening * (4 - 3 * cos_squared_azimuth))
-        lambda_next = longitude_difference + (1 - correction_term) * flattening * sin_azimuth * (
-            sigma
-            + correction_term
-            * sin_sigma
-            * (cos_two_sigma_midpoint + correction_term * cos_sigma * (-1 + 2 * cos_two_sigma_midpoint**2))
-        )
-
-        if np.abs(lambda_next - lambda_current) < tolerance:
+        if np.all(np.abs(auxiliary_longitude - previous_longitude) < 1e-12):
             break
-        lambda_current = lambda_next
-
-    u_squared = cos_squared_azimuth * (equatorial_radius**2 - polar_radius**2) / polar_radius**2
-    coefficient_a = 1 + u_squared / 16384 * (4096 + u_squared * (-768 + u_squared * (320 - 175 * u_squared)))
-    coefficient_b = u_squared / 1024 * (256 + u_squared * (-128 + u_squared * (74 - 47 * u_squared)))
-    delta_sigma = (
-        coefficient_b
-        * sin_sigma
+    u_squared = azimuth_cos_squared * (EQUATORIAL_RADIUS**2 - POLAR_RADIUS**2) / POLAR_RADIUS**2
+    big_a = 1 + u_squared / 16384 * (4096 + u_squared * (-768 + u_squared * (320 - 175 * u_squared)))
+    big_b = u_squared / 1024 * (256 + u_squared * (-128 + u_squared * (74 - 47 * u_squared)))
+    sigma_delta = (
+        big_b
+        * sigma_sin
         * (
-            cos_two_sigma_midpoint
-            + coefficient_b
+            midpoint_cos
+            + big_b
             / 4
             * (
-                cos_sigma * (-1 + 2 * cos_two_sigma_midpoint**2)
-                - coefficient_b
-                / 6
-                * cos_two_sigma_midpoint
-                * (-3 + 4 * sin_sigma**2)
-                * (-3 + 4 * cos_two_sigma_midpoint**2)
+                sigma_cos * (2 * midpoint_cos**2 - 1)
+                - big_b / 6 * midpoint_cos * (4 * sigma_sin**2 - 3) * (4 * midpoint_cos**2 - 3)
             )
         )
     )
-
-    return polar_radius * coefficient_a * (sigma - delta_sigma)
-
-
-KERNELS_GEOSPATIAL: dict[str, tuple[Callable, Callable, None]] = {
-    "haversine": (baseline_haversine, nk.haversine, None),
-    "vincenty": (baseline_vincenty, nk.vincenty, None),
-}
+    return POLAR_RADIUS * big_a * (sigma - sigma_delta)
 
 
-def _check_geospatial_accuracy(
-    stats, generator: np.random.Generator, metric, ndim, dtype, coord_scale, atol, rtol, capabilities: nk.Capability
-):
-    """Shared accuracy check for geospatial kernels."""
-    baseline_kernel, simd_kernel, _ = KERNELS_GEOSPATIAL[metric]
-
-    lat_scale = min(_max_angle_rad, np.pi) / 2
-    lon_scale = min(_max_angle_rad, np.pi)
-    first_latitudes = ((generator.random(ndim) - 0.5) * 2 * lat_scale * coord_scale).astype(dtype)
-    first_longitudes = ((generator.random(ndim) - 0.5) * 2 * lon_scale * coord_scale).astype(dtype)
-    second_latitudes = ((generator.random(ndim) - 0.5) * 2 * lat_scale * coord_scale).astype(dtype)
-    second_longitudes = ((generator.random(ndim) - 0.5) * 2 * lon_scale * coord_scale).astype(dtype)
-
-    def _baseline_loop(lat1, lon1, lat2, lon2):
-        return np.array([baseline_kernel(lat1[i], lon1[i], lat2[i], lon2[i]) for i in range(len(lat1))])
-
-    accurate_ns, accurate = timed_call(
-        _baseline_loop,
-        first_latitudes.astype(np.float64),
-        first_longitudes.astype(np.float64),
-        second_latitudes.astype(np.float64),
-        second_longitudes.astype(np.float64),
-    )
-    expected_ns, expected = timed_call(
-        _baseline_loop, first_latitudes, first_longitudes, second_latitudes, second_longitudes
-    )
-
-    result_ns, result = timed_call(
-        simd_kernel,
-        first_latitudes,
-        first_longitudes,
-        second_latitudes,
-        second_longitudes,
-        capabilities=capabilities,
-    )
-    result = np.asarray(result)
-
-    assert_allclose(result, accurate, atol=atol, rtol=rtol)
-
-    # out= with nk.Tensor buffer
-    out_nk = nk.zeros((ndim,), dtype=dtype)
-    ret = simd_kernel(
-        first_latitudes, first_longitudes, second_latitudes, second_longitudes, out=out_nk, capabilities=capabilities
-    )
-    assert ret is None
-    assert_allclose(np.asarray(out_nk), result, atol=1e-10, rtol=1e-10)
-
+def record_errors(stats, capabilities, kind: str, dtype: str, expected, accurate_ns, result, result_ns) -> None:
+    """Adds one many-to-many call to `stats`, keyed by its rows."""
+    capability = capabilities.name.lower().replace("|", "+")
     collect_errors(
-        metric,
-        ndim,
-        dtype,
-        accurate,
-        accurate_ns,
-        expected,
-        expected_ns,
-        result,
-        result_ns,
-        stats,
-        capability=capabilities.name.lower().replace("|", "+"),
+        kind, len(expected), dtype, expected, accurate_ns, None, 0, result, result_ns, stats, capability=capability
     )
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("ndim", SETTINGS.dims)
-@pytest.mark.parametrize("dtype", ["float64", "float32"])
-def test_haversine_random_accuracy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
-    """Haversine great-circle distance against baseline for random coordinates."""
-    _check_geospatial_accuracy(
-        stats, np_rng, "haversine", ndim, dtype, coord_scale=1.0, atol=10.0, rtol=1e-2, capabilities=capabilities
+@requires_numpy
+@pytest.mark.repeat(SETTINGS.reduced_repetitions)
+def test_haversines_packed(stats, capabilities, np_rng: np.random.Generator):
+    """Haversine over the whole sphere against unit vectors in NumPy, down to coincident and antipodal pairs,
+    with strided rows and float32 columns cast to float64."""
+    angle = SETTINGS.max_coord_angle_degrees
+    a_latitudes, a_longitudes = random_points(np_rng, 2 * ROWS, angle / 2, angle)
+    a_latitudes, a_longitudes = a_latitudes[::2], a_longitudes[::2]
+    b_latitudes, b_longitudes = random_points(np_rng, COLUMNS - 2, angle / 2, angle)
+    b_latitudes = np.concatenate([b_latitudes, a_latitudes[:1], -a_latitudes[:1]]).astype(np.float32)
+    b_longitudes = np.concatenate([b_longitudes, a_longitudes[:1], a_longitudes[:1] + np.pi]).astype(np.float32)
+    a_packed, b_packed = nk.haversines_pack(a_latitudes, a_longitudes), nk.haversines_pack(b_latitudes, b_longitudes)
+    result_ns, result = timed_call(nk.haversines_packed, a_packed, b_packed, capabilities=capabilities)
+    result = np.asarray(result)
+    accurate_ns, expected = timed_call(
+        reference_haversines, a_latitudes, a_longitudes, b_latitudes.astype(np.float64), b_longitudes.astype(np.float64)
     )
+    assert result.dtype == np.float64 and result.shape == (ROWS, COLUMNS)
+    assert_allclose(result, expected, atol=1e-6, rtol=0)
+    record_errors(stats, capabilities, "haversines", "float64", expected, accurate_ns, result, result_ns)
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("ndim", SETTINGS.dims)
-@pytest.mark.parametrize("dtype", ["float64", "float32"])
-def test_vincenty_random_accuracy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
-    """Vincenty ellipsoidal geodesic distance against baseline for random coordinates."""
-    rtol = 1.0 if dtype == "float32" else 1e-2
-    _check_geospatial_accuracy(
-        stats, np_rng, "vincenty", ndim, dtype, coord_scale=0.9, atol=100.0, rtol=rtol, capabilities=capabilities
-    )
+@requires_numpy
+@pytest.mark.repeat(SETTINGS.reduced_repetitions)
+def test_vincentys_packed(stats, capabilities, np_rng: np.random.Generator):
+    """Vincenty against its inverse formula in NumPy, the longitudes within 160° of each other, away from the
+    antipode where the iteration need not converge."""
+    half_span = min(SETTINGS.max_coord_angle_degrees, 160.0) / 2
+    a_latitudes, a_longitudes = random_points(np_rng, ROWS, half_span, half_span)
+    b_latitudes, b_longitudes = random_points(np_rng, COLUMNS, half_span, half_span)
+    a_packed, b_packed = nk.vincentys_pack(a_latitudes, a_longitudes), nk.vincentys_pack(b_latitudes, b_longitudes)
+    result_ns, result = timed_call(nk.vincentys_packed, a_packed, b_packed, capabilities=capabilities)
+    result = np.asarray(result)
+    accurate_ns, expected = timed_call(reference_vincentys, a_latitudes, a_longitudes, b_latitudes, b_longitudes)
+    assert result.dtype == np.float64 and result.shape == (ROWS, COLUMNS)
+    assert_allclose(result, expected, atol=1e-3, rtol=0)
+    record_errors(stats, capabilities, "vincentys", "float64", expected, accurate_ns, result, result_ns)
 
 
-@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-def test_haversine_known():
-    """Haversine distance for New York to Los Angeles against known reference value."""
-    new_york_latitude = np.radians(40.7128)
-    new_york_longitude = np.radians(-74.0060)
-    los_angeles_latitude = np.radians(34.0522)
-    los_angeles_longitude = np.radians(-118.2437)
-
-    first_latitudes = np.array([new_york_latitude], dtype=np.float64)
-    first_longitudes = np.array([new_york_longitude], dtype=np.float64)
-    second_latitudes = np.array([los_angeles_latitude], dtype=np.float64)
-    second_longitudes = np.array([los_angeles_longitude], dtype=np.float64)
-
-    result = np.array(nk.haversine(first_latitudes, first_longitudes, second_latitudes, second_longitudes))
-    result_kilometers = float(result[0]) / 1000
-
-    assert 3800 < result_kilometers < 4100, f"Expected ~3940 km, got {result_kilometers:.0f} km"
+@requires_numpy
+def test_vincentys_flinders_peak_to_buninyong(capabilities):
+    """Vincenty's own worked example in the 1975 Survey Review, 54,972.271 m, from the kernel and the reference."""
+    latitudes = -np.radians([37 + 57 / 60 + 3.72030 / 3600, 37 + 39 / 60 + 10.15610 / 3600])
+    longitudes = np.radians([144 + 25 / 60 + 29.52440 / 3600, 143 + 55 / 60 + 35.38390 / 3600])
+    flinders_peak = nk.vincentys_pack(latitudes[:1], longitudes[:1])
+    buninyong = nk.vincentys_pack(latitudes[1:], longitudes[1:])
+    result = np.asarray(nk.vincentys_packed(flinders_peak, buninyong, capabilities=capabilities))
+    expected = reference_vincentys(latitudes[:1], longitudes[:1], latitudes[1:], longitudes[1:])
+    assert_allclose(result, [[54972.2711]], atol=1e-3, rtol=0)
+    assert_allclose(expected, [[54972.2711]], atol=1e-3, rtol=0)
 
 
-def test_haversine_self_zero(capabilities):
-    """haversine(lat, lon, lat, lon) ~ 0."""
-    lat = nk.full((1,), 0.5, dtype="float64")
-    lon = nk.full((1,), 0.5, dtype="float64")
-    result = nk.haversine(lat, lon, lat, lon, capabilities=capabilities)
-    val = next(iter(result))
-    assert abs(val) < 1.0, f"haversine(self) = {val}, expected ~0"
+@requires_numpy
+@pytest.mark.repeat(SETTINGS.reduced_repetitions)
+@pytest.mark.parametrize("dtype", ["int32", "float64"])
+def test_sqeuclideans3d(stats, capabilities, dtype: str, np_rng: np.random.Generator):
+    """int32 squares exactly up to Earth-fixed centimetres at 4,359 km of altitude, the axis differences
+    filling 31 bits, and float64 within 1e-12 relative, with strided rows."""
+    if dtype == "int32":
+        a = np_rng.integers(-(2**30), 2**30, size=(2 * ROWS, 3), dtype=np.int32)[::2]
+        b = np_rng.integers(-(2**30), 2**30, size=(COLUMNS, 3), dtype=np.int32)
+        b[0], b[1] = 2**30 - 1, -(2**30)
+    else:
+        a = np_rng.normal(scale=EARTH_MEAN_RADIUS, size=(2 * ROWS, 3))[::2]
+        b = np_rng.normal(scale=EARTH_MEAN_RADIUS, size=(COLUMNS, 3))
+    result_ns, result = timed_call(nk.sqeuclideans3d, a, b, capabilities=capabilities)
+    result = np.asarray(result)
+    differences = a[:, None, :].astype(np.float64 if dtype == "float64" else np.int64) - b[None, :, :]
+    if dtype == "int32":
+        magnitudes = np.abs(differences).astype(np.uint64)
+        accurate_ns, expected = timed_call(lambda: (magnitudes * magnitudes).sum(axis=-1, dtype=np.uint64))
+        assert result.dtype == np.uint64
+        np.testing.assert_array_equal(result, expected)
+    else:
+        accurate_ns, expected = timed_call(lambda: (differences * differences).sum(axis=-1))
+        assert result.dtype == np.float64
+        assert_allclose(result, expected, atol=0, rtol=1e-12)
+    record_errors(stats, capabilities, "sqeuclideans3d", dtype, expected, accurate_ns, result, result_ns)
 
 
-def test_vincenty_self_zero(capabilities):
-    """vincenty(lat, lon, lat, lon) ~ 0."""
-    lat = nk.full((1,), 0.5, dtype="float64")
-    lon = nk.full((1,), 0.5, dtype="float64")
-    result = nk.vincenty(lat, lon, lat, lon, capabilities=capabilities)
-    val = next(iter(result))
-    assert abs(val) < 1.0, f"vincenty(self) = {val}, expected ~0"
+@requires_numpy
+def test_empty_and_single_point(capabilities):
+    """An empty side yields an empty matrix, and a single point lies within a nanometre of itself."""
+    empty, latitudes, longitudes = np.empty(0), np.radians([51.5007]), np.radians([-0.1246])
+    for pack, packed in ((nk.haversines_pack, nk.haversines_packed), (nk.vincentys_pack, nk.vincentys_packed)):
+        nothing, single = pack(empty, empty), pack(latitudes, longitudes)
+        assert len(nothing) == 0 and nothing.shape == (0, 2)
+        assert np.asarray(packed(nothing, single, capabilities=capabilities)).shape == (0, 1)
+        assert np.asarray(packed(single, nothing, capabilities=capabilities)).shape == (1, 0)
+        assert_allclose(np.asarray(packed(single, single, capabilities=capabilities)), [[0.0]], atol=1e-9, rtol=0)
+    point = np.array([[3, -4, 12]], dtype=np.int32)
+    assert np.asarray(nk.sqeuclideans3d(point[:0], point, capabilities=capabilities)).shape == (0, 1)
+    assert np.asarray(nk.sqeuclideans3d(point, -point, capabilities=capabilities)).tolist() == [[4 * 169]]
+
+
+@requires_numpy
+@pytest.mark.parametrize("kind", ["haversines", "vincentys"])
+def test_packed_matrices(kind: str, np_rng: np.random.Generator):
+    """A pack reports its point count, shape and size, which its header and planar arrays fix."""
+    pack, packed_type = getattr(nk, f"{kind}_pack"), getattr(nk, f"{kind.capitalize()}PackedMatrix")
+    latitudes, longitudes = random_points(np_rng, 5, 90.0, 180.0)
+    packed, single = pack(latitudes, longitudes), pack(latitudes[:1], longitudes[:1])
+    assert type(packed) is packed_type
+    assert len(packed) == packed.points == 5 and packed.shape == (5, 2)
+    assert packed.nbytes == packed_type.pack_size(5) and single.nbytes == packed_type.pack_size(1)
+    assert repr(packed) == f"<numkong.{packed_type.__name__} points=5 nbytes={packed.nbytes}>"
+
+
+@requires_numpy
+def test_geospatial_errors():
+    """Malformed coordinates, mixed packs and mismatched dtypes raise before any kernel runs."""
+    zeros = np.zeros(3)
+    with pytest.raises(ValueError):
+        nk.haversines_pack(zeros, zeros[:2])
+    with pytest.raises(ValueError):
+        nk.vincentys_pack(zeros.reshape(3, 1), zeros.reshape(3, 1))
+    haversines, vincentys = nk.haversines_pack(zeros, zeros), nk.vincentys_pack(zeros, zeros)
+    with pytest.raises(TypeError):
+        nk.haversines_packed(haversines, vincentys)
+    with pytest.raises(TypeError):
+        nk.vincentys_packed(vincentys, zeros)
+    points = np.zeros((2, 3), dtype=np.int32)
+    with pytest.raises(ValueError):
+        nk.sqeuclideans3d(points[:, :2], points[:, :2])
+    with pytest.raises(TypeError):
+        nk.sqeuclideans3d(points, points.astype(np.float64))
+    with pytest.raises(LookupError):
+        nk.sqeuclideans3d(points.astype(np.float32), points.astype(np.float32))

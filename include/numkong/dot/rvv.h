@@ -98,6 +98,26 @@ NUMKONG_INLINE void nk_dot2_f64m1_rvv_(vfloat64m1_t *sum_f64m1, vfloat64m1_t *co
         __riscv_vfadd_vv_f64m1(sum_error_f64m1, product_error_f64m1, vector_length), vector_length);
 }
 
+/** Dot2 step over the first @p vector_length lanes of an LMUL=4 group, sum += a × b, as @c
+ *  nk_dot2_f64m1_rvv_ does in one register, for kernels that also call the LMUL=4 trigonometry; the
+ *  lanes past them are left undefined. */
+NUMKONG_INLINE void nk_dot2_f64m4_rvv_(vfloat64m4_t *sum_f64m4, vfloat64m4_t *compensation_f64m4, vfloat64m4_t a_f64m4,
+                                       vfloat64m4_t b_f64m4, nk_size_t vector_length) {
+    vfloat64m4_t product_f64m4 = __riscv_vfmul_vv_f64m4(a_f64m4, b_f64m4, vector_length);
+    vfloat64m4_t product_error_f64m4 = __riscv_vfmsac_vv_f64m4(product_f64m4, a_f64m4, b_f64m4, vector_length);
+    vfloat64m4_t tentative_sum_f64m4 = __riscv_vfadd_vv_f64m4(*sum_f64m4, product_f64m4, vector_length);
+    vfloat64m4_t virtual_addend_f64m4 = __riscv_vfsub_vv_f64m4(tentative_sum_f64m4, *sum_f64m4, vector_length);
+    vfloat64m4_t sum_error_f64m4 = __riscv_vfadd_vv_f64m4(
+        __riscv_vfsub_vv_f64m4(*sum_f64m4,
+                               __riscv_vfsub_vv_f64m4(tentative_sum_f64m4, virtual_addend_f64m4, vector_length),
+                               vector_length),
+        __riscv_vfsub_vv_f64m4(product_f64m4, virtual_addend_f64m4, vector_length), vector_length);
+    *sum_f64m4 = tentative_sum_f64m4;
+    *compensation_f64m4 = __riscv_vfadd_vv_f64m4(
+        *compensation_f64m4, __riscv_vfadd_vv_f64m4(sum_error_f64m4, product_error_f64m4, vector_length),
+        vector_length);
+}
+
 /** Dot product of @p count_scalars F64 pairs with Dot2 (Ogita-Rump-Oishi) compensation. */
 NUMKONG_INLINE nk_f64_t nk_dot2_f64_rvv_(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
                                          nk_size_t count_scalars) {

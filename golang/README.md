@@ -40,7 +40,7 @@ Hamming and Jaccard on packed bit vectors and set-hash vectors.
 __Probability metrics.__
 Kullback-Leibler divergence and Jensen-Shannon distance.
 __Geospatial included.__
-`Haversine*` and `Vincenty*` are part of the same package.
+`HaversinesF64` and `VincentysF64` are part of the same package.
 __Capability bits exposed.__
 You can inspect the runtime SIMD surface from Go.
 
@@ -195,9 +195,9 @@ func main() {
 
 ## Geospatial Metrics
 
-The Go package also exposes Haversine and Vincenty helpers.
+The Go package also exposes Haversine and Vincenty helpers, from every point of one set to every point of another.
 Inputs are in radians.
-Outputs are written into caller-owned slices.
+Outputs are written into caller-owned slices, one row of distances per point of the first set.
 
 ```go
 package main
@@ -210,16 +210,16 @@ import (
 
 func main() {
 	// Statue of Liberty (40.6892°N, 74.0445°W) → Big Ben (51.5007°N, 0.1246°W)
-	libertyLat := []float64{0.7101605100}
-	libertyLon := []float64{-1.2923203180}
-	bigBenLat := []float64{0.8988567821}
-	bigBenLon := []float64{-0.0021746802}
-	distance := make([]float64, 1)
+	libertyLatitudes := []float64{0.7101605100}
+	libertyLongitudes := []float64{-1.2923203180}
+	bigBenLatitudes := []float64{0.8988567821}
+	bigBenLongitudes := []float64{-0.0021746802}
+	distances := make([]float64, 1)
 
-	nk.VincentyF64(libertyLat, libertyLon, bigBenLat, bigBenLon, distance)  // ≈ 5,589,857 m (ellipsoidal, baseline)
-	nk.HaversineF64(libertyLat, libertyLon, bigBenLat, bigBenLon, distance) // ≈ 5,543,723 m (spherical, ~46 km less)
+	nk.VincentysF64(libertyLatitudes, libertyLongitudes, bigBenLatitudes, bigBenLongitudes, distances)  // ≈ 5,589,857 m on WGS-84
+	nk.HaversinesF64(libertyLatitudes, libertyLongitudes, bigBenLatitudes, bigBenLongitudes, distances) // ≈ 5,574,848 m on the mean sphere
 
-	fmt.Println(distance[0])
+	fmt.Println(distances[0])
 }
 ```
 

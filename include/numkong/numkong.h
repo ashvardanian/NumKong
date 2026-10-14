@@ -20,7 +20,7 @@
 #include "numkong/dot.h"          // Inner (dot) product and its conjugate, like `nk_dot_f32_best`
 #include "numkong/dots.h"         // GEMM-style MxN batched dot-products, like `nk_dots_pack_size_bf16_best`
 #include "numkong/each.h"         // Weighted Sum, Fused-Multiply-Add, like `nk_each_scale_f64_best`
-#include "numkong/geospatial.h"   // Haversine and Vincenty, like `nk_haversine_f64_best`
+#include "numkong/geospatial.h"   // Haversine and Vincenty, like `nk_haversines_packed_f64_best`
 #include "numkong/probability.h"  // Kullback-Leibler, Jensen-Shannon, like `nk_kld_f16_best`
 #include "numkong/reduce.h"       // Horizontal MinMax & Moments reductions, like `nk_reduce_moments_f64_best`
 #include "numkong/sets.h"         // Hamming & Jaccard for binary sets, like `nk_hammings_packed_u1_best`
@@ -58,8 +58,11 @@ NUMKONG_CONSTEXPR nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dt
     case nk_kernel_jaccard_k:
     case nk_kernel_jaccards_packed_k:
     case nk_kernel_jaccards_symmetric_k: return nk_jaccard_output_dtype(input);
-    case nk_kernel_haversine_k: return nk_haversine_output_dtype(input);
-    case nk_kernel_vincenty_k: return nk_vincenty_output_dtype(input);
+    case nk_kernel_sqeuclideans3d_k: return nk_sqeuclideans3d_output_dtype(input);
+    case nk_kernel_haversines_packed_k:
+    case nk_kernel_vincentys_packed_k: return nk_geodesics_output_dtype(input);
+    case nk_kernel_terrain_heights_packed_k:
+    case nk_kernel_clearances_packed_k: return nk_clearances_output_dtype(input);
     case nk_kernel_kld_k:
     case nk_kernel_jsd_k: return nk_probability_output_dtype(input);
     case nk_kernel_sparse_dot_k: return nk_sparse_dot_output_dtype(input);

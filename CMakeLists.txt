@@ -913,8 +913,8 @@ if (NUMKONG_BUILD_PYTHON)
     find_package(OpenMP COMPONENTS C)
     python_add_library(
         numkong_python MODULE WITH_SOABI python/numkong.c python/tensor.c python/matrix.c python/types.c
-        python/distance.c python/each.c python/trigonometry.c python/shapes.c python/attention.c python/maxsim.c
-        python/numpy_interop.c python/dlpack_interop.c c/parallel.c
+        python/distance.c python/each.c python/trigonometry.c python/geospatial.c python/shapes.c python/attention.c
+        python/maxsim.c python/numpy_interop.c python/dlpack_interop.c c/parallel.c
     )
     set_target_properties(numkong_python PROPERTIES OUTPUT_NAME "_numkong" C_STANDARD 11 C_EXTENSIONS OFF)
     target_include_directories(numkong_python PRIVATE python c)

@@ -583,7 +583,7 @@ impl<Scalar: MaxSim> MaxSimPackedMatrix<Scalar, Global> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{SliceRange, Tensor, SIMD_ALIGNMENT};
+    use crate::tensor::{SliceRange, Tensor, DEFAULT_ALIGNMENT};
 
     #[test]
     fn maxsim_packs_from_tensor_view() {
@@ -698,9 +698,9 @@ mod tests {
         let data_stride = data.stride_bytes(0) as usize;
 
         let pack_with_fill = |fill: u8| -> Vec<u8> {
-            let mut backing = vec![fill; size + SIMD_ALIGNMENT];
+            let mut backing = vec![fill; size + DEFAULT_ALIGNMENT];
             let base = backing.as_mut_ptr();
-            let packed = unsafe { base.add(base.align_offset(SIMD_ALIGNMENT)) };
+            let packed = unsafe { base.add(base.align_offset(DEFAULT_ALIGNMENT)) };
             unsafe {
                 <f32 as MaxSim>::maxsim_pack(data_ptr, vectors, depth, data_stride, packed).unwrap();
                 core::slice::from_raw_parts(packed, size).to_vec()

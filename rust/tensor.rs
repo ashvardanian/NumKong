@@ -93,10 +93,16 @@ use crate::{
 /// Default maximum rank for tensors.
 pub const DEFAULT_MAX_RANK: usize = 8;
 
-/// Alignment for SIMD-friendly allocations — 64 bytes for AVX-512.
-pub const SIMD_ALIGNMENT: usize = 64;
+/// Byte boundary every owned allocation and pack starts on, the C library's
+/// `NUMKONG_DEFAULT_ALIGNMENT` for the same target.
+#[cfg(target_arch = "s390x")]
+pub const DEFAULT_ALIGNMENT: usize = 256;
+#[cfg(target_family = "wasm")]
+pub const DEFAULT_ALIGNMENT: usize = 64;
+#[cfg(not(any(target_arch = "s390x", target_family = "wasm")))]
+pub const DEFAULT_ALIGNMENT: usize = 128;
 
-/// The [`SIMD_ALIGNMENT`]-aligned layout holding `count` storage values of `Scalar`.
+/// The [`DEFAULT_ALIGNMENT`]-aligned layout holding `count` storage values of `Scalar`.
 ///
 /// Every owned allocation in the crate is sized here, so the value-count-to-byte-count multiply is
 /// checked in one place. A `count` that overflows describes an allocation no allocator could ever
@@ -112,7 +118,7 @@ pub(crate) fn layout_for<Scalar>(count: usize) -> Result<core::alloc::Layout, Er
 /// The byte-granular twin of [`layout_for`], for the packed buffers whose size the C ABI reports in
 /// bytes rather than in typed slots.
 pub(crate) fn layout_for_bytes(bytes: usize) -> Result<core::alloc::Layout, Error> {
-    core::alloc::Layout::from_size_align(bytes, SIMD_ALIGNMENT).map_err(|_| Error::AllocationFailed)
+    core::alloc::Layout::from_size_align(bytes, DEFAULT_ALIGNMENT).map_err(|_| Error::AllocationFailed)
 }
 
 /// The logical element count of `shape`, reporting [`Error::AllocationFailed`] on overflow.
@@ -267,7 +273,7 @@ pub(crate) fn alloc_block<A: Allocator>(alloc: &A, layout: core::alloc::Layout) 
 
 // region: PackedBuffer
 
-/// A `SIMD_ALIGNMENT`-aligned owning byte buffer shared by the packed-matrix containers.
+/// A `DEFAULT_ALIGNMENT`-aligned owning byte buffer shared by the packed-matrix containers.
 ///
 /// The dots, maxsim, and attention packed containers each wrap a single byte blob produced by the C
 /// `*_pack` FFI. `PackedBuffer` factors the allocation, reuse, and teardown of that blob into one
@@ -913,7 +919,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     ///
     /// # Safety
     /// - `data` must point to an allocation obtained from `alloc`, aligned to
-    ///   [`SIMD_ALIGNMENT`], whose backing buffer is sized for the storage count
+    ///   [`DEFAULT_ALIGNMENT`], whose backing buffer is sized for the storage count
     ///   implied by `shape` (`product(shape) / Scalar::dimensions_per_value()`
     ///   slots of `Scalar`).
     /// - `shape`, `strides`, and `ndim` must be consistent with the data layout.
@@ -6875,7 +6881,7 @@ mod tests {
             for extent in [64_usize, 4096, 100_000] {
                 tensor.reserve(&[extent]).unwrap();
                 assert!(tensor.capacity() >= extent);
-                assert_eq!(tensor.as_ptr() as usize % SIMD_ALIGNMENT, 0);
+                assert_eq!(tensor.as_ptr() as usize % DEFAULT_ALIGNMENT, 0);
                 assert_eq!(tensor.as_slice(), &[1.0, 2.0, 3.0, 4.0]);
             }
             assert!(arena.live_bytes.load(Ordering::Relaxed) >= 100_000 * 4);

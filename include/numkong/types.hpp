@@ -467,7 +467,6 @@ struct f32_t {
     using euclidean_result_t = f64_t;     // `nk_euclidean_f32` output
     using angular_result_t = f64_t;       // `nk_angular_f32` output
     using curved_result_t = f64_t;        // `nk_bilinear_f32` output
-    using geospatial_result_t = f32_t;    // `nk_haversine_f32` output
     using probability_result_t = f64_t;   // `nk_kld_f32` output
     using reduce_moments_sum_t = f64_t;   // `nk_reduce_moments_f32` sum output
     using reduce_moments_sumsq_t = f64_t; // `nk_reduce_moments_f32` sumsq output
@@ -481,8 +480,6 @@ struct f32_t {
     using sqeuclidean_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_stream_t);
     using curved_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, raw_t const *, nk_size_t, nk_f64_t *,
                                             nk_stream_t);
-    using geospatial_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, raw_t const *, raw_t const *, nk_size_t,
-                                                raw_t *, nk_stream_t);
     using probability_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_stream_t);
     using shapes_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t *);
     using shapes_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, void *, nk_stream_t);
@@ -758,7 +755,6 @@ struct f64_t {
     using euclidean_result_t = f64_t;     // `nk_euclidean_f64` output
     using angular_result_t = f64_t;       // `nk_angular_f64` output
     using curved_result_t = f64_t;        // `nk_bilinear_f64` output
-    using geospatial_result_t = f64_t;    // `nk_haversine_f64` output
     using probability_result_t = f64_t;   // `nk_kld_f64` output
     using reduce_moments_sum_t = f64_t;   // `nk_reduce_moments_f64` sum output
     using reduce_moments_sumsq_t = f64_t; // `nk_reduce_moments_f64` sumsq output
@@ -770,8 +766,6 @@ struct f64_t {
     using sqeuclidean_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_stream_t);
     using curved_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, raw_t const *, nk_size_t, raw_t *,
                                             nk_stream_t);
-    using geospatial_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, raw_t const *, raw_t const *, nk_size_t,
-                                                raw_t *, nk_stream_t);
     using probability_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_stream_t);
     using scale_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, scale_t const *, scale_t const *, raw_t *,
                                            nk_stream_t);

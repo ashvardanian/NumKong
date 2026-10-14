@@ -6,28 +6,25 @@
  *
  *  @sa include/numkong/geospatial.h
  *
- *  Implements Haversine and Vincenty geodesic distance computations using RVV 1.0 intrinsics with
- *  LMUL=4, m4, grouping for maximum throughput. The variable-length vector loop uses
- *  @c __riscv_vsetvl_e64m4 and @c __riscv_vsetvl_e32m4, so each iteration processes as many
- *  point-pairs as the hardware vector length allows, with no scalar tail handling needed.
+ *  Every kernel broadcasts one row and sweeps the columns as many at a time as @c vsetvl grants, so
+ *  no tail needs a path of its own. The 3D squares de-interleave @b [x,y,z] rows with the segment
+ *  loads @c vlseg3e32 and @c vlseg3e64, which allow at most LMUL=2 for three fields. The @c i32
+ *  differences stay at LMUL=2, and @c vwmul and @c vwmacc square them exactly into 64-bit sums at
+ *  LMUL=4, while the @c f64 ones run at LMUL=1 to match @c nk_dot2_f64m1_rvv_.
  *
- *  Trigonometric helpers — sin, cos, atan2 — come from trigonometry/rvv.h, which provides
- *  polynomial approximations operating on @c vfloat64m4_t and @c vfloat32m4_t vectors.
- *
- *  Vincenty convergence tracking uses RVV mask registers, @c vbool16_t or @c vbool8_t, with
- *  @c __riscv_vcpop_m to check if all lanes have converged, and @c __riscv_vmerge for per-lane
- *  conditional updates.
+ *  Haversine and Vincenty run at LMUL=4, the width of the trigonometric helpers of the RVV
+ *  trigonometry header. Vincenty tracks convergence in @c vbool16_t mask registers, with @c vcpop
+ *  checking whether all lanes have converged and @c vmerge applying per-lane updates.
  *
  *  @section rvv_geospatial_instructions Key RVV Geospatial Instructions
  *
  *  @verbatim
  *  Intrinsic                               Purpose
+ *  __riscv_vlseg3e32_v_i32m2x3(p, vl)      De-interleave [x,y,z] rows of i32 into three registers
+ *  __riscv_vwmacc_vv_i64m4(sum, a, b, vl)  Widening multiply-accumulate: sum += a × b in 64 bits
  *  __riscv_vfsqrt_v_f64m4(x, vl)           Square root (f64, LMUL=4)
- *  __riscv_vfsqrt_v_f32m4(x, vl)           Square root (f32, LMUL=4)
  *  __riscv_vfdiv_vv_f64m4(a, b, vl)        Division (f64, LMUL=4)
- *  __riscv_vfdiv_vv_f32m4(a, b, vl)        Division (f32, LMUL=4)
  *  __riscv_vfmadd_vv_f64m4(a, b, c, vl)    Fused multiply-add: a*b+c (f64)
- *  __riscv_vfmadd_vv_f32m4(a, b, c, vl)    Fused multiply-add: a*b+c (f32)
  *  __riscv_vcpop_m_b16(mask, vl)           Count set bits in mask (convergence check)
  *  __riscv_vmerge_vvm_f64m4(a, b, m, vl)   Conditional merge (per-lane select)
  *  @endverbatim
@@ -39,7 +36,9 @@
 #if NUMKONG_ARCH_RISCV64_RVV_
 
 #include "numkong/types.h"
-#include "numkong/trigonometry/rvv.h" // nk_f64m4_sin_rvv_, nk_f64m4_cos_rvv_, nk_f64m4_atan2_rvv_, etc.
+#include "numkong/geospatial/serial.h" // `nk_geospatial_packed_axes_f64_serial_`
+#include "numkong/dot/rvv.h"           // `nk_dot2_f64m1_rvv_`, `nk_dot2_f64m4_rvv_`
+#include "numkong/trigonometry/rvv.h"  // `nk_f64m4_sin_rvv_`, `nk_f64m4_cos_rvv_`, `nk_f64m4_atan2_rvv_`
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
@@ -52,129 +51,42 @@
 extern "C" {
 #endif
 
-/*  RVV implementations using LMUL=4 vectors for f64 and f32 geospatial distances.
- *  These require RVV trigonometric kernels from trigonometry/rvv.h. */
-
 #pragma region Haversine Distance
 
-/**
- *  @brief RVV internal kernel for Haversine distance on vector_length f64 point pairs.
- *
- *  Haversine formula, where R is @c NUMKONG_EARTH_MEDIATORIAL_RADIUS:
- *
- *  @verbatim
- *      dlat = lat2 - lat1
- *      dlon = lon2 - lon1
- *      a = sin²(dlat/2) + cos(lat1) × cos(lat2) × sin²(dlon/2)
- *      c = 2 × atan2(√a, √(1 - a))
- *      distance = R × c
- *  @endverbatim
- */
-NUMKONG_INLINE void nk_haversine_f64_rvv_kernel_(   //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
+/** Great-circle metres from a unit vector to @p vector_length others,
+ *  2R · atan2(‖a − b‖, ‖a + b‖), with both norms summed in Dot2. */
+NUMKONG_INLINE void nk_haversine_f64_rvv_kernel_(                                                      //
+    nk_f64_t first_x, nk_f64_t first_y, nk_f64_t first_z,                                              //
+    nk_f64_t const *second_packed_x, nk_f64_t const *second_packed_y, nk_f64_t const *second_packed_z, //
     nk_size_t vector_length, nk_f64_t *results) {
 
-    vfloat64m4_t lat1_f64m4 = __riscv_vle64_v_f64m4(a_lats, vector_length);
-    vfloat64m4_t lon1_f64m4 = __riscv_vle64_v_f64m4(a_lons, vector_length);
-    vfloat64m4_t lat2_f64m4 = __riscv_vle64_v_f64m4(b_lats, vector_length);
-    vfloat64m4_t lon2_f64m4 = __riscv_vle64_v_f64m4(b_lons, vector_length);
+    vfloat64m4_t const second_x_f64m4 = __riscv_vle64_v_f64m4(second_packed_x, vector_length);
+    vfloat64m4_t const second_y_f64m4 = __riscv_vle64_v_f64m4(second_packed_y, vector_length);
+    vfloat64m4_t const second_z_f64m4 = __riscv_vle64_v_f64m4(second_packed_z, vector_length);
+    vfloat64m4_t const difference_x_f64m4 = __riscv_vfrsub_vf_f64m4(second_x_f64m4, first_x, vector_length);
+    vfloat64m4_t const difference_y_f64m4 = __riscv_vfrsub_vf_f64m4(second_y_f64m4, first_y, vector_length);
+    vfloat64m4_t const difference_z_f64m4 = __riscv_vfrsub_vf_f64m4(second_z_f64m4, first_z, vector_length);
+    vfloat64m4_t const sum_x_f64m4 = __riscv_vfadd_vf_f64m4(second_x_f64m4, first_x, vector_length);
+    vfloat64m4_t const sum_y_f64m4 = __riscv_vfadd_vf_f64m4(second_y_f64m4, first_y, vector_length);
+    vfloat64m4_t const sum_z_f64m4 = __riscv_vfadd_vf_f64m4(second_z_f64m4, first_z, vector_length);
 
-    vfloat64m4_t dlat_f64m4 = __riscv_vfsub_vv_f64m4(lat2_f64m4, lat1_f64m4, vector_length);
-    vfloat64m4_t dlon_f64m4 = __riscv_vfsub_vv_f64m4(lon2_f64m4, lon1_f64m4, vector_length);
+    vfloat64m4_t chord_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, vector_length), chord_compensation_f64m4 = chord_f64m4;
+    vfloat64m4_t span_f64m4 = chord_f64m4, span_compensation_f64m4 = chord_f64m4;
+    nk_dot2_f64m4_rvv_(&chord_f64m4, &chord_compensation_f64m4, difference_x_f64m4, difference_x_f64m4, vector_length);
+    nk_dot2_f64m4_rvv_(&chord_f64m4, &chord_compensation_f64m4, difference_y_f64m4, difference_y_f64m4, vector_length);
+    nk_dot2_f64m4_rvv_(&chord_f64m4, &chord_compensation_f64m4, difference_z_f64m4, difference_z_f64m4, vector_length);
+    nk_dot2_f64m4_rvv_(&span_f64m4, &span_compensation_f64m4, sum_x_f64m4, sum_x_f64m4, vector_length);
+    nk_dot2_f64m4_rvv_(&span_f64m4, &span_compensation_f64m4, sum_y_f64m4, sum_y_f64m4, vector_length);
+    nk_dot2_f64m4_rvv_(&span_f64m4, &span_compensation_f64m4, sum_z_f64m4, sum_z_f64m4, vector_length);
 
-    // sin(dlat/2) and sin(dlon/2)
-    vfloat64m4_t half_dlat_f64m4 = __riscv_vfmul_vf_f64m4(dlat_f64m4, 0.5, vector_length);
-    vfloat64m4_t half_dlon_f64m4 = __riscv_vfmul_vf_f64m4(dlon_f64m4, 0.5, vector_length);
-    vfloat64m4_t sin_half_dlat_f64m4 = nk_f64m4_sin_rvv_(half_dlat_f64m4, vector_length);
-    vfloat64m4_t sin_half_dlon_f64m4 = nk_f64m4_sin_rvv_(half_dlon_f64m4, vector_length);
-
-    // sin^2(dlat/2) and sin^2(dlon/2)
-    vfloat64m4_t sin_sq_half_dlat_f64m4 = __riscv_vfmul_vv_f64m4(sin_half_dlat_f64m4, sin_half_dlat_f64m4,
-                                                                 vector_length);
-    vfloat64m4_t sin_sq_half_dlon_f64m4 = __riscv_vfmul_vv_f64m4(sin_half_dlon_f64m4, sin_half_dlon_f64m4,
-                                                                 vector_length);
-
-    // cos(lat1) * cos(lat2)
-    vfloat64m4_t cos_lat1_f64m4 = nk_f64m4_cos_rvv_(lat1_f64m4, vector_length);
-    vfloat64m4_t cos_lat2_f64m4 = nk_f64m4_cos_rvv_(lat2_f64m4, vector_length);
-    vfloat64m4_t cos_product_f64m4 = __riscv_vfmul_vv_f64m4(cos_lat1_f64m4, cos_lat2_f64m4, vector_length);
-
-    // a = sin^2(dlat/2) + cos(lat1)*cos(lat2)*sin^2(dlon/2)
-    vfloat64m4_t haversine_term_f64m4 = __riscv_vfmadd_vv_f64m4(cos_product_f64m4, sin_sq_half_dlon_f64m4,
-                                                                sin_sq_half_dlat_f64m4, vector_length);
-
-    // Clamp haversine_term to [0, 1] to prevent NaN from sqrt of negative values
-    vfloat64m4_t zero_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, vector_length);
-    vfloat64m4_t one_f64m4 = __riscv_vfmv_v_f_f64m4(1.0, vector_length);
-    haversine_term_f64m4 = __riscv_vfmax_vv_f64m4(zero_f64m4, haversine_term_f64m4, vector_length);
-    haversine_term_f64m4 = __riscv_vfmin_vv_f64m4(one_f64m4, haversine_term_f64m4, vector_length);
-
-    // Central angle: c = 2 * atan2(sqrt(a), sqrt(1-a))
-    vfloat64m4_t sqrt_haversine_f64m4 = __riscv_vfsqrt_v_f64m4(haversine_term_f64m4, vector_length);
-    vfloat64m4_t complement_f64m4 = __riscv_vfsub_vv_f64m4(one_f64m4, haversine_term_f64m4, vector_length);
-    vfloat64m4_t sqrt_complement_f64m4 = __riscv_vfsqrt_v_f64m4(complement_f64m4, vector_length);
-    vfloat64m4_t central_angle_f64m4 = nk_f64m4_atan2_rvv_(sqrt_haversine_f64m4, sqrt_complement_f64m4, vector_length);
-    central_angle_f64m4 = __riscv_vfmul_vf_f64m4(central_angle_f64m4, 2.0, vector_length);
-
-    // distance = R * c
-    vfloat64m4_t distances_f64m4 = __riscv_vfmul_vf_f64m4(central_angle_f64m4, NUMKONG_EARTH_MEDIATORIAL_RADIUS,
-                                                          vector_length);
-    __riscv_vse64_v_f64m4(results, distances_f64m4, vector_length);
-}
-
-/** RVV internal kernel for Haversine distance on vector_length f32 point pairs. */
-NUMKONG_INLINE void nk_haversine_f32_rvv_kernel_(   //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t vector_length, nk_f32_t *results) {
-
-    vfloat32m4_t lat1_f32m4 = __riscv_vle32_v_f32m4(a_lats, vector_length);
-    vfloat32m4_t lon1_f32m4 = __riscv_vle32_v_f32m4(a_lons, vector_length);
-    vfloat32m4_t lat2_f32m4 = __riscv_vle32_v_f32m4(b_lats, vector_length);
-    vfloat32m4_t lon2_f32m4 = __riscv_vle32_v_f32m4(b_lons, vector_length);
-
-    vfloat32m4_t dlat_f32m4 = __riscv_vfsub_vv_f32m4(lat2_f32m4, lat1_f32m4, vector_length);
-    vfloat32m4_t dlon_f32m4 = __riscv_vfsub_vv_f32m4(lon2_f32m4, lon1_f32m4, vector_length);
-
-    // sin(dlat/2) and sin(dlon/2)
-    vfloat32m4_t half_dlat_f32m4 = __riscv_vfmul_vf_f32m4(dlat_f32m4, 0.5f, vector_length);
-    vfloat32m4_t half_dlon_f32m4 = __riscv_vfmul_vf_f32m4(dlon_f32m4, 0.5f, vector_length);
-    vfloat32m4_t sin_half_dlat_f32m4 = nk_f32m4_sin_rvv_(half_dlat_f32m4, vector_length);
-    vfloat32m4_t sin_half_dlon_f32m4 = nk_f32m4_sin_rvv_(half_dlon_f32m4, vector_length);
-
-    // sin^2(dlat/2) and sin^2(dlon/2)
-    vfloat32m4_t sin_sq_half_dlat_f32m4 = __riscv_vfmul_vv_f32m4(sin_half_dlat_f32m4, sin_half_dlat_f32m4,
-                                                                 vector_length);
-    vfloat32m4_t sin_sq_half_dlon_f32m4 = __riscv_vfmul_vv_f32m4(sin_half_dlon_f32m4, sin_half_dlon_f32m4,
-                                                                 vector_length);
-
-    // cos(lat1) * cos(lat2)
-    vfloat32m4_t cos_lat1_f32m4 = nk_f32m4_cos_rvv_(lat1_f32m4, vector_length);
-    vfloat32m4_t cos_lat2_f32m4 = nk_f32m4_cos_rvv_(lat2_f32m4, vector_length);
-    vfloat32m4_t cos_product_f32m4 = __riscv_vfmul_vv_f32m4(cos_lat1_f32m4, cos_lat2_f32m4, vector_length);
-
-    // a = sin^2(dlat/2) + cos(lat1)*cos(lat2)*sin^2(dlon/2)
-    vfloat32m4_t haversine_term_f32m4 = __riscv_vfmadd_vv_f32m4(cos_product_f32m4, sin_sq_half_dlon_f32m4,
-                                                                sin_sq_half_dlat_f32m4, vector_length);
-
-    // Clamp haversine_term to [0, 1] to prevent NaN from sqrt of negative values
-    vfloat32m4_t zero_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, vector_length);
-    vfloat32m4_t one_f32m4 = __riscv_vfmv_v_f_f32m4(1.0f, vector_length);
-    haversine_term_f32m4 = __riscv_vfmax_vv_f32m4(zero_f32m4, haversine_term_f32m4, vector_length);
-    haversine_term_f32m4 = __riscv_vfmin_vv_f32m4(one_f32m4, haversine_term_f32m4, vector_length);
-
-    // Central angle: c = 2 * atan2(sqrt(a), sqrt(1-a))
-    vfloat32m4_t sqrt_haversine_f32m4 = __riscv_vfsqrt_v_f32m4(haversine_term_f32m4, vector_length);
-    vfloat32m4_t complement_f32m4 = __riscv_vfsub_vv_f32m4(one_f32m4, haversine_term_f32m4, vector_length);
-    vfloat32m4_t sqrt_complement_f32m4 = __riscv_vfsqrt_v_f32m4(complement_f32m4, vector_length);
-    vfloat32m4_t central_angle_f32m4 = nk_f32m4_atan2_rvv_(sqrt_haversine_f32m4, sqrt_complement_f32m4, vector_length);
-    central_angle_f32m4 = __riscv_vfmul_vf_f32m4(central_angle_f32m4, 2.0f, vector_length);
-
-    // distance = R * c
-    vfloat32m4_t distances_f32m4 = __riscv_vfmul_vf_f32m4(central_angle_f32m4,
-                                                          (nk_f32_t)NUMKONG_EARTH_MEDIATORIAL_RADIUS, vector_length);
-    __riscv_vse32_v_f32m4(results, distances_f32m4, vector_length);
+    vfloat64m4_t const angle_f64m4 = nk_f64m4_atan2_rvv_(
+        __riscv_vfsqrt_v_f64m4(__riscv_vfadd_vv_f64m4(chord_f64m4, chord_compensation_f64m4, vector_length),
+                               vector_length),
+        __riscv_vfsqrt_v_f64m4(__riscv_vfadd_vv_f64m4(span_f64m4, span_compensation_f64m4, vector_length),
+                               vector_length),
+        vector_length);
+    __riscv_vse64_v_f64m4(results, __riscv_vfmul_vf_f64m4(angle_f64m4, 2.0 * NUMKONG_EARTH_MEAN_RADIUS, vector_length),
+                          vector_length);
 }
 
 #pragma endregion Haversine Distance
@@ -182,561 +94,287 @@ NUMKONG_INLINE void nk_haversine_f32_rvv_kernel_(   //
 #pragma region Vincenty Distance
 
 /**
- *  @brief RVV internal kernel for Vincenty's geodesic distance on vector_length f64 point pairs.
+ *  @brief RVV internal kernel for Vincenty's geodesic distance from one point to @p vector_length
+ *      others, from their longitudes and the sines and cosines of their reduced latitudes.
  *  @note This is a true SIMD implementation using masked convergence tracking via vmerge.
  *
  *  Vincenty's formulae iterate to solve the geodesic on an oblate spheroid (WGS-84 ellipsoid). Each
  *  SIMD lane tracks its own convergence state via mask registers. The loop terminates when all
  *  lanes have converged (vcpop == vector_length) or after NUMKONG_VINCENTY_MAX_ITERATIONS.
  */
-NUMKONG_INLINE void nk_vincenty_f64_rvv_kernel_(    //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t vector_length, nk_f64_t *results) {
+NUMKONG_INLINE void nk_vincenty_f64_rvv_kernel_(                                      //
+    nk_f64_t first_longitude, nk_f64_t sin_reduced_first, nk_f64_t cos_reduced_first, //
+    nk_f64_t const *second_packed_longitudes, nk_f64_t const *second_packed_sines,
+    nk_f64_t const *second_packed_cosines, nk_size_t vector_length, nk_f64_t *results) {
 
-    vfloat64m4_t lat1_f64m4 = __riscv_vle64_v_f64m4(a_lats, vector_length);
-    vfloat64m4_t lon1_f64m4 = __riscv_vle64_v_f64m4(a_lons, vector_length);
-    vfloat64m4_t lat2_f64m4 = __riscv_vle64_v_f64m4(b_lats, vector_length);
-    vfloat64m4_t lon2_f64m4 = __riscv_vle64_v_f64m4(b_lons, vector_length);
+    nk_f64_t const equatorial_radius = NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS;
+    nk_f64_t const flattening = 1.0 / NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING;
+    nk_f64_t const polar_radius = equatorial_radius * (1.0 - flattening);
+    nk_f64_t const second_eccentricity_squared = (equatorial_radius * equatorial_radius - polar_radius * polar_radius) /
+                                                 (polar_radius * polar_radius);
+    vfloat64m4_t const flattening_f64m4 = __riscv_vfmv_v_f_f64m4(flattening, vector_length);
+    vfloat64m4_t const convergence_threshold_f64m4 = __riscv_vfmv_v_f_f64m4(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64,
+                                                                            vector_length);
+    vfloat64m4_t const one_f64m4 = __riscv_vfmv_v_f_f64m4(1.0, vector_length);
+    vfloat64m4_t const two_f64m4 = __riscv_vfmv_v_f_f64m4(2.0, vector_length);
+    vfloat64m4_t const three_f64m4 = __riscv_vfmv_v_f_f64m4(3.0, vector_length);
+    vfloat64m4_t const four_f64m4 = __riscv_vfmv_v_f_f64m4(4.0, vector_length);
+    vfloat64m4_t const six_f64m4 = __riscv_vfmv_v_f_f64m4(6.0, vector_length);
+    vfloat64m4_t const zero_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, vector_length);
+    vfloat64m4_t const negative_one_f64m4 = __riscv_vfmv_v_f_f64m4(-1.0, vector_length);
+    vfloat64m4_t const negative_three_f64m4 = __riscv_vfmv_v_f_f64m4(-3.0, vector_length);
 
-    vfloat64m4_t const v_equatorial_radius_f64m4 = __riscv_vfmv_v_f_f64m4(NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS,
-                                                                          vector_length);
-    vfloat64m4_t const v_polar_radius_f64m4 = __riscv_vfmv_v_f_f64m4(NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS,
-                                                                     vector_length);
-    nk_f64_t const flattening_scalar = 1.0 / NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING;
-    vfloat64m4_t const v_flattening_f64m4 = __riscv_vfmv_v_f_f64m4(flattening_scalar, vector_length);
-    vfloat64m4_t const v_convergence_f64m4 = __riscv_vfmv_v_f_f64m4(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64,
-                                                                    vector_length);
-    vfloat64m4_t const v_one_f64m4 = __riscv_vfmv_v_f_f64m4(1.0, vector_length);
-    vfloat64m4_t const v_two_f64m4 = __riscv_vfmv_v_f_f64m4(2.0, vector_length);
-    vfloat64m4_t const v_three_f64m4 = __riscv_vfmv_v_f_f64m4(3.0, vector_length);
-    vfloat64m4_t const v_four_f64m4 = __riscv_vfmv_v_f_f64m4(4.0, vector_length);
-    vfloat64m4_t const v_six_f64m4 = __riscv_vfmv_v_f_f64m4(6.0, vector_length);
-    vfloat64m4_t const v_sixteen_f64m4 = __riscv_vfmv_v_f_f64m4(16.0, vector_length);
-    vfloat64m4_t const v_epsilon_f64m4 = __riscv_vfmv_v_f_f64m4(1e-15, vector_length);
-    vfloat64m4_t const v_zero_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, vector_length);
-    vfloat64m4_t const v_neg_one_f64m4 = __riscv_vfmv_v_f_f64m4(-1.0, vector_length);
+    vfloat64m4_t const sin_reduced_first_f64m4 = __riscv_vfmv_v_f_f64m4(sin_reduced_first, vector_length);
+    vfloat64m4_t const cos_reduced_first_f64m4 = __riscv_vfmv_v_f_f64m4(cos_reduced_first, vector_length);
+    vfloat64m4_t const sin_reduced_second_f64m4 = __riscv_vle64_v_f64m4(second_packed_sines, vector_length);
+    vfloat64m4_t const cos_reduced_second_f64m4 = __riscv_vle64_v_f64m4(second_packed_cosines, vector_length);
+    vfloat64m4_t const longitude_difference_f64m4 = __riscv_vfsub_vf_f64m4(
+        __riscv_vle64_v_f64m4(second_packed_longitudes, vector_length), first_longitude, vector_length);
 
-    // Longitude difference
-    vfloat64m4_t longitude_diff_f64m4 = __riscv_vfsub_vv_f64m4(lon2_f64m4, lon1_f64m4, vector_length);
-
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
-    vfloat64m4_t one_minus_f64m4 = __riscv_vfsub_vv_f64m4(v_one_f64m4, v_flattening_f64m4, vector_length);
-    vfloat64m4_t sin_lat1_f64m4 = nk_f64m4_sin_rvv_(lat1_f64m4, vector_length);
-    vfloat64m4_t cos_lat1_f64m4 = nk_f64m4_cos_rvv_(lat1_f64m4, vector_length);
-    vfloat64m4_t sin_lat2_f64m4 = nk_f64m4_sin_rvv_(lat2_f64m4, vector_length);
-    vfloat64m4_t cos_lat2_f64m4 = nk_f64m4_cos_rvv_(lat2_f64m4, vector_length);
-    vfloat64m4_t tan_first_f64m4 = __riscv_vfdiv_vv_f64m4(sin_lat1_f64m4, cos_lat1_f64m4, vector_length);
-    vfloat64m4_t tan_second_f64m4 = __riscv_vfdiv_vv_f64m4(sin_lat2_f64m4, cos_lat2_f64m4, vector_length);
-    vfloat64m4_t tan_reduced_first_f64m4 = __riscv_vfmul_vv_f64m4(one_minus_f64m4, tan_first_f64m4, vector_length);
-    vfloat64m4_t tan_reduced_second_f64m4 = __riscv_vfmul_vv_f64m4(one_minus_f64m4, tan_second_f64m4, vector_length);
-
-    // cos(U) = 1/sqrt(1 + tan^2(U)), sin(U) = tan(U) * cos(U)
-    vfloat64m4_t tan_sq_first_f64m4 = __riscv_vfmadd_vv_f64m4(tan_reduced_first_f64m4, tan_reduced_first_f64m4,
-                                                              v_one_f64m4, vector_length);
-    vfloat64m4_t cos_reduced_first_f64m4 = __riscv_vfdiv_vv_f64m4(
-        v_one_f64m4, __riscv_vfsqrt_v_f64m4(tan_sq_first_f64m4, vector_length), vector_length);
-    vfloat64m4_t sin_reduced_first_f64m4 = __riscv_vfmul_vv_f64m4(tan_reduced_first_f64m4, cos_reduced_first_f64m4,
-                                                                  vector_length);
-
-    vfloat64m4_t tan_sq_second_f64m4 = __riscv_vfmadd_vv_f64m4(tan_reduced_second_f64m4, tan_reduced_second_f64m4,
-                                                               v_one_f64m4, vector_length);
-    vfloat64m4_t cos_reduced_second_f64m4 = __riscv_vfdiv_vv_f64m4(
-        v_one_f64m4, __riscv_vfsqrt_v_f64m4(tan_sq_second_f64m4, vector_length), vector_length);
-    vfloat64m4_t sin_reduced_second_f64m4 = __riscv_vfmul_vv_f64m4(tan_reduced_second_f64m4, cos_reduced_second_f64m4,
-                                                                   vector_length);
-
-    // Initialize lambda and tracking variables
-    vfloat64m4_t lambda_f64m4 = longitude_diff_f64m4;
-    vfloat64m4_t sin_angular_distance_f64m4 = v_zero_f64m4;
-    vfloat64m4_t cos_angular_distance_f64m4 = v_zero_f64m4;
-    vfloat64m4_t angular_distance_f64m4 = v_zero_f64m4;
-    vfloat64m4_t sin_azimuth_f64m4 = v_zero_f64m4;
-    vfloat64m4_t cos_sq_azimuth_f64m4 = v_zero_f64m4;
-    vfloat64m4_t cos_double_angular_midpoint_f64m4 = v_zero_f64m4;
-
-    // Track convergence and coincident points using masks
-    // vbool16_t is the mask type for LMUL=4 with 64-bit elements (64/4 = 16)
-    vbool16_t converged_mask_b16 = __riscv_vmfeq_vv_f64m4_b16(v_zero_f64m4, v_one_f64m4, vector_length); // all false
+    vfloat64m4_t lambda_f64m4 = longitude_difference_f64m4;
+    vfloat64m4_t sin_angular_distance_f64m4 = zero_f64m4;
+    vfloat64m4_t cos_angular_distance_f64m4 = zero_f64m4;
+    vfloat64m4_t angular_distance_f64m4 = zero_f64m4;
+    vfloat64m4_t cos_squared_azimuth_f64m4 = zero_f64m4;
+    vfloat64m4_t cos_double_angular_midpoint_f64m4 = zero_f64m4;
+    vbool16_t converged_mask_b16 = __riscv_vmclr_m_b16(vector_length);
     vbool16_t coincident_mask_b16 = converged_mask_b16;
 
     for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
-        // Check if all lanes converged
         if (__riscv_vcpop_m_b16(converged_mask_b16, vector_length) == vector_length) break;
 
         vfloat64m4_t sin_lambda_f64m4 = nk_f64m4_sin_rvv_(lambda_f64m4, vector_length);
         vfloat64m4_t cos_lambda_f64m4 = nk_f64m4_cos_rvv_(lambda_f64m4, vector_length);
 
-        // sin^2(angular_distance) = (cos(U2)*sin(l))^2 + (cos(U1)*sin(U2) - sin(U1)*cos(U2)*cos(l))^2
+        // sin²(σ) = (cos(U₂) × sin(λ))² + (cos(U₁) × sin(U₂)
+        //   - sin(U₁) × cos(U₂) × cos(λ))²
         vfloat64m4_t cross_term_f64m4 = __riscv_vfmul_vv_f64m4(cos_reduced_second_f64m4, sin_lambda_f64m4,
                                                                vector_length);
-        vfloat64m4_t sin1_cos2_cosl_f64m4 = __riscv_vfmul_vv_f64m4(sin_reduced_first_f64m4, cos_reduced_second_f64m4,
-                                                                   vector_length);
-        sin1_cos2_cosl_f64m4 = __riscv_vfmul_vv_f64m4(sin1_cos2_cosl_f64m4, cos_lambda_f64m4, vector_length);
-        vfloat64m4_t mixed_term_f64m4 = __riscv_vfmul_vv_f64m4(cos_reduced_first_f64m4, sin_reduced_second_f64m4,
-                                                               vector_length);
-        mixed_term_f64m4 = __riscv_vfsub_vv_f64m4(mixed_term_f64m4, sin1_cos2_cosl_f64m4, vector_length);
+        vfloat64m4_t mixed_term_f64m4 = __riscv_vfsub_vv_f64m4(
+            __riscv_vfmul_vv_f64m4(cos_reduced_first_f64m4, sin_reduced_second_f64m4, vector_length),
+            __riscv_vfmul_vv_f64m4(
+                __riscv_vfmul_vv_f64m4(sin_reduced_first_f64m4, cos_reduced_second_f64m4, vector_length),
+                cos_lambda_f64m4, vector_length),
+            vector_length);
+        vfloat64m4_t sin_squared_angular_distance_f64m4 = __riscv_vfmadd_vv_f64m4(
+            mixed_term_f64m4, mixed_term_f64m4,
+            __riscv_vfmul_vv_f64m4(cross_term_f64m4, cross_term_f64m4, vector_length), vector_length);
+        sin_angular_distance_f64m4 = __riscv_vfsqrt_v_f64m4(sin_squared_angular_distance_f64m4, vector_length);
+        coincident_mask_b16 = __riscv_vmfeq_vf_f64m4_b16(sin_angular_distance_f64m4, 0.0, vector_length);
 
-        vfloat64m4_t sin_angular_dist_sq_f64m4 = __riscv_vfmul_vv_f64m4(cross_term_f64m4, cross_term_f64m4,
-                                                                        vector_length);
-        sin_angular_dist_sq_f64m4 = __riscv_vfmadd_vv_f64m4(mixed_term_f64m4, mixed_term_f64m4,
-                                                            sin_angular_dist_sq_f64m4, vector_length);
-        sin_angular_distance_f64m4 = __riscv_vfsqrt_v_f64m4(sin_angular_dist_sq_f64m4, vector_length);
-
-        // Check for coincident points (sin_angular_distance < epsilon)
-        coincident_mask_b16 = __riscv_vmflt_vv_f64m4_b16(sin_angular_distance_f64m4, v_epsilon_f64m4, vector_length);
-
-        // cos(angular_distance) = sin(U1)*sin(U2) + cos(U1)*cos(U2)*cos(l)
-        vfloat64m4_t cos1_cos2_f64m4 = __riscv_vfmul_vv_f64m4(cos_reduced_first_f64m4, cos_reduced_second_f64m4,
-                                                              vector_length);
-        cos_angular_distance_f64m4 = __riscv_vfmul_vv_f64m4(sin_reduced_first_f64m4, sin_reduced_second_f64m4,
-                                                            vector_length);
-        cos_angular_distance_f64m4 = __riscv_vfmadd_vv_f64m4(cos1_cos2_f64m4, cos_lambda_f64m4,
-                                                             cos_angular_distance_f64m4, vector_length);
-
-        // angular_distance = atan2(sin, cos)
+        // cos(σ) = sin(U₁) × sin(U₂) + cos(U₁) × cos(U₂) × cos(λ)
+        vfloat64m4_t cos_product_f64m4 = __riscv_vfmul_vv_f64m4(cos_reduced_first_f64m4, cos_reduced_second_f64m4,
+                                                                vector_length);
+        cos_angular_distance_f64m4 = __riscv_vfmadd_vv_f64m4(
+            cos_product_f64m4, cos_lambda_f64m4,
+            __riscv_vfmul_vv_f64m4(sin_reduced_first_f64m4, sin_reduced_second_f64m4, vector_length), vector_length);
         angular_distance_f64m4 = nk_f64m4_atan2_rvv_(sin_angular_distance_f64m4, cos_angular_distance_f64m4,
                                                      vector_length);
 
-        // sin(azimuth) = cos(U1)*cos(U2)*sin(l) / sin(angular_distance)
-        // Avoid division by zero by substituting 1.0 for coincident lanes
-        vfloat64m4_t safe_sin_angular_f64m4 = __riscv_vfmerge_vfm_f64m4(sin_angular_distance_f64m4, 1.0,
-                                                                        coincident_mask_b16, vector_length);
-        vfloat64m4_t numerator_f64m4 = __riscv_vfmul_vv_f64m4(cos1_cos2_f64m4, sin_lambda_f64m4, vector_length);
-        sin_azimuth_f64m4 = __riscv_vfdiv_vv_f64m4(numerator_f64m4, safe_sin_angular_f64m4, vector_length);
-        cos_sq_azimuth_f64m4 = __riscv_vfnmsub_vv_f64m4(sin_azimuth_f64m4, sin_azimuth_f64m4, v_one_f64m4,
-                                                        vector_length);
+        // sin(α) = cos(U₁) × cos(U₂) × sin(λ) / sin(σ), dividing coincident lanes by one
+        vfloat64m4_t safe_sin_angular_distance_f64m4 = __riscv_vfmerge_vfm_f64m4(sin_angular_distance_f64m4, 1.0,
+                                                                                 coincident_mask_b16, vector_length);
+        vfloat64m4_t sin_azimuth_f64m4 = __riscv_vfdiv_vv_f64m4(
+            __riscv_vfmul_vv_f64m4(cos_product_f64m4, sin_lambda_f64m4, vector_length), safe_sin_angular_distance_f64m4,
+            vector_length);
+        cos_squared_azimuth_f64m4 = __riscv_vfnmsub_vv_f64m4(sin_azimuth_f64m4, sin_azimuth_f64m4, one_f64m4,
+                                                             vector_length);
 
-        // Handle equatorial case: cos^2(a) < epsilon
-        vbool16_t equatorial_mask_b16 = __riscv_vmflt_vv_f64m4_b16(cos_sq_azimuth_f64m4, v_epsilon_f64m4,
-                                                                   vector_length);
-        vfloat64m4_t safe_cos_sq_azimuth_f64m4 = __riscv_vfmerge_vfm_f64m4(cos_sq_azimuth_f64m4, 1.0,
-                                                                           equatorial_mask_b16, vector_length);
+        // An equatorial geodesic, cos²α = 0, has no midpoint term
+        vbool16_t equatorial_mask_b16 = __riscv_vmfeq_vf_f64m4_b16(cos_squared_azimuth_f64m4, 0.0, vector_length);
+        vfloat64m4_t safe_cos_squared_azimuth_f64m4 = __riscv_vfmerge_vfm_f64m4(cos_squared_azimuth_f64m4, 1.0,
+                                                                                equatorial_mask_b16, vector_length);
 
-        // cos(2sm) = cos(s) - 2*sin(U1)*sin(U2) / cos^2(a)
+        // cos(2σₘ) = cos(σ) - 2 × sin(U₁) × sin(U₂) / cos²(α)
         vfloat64m4_t sin_product_f64m4 = __riscv_vfmul_vv_f64m4(sin_reduced_first_f64m4, sin_reduced_second_f64m4,
                                                                 vector_length);
-        vfloat64m4_t two_sin_product_f64m4 = __riscv_vfmul_vv_f64m4(v_two_f64m4, sin_product_f64m4, vector_length);
-        cos_double_angular_midpoint_f64m4 = __riscv_vfdiv_vv_f64m4(two_sin_product_f64m4, safe_cos_sq_azimuth_f64m4,
-                                                                   vector_length);
-        cos_double_angular_midpoint_f64m4 = __riscv_vfsub_vv_f64m4(cos_angular_distance_f64m4,
-                                                                   cos_double_angular_midpoint_f64m4, vector_length);
-        // Set to zero for equatorial case
+        cos_double_angular_midpoint_f64m4 = __riscv_vfsub_vv_f64m4(
+            cos_angular_distance_f64m4,
+            __riscv_vfdiv_vv_f64m4(__riscv_vfmul_vv_f64m4(two_f64m4, sin_product_f64m4, vector_length),
+                                   safe_cos_squared_azimuth_f64m4, vector_length),
+            vector_length);
         cos_double_angular_midpoint_f64m4 = __riscv_vfmerge_vfm_f64m4(cos_double_angular_midpoint_f64m4, 0.0,
                                                                       equatorial_mask_b16, vector_length);
 
-        // C = f/16 * cos^2(a) * (4 + f*(4 - 3*cos^2(a)))
-        // inner = 4 - 3*cos^2(a)
-        vfloat64m4_t inner_c_f64m4 = __riscv_vfnmsub_vv_f64m4(v_three_f64m4, cos_sq_azimuth_f64m4, v_four_f64m4,
-                                                              vector_length);
-        // 4 + f * inner_c
-        vfloat64m4_t outer_c_f64m4 = __riscv_vfmadd_vv_f64m4(v_flattening_f64m4, inner_c_f64m4, v_four_f64m4,
-                                                             vector_length);
-        // f/16 * cos^2(a) * outer_c
-        vfloat64m4_t correction_factor_f64m4 = __riscv_vfdiv_vv_f64m4(v_flattening_f64m4, v_sixteen_f64m4,
-                                                                      vector_length);
-        correction_factor_f64m4 = __riscv_vfmul_vv_f64m4(correction_factor_f64m4, cos_sq_azimuth_f64m4, vector_length);
-        correction_factor_f64m4 = __riscv_vfmul_vv_f64m4(correction_factor_f64m4, outer_c_f64m4, vector_length);
+        // C = f/16 × cos²α × (4 + f × (4 - 3 × cos²α))
+        vfloat64m4_t correction_factor_f64m4 = __riscv_vfmul_vv_f64m4(
+            __riscv_vfmul_vf_f64m4(cos_squared_azimuth_f64m4, flattening / 16.0, vector_length),
+            __riscv_vfmadd_vv_f64m4(
+                flattening_f64m4,
+                __riscv_vfnmsub_vv_f64m4(three_f64m4, cos_squared_azimuth_f64m4, four_f64m4, vector_length), four_f64m4,
+                vector_length),
+            vector_length);
 
-        // lambda' = L + (1-C)*f*sin(a)*(s + C*sin(s)*(cos(2sm) + C*cos(s)*(-1 + 2*cos^2(2sm))))
-        vfloat64m4_t cos_2sm_sq_f64m4 = __riscv_vfmul_vv_f64m4(cos_double_angular_midpoint_f64m4,
-                                                               cos_double_angular_midpoint_f64m4, vector_length);
-        // innermost = -1 + 2*cos^2(2sm)
-        vfloat64m4_t innermost_f64m4 = __riscv_vfmadd_vv_f64m4(v_two_f64m4, cos_2sm_sq_f64m4, v_neg_one_f64m4,
-                                                               vector_length);
-        // middle = cos(2sm) + C*cos(s)*innermost
-        vfloat64m4_t c_cos_s_f64m4 = __riscv_vfmul_vv_f64m4(correction_factor_f64m4, cos_angular_distance_f64m4,
-                                                            vector_length);
-        vfloat64m4_t middle_f64m4 = __riscv_vfmadd_vv_f64m4(c_cos_s_f64m4, innermost_f64m4,
-                                                            cos_double_angular_midpoint_f64m4, vector_length);
-        // inner = C*sin(s)*middle
-        vfloat64m4_t c_sin_s_f64m4 = __riscv_vfmul_vv_f64m4(correction_factor_f64m4, sin_angular_distance_f64m4,
-                                                            vector_length);
-        vfloat64m4_t inner_value_f64m4 = __riscv_vfmul_vv_f64m4(c_sin_s_f64m4, middle_f64m4, vector_length);
+        // λ' = L + (1-C) × f × sin(α) × (σ + C × sin(σ) × middle), where
+        // middle = cos(2σₘ) + C × cos(σ) × (-1 + 2 × cos²(2σₘ))
+        vfloat64m4_t cos_double_angular_midpoint_squared_f64m4 = __riscv_vfmul_vv_f64m4(
+            cos_double_angular_midpoint_f64m4, cos_double_angular_midpoint_f64m4, vector_length);
+        vfloat64m4_t innermost_f64m4 = __riscv_vfmadd_vv_f64m4(two_f64m4, cos_double_angular_midpoint_squared_f64m4,
+                                                               negative_one_f64m4, vector_length);
+        vfloat64m4_t middle_f64m4 = __riscv_vfmadd_vv_f64m4(
+            __riscv_vfmul_vv_f64m4(correction_factor_f64m4, cos_angular_distance_f64m4, vector_length), innermost_f64m4,
+            cos_double_angular_midpoint_f64m4, vector_length);
+        vfloat64m4_t inner_f64m4 = __riscv_vfmul_vv_f64m4(
+            __riscv_vfmul_vv_f64m4(correction_factor_f64m4, sin_angular_distance_f64m4, vector_length), middle_f64m4,
+            vector_length);
+        vfloat64m4_t lambda_next_f64m4 = __riscv_vfmadd_vv_f64m4(
+            __riscv_vfmul_vv_f64m4(
+                __riscv_vfmul_vv_f64m4(__riscv_vfrsub_vf_f64m4(correction_factor_f64m4, 1.0, vector_length),
+                                       flattening_f64m4, vector_length),
+                sin_azimuth_f64m4, vector_length),
+            __riscv_vfadd_vv_f64m4(angular_distance_f64m4, inner_f64m4, vector_length), longitude_difference_f64m4,
+            vector_length);
 
-        // (1-C)*f*sin_a*(s + inner)
-        vfloat64m4_t one_minus_c_f64m4 = __riscv_vfsub_vv_f64m4(v_one_f64m4, correction_factor_f64m4, vector_length);
-        vfloat64m4_t f_sin_a_f64m4 = __riscv_vfmul_vv_f64m4(v_flattening_f64m4, sin_azimuth_f64m4, vector_length);
-        vfloat64m4_t s_plus_inner_f64m4 = __riscv_vfadd_vv_f64m4(angular_distance_f64m4, inner_value_f64m4,
-                                                                 vector_length);
-        vfloat64m4_t adjustment_f64m4 = __riscv_vfmul_vv_f64m4(one_minus_c_f64m4, f_sin_a_f64m4, vector_length);
-        adjustment_f64m4 = __riscv_vfmul_vv_f64m4(adjustment_f64m4, s_plus_inner_f64m4, vector_length);
-        vfloat64m4_t lambda_new_f64m4 = __riscv_vfadd_vv_f64m4(longitude_diff_f64m4, adjustment_f64m4, vector_length);
+        vfloat64m4_t lambda_change_f64m4 = __riscv_vfabs_v_f64m4(
+            __riscv_vfsub_vv_f64m4(lambda_next_f64m4, lambda_f64m4, vector_length), vector_length);
+        // A lane stops where serial does: once its change is not above the threshold, NaN included
+        converged_mask_b16 = __riscv_vmorn_mm_b16(
+            converged_mask_b16,
+            __riscv_vmfgt_vv_f64m4_b16(lambda_change_f64m4, convergence_threshold_f64m4, vector_length), vector_length);
 
-        // Check convergence: |lambda - lambda'| < threshold
-        vfloat64m4_t lambda_diff_f64m4 = __riscv_vfsub_vv_f64m4(lambda_new_f64m4, lambda_f64m4, vector_length);
-        // Absolute value via sign-bit clearing
-        vfloat64m4_t lambda_diff_abs_f64m4 = __riscv_vfsgnjx_vv_f64m4(lambda_diff_f64m4, lambda_diff_f64m4,
-                                                                      vector_length);
-        vbool16_t newly_converged_b16 = __riscv_vmflt_vv_f64m4_b16(lambda_diff_abs_f64m4, v_convergence_f64m4,
-                                                                   vector_length);
-        converged_mask_b16 = __riscv_vmor_mm_b16(converged_mask_b16, newly_converged_b16, vector_length);
-
-        // Only update lambda for non-converged lanes
-        lambda_f64m4 = __riscv_vmerge_vvm_f64m4(lambda_new_f64m4, lambda_f64m4, converged_mask_b16, vector_length);
+        // Converged lanes keep the λ their outputs came from, as the serial loop stops on it
+        lambda_f64m4 = __riscv_vmerge_vvm_f64m4(lambda_next_f64m4, lambda_f64m4, converged_mask_b16, vector_length);
     }
 
-    // Final distance calculation
-    // u^2 = cos^2(a) * (a^2 - b^2) / b^2
-    vfloat64m4_t a_sq_f64m4 = __riscv_vfmul_vv_f64m4(v_equatorial_radius_f64m4, v_equatorial_radius_f64m4,
-                                                     vector_length);
-    vfloat64m4_t b_sq_f64m4 = __riscv_vfmul_vv_f64m4(v_polar_radius_f64m4, v_polar_radius_f64m4, vector_length);
-    vfloat64m4_t a_sq_minus_b_sq_f64m4 = __riscv_vfsub_vv_f64m4(a_sq_f64m4, b_sq_f64m4, vector_length);
-    vfloat64m4_t u_sq_f64m4 = __riscv_vfmul_vv_f64m4(cos_sq_azimuth_f64m4, a_sq_minus_b_sq_f64m4, vector_length);
-    u_sq_f64m4 = __riscv_vfdiv_vv_f64m4(u_sq_f64m4, b_sq_f64m4, vector_length);
+    // u² = cos²α × (a² - b²) / b²
+    vfloat64m4_t u_squared_f64m4 = __riscv_vfmul_vf_f64m4(cos_squared_azimuth_f64m4, second_eccentricity_squared,
+                                                          vector_length);
 
-    // A = 1 + u^2/16384 * (4096 + u^2*(-768 + u^2*(320 - 175*u^2)))
-    vfloat64m4_t series_a_f64m4 = __riscv_vfmul_vf_f64m4(u_sq_f64m4, -175.0, vector_length);
-    series_a_f64m4 = __riscv_vfadd_vf_f64m4(series_a_f64m4, 320.0, vector_length);
-    series_a_f64m4 = __riscv_vfmadd_vv_f64m4(u_sq_f64m4, series_a_f64m4, __riscv_vfmv_v_f_f64m4(-768.0, vector_length),
-                                             vector_length);
-    series_a_f64m4 = __riscv_vfmadd_vv_f64m4(u_sq_f64m4, series_a_f64m4, __riscv_vfmv_v_f_f64m4(4096.0, vector_length),
-                                             vector_length);
-    vfloat64m4_t u_sq_over_16384_f64m4 = __riscv_vfmul_vf_f64m4(u_sq_f64m4, 1.0 / 16384.0, vector_length);
-    series_a_f64m4 = __riscv_vfmadd_vv_f64m4(u_sq_over_16384_f64m4, series_a_f64m4, v_one_f64m4, vector_length);
+    // A = 1 + u²/16384 × (4096 + u² × (-768 + u² × (320 - 175 × u²)))
+    vfloat64m4_t series_a_f64m4 = __riscv_vfadd_vf_f64m4(__riscv_vfmul_vf_f64m4(u_squared_f64m4, -175.0, vector_length),
+                                                         320.0, vector_length);
+    series_a_f64m4 = __riscv_vfmadd_vv_f64m4(u_squared_f64m4, series_a_f64m4,
+                                             __riscv_vfmv_v_f_f64m4(-768.0, vector_length), vector_length);
+    series_a_f64m4 = __riscv_vfmadd_vv_f64m4(u_squared_f64m4, series_a_f64m4,
+                                             __riscv_vfmv_v_f_f64m4(4096.0, vector_length), vector_length);
+    series_a_f64m4 = __riscv_vfmadd_vv_f64m4(__riscv_vfmul_vf_f64m4(u_squared_f64m4, 1.0 / 16384.0, vector_length),
+                                             series_a_f64m4, one_f64m4, vector_length);
 
-    // B = u^2/1024 * (256 + u^2*(-128 + u^2*(74 - 47*u^2)))
-    vfloat64m4_t series_b_f64m4 = __riscv_vfmul_vf_f64m4(u_sq_f64m4, -47.0, vector_length);
-    series_b_f64m4 = __riscv_vfadd_vf_f64m4(series_b_f64m4, 74.0, vector_length);
-    series_b_f64m4 = __riscv_vfmadd_vv_f64m4(u_sq_f64m4, series_b_f64m4, __riscv_vfmv_v_f_f64m4(-128.0, vector_length),
-                                             vector_length);
-    series_b_f64m4 = __riscv_vfmadd_vv_f64m4(u_sq_f64m4, series_b_f64m4, __riscv_vfmv_v_f_f64m4(256.0, vector_length),
-                                             vector_length);
-    vfloat64m4_t u_sq_over_1024_f64m4 = __riscv_vfmul_vf_f64m4(u_sq_f64m4, 1.0 / 1024.0, vector_length);
-    series_b_f64m4 = __riscv_vfmul_vv_f64m4(u_sq_over_1024_f64m4, series_b_f64m4, vector_length);
+    // B = u²/1024 × (256 + u² × (-128 + u² × (74 - 47 × u²)))
+    vfloat64m4_t series_b_f64m4 = __riscv_vfadd_vf_f64m4(__riscv_vfmul_vf_f64m4(u_squared_f64m4, -47.0, vector_length),
+                                                         74.0, vector_length);
+    series_b_f64m4 = __riscv_vfmadd_vv_f64m4(u_squared_f64m4, series_b_f64m4,
+                                             __riscv_vfmv_v_f_f64m4(-128.0, vector_length), vector_length);
+    series_b_f64m4 = __riscv_vfmadd_vv_f64m4(u_squared_f64m4, series_b_f64m4,
+                                             __riscv_vfmv_v_f_f64m4(256.0, vector_length), vector_length);
+    series_b_f64m4 = __riscv_vfmul_vv_f64m4(__riscv_vfmul_vf_f64m4(u_squared_f64m4, 1.0 / 1024.0, vector_length),
+                                            series_b_f64m4, vector_length);
 
-    // Delta-sigma = B*sin(s)*(cos(2sm) + B/4*(cos(s)*(-1+2*cos^2(2sm)) -
-    // B/6*cos(2sm)*(-3+4*sin^2(s))*(-3+4*cos^2(2sm))))
-    vfloat64m4_t cos_2sm_sq_f64m4 = __riscv_vfmul_vv_f64m4(cos_double_angular_midpoint_f64m4,
-                                                           cos_double_angular_midpoint_f64m4, vector_length);
-    vfloat64m4_t sin_sq_f64m4 = __riscv_vfmul_vv_f64m4(sin_angular_distance_f64m4, sin_angular_distance_f64m4,
-                                                       vector_length);
+    // Δσ = B × sin(σ) × (cos(2σₘ) + B/4 × (cos(σ) × (-1 + 2 × cos²(2σₘ)) -
+    //      B/6 × cos(2σₘ) × (-3 + 4 × sin²(σ)) × (-3 + 4 × cos²(2σₘ))))
+    vfloat64m4_t cos_double_angular_midpoint_squared_f64m4 = __riscv_vfmul_vv_f64m4(
+        cos_double_angular_midpoint_f64m4, cos_double_angular_midpoint_f64m4, vector_length);
+    vfloat64m4_t sin_squared_angular_distance_f64m4 = __riscv_vfmul_vv_f64m4(sin_angular_distance_f64m4,
+                                                                             sin_angular_distance_f64m4, vector_length);
+    vfloat64m4_t cosine_term_f64m4 = __riscv_vfmul_vv_f64m4(
+        cos_angular_distance_f64m4,
+        __riscv_vfmadd_vv_f64m4(two_f64m4, cos_double_angular_midpoint_squared_f64m4, negative_one_f64m4,
+                                vector_length),
+        vector_length);
+    vfloat64m4_t sine_factor_f64m4 = __riscv_vfmadd_vv_f64m4(four_f64m4, sin_squared_angular_distance_f64m4,
+                                                             negative_three_f64m4, vector_length);
+    vfloat64m4_t midpoint_factor_f64m4 = __riscv_vfmadd_vv_f64m4(four_f64m4, cos_double_angular_midpoint_squared_f64m4,
+                                                                 negative_three_f64m4, vector_length);
+    vfloat64m4_t series_term_f64m4 = __riscv_vfmul_vv_f64m4(
+        __riscv_vfmul_vv_f64m4(__riscv_vfdiv_vv_f64m4(series_b_f64m4, six_f64m4, vector_length),
+                               cos_double_angular_midpoint_f64m4, vector_length),
+        __riscv_vfmul_vv_f64m4(sine_factor_f64m4, midpoint_factor_f64m4, vector_length), vector_length);
+    vfloat64m4_t angular_correction_f64m4 = __riscv_vfmul_vv_f64m4(
+        __riscv_vfmul_vv_f64m4(series_b_f64m4, sin_angular_distance_f64m4, vector_length),
+        __riscv_vfadd_vv_f64m4(
+            cos_double_angular_midpoint_f64m4,
+            __riscv_vfmul_vv_f64m4(__riscv_vfdiv_vv_f64m4(series_b_f64m4, four_f64m4, vector_length),
+                                   __riscv_vfsub_vv_f64m4(cosine_term_f64m4, series_term_f64m4, vector_length),
+                                   vector_length),
+            vector_length),
+        vector_length);
 
-    // term1 = cos(s) * (-1 + 2*cos^2(2sm))
-    vfloat64m4_t term1_f64m4 = __riscv_vfmadd_vv_f64m4(v_two_f64m4, cos_2sm_sq_f64m4, v_neg_one_f64m4, vector_length);
-    term1_f64m4 = __riscv_vfmul_vv_f64m4(cos_angular_distance_f64m4, term1_f64m4, vector_length);
-
-    // term2 = B/6 * cos(2sm) * (-3 + 4*sin^2(s)) * (-3 + 4*cos^2(2sm))
-    vfloat64m4_t neg_three_f64m4 = __riscv_vfmv_v_f_f64m4(-3.0, vector_length);
-    vfloat64m4_t factor_sin_f64m4 = __riscv_vfmadd_vv_f64m4(v_four_f64m4, sin_sq_f64m4, neg_three_f64m4, vector_length);
-    vfloat64m4_t factor_cos_f64m4 = __riscv_vfmadd_vv_f64m4(v_four_f64m4, cos_2sm_sq_f64m4, neg_three_f64m4,
-                                                            vector_length);
-    vfloat64m4_t b_over_6_f64m4 = __riscv_vfdiv_vv_f64m4(series_b_f64m4, v_six_f64m4, vector_length);
-    vfloat64m4_t term2_f64m4 = __riscv_vfmul_vv_f64m4(b_over_6_f64m4, cos_double_angular_midpoint_f64m4, vector_length);
-    term2_f64m4 = __riscv_vfmul_vv_f64m4(term2_f64m4, factor_sin_f64m4, vector_length);
-    term2_f64m4 = __riscv_vfmul_vv_f64m4(term2_f64m4, factor_cos_f64m4, vector_length);
-
-    // B/4 * (term1 - term2)
-    vfloat64m4_t b_over_4_f64m4 = __riscv_vfdiv_vv_f64m4(series_b_f64m4, v_four_f64m4, vector_length);
-    vfloat64m4_t term1_minus_term2_f64m4 = __riscv_vfsub_vv_f64m4(term1_f64m4, term2_f64m4, vector_length);
-    vfloat64m4_t b4_bracket_f64m4 = __riscv_vfmul_vv_f64m4(b_over_4_f64m4, term1_minus_term2_f64m4, vector_length);
-
-    // cos(2sm) + B/4*(...)
-    vfloat64m4_t bracket_f64m4 = __riscv_vfadd_vv_f64m4(cos_double_angular_midpoint_f64m4, b4_bracket_f64m4,
-                                                        vector_length);
-
-    // delta_sigma = B * sin(s) * bracket
-    vfloat64m4_t delta_sigma_f64m4 = __riscv_vfmul_vv_f64m4(series_b_f64m4, sin_angular_distance_f64m4, vector_length);
-    delta_sigma_f64m4 = __riscv_vfmul_vv_f64m4(delta_sigma_f64m4, bracket_f64m4, vector_length);
-
-    // s = b * A * (sigma - delta_sigma)
-    vfloat64m4_t sigma_minus_ds_f64m4 = __riscv_vfsub_vv_f64m4(angular_distance_f64m4, delta_sigma_f64m4,
-                                                               vector_length);
-    vfloat64m4_t distances_f64m4 = __riscv_vfmul_vv_f64m4(v_polar_radius_f64m4, series_a_f64m4, vector_length);
-    distances_f64m4 = __riscv_vfmul_vv_f64m4(distances_f64m4, sigma_minus_ds_f64m4, vector_length);
-
-    // Set coincident points to zero
+    // s = b × A × (σ - Δσ), and zero for coincident points
+    vfloat64m4_t distances_f64m4 = __riscv_vfmul_vv_f64m4(
+        __riscv_vfmul_vf_f64m4(series_a_f64m4, polar_radius, vector_length),
+        __riscv_vfsub_vv_f64m4(angular_distance_f64m4, angular_correction_f64m4, vector_length), vector_length);
     distances_f64m4 = __riscv_vfmerge_vfm_f64m4(distances_f64m4, 0.0, coincident_mask_b16, vector_length);
-
     __riscv_vse64_v_f64m4(results, distances_f64m4, vector_length);
-}
-
-/**
- *  @brief RVV internal kernel for Vincenty's geodesic distance on vector_length f32 point pairs.
- *  @note This is a true SIMD implementation using masked convergence tracking via vmerge.
- */
-NUMKONG_INLINE void nk_vincenty_f32_rvv_kernel_(    //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t vector_length, nk_f32_t *results) {
-
-    vfloat32m4_t lat1_f32m4 = __riscv_vle32_v_f32m4(a_lats, vector_length);
-    vfloat32m4_t lon1_f32m4 = __riscv_vle32_v_f32m4(a_lons, vector_length);
-    vfloat32m4_t lat2_f32m4 = __riscv_vle32_v_f32m4(b_lats, vector_length);
-    vfloat32m4_t lon2_f32m4 = __riscv_vle32_v_f32m4(b_lons, vector_length);
-
-    vfloat32m4_t const v_equatorial_radius_f32m4 = __riscv_vfmv_v_f_f32m4(
-        (nk_f32_t)NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS, vector_length);
-    vfloat32m4_t const v_polar_radius_f32m4 = __riscv_vfmv_v_f_f32m4((nk_f32_t)NUMKONG_EARTH_ELLIPSOID_POLAR_RADIUS,
-                                                                     vector_length);
-    nk_f32_t const flattening_scalar = 1.0f / (nk_f32_t)NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING;
-    vfloat32m4_t const v_flattening_f32m4 = __riscv_vfmv_v_f_f32m4(flattening_scalar, vector_length);
-    vfloat32m4_t const v_convergence_f32m4 = __riscv_vfmv_v_f_f32m4(NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F32,
-                                                                    vector_length);
-    vfloat32m4_t const v_one_f32m4 = __riscv_vfmv_v_f_f32m4(1.0f, vector_length);
-    vfloat32m4_t const v_two_f32m4 = __riscv_vfmv_v_f_f32m4(2.0f, vector_length);
-    vfloat32m4_t const v_three_f32m4 = __riscv_vfmv_v_f_f32m4(3.0f, vector_length);
-    vfloat32m4_t const v_four_f32m4 = __riscv_vfmv_v_f_f32m4(4.0f, vector_length);
-    vfloat32m4_t const v_six_f32m4 = __riscv_vfmv_v_f_f32m4(6.0f, vector_length);
-    vfloat32m4_t const v_sixteen_f32m4 = __riscv_vfmv_v_f_f32m4(16.0f, vector_length);
-    vfloat32m4_t const v_epsilon_f32m4 = __riscv_vfmv_v_f_f32m4(1e-7f, vector_length);
-    vfloat32m4_t const v_zero_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, vector_length);
-    vfloat32m4_t const v_neg_one_f32m4 = __riscv_vfmv_v_f_f32m4(-1.0f, vector_length);
-
-    // Longitude difference
-    vfloat32m4_t longitude_diff_f32m4 = __riscv_vfsub_vv_f32m4(lon2_f32m4, lon1_f32m4, vector_length);
-
-    // Reduced latitudes: tan(U) = (1-f) * tan(lat)
-    vfloat32m4_t one_minus_f32m4 = __riscv_vfsub_vv_f32m4(v_one_f32m4, v_flattening_f32m4, vector_length);
-    vfloat32m4_t sin_lat1_f32m4 = nk_f32m4_sin_rvv_(lat1_f32m4, vector_length);
-    vfloat32m4_t cos_lat1_f32m4 = nk_f32m4_cos_rvv_(lat1_f32m4, vector_length);
-    vfloat32m4_t sin_lat2_f32m4 = nk_f32m4_sin_rvv_(lat2_f32m4, vector_length);
-    vfloat32m4_t cos_lat2_f32m4 = nk_f32m4_cos_rvv_(lat2_f32m4, vector_length);
-    vfloat32m4_t tan_first_f32m4 = __riscv_vfdiv_vv_f32m4(sin_lat1_f32m4, cos_lat1_f32m4, vector_length);
-    vfloat32m4_t tan_second_f32m4 = __riscv_vfdiv_vv_f32m4(sin_lat2_f32m4, cos_lat2_f32m4, vector_length);
-    vfloat32m4_t tan_reduced_first_f32m4 = __riscv_vfmul_vv_f32m4(one_minus_f32m4, tan_first_f32m4, vector_length);
-    vfloat32m4_t tan_reduced_second_f32m4 = __riscv_vfmul_vv_f32m4(one_minus_f32m4, tan_second_f32m4, vector_length);
-
-    // cos(U) = 1/sqrt(1 + tan^2(U)), sin(U) = tan(U) * cos(U)
-    vfloat32m4_t tan_sq_first_f32m4 = __riscv_vfmadd_vv_f32m4(tan_reduced_first_f32m4, tan_reduced_first_f32m4,
-                                                              v_one_f32m4, vector_length);
-    vfloat32m4_t cos_reduced_first_f32m4 = __riscv_vfdiv_vv_f32m4(
-        v_one_f32m4, __riscv_vfsqrt_v_f32m4(tan_sq_first_f32m4, vector_length), vector_length);
-    vfloat32m4_t sin_reduced_first_f32m4 = __riscv_vfmul_vv_f32m4(tan_reduced_first_f32m4, cos_reduced_first_f32m4,
-                                                                  vector_length);
-
-    vfloat32m4_t tan_sq_second_f32m4 = __riscv_vfmadd_vv_f32m4(tan_reduced_second_f32m4, tan_reduced_second_f32m4,
-                                                               v_one_f32m4, vector_length);
-    vfloat32m4_t cos_reduced_second_f32m4 = __riscv_vfdiv_vv_f32m4(
-        v_one_f32m4, __riscv_vfsqrt_v_f32m4(tan_sq_second_f32m4, vector_length), vector_length);
-    vfloat32m4_t sin_reduced_second_f32m4 = __riscv_vfmul_vv_f32m4(tan_reduced_second_f32m4, cos_reduced_second_f32m4,
-                                                                   vector_length);
-
-    // Initialize lambda and tracking variables
-    vfloat32m4_t lambda_f32m4 = longitude_diff_f32m4;
-    vfloat32m4_t sin_angular_distance_f32m4 = v_zero_f32m4;
-    vfloat32m4_t cos_angular_distance_f32m4 = v_zero_f32m4;
-    vfloat32m4_t angular_distance_f32m4 = v_zero_f32m4;
-    vfloat32m4_t sin_azimuth_f32m4 = v_zero_f32m4;
-    vfloat32m4_t cos_sq_azimuth_f32m4 = v_zero_f32m4;
-    vfloat32m4_t cos_double_angular_midpoint_f32m4 = v_zero_f32m4;
-
-    // Track convergence and coincident points using masks
-    // vbool8_t is the mask type for LMUL=4 with 32-bit elements (32/4 = 8)
-    vbool8_t converged_mask_b8 = __riscv_vmfeq_vv_f32m4_b8(v_zero_f32m4, v_one_f32m4, vector_length); // all false
-    vbool8_t coincident_mask_b8 = converged_mask_b8;
-
-    for (nk_u32_t iteration = 0; iteration < NUMKONG_VINCENTY_MAX_ITERATIONS; ++iteration) {
-        // Check if all lanes converged
-        if (__riscv_vcpop_m_b8(converged_mask_b8, vector_length) == vector_length) break;
-
-        vfloat32m4_t sin_lambda_f32m4 = nk_f32m4_sin_rvv_(lambda_f32m4, vector_length);
-        vfloat32m4_t cos_lambda_f32m4 = nk_f32m4_cos_rvv_(lambda_f32m4, vector_length);
-
-        // sin^2(angular_distance) = (cos(U2)*sin(l))^2 + (cos(U1)*sin(U2) - sin(U1)*cos(U2)*cos(l))^2
-        vfloat32m4_t cross_term_f32m4 = __riscv_vfmul_vv_f32m4(cos_reduced_second_f32m4, sin_lambda_f32m4,
-                                                               vector_length);
-        vfloat32m4_t sin1_cos2_cosl_f32m4 = __riscv_vfmul_vv_f32m4(sin_reduced_first_f32m4, cos_reduced_second_f32m4,
-                                                                   vector_length);
-        sin1_cos2_cosl_f32m4 = __riscv_vfmul_vv_f32m4(sin1_cos2_cosl_f32m4, cos_lambda_f32m4, vector_length);
-        vfloat32m4_t mixed_term_f32m4 = __riscv_vfmul_vv_f32m4(cos_reduced_first_f32m4, sin_reduced_second_f32m4,
-                                                               vector_length);
-        mixed_term_f32m4 = __riscv_vfsub_vv_f32m4(mixed_term_f32m4, sin1_cos2_cosl_f32m4, vector_length);
-
-        vfloat32m4_t sin_angular_dist_sq_f32m4 = __riscv_vfmul_vv_f32m4(cross_term_f32m4, cross_term_f32m4,
-                                                                        vector_length);
-        sin_angular_dist_sq_f32m4 = __riscv_vfmadd_vv_f32m4(mixed_term_f32m4, mixed_term_f32m4,
-                                                            sin_angular_dist_sq_f32m4, vector_length);
-        sin_angular_distance_f32m4 = __riscv_vfsqrt_v_f32m4(sin_angular_dist_sq_f32m4, vector_length);
-
-        // Check for coincident points (sin_angular_distance < epsilon)
-        coincident_mask_b8 = __riscv_vmflt_vv_f32m4_b8(sin_angular_distance_f32m4, v_epsilon_f32m4, vector_length);
-
-        // cos(angular_distance) = sin(U1)*sin(U2) + cos(U1)*cos(U2)*cos(l)
-        vfloat32m4_t cos1_cos2_f32m4 = __riscv_vfmul_vv_f32m4(cos_reduced_first_f32m4, cos_reduced_second_f32m4,
-                                                              vector_length);
-        cos_angular_distance_f32m4 = __riscv_vfmul_vv_f32m4(sin_reduced_first_f32m4, sin_reduced_second_f32m4,
-                                                            vector_length);
-        cos_angular_distance_f32m4 = __riscv_vfmadd_vv_f32m4(cos1_cos2_f32m4, cos_lambda_f32m4,
-                                                             cos_angular_distance_f32m4, vector_length);
-
-        // angular_distance = atan2(sin, cos)
-        angular_distance_f32m4 = nk_f32m4_atan2_rvv_(sin_angular_distance_f32m4, cos_angular_distance_f32m4,
-                                                     vector_length);
-
-        // sin(azimuth) = cos(U1)*cos(U2)*sin(l) / sin(angular_distance)
-        // Avoid division by zero by substituting 1.0 for coincident lanes
-        vfloat32m4_t safe_sin_angular_f32m4 = __riscv_vfmerge_vfm_f32m4(sin_angular_distance_f32m4, 1.0f,
-                                                                        coincident_mask_b8, vector_length);
-        vfloat32m4_t numerator_f32m4 = __riscv_vfmul_vv_f32m4(cos1_cos2_f32m4, sin_lambda_f32m4, vector_length);
-        sin_azimuth_f32m4 = __riscv_vfdiv_vv_f32m4(numerator_f32m4, safe_sin_angular_f32m4, vector_length);
-        cos_sq_azimuth_f32m4 = __riscv_vfnmsub_vv_f32m4(sin_azimuth_f32m4, sin_azimuth_f32m4, v_one_f32m4,
-                                                        vector_length);
-
-        // Handle equatorial case: cos^2(a) < epsilon
-        vbool8_t equatorial_mask_b8 = __riscv_vmflt_vv_f32m4_b8(cos_sq_azimuth_f32m4, v_epsilon_f32m4, vector_length);
-        vfloat32m4_t safe_cos_sq_azimuth_f32m4 = __riscv_vfmerge_vfm_f32m4(cos_sq_azimuth_f32m4, 1.0f,
-                                                                           equatorial_mask_b8, vector_length);
-
-        // cos(2sm) = cos(s) - 2*sin(U1)*sin(U2) / cos^2(a)
-        vfloat32m4_t sin_product_f32m4 = __riscv_vfmul_vv_f32m4(sin_reduced_first_f32m4, sin_reduced_second_f32m4,
-                                                                vector_length);
-        vfloat32m4_t two_sin_product_f32m4 = __riscv_vfmul_vv_f32m4(v_two_f32m4, sin_product_f32m4, vector_length);
-        cos_double_angular_midpoint_f32m4 = __riscv_vfdiv_vv_f32m4(two_sin_product_f32m4, safe_cos_sq_azimuth_f32m4,
-                                                                   vector_length);
-        cos_double_angular_midpoint_f32m4 = __riscv_vfsub_vv_f32m4(cos_angular_distance_f32m4,
-                                                                   cos_double_angular_midpoint_f32m4, vector_length);
-        // Set to zero for equatorial case
-        cos_double_angular_midpoint_f32m4 = __riscv_vfmerge_vfm_f32m4(cos_double_angular_midpoint_f32m4, 0.0f,
-                                                                      equatorial_mask_b8, vector_length);
-
-        // C = f/16 * cos^2(a) * (4 + f*(4 - 3*cos^2(a)))
-        vfloat32m4_t inner_c_f32m4 = __riscv_vfnmsub_vv_f32m4(v_three_f32m4, cos_sq_azimuth_f32m4, v_four_f32m4,
-                                                              vector_length);
-        vfloat32m4_t outer_c_f32m4 = __riscv_vfmadd_vv_f32m4(v_flattening_f32m4, inner_c_f32m4, v_four_f32m4,
-                                                             vector_length);
-        vfloat32m4_t correction_factor_f32m4 = __riscv_vfdiv_vv_f32m4(v_flattening_f32m4, v_sixteen_f32m4,
-                                                                      vector_length);
-        correction_factor_f32m4 = __riscv_vfmul_vv_f32m4(correction_factor_f32m4, cos_sq_azimuth_f32m4, vector_length);
-        correction_factor_f32m4 = __riscv_vfmul_vv_f32m4(correction_factor_f32m4, outer_c_f32m4, vector_length);
-
-        // lambda' = L + (1-C)*f*sin(a)*(s + C*sin(s)*(cos(2sm) + C*cos(s)*(-1 + 2*cos^2(2sm))))
-        vfloat32m4_t cos_2sm_sq_f32m4 = __riscv_vfmul_vv_f32m4(cos_double_angular_midpoint_f32m4,
-                                                               cos_double_angular_midpoint_f32m4, vector_length);
-        vfloat32m4_t innermost_f32m4 = __riscv_vfmadd_vv_f32m4(v_two_f32m4, cos_2sm_sq_f32m4, v_neg_one_f32m4,
-                                                               vector_length);
-        vfloat32m4_t c_cos_s_f32m4 = __riscv_vfmul_vv_f32m4(correction_factor_f32m4, cos_angular_distance_f32m4,
-                                                            vector_length);
-        vfloat32m4_t middle_f32m4 = __riscv_vfmadd_vv_f32m4(c_cos_s_f32m4, innermost_f32m4,
-                                                            cos_double_angular_midpoint_f32m4, vector_length);
-        vfloat32m4_t c_sin_s_f32m4 = __riscv_vfmul_vv_f32m4(correction_factor_f32m4, sin_angular_distance_f32m4,
-                                                            vector_length);
-        vfloat32m4_t inner_value_f32m4 = __riscv_vfmul_vv_f32m4(c_sin_s_f32m4, middle_f32m4, vector_length);
-
-        vfloat32m4_t one_minus_c_f32m4 = __riscv_vfsub_vv_f32m4(v_one_f32m4, correction_factor_f32m4, vector_length);
-        vfloat32m4_t f_sin_a_f32m4 = __riscv_vfmul_vv_f32m4(v_flattening_f32m4, sin_azimuth_f32m4, vector_length);
-        vfloat32m4_t s_plus_inner_f32m4 = __riscv_vfadd_vv_f32m4(angular_distance_f32m4, inner_value_f32m4,
-                                                                 vector_length);
-        vfloat32m4_t adjustment_f32m4 = __riscv_vfmul_vv_f32m4(one_minus_c_f32m4, f_sin_a_f32m4, vector_length);
-        adjustment_f32m4 = __riscv_vfmul_vv_f32m4(adjustment_f32m4, s_plus_inner_f32m4, vector_length);
-        vfloat32m4_t lambda_new_f32m4 = __riscv_vfadd_vv_f32m4(longitude_diff_f32m4, adjustment_f32m4, vector_length);
-
-        // Check convergence: |lambda - lambda'| < threshold
-        vfloat32m4_t lambda_diff_f32m4 = __riscv_vfsub_vv_f32m4(lambda_new_f32m4, lambda_f32m4, vector_length);
-        vfloat32m4_t lambda_diff_abs_f32m4 = __riscv_vfsgnjx_vv_f32m4(lambda_diff_f32m4, lambda_diff_f32m4,
-                                                                      vector_length);
-        vbool8_t newly_converged_b8 = __riscv_vmflt_vv_f32m4_b8(lambda_diff_abs_f32m4, v_convergence_f32m4,
-                                                                vector_length);
-        converged_mask_b8 = __riscv_vmor_mm_b8(converged_mask_b8, newly_converged_b8, vector_length);
-
-        // Only update lambda for non-converged lanes
-        lambda_f32m4 = __riscv_vmerge_vvm_f32m4(lambda_new_f32m4, lambda_f32m4, converged_mask_b8, vector_length);
-    }
-
-    // Final distance calculation
-    // u^2 = cos^2(a) * (a^2 - b^2) / b^2
-    vfloat32m4_t a_sq_f32m4 = __riscv_vfmul_vv_f32m4(v_equatorial_radius_f32m4, v_equatorial_radius_f32m4,
-                                                     vector_length);
-    vfloat32m4_t b_sq_f32m4 = __riscv_vfmul_vv_f32m4(v_polar_radius_f32m4, v_polar_radius_f32m4, vector_length);
-    vfloat32m4_t a_sq_minus_b_sq_f32m4 = __riscv_vfsub_vv_f32m4(a_sq_f32m4, b_sq_f32m4, vector_length);
-    vfloat32m4_t u_sq_f32m4 = __riscv_vfmul_vv_f32m4(cos_sq_azimuth_f32m4, a_sq_minus_b_sq_f32m4, vector_length);
-    u_sq_f32m4 = __riscv_vfdiv_vv_f32m4(u_sq_f32m4, b_sq_f32m4, vector_length);
-
-    // A = 1 + u^2/16384 * (4096 + u^2*(-768 + u^2*(320 - 175*u^2)))
-    vfloat32m4_t series_a_f32m4 = __riscv_vfmul_vf_f32m4(u_sq_f32m4, -175.0f, vector_length);
-    series_a_f32m4 = __riscv_vfadd_vf_f32m4(series_a_f32m4, 320.0f, vector_length);
-    series_a_f32m4 = __riscv_vfmadd_vv_f32m4(u_sq_f32m4, series_a_f32m4, __riscv_vfmv_v_f_f32m4(-768.0f, vector_length),
-                                             vector_length);
-    series_a_f32m4 = __riscv_vfmadd_vv_f32m4(u_sq_f32m4, series_a_f32m4, __riscv_vfmv_v_f_f32m4(4096.0f, vector_length),
-                                             vector_length);
-    vfloat32m4_t u_sq_over_16384_f32m4 = __riscv_vfmul_vf_f32m4(u_sq_f32m4, 1.0f / 16384.0f, vector_length);
-    series_a_f32m4 = __riscv_vfmadd_vv_f32m4(u_sq_over_16384_f32m4, series_a_f32m4, v_one_f32m4, vector_length);
-
-    // B = u^2/1024 * (256 + u^2*(-128 + u^2*(74 - 47*u^2)))
-    vfloat32m4_t series_b_f32m4 = __riscv_vfmul_vf_f32m4(u_sq_f32m4, -47.0f, vector_length);
-    series_b_f32m4 = __riscv_vfadd_vf_f32m4(series_b_f32m4, 74.0f, vector_length);
-    series_b_f32m4 = __riscv_vfmadd_vv_f32m4(u_sq_f32m4, series_b_f32m4, __riscv_vfmv_v_f_f32m4(-128.0f, vector_length),
-                                             vector_length);
-    series_b_f32m4 = __riscv_vfmadd_vv_f32m4(u_sq_f32m4, series_b_f32m4, __riscv_vfmv_v_f_f32m4(256.0f, vector_length),
-                                             vector_length);
-    vfloat32m4_t u_sq_over_1024_f32m4 = __riscv_vfmul_vf_f32m4(u_sq_f32m4, 1.0f / 1024.0f, vector_length);
-    series_b_f32m4 = __riscv_vfmul_vv_f32m4(u_sq_over_1024_f32m4, series_b_f32m4, vector_length);
-
-    // Delta-sigma calculation
-    vfloat32m4_t cos_2sm_sq_f32m4 = __riscv_vfmul_vv_f32m4(cos_double_angular_midpoint_f32m4,
-                                                           cos_double_angular_midpoint_f32m4, vector_length);
-    vfloat32m4_t sin_sq_f32m4 = __riscv_vfmul_vv_f32m4(sin_angular_distance_f32m4, sin_angular_distance_f32m4,
-                                                       vector_length);
-
-    // term1 = cos(s) * (-1 + 2*cos^2(2sm))
-    vfloat32m4_t term1_f32m4 = __riscv_vfmadd_vv_f32m4(v_two_f32m4, cos_2sm_sq_f32m4, v_neg_one_f32m4, vector_length);
-    term1_f32m4 = __riscv_vfmul_vv_f32m4(cos_angular_distance_f32m4, term1_f32m4, vector_length);
-
-    // term2 = B/6 * cos(2sm) * (-3 + 4*sin^2(s)) * (-3 + 4*cos^2(2sm))
-    vfloat32m4_t neg_three_f32m4 = __riscv_vfmv_v_f_f32m4(-3.0f, vector_length);
-    vfloat32m4_t factor_sin_f32m4 = __riscv_vfmadd_vv_f32m4(v_four_f32m4, sin_sq_f32m4, neg_three_f32m4, vector_length);
-    vfloat32m4_t factor_cos_f32m4 = __riscv_vfmadd_vv_f32m4(v_four_f32m4, cos_2sm_sq_f32m4, neg_three_f32m4,
-                                                            vector_length);
-    vfloat32m4_t b_over_6_f32m4 = __riscv_vfdiv_vv_f32m4(series_b_f32m4, v_six_f32m4, vector_length);
-    vfloat32m4_t term2_f32m4 = __riscv_vfmul_vv_f32m4(b_over_6_f32m4, cos_double_angular_midpoint_f32m4, vector_length);
-    term2_f32m4 = __riscv_vfmul_vv_f32m4(term2_f32m4, factor_sin_f32m4, vector_length);
-    term2_f32m4 = __riscv_vfmul_vv_f32m4(term2_f32m4, factor_cos_f32m4, vector_length);
-
-    // B/4 * (term1 - term2)
-    vfloat32m4_t b_over_4_f32m4 = __riscv_vfdiv_vv_f32m4(series_b_f32m4, v_four_f32m4, vector_length);
-    vfloat32m4_t term1_minus_term2_f32m4 = __riscv_vfsub_vv_f32m4(term1_f32m4, term2_f32m4, vector_length);
-    vfloat32m4_t b4_bracket_f32m4 = __riscv_vfmul_vv_f32m4(b_over_4_f32m4, term1_minus_term2_f32m4, vector_length);
-
-    // cos(2sm) + B/4*(...)
-    vfloat32m4_t bracket_f32m4 = __riscv_vfadd_vv_f32m4(cos_double_angular_midpoint_f32m4, b4_bracket_f32m4,
-                                                        vector_length);
-
-    // delta_sigma = B * sin(s) * bracket
-    vfloat32m4_t delta_sigma_f32m4 = __riscv_vfmul_vv_f32m4(series_b_f32m4, sin_angular_distance_f32m4, vector_length);
-    delta_sigma_f32m4 = __riscv_vfmul_vv_f32m4(delta_sigma_f32m4, bracket_f32m4, vector_length);
-
-    // s = b * A * (sigma - delta_sigma)
-    vfloat32m4_t sigma_minus_ds_f32m4 = __riscv_vfsub_vv_f32m4(angular_distance_f32m4, delta_sigma_f32m4,
-                                                               vector_length);
-    vfloat32m4_t distances_f32m4 = __riscv_vfmul_vv_f32m4(v_polar_radius_f32m4, series_a_f32m4, vector_length);
-    distances_f32m4 = __riscv_vfmul_vv_f32m4(distances_f32m4, sigma_minus_ds_f32m4, vector_length);
-
-    // Set coincident points to zero
-    distances_f32m4 = __riscv_vfmerge_vfm_f32m4(distances_f32m4, 0.0f, coincident_mask_b8, vector_length);
-
-    __riscv_vse32_v_f32m4(results, distances_f32m4, vector_length);
 }
 
 #pragma endregion Vincenty Distance
 
 #if NUMKONG_TARGET_RVV
 
-#pragma region Haversine Distance
+#pragma region 3D Squares
 
-NUMKONG_API nk_status_t nk_haversine_f64_rvv(       //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, nk_stream_t stream) {
+NUMKONG_API nk_status_t nk_sqeuclideans3d_i32_rvv(nk_i32_t const *a, nk_size_t rows, nk_i32_t const *b,
+                                                  nk_size_t columns, nk_u64_t *results, nk_size_t results_stride,
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-
-    for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,
-                                         b_lats += vector_length, b_lons += vector_length, results += vector_length) {
-        vector_length = __riscv_vsetvl_e64m4(n);
-        nk_haversine_f64_rvv_kernel_(a_lats, a_lons, b_lats, b_lons, vector_length, results);
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_u64_t *output = (nk_u64_t *)((char *)results + row * results_stride);
+        nk_i32_t const a_x = a[row * 3], a_y = a[row * 3 + 1], a_z = a[row * 3 + 2];
+        for (nk_size_t vector_length, column = 0; column < columns; column += vector_length) {
+            vector_length = __riscv_vsetvl_e32m2(columns - column);
+            vint32m2x3_t const b_i32m2x3 = __riscv_vlseg3e32_v_i32m2x3(b + column * 3, vector_length);
+            vint32m2_t const difference_x_i32m2 = __riscv_vrsub_vx_i32m2(__riscv_vget_v_i32m2x3_i32m2(b_i32m2x3, 0),
+                                                                         a_x, vector_length);
+            vint32m2_t const difference_y_i32m2 = __riscv_vrsub_vx_i32m2(__riscv_vget_v_i32m2x3_i32m2(b_i32m2x3, 1),
+                                                                         a_y, vector_length);
+            vint32m2_t const difference_z_i32m2 = __riscv_vrsub_vx_i32m2(__riscv_vget_v_i32m2x3_i32m2(b_i32m2x3, 2),
+                                                                         a_z, vector_length);
+            // Each square fits 62 bits, and their sum wraps identically as signed or unsigned
+            vint64m4_t sums_i64m4 = __riscv_vwmul_vv_i64m4(difference_x_i32m2, difference_x_i32m2, vector_length);
+            sums_i64m4 = __riscv_vwmacc_vv_i64m4(sums_i64m4, difference_y_i32m2, difference_y_i32m2, vector_length);
+            sums_i64m4 = __riscv_vwmacc_vv_i64m4(sums_i64m4, difference_z_i32m2, difference_z_i32m2, vector_length);
+            __riscv_vse64_v_u64m4(output + column, __riscv_vreinterpret_v_i64m4_u64m4(sums_i64m4), vector_length);
+        }
     }
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_haversine_f32_rvv(       //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, nk_stream_t stream) {
+NUMKONG_API nk_status_t nk_sqeuclideans3d_f64_rvv(nk_f64_t const *a, nk_size_t rows, nk_f64_t const *b,
+                                                  nk_size_t columns, nk_f64_t *results, nk_size_t results_stride,
+                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *output = (nk_f64_t *)((char *)results + row * results_stride);
+        nk_f64_t const a_x = a[row * 3], a_y = a[row * 3 + 1], a_z = a[row * 3 + 2];
+        for (nk_size_t vector_length, column = 0; column < columns; column += vector_length) {
+            vector_length = __riscv_vsetvl_e64m1(columns - column);
+            vfloat64m1x3_t const b_f64m1x3 = __riscv_vlseg3e64_v_f64m1x3(b + column * 3, vector_length);
+            vfloat64m1_t const difference_x_f64m1 = __riscv_vfrsub_vf_f64m1(__riscv_vget_v_f64m1x3_f64m1(b_f64m1x3, 0),
+                                                                            a_x, vector_length);
+            vfloat64m1_t const difference_y_f64m1 = __riscv_vfrsub_vf_f64m1(__riscv_vget_v_f64m1x3_f64m1(b_f64m1x3, 1),
+                                                                            a_y, vector_length);
+            vfloat64m1_t const difference_z_f64m1 = __riscv_vfrsub_vf_f64m1(__riscv_vget_v_f64m1x3_f64m1(b_f64m1x3, 2),
+                                                                            a_z, vector_length);
+            vfloat64m1_t sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length), compensation_f64m1 = sum_f64m1;
+            nk_dot2_f64m1_rvv_(&sum_f64m1, &compensation_f64m1, difference_x_f64m1, difference_x_f64m1, vector_length);
+            nk_dot2_f64m1_rvv_(&sum_f64m1, &compensation_f64m1, difference_y_f64m1, difference_y_f64m1, vector_length);
+            nk_dot2_f64m1_rvv_(&sum_f64m1, &compensation_f64m1, difference_z_f64m1, difference_z_f64m1, vector_length);
+            __riscv_vse64_v_f64m1(output + column, __riscv_vfadd_vv_f64m1(sum_f64m1, compensation_f64m1, vector_length),
+                                  vector_length);
+        }
+    }
+    return nk_success_k;
+}
 
-    for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,
-                                         b_lats += vector_length, b_lons += vector_length, results += vector_length) {
-        vector_length = __riscv_vsetvl_e32m4(n);
-        nk_haversine_f32_rvv_kernel_(a_lats, a_lons, b_lats, b_lons, vector_length, results);
+#pragma endregion 3D Squares
+
+#pragma region Haversine Distance
+
+NUMKONG_API nk_status_t nk_haversines_packed_f64_rvv(void const *a_packed, void const *b_packed, nk_f64_t *results,
+                                                     nk_size_t results_stride, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t rows, columns, a_stride, b_stride;
+    nk_f64_t const *a_packed_x = nk_geospatial_packed_axes_f64_serial_(a_packed, &rows, &a_stride);
+    nk_f64_t const *b_packed_x = nk_geospatial_packed_axes_f64_serial_(b_packed, &columns, &b_stride);
+    nk_f64_t const *a_packed_y = a_packed_x + a_stride, *a_packed_z = a_packed_y + a_stride;
+    nk_f64_t const *b_packed_y = b_packed_x + b_stride, *b_packed_z = b_packed_y + b_stride;
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *output = (nk_f64_t *)((char *)results + row * results_stride);
+        for (nk_size_t vector_length, column = 0; column < columns; column += vector_length) {
+            vector_length = __riscv_vsetvl_e64m4(columns - column);
+            nk_haversine_f64_rvv_kernel_(a_packed_x[row], a_packed_y[row], a_packed_z[row], b_packed_x + column,
+                                         b_packed_y + column, b_packed_z + column, vector_length, output + column);
+        }
     }
     return nk_success_k;
 }
@@ -745,30 +383,22 @@ NUMKONG_API nk_status_t nk_haversine_f32_rvv(       //
 
 #pragma region Vincenty Distance
 
-NUMKONG_API nk_status_t nk_vincenty_f64_rvv(        //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, nk_stream_t stream) {
+NUMKONG_API nk_status_t nk_vincentys_packed_f64_rvv(void const *a_packed, void const *b_packed, nk_f64_t *results,
+                                                    nk_size_t results_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-
-    for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,
-                                         b_lats += vector_length, b_lons += vector_length, results += vector_length) {
-        vector_length = __riscv_vsetvl_e64m4(n);
-        nk_vincenty_f64_rvv_kernel_(a_lats, a_lons, b_lats, b_lons, vector_length, results);
-    }
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_vincenty_f32_rvv(        //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    for (nk_size_t vector_length; n > 0; n -= vector_length, a_lats += vector_length, a_lons += vector_length,
-                                         b_lats += vector_length, b_lons += vector_length, results += vector_length) {
-        vector_length = __riscv_vsetvl_e32m4(n);
-        nk_vincenty_f32_rvv_kernel_(a_lats, a_lons, b_lats, b_lons, vector_length, results);
+    nk_size_t rows, columns, a_stride, b_stride;
+    nk_f64_t const *a_packed_longitudes = nk_geospatial_packed_axes_f64_serial_(a_packed, &rows, &a_stride);
+    nk_f64_t const *b_packed_longitudes = nk_geospatial_packed_axes_f64_serial_(b_packed, &columns, &b_stride);
+    nk_f64_t const *a_packed_sines = a_packed_longitudes + a_stride, *a_packed_cosines = a_packed_sines + a_stride;
+    nk_f64_t const *b_packed_sines = b_packed_longitudes + b_stride, *b_packed_cosines = b_packed_sines + b_stride;
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *output = (nk_f64_t *)((char *)results + row * results_stride);
+        for (nk_size_t vector_length, column = 0; column < columns; column += vector_length) {
+            vector_length = __riscv_vsetvl_e64m4(columns - column);
+            nk_vincenty_f64_rvv_kernel_(a_packed_longitudes[row], a_packed_sines[row], a_packed_cosines[row],
+                                        b_packed_longitudes + column, b_packed_sines + column,
+                                        b_packed_cosines + column, vector_length, output + column);
+        }
     }
     return nk_success_k;
 }

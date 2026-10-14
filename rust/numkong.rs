@@ -17,7 +17,7 @@
 //! - [`probability`]: Probability divergences — KL, JS
 //! - [`curved`]: Curved metric spaces — Bilinear, Mahalanobis
 //! - [`shapes`]: Shape distances — Chamfer, Hausdorff, Wasserstein-Procrustes, Gromov-Wasserstein
-//! - [`geospatial`]: Geospatial distances — Haversine, Vincenty
+//! - [`geospatial`]: Geospatial distances — squared Euclidean in 3D, Haversine, Vincenty
 //! - [`sparse`]: Sparse set operations
 //! - [`mod@cast`]: Type casting between scalar formats
 //! - [`capabilities`]: Capabilities CPUs and GPUs detect, compile and enable, and unified memory
@@ -182,7 +182,7 @@ pub use curved::{Bilinear, Mahalanobis};
 pub use shapes::{Shapes, ShapesPackedMatrix};
 
 // Re-export geospatial
-pub use geospatial::{Geospatial, Haversine, Vincenty};
+pub use geospatial::{HaversinesPackedMatrix, SqEuclideans3D, VincentysPackedMatrix};
 
 // Re-export sparse
 pub use sparse::{SparseDot, SparseIntersect};
@@ -203,7 +203,7 @@ pub use tensor::{
     AllocError, Allocator, AxisIterator, AxisIteratorMut, CopyFrom, Error, Fill, Global, Matrix, MatrixSpan,
     MatrixView, MinMaxResult, RangeStep, ScaledTensor, ScaledTensorSpan, ScaledTensorView, SliceArg, SliceRange,
     SliceSpec, Tensor, TensorDims, TensorIterator, TensorMut, TensorRef, TensorSpan, TensorSpanDims,
-    TensorSpanIterator, TensorView, TensorViewDims, TensorViewIterator, DEFAULT_MAX_RANK, SIMD_ALIGNMENT,
+    TensorSpanIterator, TensorView, TensorViewDims, TensorViewIterator, DEFAULT_ALIGNMENT, DEFAULT_MAX_RANK,
 };
 
 // Re-export batched GEMM types

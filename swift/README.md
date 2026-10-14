@@ -413,24 +413,29 @@ The matrix kernel output types follow a similar pattern but vary for the mini-fl
 
 ## Geospatial Metrics
 
-The Swift geospatial helpers operate on four coordinate arrays.
+The Swift geospatial helpers operate on four coordinate arrays, two per point set.
+They score every point of the first set against every point of the second.
 Inputs are in radians.
-Outputs are in meters.
+Outputs are in meters, row-major with one row per point of the first set.
 
 ```swift
 import NumKong
 
 // Statue of Liberty (40.6892°N, 74.0445°W) → Big Ben (51.5007°N, 0.1246°W)
-let libertyLat: [Float64] = [0.7101605100]
-let libertyLon: [Float64] = [-1.2923203180]
-let bigBenLat: [Float64] = [0.8988567821]
-let bigBenLon: [Float64] = [-0.0021746802]
+let libertyLatitudes: [Float64] = [0.7101605100]
+let libertyLongitudes: [Float64] = [-1.2923203180]
+let bigBenLatitudes: [Float64] = [0.8988567821]
+let bigBenLongitudes: [Float64] = [-0.0021746802]
 
-let vincenty = vincenty(aLat: libertyLat, aLon: libertyLon, bLat: bigBenLat, bLon: bigBenLon)   // ≈ [5,589,857] m
-let haversine = haversine(aLat: libertyLat, aLon: libertyLon, bLat: bigBenLat, bLon: bigBenLon) // ≈ [5,543,723] m
+let ellipsoidal = vincentys(
+    aLatitudes: libertyLatitudes, aLongitudes: libertyLongitudes,
+    bLatitudes: bigBenLatitudes, bLongitudes: bigBenLongitudes) // ≈ [5,589,857] m
+let spherical = haversines(
+    aLatitudes: libertyLatitudes, aLongitudes: libertyLongitudes,
+    bLatitudes: bigBenLatitudes, bLongitudes: bigBenLongitudes) // ≈ [5,574,848] m
 ```
 
-The low-level `UnsafeBufferPointer` static methods on `Float64` and `Float32` remain available for zero-copy use cases.
+The low-level `UnsafeBufferPointer` static methods on `Float64` remain available for zero-copy use cases.
 
 ## Runtime Capabilities
 

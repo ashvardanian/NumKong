@@ -1041,32 +1041,107 @@ def mahalanobis(
 
 # endregion Curved Space Metrics
 
-# region Geospatial Distances
+# region Geospatial
 
-def haversine(
-    a_lats: _BufferType,
-    a_lons: _BufferType,
-    b_lats: _BufferType,
-    b_lons: _BufferType,
-    /,
-    dtype: _FloatTypeName | _MiniFloatType | None = None,
-    *,
-    out: _BufferType | None = None,
-    **dispatch: Unpack[_Dispatch],
-) -> float | Tensor | None: ...
-def vincenty(
-    a_lats: _BufferType,
-    a_lons: _BufferType,
-    b_lats: _BufferType,
-    b_lons: _BufferType,
-    /,
-    dtype: _FloatTypeName | _MiniFloatType | None = None,
-    *,
-    out: _BufferType | None = None,
-    **dispatch: Unpack[_Dispatch],
-) -> float | Tensor | None: ...
+# Squared distances between every row and every column point in 3D, exact on int32 whenever every
+# axis difference fits 32 bits, as Earth-fixed centimetres below 4,359 km of altitude do.
+def sqeuclideans3d(a: _BufferType, b: _BufferType, /, **dispatch: Unpack[_Dispatch]) -> Tensor:
+    """Compute [rows,columns] squared distances of [rows,3] and [columns,3] points, both int32 or both float64."""
+    ...
 
-# endregion Geospatial Distances
+class HaversinesPackedMatrix:
+    """Points packed by haversines_pack() as unit vectors on the mean sphere.
+
+    The kernels read the point count from a header ahead of the planar arrays, so the only view is
+    the whole pack, and a key selecting fewer points raises ValueError.
+    """
+
+    @property
+    def points(self) -> int:
+        """Number of packed points."""
+        ...
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        """Dimensions (points, 2) of the packed latitude and longitude pairs."""
+        ...
+
+    @property
+    def nbytes(self) -> int:
+        """Size of the pack in bytes."""
+        ...
+
+    @classmethod
+    def pack_size(cls, points: int, /) -> int:
+        """Return the bytes a pack of the given number of points takes."""
+        ...
+
+    def __len__(self) -> int:
+        """Return the number of packed points."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+        ...
+
+class VincentysPackedMatrix:
+    """Points packed by vincentys_pack() as longitudes and reduced latitudes on the WGS-84 ellipsoid.
+
+    The kernels read the point count from a header ahead of the planar arrays, so the only view is
+    the whole pack, and a key selecting fewer points raises ValueError.
+    """
+
+    @property
+    def points(self) -> int:
+        """Number of packed points."""
+        ...
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        """Dimensions (points, 2) of the packed latitude and longitude pairs."""
+        ...
+
+    @property
+    def nbytes(self) -> int:
+        """Size of the pack in bytes."""
+        ...
+
+    @classmethod
+    def pack_size(cls, points: int, /) -> int:
+        """Return the bytes a pack of the given number of points takes."""
+        ...
+
+    def __len__(self) -> int:
+        """Return the number of packed points."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+        ...
+
+# Pack [points] latitudes and longitudes in radians, cast to float64, the same on every machine.
+def haversines_pack(
+    latitudes: _BufferType, longitudes: _BufferType, /, **dispatch: Unpack[_Dispatch]
+) -> HaversinesPackedMatrix:
+    """Pack every point as a unit vector on the mean sphere, for haversines_packed()."""
+    ...
+
+def vincentys_pack(
+    latitudes: _BufferType, longitudes: _BufferType, /, **dispatch: Unpack[_Dispatch]
+) -> VincentysPackedMatrix:
+    """Pack every point as its longitude and reduced latitude on the WGS-84 ellipsoid, for vincentys_packed()."""
+    ...
+
+# The many-to-many geodesics return [rows,columns] float64 distances in metres.
+def haversines_packed(a: HaversinesPackedMatrix, b: HaversinesPackedMatrix, /, **dispatch: Unpack[_Dispatch]) -> Tensor:
+    """Compute great-circle distances on the sphere of the IUGG mean Earth radius, 6,371,008.8 m."""
+    ...
+
+def vincentys_packed(a: VincentysPackedMatrix, b: VincentysPackedMatrix, /, **dispatch: Unpack[_Dispatch]) -> Tensor:
+    """Compute geodesic distances on the WGS-84 ellipsoid with Vincenty's inverse formula."""
+    ...
+
+# endregion Geospatial
 
 # region Sparse Similarity
 # Vector-vector similarity between sparse vectors.

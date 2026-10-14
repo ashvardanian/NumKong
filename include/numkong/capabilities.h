@@ -366,12 +366,6 @@ typedef enum {
     /** Mahalanobis distance. */
     nk_kernel_mahalanobis_k = 'm',
 
-    /** Haversine distance. */
-    nk_kernel_haversine_k = 'o',
-
-    /** Vincenty distance (ellipsoidal geodesic). */
-    nk_kernel_vincenty_k = 'O',
-
     /** Kullback-Leibler divergence. */
     nk_kernel_kld_k = 'k',
 
@@ -522,6 +516,39 @@ typedef enum {
     /** NeoX split-half rotary position embedding (in place). */
     nk_kernel_attention_rope_k = 'I',
 
+    /** Many-to-many squared Euclidean distances between 3D points. */
+    nk_kernel_sqeuclideans3d_k = 'r',
+
+    /** Haversine pack buffer size in bytes. */
+    nk_kernel_haversines_pack_size_k = '(',
+
+    /** Haversine packing: latitudes and longitudes into unit vectors. */
+    nk_kernel_haversines_pack_k = '<',
+
+    /** Many-to-many great-circle distances on the mean sphere. */
+    nk_kernel_haversines_packed_k = 'o',
+
+    /** Vincenty pack buffer size in bytes. */
+    nk_kernel_vincentys_pack_size_k = ')',
+
+    /** Vincenty packing: longitudes and reduced latitudes. */
+    nk_kernel_vincentys_pack_k = '>',
+
+    /** Many-to-many geodesic distances on the ellipsoid. */
+    nk_kernel_vincentys_packed_k = 'O',
+
+    /** Terrain pack buffer size in bytes. */
+    nk_kernel_terrain_pack_size_k = 'U',
+
+    /** Terrain packing: the maxima pyramid of a height grid. */
+    nk_kernel_terrain_pack_k = 'K',
+
+    /** Bilinear terrain heights under points. */
+    nk_kernel_terrain_heights_packed_k = '^',
+
+    /** Many-to-many terrain clearances of sight lines. */
+    nk_kernel_clearances_packed_k = '/',
+
     /** Type casting from one type to another. */
     nk_kernel_cast_k = '-',
 } nk_kernel_kind_t;
@@ -540,8 +567,6 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_jaccard_k: return "jaccard";
     case nk_kernel_bilinear_k: return "bilinear";
     case nk_kernel_mahalanobis_k: return "mahalanobis";
-    case nk_kernel_haversine_k: return "haversine";
-    case nk_kernel_vincenty_k: return "vincenty";
     case nk_kernel_kld_k: return "kld";
     case nk_kernel_jsd_k: return "jsd";
     case nk_kernel_sparse_dot_k: return "sparse_dot";
@@ -592,6 +617,17 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_attention_packed_gradients_k: return "attention_packed_gradients";
     case nk_kernel_attention_packed_shape_k: return "attention_packed_shape";
     case nk_kernel_attention_rope_k: return "attention_rope";
+    case nk_kernel_sqeuclideans3d_k: return "sqeuclideans3d";
+    case nk_kernel_haversines_pack_size_k: return "haversines_pack_size";
+    case nk_kernel_haversines_pack_k: return "haversines_pack";
+    case nk_kernel_haversines_packed_k: return "haversines_packed";
+    case nk_kernel_vincentys_pack_size_k: return "vincentys_pack_size";
+    case nk_kernel_vincentys_pack_k: return "vincentys_pack";
+    case nk_kernel_vincentys_packed_k: return "vincentys_packed";
+    case nk_kernel_terrain_pack_size_k: return "terrain_pack_size";
+    case nk_kernel_terrain_pack_k: return "terrain_pack";
+    case nk_kernel_terrain_heights_packed_k: return "terrain_heights_packed";
+    case nk_kernel_clearances_packed_k: return "clearances_packed";
     case nk_kernel_cast_k: return "cast";
     default: return "unknown";
     }
@@ -609,8 +645,6 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "jaccard")) return nk_kernel_jaccard_k;
     if (nk_same_literal_(name, length, "bilinear")) return nk_kernel_bilinear_k;
     if (nk_same_literal_(name, length, "mahalanobis")) return nk_kernel_mahalanobis_k;
-    if (nk_same_literal_(name, length, "haversine")) return nk_kernel_haversine_k;
-    if (nk_same_literal_(name, length, "vincenty")) return nk_kernel_vincenty_k;
     if (nk_same_literal_(name, length, "kld")) return nk_kernel_kld_k;
     if (nk_same_literal_(name, length, "jsd")) return nk_kernel_jsd_k;
     if (nk_same_literal_(name, length, "sparse_dot")) return nk_kernel_sparse_dot_k;
@@ -663,6 +697,17 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "attention_packed_gradients")) return nk_kernel_attention_packed_gradients_k;
     if (nk_same_literal_(name, length, "attention_packed_shape")) return nk_kernel_attention_packed_shape_k;
     if (nk_same_literal_(name, length, "attention_rope")) return nk_kernel_attention_rope_k;
+    if (nk_same_literal_(name, length, "sqeuclideans3d")) return nk_kernel_sqeuclideans3d_k;
+    if (nk_same_literal_(name, length, "haversines_pack_size")) return nk_kernel_haversines_pack_size_k;
+    if (nk_same_literal_(name, length, "haversines_pack")) return nk_kernel_haversines_pack_k;
+    if (nk_same_literal_(name, length, "haversines_packed")) return nk_kernel_haversines_packed_k;
+    if (nk_same_literal_(name, length, "vincentys_pack_size")) return nk_kernel_vincentys_pack_size_k;
+    if (nk_same_literal_(name, length, "vincentys_pack")) return nk_kernel_vincentys_pack_k;
+    if (nk_same_literal_(name, length, "vincentys_packed")) return nk_kernel_vincentys_packed_k;
+    if (nk_same_literal_(name, length, "terrain_pack_size")) return nk_kernel_terrain_pack_size_k;
+    if (nk_same_literal_(name, length, "terrain_pack")) return nk_kernel_terrain_pack_k;
+    if (nk_same_literal_(name, length, "terrain_heights_packed")) return nk_kernel_terrain_heights_packed_k;
+    if (nk_same_literal_(name, length, "clearances_packed")) return nk_kernel_clearances_packed_k;
     if (nk_same_literal_(name, length, "cast")) return nk_kernel_cast_k;
     return nk_kernel_unknown_k;
 }
@@ -681,9 +726,31 @@ typedef nk_status_t (*nk_sparse_dot_punned_t)(void const *a, void const *b, void
 typedef nk_status_t (*nk_metric_curved_punned_t)(void const *a, void const *b, void const *c, nk_size_t dimensions,
                                                  void *result, nk_stream_t stream);
 
-typedef nk_status_t (*nk_metric_geospatial_punned_t)(void const *a_lats, void const *a_lons, void const *b_lats,
-                                                     void const *b_lons, nk_size_t count, void *results,
-                                                     nk_stream_t stream);
+typedef nk_status_t (*nk_sqeuclideans3d_punned_t)(void const *a, nk_size_t rows, void const *b, nk_size_t columns,
+                                                  void *results, nk_size_t results_stride, nk_stream_t stream);
+
+/** Pack sizes are host arithmetic, so they take no stream. */
+typedef nk_status_t (*nk_geospatial_pack_size_punned_t)(nk_size_t points, nk_size_t *bytes);
+
+typedef nk_status_t (*nk_geospatial_pack_punned_t)(void const *latitudes, void const *longitudes, nk_size_t count,
+                                                   void *packed, nk_stream_t stream);
+
+typedef nk_status_t (*nk_geospatial_packed_punned_t)(void const *a_packed, void const *b_packed, void *results,
+                                                     nk_size_t results_stride, nk_stream_t stream);
+
+typedef nk_status_t (*nk_terrain_pack_size_punned_t)(nk_size_t rows, nk_size_t columns, nk_size_t *bytes);
+
+typedef nk_status_t (*nk_terrain_pack_punned_t)(void const *heights, nk_size_t rows, nk_size_t columns,
+                                                nk_size_t heights_stride, nk_f64_t row_metres, nk_f64_t column_metres,
+                                                void *packed, nk_stream_t stream);
+
+typedef nk_status_t (*nk_terrain_heights_packed_punned_t)(void const *heights, void const *packed, void const *points,
+                                                          nk_size_t count, void *results, nk_stream_t stream);
+
+typedef nk_status_t (*nk_clearances_packed_punned_t)(void const *heights, void const *packed, void const *viewpoints,
+                                                     void const *views, nk_size_t rows, void const *targets,
+                                                     nk_size_t columns, nk_f64_t refraction, void *results,
+                                                     nk_size_t results_stride, nk_stream_t stream);
 
 typedef nk_status_t (*nk_each_scale_punned_t)(void const *a, nk_size_t count, void const *alpha, void const *beta,
                                               void *y, nk_stream_t stream);

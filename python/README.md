@@ -233,28 +233,42 @@ np.testing.assert_allclose(js_forward, js_reverse, atol=1e-6)  # JSD is symmetri
 
 ## Geospatial Metrics
 
-Geospatial kernels take four coordinate arrays.
-Inputs are in radians.
-Outputs are in meters.
+Geospatial kernels score every row point against every column point into a `[rows, columns]` matrix.
+Inputs are in radians, and outputs are in metres.
+Haversine and Vincenty take both sides as packs, built once per point set, so the many-to-many kernels evaluate no trigonometry before their per-pair work.
+One serial routine builds every pack, so a pack is the same on every machine.
 
 ```python
 import numpy as np
 import numkong as nk
 
-# Statue of Liberty (40.6892°N, 74.0445°W) → Big Ben (51.5007°N, 0.1246°W)
-liberty_lat, liberty_lon = np.array([0.7101605100], dtype=np.float64), np.array([-1.2923203180], dtype=np.float64)
-big_ben_lat, big_ben_lon = np.array([0.8988567821], dtype=np.float64), np.array([-0.0021746802], dtype=np.float64)
+# Statue of Liberty, Big Ben, Eiffel Tower
+latitudes = np.radians([40.6892, 51.5007, 48.8584])
+longitudes = np.radians([-74.0445, -0.1246, 2.2945])
 
-vincenty = nk.vincenty(liberty_lat, liberty_lon, big_ben_lat, big_ben_lon)    # ≈ 5,589,857 m (ellipsoidal, baseline)
-haversine = nk.haversine(liberty_lat, liberty_lon, big_ben_lat, big_ben_lon)  # ≈ 5,543,723 m (spherical, ~46 km less)
+ellipsoid = nk.vincentys_pack(latitudes, longitudes)  # any input dtype is cast to float64
+sphere = nk.haversines_pack(latitudes, longitudes)
+assert len(sphere) == sphere.points == 3 and sphere.shape == (3, 2)
 
-# Vincenty in f32 — drifts ~2 m from f64
-liberty_lat32 = liberty_lat.astype(np.float32)
-liberty_lon32 = liberty_lon.astype(np.float32)
-big_ben_lat32 = big_ben_lat.astype(np.float32)
-big_ben_lon32 = big_ben_lon.astype(np.float32)
-vincenty_f32 = nk.vincenty(liberty_lat32, liberty_lon32, big_ben_lat32, big_ben_lon32)  # ≈ 5,589,859 m (+2 m drift)
+vincentys = np.asarray(nk.vincentys_packed(ellipsoid, ellipsoid))  # Liberty → Big Ben ≈ 5,589,857 m on WGS-84
+haversines = np.asarray(nk.haversines_packed(sphere, sphere))  # Liberty → Big Ben ≈ 5,574,848 m on the mean sphere
+assert vincentys.shape == haversines.shape == (3, 3)
+
+# Earth-fixed centimetres square exactly in 64 bits
+stations = np.array([[631_000_000, 0, 0], [0, 637_800_000, 0]], dtype=np.int32)
+squares = np.asarray(nk.sqeuclideans3d(stations, stations))
+assert squares.dtype == np.uint64 and squares[0, 1] == 631_000_000**2 + 637_800_000**2
 ```
+
+`nk.haversines_packed` measures 2R · atan2(‖a − b‖, ‖a + b‖) with the IUGG mean radius of 6,371,008.8 m.
+That form stays conditioned from a millimetre to the antipode, and reads within 0.5% of the ellipsoidal geodesic.
+`nk.vincentys_packed` iterates Vincenty's inverse formula on the WGS-84 ellipsoid until the longitude settles within 1e-12 radians.
+A pair near the antipode that never settles reports its last iterate after 100 iterations.
+`nk.sqeuclideans3d` takes two `[n, 3]` matrices, both `int32` or both `float64`, and returns `uint64` or `float64` squares.
+The `int32` squares are exact whenever every axis difference fits 32 bits, which Earth-fixed centimetres below 4,359 km of altitude always satisfy.
+`nk.HaversinesPackedMatrix.pack_size(points)` and `nk.VincentysPackedMatrix.pack_size(points)` return the bytes a pack takes.
+A pack keeps its point count in a header ahead of its planar arrays, so a view of fewer points would need a header of its own.
+Indexing therefore returns the pack itself for a key selecting every point in order, and raises `ValueError` for any other.
 
 ## Curved Metrics
 

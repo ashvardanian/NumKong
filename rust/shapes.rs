@@ -44,7 +44,7 @@ use core::{alloc::Layout, ffi::c_void, marker::PhantomData, ptr::null_mut};
 
 use crate::{
     capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
-    tensor::{check_len, Allocator, Error, Global, PackedBuffer},
+    tensor::{check_len, Allocator, Error, Global, PackedBuffer, DEFAULT_ALIGNMENT},
     types::{f16, StorageElement},
 };
 
@@ -252,15 +252,6 @@ extern "C" {
 // endregion: FFI
 
 // region: Shapes trait
-
-/// Byte boundary every pack and every transport workspace starts on, the C library's
-/// `NUMKONG_DEFAULT_ALIGNMENT` for the same target.
-#[cfg(target_arch = "s390x")]
-const DEFAULT_ALIGNMENT: usize = 256;
-#[cfg(target_family = "wasm")]
-const DEFAULT_ALIGNMENT: usize = 64;
-#[cfg(not(any(target_arch = "s390x", target_family = "wasm")))]
-const DEFAULT_ALIGNMENT: usize = 128;
 
 mod private {
     pub trait Sealed {}
@@ -807,8 +798,7 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
         pack_cloud: unsafe fn(&[[Scalar; 3]], *mut u8) -> Result<(), Error>,
     ) -> Result<Self, Error> {
         let pointers_bytes = clouds.len() * core::mem::size_of::<*const u8>();
-        // The slack moves the packs from `PackedBuffer`'s `SIMD_ALIGNMENT` to `DEFAULT_ALIGNMENT`
-        let mut total_bytes = pointers_bytes + DEFAULT_ALIGNMENT - 1;
+        let mut total_bytes = pointers_bytes.next_multiple_of(DEFAULT_ALIGNMENT);
         for cloud in clouds {
             total_bytes = total_bytes
                 .checked_add(Scalar::shapes_pack_size(cloud.len())?.next_multiple_of(DEFAULT_ALIGNMENT))
@@ -816,7 +806,7 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
         }
         let mut buffer = PackedBuffer::empty_in(alloc);
         let base = buffer.reset_for_pack(total_bytes)?;
-        let mut offset = (base.addr() + pointers_bytes).next_multiple_of(DEFAULT_ALIGNMENT) - base.addr();
+        let mut offset = pointers_bytes.next_multiple_of(DEFAULT_ALIGNMENT);
         for (index, cloud) in clouds.iter().enumerate() {
             let pack = unsafe { base.add(offset) };
             unsafe { pack_cloud(cloud, pack) }?;

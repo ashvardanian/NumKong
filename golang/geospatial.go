@@ -1,4 +1,4 @@
-// Haversine and Vincenty distances in meters between latitude and longitude slices in radians.
+// Haversine and Vincenty distances in meters from every point of one set to every point of another.
 //
 // File: golang/geospatial.go
 // Author: Ash Vardanian
@@ -7,67 +7,70 @@ package numkong
 
 // #include "numkong/numkong.h"
 import "C"
+import "unsafe"
 
-// HaversineF64 writes the great-circle distance in meters between each pair of float64 coordinates
-// in radians into result. All five slices must have the same length.
-func HaversineF64(aLat, aLon, bLat, bLon, result []float64) {
-	n := len(aLat)
-	if n != len(aLon) || n != len(bLat) || n != len(bLon) || n != len(result) {
-		panic("all coordinate and result slices must have the same length")
-	}
-	if n == 0 {
+// HaversinesF64 writes the great-circle distance in meters from each a point to each b point,
+// with float64 coordinates in radians, into results, row-major with len(bLatitudes) columns.
+// Each latitude slice matches its longitude slice, and results holds len(aLatitudes) *
+// len(bLatitudes) entries.
+func HaversinesF64(aLatitudes, aLongitudes, bLatitudes, bLongitudes, results []float64) {
+	columns := checkGeodesics(aLatitudes, aLongitudes, bLatitudes, bLongitudes, results)
+	if len(results) == 0 {
 		return
 	}
-	check(C.nk_haversine_f64_best(
-		(*C.nk_f64_t)(&aLat[0]), (*C.nk_f64_t)(&aLon[0]),
-		(*C.nk_f64_t)(&bLat[0]), (*C.nk_f64_t)(&bLon[0]),
-		C.nk_size_t(n), (*C.nk_f64_t)(&result[0]), C.nk_cap_cpus_k, nil))
+	check(C.nk_haversines_packed_f64_best(
+		packHaversinesF64(aLatitudes, aLongitudes), packHaversinesF64(bLatitudes, bLongitudes),
+		(*C.nk_f64_t)(&results[0]), C.nk_size_t(columns*8), C.nk_cap_cpus_k, nil))
 }
 
-// HaversineF32 writes the great-circle distance in meters between each pair of float32 coordinates
-// in radians into result. All five slices must have the same length.
-func HaversineF32(aLat, aLon, bLat, bLon, result []float32) {
-	n := len(aLat)
-	if n != len(aLon) || n != len(bLat) || n != len(bLon) || n != len(result) {
-		panic("all coordinate and result slices must have the same length")
-	}
-	if n == 0 {
+// VincentysF64 writes the ellipsoidal geodesic distance in meters from each a point to each b
+// point, with float64 coordinates in radians, into results, row-major with len(bLatitudes)
+// columns. Each latitude slice matches its longitude slice, and results holds len(aLatitudes) *
+// len(bLatitudes) entries.
+func VincentysF64(aLatitudes, aLongitudes, bLatitudes, bLongitudes, results []float64) {
+	columns := checkGeodesics(aLatitudes, aLongitudes, bLatitudes, bLongitudes, results)
+	if len(results) == 0 {
 		return
 	}
-	check(C.nk_haversine_f32_best(
-		(*C.nk_f32_t)(&aLat[0]), (*C.nk_f32_t)(&aLon[0]),
-		(*C.nk_f32_t)(&bLat[0]), (*C.nk_f32_t)(&bLon[0]),
-		C.nk_size_t(n), (*C.nk_f32_t)(&result[0]), C.nk_cap_cpus_k, nil))
+	check(C.nk_vincentys_packed_f64_best(
+		packVincentysF64(aLatitudes, aLongitudes), packVincentysF64(bLatitudes, bLongitudes),
+		(*C.nk_f64_t)(&results[0]), C.nk_size_t(columns*8), C.nk_cap_cpus_k, nil))
 }
 
-// VincentyF64 writes the ellipsoidal geodesic distance in meters between each pair of float64
-// coordinates in radians into result. All five slices must have the same length.
-func VincentyF64(aLat, aLon, bLat, bLon, result []float64) {
-	n := len(aLat)
-	if n != len(aLon) || n != len(bLat) || n != len(bLon) || n != len(result) {
-		panic("all coordinate and result slices must have the same length")
+// checkGeodesics panics unless each latitude slice matches its longitude slice and results holds
+// one entry per pair, and returns the number of columns.
+func checkGeodesics(aLatitudes, aLongitudes, bLatitudes, bLongitudes, results []float64) int {
+	rows, columns := len(aLatitudes), len(bLatitudes)
+	if rows != len(aLongitudes) || columns != len(bLongitudes) || rows*columns != len(results) {
+		panic("each latitude slice must match its longitude slice, and results must hold rows × columns entries")
 	}
-	if n == 0 {
-		return
-	}
-	check(C.nk_vincenty_f64_best(
-		(*C.nk_f64_t)(&aLat[0]), (*C.nk_f64_t)(&aLon[0]),
-		(*C.nk_f64_t)(&bLat[0]), (*C.nk_f64_t)(&bLon[0]),
-		C.nk_size_t(n), (*C.nk_f64_t)(&result[0]), C.nk_cap_cpus_k, nil))
+	return columns
 }
 
-// VincentyF32 writes the ellipsoidal geodesic distance in meters between each pair of float32
-// coordinates in radians into result. All five slices must have the same length.
-func VincentyF32(aLat, aLon, bLat, bLon, result []float32) {
-	n := len(aLat)
-	if n != len(aLon) || n != len(bLat) || n != len(bLon) || n != len(result) {
-		panic("all coordinate and result slices must have the same length")
-	}
-	if n == 0 {
-		return
-	}
-	check(C.nk_vincenty_f32_best(
-		(*C.nk_f32_t)(&aLat[0]), (*C.nk_f32_t)(&aLon[0]),
-		(*C.nk_f32_t)(&bLat[0]), (*C.nk_f32_t)(&bLon[0]),
-		C.nk_size_t(n), (*C.nk_f32_t)(&result[0]), C.nk_cap_cpus_k, nil))
+func packHaversinesF64(latitudes, longitudes []float64) unsafe.Pointer {
+	var size C.nk_size_t
+	check(C.nk_haversines_pack_size_f64_best(C.nk_size_t(len(latitudes)), C.nk_cap_cpus_k, &size))
+	packed := alignedBytes(size)
+	check(C.nk_haversines_pack_f64_best(
+		(*C.nk_f64_t)(&latitudes[0]), (*C.nk_f64_t)(&longitudes[0]), C.nk_size_t(len(latitudes)),
+		packed, C.nk_cap_cpus_k, nil))
+	return packed
+}
+
+func packVincentysF64(latitudes, longitudes []float64) unsafe.Pointer {
+	var size C.nk_size_t
+	check(C.nk_vincentys_pack_size_f64_best(C.nk_size_t(len(latitudes)), C.nk_cap_cpus_k, &size))
+	packed := alignedBytes(size)
+	check(C.nk_vincentys_pack_f64_best(
+		(*C.nk_f64_t)(&latitudes[0]), (*C.nk_f64_t)(&longitudes[0]), C.nk_size_t(len(latitudes)),
+		packed, C.nk_cap_cpus_k, nil))
+	return packed
+}
+
+// alignedBytes allocates size bytes starting on an nk_default_alignment_k boundary, as packs need.
+func alignedBytes(size C.nk_size_t) unsafe.Pointer {
+	alignment := int(C.nk_default_alignment_k)
+	data := make([]byte, int(size)+alignment-1)
+	misalignment := int(uintptr(unsafe.Pointer(&data[0])) % uintptr(alignment))
+	return unsafe.Pointer(&data[(alignment-misalignment)%alignment])
 }

@@ -25,8 +25,17 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     case nk_kernel_jaccard_k: return nk_set_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_bilinear_k:
     case nk_kernel_mahalanobis_k: return nk_curved_find_kernel(kind, dtype, capabilities, kernel, capability);
-    case nk_kernel_haversine_k:
-    case nk_kernel_vincenty_k: return nk_geospatial_find_kernel(kind, dtype, capabilities, kernel, capability);
+    case nk_kernel_sqeuclideans3d_k:
+    case nk_kernel_haversines_pack_size_k:
+    case nk_kernel_haversines_pack_k:
+    case nk_kernel_haversines_packed_k:
+    case nk_kernel_vincentys_pack_size_k:
+    case nk_kernel_vincentys_pack_k:
+    case nk_kernel_vincentys_packed_k:
+    case nk_kernel_terrain_pack_size_k:
+    case nk_kernel_terrain_pack_k:
+    case nk_kernel_terrain_heights_packed_k:
+    case nk_kernel_clearances_packed_k: return nk_geospatial_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_kld_k:
     case nk_kernel_jsd_k: return nk_probability_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_sparse_dot_k:

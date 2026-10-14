@@ -94,6 +94,7 @@
 #include "distance.h"
 #include "each.h"
 #include "trigonometry.h"
+#include "geospatial.h"
 #include "shapes.h"
 #include "attention.h"
 #include "maxsim.h"
@@ -1291,9 +1292,12 @@ static PyMethodDef nk_methods[] = {
     {"bilinear", (PyCFunction)api_bilinear, METH_FASTCALL | METH_KEYWORDS, doc_bilinear},
     {"mahalanobis", (PyCFunction)api_mahalanobis, METH_FASTCALL | METH_KEYWORDS, doc_mahalanobis},
 
-    // Geospatial distances
-    {"haversine", (PyCFunction)api_haversine, METH_FASTCALL | METH_KEYWORDS, doc_haversine},
-    {"vincenty", (PyCFunction)api_vincenty, METH_FASTCALL | METH_KEYWORDS, doc_vincenty},
+    // Many-to-many geospatial distances, over packed points on the Earth
+    {"sqeuclideans3d", (PyCFunction)api_sqeuclideans3d, METH_FASTCALL | METH_KEYWORDS, doc_sqeuclideans3d},
+    {"haversines_pack", (PyCFunction)api_haversines_pack, METH_FASTCALL | METH_KEYWORDS, doc_haversines_pack},
+    {"vincentys_pack", (PyCFunction)api_vincentys_pack, METH_FASTCALL | METH_KEYWORDS, doc_vincentys_pack},
+    {"haversines_packed", (PyCFunction)api_haversines_packed, METH_FASTCALL | METH_KEYWORDS, doc_haversines_packed},
+    {"vincentys_packed", (PyCFunction)api_vincentys_packed, METH_FASTCALL | METH_KEYWORDS, doc_vincentys_packed},
 
     // Tensor constructors
     {"from_pointer", (PyCFunction)api_from_pointer, METH_FASTCALL | METH_KEYWORDS, doc_from_pointer},
@@ -1454,6 +1458,8 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     if (PyType_Ready(&MaxSimPackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&AttentionPackedMatrixType) < 0) return NULL;
     if (PyType_Ready(&ShapesPackedMatrixType) < 0) return NULL;
+    if (PyType_Ready(&HaversinesPackedMatrixType) < 0) return NULL;
+    if (PyType_Ready(&VincentysPackedMatrixType) < 0) return NULL;
 
     m = PyModule_Create(&nk_module);
     if (m == NULL) return NULL;
@@ -1519,6 +1525,22 @@ PyMODINIT_FUNC PyInit__numkong(void) {
     Py_INCREF(&ShapesPackedMatrixType);
     if (PyModule_AddObject(m, "ShapesPackedMatrix", (PyObject *)&ShapesPackedMatrixType) < 0) {
         Py_XDECREF(&ShapesPackedMatrixType);
+        Py_XDECREF(m);
+        return NULL;
+    }
+
+    // Register HaversinesPackedMatrix type
+    Py_INCREF(&HaversinesPackedMatrixType);
+    if (PyModule_AddObject(m, "HaversinesPackedMatrix", (PyObject *)&HaversinesPackedMatrixType) < 0) {
+        Py_XDECREF(&HaversinesPackedMatrixType);
+        Py_XDECREF(m);
+        return NULL;
+    }
+
+    // Register VincentysPackedMatrix type
+    Py_INCREF(&VincentysPackedMatrixType);
+    if (PyModule_AddObject(m, "VincentysPackedMatrix", (PyObject *)&VincentysPackedMatrixType) < 0) {
+        Py_XDECREF(&VincentysPackedMatrixType);
         Py_XDECREF(m);
         return NULL;
     }

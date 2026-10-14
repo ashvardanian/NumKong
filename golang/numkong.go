@@ -9,7 +9,7 @@
 //   - Set similarities: [HammingU8], [HammingU1], [JaccardU1], [JaccardU16], [JaccardU32]
 //   - Divergences: [KullbackLeiblerF64], [KullbackLeiblerF32], [JensenShannonF64],
 //     [JensenShannonF32]
-//   - Geospatial distances: [HaversineF64], [HaversineF32], [VincentyF64], [VincentyF32]
+//   - Geospatial distances: [HaversinesF64], [VincentysF64]
 //
 // # Batch Operations
 //

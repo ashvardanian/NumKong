@@ -136,34 +136,6 @@ package func _nkE3M2BitsToF32(_ bits: UInt8) -> Float32 {
     return dst
 }
 
-@usableFromInline
-package func _nkWithGeoQuad<A: Sequence, B: Sequence, C: Sequence, D: Sequence, T>(
-    _ a: A, _ b: B, _ c: C, _ d: D,
-    _ body: (UnsafePointer<T>, UnsafePointer<T>, UnsafePointer<T>, UnsafePointer<T>, UnsafeMutablePointer<T>, Int) ->
-        nk_status_t
-) -> [T]?
-where A.Element == T, B.Element == T, C.Element == T, D.Element == T, T: BinaryFloatingPoint {
-    let aArr = Array(a)
-    let bArr = Array(b)
-    let cArr = Array(c)
-    let dArr = Array(d)
-    let n = aArr.count
-    guard n > 0 && n == bArr.count && n == cArr.count && n == dArr.count else { return nil }
-    var result = [T](repeating: 0, count: n)
-    let status = aArr.withUnsafeBufferPointer { ap in
-        bArr.withUnsafeBufferPointer { bp in
-            cArr.withUnsafeBufferPointer { cp in
-                dArr.withUnsafeBufferPointer { dp in
-                    result.withUnsafeMutableBufferPointer { rp in
-                        body(ap.baseAddress!, bp.baseAddress!, cp.baseAddress!, dp.baseAddress!, rp.baseAddress!, n)
-                    }
-                }
-            }
-        }
-    }
-    return status == nk_success_k ? result : nil
-}
-
 // MARK: - Low-Precision Storage Types
 
 /// Brain floating-point: 16-bit storage with 8-bit exponent, used in ML inference.
