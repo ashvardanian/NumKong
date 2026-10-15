@@ -999,7 +999,7 @@ mod tests {
     fn check_hammings_packed_parallel_u1() {
         init_thread();
         let topology = fu::Topology::new().unwrap();
-        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
         for &(rows, columns, depth) in DIMS {
             let depth = align_depth::<u1x8>(depth); // logical bit-count, multiple of 8
             let a = Tensor::<u1x8>::full(&[rows, depth], u1x8(0xFF)).unwrap();
@@ -1040,7 +1040,7 @@ mod tests {
     fn check_sets_symmetric_parallel() {
         init_thread();
         let topology = fu::Topology::new().unwrap();
-        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
         for &(num_vectors, _, depth) in DIMS {
             let depth = align_depth::<u1x8>(depth); // logical bit-count, multiple of 8
             let vectors = Tensor::<u1x8>::full(&[num_vectors, depth], u1x8(0xFF)).unwrap();

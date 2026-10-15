@@ -1615,7 +1615,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let window_bounds = &window_bounds;
         let failure = WorkerStatus::default();
         let failure = &failure;
-        pool.for_n_dynamic(window_count, move |prong| {
+        fu::for_n_dynamic(pool, window_count, move |window, _thread| {
             // Configure the worker for AMX and other thread-local SIMD state — idempotent.
             if let Err(error) = crate::capabilities::configure_cpu_thread() {
                 failure.record(Err(error));
@@ -1637,11 +1637,11 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                     out_ptr.as_ptr(),
                     output_stride,
                     null_mut(),
-                    window_bounds[prong.task_index],
-                    window_bounds[prong.task_index + 1],
+                    window_bounds[window],
+                    window_bounds[window + 1],
                 ));
             }
-        }); // executes and synchronizes on drop
+        });
         failure.check()
     }
 
@@ -1711,7 +1711,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let packed_ptr = fu::SyncMutPtr::new(destination);
         let failure = WorkerStatus::default();
         let failure = &failure;
-        pool.for_n_dynamic(segment_count * heads, move |prong| {
+        fu::for_n_dynamic(pool, segment_count * heads, move |task, _thread| {
             if let Err(error) = crate::capabilities::configure_cpu_thread() {
                 failure.record(Err(error));
                 return;
@@ -1728,11 +1728,11 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                     values_ptr.as_ptr(),
                     values_stride,
                     packed_ptr.as_ptr(),
-                    prong.task_index,
-                    prong.task_index + 1,
+                    task,
+                    task + 1,
                 ));
             }
-        }); // executes and synchronizes on drop
+        });
         failure.check()
     }
 }

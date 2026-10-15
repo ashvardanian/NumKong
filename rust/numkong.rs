@@ -384,7 +384,7 @@ mod tests {
             .attention(&keys.view(), &offsets, None, usize::MAX, usize::MAX)
             .unwrap();
         let topology = fu::Topology::new().unwrap();
-        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
         let mut parallel = Tensor::<f32>::full(&[tokens, heads * depth], 0.0).unwrap();
         kv.attention_parallel_into(
             &keys.view(),
@@ -437,7 +437,7 @@ mod tests {
 
         // Parallel pack must yield a byte-identical blob.
         let topology = fu::Topology::new().unwrap();
-        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
         let kv_parallel =
             AttentionPackedMatrix::new_parallel(&keys.view(), &values.view(), depth, &offsets, None, &mut pool)
                 .unwrap();

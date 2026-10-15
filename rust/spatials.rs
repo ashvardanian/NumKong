@@ -2469,7 +2469,7 @@ where
     /// use forkunion::ThreadPool;
     ///
     /// let topology = forkunion::Topology::new().unwrap();
-    /// let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
+    /// let mut pool = ThreadPool::spawn(&topology, 4).unwrap();
     /// let a = Tensor::<f32>::full(&[1024, 512], 1.0).unwrap();
     /// let b = Tensor::<f32>::full(&[256, 512], 1.0).unwrap();
     /// let b_packed = DotsPackedMatrix::new(&b).unwrap();
@@ -2675,7 +2675,7 @@ where
     /// use forkunion::ThreadPool;
     ///
     /// let topology = forkunion::Topology::new().unwrap();
-    /// let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
+    /// let mut pool = ThreadPool::spawn(&topology, 4).unwrap();
     /// let a = Tensor::<f32>::full(&[1024, 512], 1.0).unwrap();
     /// let b = Tensor::<f32>::full(&[256, 512], 1.0).unwrap();
     /// let b_packed = DotsPackedMatrix::new(&b).unwrap();
@@ -3007,7 +3007,7 @@ mod tests {
     {
         init_thread();
         let topology = fu::Topology::new().unwrap();
-        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
         for &(rows, columns, depth) in DIMS {
             let a = Tensor::<Scalar>::full(&[rows, depth], Scalar::one()).unwrap();
             let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
@@ -3030,7 +3030,7 @@ mod tests {
     {
         init_thread();
         let topology = fu::Topology::new().unwrap();
-        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
         for &(rows, columns, depth) in DIMS {
             let a = Tensor::<Scalar>::full(&[rows, depth], Scalar::one()).unwrap();
             let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
@@ -3060,7 +3060,7 @@ mod tests {
     {
         init_thread();
         let topology = fu::Topology::new().unwrap();
-        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
         for &(num_vectors, _, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
             let vectors = Tensor::<Scalar>::full(&[num_vectors, depth], Scalar::one()).unwrap();

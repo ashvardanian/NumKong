@@ -2244,18 +2244,25 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         if size == 0 {
             return Ok(());
         }
+        // An empty B still needs its header, which only a call starting at column 0 writes.
+        if columns == 0 {
+            return unsafe { Scalar::dots_pack(matrix.as_ptr(), 0, depth, stride, destination, 0, 0) };
+        }
         // for_slices partitions [0, columns) into one contiguous column range per thread, so every
         // packed tile is written exactly once and the slice starting at column 0 writes the header.
         let matrix_ptr = fu::SyncConstPtr::new(matrix.as_ptr());
         let destination_ptr = fu::SyncMutPtr::new(destination);
         let failure = WorkerStatus::default();
         let failure = &failure;
-        pool.for_slices(columns, move |prong, count| {
+        fu::for_slices(pool, columns, move |tasks, _thread| {
+            // Idle threads get empty ranges, which may start at column 0 and race on the header.
+            if tasks.is_empty() {
+                return;
+            }
             if let Err(error) = crate::capabilities::configure_cpu_thread() {
                 failure.record(Err(error));
                 return;
             }
-            let columns_begin = prong.task_index;
             failure.record(unsafe {
                 Scalar::dots_pack(
                     matrix_ptr.as_ptr(),
@@ -2263,11 +2270,11 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
                     depth,
                     stride,
                     destination_ptr.as_ptr(),
-                    columns_begin,
-                    columns_begin + count,
+                    tasks.first,
+                    tasks.end(),
                 )
             });
-        }); // executes and synchronizes on drop
+        });
         failure.check()
     }
 
@@ -2666,7 +2673,7 @@ where
     /// use forkunion::ThreadPool;
     ///
     /// let topology = forkunion::Topology::new().unwrap();
-    /// let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
+    /// let mut pool = ThreadPool::spawn(&topology, 4).unwrap();
     /// let a = Tensor::<f32>::full(&[1024, 512], 1.0).unwrap();
     /// let b = Tensor::<f32>::full(&[256, 512], 1.0).unwrap();
     /// let b_packed = DotsPackedMatrix::new(&b).unwrap();
@@ -2833,7 +2840,7 @@ where
     /// use forkunion::ThreadPool;
     ///
     /// let topology = forkunion::Topology::new().unwrap();
-    /// let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
+    /// let mut pool = ThreadPool::spawn(&topology, 4).unwrap();
     /// let vectors = Tensor::<f32>::full(&[100, 768], 1.0).unwrap();
     /// let gram = vectors.dots_symmetric_parallel(&mut pool).unwrap();
     /// assert_eq!(gram.shape(), &[100, 100]);
@@ -3094,7 +3101,7 @@ mod tests {
     {
         init_thread();
         let topology = fu::Topology::new().unwrap();
-        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
         for &(rows, columns, depth) in DIMS {
             let a = Tensor::<Scalar>::full(&[rows, depth], Scalar::one()).unwrap();
             let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
@@ -3117,7 +3124,7 @@ mod tests {
     {
         init_thread();
         let topology = fu::Topology::new().unwrap();
-        let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
         for &(num_vectors, _, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
             let vectors = Tensor::<Scalar>::full(&[num_vectors, depth], Scalar::one()).unwrap();
@@ -3479,7 +3486,7 @@ mod tests {
             let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
             let serial = DotsPackedMatrix::new(&b).unwrap();
             let topology = fu::Topology::new().unwrap();
-            let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
+            let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
             let parallel = DotsPackedMatrix::new_parallel(&b, &mut pool).unwrap();
             assert_eq!(
                 serial.as_bytes(),

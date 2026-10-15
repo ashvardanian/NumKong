@@ -723,7 +723,7 @@ use forkunion::{ThreadPool, Topology};
 let a = Tensor::<f32>::full(&[4096, 768], 1.0).unwrap();
 let b = Tensor::<f32>::full(&[8192, 768], 1.0).unwrap();
 let topology = Topology::new().unwrap();
-let mut pool = ThreadPool::try_spawn(&topology, 4).unwrap();
+let mut pool = ThreadPool::spawn(&topology, 4).unwrap();
 
 // GEMM-like: rows of A partitioned across threads, one shared packed B
 let b_packed = DotsPackedMatrix::new(&b).unwrap();
