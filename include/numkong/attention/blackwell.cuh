@@ -15,15 +15,16 @@
  *  thread and writes P over it, and P · V reads P from there as its A operand into an F32 O that
  *  stays in tensor memory too. A correction warpgroup rescales a row of O only when its maximum
  *  moved, which BF16 lets it do only past 2⁸, and finally normalizes and stores it. BF16 multiplies
- *  as @c kind::f16, E4M3 as @c kind::f8f6f4 with weights e4m3(256 · p), and I8 as exact F16: its
- *  pack stores K and V widened and the softmax warps widen Q as they stage it, under the U8 weights
- *  of the serial contract. `tcgen05.mma.kind::i8` exists only in sm_100a and sm_110a code, not in
- *  the family code shared with the 10.3 and 10.7 parts, so integers multiply as exact F16. The pack
- *  keeps V position-major, which P · V reads MN-major, so one tensor map reaches every plane;
- *  depths above 256 keep the @c cuda layout and kernel. Only the "100f" family code carries these
- *  instructions, so every other device pass traps. Launches of fewer items than half the
- *  multiprocessors give each item a cluster of up to 16 blocks, which split its panels and merge
- *  their rows of O through distributed shared memory.
+ *  as @c kind::f16, E4M3 as @c kind::f8f6f4 with weights e4m3(256 · p) and the E4M3 residuals of
+ *  those in a product of their own, so P keeps about 8 bits, and I8 as exact F16: its pack stores K
+ *  and V widened and the softmax warps widen Q as they stage it, under the U8 weights of the serial
+ *  contract. `tcgen05.mma.kind::i8` exists only in sm_100a and sm_110a code, not in the family code
+ *  shared with the 10.3 and 10.7 parts, so integers multiply as exact F16. The pack keeps V
+ *  position-major, which P · V reads MN-major, so one tensor map reaches every plane; depths above
+ *  256 keep the @c cuda layout and kernel. Only the "100f" family code carries these instructions,
+ *  so every other device pass traps. Launches of fewer items than half the multiprocessors give
+ *  each item a cluster of up to 16 blocks, which split its panels and merge their rows of O through
+ *  distributed shared memory.
  *
  *  The BF16 backward stages K, V, Q and dO once each in the same swizzled rows, which the products
  *  read K-major or MN-major as each needs. Blocks of 128 keys take Sᵀ and dPᵀ into tensor memory,
@@ -161,6 +162,9 @@ typedef struct {
 
     /** The columns of O, the steps of P · V per panel and the bytes each moves along V. */
     unsigned value_columns, value_steps, value_step_bytes;
+
+    /** Parts each weight of P splits into, each a product of its own: 2 for E4M3, else 1. */
+    unsigned weight_parts;
 
     /** Bytes of a Q tile, of a stage, and the ring's stages. */
     unsigned queries_bytes, stage_bytes, ring_stages;
@@ -331,14 +335,6 @@ NUMKONG_DEVICE void nk_load_box_3d_blackwell_(nk_u32_t destination, void const *
                  : "memory");
 }
 
-/* Writes 8 consecutive columns of this thread's lane, without waiting. */
-NUMKONG_DEVICE void nk_tmem_store_x8_blackwell_(nk_u32_t address, nk_u32_t const values[8]) {
-    asm volatile("tcgen05.st.sync.aligned.32x32b.x8.b32 [%0], {%1, %2, %3, %4, %5, %6, %7, %8};\n" ::"r"(address),
-                 "r"(values[0]), "r"(values[1]), "r"(values[2]), "r"(values[3]), "r"(values[4]), "r"(values[5]),
-                 "r"(values[6]), "r"(values[7])
-                 : "memory");
-}
-
 /* Writes 16 consecutive columns of this thread's lane, without waiting. */
 NUMKONG_DEVICE void nk_tmem_store_x16_blackwell_(nk_u32_t address, nk_u32_t const values[16]) {
     asm volatile("tcgen05.st.sync.aligned.32x32b.x16.b32 [%0], "                                              //
@@ -441,39 +437,34 @@ NUMKONG_DEVICE void nk_attention_weights_f16_blackwell_(nk_f32_t const probabili
                                        __half2float(__ushort_as_half((unsigned short)(packed[word] >> 16)))));
 }
 
-/** Four F32 values as E4M3 codes of one word, the first in the low byte, rounding to nearest and
- *  saturating, with no permute to join the pairs. */
-NUMKONG_DEVICE nk_u32_t nk_f32x4_to_e4m3x4_blackwell_(nk_f32_t const values[4]) {
-    nk_u32_t codes;
-    asm("{\n.reg .b16 low, high;\n"                   //
-        "cvt.rn.satfinite.e4m3x2.f32 low, %2, %1;\n"  //
-        "cvt.rn.satfinite.e4m3x2.f32 high, %4, %3;\n" //
-        "mov.b32 %0, {low, high};\n}\n"
-        : "=r"(codes)
-        : "f"(values[0]), "f"(values[1]), "f"(values[2]), "f"(values[3]));
-    return codes;
-}
-
-/** Adds the two F16 halves of @p halves to the two F32 lanes of @p sums, widening as they add. */
-NUMKONG_DEVICE nk_u64_t nk_f32x2_add_f16x2_blackwell_(nk_u64_t sums, nk_u32_t halves) {
-    nk_f32_t low = nk_f32x2_low_blackwell_(sums), high = nk_f32x2_high_blackwell_(sums);
-    asm("{\n.reg .b16 low, high;\n"     //
-        "mov.b32 {low, high}, %2;\n"    //
-        "add.rn.f32.f16 %0, low, %0;\n" //
-        "add.rn.f32.f16 %1, high, %1;\n}\n"
-        : "+f"(low), "+f"(high)
+/** Two E4M3 parts of each F16 lane of @p halves, the high one rounding it and the low one rounding
+ *  what the high one misses: the high codes in the low 16 bits, the first lane in the low byte. */
+NUMKONG_DEVICE nk_u32_t nk_f16x2_to_e4m3x2_parts_blackwell_(nk_u32_t halves) {
+    nk_u32_t parts;
+    asm("{\n.reg .b16 high, low;\n.reg .b32 decoded, residual;\n" //
+        "cvt.rn.satfinite.e4m3x2.f16x2 high, %1;\n"               //
+        "cvt.rn.f16x2.e4m3x2 decoded, high;\n"                    //
+        "sub.rn.f16x2 residual, %1, decoded;\n"                   //
+        "cvt.rn.satfinite.e4m3x2.f16x2 low, residual;\n"          //
+        "mov.b32 %0, {high, low};\n}\n"
+        : "=r"(parts)
         : "r"(halves));
-    return nk_f32x2_blackwell_(low, high);
+    return parts;
 }
 
-/** E4M3 weights e4m3(256 · p) of probabilities the softmax already amplified by 256, summed as
- *  rounded, which the output's division by the sum undoes. */
+/** E4M3 weights of probabilities the softmax already amplified by 256, each the sum of a high part
+ *  e4m3(256 · p) and a low part rounding its residual, which P · V multiply in turn, so a weight
+ *  keeps about 8 bits as the BF16 weights of the serial contract do. The sums take the
+ *  probabilities as they are, within 2⁻⁹ of the weights, and dividing by them undoes the 256. */
 NUMKONG_DEVICE void nk_attention_weights_e4m3_blackwell_(nk_f32_t const probabilities[4], nk_u32_t packed[2],
                                                          nk_u64_t *sums) {
-    nk_u32_t const codes = nk_f32x4_to_e4m3x4_blackwell_(probabilities);
-    packed[0] = codes, packed[1] = 0;
-    *sums = nk_f32x2_add_f16x2_blackwell_(*sums, nk_e4m3x2_to_f16x2_ada_((unsigned short)(codes & 0xFFFFu)));
-    *sums = nk_f32x2_add_f16x2_blackwell_(*sums, nk_e4m3x2_to_f16x2_ada_((unsigned short)(codes >> 16)));
+    nk_u32_t const first = nk_f16x2_to_e4m3x2_parts_blackwell_(
+        nk_f32x2_to_f16x2_ampere_(probabilities[0], probabilities[1]));
+    nk_u32_t const second = nk_f16x2_to_e4m3x2_parts_blackwell_(
+        nk_f32x2_to_f16x2_ampere_(probabilities[2], probabilities[3]));
+    packed[0] = (first & 0xFFFFu) | (second << 16), packed[1] = (first >> 16) | (second & 0xFFFF0000u);
+    *sums = nk_f32x2_add_blackwell_(*sums, nk_f32x2_blackwell_(probabilities[0], probabilities[1]));
+    *sums = nk_f32x2_add_blackwell_(*sums, nk_f32x2_blackwell_(probabilities[2], probabilities[3]));
 }
 
 /** U8 weights round(255 · p) as F16 pairs of integers, the max-scoring position landing on 255,
@@ -598,7 +589,8 @@ NUMKONG_DEVICE nk_attention_schedule_blackwell_t nk_attention_schedule_blackwell
     schedule.staged_bytes = schedule.row_bytes;
     schedule.depth_steps = schedule.staged_bytes / 32;
     schedule.value_columns = schedule.staged_bytes / operand_bytes;
-    schedule.value_steps = nk_attention_panel_blackwell_k * operand_bytes / 32;
+    schedule.weight_parts = operand_bytes == 1 ? 2 : 1;
+    schedule.value_steps = nk_attention_panel_blackwell_k * operand_bytes / 32 * schedule.weight_parts;
     schedule.value_step_bytes = 32 / operand_bytes * 128;
     schedule.queries_bytes = nk_attention_tile_rows_blackwell_k *
                              nk_attention_staged_bytes_blackwell_(kernel->element_bytes, kernel->widens, kernel->width);
@@ -3095,8 +3087,8 @@ NUMKONG_CONSTEXPR nk_size_t nk_attention_pack_element_bytes_i8_blackwell_(nk_siz
  *      descriptors of both operands.
  *  @param[in] values_fn Issues one step of O += P · V, with P at a tensor-memory address.
  *  @param[in] weights_fn Packs four probabilities of consecutive positions into words of P, a word
- *      per 16-bit pair for @c kind::f16 or one for four E4M3 codes, and adds the weights P · V sees
- *      to the F32 pair of running sums.
+ *      per 16-bit pair for @c kind::f16 or one per part for the high and low E4M3 codes, and adds
+ *      the weights P · V sees to the F32 pair of running sums.
  *  @param[in] format The operand format code of both products.
  *
  *  The roles issue the products or weigh the panels of one tile. The tile runs over every work
@@ -3157,7 +3149,8 @@ NUMKONG_CONSTEXPR nk_size_t nk_attention_pack_element_bytes_i8_blackwell_(nk_siz
                 nk_tmem_fence_after_blackwell_();                                                                      \
             }                                                                                                          \
             if (elected)                                                                                               \
-                values_fn(accumulator, weights + 8 * step, b + step * schedule->value_step_bytes / 16,                 \
+                values_fn(accumulator, weights + 8 * step,                                                             \
+                          b + step / schedule->weight_parts * schedule->value_step_bytes / 16,                         \
                           schedule->values_instruction, !first || step != 0);                                          \
         }                                                                                                              \
         if (last && elected) nk_attention_commit_blackwell_(&control->accumulated[tile]);                              \
@@ -3284,11 +3277,12 @@ NUMKONG_CONSTEXPR nk_size_t nk_attention_pack_element_bytes_i8_blackwell_(nk_siz
                     if (!((visible[chunk / 32] >> (group * 4 + index)) & 1)) probabilities[index] = 0;                 \
                 }                                                                                                      \
                 weights_fn(probabilities, packed, &sums);                                                              \
-                if (kernel->element_bytes == 1 && !kernel->widens) words[group] = packed[0];                           \
+                /* An E4M3 weight's high and low parts land 8 columns apart, a product each */                         \
+                if (kernel->element_bytes == 1 && !kernel->widens)                                                     \
+                    words[group] = packed[0], words[group + 8] = packed[1];                                            \
                 else words[group * 2] = packed[0], words[group * 2 + 1] = packed[1];                                   \
             }                                                                                                          \
-            if (kernel->element_bytes == 1 && !kernel->widens) nk_tmem_store_x8_blackwell_(scores + chunk / 4, words); \
-            else nk_tmem_store_x16_blackwell_(scores + chunk / 2, words);                                              \
+            nk_tmem_store_x16_blackwell_(scores + chunk / 2, words);                                                   \
             if (chunk + 32 == nk_attention_panel_blackwell_k / 2) {                                                    \
                 nk_tmem_wait_store_blackwell_();                                                                       \
                 nk_tmem_fence_before_blackwell_();                                                                     \
