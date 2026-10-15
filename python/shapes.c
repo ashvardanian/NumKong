@@ -17,6 +17,7 @@
  *  - distances: @b [rows,columns], rotations: @b [rows,columns,3,3]
  */
 #include "shapes.h"
+#include "parallel.h" // `nk_parallel_for_tiles`
 #include "tensor.h"
 
 #include "numkong/shapes.h"
@@ -339,11 +340,34 @@ static int shapes_cloud_buffer(PyObject *cloud, Py_buffer *buffer, nk_buffer_bac
     return 0;
 }
 
+/** One cloud of a pack: its acquired buffer, its points as the kernel reads them, and its pack. */
+typedef struct shapes_pack_source_t {
+    Py_buffer buffer;
+    char *points;
+    nk_size_t count;
+    int owns_points;
+    void *pack;
+} shapes_pack_source_t;
+
+/** Every cloud of a pack, one per tile, named as in `nk_shapes_pack_*`. */
+typedef struct shapes_pack_task_t {
+    nk_shapes_pack_punned_t kernel;
+    shapes_pack_source_t const *sources;
+    nk_stream_t stream;
+} shapes_pack_task_t;
+
+static nk_status_t shapes_pack_tile_(nk_size_t tile_index, void *context) {
+    shapes_pack_task_t const *task = (shapes_pack_task_t const *)context;
+    shapes_pack_source_t const *source = &task->sources[tile_index];
+    return task->kernel(source->points, source->count, source->pack, task->stream);
+}
+
 /** Packs one cloud or a sequence of them with the packing kernel of @p pack_kind. */
 static PyObject *shapes_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
                                     nk_kernel_kind_t pack_kind) {
     char const *name = nk_kernel_name(pack_kind);
     PyObject *dtype_argument = NULL;
+    nk_size_t threads = 1;
     nk_capability_t capabilities = nk_cap_cpus_k;
     nk_stream_t stream = NULL;
 
@@ -363,6 +387,11 @@ static PyObject *shapes_pack_common(PyObject *const *args, Py_ssize_t nargs, PyO
             }
             dtype_argument = args[nargs + i];
         }
+        else if (PyUnicode_CompareWithASCIIString(key, "threads") == 0) {
+            Py_ssize_t t = PyLong_AsSsize_t(args[nargs + i]);
+            if (t == -1 && PyErr_Occurred()) return NULL;
+            threads = (nk_size_t)(t >= 0 ? t : 0);
+        }
         else if (!parse_dispatch_keyword(key, args[nargs + i], &capabilities, &stream)) return NULL;
     }
     if (dtype_argument == Py_None) dtype_argument = NULL;
@@ -374,7 +403,7 @@ static PyObject *shapes_pack_common(PyObject *const *args, Py_ssize_t nargs, PyO
         return NULL;
     }
 
-    // A tuple snapshot keeps the clouds fixed while the GIL is released between packs
+    // A tuple snapshot and buffers held to the end keep the clouds fixed while the GIL is released
     int const many = PyList_Check(args[0]) || PyTuple_Check(args[0]);
     PyObject *sequence = many ? PySequence_Tuple(args[0]) : NULL;
     if (many && !sequence) return NULL;
@@ -385,16 +414,22 @@ static PyObject *shapes_pack_common(PyObject *const *args, Py_ssize_t nargs, PyO
     nk_shapes_pack_size_punned_t size_fn = NULL;
     nk_shapes_pack_punned_t pack_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    Py_buffer buffer;
     nk_buffer_backing_t backing;
     nk_dtype_t source_dtype;
+    Py_ssize_t acquired = 0;
+    shapes_pack_source_t *sources = PyMem_Calloc((size_t)count, sizeof(shapes_pack_source_t));
+    if (!sources) {
+        PyErr_NoMemory();
+        goto cleanup;
+    }
 
     // The first pass sizes the buffer, and the first cloud picks the dtype unless `dtype=` did
     nk_size_t total_bytes = 0;
     for (Py_ssize_t index = 0; index != count; ++index) {
-        if (!shapes_cloud_buffer(clouds[index], &buffer, &backing, &source_dtype)) goto cleanup;
-        nk_size_t const points = (nk_size_t)buffer.shape[0];
-        PyBuffer_Release(&buffer);
+        shapes_pack_source_t *source = &sources[index];
+        if (!shapes_cloud_buffer(clouds[index], &source->buffer, &backing, &source_dtype)) goto cleanup;
+        acquired = index + 1;
+        source->count = (nk_size_t)source->buffer.shape[0];
         if (dtype == nk_dtype_unknown_k) dtype = source_dtype == nk_f16_k ? nk_f16_k : nk_f32_k;
         if (!size_fn) {
             nk_find_kernel_punned(nk_kernel_shapes_pack_size_k, dtype, capabilities, (nk_kernel_punned_t *)&size_fn,
@@ -408,8 +443,11 @@ static PyObject *shapes_pack_common(PyObject *const *args, Py_ssize_t nargs, PyO
             }
         }
         nk_size_t bytes = 0;
-        if (!check_status(size_fn(points, &bytes))) goto cleanup;
+        if (!check_status(size_fn(source->count, &bytes))) goto cleanup;
         total_bytes += nk_size_round_up_to_multiple_(bytes, nk_default_alignment_k);
+        source->points = ensure_contiguous_buffer(source->buffer.buf, source_dtype, dtype, 2, source->buffer.shape,
+                                                  source->buffer.strides, source->count * 3, &source->owns_points);
+        if (!source->points) goto cleanup;
     }
     if (dtype == nk_dtype_unknown_k) dtype = nk_f32_k;
 
@@ -423,44 +461,30 @@ static PyObject *shapes_pack_common(PyObject *const *args, Py_ssize_t nargs, PyO
 
     char *pack = (char *)packed->packs + pointers_bytes;
     pack += (nk_default_alignment_k - (uintptr_t)pack % nk_default_alignment_k) % nk_default_alignment_k;
-    char const *const packs_end = pack + total_bytes;
     for (Py_ssize_t index = 0; index != count; ++index) {
-        if (!shapes_cloud_buffer(clouds[index], &buffer, &backing, &source_dtype)) goto failed;
-        nk_size_t const points = (nk_size_t)buffer.shape[0];
         nk_size_t bytes = 0;
-        size_fn(points, &bytes);
-        if (bytes > (nk_size_t)(packs_end - pack)) {
-            PyBuffer_Release(&buffer);
-            PyErr_SetString(PyExc_ValueError, "points changed size while packing");
-            goto failed;
-        }
-        int needs_free = 0;
-        char *contiguous = ensure_contiguous_buffer(buffer.buf, source_dtype, dtype, 2, buffer.shape, buffer.strides,
-                                                    points * 3, &needs_free);
-        if (!contiguous) {
-            PyBuffer_Release(&buffer);
-            goto failed;
-        }
-        PyThreadState *save = PyEval_SaveThread();
-        nk_status_t const status = pack_fn(contiguous, points, pack, stream);
-        PyEval_RestoreThread(save);
-        if (needs_free) PyMem_Free(contiguous);
-        PyBuffer_Release(&buffer);
-        if (!check_status(status)) goto failed;
-        packed->packs[index] = pack;
+        size_fn(sources[index].count, &bytes);
+        packed->packs[index] = sources[index].pack = pack;
         pack += nk_size_round_up_to_multiple_(bytes, nk_default_alignment_k);
     }
-    goto cleanup;
+    shapes_pack_task_t const task = {.kernel = pack_fn, .sources = sources, .stream = stream};
+    PyThreadState *save = PyEval_SaveThread();
+    nk_status_t const status = nk_parallel_for_tiles((nk_size_t)count, threads, shapes_pack_tile_, (void *)&task);
+    PyEval_RestoreThread(save);
+    if (!check_status(status)) Py_CLEAR(packed);
 
-failed:
-    Py_CLEAR(packed);
 cleanup:
+    for (Py_ssize_t index = 0; index != acquired; ++index) {
+        if (sources[index].owns_points) PyMem_Free(sources[index].points);
+        PyBuffer_Release(&sources[index].buffer);
+    }
+    PyMem_Free(sources);
     Py_XDECREF(sequence);
     return (PyObject *)packed;
 }
 
 char const doc_shapes_pack[] =                                                         //
-    "shapes_pack(points, /, dtype=None) -> ShapesPackedMatrix\n\n"                     //
+    "shapes_pack(points, /, dtype=None, *, threads=1) -> ShapesPackedMatrix\n\n"       //
     "Pack 3D point clouds for the many-to-many shape distances.\n\n"                   //
     "Each cloud is packed on its own: centered on its centroid and rotated onto its\n" //
     "principal axes, so a pack is the same on every machine.\n\n"                      //
@@ -468,36 +492,38 @@ char const doc_shapes_pack[] =                                                  
     "    points (array_like or list): One cloud of shape [points,3], or a list or\n"   //
     "        tuple of clouds of any sizes.\n"                                          //
     "    dtype (string, optional): Packing dtype, 'float16' or 'float32'. Default:\n"  //
-    "        float16 for a float16 first cloud, float32 otherwise.\n\n"                //
+    "        float16 for a float16 first cloud, float32 otherwise.\n"                  //
+    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                //
     "Returns:\n"                                                                       //
     "    ShapesPackedMatrix: The packed clouds, for chamfers_packed(),\n"              //
     "        hausdorffs_packed(), wassersteinprocrustes_packed() and\n"                //
     "        gromovwassersteins_packed().\n\n"                                         //
     "Signature:\n"                                                                     //
-    "    >>> def shapes_pack(points, /, dtype=None) -> ShapesPackedMatrix: ...";
+    "    >>> def shapes_pack(points, /, dtype=None, *, threads=1) -> ShapesPackedMatrix: ...";
 
 PyObject *api_shapes_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
     return shapes_pack_common(args, nargs, kwnames, nk_kernel_shapes_pack_k);
 }
 
-char const doc_shapes_pack_normalized[] =                                              //
-    "shapes_pack_normalized(points, /, dtype=None) -> ShapesPackedMatrix\n\n"          //
-    "Pack 3D point clouds like shapes_pack(), each also divided by its RMS distance\n" //
-    "from the centroid, which the `scales` property keeps, so every kind compares\n"   //
-    "shapes regardless of size. A cloud with no spread keeps a scale of 1. Between\n"  //
-    "normalized packs, each rotation takes column cloud b onto row cloud a as:\n\n"    //
-    "    aᵢ ≈ (scale_a / scale_b) × R × (bⱼ − b̄) + ā\n\n"                              //
-    "Args:\n"                                                                          //
-    "    points (array_like or list): One cloud of shape [points,3], or a list or\n"   //
-    "        tuple of clouds of any sizes.\n"                                          //
-    "    dtype (string, optional): Packing dtype, 'float16' or 'float32'. Default:\n"  //
-    "        float16 for a float16 first cloud, float32 otherwise.\n\n"                //
-    "Returns:\n"                                                                       //
-    "    ShapesPackedMatrix: The packed clouds, for the same functions as\n"           //
-    "        shapes_pack().\n\n"                                                       //
-    "Signature:\n"                                                                     //
-    "    >>> def shapes_pack_normalized(points, /, dtype=None) -> ShapesPackedMatrix: ...";
+char const doc_shapes_pack_normalized[] =                                                   //
+    "shapes_pack_normalized(points, /, dtype=None, *, threads=1) -> ShapesPackedMatrix\n\n" //
+    "Pack 3D point clouds like shapes_pack(), each also divided by its RMS distance\n"      //
+    "from the centroid, which the `scales` property keeps, so every kind compares\n"        //
+    "shapes regardless of size. A cloud with no spread keeps a scale of 1. Between\n"       //
+    "normalized packs, each rotation takes column cloud b onto row cloud a as:\n\n"         //
+    "    aᵢ ≈ (scale_a / scale_b) × R × (bⱼ − b̄) + ā\n\n"                                   //
+    "Args:\n"                                                                               //
+    "    points (array_like or list): One cloud of shape [points,3], or a list or\n"        //
+    "        tuple of clouds of any sizes.\n"                                               //
+    "    dtype (string, optional): Packing dtype, 'float16' or 'float32'. Default:\n"       //
+    "        float16 for a float16 first cloud, float32 otherwise.\n"                       //
+    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                     //
+    "Returns:\n"                                                                            //
+    "    ShapesPackedMatrix: The packed clouds, for the same functions as\n"                //
+    "        shapes_pack().\n\n"                                                            //
+    "Signature:\n"                                                                          //
+    "    >>> def shapes_pack_normalized(points, /, dtype=None, *, threads=1) -> ShapesPackedMatrix: ...";
 
 PyObject *api_shapes_pack_normalized(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -521,6 +547,41 @@ static int shapes_rotations_buffer(PyObject *object, Py_ssize_t const *shape, Py
     return 0;
 }
 
+/** A many-to-many shape call cut into windows of row clouds, named as in `nk_*_packed_*`: window
+ *  @c w scores rows from w × rows ÷ windows up to (w + 1) × rows ÷ windows, in its own
+ *  @c workspace_stride bytes of @c workspace when @c workspace_kernel is set. */
+typedef struct shapes_packed_task_t {
+    nk_shapes_packed_punned_t kernel;
+    nk_shapes_packed_workspace_punned_t workspace_kernel;
+    void const *const *a_packed;
+    nk_size_t rows;
+    void const *const *b_packed;
+    nk_size_t columns;
+    char *results;
+    nk_size_t results_stride;
+    nk_f32_t *rotations;
+    char *workspace;
+    nk_size_t workspace_bytes;
+    nk_size_t workspace_stride;
+    nk_size_t windows;
+    nk_stream_t stream;
+} shapes_packed_task_t;
+
+static nk_status_t shapes_packed_tile_(nk_size_t tile_index, void *context) {
+    shapes_packed_task_t const *task = (shapes_packed_task_t const *)context;
+    nk_size_t const rows_begin = tile_index * task->rows / task->windows;
+    nk_size_t const rows = (tile_index + 1) * task->rows / task->windows - rows_begin;
+    void const *const *a_packed = task->a_packed + rows_begin;
+    char *results = task->results + rows_begin * task->results_stride;
+    nk_f32_t *rotations = task->rotations ? task->rotations + rows_begin * task->columns * 9 : NULL;
+    if (!task->workspace_kernel)
+        return task->kernel(a_packed, rows, task->b_packed, task->columns, results, task->results_stride, rotations,
+                            task->stream);
+    return task->workspace_kernel(a_packed, rows, task->b_packed, task->columns, results, task->results_stride,
+                                  rotations, task->workspace + tile_index * task->workspace_stride,
+                                  task->workspace_bytes, task->stream);
+}
+
 /** Scores every row cloud against every column cloud with the many-to-many kernel of @p kind, in a
  *  workspace sized by @p workspace_kind, or none when that is @c nk_kernel_unknown_k. */
 static PyObject *shapes_packed_common(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, nk_kernel_kind_t kind,
@@ -539,6 +600,7 @@ static PyObject *shapes_packed_common(PyObject *const *args, Py_ssize_t nargs, P
     ShapesPackedMatrix *b = (ShapesPackedMatrix *)args[1];
 
     PyObject *rotations_object = NULL;
+    nk_size_t threads = 1;
     nk_capability_t capabilities = nk_cap_cpus_k;
     nk_stream_t stream = NULL;
     Py_ssize_t const nkw = kwnames ? PyTuple_Size(kwnames) : 0;
@@ -546,6 +608,11 @@ static PyObject *shapes_packed_common(PyObject *const *args, Py_ssize_t nargs, P
         PyObject *key = PyTuple_GET_ITEM(kwnames, i);
         if (PyUnicode_CompareWithASCIIString(key, "rotations") == 0) {
             if (args[nargs + i] != Py_None) rotations_object = args[nargs + i];
+        }
+        else if (PyUnicode_CompareWithASCIIString(key, "threads") == 0) {
+            Py_ssize_t t = PyLong_AsSsize_t(args[nargs + i]);
+            if (t == -1 && PyErr_Occurred()) return NULL;
+            threads = (nk_size_t)(t >= 0 ? t : 0);
         }
         else if (!parse_dispatch_keyword(key, args[nargs + i], &capabilities, &stream)) return NULL;
     }
@@ -590,9 +657,13 @@ static PyObject *shapes_packed_common(PyObject *const *args, Py_ssize_t nargs, P
         PyBuffer_Release(&rotations);
         return NULL;
     }
+    // Each window solves in its own workspace, so there are no more windows than workers
+    if (threads == 0) threads = nk_parallel_concurrency();
+    nk_size_t const windows = threads < a->clouds ? threads : a->clouds;
+    nk_size_t const workspace_stride = nk_size_round_up_to_multiple_(workspace_bytes, nk_default_alignment_k);
     char *workspace = NULL, *aligned_workspace = NULL;
     if (workspace_bytes) {
-        workspace = PyMem_Malloc(workspace_bytes + nk_default_alignment_k - 1);
+        workspace = PyMem_Malloc(windows * workspace_stride + nk_default_alignment_k - 1);
         if (!workspace) {
             Py_DECREF(distances);
             PyBuffer_Release(&rotations);
@@ -605,15 +676,24 @@ static PyObject *shapes_packed_common(PyObject *const *args, Py_ssize_t nargs, P
     nk_status_t status = nk_success_k;
     // An empty Tensor holds no data pointer for the kernel to write through
     if (a->clouds && b->clouds) {
-        nk_size_t const results_stride = b->clouds * nk_dtype_bytes_per_value(out_dtype);
-        nk_f32_t *rotations_data = rotations_object ? (nk_f32_t *)rotations.buf : NULL;
+        int const transport = workspace_kind != nk_kernel_unknown_k;
+        shapes_packed_task_t const task = {
+            .kernel = transport ? NULL : (nk_shapes_packed_punned_t)kernel,
+            .workspace_kernel = transport ? (nk_shapes_packed_workspace_punned_t)kernel : NULL,
+            .a_packed = a->packs,
+            .rows = a->clouds,
+            .b_packed = b->packs,
+            .columns = b->clouds,
+            .results = distances->data,
+            .results_stride = b->clouds * nk_dtype_bytes_per_value(out_dtype),
+            .rotations = rotations_object ? (nk_f32_t *)rotations.buf : NULL,
+            .workspace = aligned_workspace,
+            .workspace_bytes = workspace_bytes,
+            .workspace_stride = workspace_stride,
+            .windows = windows,
+            .stream = stream};
         PyThreadState *save = PyEval_SaveThread();
-        status = workspace_kind == nk_kernel_unknown_k
-                     ? ((nk_shapes_packed_punned_t)kernel)(a->packs, a->clouds, b->packs, b->clouds, distances->data,
-                                                           results_stride, rotations_data, stream)
-                     : ((nk_shapes_packed_workspace_punned_t)kernel)(a->packs, a->clouds, b->packs, b->clouds,
-                                                                     distances->data, results_stride, rotations_data,
-                                                                     aligned_workspace, workspace_bytes, stream);
+        status = nk_parallel_for_tiles(windows, threads, shapes_packed_tile_, (void *)&task);
         PyEval_RestoreThread(save);
     }
     PyMem_Free(workspace);
@@ -626,7 +706,7 @@ static PyObject *shapes_packed_common(PyObject *const *args, Py_ssize_t nargs, P
 }
 
 char const doc_chamfers_packed[] =                                                       //
-    "chamfers_packed(a, b, /, *, rotations=None) -> Tensor\n\n"                          //
+    "chamfers_packed(a, b, /, *, rotations=None, threads=1) -> Tensor\n\n"               //
     "Chamfer distances between every cloud of a and every cloud of b.\n\n"               //
     "Each is ½ × (meanᵢ minⱼ ‖aᵢ − S·bⱼ‖ + meanⱼ minᵢ ‖aᵢ − S·bⱼ‖), the best of the 8\n" //
     "sign flips S of the principal axes, zero between two empty clouds and infinite\n"   //
@@ -636,12 +716,13 @@ char const doc_chamfers_packed[] =                                              
     "    b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"             //
     "    rotations (array_like, optional): Writable C-contiguous float32 buffer of\n"    //
     "        shape [rows,columns,3,3] that receives the rotations taking each column\n"  //
-    "        cloud onto each row cloud, aᵢ ≈ R × (bⱼ − b̄) + ā.\n\n"                      //
+    "        cloud onto each row cloud, aᵢ ≈ R × (bⱼ − b̄) + ā.\n"                        //
+    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                  //
     "Returns:\n"                                                                         //
     "    Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"  //
     "        for float32 ones.\n\n"                                                      //
     "Signature:\n"                                                                       //
-    "    >>> def chamfers_packed(a, b, /, *, rotations=None) -> Tensor: ...";
+    "    >>> def chamfers_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
 
 PyObject *api_chamfers_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -649,7 +730,7 @@ PyObject *api_chamfers_packed(PyObject *self, PyObject *const *args, Py_ssize_t 
 }
 
 char const doc_hausdorffs_packed[] =                                                    //
-    "hausdorffs_packed(a, b, /, *, rotations=None) -> Tensor\n\n"                       //
+    "hausdorffs_packed(a, b, /, *, rotations=None, threads=1) -> Tensor\n\n"            //
     "Hausdorff distances between every cloud of a and every cloud of b.\n\n"            //
     "Each is max(maxᵢ minⱼ ‖aᵢ − S·bⱼ‖, maxⱼ minᵢ ‖aᵢ − S·bⱼ‖), the best of the 8\n"    //
     "sign flips S of the principal axes, with the empty-cloud convention of\n"          //
@@ -657,12 +738,13 @@ char const doc_hausdorffs_packed[] =                                            
     "Args:\n"                                                                           //
     "    a (ShapesPackedMatrix): Row clouds.\n"                                         //
     "    b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"            //
-    "    rotations (array_like, optional): As in chamfers_packed().\n\n"                //
+    "    rotations (array_like, optional): As in chamfers_packed().\n"                  //
+    "    threads (int, optional): As in chamfers_packed().\n\n"                         //
     "Returns:\n"                                                                        //
     "    Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n" //
     "        for float32 ones.\n\n"                                                     //
     "Signature:\n"                                                                      //
-    "    >>> def hausdorffs_packed(a, b, /, *, rotations=None) -> Tensor: ...";
+    "    >>> def hausdorffs_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
 
 PyObject *api_hausdorffs_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -670,23 +752,24 @@ PyObject *api_hausdorffs_packed(PyObject *self, PyObject *const *args, Py_ssize_
 }
 
 char const doc_wassersteinprocrustes_packed[] =                                           //
-    "wassersteinprocrustes_packed(a, b, /, *, rotations=None) -> Tensor\n\n"              //
+    "wassersteinprocrustes_packed(a, b, /, *, rotations=None, threads=1) -> Tensor\n\n"   //
     "Wasserstein-Procrustes distances between every cloud of a and every cloud of b.\n\n" //
     "Each is the root mean squared distance of the exact optimal transport plan\n"        //
     "between uniform weights, after the rotation or reflection minimizing it,\n"          //
     "alternated from each of the 8 sign flips of the principal axes. On equal sizes\n"    //
     "it is at most the Kabsch RMSD of a known correspondence, and equals it when\n"       //
     "that correspondence is an optimal plan. The empty-cloud convention matches\n"        //
-    "chamfers_packed(), and the workspace is allocated inside the call.\n\n"              //
+    "chamfers_packed(), and every thread's workspace is allocated inside the call.\n\n"   //
     "Args:\n"                                                                             //
     "    a (ShapesPackedMatrix): Row clouds.\n"                                           //
     "    b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"              //
-    "    rotations (array_like, optional): As in chamfers_packed().\n\n"                  //
+    "    rotations (array_like, optional): As in chamfers_packed().\n"                    //
+    "    threads (int, optional): As in chamfers_packed().\n\n"                           //
     "Returns:\n"                                                                          //
     "    Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"   //
     "        for float32 ones.\n\n"                                                       //
     "Signature:\n"                                                                        //
-    "    >>> def wassersteinprocrustes_packed(a, b, /, *, rotations=None) -> Tensor: ...";
+    "    >>> def wassersteinprocrustes_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
 
 PyObject *api_wassersteinprocrustes_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -695,23 +778,24 @@ PyObject *api_wassersteinprocrustes_packed(PyObject *self, PyObject *const *args
 }
 
 char const doc_gromovwassersteins_packed[] =                                             //
-    "gromovwassersteins_packed(a, b, /, *, rotations=None) -> Tensor\n\n"                //
+    "gromovwassersteins_packed(a, b, /, *, rotations=None, threads=1) -> Tensor\n\n"     //
     "Gromov-Wasserstein distances between every cloud of a and every cloud of b.\n\n"    //
     "Each compares the two clouds' own distance matrices under the best transport\n"     //
     "plan a fixed budget of Frank-Wolfe steps finds from the Wasserstein-Procrustes\n"   //
     "plans and the product plan, ½ · √Σᵢⱼₖₗ (‖aᵢ − aₖ‖ − ‖bⱼ − bₗ‖)² · Pᵢⱼ · Pₖₗ. The\n" //
     "rotation is the orthogonal Procrustes fit of that plan. The empty-cloud\n"          //
-    "convention matches chamfers_packed(), and the workspace is allocated inside the\n"  //
-    "call.\n\n"                                                                          //
+    "convention matches chamfers_packed(), and every thread's workspace is allocated\n"  //
+    "inside the call.\n\n"                                                               //
     "Args:\n"                                                                            //
     "    a (ShapesPackedMatrix): Row clouds.\n"                                          //
     "    b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"             //
-    "    rotations (array_like, optional): As in chamfers_packed().\n\n"                 //
+    "    rotations (array_like, optional): As in chamfers_packed().\n"                   //
+    "    threads (int, optional): As in chamfers_packed().\n\n"                          //
     "Returns:\n"                                                                         //
     "    Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"  //
     "        for float32 ones.\n\n"                                                      //
     "Signature:\n"                                                                       //
-    "    >>> def gromovwassersteins_packed(a, b, /, *, rotations=None) -> Tensor: ...";
+    "    >>> def gromovwassersteins_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
 
 PyObject *api_gromovwassersteins_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);

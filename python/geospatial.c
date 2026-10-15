@@ -17,6 +17,7 @@
  *  - distances: @b [rows,columns]
  */
 #include "geospatial.h"
+#include "parallel.h" // `nk_parallel_for_tiles`
 #include "tensor.h"
 
 #include "numkong/geospatial.h"
@@ -327,20 +328,43 @@ PyObject *api_vincentys_packed(PyObject *self, PyObject *const *args, Py_ssize_t
     return geospatial_packed_common(args, nargs, kwnames, &VincentysPackedMatrixType, nk_kernel_vincentys_packed_k);
 }
 
+/** Squared distances in tiles of @c NUMKONG_PARALLEL_PACKED_TILE rows of @c a, named as in
+ *  `nk_sqeuclideans3d_*`, with @c a_stride the bytes of one row point. */
+typedef struct sqeuclideans3d_task_t {
+    nk_sqeuclideans3d_punned_t kernel;
+    char const *a;
+    nk_size_t rows;
+    nk_size_t a_stride;
+    char const *b;
+    nk_size_t columns;
+    char *results;
+    nk_size_t results_stride;
+    nk_stream_t stream;
+} sqeuclideans3d_task_t;
+
+static nk_status_t sqeuclideans3d_tile_(nk_size_t tile_index, void *context) {
+    sqeuclideans3d_task_t const *task = (sqeuclideans3d_task_t const *)context;
+    nk_size_t const first_row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
+    nk_size_t const rows = nk_min_of_two((nk_size_t)NUMKONG_PARALLEL_PACKED_TILE, task->rows - first_row);
+    return task->kernel(task->a + first_row * task->a_stride, rows, task->b, task->columns,
+                        task->results + first_row * task->results_stride, task->results_stride, task->stream);
+}
+
 char const doc_sqeuclideans3d[] =                                                          //
-    "sqeuclideans3d(a, b, /) -> Tensor\n\n"                                                //
+    "sqeuclideans3d(a, b, /, *, threads=1) -> Tensor\n\n"                                  //
     "Squared Euclidean distances between every point of a and every point of b in 3D.\n\n" //
     "Integer results are exact whenever every axis difference fits 32 bits, which\n"       //
     "Earth-fixed centimetres below 4,359 km of altitude always satisfy. Float64 inputs\n"  //
     "sum their three squares in Dot2.\n\n"                                                 //
     "Args:\n"                                                                              //
     "    a (array_like): Row points of shape [rows,3], int32 or float64.\n"                //
-    "    b (array_like): Column points of shape [columns,3], in the same dtype.\n\n"       //
+    "    b (array_like): Column points of shape [columns,3], in the same dtype.\n"         //
+    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                    //
     "Returns:\n"                                                                           //
     "    Tensor: The [rows,columns] squared distances, uint64 for int32 points and\n"      //
     "        float64 for float64 ones.\n\n"                                                //
     "Signature:\n"                                                                         //
-    "    >>> def sqeuclideans3d(a, b, /) -> Tensor: ...";
+    "    >>> def sqeuclideans3d(a, b, /, *, threads=1) -> Tensor: ...";
 
 PyObject *api_sqeuclideans3d(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -348,11 +372,19 @@ PyObject *api_sqeuclideans3d(PyObject *self, PyObject *const *args, Py_ssize_t n
         PyErr_SetString(PyExc_TypeError, "sqeuclideans3d() requires exactly 2 positional arguments: a, b");
         return NULL;
     }
+    nk_size_t threads = 1;
     nk_capability_t capabilities = nk_cap_cpus_k;
     nk_stream_t stream = NULL;
     Py_ssize_t const nkw = kwnames ? PyTuple_Size(kwnames) : 0;
-    for (Py_ssize_t i = 0; i < nkw; i++)
-        if (!parse_dispatch_keyword(PyTuple_GET_ITEM(kwnames, i), args[nargs + i], &capabilities, &stream)) return NULL;
+    for (Py_ssize_t i = 0; i < nkw; i++) {
+        PyObject *key = PyTuple_GET_ITEM(kwnames, i);
+        if (PyUnicode_CompareWithASCIIString(key, "threads") == 0) {
+            Py_ssize_t t = PyLong_AsSsize_t(args[nargs + i]);
+            if (t == -1 && PyErr_Occurred()) return NULL;
+            threads = (nk_size_t)(t >= 0 ? t : 0);
+        }
+        else if (!parse_dispatch_keyword(key, args[nargs + i], &capabilities, &stream)) return NULL;
+    }
 
     Py_buffer a, b;
     nk_buffer_backing_t a_backing, b_backing;
@@ -389,9 +421,18 @@ PyObject *api_sqeuclideans3d(PyObject *self, PyObject *const *args, Py_ssize_t n
     distances = Tensor_new(out_dtype, 2, shape);
     // An empty Tensor holds no data pointer for the kernel to write through
     if (distances && rows && columns) {
+        sqeuclideans3d_task_t const task = {.kernel = kernel,
+                                            .a = a_data,
+                                            .rows = rows,
+                                            .a_stride = 3 * nk_dtype_bytes_per_value(dtype),
+                                            .b = b_data,
+                                            .columns = columns,
+                                            .results = distances->data,
+                                            .results_stride = columns * nk_dtype_bytes_per_value(out_dtype),
+                                            .stream = stream};
         PyThreadState *save = PyEval_SaveThread();
-        nk_status_t const status = kernel(a_data, rows, b_data, columns, distances->data,
-                                          columns * nk_dtype_bytes_per_value(out_dtype), stream);
+        nk_status_t const status = nk_parallel_for_tiles(nk_size_divide_round_up_(rows, NUMKONG_PARALLEL_PACKED_TILE),
+                                                         threads, sqeuclideans3d_tile_, (void *)&task);
         PyEval_RestoreThread(save);
         if (!check_status(status)) Py_CLEAR(distances);
     }

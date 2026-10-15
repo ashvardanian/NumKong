@@ -8,7 +8,7 @@
  *  cdist, and supporting implement_* helpers.
  */
 #include "distance.h"
-#include "parallel.h" // `nk_parallel_dots_packed`, `nk_parallel_dots_symmetric`
+#include "parallel.h" // `nk_parallel_dots_pack`, `nk_parallel_dots_packed`, `nk_parallel_dots_symmetric`
 #include "tensor.h"
 
 static PyObject *implement_dense_metric( //
@@ -537,6 +537,13 @@ static nk_status_t cdist_batch_packed(                                     //
     void *b_packed = malloc(packed_size);
     if (!b_packed) return nk_bad_alloc_k;
 
+    nk_dots_pack_task_t const pack_task = {.kernel = pack_fn,
+                                           .b = b,
+                                           .columns = columns,
+                                           .depth = depth,
+                                           .b_stride = b_stride,
+                                           .b_packed = b_packed,
+                                           .stream = stream};
     nk_dots_packed_task_t const task = {.kernel = kernel,
                                         .a = a,
                                         .b_packed = b_packed,
@@ -547,7 +554,7 @@ static nk_status_t cdist_batch_packed(                                     //
                                         .a_stride = a_stride,
                                         .c_stride = c_stride,
                                         .stream = stream};
-    status = pack_fn(b, columns, depth, b_stride, b_packed, 0, columns, stream);
+    status = nk_parallel_dots_pack(&pack_task, threads);
     if (status == nk_success_k) status = nk_parallel_dots_packed(&task, threads);
 
     free(b_packed);

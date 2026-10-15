@@ -357,6 +357,25 @@ def test_swapped_sides_transpose(capabilities, kind: str, dtype: str, np_rng: np
 
 @requires_numpy
 @pytest.mark.parametrize("kind", list(KINDS))
+@pytest.mark.parametrize("threads", [0, 4])
+def test_threads_match_serial(capabilities, kind: str, threads: int, np_rng: np.random.Generator):
+    """Packing and scoring on several threads returns the serial poses, distances and rotations bit for bit."""
+    a_clouds = [random_cloud(np_rng, points) for points in (5, 9, 0, 7, 3)]
+    b_clouds = [random_cloud(np_rng, points) for points in (8, 0, 6)]
+    serial_a, serial_b = nk.shapes_pack(a_clouds), nk.shapes_pack(b_clouds)
+    parallel_a, parallel_b = nk.shapes_pack(a_clouds, threads=threads), nk.shapes_pack(b_clouds, threads=threads)
+    np.testing.assert_array_equal(np.asarray(parallel_a.frames), np.asarray(serial_a.frames))
+    serial_rotations, parallel_rotations = rotations_buffer(serial_a, serial_b), rotations_buffer(serial_a, serial_b)
+    serial = KINDS[kind](serial_a, serial_b, rotations=serial_rotations, capabilities=capabilities)
+    parallel = KINDS[kind](
+        parallel_a, parallel_b, rotations=parallel_rotations, threads=threads, capabilities=capabilities
+    )
+    np.testing.assert_array_equal(np.asarray(parallel), np.asarray(serial))
+    np.testing.assert_array_equal(parallel_rotations, serial_rotations)
+
+
+@requires_numpy
+@pytest.mark.parametrize("kind", list(KINDS))
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 def test_rigid_motions_preserve_distances(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
     """Rotating, mirroring and moving either cloud before packing leaves every distance unchanged."""

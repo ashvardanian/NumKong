@@ -266,6 +266,7 @@ That form stays conditioned from a millimetre to the antipode, and reads within 
 A pair near the antipode that never settles reports its last iterate after 100 iterations.
 `nk.sqeuclideans3d` takes two `[n, 3]` matrices, both `int32` or both `float64`, and returns `uint64` or `float64` squares.
 The `int32` squares are exact whenever every axis difference fits 32 bits, which Earth-fixed centimetres below 4,359 km of altitude always satisfy.
+Its `threads=` argument splits the row points across workers.
 `nk.HaversinesPackedMatrix.pack_size(points)` and `nk.VincentysPackedMatrix.pack_size(points)` return the bytes a pack takes.
 A pack keeps its point count in a header ahead of its planar arrays, so a view of fewer points would need a header of its own.
 Indexing therefore returns the pack itself for a key selecting every point in order, and raises `ValueError` for any other.
@@ -489,6 +490,7 @@ assert np.asarray(all_pairs).shape == (100, 10_000)
 ```
 
 `cdist` and the packed and symmetric kernels take a `threads=` argument, where `0` means every logical processor, and row ranges are still available for partitioning the work yourself.
+`dots_pack` and `hammings_pack` take it too, splitting the packed matrix by columns.
 
 ## Elementwise Operations
 
@@ -684,6 +686,7 @@ The pack layout is private, and the `centroids`, `frames`, `scales`, `spreads` a
 `unpack(index)` returns one cloud as a `[points, 3]` tensor in the pack dtype and its original pose and scale, within one storage rounding.
 `nk.ShapesPackedMatrix.pack_size(points, dtype)` returns the bytes one pack takes.
 Wasserstein-Procrustes and Gromov-Wasserstein allocate their workspace inside the call.
+Every kind takes `threads=`, splitting the row clouds with a workspace per worker, and both packing functions take it to split the clouds.
 
 ## MaxSim and ColBERT-Style Late Interaction
 

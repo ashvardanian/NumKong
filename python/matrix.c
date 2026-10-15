@@ -17,7 +17,7 @@
  *  - result: @b [rows,columns]
  */
 #include "matrix.h"
-#include "parallel.h" // `nk_parallel_dots_packed`, `nk_parallel_dots_symmetric`
+#include "parallel.h" // `nk_parallel_dots_pack`, `nk_parallel_dots_packed`, `nk_parallel_dots_symmetric`
 #include "tensor.h"
 #include "numkong/dots.h"
 
@@ -722,7 +722,7 @@ cleanup:
 }
 
 char const doc_dots_pack[] =                                                                //
-    "dots_pack(b, /, dtype=None, *, out=None, stream=None) -> PackedMatrix\n\n"             //
+    "dots_pack(b, /, dtype=None, *, out=None, threads=1, stream=None) -> PackedMatrix\n\n"  //
     "Pack a 2D matrix for repeated dot-product style cross operations.\n\n"                 //
     "Args:\n"                                                                               //
     "    b (array_like): Source matrix with shape [columns,depth] and contiguous rows,\n"   //
@@ -734,6 +734,7 @@ char const doc_dots_pack[] =                                                    
     "    out (Tensor, optional): Required for a GPU b: a C-contiguous Tensor on its GPU,\n" //
     "        of PackedMatrix.pack_size(..., capabilities=cuda_capabilities_enabled(0))\n"   //
     "        bytes or more, holding the packed bytes for the PackedMatrix's lifetime.\n"    //
+    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"     //
     "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0,\n"     //
     "        the legacy stream. The call returns before the packing finishes.\n\n"          //
     "Returns:\n"                                                                            //
@@ -744,20 +745,21 @@ char const doc_dots_pack[] =                                                    
     "    >>> b_packed = nk.dots_pack(b, dtype=nk.bfloat16)\n"                               //
     "    >>> distances = nk.dots_packed(a, b_packed)  # shape: [100,200]\n\n"               //
     "Signature:\n"                                                                          //
-    "    >>> def dots_pack(b, /, dtype=None, *, out=None, stream=None) -> PackedMatrix: ...";
+    "    >>> def dots_pack(b, /, dtype=None, *, out=None, threads=1, stream=None) -> PackedMatrix: ...";
 
 static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, nk_dtype_t default_dtype) {
 
     PyObject *b_obj = NULL;
     PyObject *dtype_obj = NULL;
     PyObject *out_obj = NULL;
+    nk_size_t threads = 1;
     nk_capability_t capabilities = nk_cap_cpus_k;
     nk_stream_t stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     Py_ssize_t total = nargs + nkw;
 
-    if (nargs < 1 || nargs > 2 || total > 5) {
+    if (nargs < 1 || nargs > 2 || total > 6) {
         PyErr_SetString(PyExc_TypeError, "pack requires 1-2 arguments: b, dtype");
         return NULL;
     }
@@ -775,6 +777,11 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
         }
         else if (PyUnicode_CompareWithASCIIString(name, "out") == 0) {
             if (args[nargs + i] != Py_None) out_obj = args[nargs + i];
+        }
+        else if (PyUnicode_CompareWithASCIIString(name, "threads") == 0) {
+            Py_ssize_t t = PyLong_AsSsize_t(args[nargs + i]);
+            if (t == -1 && PyErr_Occurred()) return NULL;
+            threads = (nk_size_t)(t >= 0 ? t : 0);
         }
         else if (!parse_dispatch_keyword(name, args[nargs + i], &capabilities, &stream)) return NULL;
     }
@@ -901,8 +908,18 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
         return NULL;
     }
 
+    nk_dots_pack_task_t const task = {.kernel = pack_fn,
+                                      .b = b_buffer.buf,
+                                      .columns = columns,
+                                      .depth = depth,
+                                      .b_stride = row_stride,
+                                      .b_packed = packed->data,
+                                      .stream = stream};
     PyThreadState *save = PyEval_SaveThread();
-    nk_status_t const status = pack_fn(b_buffer.buf, columns, depth, row_stride, packed->data, 0, columns, stream);
+    // A GPU packs every column itself, in one launch rather than the thread pool
+    nk_status_t const status = device.device_type != kDLCPU
+                                   ? pack_fn(task.b, columns, depth, row_stride, task.b_packed, 0, columns, stream)
+                                   : nk_parallel_dots_pack(&task, threads);
     PyEval_RestoreThread(save);
 
     PyBuffer_Release(&b_buffer);
@@ -947,17 +964,18 @@ PyObject *api_dots_packed(PyObject *self, PyObject *const *args, Py_ssize_t narg
 }
 
 char const doc_hammings_pack[] =                                             //
-    "hammings_pack(b, /, dtype='uint1') -> PackedMatrix\n\n"                 //
+    "hammings_pack(b, /, dtype='uint1', *, threads=1) -> PackedMatrix\n\n"   //
     "Pack a 2D matrix for repeated set-distance cross operations.\n\n"       //
     "Args:\n"                                                                //
     "    b (array_like): Source matrix with shape [columns,depth].\n"        //
     "    dtype (str, optional): Packing dtype. Default: 'uint1'.\n"          //
-    "        For 'uint1', packed bits are represented as uint8 bytes.\n\n"   //
+    "        For 'uint1', packed bits are represented as uint8 bytes.\n"     //
+    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"      //
     "Returns:\n"                                                             //
     "    PackedMatrix: Opaque packed matrix accepted by hammings_packed()\n" //
     "        and jaccards_packed().\n\n"                                     //
     "Signature:\n"                                                           //
-    "    >>> def hammings_pack(b, /, dtype='uint1') -> PackedMatrix: ...";
+    "    >>> def hammings_pack(b, /, dtype='uint1', *, threads=1) -> PackedMatrix: ...";
 
 PyObject *api_hammings_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);

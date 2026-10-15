@@ -213,6 +213,18 @@ def test_empty_and_single_point(capabilities):
 
 
 @requires_numpy
+@pytest.mark.parametrize("dtype", ["int32", "float64"])
+@pytest.mark.parametrize("threads", [0, 4])
+def test_sqeuclideans3d_threads(capabilities, dtype: str, threads: int, np_rng: np.random.Generator):
+    """Splitting 129 rows, two whole tiles of 64 and a tail, across threads returns the serial squares bit for bit."""
+    a = np_rng.normal(scale=1e6, size=(129, 3)).astype(dtype)
+    b = np_rng.normal(scale=1e6, size=(7, 3)).astype(dtype)
+    serial = np.asarray(nk.sqeuclideans3d(a, b, capabilities=capabilities))
+    parallel = np.asarray(nk.sqeuclideans3d(a, b, threads=threads, capabilities=capabilities))
+    np.testing.assert_array_equal(parallel, serial)
+
+
+@requires_numpy
 @pytest.mark.parametrize("kind", ["haversines", "vincentys"])
 def test_packed_matrices(kind: str, np_rng: np.random.Generator):
     """A pack reports its point count, shape and size, which its header and planar arrays fix."""

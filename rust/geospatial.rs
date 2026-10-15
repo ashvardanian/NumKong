@@ -46,10 +46,16 @@
 
 use core::{ffi::c_void, ptr::null_mut};
 
+#[cfg(feature = "parallel")]
+use forkunion as fu;
+
 use crate::{
     capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{check_len, Allocator, Error, Global, PackedBuffer},
 };
+
+#[cfg(feature = "parallel")]
+use crate::capabilities::WorkerStatus;
 
 // region: FFI
 
@@ -139,6 +145,34 @@ pub trait SqEuclideans3D: Sized {
     ///
     /// Returns `Err` if `results` does not hold __rows × columns__ entries.
     fn sqeuclideans3d(a: &[[Self; 3]], b: &[[Self; 3]], results: &mut [Self::Distance]) -> Result<(), Error>;
+
+    /// [`sqeuclideans3d`](Self::sqeuclideans3d) with the rows of `a` split across `pool`.
+    #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+    fn sqeuclideans3d_parallel(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+        results: &mut [Self::Distance],
+        pool: &mut fu::ThreadPool,
+    ) -> Result<(), Error>
+    where
+        Self: Sync,
+    {
+        check_results(a.len(), b.len(), results)?;
+        let results = fu::SyncMutPtr::new(results.as_mut_ptr());
+        let failure = WorkerStatus::default();
+        let failure = &failure;
+        fu::for_slices(pool, a.len(), move |tasks, _thread| {
+            if let Err(error) = crate::capabilities::configure_cpu_thread() {
+                failure.record(Err(error));
+                return;
+            }
+            let rows =
+                unsafe { core::slice::from_raw_parts_mut(results.get(tasks.first * b.len()), tasks.count * b.len()) };
+            failure.record(Self::sqeuclideans3d(&a[tasks.range()], b, rows));
+        });
+        failure.check()
+    }
 }
 
 impl SqEuclideans3D for i32 {
@@ -468,6 +502,30 @@ mod tests {
         let mut results = [f64::NAN; 2];
         f64::sqeuclideans3d(&[[1.0, 2.0, 3.0]], &[[4.0, 6.0, 3.0], [1.0, 2.0, 3.0]], &mut results).unwrap();
         assert_eq!(results, [25.0, 0.0]);
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn geospatial_parallel_matches_serial() {
+        let topology = fu::Topology::new().unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
+        let integers: Vec<[i32; 3]> = (0..37)
+            .map(|index: i32| [index * 7_919 - 150_000, index * index - 600, 1_000 - index * 31])
+            .collect();
+        let (mut expected, mut found) = (vec![0_u64; 37 * 5], vec![u64::MAX; 37 * 5]);
+        i32::sqeuclideans3d(&integers, &integers[..5], &mut expected).unwrap();
+        i32::sqeuclideans3d_parallel(&integers, &integers[..5], &mut found, &mut pool).unwrap();
+        assert_eq!(expected, found);
+
+        let floats: Vec<[f64; 3]> = integers
+            .iter()
+            .map(|point| point.map(|value| value as f64 * 0.37))
+            .collect();
+        let (mut expected, mut found) = (vec![0.0_f64; 37 * 5], vec![f64::NAN; 37 * 5]);
+        f64::sqeuclideans3d(&floats, &floats[..5], &mut expected).unwrap();
+        f64::sqeuclideans3d_parallel(&floats, &floats[..5], &mut found, &mut pool).unwrap();
+        let bits = |values: &[f64]| values.iter().map(|value| value.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(&expected), bits(&found));
     }
 
     #[test]

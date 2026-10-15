@@ -1045,7 +1045,7 @@ def mahalanobis(
 
 # Squared distances between every row and every column point in 3D, exact on int32 whenever every
 # axis difference fits 32 bits, as Earth-fixed centimetres below 4,359 km of altitude do.
-def sqeuclideans3d(a: _BufferType, b: _BufferType, /, **dispatch: Unpack[_Dispatch]) -> Tensor:
+def sqeuclideans3d(a: _BufferType, b: _BufferType, /, *, threads: int = 1, **dispatch: Unpack[_Dispatch]) -> Tensor:
     """Compute [rows,columns] squared distances of [rows,3] and [columns,3] points, both int32 or both float64."""
     ...
 
@@ -1589,6 +1589,7 @@ def dots_pack(
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
     *,
     out: _BufferType | None = None,
+    threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> PackedMatrix: ...
 
@@ -1610,6 +1611,8 @@ def hammings_pack(
     b: _BufferType,
     /,
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
+    *,
+    threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> PackedMatrix: ...
 
@@ -1843,6 +1846,8 @@ def shapes_pack(
     points: _BufferType | list[_BufferType] | tuple[_BufferType, ...],
     /,
     dtype: Literal["f16", "float16", "f32", "float32"] | type[float16] | None = None,
+    *,
+    threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> ShapesPackedMatrix:
     """Center every cloud and rotate it onto its principal axes, float16 input as float16, else float32."""
@@ -1853,6 +1858,8 @@ def shapes_pack_normalized(
     points: _BufferType | list[_BufferType] | tuple[_BufferType, ...],
     /,
     dtype: Literal["f16", "float16", "f32", "float32"] | type[float16] | None = None,
+    *,
+    threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> ShapesPackedMatrix:
     """Pack every cloud like shapes_pack() and divide it by its RMS radius, so every kind ignores its size."""
@@ -1868,6 +1875,7 @@ def chamfers_packed(
     /,
     *,
     rotations: _BufferType | None = None,
+    threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
     """Compute Chamfer distances, the mean nearest-partner distance both ways, halved, best of 8 axis flips."""
@@ -1879,6 +1887,7 @@ def hausdorffs_packed(
     /,
     *,
     rotations: _BufferType | None = None,
+    threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
     """Compute Hausdorff distances, the worst nearest-partner distance either way, best of 8 axis flips."""
@@ -1890,6 +1899,7 @@ def wassersteinprocrustes_packed(
     /,
     *,
     rotations: _BufferType | None = None,
+    threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
     """Compute Wasserstein-Procrustes distances, the exact transport RMSD after the best rotation or reflection."""
@@ -1901,6 +1911,7 @@ def gromovwassersteins_packed(
     /,
     *,
     rotations: _BufferType | None = None,
+    threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
     """Compute Gromov-Wasserstein distances between the clouds' own distance matrices."""

@@ -1425,19 +1425,20 @@ def test_dots_symmetric_row_range(capabilities, np_rng: np.random.Generator):
 @pytest.mark.parametrize("threads", [0, 1, 4])
 @pytest.mark.parametrize("rows", [63, 64, 129])
 def test_dots_packed_threads(capabilities, threads, rows, np_rng: np.random.Generator):
-    """Verify dots_packed and @ match the serial path across tile boundaries and thread counts.
+    """Verify dots_pack, dots_packed and @ match the serial path across tile boundaries and thread counts.
 
-    The packed row tile is 64, so heights straddling one and two tiles exercise both the whole-tile
-    and tail-chunk branches of the parallel loop. threads=0 (all cores) must match threads=1 regardless
-    of any prior explicit count — the num_threads() clause fix, not the poisoned global ICV.
+    The packed row and column tiles are 64, so heights straddling one and two tiles exercise both the
+    whole-tile and tail-chunk branches of the parallel loops. threads=0 (all cores) must match threads=1
+    regardless of any prior explicit count, as the num_threads() clause fixes, not the poisoned global ICV.
     """
-    depth, columns = 64, 32
+    depth, columns = 64, rows
     left_matrix, _ = make_random((rows, depth), "float32", np_rng)
     right_matrix = np.ascontiguousarray(make_random((columns, depth), "float32", np_rng)[0])
     right_packed = nk.dots_pack(right_matrix, dtype="float32", capabilities=capabilities)
+    right_packed_parallel = nk.dots_pack(right_matrix, dtype="float32", threads=threads, capabilities=capabilities)
 
     serial = np.array(nk.dots_packed(left_matrix, right_packed, threads=1))
-    parallel = np.array(nk.dots_packed(left_matrix, right_packed, threads=threads))
+    parallel = np.array(nk.dots_packed(left_matrix, right_packed_parallel, threads=threads))
     assert_allclose(parallel, serial, err_msg=f"threads={threads} diverges from threads=1 at rows={rows}")
     # the @ operator auto-threads and must match the serial result too
     at_result = np.array(make_nk(left_matrix, "float32") @ right_packed)

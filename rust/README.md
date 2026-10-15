@@ -735,6 +735,9 @@ let gram = a.dots_symmetric_parallel(&mut pool).unwrap();
 assert_eq!(gram.shape(), &[4096, 4096]);
 ```
 
+Packing splits the same way: `DotsPackedMatrix::new_parallel` by columns, `AttentionPackedMatrix::new_parallel` by segments and heads, and `ShapesPackedMatrix::new_parallel` by clouds.
+`ShapesPackedMatrix::chamfers_parallel` and its three siblings split the row clouds, each thread solving in its own workspace, and `SqEuclideans3D::sqeuclideans3d_parallel` splits the row points.
+
 Rayon or a manual thread pool can still work if the rest of your application already depends on them.
 
 ## Addressing External Memory

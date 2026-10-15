@@ -173,6 +173,20 @@ nk_status_t nk_parallel_for_tiles(nk_size_t tile_count, nk_size_t threads, nk_ti
 
 #pragma region Dots Tiles
 
+static nk_status_t nk_dots_pack_tile_(nk_size_t tile_index, void *context) {
+    nk_dots_pack_task_t const *task = (nk_dots_pack_task_t const *)context;
+    nk_size_t const columns_begin = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
+    nk_size_t const columns_end = nk_min_of_two(columns_begin + NUMKONG_PARALLEL_PACKED_TILE, task->columns);
+    return task->kernel(task->b, task->columns, task->depth, task->b_stride, task->b_packed, columns_begin, columns_end,
+                        task->stream);
+}
+
+nk_status_t nk_parallel_dots_pack(nk_dots_pack_task_t const *task, nk_size_t threads) {
+    // The tile starting at column 0 writes the header, so an empty B still gets that one tile.
+    nk_size_t const tile_count = nk_size_divide_round_up_(task->columns, NUMKONG_PARALLEL_PACKED_TILE);
+    return nk_parallel_for_tiles(tile_count ? tile_count : 1, threads, nk_dots_pack_tile_, (void *)task);
+}
+
 static nk_status_t nk_dots_packed_tile_(nk_size_t tile_index, void *context) {
     nk_dots_packed_task_t const *task = (nk_dots_packed_task_t const *)context;
     nk_size_t const first_row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;

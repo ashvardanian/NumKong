@@ -42,11 +42,17 @@
 
 use core::{alloc::Layout, ffi::c_void, marker::PhantomData, ptr::null_mut};
 
+#[cfg(feature = "parallel")]
+use forkunion as fu;
+
 use crate::{
     capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{check_len, Allocator, Error, Global, PackedBuffer, DEFAULT_ALIGNMENT},
     types::{f16, StorageElement},
 };
+
+#[cfg(feature = "parallel")]
+use crate::capabilities::WorkerStatus;
 
 // region: FFI
 
@@ -797,6 +803,16 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
         alloc: Alloc,
         pack_cloud: unsafe fn(&[[Scalar; 3]], *mut u8) -> Result<(), Error>,
     ) -> Result<Self, Error> {
+        let packed = Self::allocate_in(clouds, alloc)?;
+        for (cloud, &pack) in clouds.iter().zip(packed.packs()) {
+            unsafe { pack_cloud(cloud, pack.cast_mut()) }?;
+        }
+        Ok(packed)
+    }
+
+    /// Allocates the pointers and the packs of `clouds`, every pointer aimed at its pack and every
+    /// pack left for the caller to fill.
+    fn allocate_in(clouds: &[&[[Scalar; 3]]], alloc: Alloc) -> Result<Self, Error> {
         let pointers_bytes = clouds.len() * core::mem::size_of::<*const u8>();
         let mut total_bytes = pointers_bytes.next_multiple_of(DEFAULT_ALIGNMENT);
         for cloud in clouds {
@@ -808,9 +824,7 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
         let base = buffer.reset_for_pack(total_bytes)?;
         let mut offset = pointers_bytes.next_multiple_of(DEFAULT_ALIGNMENT);
         for (index, cloud) in clouds.iter().enumerate() {
-            let pack = unsafe { base.add(offset) };
-            unsafe { pack_cloud(cloud, pack) }?;
-            unsafe { base.cast::<*const u8>().add(index).write(pack) };
+            unsafe { base.cast::<*const u8>().add(index).write(base.add(offset)) };
             offset += Scalar::shapes_pack_size(cloud.len())?.next_multiple_of(DEFAULT_ALIGNMENT);
         }
         Ok(Self {
@@ -1034,6 +1048,222 @@ impl<Scalar: Shapes> ShapesPackedMatrix<Scalar, Global> {
 
     /// Packs every cloud of `clouds` normalized, using the global allocator.
     pub fn new_normalized(clouds: &[&[[Scalar; 3]]]) -> Result<Self, Error> { Self::new_normalized_in(clouds, Global) }
+}
+
+#[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+impl<Scalar: Shapes + Sync, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
+    /// Packs every cloud of `clouds` like [`new_in`](Self::new_in), the clouds split across `pool`.
+    pub fn new_parallel_in(clouds: &[&[[Scalar; 3]]], alloc: Alloc, pool: &mut fu::ThreadPool) -> Result<Self, Error> {
+        Self::pack_parallel_in(clouds, alloc, Scalar::shapes_pack, pool)
+    }
+
+    /// Packs every cloud of `clouds` like [`new_normalized_in`](Self::new_normalized_in), the
+    /// clouds split across `pool`.
+    pub fn new_normalized_parallel_in(
+        clouds: &[&[[Scalar; 3]]],
+        alloc: Alloc,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<Self, Error> {
+        Self::pack_parallel_in(clouds, alloc, Scalar::shapes_pack_normalized, pool)
+    }
+
+    fn pack_parallel_in(
+        clouds: &[&[[Scalar; 3]]],
+        alloc: Alloc,
+        pack_cloud: unsafe fn(&[[Scalar; 3]], *mut u8) -> Result<(), Error>,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<Self, Error> {
+        let packed = Self::allocate_in(clouds, alloc)?;
+        let packs = fu::SyncConstPtr::new(packed.packs().as_ptr());
+        let failure = WorkerStatus::default();
+        let failure = &failure;
+        fu::for_n_dynamic(pool, clouds.len(), move |cloud, _thread| {
+            if let Err(error) = crate::capabilities::configure_cpu_thread() {
+                failure.record(Err(error));
+                return;
+            }
+            failure.record(unsafe { pack_cloud(clouds[cloud], packs.get(cloud).cast_mut()) });
+        });
+        failure.check()?;
+        Ok(packed)
+    }
+
+    /// [`chamfers`](Self::chamfers) with the row clouds split across `pool`.
+    pub fn chamfers_parallel<OtherAlloc: Allocator>(
+        &self,
+        columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &mut [Scalar::Distance],
+        rotations: Option<&mut [[f32; 9]]>,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<(), Error> {
+        self.rows_parallel(
+            columns,
+            results,
+            rotations,
+            0,
+            pool,
+            |row, packs, count, results, results_stride, rotations, _| unsafe {
+                Scalar::chamfers_packed(row, 1, packs, count, results, results_stride, rotations)
+            },
+        )
+    }
+
+    /// [`hausdorffs`](Self::hausdorffs) with the row clouds split across `pool`.
+    pub fn hausdorffs_parallel<OtherAlloc: Allocator>(
+        &self,
+        columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &mut [Scalar::Distance],
+        rotations: Option<&mut [[f32; 9]]>,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<(), Error> {
+        self.rows_parallel(
+            columns,
+            results,
+            rotations,
+            0,
+            pool,
+            |row, packs, count, results, results_stride, rotations, _| unsafe {
+                Scalar::hausdorffs_packed(row, 1, packs, count, results, results_stride, rotations)
+            },
+        )
+    }
+
+    /// [`wassersteinprocrustes`](Self::wassersteinprocrustes) with the row clouds split across
+    /// `pool`, each thread on its own workspace from `self`'s allocator.
+    pub fn wassersteinprocrustes_parallel<OtherAlloc: Allocator>(
+        &self,
+        columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &mut [Scalar::Distance],
+        rotations: Option<&mut [[f32; 9]]>,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<(), Error> {
+        let workspace_bytes = Scalar::wassersteinprocrustes_workspace_size(self.largest(), columns.largest())?;
+        self.rows_parallel(
+            columns,
+            results,
+            rotations,
+            workspace_bytes,
+            pool,
+            |row, packs, count, results, results_stride, rotations, workspace| unsafe {
+                Scalar::wassersteinprocrustes_packed(
+                    row,
+                    1,
+                    packs,
+                    count,
+                    results,
+                    results_stride,
+                    rotations,
+                    workspace,
+                    workspace_bytes,
+                )
+            },
+        )
+    }
+
+    /// [`gromovwassersteins`](Self::gromovwassersteins) with the row clouds split across
+    /// `pool`, each thread on its own workspace from `self`'s allocator.
+    pub fn gromovwassersteins_parallel<OtherAlloc: Allocator>(
+        &self,
+        columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &mut [Scalar::Distance],
+        rotations: Option<&mut [[f32; 9]]>,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<(), Error> {
+        let workspace_bytes = Scalar::gromovwassersteins_workspace_size(self.largest(), columns.largest())?;
+        self.rows_parallel(
+            columns,
+            results,
+            rotations,
+            workspace_bytes,
+            pool,
+            |row, packs, count, results, results_stride, rotations, workspace| unsafe {
+                Scalar::gromovwassersteins_packed(
+                    row,
+                    1,
+                    packs,
+                    count,
+                    results,
+                    results_stride,
+                    rotations,
+                    workspace,
+                    workspace_bytes,
+                )
+            },
+        )
+    }
+
+    /// Runs `kernel` on one row cloud of `self` against every cloud of `columns` per task, each
+    /// thread on its own `workspace_bytes` from `self`'s allocator.
+    fn rows_parallel<OtherAlloc: Allocator>(
+        &self,
+        columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &mut [Scalar::Distance],
+        rotations: Option<&mut [[f32; 9]]>,
+        workspace_bytes: usize,
+        pool: &mut fu::ThreadPool,
+        kernel: impl Fn(
+                *const *const u8,
+                *const *const u8,
+                usize,
+                *mut Scalar::Distance,
+                usize,
+                *mut f32,
+                *mut u8,
+            ) -> Result<(), Error>
+            + Sync,
+    ) -> Result<(), Error> {
+        let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
+        let (rows, column_count) = (self.clouds, columns.clouds);
+        let row_packs = fu::SyncConstPtr::new(self.packs().as_ptr());
+        let column_packs = fu::SyncConstPtr::new(columns.packs().as_ptr());
+        let results = fu::SyncMutPtr::new(results.as_mut_ptr());
+        let rotations = fu::SyncMutPtr::new(rotations);
+        let workspace_stride = workspace_bytes.next_multiple_of(DEFAULT_ALIGNMENT);
+        let threads = pool.threads_count().max(1);
+        with_workspace(self.allocator(), threads * workspace_stride, |workspace| {
+            let workspace = fu::SyncMutPtr::new(workspace);
+            let kernel = &kernel;
+            let failure = WorkerStatus::default();
+            let failure = &failure;
+            fu::for_n_dynamic(pool, rows, move |row, thread| {
+                if let Err(error) = crate::capabilities::configure_cpu_thread() {
+                    failure.record(Err(error));
+                    return;
+                }
+                let rotations_row = match rotations.as_ptr().is_null() {
+                    true => null_mut(),
+                    false => unsafe { rotations.get(row * column_count * 9) },
+                };
+                failure.record(unsafe {
+                    kernel(
+                        row_packs.as_ptr().add(row),
+                        column_packs.as_ptr(),
+                        column_count,
+                        results.as_ptr().cast::<u8>().add(row * results_stride).cast(),
+                        results_stride,
+                        rotations_row,
+                        workspace.get(thread.thread * workspace_stride),
+                    )
+                });
+            });
+            failure.check()
+        })
+    }
+}
+
+#[cfg(feature = "parallel")]
+#[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+impl<Scalar: Shapes + Sync> ShapesPackedMatrix<Scalar, Global> {
+    /// Packs every cloud of `clouds` across `pool`, using the global allocator.
+    pub fn new_parallel(clouds: &[&[[Scalar; 3]]], pool: &mut fu::ThreadPool) -> Result<Self, Error> {
+        Self::new_parallel_in(clouds, Global, pool)
+    }
+
+    /// Packs every cloud of `clouds` normalized across `pool`, using the global allocator.
+    pub fn new_normalized_parallel(clouds: &[&[[Scalar; 3]]], pool: &mut fu::ThreadPool) -> Result<Self, Error> {
+        Self::new_normalized_parallel_in(clouds, Global, pool)
+    }
 }
 
 /// Checks that `results` and `rotations` hold `rows × columns` entries, returning the bytes between
@@ -1362,6 +1592,65 @@ mod tests {
             }
             assert_eq!(forward[8], 0.0, "two empty clouds");
             assert!(forward[2].is_infinite() && forward[6].is_infinite(), "one empty cloud");
+        }
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn shapes_parallel_matches_serial() {
+        let large = moved_cloud([0.3, 0.0, -1.0]);
+        let empty: &[[f32; 3]] = &[];
+        let clouds = [&CLOUD[..5], &large[..], empty, &CLOUD[..], &CLOUD[2..]];
+        let topology = fu::Topology::new().unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
+        let (rows, columns) = (
+            ShapesPackedMatrix::new(&clouds).unwrap(),
+            ShapesPackedMatrix::new_normalized(&clouds[1..]).unwrap(),
+        );
+        let (rows_parallel, columns_parallel) = (
+            ShapesPackedMatrix::new_parallel(&clouds, &mut pool).unwrap(),
+            ShapesPackedMatrix::new_normalized_parallel(&clouds[1..], &mut pool).unwrap(),
+        );
+        type Serial = fn(
+            &ShapesPackedMatrix<f32>,
+            &ShapesPackedMatrix<f32>,
+            &mut [f64],
+            Option<&mut [[f32; 9]]>,
+        ) -> Result<(), Error>;
+        type Parallel = fn(
+            &ShapesPackedMatrix<f32>,
+            &ShapesPackedMatrix<f32>,
+            &mut [f64],
+            Option<&mut [[f32; 9]]>,
+            &mut fu::ThreadPool,
+        ) -> Result<(), Error>;
+        let kinds: [(Serial, Parallel); 4] = [
+            (ShapesPackedMatrix::chamfers, ShapesPackedMatrix::chamfers_parallel),
+            (ShapesPackedMatrix::hausdorffs, ShapesPackedMatrix::hausdorffs_parallel),
+            (
+                ShapesPackedMatrix::wassersteinprocrustes,
+                ShapesPackedMatrix::wassersteinprocrustes_parallel,
+            ),
+            (
+                ShapesPackedMatrix::gromovwassersteins,
+                ShapesPackedMatrix::gromovwassersteins_parallel,
+            ),
+        ];
+        for (serial, parallel) in kinds {
+            let (mut expected, mut found) = ([0.0_f64; 20], [f64::NAN; 20]);
+            let (mut expected_rotations, mut found_rotations) = ([[0.0_f32; 9]; 20], [[f32::NAN; 9]; 20]);
+            serial(&rows, &columns, &mut expected, Some(&mut expected_rotations)).unwrap();
+            parallel(
+                &rows_parallel,
+                &columns_parallel,
+                &mut found,
+                Some(&mut found_rotations),
+                &mut pool,
+            )
+            .unwrap();
+            assert_eq!(expected.map(f64::to_bits), found.map(f64::to_bits));
+            let bits = |rotations: [[f32; 9]; 20]| rotations.map(|rotation| rotation.map(f32::to_bits));
+            assert_eq!(bits(expected_rotations), bits(found_rotations));
         }
     }
 
