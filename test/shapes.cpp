@@ -549,6 +549,8 @@ error_stats_t test_shapes_pack(settings_t const &settings, typename scalar_type_
     std::mt19937 generator(settings.seed.value);
     std::size_t const n = settings.shape_points;
     nk_f64_t const roundoff = half_ulp<constant_t>(1.0);
+    // Compensated f64 sums keep at most 8 roundings of their total, whatever their length
+    nk_f64_t const terms = std::is_same_v<scalar_t, f64_t> ? 8 : static_cast<nk_f64_t>(n);
     nk_size_t count = 0;
     raw_constant_t centroid[3], frame[4], scale, spreads[3], max_radius;
 
@@ -622,23 +624,23 @@ error_stats_t test_shapes_pack(settings_t const &settings, typename scalar_type_
 
         // The centroid sums n inputs; packed points may round a step apart from the oracle's,
         // moving the second moments by twice that times the radius per entry and the largest norm
-        // by its length
+        // by its length, which the centroid's own error also shifts
+        nk_f64_t const centroid_bound = (terms + 2) * roundoff * largest_input;
         for (std::size_t axis = 0; axis != 3; ++axis) {
-            stats.accumulate_bounded(constant_t(centroid[axis]), oracle_pack.header->centroid[axis],
-                                     (n + 2) * roundoff * largest_input);
+            stats.accumulate_bounded(constant_t(centroid[axis]), oracle_pack.header->centroid[axis], centroid_bound);
             stats.accumulate_bounded(constant_t(spreads[axis]), oracle_pack.header->spreads[axis],
-                                     12 * radius * storage + (n + 16) * roundoff * radius * radius);
+                                     12 * radius * storage + (terms + 16) * roundoff * radius * radius);
         }
         stats.accumulate_bounded(constant_t(max_radius), oracle_pack.header->max_radius,
-                                 2 * std::sqrt(3.0) * storage + 4 * roundoff * radius);
+                                 2 * std::sqrt(3.0) * (storage + centroid_bound) + 4 * roundoff * radius);
 
         // The RMS radius sums n squared deviations; a centroid error moves it by at most that error
         if constexpr (kind_ == pack_k) stats.expect(scale == 1, "a plain pack's scale is not 1");
         else
             stats.accumulate_bounded(constant_t(scale), oracle_pack.header->scale,
-                                     (n + 8) * roundoff * scale + 2 * (n + 2) * roundoff * largest_input);
+                                     (terms + 8) * roundoff * scale + 2 * (terms + 2) * roundoff * largest_input);
         stats.expect(spreads[0] >= spreads[1] && spreads[1] >= spreads[2] &&
-                         spreads[2] >= -static_cast<nk_f64_t>(n + 16) * roundoff * radius * radius,
+                         spreads[2] >= -(terms + 16) * roundoff * radius * radius,
                      "the spreads are not descending");
 
         reference_t quaternion[4], rotation[9];

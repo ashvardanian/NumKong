@@ -131,50 +131,50 @@ extern "C" {
  *  @param[out] bytes The size of the pack.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API nk_status_t nk_shapes_pack_size_f16_best(nk_size_t points, nk_capability_t capabilities, nk_size_t *bytes);
-/** @copydoc nk_shapes_pack_size_f16_best */
-NUMKONG_API nk_status_t nk_shapes_pack_size_f32_best(nk_size_t points, nk_capability_t capabilities, nk_size_t *bytes);
-/** @copydoc nk_shapes_pack_size_f16_best */
 NUMKONG_API nk_status_t nk_shapes_pack_size_f64_best(nk_size_t points, nk_capability_t capabilities, nk_size_t *bytes);
+/** @copydoc nk_shapes_pack_size_f64_best */
+NUMKONG_API nk_status_t nk_shapes_pack_size_f32_best(nk_size_t points, nk_capability_t capabilities, nk_size_t *bytes);
+/** @copydoc nk_shapes_pack_size_f64_best */
+NUMKONG_API nk_status_t nk_shapes_pack_size_f16_best(nk_size_t points, nk_capability_t capabilities, nk_size_t *bytes);
 
 /**
  *  @brief Packs one cloud: centers it, rotates it onto its principal axes, and keeps its constants.
  *  @param[in] points The cloud, @p count × 3 interleaved [x0,y0,z0, x1,y1,z1, ...].
  *  @param[in] count The number of 3D points.
- *  @param[out] packed The pack, as many bytes as @c nk_shapes_pack_size_f16_best reports, starting
+ *  @param[out] packed The pack, as many bytes as @c nk_shapes_pack_size_f64_best reports, starting
  *      on an @c nk_default_alignment_k boundary.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API nk_status_t nk_shapes_pack_f16_best(nk_f16_t const *points, nk_size_t count, void *packed,
+NUMKONG_API nk_status_t nk_shapes_pack_f64_best(nk_f64_t const *points, nk_size_t count, void *packed,
                                                 nk_capability_t capabilities, nk_stream_t stream);
-/** @copydoc nk_shapes_pack_f16_best */
+/** @copydoc nk_shapes_pack_f64_best */
 NUMKONG_API nk_status_t nk_shapes_pack_f32_best(nk_f32_t const *points, nk_size_t count, void *packed,
                                                 nk_capability_t capabilities, nk_stream_t stream);
-/** @copydoc nk_shapes_pack_f16_best */
-NUMKONG_API nk_status_t nk_shapes_pack_f64_best(nk_f64_t const *points, nk_size_t count, void *packed,
+/** @copydoc nk_shapes_pack_f64_best */
+NUMKONG_API nk_status_t nk_shapes_pack_f16_best(nk_f16_t const *points, nk_size_t count, void *packed,
                                                 nk_capability_t capabilities, nk_stream_t stream);
 
 /**
- *  @brief Packs one cloud like @c nk_shapes_pack_f16_best, also dividing it by its RMS distance
+ *  @brief Packs one cloud like @c nk_shapes_pack_f64_best, also dividing it by its RMS distance
  *      from the centroid, kept as the pack's @c scale, or by 1 when the cloud has no spread.
  *
  *  Every kind then compares shapes regardless of size, and a rotation between two normalized packs
  *  takes the column cloud onto the row cloud as aᵢ ≈ (scale_a / scale_b) × R × (bⱼ − b̄) + ā.
  */
-NUMKONG_API nk_status_t nk_shapes_pack_normalized_f16_best(nk_f16_t const *points, nk_size_t count, void *packed,
+NUMKONG_API nk_status_t nk_shapes_pack_normalized_f64_best(nk_f64_t const *points, nk_size_t count, void *packed,
                                                            nk_capability_t capabilities, nk_stream_t stream);
-/** @copydoc nk_shapes_pack_normalized_f16_best */
+/** @copydoc nk_shapes_pack_normalized_f64_best */
 NUMKONG_API nk_status_t nk_shapes_pack_normalized_f32_best(nk_f32_t const *points, nk_size_t count, void *packed,
                                                            nk_capability_t capabilities, nk_stream_t stream);
-/** @copydoc nk_shapes_pack_normalized_f16_best */
-NUMKONG_API nk_status_t nk_shapes_pack_normalized_f64_best(nk_f64_t const *points, nk_size_t count, void *packed,
+/** @copydoc nk_shapes_pack_normalized_f64_best */
+NUMKONG_API nk_status_t nk_shapes_pack_normalized_f16_best(nk_f16_t const *points, nk_size_t count, void *packed,
                                                            nk_capability_t capabilities, nk_stream_t stream);
 
 /**
  *  @brief Reads a pack's points and constants, skipping every null output.
- *  @param[in] packed A pack of @c f16 points, plain or normalized.
+ *  @param[in] packed A pack of @c f64 points, plain or normalized.
  *  @param[out] points Null, or the number of 3D points.
  *  @param[out] centroid Null, or the 3 coordinates of the mean input point.
  *  @param[out] frame Null, or the unit quaternion (x, y, z, w) of 𝑄, rotating centered inputs onto
@@ -187,19 +187,19 @@ NUMKONG_API nk_status_t nk_shapes_pack_normalized_f64_best(nk_f64_t const *point
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API nk_status_t nk_shapes_packed_shape_f16_best(void const *packed, nk_size_t *points, nk_f32_t *centroid,
-                                                        nk_f32_t *frame, nk_f32_t *scale, nk_f32_t *spreads,
-                                                        nk_f32_t *max_radius, nk_capability_t capabilities,
+NUMKONG_API nk_status_t nk_shapes_packed_shape_f64_best(void const *packed, nk_size_t *points, nk_f64_t *centroid,
+                                                        nk_f64_t *frame, nk_f64_t *scale, nk_f64_t *spreads,
+                                                        nk_f64_t *max_radius, nk_capability_t capabilities,
                                                         nk_stream_t stream);
-/** @copydoc nk_shapes_packed_shape_f16_best */
+/** @copydoc nk_shapes_packed_shape_f64_best */
 NUMKONG_API nk_status_t nk_shapes_packed_shape_f32_best(void const *packed, nk_size_t *points, nk_f64_t *centroid,
                                                         nk_f64_t *frame, nk_f64_t *scale, nk_f64_t *spreads,
                                                         nk_f64_t *max_radius, nk_capability_t capabilities,
                                                         nk_stream_t stream);
-/** @copydoc nk_shapes_packed_shape_f16_best */
-NUMKONG_API nk_status_t nk_shapes_packed_shape_f64_best(void const *packed, nk_size_t *points, nk_f64_t *centroid,
-                                                        nk_f64_t *frame, nk_f64_t *scale, nk_f64_t *spreads,
-                                                        nk_f64_t *max_radius, nk_capability_t capabilities,
+/** @copydoc nk_shapes_packed_shape_f64_best */
+NUMKONG_API nk_status_t nk_shapes_packed_shape_f16_best(void const *packed, nk_size_t *points, nk_f32_t *centroid,
+                                                        nk_f32_t *frame, nk_f32_t *scale, nk_f32_t *spreads,
+                                                        nk_f32_t *max_radius, nk_capability_t capabilities,
                                                         nk_stream_t stream);
 
 /**
@@ -209,19 +209,19 @@ NUMKONG_API nk_status_t nk_shapes_packed_shape_f64_best(void const *packed, nk_s
  *  Unpacking an absolute pack returns its inputs within one storage rounding, and a normalized pack
  *  its cloud at the original scale.
  *
- *  @param[in] packed A pack of @c f16 points, plain or normalized.
+ *  @param[in] packed A pack of @c f64 points, plain or normalized.
  *  @param[out] points The cloud, its points × 3 interleaved [x0,y0,z0, x1,y1,z1, ...].
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API nk_status_t nk_shapes_unpack_f16_best(void const *packed, nk_f16_t *points, nk_capability_t capabilities,
+NUMKONG_API nk_status_t nk_shapes_unpack_f64_best(void const *packed, nk_f64_t *points, nk_capability_t capabilities,
                                                   nk_stream_t stream);
-/** @copydoc nk_shapes_unpack_f16_best */
+/** @copydoc nk_shapes_unpack_f64_best */
 NUMKONG_API nk_status_t nk_shapes_unpack_f32_best(void const *packed, nk_f32_t *points, nk_capability_t capabilities,
                                                   nk_stream_t stream);
-/** @copydoc nk_shapes_unpack_f16_best */
-NUMKONG_API nk_status_t nk_shapes_unpack_f64_best(void const *packed, nk_f64_t *points, nk_capability_t capabilities,
+/** @copydoc nk_shapes_unpack_f64_best */
+NUMKONG_API nk_status_t nk_shapes_unpack_f16_best(void const *packed, nk_f16_t *points, nk_capability_t capabilities,
                                                   nk_stream_t stream);
 
 /**
@@ -404,47 +404,47 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_best(void const *const *a_packed, nk
                                                  nk_size_t results_stride, nk_capability_t capabilities,
                                                  nk_stream_t stream);
 
-/** @copydoc nk_shapes_pack_size_f16_best */
+/** @copydoc nk_shapes_pack_size_f64_best */
 NUMKONG_API nk_status_t nk_shapes_pack_size_f16_serial(nk_size_t points, nk_size_t *bytes);
-/** @copydoc nk_shapes_pack_size_f16_best */
+/** @copydoc nk_shapes_pack_size_f64_best */
 NUMKONG_API nk_status_t nk_shapes_pack_size_f32_serial(nk_size_t points, nk_size_t *bytes);
-/** @copydoc nk_shapes_pack_f16_best */
+/** @copydoc nk_shapes_pack_f64_best */
 NUMKONG_API nk_status_t nk_shapes_pack_f16_serial(nk_f16_t const *points, nk_size_t count, void *packed,
                                                   nk_stream_t stream);
-/** @copydoc nk_shapes_pack_f16_best */
+/** @copydoc nk_shapes_pack_f64_best */
 NUMKONG_API nk_status_t nk_shapes_pack_f32_serial(nk_f32_t const *points, nk_size_t count, void *packed,
                                                   nk_stream_t stream);
-/** @copydoc nk_shapes_pack_normalized_f16_best */
+/** @copydoc nk_shapes_pack_normalized_f64_best */
 NUMKONG_API nk_status_t nk_shapes_pack_normalized_f16_serial(nk_f16_t const *points, nk_size_t count, void *packed,
                                                              nk_stream_t stream);
-/** @copydoc nk_shapes_pack_normalized_f16_best */
+/** @copydoc nk_shapes_pack_normalized_f64_best */
 NUMKONG_API nk_status_t nk_shapes_pack_normalized_f32_serial(nk_f32_t const *points, nk_size_t count, void *packed,
                                                              nk_stream_t stream);
-/** @copydoc nk_shapes_packed_shape_f16_best */
+/** @copydoc nk_shapes_packed_shape_f64_best */
 NUMKONG_API nk_status_t nk_shapes_packed_shape_f16_serial(void const *packed, nk_size_t *points, nk_f32_t *centroid,
                                                           nk_f32_t *frame, nk_f32_t *scale, nk_f32_t *spreads,
                                                           nk_f32_t *max_radius, nk_stream_t stream);
-/** @copydoc nk_shapes_packed_shape_f16_best */
+/** @copydoc nk_shapes_packed_shape_f64_best */
 NUMKONG_API nk_status_t nk_shapes_packed_shape_f32_serial(void const *packed, nk_size_t *points, nk_f64_t *centroid,
                                                           nk_f64_t *frame, nk_f64_t *scale, nk_f64_t *spreads,
                                                           nk_f64_t *max_radius, nk_stream_t stream);
-/** @copydoc nk_shapes_unpack_f16_best */
+/** @copydoc nk_shapes_unpack_f64_best */
 NUMKONG_API nk_status_t nk_shapes_unpack_f16_serial(void const *packed, nk_f16_t *points, nk_stream_t stream);
-/** @copydoc nk_shapes_unpack_f16_best */
+/** @copydoc nk_shapes_unpack_f64_best */
 NUMKONG_API nk_status_t nk_shapes_unpack_f32_serial(void const *packed, nk_f32_t *points, nk_stream_t stream);
-/** @copydoc nk_shapes_pack_size_f16_best */
+/** @copydoc nk_shapes_pack_size_f64_best */
 NUMKONG_API nk_status_t nk_shapes_pack_size_f64_serial(nk_size_t points, nk_size_t *bytes);
-/** @copydoc nk_shapes_pack_f16_best */
+/** @copydoc nk_shapes_pack_f64_best */
 NUMKONG_API nk_status_t nk_shapes_pack_f64_serial(nk_f64_t const *points, nk_size_t count, void *packed,
                                                   nk_stream_t stream);
-/** @copydoc nk_shapes_pack_normalized_f16_best */
+/** @copydoc nk_shapes_pack_normalized_f64_best */
 NUMKONG_API nk_status_t nk_shapes_pack_normalized_f64_serial(nk_f64_t const *points, nk_size_t count, void *packed,
                                                              nk_stream_t stream);
-/** @copydoc nk_shapes_packed_shape_f16_best */
+/** @copydoc nk_shapes_packed_shape_f64_best */
 NUMKONG_API nk_status_t nk_shapes_packed_shape_f64_serial(void const *packed, nk_size_t *points, nk_f64_t *centroid,
                                                           nk_f64_t *frame, nk_f64_t *scale, nk_f64_t *spreads,
                                                           nk_f64_t *max_radius, nk_stream_t stream);
-/** @copydoc nk_shapes_unpack_f16_best */
+/** @copydoc nk_shapes_unpack_f64_best */
 NUMKONG_API nk_status_t nk_shapes_unpack_f64_serial(void const *packed, nk_f64_t *points, nk_stream_t stream);
 /** @copydoc nk_chamfers_packed_f64_best */
 NUMKONG_API nk_status_t nk_chamfers_packed_f64_serial(void const *const *a_packed, nk_size_t rows,

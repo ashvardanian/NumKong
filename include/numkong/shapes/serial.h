@@ -583,6 +583,62 @@ NUMKONG_INLINE nk_f64_t nk_shapes_moments_f64_serial_(nk_f64_t const *points, nk
     return coincident ? 0 : nk_sqrt_f64_serial_(covariance[0] + covariance[2] + covariance[5]);
 }
 
+/** The 6 unique second moments of a pack's stored points in the order Jacobi takes them, xx, yx,
+ *  yy, zx, zy and zz, each divided by the count, returning the largest squared norm. */
+NUMKONG_INLINE nk_f32_t nk_shapes_packed_moments_f16_serial_(nk_f16_t const *packed_x, nk_size_t axis_stride,
+                                                             nk_size_t count, nk_f32_t *moments) {
+    nk_f32_t x, y, z, product, max_norm_squared = 0;
+    for (int entry = 0; entry != 6; ++entry) moments[entry] = 0;
+    for (nk_size_t index = 0; index != count; ++index) {
+        nk_f16_to_f32_serial_(packed_x + index, &x), nk_f16_to_f32_serial_(packed_x + axis_stride + index, &y);
+        nk_f16_to_f32_serial_(packed_x + 2 * axis_stride + index, &z);
+        nk_f32_t const xx = x * x, yy = y * y, zz = z * z, norm_squared = xx + yy + zz;
+        moments[0] += xx, moments[2] += yy, moments[5] += zz;
+        product = y * x, moments[1] += product, product = z * x, moments[3] += product;
+        product = z * y, moments[4] += product;
+        max_norm_squared = norm_squared > max_norm_squared ? norm_squared : max_norm_squared;
+    }
+    for (int entry = 0; entry != 6; ++entry) moments[entry] /= (nk_f32_t)count;
+    return max_norm_squared;
+}
+
+/** @copydoc nk_shapes_packed_moments_f16_serial_ */
+NUMKONG_INLINE nk_f64_t nk_shapes_packed_moments_f32_serial_(nk_f32_t const *packed_x, nk_size_t axis_stride,
+                                                             nk_size_t count, nk_f64_t *moments) {
+    nk_f64_t x, y, z, product, max_norm_squared = 0;
+    for (int entry = 0; entry != 6; ++entry) moments[entry] = 0;
+    for (nk_size_t index = 0; index != count; ++index) {
+        x = packed_x[index], y = packed_x[axis_stride + index], z = packed_x[2 * axis_stride + index];
+        nk_f64_t const xx = x * x, yy = y * y, zz = z * z, norm_squared = xx + yy + zz;
+        moments[0] += xx, moments[2] += yy, moments[5] += zz;
+        product = y * x, moments[1] += product, product = z * x, moments[3] += product;
+        product = z * y, moments[4] += product;
+        max_norm_squared = norm_squared > max_norm_squared ? norm_squared : max_norm_squared;
+    }
+    for (int entry = 0; entry != 6; ++entry) moments[entry] /= (nk_f64_t)count;
+    return max_norm_squared;
+}
+
+/** The second moments of a pack of @c f64 points, like the @c f32 ones summed by Dot2. */
+NUMKONG_INLINE nk_f64_t nk_shapes_packed_moments_f64_serial_(nk_f64_t const *packed_x, nk_size_t axis_stride,
+                                                             nk_size_t count, nk_f64_t *moments) {
+    nk_f64_t compensations[6] = {0, 0, 0, 0, 0, 0}, max_norm_squared = 0;
+    for (int entry = 0; entry != 6; ++entry) moments[entry] = 0;
+    for (nk_size_t index = 0; index != count; ++index) {
+        nk_f64_t const x = packed_x[index], y = packed_x[axis_stride + index], z = packed_x[2 * axis_stride + index];
+        nk_f64_t const xx = x * x, yy = y * y, zz = z * z, norm_squared = xx + yy + zz;
+        nk_dot2_f64_serial_(&moments[0], &compensations[0], x, x);
+        nk_dot2_f64_serial_(&moments[1], &compensations[1], y, x);
+        nk_dot2_f64_serial_(&moments[2], &compensations[2], y, y);
+        nk_dot2_f64_serial_(&moments[3], &compensations[3], z, x);
+        nk_dot2_f64_serial_(&moments[4], &compensations[4], z, y);
+        nk_dot2_f64_serial_(&moments[5], &compensations[5], z, z);
+        max_norm_squared = norm_squared > max_norm_squared ? norm_squared : max_norm_squared;
+    }
+    for (int entry = 0; entry != 6; ++entry) moments[entry] = (moments[entry] + compensations[entry]) / (nk_f64_t)count;
+    return max_norm_squared;
+}
+
 /** The pack of one cloud from its moments: the header, then the x, y and z arrays of its points
  *  centered, rotated onto the principal axes and divided by @p scale. Then its inverse, which
  *  restores every packed point as scale × 𝑄ᵀ × x′ + centroid. Every product sits in a statement of
@@ -787,7 +843,6 @@ NUMKONG_INLINE nk_f64_t nk_shapes_moments_f64_serial_(nk_f64_t const *points, nk
         nk_size_t const axis_stride = axis_bytes / sizeof(nk_##input_type##_t);                                        \
         nk_##input_type##_t *packed_x = (nk_##input_type##_t *)(packed_bytes + header_bytes);                          \
         nk_##input_type##_t *packed_y = packed_x + axis_stride, *packed_z = packed_y + axis_stride;                    \
-        nk_##math_type##_t const points_count = (nk_##math_type##_t)count;                                             \
         nk_##math_type##_t x, y, z, product;                                                                           \
         nk_##math_type##_t covariance_xx = covariance[0], covariance_yx = covariance[1];                               \
         nk_##math_type##_t covariance_yy = covariance[2], covariance_zx = covariance[3];                               \
@@ -856,8 +911,7 @@ NUMKONG_INLINE nk_f64_t nk_shapes_moments_f64_serial_(nk_f64_t const *points, nk
         nk_quaternion_to_mat3x3_##math_type##_serial_(header->frame, axes);                                            \
         /* Dividing 𝑄 by the scale divides every rotated point, and dividing by 1 changes no bit */                    \
         for (int cell = 0; cell != 9; ++cell) axes[cell] /= scale;                                                     \
-        nk_##math_type##_t moment_xx = 0, moment_yx = 0, moment_yy = 0, moment_zx = 0, moment_zy = 0, moment_zz = 0;   \
-        nk_##math_type##_t max_norm_squared = 0, rotated[3];                                                           \
+        nk_##math_type##_t rotated[3], moments[6];                                                                     \
         for (nk_size_t index = 0; index != count; ++index) {                                                           \
             load_and_convert(points + index * 3 + 0, &x), load_and_convert(points + index * 3 + 1, &y);                \
             load_and_convert(points + index * 3 + 2, &z);                                                              \
@@ -869,24 +923,17 @@ NUMKONG_INLINE nk_f64_t nk_shapes_moments_f64_serial_(nk_f64_t const *points, nk
             }                                                                                                          \
             convert_and_store(&rotated[0], packed_x + index), convert_and_store(&rotated[1], packed_y + index);        \
             convert_and_store(&rotated[2], packed_z + index);                                                          \
-            load_and_convert(packed_x + index, &x), load_and_convert(packed_y + index, &y);                            \
-            load_and_convert(packed_z + index, &z);                                                                    \
-            nk_##math_type##_t const xx = x * x, yy = y * y, zz = z * z, norm_squared = xx + yy + zz;                  \
-            moment_xx += xx, moment_yy += yy, moment_zz += zz;                                                         \
-            product = y * x, moment_yx += product, product = z * x, moment_zx += product;                              \
-            product = z * y, moment_zy += product;                                                                     \
-            max_norm_squared = norm_squared > max_norm_squared ? norm_squared : max_norm_squared;                      \
         }                                                                                                              \
-        moment_xx /= points_count, moment_yx /= points_count, moment_yy /= points_count;                               \
-        moment_zx /= points_count, moment_zy /= points_count, moment_zz /= points_count;                               \
-        nk_jacobi_eigenanalysis_##math_type##_serial_(&moment_xx, &moment_yx, &moment_yy, &moment_zx, &moment_zy,      \
-                                                      &moment_zz, quaternion);                                         \
-        nk_cond_swap_##math_type##_serial_(moment_xx < moment_yy, &moment_xx, &moment_yy);                             \
-        nk_cond_swap_##math_type##_serial_(moment_xx < moment_zz, &moment_xx, &moment_zz);                             \
-        nk_cond_swap_##math_type##_serial_(moment_yy < moment_zz, &moment_yy, &moment_zz);                             \
+        nk_##math_type##_t const max_norm_squared = nk_shapes_packed_moments_##input_type##_serial_(                   \
+            packed_x, axis_stride, count, moments);                                                                    \
+        nk_jacobi_eigenanalysis_##math_type##_serial_(&moments[0], &moments[1], &moments[2], &moments[3], &moments[4], \
+                                                      &moments[5], quaternion);                                        \
+        nk_cond_swap_##math_type##_serial_(moments[0] < moments[2], &moments[0], &moments[2]);                         \
+        nk_cond_swap_##math_type##_serial_(moments[0] < moments[5], &moments[0], &moments[5]);                         \
+        nk_cond_swap_##math_type##_serial_(moments[2] < moments[5], &moments[2], &moments[5]);                         \
         header->points = (nk_##points_type##_t)count;                                                                  \
         header->centroid[0] = centroid[0], header->centroid[1] = centroid[1], header->centroid[2] = centroid[2];       \
-        header->spreads[0] = moment_xx, header->spreads[1] = moment_yy, header->spreads[2] = moment_zz;                \
+        header->spreads[0] = moments[0], header->spreads[1] = moments[2], header->spreads[2] = moments[5];             \
         header->max_radius = compute_sqrt(max_norm_squared);                                                           \
     }                                                                                                                  \
     NUMKONG_INLINE void nk_shapes_unpack_##input_type##_serial_(void const *packed, nk_##input_type##_t *points) {     \
