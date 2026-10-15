@@ -34,9 +34,11 @@
 
 namespace ashvardanian::numkong {
 
-/** The point types of shape packs: @c f16_t computes in @c f32_t, and @c f32_t in @c f64_t. */
+/** The point types of shape packs: @c f64_t and @c f32_t compute in @c f64_t, and @c f16_t in
+ *  @c f32_t. */
 template <typename in_type_>
-concept shapes_dtype = std::is_same_v<in_type_, f16_t> || std::is_same_v<in_type_, f32_t>;
+concept shapes_dtype = std::is_same_v<in_type_, f64_t> || std::is_same_v<in_type_, f32_t> ||
+                       std::is_same_v<in_type_, f16_t>;
 
 template <typename scalar_type_>
 scalar_type_ det3x3_(scalar_type_ const *m) {
@@ -327,8 +329,9 @@ struct shapes_cloud_ {
         : header(static_cast<shapes_header_<in_type_> const *>(packed)),
           points(static_cast<std::size_t>(header->points)) {
         nk_size_t stride = 0;
-        if constexpr (std::is_same_v<in_type_, f16_t>) axes = nk_shapes_packed_axes_f16_serial_(packed, &stride);
-        else axes = nk_shapes_packed_axes_f32_serial_(packed, &stride);
+        if constexpr (std::is_same_v<in_type_, f64_t>) axes = nk_shapes_packed_axes_f64_serial_(packed, &stride);
+        else if constexpr (std::is_same_v<in_type_, f32_t>) axes = nk_shapes_packed_axes_f32_serial_(packed, &stride);
+        else axes = nk_shapes_packed_axes_f16_serial_(packed, &stride);
         axis_stride = stride;
     }
 
@@ -1114,7 +1117,7 @@ status_t shapes_transport_reference_(void const *const *a_packed, std::size_t ro
 /**
  *  @brief Returns the bytes a pack of @p points takes.
  *  @param[in] capabilities Capabilities to pick from, or zero for the layout of @c shapes/serial.h.
- *  @tparam in_type_ Point type, @c f16_t or @c f32_t.
+ *  @tparam in_type_ Point type, @c f64_t, @c f32_t or @c f16_t.
  */
 template <shapes_dtype in_type_>
 expected<std::size_t> shapes_pack_size(std::size_t points,
@@ -1122,7 +1125,9 @@ expected<std::size_t> shapes_pack_size(std::size_t points,
     nk_size_t bytes = shapes_pack_bytes_<in_type_>(points);
     nk_status_t status = nk_success_k;
     if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f32_t>)
+        if constexpr (std::is_same_v<in_type_, f64_t>)
+            status = nk_shapes_pack_size_f64_best(points, capabilities, &bytes);
+        else if constexpr (std::is_same_v<in_type_, f32_t>)
             status = nk_shapes_pack_size_f32_best(points, capabilities, &bytes);
         else status = nk_shapes_pack_size_f16_best(points, capabilities, &bytes);
     }
@@ -1142,7 +1147,9 @@ status_t shapes_pack(typename in_type_::raw_t const *points, std::size_t count, 
                      nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<math_type_, typename in_type_::shapes_distance_t>;
     if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return static_cast<status_t>(nk_shapes_pack_f64_best(points, count, packed, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(nk_shapes_pack_f32_best(points, count, packed, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
             return static_cast<status_t>(nk_shapes_pack_f16_best(points, count, packed, capabilities, stream));
@@ -1159,7 +1166,10 @@ status_t shapes_pack_normalized(typename in_type_::raw_t const *points, std::siz
                                 nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<math_type_, typename in_type_::shapes_distance_t>;
     if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return static_cast<status_t>(
+                nk_shapes_pack_normalized_f64_best(points, count, packed, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(
                 nk_shapes_pack_normalized_f32_best(points, count, packed, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
@@ -1192,7 +1202,10 @@ status_t shapes_packed_shape(void const *packed, std::size_t *points, typename i
         };
         nk_size_t count = 0;
         nk_status_t status;
-        if constexpr (std::is_same_v<in_type_, f32_t>)
+        if constexpr (std::is_same_v<in_type_, f64_t>)
+            status = nk_shapes_packed_shape_f64_best(packed, &count, raw(centroid), raw(frame), raw(scale),
+                                                     raw(spreads), raw(max_radius), capabilities, stream);
+        else if constexpr (std::is_same_v<in_type_, f32_t>)
             status = nk_shapes_packed_shape_f32_best(packed, &count, raw(centroid), raw(frame), raw(scale),
                                                      raw(spreads), raw(max_radius), capabilities, stream);
         else
@@ -1226,7 +1239,9 @@ status_t shapes_unpack(void const *packed, typename in_type_::raw_t *points,
                        nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<math_type_, typename in_type_::shapes_distance_t>;
     if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return static_cast<status_t>(nk_shapes_unpack_f64_best(packed, points, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(nk_shapes_unpack_f32_best(packed, points, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
             return static_cast<status_t>(nk_shapes_unpack_f16_best(packed, points, capabilities, stream));
@@ -1264,7 +1279,11 @@ status_t chamfers_packed(void const *const *a_packed, std::size_t rows, void con
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
                               std::is_same_v<rotation_type_, f32_t>;
     if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return static_cast<status_t>(
+                nk_chamfers_packed_f64_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                                            reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(
                 nk_chamfers_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
                                             reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
@@ -1289,7 +1308,11 @@ status_t hausdorffs_packed(void const *const *a_packed, std::size_t rows, void c
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
                               std::is_same_v<rotation_type_, f32_t>;
     if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return static_cast<status_t>(
+                nk_hausdorffs_packed_f64_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                                              reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(
                 nk_hausdorffs_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
                                               reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
@@ -1314,7 +1337,12 @@ expected<std::size_t> wassersteinprocrustes_workspace_size(
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t>;
     if (capabilities) {
         nk_size_t bytes = 0;
-        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch) {
+            nk_status_t const status = nk_wassersteinprocrustes_workspace_size_f64_best(row_points, column_points,
+                                                                                        capabilities, &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch) {
             nk_status_t const status = nk_wassersteinprocrustes_workspace_size_f32_best(row_points, column_points,
                                                                                         capabilities, &bytes);
             return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
@@ -1338,7 +1366,12 @@ expected<std::size_t> gromovwassersteins_workspace_size(
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t>;
     if (capabilities) {
         nk_size_t bytes = 0;
-        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch) {
+            nk_status_t const status = nk_gromovwassersteins_workspace_size_f64_best(row_points, column_points,
+                                                                                     capabilities, &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch) {
             nk_status_t const status = nk_gromovwassersteins_workspace_size_f32_best(row_points, column_points,
                                                                                      capabilities, &bytes);
             return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
@@ -1374,7 +1407,11 @@ status_t wassersteinprocrustes_packed(void const *const *a_packed, std::size_t r
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
                               std::is_same_v<rotation_type_, f32_t>;
     if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return static_cast<status_t>(nk_wassersteinprocrustes_packed_f64_best(
+                a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(nk_wassersteinprocrustes_packed_f32_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
                 reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
@@ -1399,7 +1436,11 @@ status_t gromovwassersteins_packed(void const *const *a_packed, std::size_t rows
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
                               std::is_same_v<rotation_type_, f32_t>;
     if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return static_cast<status_t>(nk_gromovwassersteins_packed_f64_best(
+                a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(nk_gromovwassersteins_packed_f32_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
                 reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));

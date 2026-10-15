@@ -72,11 +72,13 @@ def wasserstein_procrustes(a: np.ndarray, b: np.ndarray) -> float:
 
 | Input Type | Math Type | Distance Type | Pack Constants |
 | :--------- | :-------- | :------------ | :------------- |
+| `f64`      | `f64`     | `f64`         | `f64`          |
 | `f32`      | `f64`     | `f64`         | `f64`          |
 | `f16`      | `f32`     | `f32`         | `f32`          |
 
-Rotations are `f32` for both, row-major 3 × 3, taking each column cloud onto each row cloud through the centroids of the packs.
-The transport solver keeps its duals and Gromov-Wasserstein its line search in `f64` for both, since a near-tie between two plans otherwise lands the search in a different local optimum.
+Rotations are `f32` for every input type, row-major 3 × 3, taking each column cloud onto each row cloud through the centroids of the packs.
+`f64` inputs sum the pack's moments, Chamfer's roots, each plan's cost and cross-covariance, and every Gromov-Wasserstein reduction with TwoProd and TwoSum, as the one-to-one `f64` kernels do.
+The transport solver keeps its duals and Gromov-Wasserstein its line search in `f64` for every input type, since a near-tie between two plans otherwise lands the search in a different local optimum.
 
 ## Superposed RMSD
 
@@ -100,7 +102,7 @@ Each kernel sums every frame's $G$ from its packed points, once per tile of 64 f
 
 These are the rules of the one-to-one Kabsch kernels the shapes family replaced.
 Folding into $G_a + G_b - 2 \lambda$ cancels to $\sqrt{\varepsilon}$ of the math type once two frames align, which stays below the rounding of `f16` points but not of `f32` or `f64` ones, so those sum $\|a_i - R b_i\|^2$ directly with TwoProd and TwoSum.
-`f64` packs, which `nk_shapes_pack_f64` writes with the layout of `f32` ones and `f64` points, serve only RMSD so far.
+`nk_shapes_pack_f64` writes `f64` packs with the layout of `f32` ones and `f64` points.
 Packing rounds each rotated point once, which moves an RMSD by at most $\sqrt{3} \, u \, (r_a + r_b)$ for the unit roundoff $u$ of the input type and the largest radii $r$ of the packs.
 
 ## Packing

@@ -335,10 +335,10 @@ nk_define_shapes_pricing_rvv_(f32, vfloat32m1_t, f32m1, __riscv_vle32_v_f32m1, _
 
 nk_define_shapes_network_simplex_(f32, rvv, nk_shapes_point_cost_f32_rvv_, nk_shapes_price_block_f32_rvv_)
 nk_define_shapes_network_simplex_(f64, rvv, nk_shapes_point_cost_f64_rvv_, nk_shapes_price_block_f64_rvv_)
-nk_define_shapes_wasserstein_procrustes_(f32, rvv, NUMKONG_F32_INF)
-nk_define_shapes_wasserstein_procrustes_(f64, rvv, NUMKONG_F64_INF)
-nk_define_shapes_gromov_wasserstein_(f32, rvv)
-nk_define_shapes_gromov_wasserstein_(f64, rvv)
+nk_define_shapes_wasserstein_procrustes_(f16, f32, rvv, NUMKONG_F32_INF)
+nk_define_shapes_wasserstein_procrustes_(f32, f64, rvv, NUMKONG_F64_INF)
+nk_define_shapes_gromov_wasserstein_(f16, f32, rvv)
+nk_define_shapes_gromov_wasserstein_(f32, f64, rvv)
 
 nk_define_shapes_flip_kernels_(f16, f32, rvv, nk_shapes_nearest_f16_rvv_, NUMKONG_F32_INF)
 nk_define_shapes_flip_kernels_(f32, f64, rvv, nk_shapes_nearest_f32_rvv_, NUMKONG_F64_INF)

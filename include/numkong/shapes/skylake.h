@@ -29,6 +29,9 @@
  *  The transport kinds run the serial solvers around block pricing eight arcs at a time, masking
  *  the lanes past a row. Arc costs round in fused multiply-adds, and the scalar cost behind the
  *  tree's potentials runs the same lanes, so tree arcs keep a zero reduced cost.
+ *
+ *  f64 packs load their points directly and sum Chamfer's roots, each plan's cost and every
+ *  Gromov-Wasserstein reduction with TwoProd and TwoSum.
  */
 #ifndef NUMKONG_SHAPES_SKYLAKE_H
 #define NUMKONG_SHAPES_SKYLAKE_H
@@ -225,6 +228,44 @@ NUMKONG_INLINE void nk_shapes_nearest_f32_skylake_(                            /
     _mm512_storeu_pd(maxima, maxima_f64x8);
 }
 
+/** One directed Chamfer and Hausdorff pass between f64 packs, compensating each flip's sum of
+ *  roots, 8 inner points per step, the last step of a count off the multiple with an infinite x in
+ *  its padded lanes. */
+NUMKONG_INLINE void nk_shapes_nearest_f64_skylake_(                            //
+    nk_f64_t const *outer_axes, nk_size_t outer_stride, nk_size_t outer_count, //
+    nk_f64_t const *inner_axes, nk_size_t inner_stride, nk_size_t inner_count, //
+    nk_f64_t *sums, nk_f64_t *maxima) {
+    __m512d const infinity_f64x8 = _mm512_set1_pd(NUMKONG_F64_INF), one_f64x8 = _mm512_set1_pd(1);
+    nk_size_t const octuples_end = inner_count & ~(nk_size_t)7;
+    __mmask8 const tail_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)(inner_count - octuples_end));
+    __m512d sums_f64x8 = _mm512_loadu_pd(sums), compensations_f64x8 = _mm512_setzero_pd();
+    __m512d maxima_f64x8 = _mm512_loadu_pd(maxima);
+    for (nk_size_t outer_index = 0; outer_index != outer_count; ++outer_index) {
+        nk_f64_t const *outer_point = outer_axes + outer_index;
+        __m512d const outer_x_f64x8 = _mm512_set1_pd(outer_point[0]);
+        __m512d const outer_y_f64x8 = _mm512_set1_pd(outer_point[outer_stride]);
+        __m512d const outer_z_f64x8 = _mm512_set1_pd(outer_point[2 * outer_stride]);
+        __m512d minima_f64x8[8];
+        for (int flip = 0; flip != 8; ++flip) minima_f64x8[flip] = infinity_f64x8;
+        for (nk_size_t inner_index = 0; inner_index != octuples_end; inner_index += 8)
+            nk_shapes_lower_nearest_f64x8_skylake_(
+                outer_x_f64x8, outer_y_f64x8, outer_z_f64x8, _mm512_loadu_pd(inner_axes + inner_index),
+                _mm512_loadu_pd(inner_axes + inner_stride + inner_index),
+                _mm512_loadu_pd(inner_axes + 2 * inner_stride + inner_index), minima_f64x8);
+        if (octuples_end != inner_count)
+            nk_shapes_lower_nearest_f64x8_skylake_(
+                outer_x_f64x8, outer_y_f64x8, outer_z_f64x8,
+                _mm512_mask_loadu_pd(infinity_f64x8, tail_m8, inner_axes + octuples_end),
+                _mm512_loadu_pd(inner_axes + inner_stride + octuples_end),
+                _mm512_loadu_pd(inner_axes + 2 * inner_stride + octuples_end), minima_f64x8);
+        __m512d const distances_f64x8 = _mm512_sqrt_pd(nk_shapes_flip_minima_f64x8_skylake_(minima_f64x8));
+        nk_dot2_f64x8_skylake_(&sums_f64x8, &compensations_f64x8, distances_f64x8, one_f64x8);
+        maxima_f64x8 = _mm512_max_pd(maxima_f64x8, distances_f64x8);
+    }
+    _mm512_storeu_pd(sums, _mm512_add_pd(sums_f64x8, compensations_f64x8));
+    _mm512_storeu_pd(maxima, maxima_f64x8);
+}
+
 /** The block pricing of one math type over @p vector_type lanes of 8 columns: squared distances
  *  from a broadcast row point in fused multiply-adds; the scalar cost behind the potentials, run
  *  on the same lanes so tree arcs keep a zero reduced cost; the reduced costs (c − πᵢ) + πⱼ of a
@@ -323,14 +364,227 @@ nk_define_shapes_pricing_skylake_(f32, __m256, f32x8, _mm256_set1_ps, _mm256_mas
 
 nk_define_shapes_network_simplex_(f32, skylake, nk_shapes_point_cost_f32_skylake_, nk_shapes_price_block_f32_skylake_)
 nk_define_shapes_network_simplex_(f64, skylake, nk_shapes_point_cost_f64_skylake_, nk_shapes_price_block_f64_skylake_)
-nk_define_shapes_wasserstein_procrustes_(f32, skylake, NUMKONG_F32_INF)
-nk_define_shapes_wasserstein_procrustes_(f64, skylake, NUMKONG_F64_INF)
-nk_define_shapes_gromov_wasserstein_(f32, skylake)
-nk_define_shapes_gromov_wasserstein_(f64, skylake)
-nk_define_shapes_flip_kernels_(f16, f32, skylake, nk_shapes_nearest_f16_skylake_, NUMKONG_F32_INF)
+nk_define_shapes_wasserstein_procrustes_(f16, f32, skylake, NUMKONG_F32_INF)
+nk_define_shapes_wasserstein_procrustes_(f32, f64, skylake, NUMKONG_F64_INF)
+nk_define_shapes_gromov_wasserstein_(f16, f32, skylake)
+nk_define_shapes_gromov_wasserstein_(f32, f64, skylake)
+
+/** Wasserstein-Procrustes of one canonically ordered pair of @c f64 clouds, like the serial one
+ *  around the block pricing, the plan cost rounding as the priced lanes do. */
+NUMKONG_INLINE nk_f64_t nk_shapes_wasserstein_procrustes_f64_skylake_(nk_shapes_workspace_f64_serial_t const *views,
+                                                                      nk_size_t rows, nk_size_t columns,
+                                                                      nk_f64_t cost_scale, nk_f64_t *rotation) {
+    nk_size_t const stride = views->points_stride;
+    nk_u32_t const *parent = views->tree, *flow = views->tree + views->tree_stride;
+    nk_f64_t const mass = (nk_f64_t)(rows * columns);
+    nk_f64_t best = NUMKONG_F64_INF, best_proper = NUMKONG_F64_INF, best_improper = NUMKONG_F64_INF;
+    for (int flip = 0; flip != 8; ++flip) {
+        nk_f64_t current[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}, start_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+        current[0] = (flip & 1) ? -1 : 1, current[4] = (flip & 2) ? -1 : 1, current[8] = (flip & 4) ? -1 : 1;
+        nk_f64_t const flip_determinant = current[0] * current[4] * current[8];
+        nk_u32_t *parity_plan = flip_determinant > 0 ? views->proper_plan : views->improper_plan;
+        nk_f64_t *parity_best = flip_determinant > 0 ? &best_proper : &best_improper;
+        nk_f64_t start_best = NUMKONG_F64_INF;
+        nk_shapes_northwest_corner_serial_(rows, columns, views->tree, views->tree_stride);
+        for (;;) {
+            for (nk_size_t column = 0; column != columns; ++column) {
+                nk_f64_t const x = views->column_points[column], y = views->column_points[stride + column];
+                nk_f64_t const z = views->column_points[2 * stride + column];
+                for (int axis = 0; axis != 3; ++axis)
+                    views->rotated_points[axis * stride + column] = current[axis * 3] * x + current[axis * 3 + 1] * y +
+                                                                    current[axis * 3 + 2] * z;
+            }
+            nk_shapes_network_simplex_f64_skylake_(views, NUMKONG_NULL, rows, columns, cost_scale);
+            nk_f64_t cost = 0, cost_compensation = 0;
+            for (nk_size_t node = 1; node != rows + columns; ++node) {
+                nk_size_t const row = node < rows ? node : parent[node];
+                nk_size_t const column = (node < rows ? parent[node] : node) - rows;
+                nk_dot2_f64_serial_(&cost, &cost_compensation, (nk_f64_t)flow[node],
+                                    nk_shapes_point_cost_f64_skylake_(views, row, column));
+            }
+            cost = (cost + cost_compensation) / mass;
+            if (!(cost < start_best)) break;
+            start_best = cost;
+            for (int cell = 0; cell != 9; ++cell) start_rotation[cell] = current[cell];
+            if (cost < *parity_best) {
+                *parity_best = cost;
+                nk_shapes_tree_arcs_serial_(rows, columns, views->tree, views->tree_stride, parity_plan,
+                                            views->plan_stride);
+            }
+            nk_f64_t sums[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0}, compensations[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+            for (nk_size_t node = 1; node != rows + columns; ++node) {
+                if (!flow[node]) continue;
+                nk_size_t const row = node < rows ? node : parent[node];
+                nk_size_t const column = (node < rows ? parent[node] : node) - rows;
+                nk_f64_t const weight = (nk_f64_t)flow[node] / mass;
+                for (int column_axis = 0; column_axis != 3; ++column_axis) {
+                    nk_f64_t const weighted = weight * views->column_points[column_axis * stride + column];
+                    for (int row_axis = 0; row_axis != 3; ++row_axis)
+                        nk_dot2_f64_serial_(&sums[column_axis * 3 + row_axis],
+                                            &compensations[column_axis * 3 + row_axis], weighted,
+                                            views->row_points[row_axis * stride + row]);
+                }
+            }
+            nk_f64_t cross_covariance[9], svd_left[9], svd_diagonal[9], svd_right[9];
+            for (int cell = 0; cell != 9; ++cell) cross_covariance[cell] = sums[cell] + compensations[cell];
+            nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
+            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, current);
+            // Each start stays among the rotations, or among the reflections, it began with
+            if (nk_det3x3_f64_serial_(current) * flip_determinant < 0) {
+                svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+                nk_rotation_from_svd_f64_serial_(svd_left, svd_right, current);
+            }
+        }
+        if (start_best < best) {
+            best = start_best;
+            for (int cell = 0; cell != 9; ++cell) rotation[cell] = start_rotation[cell];
+        }
+    }
+    return best;
+}
+
+/** Dx × V × Dy with each cell's sum over the arcs compensated, 8 columns per step through a masked
+ *  tail, for @c f64 clouds. */
+NUMKONG_INLINE void nk_shapes_distance_gradient_compensated_f64_skylake_(nk_u32_t const *plan, nk_size_t plan_stride,
+                                                                         nk_size_t arcs, nk_f64_t mass,
+                                                                         nk_f64_t const *row_distances, nk_size_t rows,
+                                                                         nk_f64_t const *column_distances,
+                                                                         nk_size_t columns, nk_f64_t *gradient) {
+    for (nk_size_t row = 0; row != rows; ++row)
+        for (nk_size_t column = 0; column < columns; column += 8) {
+            nk_size_t const remaining = columns - column;
+            __mmask8 const valid_m8 = (__mmask8)_bzhi_u32(0xFF, remaining < 8 ? (unsigned int)remaining : 8);
+            __m512d sum_f64x8 = _mm512_setzero_pd(), compensation_f64x8 = _mm512_setzero_pd();
+            for (nk_size_t arc = 0; arc != arcs; ++arc) {
+                if (!plan[2 * plan_stride + arc]) continue;
+                nk_f64_t const weighted = (nk_f64_t)plan[2 * plan_stride + arc] / mass *
+                                          row_distances[plan[arc] * rows + row];
+                nk_dot2_f64x8_skylake_(
+                    &sum_f64x8, &compensation_f64x8, _mm512_set1_pd(weighted),
+                    _mm512_maskz_loadu_pd(valid_m8, column_distances + plan[plan_stride + arc] * columns + column));
+            }
+            _mm512_mask_storeu_pd(gradient + row * columns + column, valid_m8,
+                                  _mm512_add_pd(sum_f64x8, compensation_f64x8));
+        }
+}
+
+/** Gromov-Wasserstein of one canonically ordered pair of @c f64 clouds, like the serial one
+ *  around the block pricing and the gradients on fused multiply-add lanes. */
+NUMKONG_INLINE nk_f64_t nk_shapes_gromov_wasserstein_f64_skylake_(nk_shapes_workspace_f64_serial_t const *views,
+                                                                  nk_size_t rows, nk_size_t columns,
+                                                                  nk_f64_t cost_scale, nk_f64_t const *row_distances,
+                                                                  nk_f64_t const *column_distances,
+                                                                  nk_f64_t *rotation) {
+    nk_size_t const cells = rows * columns, arcs = rows + columns - 1, stride = views->points_stride;
+    nk_size_t const plan_stride = views->plan_stride;
+    nk_f64_t *plan = views->matrices, *gradient = views->matrices + views->matrix_stride;
+    nk_f64_t *vertex_gradient = views->matrices + 2 * views->matrix_stride;
+    nk_f64_t const mass = (nk_f64_t)cells;
+    nk_shapes_wasserstein_procrustes_f64_skylake_(views, rows, columns, cost_scale, rotation);
+    nk_f64_t row_spread = 0, row_spread_compensation = 0, column_spread = 0, column_spread_compensation = 0;
+    for (nk_size_t cell = 0; cell != rows * rows; ++cell)
+        nk_dot2_f64_serial_(&row_spread, &row_spread_compensation, row_distances[cell], row_distances[cell]);
+    for (nk_size_t cell = 0; cell != columns * columns; ++cell)
+        nk_dot2_f64_serial_(&column_spread, &column_spread_compensation, column_distances[cell],
+                            column_distances[cell]);
+    row_spread = (row_spread + row_spread_compensation) / (nk_f64_t)(rows * rows);
+    column_spread = (column_spread + column_spread_compensation) / (nk_f64_t)(columns * columns);
+    // Once its start spreads into the dense plan, the proper plan holds each step's vertex
+    nk_u32_t *vertex = views->proper_plan;
+    nk_f64_t best = NUMKONG_F64_INF;
+    for (int start = 0; start != 3; ++start) {
+        if (start == 2) {
+            // The product plan's gradient is the outer product of the two matrices' row sums
+            for (nk_size_t column = 0; column != columns; ++column) {
+                nk_f64_t column_sum = 0, column_sum_compensation = 0;
+                for (nk_size_t other = 0; other != columns; ++other)
+                    nk_dot2_f64_serial_(&column_sum, &column_sum_compensation,
+                                        column_distances[other * columns + column], 1);
+                vertex_gradient[column] = column_sum + column_sum_compensation;
+            }
+            for (nk_size_t row = 0; row != rows; ++row) {
+                nk_f64_t row_sum = 0, row_sum_compensation = 0;
+                for (nk_size_t other = 0; other != rows; ++other)
+                    nk_dot2_f64_serial_(&row_sum, &row_sum_compensation, row_distances[row * rows + other], 1);
+                row_sum += row_sum_compensation;
+                for (nk_size_t column = 0; column != columns; ++column) {
+                    plan[row * columns + column] = 1 / mass;
+                    gradient[row * columns + column] = row_sum * vertex_gradient[column] / mass;
+                }
+            }
+        }
+        else {
+            nk_u32_t const *start_plan = start ? views->improper_plan : views->proper_plan;
+            for (nk_size_t cell = 0; cell != cells; ++cell) plan[cell] = 0;
+            for (nk_size_t arc = 0; arc != arcs; ++arc)
+                plan[start_plan[arc] * columns + start_plan[plan_stride + arc]] =
+                    (nk_f64_t)start_plan[2 * plan_stride + arc] / mass;
+            nk_shapes_distance_gradient_compensated_f64_skylake_(start_plan, plan_stride, arcs, mass, row_distances,
+                                                                 rows, column_distances, columns, gradient);
+        }
+        nk_f64_t gradient_scale;
+        nk_f64_t plan_score = nk_shapes_plan_score_compensated_f64_serial_(gradient, plan, cells, &gradient_scale);
+        for (int step_index = 0; step_index != 32; ++step_index) {
+            if (!step_index) nk_shapes_northwest_corner_serial_(rows, columns, views->tree, views->tree_stride);
+            nk_shapes_network_simplex_f64_skylake_(views, gradient, rows, columns, gradient_scale);
+            nk_shapes_tree_arcs_serial_(rows, columns, views->tree, views->tree_stride, vertex, plan_stride);
+            nk_shapes_distance_gradient_compensated_f64_skylake_(vertex, plan_stride, arcs, mass, row_distances, rows,
+                                                                 column_distances, columns, vertex_gradient);
+            nk_f64_t vertex_score = 0, vertex_score_compensation = 0;
+            nk_f64_t vertex_curvature = 0, vertex_curvature_compensation = 0;
+            for (nk_size_t arc = 0; arc != arcs; ++arc) {
+                nk_size_t const cell = vertex[arc] * columns + vertex[plan_stride + arc];
+                nk_f64_t const weight = (nk_f64_t)vertex[2 * plan_stride + arc] / mass;
+                nk_dot2_f64_serial_(&vertex_score, &vertex_score_compensation, gradient[cell], weight);
+                nk_dot2_f64_serial_(&vertex_curvature, &vertex_curvature_compensation, vertex_gradient[cell], weight);
+            }
+            vertex_score += vertex_score_compensation, vertex_curvature += vertex_curvature_compensation;
+            nk_f64_t const slope = vertex_score - plan_score;
+            nk_f64_t const curvature = vertex_curvature - 2 * vertex_score + plan_score;
+            nk_f64_t const quadratic = -2 * curvature, linear = -4 * slope;
+            nk_f64_t step = quadratic + linear < 0 ? 1 : 0;
+            if (quadratic > 0) {
+                step = -linear / (2 * quadratic);
+                step = step < 0 ? 0 : step > 1 ? 1 : step;
+            }
+            if (step == 0) break;
+            nk_shapes_plan_step_f64_serial_(plan, gradient, vertex_gradient, cells, 1 - step, step);
+            for (nk_size_t arc = 0; arc != arcs; ++arc)
+                plan[vertex[arc] * columns + vertex[plan_stride + arc]] +=
+                    step * ((nk_f64_t)vertex[2 * plan_stride + arc] / mass);
+            plan_score = nk_shapes_plan_score_compensated_f64_serial_(gradient, plan, cells, &gradient_scale);
+        }
+        nk_f64_t const loss = row_spread + column_spread - 2 * plan_score;
+        if (!(loss < best)) continue;
+        best = loss;
+        nk_f64_t sums[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0}, compensations[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+        for (nk_size_t row = 0; row != rows; ++row)
+            for (nk_size_t column = 0; column != columns; ++column)
+                for (int column_axis = 0; column_axis != 3; ++column_axis) {
+                    nk_f64_t const weighted = plan[row * columns + column] *
+                                              views->column_points[column_axis * stride + column];
+                    for (int row_axis = 0; row_axis != 3; ++row_axis)
+                        nk_dot2_f64_serial_(&sums[column_axis * 3 + row_axis],
+                                            &compensations[column_axis * 3 + row_axis], weighted,
+                                            views->row_points[row_axis * stride + row]);
+                }
+        nk_f64_t cross_covariance[9], svd_left[9], svd_diagonal[9], svd_right[9];
+        for (int cell = 0; cell != 9; ++cell) cross_covariance[cell] = sums[cell] + compensations[cell];
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        // The McAdams factors are proper, so det H's sign moves into V to fit over O(3)
+        if (nk_det3x3_f64_serial_(cross_covariance) < 0)
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, rotation);
+    }
+    return best;
+}
+
+nk_define_shapes_flip_kernels_(f64, f64, skylake, nk_shapes_nearest_f64_skylake_, NUMKONG_F64_INF)
 nk_define_shapes_flip_kernels_(f32, f64, skylake, nk_shapes_nearest_f32_skylake_, NUMKONG_F64_INF)
-nk_define_shapes_transport_kernels_(f16, f32, skylake, NUMKONG_F32_INF)
+nk_define_shapes_flip_kernels_(f16, f32, skylake, nk_shapes_nearest_f16_skylake_, NUMKONG_F32_INF)
+nk_define_shapes_transport_kernels_(f64, f64, skylake, NUMKONG_F64_INF)
 nk_define_shapes_transport_kernels_(f32, f64, skylake, NUMKONG_F64_INF)
+nk_define_shapes_transport_kernels_(f16, f32, skylake, NUMKONG_F32_INF)
 
 /** Σ‖xᵢ′‖² of a pack of @c f16 points, 16 points per step through the zero padding. */
 NUMKONG_INLINE nk_f32_t nk_rmsds_norm_f16_skylake_(void const *packed) {
