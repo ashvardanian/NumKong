@@ -8,8 +8,10 @@
  *  Blackwell and Blackwell RTX.
  */
 #include "cross_device.hpp"
-#include "numkong/shapes/serial.h" // `nk_shapes_packed_header_f32_t`
-#include "numkong/shapes.hpp"      // `nk::shapes_transport_epsilon_k`
+#include "numkong/geospatial.h"        // `nk_haversines_packed_f64_cuda`, `nk_haversines_error_bound`
+#include "numkong/geospatial/serial.h" // `nk_geospatial_packed_header_t`, `nk_terrain_packed_header_t`
+#include "numkong/shapes/serial.h"     // `nk_shapes_packed_header_f32_t`
+#include "numkong/shapes.hpp"          // `nk::shapes_transport_epsilon_k`
 
 namespace ashvardanian::numkong::test {
 
@@ -189,6 +191,259 @@ error_stats_t test_transport_packed_cuda(settings_t const &settings, pack_size_t
             stats.accumulate_bounded(distance_t::from_raw(results.raw_values_data()[row * columns + column]),
                                      f64_t(reference), bound);
         }
+    return stats;
+}
+
+/** Geodesic inputs: columns anywhere within a cap, near their rows, on them, opposite them, or on
+ *  the poles, the equator and the antimeridian. */
+enum class geodesics_case_t { anywhere_k, nearby_k, coincident_k, antipodal_k, landmarks_k };
+
+/** Fills @p rows row points and @p columns column points of @p kind in radians: within @p cap of
+ *  a common centre unless it is π, the first of them paired by index within @p separation. */
+static void fill_geodesics_case(std::mt19937 &generator, geodesics_case_t kind, double cap, double separation,
+                                f64_t *a_latitudes, f64_t *a_longitudes, std::size_t rows, f64_t *b_latitudes,
+                                f64_t *b_longitudes, std::size_t columns) {
+    double const pi = 3.14159265358979323846;
+    std::size_t const paired = std::min(rows, columns);
+    if (cap < pi) {
+        f64_t centre_latitude, centre_longitude;
+        nk::fill_coordinates(generator, &centre_latitude, &centre_longitude, 1);
+        std::vector<f64_t> centre_latitudes(std::max(rows, columns), centre_latitude),
+            centre_longitudes(centre_latitudes.size(), centre_longitude);
+        nk::fill_nearby_coordinates(generator, centre_latitudes.data(), centre_longitudes.data(), a_latitudes,
+                                    a_longitudes, rows, cap);
+        nk::fill_nearby_coordinates(generator, centre_latitudes.data(), centre_longitudes.data(), b_latitudes,
+                                    b_longitudes, columns, cap);
+    }
+    else {
+        nk::fill_coordinates(generator, a_latitudes, a_longitudes, rows);
+        nk::fill_coordinates(generator, b_latitudes, b_longitudes, columns);
+    }
+    if (kind == geodesics_case_t::anywhere_k || kind == geodesics_case_t::nearby_k)
+        nk::fill_nearby_coordinates(generator, a_latitudes, a_longitudes, b_latitudes, b_longitudes, paired,
+                                    separation);
+    for (std::size_t index = 0; index != paired && kind == geodesics_case_t::coincident_k; ++index)
+        b_latitudes[index] = a_latitudes[index], b_longitudes[index] = a_longitudes[index];
+    for (std::size_t index = 0; index != paired && kind == geodesics_case_t::antipodal_k; ++index) {
+        double const longitude = double(a_longitudes[index]) + pi;
+        b_latitudes[index] = -double(a_latitudes[index]);
+        b_longitudes[index] = longitude > pi ? longitude - 2 * pi : longitude;
+    }
+    if (kind != geodesics_case_t::landmarks_k) return;
+    double const latitudes[] = {pi / 2, -pi / 2, 0.0, -0.0, pi / 4, -pi / 3};
+    double const longitudes[] = {0.0, pi, -pi, pi / 2, -0.0, 3.0};
+    for (std::size_t index = 0; index != rows; ++index)
+        a_latitudes[index] = latitudes[index % 6], a_longitudes[index] = longitudes[index / 6 % 6];
+    for (std::size_t index = 0; index != columns; ++index)
+        b_latitudes[index] = latitudes[index * 5 % 6], b_longitudes[index] = longitudes[(index + index / 6) % 6];
+}
+
+/** Whether two geodesic packs of @p count points hold the same header and coordinates, past the
+ *  padding neither writes. */
+static bool same_geodesic_packs(char const *first, char const *second, std::size_t count) {
+    if (std::memcmp(first, second, sizeof(nk_geospatial_packed_header_t))) return false;
+    std::size_t const axis_bytes = ((nk_geospatial_packed_header_t const *)first)->axis_stride * sizeof(nk_f64_t);
+    for (std::size_t axis = 0; axis != 3; ++axis)
+        if (std::memcmp(first + nk_default_alignment_k + axis * axis_bytes,
+                        second + nk_default_alignment_k + axis * axis_bytes, count * sizeof(nk_f64_t)))
+            return false;
+    return true;
+}
+
+/** A geodesic family's CUDA packs and kernel against the serial ones: the packs byte for byte, then
+ *  every distance within the bound `test/geospatial.cpp` holds the serial kernels to, over ragged
+ *  shapes and coincident, near, opposite and landmark points. Vincenty's random points stay within
+ *  a hemisphere, as its iteration need not converge near the antipode. */
+template <nk_kernel_kind_t kind_>
+error_stats_t test_geodesics_cuda(settings_t const &settings) {
+    bool const spherical = kind_ == nk_kernel_haversines_packed_k;
+    auto const pack_size = spherical ? nk_haversines_pack_size_f64_cuda : nk_vincentys_pack_size_f64_cuda;
+    auto const pack = spherical ? nk_haversines_pack_f64_cuda : nk_vincentys_pack_f64_cuda;
+    auto const kernel = spherical ? nk_haversines_packed_f64_cuda : nk_vincentys_packed_f64_cuda;
+    auto const serial_pack = spherical ? nk_haversines_pack_f64_serial : nk_vincentys_pack_f64_serial;
+    auto const serial = spherical ? nk_haversines_packed_f64_serial : nk_vincentys_packed_f64_serial;
+    error_stats_t stats(spherical ? nk_haversines_error_bound(nk_f64_k) : nk_vincentys_error_bound(nk_f64_k));
+    auto backend = make_backend<cuda_backend_t>(settings);
+    std::mt19937 generator(settings.seed.value);
+    double const pi = 3.14159265358979323846, angle = double(settings.max_coord_angle_degrees) * pi / 180;
+    double const cap = spherical ? pi : std::min(angle, pi / 2) / 2;
+    struct case_t {
+        geodesics_case_t kind;
+        double separation;
+    };
+    std::vector<case_t> cases = {{geodesics_case_t::anywhere_k, spherical ? angle : cap},
+                                 {geodesics_case_t::nearby_k, 1e-9},
+                                 {geodesics_case_t::coincident_k, 0},
+                                 {geodesics_case_t::landmarks_k, 0}};
+    if (spherical) cases.push_back({geodesics_case_t::antipodal_k, 0});
+    std::pair<std::size_t, std::size_t> const shapes[] = {{settings.matrix_height, settings.matrix_width},
+                                                          {1, 1},
+                                                          {2, 3},
+                                                          {3, 2},
+                                                          {17, 33}};
+    for (case_t const test_case : cases)
+        for (auto const [rows, columns] : shapes) {
+            auto a_latitudes = make_vector<f64_t>(backend, rows), a_longitudes = make_vector<f64_t>(backend, rows);
+            auto b_latitudes = make_vector<f64_t>(backend, columns);
+            auto b_longitudes = make_vector<f64_t>(backend, columns);
+            fill_geodesics_case(generator, test_case.kind, cap, test_case.separation, a_latitudes.values_data(),
+                                a_longitudes.values_data(), rows, b_latitudes.values_data(), b_longitudes.values_data(),
+                                columns);
+            nk_size_t a_bytes = 0, b_bytes = 0;
+            stats.expect(pack_size(rows, &a_bytes)), stats.expect(pack_size(columns, &b_bytes));
+            auto a_packed = make_vector<char>(backend, a_bytes), b_packed = make_vector<char>(backend, b_bytes);
+            auto results = make_vector<f64_t>(backend, rows * columns);
+            backend.call(pack, a_latitudes.raw_values_data(), a_longitudes.raw_values_data(), rows,
+                         static_cast<void *>(a_packed.raw_values_data()));
+            backend.call(pack, b_latitudes.raw_values_data(), b_longitudes.raw_values_data(), columns,
+                         static_cast<void *>(b_packed.raw_values_data()));
+            backend.call(kernel, static_cast<void const *>(a_packed.raw_values_data()),
+                         static_cast<void const *>(b_packed.raw_values_data()), results.raw_values_data(),
+                         columns * sizeof(nk_f64_t));
+            if (!stats.expect(backend.synchronize())) return stats;
+            auto a_expected = make_vector<char>(a_bytes), b_expected = make_vector<char>(b_bytes);
+            stats.expect(serial_pack(a_latitudes.raw_values_data(), a_longitudes.raw_values_data(), rows,
+                                     a_expected.raw_values_data(), nullptr));
+            stats.expect(serial_pack(b_latitudes.raw_values_data(), b_longitudes.raw_values_data(), columns,
+                                     b_expected.raw_values_data(), nullptr));
+            stats.expect(same_geodesic_packs(a_packed.raw_values_data(), a_expected.raw_values_data(), rows) &&
+                             same_geodesic_packs(b_packed.raw_values_data(), b_expected.raw_values_data(), columns),
+                         "a CUDA pack differs from the serial one");
+            std::vector<nk_f64_t> expected(rows * columns);
+            stats.expect(serial(a_expected.raw_values_data(), b_expected.raw_values_data(), expected.data(),
+                                columns * sizeof(nk_f64_t), nullptr));
+            for (std::size_t cell = 0; cell != expected.size(); ++cell) {
+                double const reference = expected[cell];
+                double const bound = spherical ? stats.term_error_bound * NUMKONG_EARTH_MEAN_RADIUS *
+                                                     (1 + reference / NUMKONG_EARTH_MEAN_RADIUS)
+                                               : stats.term_error_bound * NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS;
+                stats.accumulate_bounded(f64_t::from_raw(results.raw_values_data()[cell]), f64_t(reference), bound);
+            }
+        }
+    return stats;
+}
+
+/** The CUDA terrain pack, heights and clearances against the serial ones, which they repeat
+ *  operation for operation, so every byte and every result must match: random walks with a missing
+ *  cell, a flat sea of signed zeros, single cells, rows and columns, points off the grid and on its
+ *  edges, with refractions of light, none and full, with and without views. */
+error_stats_t test_terrain_cuda(settings_t const &settings) {
+    error_stats_t stats(0.0);
+    auto backend = make_backend<cuda_backend_t>(settings);
+    std::mt19937 generator(settings.seed.value);
+    std::normal_distribution<float> step(0.0f, 4.0f);
+    std::uniform_real_distribution<float> unit(0.0f, 1.0f);
+    float const not_a_number = std::numeric_limits<float>::quiet_NaN();
+    float const infinity = std::numeric_limits<float>::infinity();
+    auto const same = [](nk_f32_t actual, nk_f32_t expected) {
+        return !std::memcmp(&actual, &expected, sizeof(nk_f32_t)) || (actual != actual && expected != expected);
+    };
+    struct grid_t {
+        std::size_t rows, columns;
+        bool flat;
+    };
+    grid_t const grids[] = {{97, 83, false}, {257, 129, false}, {5, 300, false}, {3, 3, false},
+                            {2, 1, false},   {1, 2, false},     {1, 1, false},   {1, 501, true}};
+    std::size_t const viewpoints_count = 13, targets_count = 29, points_count = 257;
+    nk_f64_t const refractions[] = {1.0 / 7, 1.0 / 7, 0.0, 1.0};
+    std::size_t const passes = sizeof(refractions) / sizeof(refractions[0]), cells = viewpoints_count * targets_count;
+    for (grid_t const grid : grids) {
+        std::size_t const rows = grid.rows, columns = grid.columns, padded = columns + 3;
+        auto heights = make_vector<f32_t>(backend, rows * padded);
+        nk_f32_t *terrain = heights.raw_values_data();
+        for (std::size_t row = 0; row != rows; ++row)
+            for (std::size_t column = 0; column != columns; ++column) {
+                float const north = row ? terrain[(row - 1) * padded + column] : 100.0f;
+                float const west = column ? terrain[row * padded + column - 1] : north;
+                terrain[row * padded + column] = grid.flat ? ((row + column) % 2 ? -0.0f : 0.0f)
+                                                           : (north + west) / 2 + step(generator);
+            }
+        if (!grid.flat) terrain[rows / 2 * padded + columns / 3] = not_a_number;
+        auto place = [&](nk_f32_t *point, std::size_t index) {
+            // Some points fall off the grid, some onto its edges, the rest 2 to 60 metres above it.
+            point[0] = unit(generator) * float(columns + 1) - 1.0f;
+            point[1] = unit(generator) * float(rows + 1) - 1.0f;
+            if (index % 5 == 1) point[0] = float(columns - 1);
+            if (index % 7 == 2) point[1] = 0.0f;
+            std::size_t const row = std::min<std::size_t>(rows - 1, std::size_t(std::max(point[1], 0.0f)));
+            std::size_t const column = std::min<std::size_t>(columns - 1, std::size_t(std::max(point[0], 0.0f)));
+            float const ground = terrain[row * padded + column];
+            point[2] = (ground == ground ? ground : 100.0f) + 2.0f + unit(generator) * 58.0f;
+        };
+        auto points = make_vector<f32_t>(backend, points_count * 2);
+        auto viewpoints = make_vector<f32_t>(backend, viewpoints_count * 3);
+        auto views = make_vector<f32_t>(backend, viewpoints_count * 4);
+        auto targets = make_vector<f32_t>(backend, targets_count * 3);
+        nk_f32_t *point_values = points.raw_values_data(), *viewpoint_values = viewpoints.raw_values_data();
+        nk_f32_t *view_values = views.raw_values_data(), *target_values = targets.raw_values_data();
+        for (std::size_t point = 0; point != points_count; ++point) {
+            nk_f32_t *coordinates = point_values + point * 2;
+            coordinates[0] = unit(generator) * float(columns + 1) - 1.0f;
+            coordinates[1] = unit(generator) * float(rows + 1) - 1.0f;
+            if (point % 5 == 1) coordinates[0] = float(columns - 1);
+            if (point % 7 == 2) coordinates[1] = float(rows - 1);
+            if (point % 11 == 3) coordinates[0] = std::floor(std::max(coordinates[0], 0.0f));
+            if (point % 13 == 4) coordinates[1] = not_a_number;
+        }
+        for (std::size_t viewpoint = 0; viewpoint != viewpoints_count; ++viewpoint) {
+            place(viewpoint_values + viewpoint * 3, viewpoint);
+            view_values[viewpoint * 4 + 0] = viewpoint % 6 == 5 ? not_a_number : unit(generator) * 6.2831853f;
+            view_values[viewpoint * 4 + 1] = viewpoint % 3 ? unit(generator) - 0.5f : not_a_number;
+            view_values[viewpoint * 4 + 2] = viewpoint % 5 == 4 ? 7.0f : 0.3f + unit(generator) * 3.0f;
+            view_values[viewpoint * 4 + 3] = viewpoint % 4 ? 3000.0f * unit(generator)
+                                                           : (viewpoint % 8 ? infinity : not_a_number);
+        }
+        for (std::size_t target = 0; target != targets_count; ++target) place(target_values + target * 3, target);
+        // Some targets coincide with their viewpoint, and some share its cell.
+        for (std::size_t target = 0; target < viewpoints_count; target += 4)
+            std::memcpy(target_values + target * 3, viewpoint_values + target * 3, 3 * sizeof(nk_f32_t));
+        for (std::size_t target = 1; target < viewpoints_count; target += 4) {
+            target_values[target * 3] = viewpoint_values[target * 3] + 0.25f;
+            target_values[target * 3 + 1] = viewpoint_values[target * 3 + 1];
+        }
+
+        nk_size_t bytes = 0;
+        stats.expect(nk_terrain_pack_size_f32_cuda(rows, columns, &bytes));
+        auto packed = make_vector<char>(backend, bytes);
+        auto point_heights = make_vector<f32_t>(backend, points_count);
+        auto clearances = make_vector<f32_t>(backend, passes * cells);
+        void const *pack = packed.raw_values_data();
+        backend.call(nk_terrain_pack_f32_cuda, static_cast<nk_f32_t const *>(terrain), rows, columns,
+                     padded * sizeof(nk_f32_t), 30.0, 21.0, static_cast<void *>(packed.raw_values_data()));
+        backend.call(nk_terrain_heights_packed_f32_cuda, static_cast<nk_f32_t const *>(terrain), pack,
+                     static_cast<nk_f32_t const *>(point_values), points_count, point_heights.raw_values_data());
+        for (std::size_t pass = 0; pass != passes; ++pass)
+            backend.call(nk_clearances_packed_f32_cuda, static_cast<nk_f32_t const *>(terrain), pack,
+                         static_cast<nk_f32_t const *>(viewpoint_values),
+                         static_cast<nk_f32_t const *>(pass == 1 ? view_values : nullptr), viewpoints_count,
+                         static_cast<nk_f32_t const *>(target_values), targets_count, refractions[pass],
+                         clearances.raw_values_data() + pass * cells, targets_count * sizeof(nk_f32_t));
+        if (!stats.expect(backend.synchronize())) return stats;
+
+        auto expected_packed = make_vector<char>(bytes);
+        stats.expect(nk_terrain_pack_f32_serial(terrain, rows, columns, padded * sizeof(nk_f32_t), 30.0, 21.0,
+                                                expected_packed.raw_values_data(), nullptr));
+        stats.expect(!std::memcmp(packed.raw_values_data(), expected_packed.raw_values_data(),
+                                  sizeof(nk_terrain_packed_header_t)) &&
+                         !std::memcmp(packed.raw_values_data() + nk_default_alignment_k,
+                                      expected_packed.raw_values_data() + nk_default_alignment_k,
+                                      bytes - nk_default_alignment_k),
+                     "the CUDA terrain pack differs from the serial one");
+        std::vector<nk_f32_t> expected(passes * cells);
+        stats.expect(nk_terrain_heights_packed_f32_serial(terrain, expected_packed.raw_values_data(), point_values,
+                                                          points_count, expected.data(), nullptr));
+        for (std::size_t point = 0; point != points_count; ++point)
+            stats.expect(same(point_heights.raw_values_data()[point], expected[point]),
+                         "a CUDA terrain height differs from the serial one");
+        for (std::size_t pass = 0; pass != passes; ++pass)
+            stats.expect(nk_clearances_packed_f32_serial(
+                terrain, expected_packed.raw_values_data(), viewpoint_values, pass == 1 ? view_values : nullptr,
+                viewpoints_count, target_values, targets_count, refractions[pass], expected.data() + pass * cells,
+                targets_count * sizeof(nk_f32_t), nullptr));
+        for (std::size_t cell = 0; cell != passes * cells; ++cell)
+            stats.expect(same(clearances.raw_values_data()[cell], expected[cell]),
+                         "a CUDA clearance differs from the serial one");
+    }
     return stats;
 }
 
@@ -486,6 +741,9 @@ void test_cross_cuda(error_stats_section_t &check) {
           nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_cuda,
           nk_gromovwassersteins_packed_f16_cuda, nk_gromovwassersteins_workspace_size_f16_serial,
           nk_gromovwassersteins_packed_f16_serial);
+    check("haversines_packed_f64_cuda", test_geodesics_cuda<nk_kernel_haversines_packed_k>);
+    check("vincentys_packed_f64_cuda", test_geodesics_cuda<nk_kernel_vincentys_packed_k>);
+    check("clearances_packed_f32_cuda", test_terrain_cuda);
 
 #if NUMKONG_TARGET_AMPERE
     check.section("Cross Ampere", nk_cap_ampere_k);

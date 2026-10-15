@@ -124,6 +124,96 @@ void run_transport_cuda(environment_t const &env, std::string const &name, cuda_
             backend, pack_size, pack, workspace_size, kernel, shape.side, shape.side, shape.row_points,
             shape.column_points);
 }
+
+/** Times a CUDA geodesic kernel over @p rows and @p columns points drawn anywhere on Earth, packed
+ *  on the device by the CUDA routine of the same family. */
+void measure_geodesics_cuda(loop_t &loop, environment_t const &env, cuda_backend_t backend,
+                            nk_status_t (*pack_size)(nk_size_t, nk_size_t *),
+                            nk_status_t (*pack)(nk_f64_t const *, nk_f64_t const *, nk_size_t, void *, nk_stream_t),
+                            nk_status_t (*kernel)(void const *, void const *, nk_f64_t *, nk_size_t, nk_stream_t),
+                            std::size_t rows, std::size_t columns) {
+    std::size_t const points = rows + columns;
+    std::mt19937 generator(env.settings.seed.value);
+    std::vector<nk_f64_t> latitudes(points), longitudes(points);
+    nk::fill_coordinates(generator, latitudes.data(), longitudes.data(), points);
+    nk_size_t a_bytes = 0, b_bytes = 0;
+    if (!succeeded(loop, pack_size(rows, &a_bytes)) || !succeeded(loop, pack_size(columns, &b_bytes))) return;
+    auto coordinates = nk::vector<nk::f64_t, cuda_backend_t::allocator<nk::f64_t>>::uninitialized(
+        2 * points, allocator_of<nk::f64_t>(backend));
+    auto a_packed = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(a_bytes,
+                                                                                     allocator_of<char>(backend));
+    auto b_packed = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(b_bytes,
+                                                                                     allocator_of<char>(backend));
+    auto results = nk::vector<nk::f64_t, cuda_backend_t::allocator<nk::f64_t>>::uninitialized(
+        rows * columns, allocator_of<nk::f64_t>(backend));
+    if (nk::failed(coordinates.status) || nk::failed(a_packed.status) || nk::failed(b_packed.status) ||
+        nk::failed(results.status))
+        return loop.skip("allocation failed");
+    nk_f64_t *device_latitudes = coordinates.value.raw_values_data(), *device_longitudes = device_latitudes + points;
+    if (!succeeded(loop, backend.copy(device_latitudes, latitudes.data(), points * sizeof(nk_f64_t))) ||
+        !succeeded(loop, backend.copy(device_longitudes, longitudes.data(), points * sizeof(nk_f64_t))) ||
+        !succeeded(loop, backend.call(pack, static_cast<nk_f64_t const *>(device_latitudes),
+                                      static_cast<nk_f64_t const *>(device_longitudes), rows,
+                                      static_cast<void *>(a_packed.value.raw_values_data()))) ||
+        !succeeded(loop, backend.call(pack, static_cast<nk_f64_t const *>(device_latitudes + rows),
+                                      static_cast<nk_f64_t const *>(device_longitudes + rows), columns,
+                                      static_cast<void *>(b_packed.value.raw_values_data()))))
+        return;
+    void const *a = a_packed.value.raw_values_data(), *b = b_packed.value.raw_values_data();
+    nk_f64_t *outputs = results.value.raw_values_data();
+    bool const timed = time_rotating(
+        loop, backend, 1, [&](std::size_t) { return backend.call(kernel, a, b, outputs, columns * sizeof(nk_f64_t)); });
+    if (!timed) return;
+    loop.rate("distances", static_cast<double>(rows * columns));
+}
+
+/** Times CUDA clearances of @p rows viewpoints to @p columns targets across a random-walk terrain
+ *  of @p cells × @p cells, 30 m apart, packed on the device, every point 2 m above its ground. */
+void measure_clearances_cuda(loop_t &loop, environment_t const &env, cuda_backend_t backend, std::size_t rows,
+                             std::size_t columns, std::size_t cells) {
+    std::mt19937 generator(env.settings.seed.value);
+    std::normal_distribution<float> step(0.0f, 4.0f);
+    std::uniform_real_distribution<float> unit(0.0f, 1.0f);
+    std::vector<nk_f32_t> heights(cells * cells), points((rows + columns) * 3);
+    for (std::size_t row = 0; row != cells; ++row)
+        for (std::size_t column = 0; column != cells; ++column) {
+            float const north = row ? heights[(row - 1) * cells + column] : 100.0f;
+            float const west = column ? heights[row * cells + column - 1] : north;
+            heights[row * cells + column] = (north + west) / 2 + step(generator);
+        }
+    for (std::size_t point = 0; point != rows + columns; ++point) {
+        std::size_t const row = std::size_t(unit(generator) * float(cells - 1));
+        std::size_t const column = std::size_t(unit(generator) * float(cells - 1));
+        points[point * 3] = float(column), points[point * 3 + 1] = float(row);
+        points[point * 3 + 2] = heights[row * cells + column] + 2.0f;
+    }
+    nk_size_t bytes = 0;
+    if (!succeeded(loop, nk_terrain_pack_size_f32_cuda(cells, cells, &bytes))) return;
+    auto values = nk::vector<nk::f32_t, cuda_backend_t::allocator<nk::f32_t>>::uninitialized(
+        heights.size() + points.size(), allocator_of<nk::f32_t>(backend));
+    auto packed = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(bytes, allocator_of<char>(backend));
+    auto results = nk::vector<nk::f32_t, cuda_backend_t::allocator<nk::f32_t>>::uninitialized(
+        rows * columns, allocator_of<nk::f32_t>(backend));
+    if (nk::failed(values.status) || nk::failed(packed.status) || nk::failed(results.status))
+        return loop.skip("allocation failed");
+    nk_f32_t *terrain = values.value.raw_values_data(), *viewpoints = terrain + heights.size();
+    nk_f32_t const *targets = viewpoints + rows * 3;
+    void *pack = packed.value.raw_values_data();
+    if (!succeeded(loop, backend.copy(terrain, heights.data(), heights.size() * sizeof(nk_f32_t))) ||
+        !succeeded(loop, backend.copy(viewpoints, points.data(), points.size() * sizeof(nk_f32_t))) ||
+        !succeeded(loop, backend.call(nk_terrain_pack_f32_cuda, static_cast<nk_f32_t const *>(terrain), cells, cells,
+                                      cells * sizeof(nk_f32_t), 30.0, 30.0, pack)))
+        return;
+    nk_f32_t *outputs = results.value.raw_values_data();
+    bool const timed = time_rotating(loop, backend, 1, [&](std::size_t) {
+        return backend.call(nk_clearances_packed_f32_cuda, static_cast<nk_f32_t const *>(terrain),
+                            static_cast<void const *>(pack), static_cast<nk_f32_t const *>(viewpoints),
+                            static_cast<nk_f32_t const *>(nullptr), rows, targets, columns, 1.0 / 7, outputs,
+                            columns * sizeof(nk_f32_t));
+    });
+    if (!timed) return;
+    loop.rate("clearances", static_cast<double>(rows * columns));
+}
 #endif // NUMKONG_TARGET_CUDA
 
 /** The CUDA baseline rows the tensor-core capabilities have no faster path for, on every device. */
@@ -172,6 +262,14 @@ void bench_cross_cuda([[maybe_unused]] environment_t const &env, [[maybe_unused]
     run_transport_cuda<nk::f16_t>(env, "gromovwassersteins_packed_f16_cuda", backend, nk_shapes_pack_size_f16_serial,
                                   nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_cuda,
                                   nk_gromovwassersteins_packed_f16_cuda);
+    run_benchmark(env, "haversines_packed_f64_cuda<16384x16384>", measure_geodesics_cuda, backend,
+                  nk_haversines_pack_size_f64_cuda, nk_haversines_pack_f64_cuda, nk_haversines_packed_f64_cuda,
+                  std::size_t(16384), std::size_t(16384));
+    run_benchmark(env, "vincentys_packed_f64_cuda<16384x16384>", measure_geodesics_cuda, backend,
+                  nk_vincentys_pack_size_f64_cuda, nk_vincentys_pack_f64_cuda, nk_vincentys_packed_f64_cuda,
+                  std::size_t(16384), std::size_t(16384));
+    run_benchmark(env, "clearances_packed_f32_cuda<1024x1024,4096²>", measure_clearances_cuda, backend,
+                  std::size_t(1024), std::size_t(1024), std::size_t(4096));
 #endif // NUMKONG_TARGET_CUDA
 }
 

@@ -65,7 +65,7 @@ The clearance is the least gap between the sight line and those samples: positiv
 
 `nk_haversines_pack_f64` stores each point as a unit vector and `nk_vincentys_pack_f64` stores its longitude with the sine and cosine of its reduced latitude, in planar arrays every capability reads alike.
 A rows × columns product then evaluates no trigonometry per point: Haversine reduces to two compensated norms and one `atan2` per pair, and Vincenty starts its iteration from precomputed reduced latitudes instead of an `atan` per pair.
-The pack routine is serial for every capability, so a pack built once is byte-identical wherever it is read.
+Every CPU capability packs through the serial routine and CUDA through its twin, which rounds the same polynomials one operation at a time, so a pack built once is byte-identical wherever it is read.
 
 ### Exact 3D Squares
 
@@ -92,6 +92,7 @@ Coincident points, where $\sin\sigma = 0$, and equatorial pairs, where $\cos^2\a
 `nk_terrain_pack_f32` keeps the maximum of every $2^k \times 2^k$ block of the grid, one ring wider than the block, beside the caller's heights, which it never copies.
 `nk_clearances_packed_f32` walks each sight line through the coarsest blocks first and skips a block whose maximum, lowered by the curvature at its nearest point, cannot undercut the running minimum.
 Skipping only drops samples that cannot lower the result, so every clearance equals the one a full visit of every crossing gives.
+On CUDA each thread walks one sight line through the serial recursion, unrolled into a stack of frames and rounded one operation at a time, so its clearances equal the serial ones bit for bit.
 
 ### Ranking by Chord
 
