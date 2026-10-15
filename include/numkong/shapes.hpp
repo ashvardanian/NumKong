@@ -1523,6 +1523,24 @@ class shapes_packed {
         return make_<nk_kernel_shapes_pack_normalized_k>(clouds, alloc, capabilities);
     }
 
+    /** One backend's @c nk_shapes_pack_size_* kernel. */
+    using pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t *);
+
+    /** One backend's plain or normalized @c nk_shapes_pack kernel. */
+    using pack_kernel_t = nk_status_t (*)(typename value_type_::raw_t const *, nk_size_t, void *, nk_stream_t);
+
+    /**
+     *  @brief Packs every cloud like @c make, through one backend's kernels instead of a capability
+     *      mask, such as @c nk_shapes_pack_size_f32_serial and @c nk_shapes_pack_f32_serial.
+     *  @param[in] pack_size Measures one pack; pair it with @p pack.
+     *  @param[in] pack Packs one cloud on the CPU, with a null stream; a normalized one packs like
+     *      @c make_normalized.
+     */
+    static expected<shapes_packed> make(std::span<std::span<value_type_ const> const> clouds, allocator_type_ alloc,
+                                        pack_size_kernel_t pack_size, pack_kernel_t pack) noexcept {
+        return pack_clouds_(clouds, alloc, pack_size, pack);
+    }
+
     /** The table of pack pointers the kernels take. */
     void const *const *data() const noexcept { return reinterpret_cast<void const *const *>(data_); }
 
@@ -1553,14 +1571,34 @@ class shapes_packed {
     template <nk_kernel_kind_t kind_>
     static expected<shapes_packed> make_(std::span<std::span<value_type_ const> const> clouds, allocator_type_ alloc,
                                          nk_capability_t capabilities) noexcept {
+        auto const pack_size = [capabilities](nk_size_t points, nk_size_t *bytes) noexcept {
+            auto const size = shapes_pack_size<value_type_>(points, capabilities);
+            *bytes = size.value;
+            return size.status;
+        };
+        auto const pack = [capabilities](typename value_type_::raw_t const *cloud, nk_size_t points, void *packed,
+                                         nk_stream_t) noexcept {
+            return kind_ == nk_kernel_shapes_pack_k
+                       ? shapes_pack<value_type_>(cloud, points, packed, capabilities)
+                       : shapes_pack_normalized<value_type_>(cloud, points, packed, capabilities);
+        };
+        return pack_clouds_(clouds, alloc, pack_size, pack);
+    }
+
+    /** Packs every cloud through @p pack, sized by @p pack_size, both in the C kernels' order. */
+    template <typename pack_size_type_, typename pack_type_>
+    static expected<shapes_packed> pack_clouds_(std::span<std::span<value_type_ const> const> clouds,
+                                                allocator_type_ alloc, pack_size_type_ pack_size,
+                                                pack_type_ pack) noexcept {
         shapes_packed packs(alloc);
         packs.count_ = clouds.size();
         std::size_t total = packs.table_bytes_();
         for (std::span<value_type_ const> cloud : clouds) {
             if (cloud.size() % 3) return {shapes_packed(alloc), status_t::unexpected_dimensions_k};
-            auto const bytes = shapes_pack_size<value_type_>(cloud.size() / 3, capabilities);
-            if (!bytes) return {shapes_packed(alloc), bytes.status};
-            total += nk_size_round_up_to_multiple_(bytes.value, nk_default_alignment_k);
+            nk_size_t bytes = 0;
+            if (status_t const sized = static_cast<status_t>(pack_size(cloud.size() / 3, &bytes)); failed(sized))
+                return {shapes_packed(alloc), sized};
+            total += nk_size_round_up_to_multiple_(bytes, nk_default_alignment_k);
             if (packs.max_points_ < cloud.size() / 3) packs.max_points_ = cloud.size() / 3;
         }
         if (!total) return {std::move(packs), status_t::success_k};
@@ -1574,13 +1612,12 @@ class shapes_packed {
             std::size_t const points = clouds[index].size() / 3;
             auto const *cloud = reinterpret_cast<typename value_type_::raw_t const *>(clouds[index].data());
             table[index] = packs.data_ + offset;
-            status_t const status = kind_ == nk_kernel_shapes_pack_k
-                                        ? shapes_pack<value_type_>(cloud, points, packs.data_ + offset, capabilities)
-                                        : shapes_pack_normalized<value_type_>(cloud, points, packs.data_ + offset,
-                                                                              capabilities);
-            if (failed(status)) return {shapes_packed(alloc), status};
-            offset += nk_size_round_up_to_multiple_(shapes_pack_size<value_type_>(points, capabilities).value,
-                                                    nk_default_alignment_k);
+            if (status_t const packed = static_cast<status_t>(pack(cloud, points, packs.data_ + offset, nullptr));
+                failed(packed))
+                return {shapes_packed(alloc), packed};
+            nk_size_t bytes = 0;
+            static_cast<void>(pack_size(points, &bytes));
+            offset += nk_size_round_up_to_multiple_(bytes, nk_default_alignment_k);
         }
         return {std::move(packs), status_t::success_k};
     }
