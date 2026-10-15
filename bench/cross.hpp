@@ -33,7 +33,8 @@
 #include <type_traits> // `std::is_integral_v`, `std::is_same_v`
 #include <vector>      // `std::vector`
 
-#include "numkong/cast.h" // `nk_cast_serial`
+#include "numkong/attention.hpp" // `nk::attention_packed_workspace_size`
+#include "numkong/cast.h"        // `nk_cast_serial`
 
 #include "harness.hpp"
 #include "harness_cpu.hpp" // `host_backend_t`, the drivers' default backend
@@ -73,6 +74,45 @@ bool time_rotating(loop_t &loop, backend_type_ &backend, std::size_t sets_count,
     nk_status_t const time_status = backend.time(loop, sets_count, launch);
     if (time_status != nk_success_k) { [[maybe_unused]] nk_status_t const drained = backend.synchronize(); }
     return succeeded(loop, time_status);
+}
+
+/** A kernel together with the query of the scratch it runs faster with. */
+template <typename kernel_type_, typename workspace_size_kernel_type_>
+struct scratch_kernel {
+    kernel_type_ kernel;
+    workspace_size_kernel_type_ workspace_size;
+};
+
+template <typename kernel_type_, typename workspace_size_kernel_type_>
+scratch_kernel<kernel_type_, workspace_size_kernel_type_> with_workspace(
+    kernel_type_ kernel, workspace_size_kernel_type_ workspace_size) noexcept {
+    return {kernel, workspace_size};
+}
+
+/** @p kernel itself, or the kernel of a @c scratch_kernel. */
+template <typename kernel_type_>
+kernel_type_ kernel_of(kernel_type_ kernel) noexcept {
+    return kernel;
+}
+
+template <typename kernel_type_, typename workspace_size_kernel_type_>
+kernel_type_ kernel_of(scratch_kernel<kernel_type_, workspace_size_kernel_type_> scratch) noexcept {
+    return scratch.kernel;
+}
+
+/** Sets @p bytes to the workspace @p kernel asks for @p arguments, none for a kernel without a
+ *  query; returns false once skipped. */
+template <typename kernel_type_, typename... arguments_types_>
+bool workspace_size_bytes(loop_t &, nk_size_t &bytes, kernel_type_, arguments_types_...) noexcept {
+    bytes = 0;
+    return true;
+}
+
+template <typename kernel_type_, typename workspace_size_kernel_type_, typename... arguments_types_>
+bool workspace_size_bytes(loop_t &loop, nk_size_t &bytes,
+                          scratch_kernel<kernel_type_, workspace_size_kernel_type_> scratch,
+                          arguments_types_... arguments) noexcept {
+    return succeeded(loop, scratch.workspace_size(arguments..., &bytes));
 }
 
 /** The `<columns>` suffix of a one-row benchmark name, `<rows x columns>` for more rows. */
@@ -306,11 +346,14 @@ void measure_packed(loop_t &loop, environment_t const &env, backend_type_ backen
     if (!succeeded(loop, a_scales.initialize(backend, rows, a_stride)) ||
         !succeeded(loop, b_scales.initialize(backend, columns, row_bytes)))
         return;
-    nk_size_t packed_bytes = 0;
+    nk_size_t packed_bytes = 0, scratch_bytes = 0;
     if (!succeeded(loop, packed_size_fn(columns, depth, &packed_bytes))) return;
+    if (!workspace_size_bytes(loop, scratch_bytes, kernel, rows, columns, depth)) return;
     auto const [b_uploaded, b_uploaded_status] = upload(backend, b.data(), b.numel());
     if (!nk::succeeded(b_uploaded_status)) return loop.skip(nk::status_name(b_uploaded_status));
     if (b_uploaded.empty()) return loop.skip("B allocation failed");
+    auto scratch = set_t::bytes_t::uninitialized(scratch_bytes, allocator_of<char>(backend)).value;
+    if (scratch_bytes != 0 && scratch.empty()) return loop.skip("workspace allocation failed");
 
     // One B upload, packed into every set, since the sets differ only in where they live.
     std::vector<set_t> sets(
@@ -332,9 +375,10 @@ void measure_packed(loop_t &loop, environment_t const &env, backend_type_ backen
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         set_t &set = sets[index];
         return backend.call(
-            kernel, a_scales.operand(reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data())),
+            kernel_of(kernel),
+            a_scales.operand(reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data())),
             static_cast<void const *>(set.b.raw_values_data()), set.c.raw_values_data(), rows, columns, depth, a_stride,
-            columns * sizeof(output_type_));
+            columns * sizeof(output_type_), static_cast<void *>(scratch.raw_values_data()), scratch_bytes);
     });
     if (!timed) return;
     auto const [score, score_status] = sampled_accuracy<element_dtype_, output_type_>(
@@ -358,6 +402,10 @@ void measure_symmetric(loop_t &loop, environment_t const &env, backend_type_ bac
     std::size_t const a_stride = a.stride_bytes(0), a_bytes = rows * a_stride;
     unit_block_scales<input_dtype_, backend_type_> scales;
     if (!succeeded(loop, scales.initialize(backend, rows, a_stride))) return;
+    nk_size_t scratch_bytes = 0;
+    if (!workspace_size_bytes(loop, scratch_bytes, kernel, rows, depth, std::size_t(0), rows)) return;
+    auto scratch = set_t::bytes_t::uninitialized(scratch_bytes, allocator_of<char>(backend)).value;
+    if (scratch_bytes != 0 && scratch.empty()) return loop.skip("workspace allocation failed");
     std::vector<set_t> sets(backend.input_sets(bytes_t {a_bytes + rows * rows * sizeof(output_type_)}));
     for (set_t &set : sets) {
         set.a = set_t::bytes_t::uninitialized(a_bytes, allocator_of<char>(backend)).value;
@@ -368,9 +416,10 @@ void measure_symmetric(loop_t &loop, environment_t const &env, backend_type_ bac
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         set_t &set = sets[index];
-        return backend.call(
-            kernel, scales.operand(reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data())), rows,
-            depth, a_stride, set.c.raw_values_data(), rows * sizeof(output_type_), std::size_t(0), rows);
+        return backend.call(kernel_of(kernel),
+                            scales.operand(reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data())),
+                            rows, depth, a_stride, set.c.raw_values_data(), rows * sizeof(output_type_), std::size_t(0),
+                            rows, static_cast<void *>(scratch.raw_values_data()), scratch_bytes);
     });
     if (!timed) return;
     auto const [score, score_status] = sampled_accuracy<element_dtype_, output_type_>(
@@ -549,14 +598,14 @@ template <attention_visibility_t visibility_, typename element_type_, typename b
           typename attention_kernel_type_, typename operand_type_>
 nk_status_t attend(backend_type_ &backend, attention_kernel_type_ attention_fn, attention_shape_t shape,
                    nk_u32_t const *directory, operand_type_ queries, void const *packed, nk_f32_t *output,
-                   nk_f32_t *log_sum_exp = nullptr) {
+                   nk_f32_t *log_sum_exp, void *workspace, std::size_t workspace_bytes) {
     std::size_t const query_stride = attention_row_bytes<element_type_>(shape.head_count * shape.depth);
     std::size_t const output_stride = shape.head_count * shape.depth * sizeof(nk_f32_t);
     nk_f32_t const scale = 1.0f / std::sqrt(float(shape.depth));
     return backend.call(attention_fn, shape.head_count, shape.key_value_head_count, shape.depth, directory + 2,
                         shape.queries, scale, attention_keys_before(visibility_), attention_keys_after(visibility_),
                         queries, query_stride, packed, output, output_stride, log_sum_exp, std::size_t(0),
-                        shape.queries * shape.head_count);
+                        shape.queries * shape.head_count, workspace, workspace_bytes);
 }
 
 /** Queries, the packed key/value cache, and one F32-row-per-query output, for one rotation slot in
@@ -607,6 +656,17 @@ void measure_attention(loop_t &loop, environment_t const &env, backend_type_ bac
         return loop.skip("input allocation failed");
     nk_size_t packed_bytes = 0;
     if (!succeeded(loop, packed_size_fn(shape.key_value_head_count, shape.depth, shape.keys, 1, &packed_bytes))) return;
+    std::size_t workspace_bytes = 0;
+    if constexpr (!std::is_same_v<backend_type_, host_backend_t>) {
+        auto const queried = nk::attention_packed_workspace_size<typename nk::type_for<input_dtype_>::type>(
+            shape.head_count, shape.key_value_head_count, shape.depth, shape.queries,
+            attention_keys_before(visibility_), attention_keys_after(visibility_), backend.capabilities);
+        if (!succeeded(loop, static_cast<nk_status_t>(queried.status))) return;
+        workspace_bytes = queried.value;
+    }
+    // One workspace serves every set, as the calls run in the order of one stream
+    auto workspace = set_t::bytes_t::uninitialized(workspace_bytes, allocator_of<char>(backend)).value;
+    if (workspace_bytes && workspace.empty()) return loop.skip("workspace allocation failed");
     std::size_t const output_count = shape.queries * shape.head_count * shape.depth;
     std::vector<set_t> sets(
         backend.input_sets(bytes_t {queries.size_bytes() + packed_bytes + output_count * sizeof(nk_f32_t)}));
@@ -629,7 +689,8 @@ void measure_attention(loop_t &loop, environment_t const &env, backend_type_ bac
         set_t &set = sets[index];
         return attend<visibility_, input_t>(backend, attention_fn, shape, directory.raw_values_data(),
                                             query_scales.operand(set.queries.raw_values_data()),
-                                            set.packed.raw_values_data(), set.output.raw_values_data());
+                                            set.packed.raw_values_data(), set.output.raw_values_data(), nullptr,
+                                            workspace.raw_values_data(), workspace_bytes);
     });
     if (timed) report_attention(loop, visibility_, shape);
 }
@@ -708,6 +769,17 @@ void measure_attention_gradients(loop_t &loop, environment_t const &env, backend
         return loop.skip("input allocation failed");
     nk_size_t packed_bytes = 0;
     if (!succeeded(loop, packed_size_fn(shape.key_value_head_count, shape.depth, shape.keys, 1, &packed_bytes))) return;
+    std::size_t workspace_bytes = 0;
+    if constexpr (!std::is_same_v<backend_type_, host_backend_t>) {
+        auto const queried = nk::attention_packed_gradients_workspace_size<typename nk::type_for<input_dtype_>::type>(
+            shape.head_count, shape.key_value_head_count, shape.depth, shape.queries,
+            attention_keys_before(visibility_), attention_keys_after(visibility_), backend.capabilities);
+        if (!succeeded(loop, static_cast<nk_status_t>(queried.status))) return;
+        workspace_bytes = queried.value;
+    }
+    // One workspace serves every set, as the calls run in the order of one stream
+    auto workspace = set_t::bytes_t::uninitialized(workspace_bytes, allocator_of<char>(backend)).value;
+    if (workspace_bytes && workspace.empty()) return loop.skip("workspace allocation failed");
     std::size_t const output_count = shape.queries * shape.head_count * shape.depth;
     std::size_t const key_value_count = shape.keys * shape.key_value_head_count * shape.depth;
     std::size_t const float_count = 3 * output_count + shape.queries * shape.head_count + 2 * key_value_count;
@@ -742,7 +814,7 @@ void measure_attention_gradients(loop_t &loop, environment_t const &env, backend
             submission_status = attend<visibility_, input_t>(backend, attention_fn, shape, directory.raw_values_data(),
                                                              query_scales.operand(set.queries.raw_values_data()),
                                                              set.packed.raw_values_data(), set.output.raw_values_data(),
-                                                             set.log_sum_exp.raw_values_data());
+                                                             set.log_sum_exp.raw_values_data(), nullptr, 0);
         nk_status_t const completion_status = backend.synchronize();
         if (!succeeded(loop, submission_status) || !succeeded(loop, completion_status)) return;
     }
@@ -759,7 +831,7 @@ void measure_attention_gradients(loop_t &loop, environment_t const &env, backend
                             set.output_gradient.raw_values_data(), output_stride, set.log_sum_exp.raw_values_data(),
                             set.query_gradient.raw_values_data(), output_stride, set.key_gradient.raw_values_data(),
                             set.value_gradient.raw_values_data(), gradient_stride, std::size_t(0),
-                            shape.key_value_head_count);
+                            shape.key_value_head_count, workspace.raw_values_data(), workspace_bytes);
     });
     if (timed) report_attention(loop, visibility_, shape, 10.0);
 }

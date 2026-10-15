@@ -86,7 +86,8 @@ static __global__ void __launch_bounds__(nk_attention_backward_threads_blackwell
     if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_queries_blackwell_(&maps);
     else nk_attention_backward_queries_bf16_cuda_(&maps.arguments);
 }
-nk_define_attention_backward_cuda_(bf16, blackwellultra, bf16, nk_attention_backward_launch_blackwell_)
+nk_define_attention_backward_cuda_(bf16, blackwellultra, bf16, nk_attention_backward_launch_blackwell_,
+                                   nk_attention_backward_workspace_size_blackwell_)
 
 #pragma endregion BF16
 

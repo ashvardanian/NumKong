@@ -879,12 +879,21 @@ NUMKONG_INLINE nk_attention_arguments_t nk_attention_arguments_init_simt_(
         nk_attention_packed_##input_type##_fallback_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {      \
         nk_attention_fallback_##input_type##_##vendor##_(&arguments);                                                 \
     }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_attention_packed_workspace_size_##input_type##_##isa_suffix(                           \
+        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_size_t query_token_count,           \
+        nk_size_t keys_before, nk_size_t keys_after, nk_size_t *bytes) {                                              \
+        nk_unused_(head_count), nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_token_count),   \
+            nk_unused_(keys_before), nk_unused_(keys_after);                                                          \
+        *bytes = 0;                                                                                                   \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
     NUMKONG_API nk_status_t nk_attention_packed_##input_type##_##isa_suffix(                                          \
         nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,         \
         nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,                     \
         nk_##input_type##_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,   \
-        nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end,                   \
-        nk_stream_t stream) {                                                                                         \
+        nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace,  \
+        nk_size_t workspace_bytes, nk_stream_t stream) {                                                              \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                           \
         int const masked = keys_before != NUMKONG_SIZE_MAX || keys_after != NUMKONG_SIZE_MAX;                         \
         return nk_attention_launch_##input_type##_##isa_suffix##_(                                                    \
             masked ? (void const *)nk_attention_packed_##input_type##_narrow_masked_##isa_suffix##_kernel_            \

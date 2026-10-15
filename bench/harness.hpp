@@ -781,7 +781,7 @@ void measure_hammings_packed(                                                   
         auto &s = sets[call & (sets_count - 1)];
         do_not_optimize(s.c.raw_values_data());
         if (!succeeded(loop, kernel(s.a.raw_values_data(), s.b_packed.data(), s.c.raw_values_data(), //
-                                    m, n, k, a_stride, n * sizeof(raw_output_t), nullptr)))
+                                    m, n, k, a_stride, n * sizeof(raw_output_t), nullptr, 0, nullptr)))
             break;
     }
 
@@ -825,7 +825,7 @@ void measure_hammings_symmetric(                                                
         auto &s = sets[call & (sets_count - 1)];
         do_not_optimize(s.c.raw_values_data());
         if (!succeeded(loop, kernel(s.a.raw_values_data(), n, k, input_stride, //
-                                    s.c.raw_values_data(), output_stride, 0, n, nullptr)))
+                                    s.c.raw_values_data(), output_stride, 0, n, nullptr, 0, nullptr)))
             break;
     }
 
@@ -895,7 +895,7 @@ void measure_jaccards_packed(                                                   
         auto &s = sets[call & (sets_count - 1)];
         do_not_optimize(s.c.data());
         if (!succeeded(loop, kernel(s.a.raw_values_data(), s.b_packed.data(), s.c.data(), //
-                                    m, n, k, a_stride, n * sizeof(nk_f32_t), nullptr)))
+                                    m, n, k, a_stride, n * sizeof(nk_f32_t), nullptr, 0, nullptr)))
             break;
     }
 
@@ -935,7 +935,7 @@ void measure_jaccards_symmetric(                                                
         auto &s = sets[call & (sets_count - 1)];
         do_not_optimize(s.c.data());
         if (!succeeded(loop, kernel(s.a.raw_values_data(), n, k, input_stride, //
-                                    s.c.data(), output_stride, 0, n, nullptr)))
+                                    s.c.data(), output_stride, 0, n, nullptr, 0, nullptr)))
             break;
     }
 

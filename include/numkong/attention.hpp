@@ -45,6 +45,9 @@ namespace ashvardanian::numkong {
  *  @param[in] tasks_begin First task of a window over the query tokens × heads grid of output rows.
  *  @param[in] tasks_end End of that half-open window, clipped to the grid. The window partitions
  *      the rows of @p output and @p log_sum_exp the call writes, per query token × head.
+ *  @param[in] workspace Scratch memory of @c attention_packed_workspace_size bytes on the device of
+ *      @p stream, or null for the path without scratch.
+ *  @param[in] workspace_bytes Bytes of @p workspace, or 0.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *
@@ -60,8 +63,9 @@ status_t attention_packed(std::size_t head_count, std::size_t key_value_head_cou
                           std::size_t keys_before, std::size_t keys_after, operand_pointer<in_type_> queries,
                           std::size_t queries_stride, void const *key_value_packed, result_type_ *output,
                           std::size_t output_stride, f32_t *log_sum_exp, std::size_t tasks_begin = 0,
-                          std::size_t tasks_end = std::numeric_limits<std::size_t>::max(),
-                          nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) {
+                          std::size_t tasks_end = std::numeric_limits<std::size_t>::max(), void *workspace = nullptr,
+                          std::size_t workspace_bytes = 0, nk_capability_t capabilities = default_capabilities(),
+                          nk_stream_t stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     static_assert(std::is_same_v<result_type_, typename in_type_::attention_result_t>,
                   "Attention accumulates and normalizes in F32");
@@ -73,104 +77,150 @@ status_t attention_packed(std::size_t head_count, std::size_t key_value_head_cou
             return static_cast<status_t>(nk_attention_packed_bf16_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries_raw, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-                tasks_begin, tasks_end, capabilities, stream));
+                tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t>)
             return static_cast<status_t>(nk_attention_packed_f16_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries_raw, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-                tasks_begin, tasks_end, capabilities, stream));
+                tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_packed_e4m3_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries_raw, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-                tasks_begin, tasks_end, capabilities, stream));
+                tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
             return static_cast<status_t>(nk_attention_packed_i8_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries_raw, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-                tasks_begin, tasks_end, capabilities, stream));
+                tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
             return static_cast<status_t>(nk_attention_packed_nvfp4_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-                tasks_begin, tasks_end, capabilities, stream));
+                tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
             return static_cast<status_t>(nk_attention_packed_mxfp4_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-                tasks_begin, tasks_end, capabilities, stream));
+                tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
             return static_cast<status_t>(nk_attention_packed_mxfp6e2m3_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-                tasks_begin, tasks_end, capabilities, stream));
+                tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
             return static_cast<status_t>(nk_attention_packed_mxfp6e3m2_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-                tasks_begin, tasks_end, capabilities, stream));
+                tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
             return static_cast<status_t>(nk_attention_packed_mxfp8e4m3_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-                tasks_begin, tasks_end, capabilities, stream));
+                tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
             return static_cast<status_t>(nk_attention_packed_mxfp8e5m2_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-                tasks_begin, tasks_end, capabilities, stream));
+                tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_packed_bf16_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries_raw, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-            tasks_begin, tasks_end, stream));
+            tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, f16_t>)
         return static_cast<status_t>(nk_attention_packed_f16_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries_raw, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-            tasks_begin, tasks_end, stream));
+            tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
         return static_cast<status_t>(nk_attention_packed_e4m3_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries_raw, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-            tasks_begin, tasks_end, stream));
+            tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         return static_cast<status_t>(nk_attention_packed_i8_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries_raw, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-            tasks_begin, tasks_end, stream));
+            tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
         return static_cast<status_t>(nk_attention_packed_nvfp4_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-            tasks_begin, tasks_end, stream));
+            tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
         return static_cast<status_t>(nk_attention_packed_mxfp4_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-            tasks_begin, tasks_end, stream));
+            tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
         return static_cast<status_t>(nk_attention_packed_mxfp6e2m3_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-            tasks_begin, tasks_end, stream));
+            tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
         return static_cast<status_t>(nk_attention_packed_mxfp6e3m2_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-            tasks_begin, tasks_end, stream));
+            tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
         return static_cast<status_t>(nk_attention_packed_mxfp8e4m3_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-            tasks_begin, tasks_end, stream));
+            tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
         return static_cast<status_t>(nk_attention_packed_mxfp8e5m2_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_stride, log_sum_exp_raw,
-            tasks_begin, tasks_end, stream));
+            tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else return status_t::missing_kernel_k;
+}
+
+/**
+ *  @brief Returns the workspace bytes @c attention_packed takes for its fast path on these shapes.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
+ */
+template <numeric_dtype in_type_>
+expected<std::size_t> attention_packed_workspace_size(std::size_t head_count, std::size_t key_value_head_count,
+                                                      std::size_t depth, std::size_t query_token_count,
+                                                      std::size_t keys_before, std::size_t keys_after,
+                                                      nk_capability_t capabilities = default_capabilities()) noexcept {
+    nk_size_t bytes = 0;
+    nk_status_t status = nk_success_k;
+    if (!capabilities) return {0, status_t::success_k};
+    if constexpr (std::is_same_v<in_type_, bf16_t>)
+        status = nk_attention_packed_workspace_size_bf16_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, f16_t>)
+        status = nk_attention_packed_workspace_size_f16_best(head_count, key_value_head_count, depth, query_token_count,
+                                                             keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+        status = nk_attention_packed_workspace_size_e4m3_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, i8_t>)
+        status = nk_attention_packed_workspace_size_i8_best(head_count, key_value_head_count, depth, query_token_count,
+                                                            keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
+        status = nk_attention_packed_workspace_size_nvfp4_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
+        status = nk_attention_packed_workspace_size_mxfp4_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
+        status = nk_attention_packed_workspace_size_mxfp6e2m3_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
+        status = nk_attention_packed_workspace_size_mxfp6e3m2_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
+        status = nk_attention_packed_workspace_size_mxfp8e4m3_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
+        status = nk_attention_packed_workspace_size_mxfp8e5m2_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else status = nk_missing_kernel_k;
+    return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
 }
 
 /**
@@ -191,6 +241,9 @@ status_t attention_packed(std::size_t head_count, std::size_t key_value_head_cou
  *      the outputs the call writes: segments × K/V heads own their @p key_gradient and
  *      @p value_gradient rows and the @p query_gradient rows of their query heads.
  *
+ *  @param[in] workspace Scratch memory of @c attention_packed_gradients_workspace_size bytes on the
+ *      device of @p stream, or null for the two-pass path.
+ *
  *  Every other parameter follows @c attention_packed; the band must be the forward's.
  *
  *  @tparam in_type_ Input element type, bf16_t, or a block-scaled format whose queries are an
@@ -206,6 +259,7 @@ status_t attention_packed_gradients(std::size_t head_count, std::size_t key_valu
                                     f32_t *value_gradient, std::size_t key_value_gradient_stride,
                                     std::size_t tasks_begin = 0,
                                     std::size_t tasks_end = std::numeric_limits<std::size_t>::max(),
+                                    void *workspace = nullptr, std::size_t workspace_bytes = 0,
                                     nk_capability_t capabilities = default_capabilities(),
                                     nk_stream_t stream = nullptr) {
     auto const *output_raw = reinterpret_cast<nk_f32_t const *>(output);
@@ -220,88 +274,126 @@ status_t attention_packed_gradients(std::size_t head_count, std::size_t key_valu
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, reinterpret_cast<nk_bf16_t const *>(queries), queries_stride, key_value_packed, output_raw,
                 output_gradient_raw, output_stride, log_sum_exp_raw, query_gradient_raw, query_gradient_stride,
-                key_gradient_raw, value_gradient_raw, key_value_gradient_stride, tasks_begin, tasks_end, capabilities,
-                stream));
+                key_gradient_raw, value_gradient_raw, key_value_gradient_stride, tasks_begin, tasks_end, workspace,
+                workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
             return static_cast<status_t>(nk_attention_packed_gradients_nvfp4_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
                 log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-                key_value_gradient_stride, tasks_begin, tasks_end, capabilities, stream));
+                key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
             return static_cast<status_t>(nk_attention_packed_gradients_mxfp4_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
                 log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-                key_value_gradient_stride, tasks_begin, tasks_end, capabilities, stream));
+                key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
             return static_cast<status_t>(nk_attention_packed_gradients_mxfp6e2m3_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
                 log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-                key_value_gradient_stride, tasks_begin, tasks_end, capabilities, stream));
+                key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
             return static_cast<status_t>(nk_attention_packed_gradients_mxfp6e3m2_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
                 log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-                key_value_gradient_stride, tasks_begin, tasks_end, capabilities, stream));
+                key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
             return static_cast<status_t>(nk_attention_packed_gradients_mxfp8e4m3_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
                 log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-                key_value_gradient_stride, tasks_begin, tasks_end, capabilities, stream));
+                key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
             return static_cast<status_t>(nk_attention_packed_gradients_mxfp8e5m2_best(
                 head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
                 keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
                 log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-                key_value_gradient_stride, tasks_begin, tasks_end, capabilities, stream));
+                key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_packed_gradients_bf16_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, reinterpret_cast<nk_bf16_t const *>(queries), queries_stride, key_value_packed, output_raw,
             output_gradient_raw, output_stride, log_sum_exp_raw, query_gradient_raw, query_gradient_stride,
-            key_gradient_raw, value_gradient_raw, key_value_gradient_stride, tasks_begin, tasks_end, stream));
+            key_gradient_raw, value_gradient_raw, key_value_gradient_stride, tasks_begin, tasks_end, workspace,
+            workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
         return static_cast<status_t>(nk_attention_packed_gradients_nvfp4_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
             log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-            key_value_gradient_stride, tasks_begin, tasks_end, stream));
+            key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
         return static_cast<status_t>(nk_attention_packed_gradients_mxfp4_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
             log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-            key_value_gradient_stride, tasks_begin, tasks_end, stream));
+            key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
         return static_cast<status_t>(nk_attention_packed_gradients_mxfp6e2m3_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
             log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-            key_value_gradient_stride, tasks_begin, tasks_end, stream));
+            key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
         return static_cast<status_t>(nk_attention_packed_gradients_mxfp6e3m2_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
             log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-            key_value_gradient_stride, tasks_begin, tasks_end, stream));
+            key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
         return static_cast<status_t>(nk_attention_packed_gradients_mxfp8e4m3_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
             log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-            key_value_gradient_stride, tasks_begin, tasks_end, stream));
+            key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
         return static_cast<status_t>(nk_attention_packed_gradients_mxfp8e5m2_serial(
             head_count, key_value_head_count, depth, query_offsets, query_token_count, scale.raw_, keys_before,
             keys_after, queries, queries_stride, key_value_packed, output_raw, output_gradient_raw, output_stride,
             log_sum_exp_raw, query_gradient_raw, query_gradient_stride, key_gradient_raw, value_gradient_raw,
-            key_value_gradient_stride, tasks_begin, tasks_end, stream));
+            key_value_gradient_stride, tasks_begin, tasks_end, workspace, workspace_bytes, stream));
     else return status_t::missing_kernel_k;
+}
+
+/**
+ *  @brief Returns the workspace bytes @c attention_packed_gradients takes for its single pass on
+ *      these shapes, or 0 where it has none.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
+ */
+template <numeric_dtype in_type_>
+expected<std::size_t> attention_packed_gradients_workspace_size(
+    std::size_t head_count, std::size_t key_value_head_count, std::size_t depth, std::size_t query_token_count,
+    std::size_t keys_before, std::size_t keys_after, nk_capability_t capabilities = default_capabilities()) noexcept {
+    nk_size_t bytes = 0;
+    nk_status_t status = nk_success_k;
+    if (!capabilities) return {0, status_t::success_k};
+    if constexpr (std::is_same_v<in_type_, bf16_t>)
+        status = nk_attention_packed_gradients_workspace_size_bf16_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, nvfp4_t>)
+        status = nk_attention_packed_gradients_workspace_size_nvfp4_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp4_t>)
+        status = nk_attention_packed_gradients_workspace_size_mxfp4_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp6e2m3_t>)
+        status = nk_attention_packed_gradients_workspace_size_mxfp6e2m3_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp6e3m2_t>)
+        status = nk_attention_packed_gradients_workspace_size_mxfp6e3m2_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp8e4m3_t>)
+        status = nk_attention_packed_gradients_workspace_size_mxfp8e4m3_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else if constexpr (std::is_same_v<in_type_, mxfp8e5m2_t>)
+        status = nk_attention_packed_gradients_workspace_size_mxfp8e5m2_best(
+            head_count, key_value_head_count, depth, query_token_count, keys_before, keys_after, capabilities, &bytes);
+    else status = nk_missing_kernel_k;
+    return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
 }
 
 /**
@@ -391,7 +483,8 @@ status_t attention_shapes_(tensor_view<value_type_, max_rank_> queries,
 
 /** Self-attention of @b [tokens,heads,depth] @p queries against @p key_value_packed, whose
  *  pack-time key offsets split the query tokens too, under the @p keys_before, @p keys_after
- *  band; @c unexpected_dimensions_k when the shapes disagree. The raw-pointer overload covers
+ *  band, with any workspace the capability wants from the pack's allocator type;
+ *  @c unexpected_dimensions_k when the shapes disagree. The raw-pointer overload covers
  *  cross-attention and pooling. */
 template <numeric_dtype value_type_, std::size_t max_rank_, typename allocator_type_>
 status_t attention_packed(tensor_view<value_type_, max_rank_> queries,
@@ -401,13 +494,25 @@ status_t attention_packed(tensor_view<value_type_, max_rank_> queries,
                           std::size_t keys_after = std::numeric_limits<std::size_t>::max(),
                           nk_capability_t capabilities = default_capabilities(),
                           nk_stream_t stream = nullptr) noexcept {
+    using workspace_traits_t = std::allocator_traits<allocator_type_>;
     if (status_t status = attention_shapes_(queries, key_value_packed, output); failed(status)) return status;
-    return attention_packed<value_type_>(
+    std::size_t const query_token_count = key_value_packed.key_offsets()[key_value_packed.segment_count()];
+    auto workspace_bytes = attention_packed_workspace_size<value_type_>(
+        queries.extent(1), key_value_packed.key_value_head_count(), key_value_packed.depth(), query_token_count,
+        keys_before, keys_after, capabilities);
+    if (!workspace_bytes) return workspace_bytes.status;
+    allocator_type_ workspace_allocator;
+    char *workspace = workspace_bytes.value ? workspace_traits_t::allocate(workspace_allocator, workspace_bytes.value)
+                                            : nullptr;
+    if (workspace_bytes.value && !workspace) return status_t::bad_alloc_k;
+    status_t const status = attention_packed<value_type_>(
         queries.extent(1), key_value_packed.key_value_head_count(), key_value_packed.depth(),
-        key_value_packed.key_offsets().data(), key_value_packed.key_offsets()[key_value_packed.segment_count()], scale,
-        keys_before, keys_after, queries.data(), static_cast<std::size_t>(queries.stride_bytes(0)),
-        key_value_packed.data(), output.data(), static_cast<std::size_t>(output.stride_bytes(0)), nullptr, 0,
-        std::numeric_limits<std::size_t>::max(), capabilities, stream);
+        key_value_packed.key_offsets().data(), query_token_count, scale, keys_before, keys_after, queries.data(),
+        static_cast<std::size_t>(queries.stride_bytes(0)), key_value_packed.data(), output.data(),
+        static_cast<std::size_t>(output.stride_bytes(0)), nullptr, 0, std::numeric_limits<std::size_t>::max(),
+        workspace, workspace_bytes.value, capabilities, stream);
+    if (workspace) workspace_traits_t::deallocate(workspace_allocator, workspace, workspace_bytes.value);
+    return status;
 }
 
 /** Allocating self-attention returning a fresh @b [tokens,heads,depth] tensor;

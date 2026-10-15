@@ -132,36 +132,6 @@ NUMKONG_INLINE void *nk_compare_exchange_pointer_cuda_(void **slot, void *expect
 #endif
 }
 
-/** Bytes of freed memory each workspace pool keeps across synchronizations, so a workspace up to
- *  that size maps its memory once rather than anew after every synchronization, as the default pool
- *  would, while larger ones go back to the device after each call. */
-static nk_u64_t const nk_workspace_retained_bytes_cuda_ = (nk_u64_t)256 << 20;
-
-/** The current device's pool for the workspaces kernels allocate and free on every call, made on
- *  first use and kept for the process's life, or null where none can be made. Each library unit
- *  keeps its own, for up to 64 devices. */
-NUMKONG_INLINE cudaMemPool_t nk_workspace_pool_cuda_(void) {
-    static cudaMemPool_t pools[64];
-    int device = 0;
-    if (cudaGetDevice(&device) != cudaSuccess || device >= 64) return NUMKONG_NULL;
-    void **const slot = (void **)&pools[device];
-    cudaMemPool_t pool = (cudaMemPool_t)nk_compare_exchange_pointer_cuda_(slot, NUMKONG_NULL, NUMKONG_NULL);
-    if (pool) return pool;
-    cudaMemPoolProps properties = {cudaMemAllocationTypePinned};
-    properties.location.type = cudaMemLocationTypeDevice, properties.location.id = device;
-    nk_u64_t retained = nk_workspace_retained_bytes_cuda_;
-    if (cudaMemPoolCreate(&pool, &properties) != cudaSuccess) {
-        cudaGetLastError();
-        return NUMKONG_NULL;
-    }
-    if (cudaMemPoolSetAttribute(pool, cudaMemPoolAttrReleaseThreshold, &retained) != cudaSuccess) cudaGetLastError();
-    // A thread that lost the race to publish its pool frees it and takes the winner's.
-    cudaMemPool_t const published = (cudaMemPool_t)nk_compare_exchange_pointer_cuda_(slot, NUMKONG_NULL, pool);
-    if (!published) return pool;
-    cudaMemPoolDestroy(pool);
-    return published;
-}
-
 /** The current device's default managed memory pool, or null where a device lacks concurrent
  *  managed access, as on Windows, so blocks fall back to @c cudaMallocManaged. */
 NUMKONG_INLINE cudaMemPool_t nk_managed_pool_cuda_(void) {

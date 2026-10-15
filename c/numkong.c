@@ -56,15 +56,25 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     case nk_kernel_dots_pack_k:
     case nk_kernel_dots_packed_k:
     case nk_kernel_dots_packed_shape_k:
+    case nk_kernel_dots_packed_workspace_size_k:
+    case nk_kernel_dots_symmetric_workspace_size_k:
     case nk_kernel_dots_symmetric_k: return nk_dots_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_hammings_packed_k:
     case nk_kernel_hammings_symmetric_k:
     case nk_kernel_jaccards_packed_k:
+    case nk_kernel_hammings_packed_workspace_size_k:
+    case nk_kernel_hammings_symmetric_workspace_size_k:
+    case nk_kernel_jaccards_packed_workspace_size_k:
+    case nk_kernel_jaccards_symmetric_workspace_size_k:
     case nk_kernel_jaccards_symmetric_k: return nk_sets_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_angulars_packed_k:
     case nk_kernel_angulars_symmetric_k:
     case nk_kernel_euclideans_packed_k:
     case nk_kernel_euclideans_symmetric_k:
+    case nk_kernel_angulars_packed_workspace_size_k:
+    case nk_kernel_angulars_symmetric_workspace_size_k:
+    case nk_kernel_euclideans_packed_workspace_size_k:
+    case nk_kernel_euclideans_symmetric_workspace_size_k:
         return nk_spatials_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_maxsim_pack_size_k:
     case nk_kernel_maxsim_pack_k:
@@ -86,6 +96,8 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     case nk_kernel_attention_pack_k:
     case nk_kernel_attention_packed_k:
     case nk_kernel_attention_packed_gradients_k:
+    case nk_kernel_attention_packed_workspace_size_k:
+    case nk_kernel_attention_packed_gradients_workspace_size_k:
     case nk_kernel_attention_packed_shape_k:
     case nk_kernel_attention_rope_k: return nk_attention_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_cast_k:

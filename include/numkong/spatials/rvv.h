@@ -1785,10 +1785,41 @@ NUMKONG_INLINE void nk_euclideans_symmetric_finalize_u8_rvv_(nk_u8_t const *vect
 #if NUMKONG_TARGET_RVV
 #pragma region F32 Floats
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_f32_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                  nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_f32_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                    nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_f32_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                     nk_size_t rows_begin, nk_size_t rows_end,
+                                                                     nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_f32_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                       nk_size_t rows_begin, nk_size_t rows_end,
+                                                                       nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_f32_rvv(       //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,   //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_f32_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f64_t);
@@ -1801,7 +1832,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_f32_rvv(       //
 NUMKONG_API nk_status_t nk_euclideans_packed_f32_rvv(     //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,   //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_f32_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f64_t);
@@ -1814,7 +1846,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f32_rvv(     //
 NUMKONG_API nk_status_t nk_angulars_symmetric_f32_rvv( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f64_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f64_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -1829,7 +1863,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_f32_rvv( //
 NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_rvv( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f64_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f64_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -1845,10 +1881,41 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_rvv( //
 
 #pragma region F64 Floats
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_f64_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                  nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_f64_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                    nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_f64_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                     nk_size_t rows_begin, nk_size_t rows_end,
+                                                                     nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_f64_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                       nk_size_t rows_begin, nk_size_t rows_end,
+                                                                       nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_f64_rvv(       //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,   //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_f64_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f64_t);
@@ -1861,7 +1928,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_f64_rvv(       //
 NUMKONG_API nk_status_t nk_euclideans_packed_f64_rvv(     //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,   //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_f64_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f64_t);
@@ -1874,7 +1942,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f64_rvv(     //
 NUMKONG_API nk_status_t nk_angulars_symmetric_f64_rvv( //
     nk_f64_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f64_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f64_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -1889,7 +1959,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_f64_rvv( //
 NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_rvv( //
     nk_f64_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f64_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f64_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -1905,10 +1977,41 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_rvv( //
 
 #pragma region F16 Floats
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_f16_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                  nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_f16_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                    nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_f16_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                     nk_size_t rows_begin, nk_size_t rows_end,
+                                                                     nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_f16_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                       nk_size_t rows_begin, nk_size_t rows_end,
+                                                                       nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_f16_rvv(       //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,   //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_f16_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -1921,7 +2024,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_f16_rvv(       //
 NUMKONG_API nk_status_t nk_euclideans_packed_f16_rvv(     //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,   //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_f16_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -1934,7 +2038,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f16_rvv(     //
 NUMKONG_API nk_status_t nk_angulars_symmetric_f16_rvv( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -1949,7 +2055,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_f16_rvv( //
 NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_rvv( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -1965,10 +2073,41 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_rvv( //
 
 #pragma region BF16 Floats
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_bf16_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                   nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_bf16_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                     nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_bf16_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                                      nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_bf16_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                        nk_size_t rows_begin, nk_size_t rows_end,
+                                                                        nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_bf16_rvv(       //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_bf16_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -1981,7 +2120,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_bf16_rvv(       //
 NUMKONG_API nk_status_t nk_euclideans_packed_bf16_rvv(     //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_bf16_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -1994,7 +2134,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_bf16_rvv(     //
 NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_rvv( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2010,7 +2152,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_rvv( //
 NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_rvv( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2027,10 +2171,41 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_rvv( //
 
 #pragma region E2M3 Floats
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_e2m3_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                   nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_e2m3_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                     nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_e2m3_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                                      nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_e2m3_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                        nk_size_t rows_begin, nk_size_t rows_end,
+                                                                        nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_e2m3_rvv(       //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e2m3_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2043,7 +2218,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_e2m3_rvv(       //
 NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_rvv(     //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e2m3_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2056,7 +2232,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_rvv(     //
 NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_rvv( //
     nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2072,7 +2250,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_rvv( //
 NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_rvv( //
     nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2089,10 +2269,41 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_rvv( //
 
 #pragma region E2M1 Floats
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_e2m1_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                   nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_e2m1_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                     nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_e2m1_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                                      nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_e2m1_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                        nk_size_t rows_begin, nk_size_t rows_end,
+                                                                        nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_e2m1_rvv(         //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e2m1x2_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2105,7 +2316,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_e2m1_rvv(         //
 NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_rvv(       //
     nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e2m1x2_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2118,7 +2330,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_rvv(       //
 NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_rvv( //
     nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2134,7 +2348,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_rvv( //
 NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_rvv( //
     nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2151,10 +2367,41 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_rvv( //
 
 #pragma region E3M2 Floats
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_e3m2_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                   nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_e3m2_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                     nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_e3m2_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                                      nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_e3m2_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                        nk_size_t rows_begin, nk_size_t rows_end,
+                                                                        nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_e3m2_rvv(       //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e3m2_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2167,7 +2414,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_e3m2_rvv(       //
 NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_rvv(     //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e3m2_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2180,7 +2428,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_rvv(     //
 NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_rvv( //
     nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2196,7 +2446,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_rvv( //
 NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_rvv( //
     nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2213,10 +2465,41 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_rvv( //
 
 #pragma region E4M3 Floats
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_e4m3_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                   nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_e4m3_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                     nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_e4m3_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                                      nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_e4m3_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                        nk_size_t rows_begin, nk_size_t rows_end,
+                                                                        nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_e4m3_rvv(       //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e4m3_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2229,7 +2512,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_e4m3_rvv(       //
 NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_rvv(     //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e4m3_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2242,7 +2526,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_rvv(     //
 NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_rvv( //
     nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2258,7 +2544,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_rvv( //
 NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_rvv( //
     nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2275,10 +2563,41 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_rvv( //
 
 #pragma region E5M2 Floats
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_e5m2_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                   nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_e5m2_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                     nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_e5m2_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                                      nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_e5m2_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                        nk_size_t rows_begin, nk_size_t rows_end,
+                                                                        nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_e5m2_rvv(       //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e5m2_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2291,7 +2610,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_e5m2_rvv(       //
 NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_rvv(     //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_e5m2_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2304,7 +2624,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_rvv(     //
 NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_rvv( //
     nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2320,7 +2642,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_rvv( //
 NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_rvv( //
     nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2337,10 +2661,41 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_rvv( //
 
 #pragma region I8 Integers
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_i8_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                 nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_i8_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                   nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_i8_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                    nk_size_t rows_begin, nk_size_t rows_end,
+                                                                    nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_i8_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                                      nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_i8_rvv(       //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,  //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_i8_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2353,7 +2708,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_i8_rvv(       //
 NUMKONG_API nk_status_t nk_euclideans_packed_i8_rvv(     //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,  //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_i8_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2366,7 +2722,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_i8_rvv(     //
 NUMKONG_API nk_status_t nk_angulars_symmetric_i8_rvv( //
     nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2382,7 +2740,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_i8_rvv( //
 NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_rvv( //
     nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2399,10 +2759,41 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_rvv( //
 
 #pragma region U8 Integers
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_u8_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                 nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_u8_rvv(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                   nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_u8_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                    nk_size_t rows_begin, nk_size_t rows_end,
+                                                                    nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_u8_rvv(nk_size_t vector_count, nk_size_t depth,
+                                                                      nk_size_t rows_begin, nk_size_t rows_end,
+                                                                      nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_u8_rvv(       //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,  //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_u8_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2415,7 +2806,8 @@ NUMKONG_API nk_status_t nk_angulars_packed_u8_rvv(       //
 NUMKONG_API nk_status_t nk_euclideans_packed_u8_rvv(     //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, //
     nk_size_t rows, nk_size_t columns, nk_size_t depth,  //
-    nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride / sizeof(nk_u8_t);
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
@@ -2428,7 +2820,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_u8_rvv(     //
 NUMKONG_API nk_status_t nk_angulars_symmetric_u8_rvv( //
     nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);
@@ -2444,7 +2838,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_u8_rvv( //
 NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_rvv( //
     nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
     nk_size_t stride, //
-    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     rows_end = nk_min_of_two(rows_end, vector_count);

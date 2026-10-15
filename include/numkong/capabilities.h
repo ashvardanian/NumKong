@@ -429,6 +429,24 @@ typedef enum {
     /** Symmetric Gram matrix A × Aᵀ. */
     nk_kernel_dots_symmetric_k = 'y',
 
+    /** Workspace bytes of the GEMM computation. */
+    nk_kernel_dots_packed_workspace_size_k = '!',
+
+    /** Workspace bytes of the symmetric Gram matrix. */
+    nk_kernel_dots_symmetric_workspace_size_k = '#',
+
+    /** Workspace bytes of batched angular distances (packed B). */
+    nk_kernel_angulars_packed_workspace_size_k = '$',
+
+    /** Workspace bytes of the symmetric angular distance matrix. */
+    nk_kernel_angulars_symmetric_workspace_size_k = '%',
+
+    /** Workspace bytes of batched euclidean distances (packed B). */
+    nk_kernel_euclideans_packed_workspace_size_k = '&',
+
+    /** Workspace bytes of the symmetric euclidean distance matrix. */
+    nk_kernel_euclideans_symmetric_workspace_size_k = ',',
+
     /** Hamming distance computation. */
     nk_kernel_hammings_packed_k = 'M',
 
@@ -440,6 +458,18 @@ typedef enum {
 
     /** Symmetric Jaccard distance matrix. */
     nk_kernel_jaccards_symmetric_k = 'Z',
+
+    /** Workspace bytes of the Hamming distance computation. */
+    nk_kernel_hammings_packed_workspace_size_k = '.',
+
+    /** Workspace bytes of the symmetric Hamming distance matrix. */
+    nk_kernel_hammings_symmetric_workspace_size_k = ':',
+
+    /** Workspace bytes of the Jaccard distance computation. */
+    nk_kernel_jaccards_packed_workspace_size_k = ';',
+
+    /** Workspace bytes of the symmetric Jaccard distance matrix. */
+    nk_kernel_jaccards_symmetric_workspace_size_k = '=',
 
     /** Batched angular distances (packed B). */
     nk_kernel_angulars_packed_k = 'N',
@@ -512,6 +542,12 @@ typedef enum {
 
     /** Gradients of banded attention. */
     nk_kernel_attention_packed_gradients_k = 'g',
+
+    /** Workspace bytes of banded attention. */
+    nk_kernel_attention_packed_workspace_size_k = '[',
+
+    /** Workspace bytes of the gradients of banded attention. */
+    nk_kernel_attention_packed_gradients_workspace_size_k = ']',
 
     /** Attention packed shape read (heads, depth, segments). */
     nk_kernel_attention_packed_shape_k = 'z',
@@ -591,10 +627,20 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_dots_packed_k: return "dots_packed";
     case nk_kernel_dots_packed_shape_k: return "dots_packed_shape";
     case nk_kernel_dots_symmetric_k: return "dots_symmetric";
+    case nk_kernel_dots_packed_workspace_size_k: return "dots_packed_workspace_size";
+    case nk_kernel_dots_symmetric_workspace_size_k: return "dots_symmetric_workspace_size";
+    case nk_kernel_angulars_packed_workspace_size_k: return "angulars_packed_workspace_size";
+    case nk_kernel_angulars_symmetric_workspace_size_k: return "angulars_symmetric_workspace_size";
+    case nk_kernel_euclideans_packed_workspace_size_k: return "euclideans_packed_workspace_size";
+    case nk_kernel_euclideans_symmetric_workspace_size_k: return "euclideans_symmetric_workspace_size";
     case nk_kernel_hammings_packed_k: return "hammings_packed";
     case nk_kernel_hammings_symmetric_k: return "hammings_symmetric";
     case nk_kernel_jaccards_packed_k: return "jaccards_packed";
     case nk_kernel_jaccards_symmetric_k: return "jaccards_symmetric";
+    case nk_kernel_hammings_packed_workspace_size_k: return "hammings_packed_workspace_size";
+    case nk_kernel_hammings_symmetric_workspace_size_k: return "hammings_symmetric_workspace_size";
+    case nk_kernel_jaccards_packed_workspace_size_k: return "jaccards_packed_workspace_size";
+    case nk_kernel_jaccards_symmetric_workspace_size_k: return "jaccards_symmetric_workspace_size";
     case nk_kernel_angulars_packed_k: return "angulars_packed";
     case nk_kernel_angulars_symmetric_k: return "angulars_symmetric";
     case nk_kernel_euclideans_packed_k: return "euclideans_packed";
@@ -619,6 +665,8 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_attention_pack_k: return "attention_pack";
     case nk_kernel_attention_packed_k: return "attention_packed";
     case nk_kernel_attention_packed_gradients_k: return "attention_packed_gradients";
+    case nk_kernel_attention_packed_workspace_size_k: return "attention_packed_workspace_size";
+    case nk_kernel_attention_packed_gradients_workspace_size_k: return "attention_packed_gradients_workspace_size";
     case nk_kernel_attention_packed_shape_k: return "attention_packed_shape";
     case nk_kernel_attention_rope_k: return "attention_rope";
     case nk_kernel_sqeuclideans3d_k: return "sqeuclideans3d";
@@ -670,10 +718,29 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "dots_packed")) return nk_kernel_dots_packed_k;
     if (nk_same_literal_(name, length, "dots_packed_shape")) return nk_kernel_dots_packed_shape_k;
     if (nk_same_literal_(name, length, "dots_symmetric")) return nk_kernel_dots_symmetric_k;
+    if (nk_same_literal_(name, length, "dots_packed_workspace_size")) return nk_kernel_dots_packed_workspace_size_k;
+    if (nk_same_literal_(name, length, "dots_symmetric_workspace_size"))
+        return nk_kernel_dots_symmetric_workspace_size_k;
+    if (nk_same_literal_(name, length, "angulars_packed_workspace_size"))
+        return nk_kernel_angulars_packed_workspace_size_k;
+    if (nk_same_literal_(name, length, "angulars_symmetric_workspace_size"))
+        return nk_kernel_angulars_symmetric_workspace_size_k;
+    if (nk_same_literal_(name, length, "euclideans_packed_workspace_size"))
+        return nk_kernel_euclideans_packed_workspace_size_k;
+    if (nk_same_literal_(name, length, "euclideans_symmetric_workspace_size"))
+        return nk_kernel_euclideans_symmetric_workspace_size_k;
     if (nk_same_literal_(name, length, "hammings_packed")) return nk_kernel_hammings_packed_k;
     if (nk_same_literal_(name, length, "hammings_symmetric")) return nk_kernel_hammings_symmetric_k;
     if (nk_same_literal_(name, length, "jaccards_packed")) return nk_kernel_jaccards_packed_k;
     if (nk_same_literal_(name, length, "jaccards_symmetric")) return nk_kernel_jaccards_symmetric_k;
+    if (nk_same_literal_(name, length, "hammings_packed_workspace_size"))
+        return nk_kernel_hammings_packed_workspace_size_k;
+    if (nk_same_literal_(name, length, "hammings_symmetric_workspace_size"))
+        return nk_kernel_hammings_symmetric_workspace_size_k;
+    if (nk_same_literal_(name, length, "jaccards_packed_workspace_size"))
+        return nk_kernel_jaccards_packed_workspace_size_k;
+    if (nk_same_literal_(name, length, "jaccards_symmetric_workspace_size"))
+        return nk_kernel_jaccards_symmetric_workspace_size_k;
     if (nk_same_literal_(name, length, "angulars_packed")) return nk_kernel_angulars_packed_k;
     if (nk_same_literal_(name, length, "angulars_symmetric")) return nk_kernel_angulars_symmetric_k;
     if (nk_same_literal_(name, length, "euclideans_packed")) return nk_kernel_euclideans_packed_k;
@@ -700,6 +767,10 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "attention_pack")) return nk_kernel_attention_pack_k;
     if (nk_same_literal_(name, length, "attention_packed")) return nk_kernel_attention_packed_k;
     if (nk_same_literal_(name, length, "attention_packed_gradients")) return nk_kernel_attention_packed_gradients_k;
+    if (nk_same_literal_(name, length, "attention_packed_workspace_size"))
+        return nk_kernel_attention_packed_workspace_size_k;
+    if (nk_same_literal_(name, length, "attention_packed_gradients_workspace_size"))
+        return nk_kernel_attention_packed_gradients_workspace_size_k;
     if (nk_same_literal_(name, length, "attention_packed_shape")) return nk_kernel_attention_packed_shape_k;
     if (nk_same_literal_(name, length, "attention_rope")) return nk_kernel_attention_rope_k;
     if (nk_same_literal_(name, length, "sqeuclideans3d")) return nk_kernel_sqeuclideans3d_k;
@@ -801,28 +872,47 @@ typedef nk_status_t (*nk_maxsim_pack_punned_t)(void const *vectors, nk_size_t ve
 
 typedef nk_status_t (*nk_dots_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows,
                                                nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                               nk_size_t c_stride, nk_stream_t stream);
+                                               nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes,
+                                               nk_stream_t stream);
+
+typedef nk_status_t (*nk_dots_packed_workspace_size_punned_t)(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                              nk_size_t *bytes);
 
 typedef nk_status_t (*nk_dots_symmetric_punned_t)(void const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                   nk_size_t stride, void *result, nk_size_t result_stride,
-                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
+                                                  nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+                                                  nk_size_t workspace_bytes, nk_stream_t stream);
+
+typedef nk_status_t (*nk_dots_symmetric_workspace_size_punned_t)(nk_size_t vector_count, nk_size_t depth,
+                                                                 nk_size_t rows_begin, nk_size_t rows_end,
+                                                                 nk_size_t *bytes);
 
 /** Bit vectors have no scaled form, so the set batches keep their unscaled shapes. */
 typedef nk_status_t (*nk_sets_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows,
                                                nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                               nk_size_t c_stride, nk_stream_t stream);
+                                               nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes,
+                                               nk_stream_t stream);
 typedef nk_status_t (*nk_sets_symmetric_punned_t)(void const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                   nk_size_t stride, void *result, nk_size_t result_stride,
-                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream);
+                                                  nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+                                                  nk_size_t workspace_bytes, nk_stream_t stream);
 
 typedef nk_sets_packed_punned_t nk_hammings_packed_punned_t;
 typedef nk_sets_symmetric_punned_t nk_hammings_symmetric_punned_t;
 typedef nk_sets_packed_punned_t nk_jaccards_packed_punned_t;
 typedef nk_sets_symmetric_punned_t nk_jaccards_symmetric_punned_t;
+typedef nk_dots_packed_workspace_size_punned_t nk_hammings_packed_workspace_size_punned_t;
+typedef nk_dots_symmetric_workspace_size_punned_t nk_hammings_symmetric_workspace_size_punned_t;
+typedef nk_dots_packed_workspace_size_punned_t nk_jaccards_packed_workspace_size_punned_t;
+typedef nk_dots_symmetric_workspace_size_punned_t nk_jaccards_symmetric_workspace_size_punned_t;
 typedef nk_dots_packed_punned_t nk_angulars_packed_punned_t;
 typedef nk_dots_symmetric_punned_t nk_angulars_symmetric_punned_t;
 typedef nk_dots_packed_punned_t nk_euclideans_packed_punned_t;
 typedef nk_dots_symmetric_punned_t nk_euclideans_symmetric_punned_t;
+typedef nk_dots_packed_workspace_size_punned_t nk_angulars_packed_workspace_size_punned_t;
+typedef nk_dots_symmetric_workspace_size_punned_t nk_angulars_symmetric_workspace_size_punned_t;
+typedef nk_dots_packed_workspace_size_punned_t nk_euclideans_packed_workspace_size_punned_t;
+typedef nk_dots_symmetric_workspace_size_punned_t nk_euclideans_symmetric_workspace_size_punned_t;
 
 typedef nk_status_t (*nk_maxsim_packed_punned_t)(void const *query_packed, void const *document_packed,
                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
@@ -876,7 +966,7 @@ typedef nk_status_t (*nk_attention_packed_punned_t)(nk_size_t head_count, nk_siz
                                                     nk_size_t keys_after, void const *queries, nk_size_t query_stride,
                                                     void const *key_value_packed, void *output, nk_size_t output_stride,
                                                     nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end,
-                                                    nk_stream_t stream);
+                                                    void *workspace, nk_size_t workspace_bytes, nk_stream_t stream);
 
 typedef nk_status_t (*nk_attention_packed_gradients_punned_t)(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
@@ -884,7 +974,13 @@ typedef nk_status_t (*nk_attention_packed_gradients_punned_t)(
     nk_size_t query_stride, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
     nk_size_t output_stride, nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_size_t query_gradient_stride,
     nk_f32_t *key_gradient, nk_f32_t *value_gradient, nk_size_t key_value_gradient_stride, nk_size_t tasks_begin,
-    nk_size_t tasks_end, nk_stream_t stream);
+    nk_size_t tasks_end, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream);
+
+/** Workspace sizes of attention and its gradients, host arithmetic like pack sizes. */
+typedef nk_status_t (*nk_attention_packed_workspace_size_punned_t)(nk_size_t head_count, nk_size_t key_value_head_count,
+                                                                   nk_size_t depth, nk_size_t query_token_count,
+                                                                   nk_size_t keys_before, nk_size_t keys_after,
+                                                                   nk_size_t *bytes);
 
 typedef nk_status_t (*nk_attention_rope_punned_t)(void const *x, void const *cos, void const *sin, void *y,
                                                   nk_size_t rows, nk_size_t head_count, nk_size_t depth,

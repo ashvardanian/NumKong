@@ -17,9 +17,23 @@ extern "C" {
 #endif
 
 #define nk_define_spatials_metal_(metric, dtype, isa, raw_type, depth_width, per_value, language, alignment)          \
+    NUMKONG_API nk_status_t nk_##metric##s_packed_workspace_size_##dtype##_##isa(nk_size_t rows, nk_size_t columns,   \
+                                                                                 nk_size_t depth, nk_size_t *bytes) { \
+        nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);                                                     \
+        *bytes = 0;                                                                                                   \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_##metric##s_symmetric_workspace_size_##dtype##_##isa(                                  \
+        nk_size_t vector_count, nk_size_t depth, nk_size_t rows_begin, nk_size_t rows_end, nk_size_t *bytes) {        \
+        nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);                    \
+        *bytes = 0;                                                                                                   \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
     NUMKONG_API nk_status_t nk_##metric##s_packed_##dtype##_##isa(                                                    \
         nk_cross_##dtype##_operand_t const *a, void const *packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns,    \
-        nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {                                \
+        nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes,          \
+        nk_stream_t stream) {                                                                                         \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                           \
         nk_size_t bytes;                                                                                              \
         nk_status_t const status = nk_dots_pack_size_##dtype##_##isa(columns, depth, &bytes);                         \
         if (status != nk_success_k) return status;                                                                    \
@@ -50,7 +64,9 @@ extern "C" {
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_##metric##s_symmetric_##dtype##_##isa(                                                 \
         nk_cross_##dtype##_operand_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride,       \
-        nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {    \
+        nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,         \
+        nk_size_t workspace_bytes, nk_stream_t stream) {                                                              \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                           \
         if (!nk_cross_whole_blocks_serial_(nk_##dtype##_k, depth)) return nk_unexpected_dimensions_k;                 \
         rows_end = nk_min_of_two(rows_end, vector_count);                                                             \
         nk_size_t const window_rows = rows_end > rows_begin ? rows_end - rows_begin : 0;                              \

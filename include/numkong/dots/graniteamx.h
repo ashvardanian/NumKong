@@ -676,9 +676,18 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
     return nk_success_k;
 }
 
+NUMKONG_API nk_status_t nk_dots_packed_workspace_size_f16_graniteamx(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                     nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_dots_packed_f16_graniteamx(    //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gemm_packed_f16_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
@@ -758,10 +767,19 @@ NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                   //
     return nk_success_k;
 }
 
+NUMKONG_API nk_status_t nk_dots_symmetric_workspace_size_f16_graniteamx(nk_size_t vector_count, nk_size_t depth,
+                                                                        nk_size_t rows_begin, nk_size_t rows_end,
+                                                                        nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_dots_symmetric_f16_graniteamx(             //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,      //
-    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_size_t rows_begin, nk_size_t rows_end, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gram_f16_graniteamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }
@@ -1151,9 +1169,18 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
     return nk_success_k;
 }
 
+NUMKONG_API nk_status_t nk_dots_packed_workspace_size_e5m2_graniteamx(nk_size_t rows, nk_size_t columns,
+                                                                      nk_size_t depth, nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_dots_packed_e5m2_graniteamx(    //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gemm_packed_e5m2_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
@@ -1231,10 +1258,19 @@ NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                   //
     return nk_success_k;
 }
 
+NUMKONG_API nk_status_t nk_dots_symmetric_workspace_size_e5m2_graniteamx(nk_size_t vector_count, nk_size_t depth,
+                                                                         nk_size_t rows_begin, nk_size_t rows_end,
+                                                                         nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_graniteamx(             //
     nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
-    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_size_t rows_begin, nk_size_t rows_end, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     nk_assert_(stream == NUMKONG_NULL);
     return nk_gram_e5m2_graniteamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }

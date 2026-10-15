@@ -360,8 +360,9 @@ The stream is that device's `cudaStream_t`, `hipStream_t`, or `id<MTLCommandQueu
 ```c
 nk_capability_t cpu = nk_cap_cpus_k, gpu = 0;
 nk_cuda_capabilities_enabled(0, &gpu); // detected on CUDA device 0 and compiled into this binary
-nk_dots_symmetric_bf16_best(vectors, count, depth, stride, gram, gram_stride, 0, count, cpu, NULL);
-nk_dots_symmetric_bf16_best(vectors_on_gpu, count, depth, stride, gram_on_gpu, gram_stride, 0, count, gpu, cuda_stream);
+nk_dots_symmetric_bf16_best(vectors, count, depth, stride, gram, gram_stride, 0, count, NULL, 0, cpu, NULL);
+nk_dots_symmetric_bf16_best(vectors_on_gpu, count, depth, stride, gram_on_gpu, gram_stride, 0, count, NULL, 0, gpu,
+                            cuda_stream);
 ```
 
 The library clamps every CPU mask to `nk_cpu_capabilities_enabled`, what this CPU runs and this binary holds, which it settles as it loads, so `nk_cap_cpus_k` runs the best kernel here.

@@ -690,10 +690,20 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_kernels_cuda_(
     return status;
 }
 
+/** The two-pass backward needs no workspace. */
+NUMKONG_INLINE nk_size_t nk_attention_backward_workspace_size_cuda_(nk_size_t head_count,
+                                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                                    nk_size_t query_token_count) {
+    nk_unused_(head_count), nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_token_count);
+    return 0;
+}
+
 /** Launches the backward kernels, keys and values first, at most a block per task. */
 NUMKONG_INLINE nk_status_t nk_attention_backward_launch_cuda_(void const *keys_kernel, void const *queries_kernel,
                                                               nk_attention_backward_arguments_t arguments,
+                                                              void *workspace, nk_size_t workspace_bytes,
                                                               nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     return nk_attention_backward_launch_kernels_cuda_(NUMKONG_NULL, keys_kernel, queries_kernel, nk_attention_threads_k,
                                                       0, 0, arguments.tasks_end - arguments.tasks_begin, arguments,
                                                       stream);
@@ -781,12 +791,21 @@ NUMKONG_INLINE nk_status_t nk_attention_rope_launch_cuda_(void const *kernel, nk
         nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {          \
         nk_attention_fallback_##input_value_type##_cuda_(&arguments);                                                 \
     }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_attention_packed_workspace_size_##input_type_name##_##isa_suffix(                      \
+        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_size_t query_token_count,           \
+        nk_size_t keys_before, nk_size_t keys_after, nk_size_t *bytes) {                                              \
+        nk_unused_(head_count), nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_token_count),   \
+            nk_unused_(keys_before), nk_unused_(keys_after);                                                          \
+        *bytes = 0;                                                                                                   \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
     NUMKONG_API nk_status_t nk_attention_packed_##input_type_name##_##isa_suffix(                                     \
         nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,         \
         nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,                     \
         nk_##input_value_type##_t const *queries, nk_size_t query_stride, void const *key_value_packed,               \
         nk_f32_t *output, nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, \
-        nk_stream_t stream) {                                                                                         \
+        void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {                                             \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                           \
         return nk_attention_launch_cuda_(                                                                             \
             (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_, queries, key_value_packed,  \
             output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_token_count,           \
@@ -795,15 +814,24 @@ NUMKONG_INLINE nk_status_t nk_attention_rope_launch_cuda_(void const *kernel, nk
 
 /** Generates the gradients entry point of one dtype over the capability's
  *  @c nk_attention_backward_keys_<type>_<capability>_kernel_ and its queries twin, which @p launch
- *  starts, as @c nk_attention_backward_launch_cuda_ does. */
-#define nk_define_attention_backward_cuda_(input_type_name, isa_suffix, input_value_type, launch)                      \
+ *  starts, as @c nk_attention_backward_launch_cuda_ does, and its size query, which answers what
+ *  @p workspace_size does, as @c nk_attention_backward_workspace_size_cuda_ answers. */
+#define nk_define_attention_backward_cuda_(input_type_name, isa_suffix, input_value_type, launch, workspace_size)      \
+    NUMKONG_API nk_status_t nk_attention_packed_gradients_workspace_size_##input_type_name##_##isa_suffix(             \
+        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_size_t query_token_count,            \
+        nk_size_t keys_before, nk_size_t keys_after, nk_size_t *bytes) {                                               \
+        nk_unused_(keys_before), nk_unused_(keys_after);                                                               \
+        *bytes = workspace_size(head_count, key_value_head_count, depth, query_token_count);                           \
+        return nk_success_k;                                                                                           \
+    }                                                                                                                  \
     NUMKONG_API nk_status_t nk_attention_packed_gradients_##input_type_name##_##isa_suffix(                            \
         nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,          \
         nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,                      \
         nk_##input_value_type##_t const *queries, nk_size_t query_stride, void const *key_value_packed,                \
         nk_f32_t const *output, nk_f32_t const *output_gradient, nk_size_t output_stride, nk_f32_t const *log_sum_exp, \
         nk_f32_t *query_gradient, nk_size_t query_gradient_stride, nk_f32_t *key_gradient, nk_f32_t *value_gradient,   \
-        nk_size_t key_value_gradient_stride, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {         \
+        nk_size_t key_value_gradient_stride, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace,              \
+        nk_size_t workspace_bytes, nk_stream_t stream) {                                                               \
         return launch((void const *)nk_attention_backward_keys_##input_type_name##_##isa_suffix##_kernel_,             \
                       (void const *)nk_attention_backward_queries_##input_type_name##_##isa_suffix##_kernel_,          \
                       nk_attention_backward_arguments_init_simt_(                                                      \
@@ -811,7 +839,7 @@ NUMKONG_INLINE nk_status_t nk_attention_rope_launch_cuda_(void const *kernel, nk
                           key_gradient, value_gradient, head_count, key_value_head_count, depth, query_offsets,        \
                           query_token_count, query_stride, output_stride, query_gradient_stride,                       \
                           key_value_gradient_stride, scale, keys_before, keys_after, tasks_begin, tasks_end),          \
-                      stream);                                                                                         \
+                      workspace, workspace_bytes, stream);                                                             \
     }
 
 /** Generates the RoPE kernel of @p input_type for @p isa_suffix, after @c nk_define_attention_rope_
@@ -871,7 +899,8 @@ static __global__ void __launch_bounds__(nk_attention_threads_k)
     nk_attention_backward_queries_bf16_cuda_kernel_(nk_attention_backward_arguments_t arguments) {
     nk_attention_backward_queries_bf16_cuda_(&arguments);
 }
-nk_define_attention_backward_cuda_(bf16, cuda, bf16, nk_attention_backward_launch_cuda_)
+nk_define_attention_backward_cuda_(bf16, cuda, bf16, nk_attention_backward_launch_cuda_,
+                                   nk_attention_backward_workspace_size_cuda_)
 nk_define_attention_rope_cuda_(f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
 nk_define_attention_rope_cuda_(bf16, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
 nk_define_attention_rope_cuda_(e4m3, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)

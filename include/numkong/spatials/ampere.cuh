@@ -34,34 +34,60 @@ extern "C" {
 
 #pragma region F64
 
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_f64_ampere(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                     nk_size_t *bytes) {
+    return nk_cross_workspace_packed_f64_ampere_(rows, columns, depth, bytes);
+}
+
 NUMKONG_API nk_status_t nk_angulars_packed_f64_ampere(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                      nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+                                                      nk_size_t a_stride, nk_size_t c_stride, void *workspace,
+                                                      nk_size_t workspace_bytes, nk_stream_t stream) {
     return nk_cross_packed_f64_ampere_(nk_cross_metric_angular_k, a, b_packed, c, rows, columns, depth, a_stride,
-                                       c_stride, stream);
+                                       c_stride, workspace, workspace_bytes, stream);
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_f64_ampere(nk_size_t vector_count, nk_size_t depth,
+                                                                        nk_size_t rows_begin, nk_size_t rows_end,
+                                                                        nk_size_t *bytes) {
+    return nk_cross_workspace_symmetric_f64_ampere_(vector_count, depth, rows_begin, rows_end, bytes);
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_f64_ampere(nk_f64_t const *vectors, nk_size_t vector_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                          nk_size_t result_stride, nk_size_t rows_begin,
-                                                         nk_size_t rows_end, nk_stream_t stream) {
+                                                         nk_size_t rows_end, void *workspace, nk_size_t workspace_bytes,
+                                                         nk_stream_t stream) {
     return nk_cross_symmetric_f64_ampere_(nk_cross_metric_angular_k, vectors, vector_count, depth, stride, result,
-                                          result_stride, rows_begin, rows_end, stream);
+                                          result_stride, rows_begin, rows_end, workspace, workspace_bytes, stream);
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_f64_ampere(nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth, nk_size_t *bytes) {
+    return nk_cross_workspace_packed_f64_ampere_(rows, columns, depth, bytes);
 }
 
 NUMKONG_API nk_status_t nk_euclideans_packed_f64_ampere(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
                                                         nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                        nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *workspace,
+                                                        nk_size_t workspace_bytes, nk_stream_t stream) {
     return nk_cross_packed_f64_ampere_(nk_cross_metric_euclidean_k, a, b_packed, c, rows, columns, depth, a_stride,
-                                       c_stride, stream);
+                                       c_stride, workspace, workspace_bytes, stream);
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_f64_ampere(nk_size_t vector_count, nk_size_t depth,
+                                                                          nk_size_t rows_begin, nk_size_t rows_end,
+                                                                          nk_size_t *bytes) {
+    return nk_cross_workspace_symmetric_f64_ampere_(vector_count, depth, rows_begin, rows_end, bytes);
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_ampere(nk_f64_t const *vectors, nk_size_t vector_count,
                                                            nk_size_t depth, nk_size_t stride, nk_f64_t *result,
                                                            nk_size_t result_stride, nk_size_t rows_begin,
-                                                           nk_size_t rows_end, nk_stream_t stream) {
+                                                           nk_size_t rows_end, void *workspace,
+                                                           nk_size_t workspace_bytes, nk_stream_t stream) {
     return nk_cross_symmetric_f64_ampere_(nk_cross_metric_euclidean_k, vectors, vector_count, depth, stride, result,
-                                          result_stride, rows_begin, rows_end, stream);
+                                          result_stride, rows_begin, rows_end, workspace, workspace_bytes, stream);
 }
 
 #pragma endregion F64

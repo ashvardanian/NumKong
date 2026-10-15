@@ -63,6 +63,45 @@ std::size_t pack_size_bytes(error_stats_t &stats, packed_size_kernel_type_ packe
     return bytes;
 }
 
+/** A kernel together with the query of the scratch it runs faster with. */
+template <typename kernel_type_, typename workspace_size_kernel_type_>
+struct scratch_kernel {
+    kernel_type_ kernel;
+    workspace_size_kernel_type_ workspace_size;
+};
+
+template <typename kernel_type_, typename workspace_size_kernel_type_>
+scratch_kernel<kernel_type_, workspace_size_kernel_type_> with_workspace(
+    kernel_type_ kernel, workspace_size_kernel_type_ workspace_size) noexcept {
+    return {kernel, workspace_size};
+}
+
+/** @p kernel itself, or the kernel of a @c scratch_kernel. */
+template <typename kernel_type_>
+kernel_type_ kernel_of(kernel_type_ kernel) noexcept {
+    return kernel;
+}
+
+template <typename kernel_type_, typename workspace_size_kernel_type_>
+kernel_type_ kernel_of(scratch_kernel<kernel_type_, workspace_size_kernel_type_> scratch) noexcept {
+    return scratch.kernel;
+}
+
+/** The workspace bytes @p kernel asks for @p arguments, none for a kernel without a query. */
+template <typename kernel_type_, typename... arguments_types_>
+std::size_t workspace_size_bytes(error_stats_t &, kernel_type_, arguments_types_...) noexcept {
+    return 0;
+}
+
+template <typename kernel_type_, typename workspace_size_kernel_type_, typename... arguments_types_>
+std::size_t workspace_size_bytes(error_stats_t &stats,
+                                 scratch_kernel<kernel_type_, workspace_size_kernel_type_> scratch,
+                                 arguments_types_... arguments) noexcept {
+    nk_size_t bytes = 0;
+    stats.expect(scratch.workspace_size(arguments..., &bytes));
+    return bytes;
+}
+
 #pragma endregion Backend Policy
 
 #pragma region Tolerances
@@ -455,7 +494,7 @@ attention_reference_t reference_attention_unmasked(
         segments.query_tokens(), layout.scale, attention_all_keys_k, attention_all_keys_k,
         query_scales.operand(queries.values_data()), query_stride, key_value_packed_reference.raw_values_data(),
         reference.output.values_data(), output_stride, reference.log_sum_exp.values_data(), 0, attention_all_keys_k,
-        0));
+        nullptr, 0, 0));
     return reference;
 }
 
@@ -499,7 +538,8 @@ attention_reference_t reference_attention_masked(
                 query_scales.operand(queries.values_data() + query_row * query_values, query_row), query_stride,
                 key_value_packed_reference.raw_values_data(),
                 reference.output.values_data() + query_row * layout.query_width(), output_stride,
-                reference.log_sum_exp.values_data() + query_row * layout.head_count, 0, attention_all_keys_k, 0));
+                reference.log_sum_exp.values_data() + query_row * layout.head_count, 0, attention_all_keys_k, nullptr,
+                0, 0));
         }
     }
     return reference;
@@ -821,8 +861,8 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
         auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 65, 0));
         auto result = make_vector<result_t>(backend, 33 * 65);
         backend.call(pack_fn, &operand, 65, 0, 0, packed.raw_values_data(), 0, 65);
-        backend.call(dots_fn, &operand, packed.raw_values_data(), result.raw_values_data(), 33, 65, 0, 0,
-                     65 * sizeof(result_t));
+        backend.call(kernel_of(dots_fn), &operand, packed.raw_values_data(), result.raw_values_data(), 33, 65, 0, 0,
+                     65 * sizeof(result_t), nullptr, 0);
         if (!stats.expect(backend.synchronize())) return stats;
         for (std::size_t i = 0; i < result.size(); ++i)
             stats.expect(std::isnan(static_cast<float>(result[i])), "empty NVFP4 dot loses infinite tensor scale");
@@ -837,8 +877,8 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
         auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 1, format.block_size));
         auto result = make_vector<result_t>(backend, 1);
         backend.call(pack_fn, &b, 1, format.block_size, format.block_bytes, packed.raw_values_data(), 0, 1);
-        backend.call(dots_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, 1, format.block_size,
-                     format.block_bytes, sizeof(result_t));
+        backend.call(kernel_of(dots_fn), &a, packed.raw_values_data(), result.raw_values_data(), 1, 1,
+                     format.block_size, format.block_bytes, sizeof(result_t), nullptr, 0);
         if (!stats.expect(backend.synchronize())) return stats;
         stats.expect(static_cast<float>(result[0]) == 0, "MXFP4 zero scale decodes as a nonzero exponent");
     }
@@ -866,8 +906,8 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
         auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
         auto result = make_vector<result_t>(backend, columns);
         backend.call(pack_fn, &b, columns, depth, row_bytes, packed.raw_values_data(), 0, columns);
-        backend.call(dots_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, columns, depth, row_bytes,
-                     columns * sizeof(result_t));
+        backend.call(kernel_of(dots_fn), &a, packed.raw_values_data(), result.raw_values_data(), 1, columns, depth,
+                     row_bytes, columns * sizeof(result_t), nullptr, 0);
         if (!stats.expect(backend.synchronize())) return stats;
         for (std::size_t column = 0; column < columns; ++column)
             stats.expect(std::isnan(static_cast<float>(result[column])), "a NaN block scale does not reach the dot");
@@ -894,6 +934,8 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
                  b = make_vector<scalar_t>(backend, columns * b_stride_values * dimensions_per_value);
             auto c = make_vector<result_t>(backend, rows * c_stride / sizeof(result_t));
             auto b_packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
+            std::size_t const scratch_size = workspace_size_bytes(stats, dots_fn, rows, columns, depth);
+            auto scratch = make_vector<char>(backend, scratch_size);
 
             fill_random(settings, generator, a), fill_random(settings, generator, b);
             if constexpr (std::is_same_v<scalar_t, f64_t>)
@@ -919,8 +961,15 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
 
             backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, b_stride,
                          b_packed.raw_values_data(), 0, columns);
-            backend.call(dots_fn, a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
-                         c.raw_values_data(), rows, columns, depth, a_stride, c_stride);
+            if (scratch_size != 0) {
+                backend.call(kernel_of(dots_fn), a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
+                             c.raw_values_data(), rows, columns, depth, a_stride, c_stride, scratch.raw_values_data(),
+                             scratch_size - 1);
+                stats.expect(backend.synchronize() == nk_unexpected_dimensions_k, "a short workspace was accepted");
+            }
+            backend.call(kernel_of(dots_fn), a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
+                         c.raw_values_data(), rows, columns, depth, a_stride, c_stride, scratch.raw_values_data(),
+                         scratch_size);
             if (!stats.expect(backend.synchronize())) return stats;
 
             std::vector<reference_t> c_reference(rows * columns);
@@ -930,7 +979,7 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
                                                      b_packed_reference.raw_values_data(), no_tiers_k, nullptr));
             stats.expect(nk::dots_packed<scalar_type_, reference_t>(
                 a_scales.operand(a.values_data()), b_packed_reference.raw_values_data(), c_reference.data(), rows,
-                columns, depth, a_stride, columns * sizeof(reference_t), no_tiers_k, nullptr));
+                columns, depth, a_stride, columns * sizeof(reference_t), nullptr, 0, no_tiers_k, nullptr));
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t column = 0; column < columns; column++)
@@ -1091,14 +1140,24 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
             // An NVFP4 tensor scale whose square is an F32 subnormal, never rounded on the way
             auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 0x1.4p-66f);
 
-            backend.call(symmetric_fn, scales.operand(a.raw_values_data()), count, depth, stride, c.raw_values_data(),
-                         c_stride, rows_begin, test_case.rows_end);
+            std::size_t const scratch_size = workspace_size_bytes(stats, symmetric_fn, count, depth, rows_begin,
+                                                                  test_case.rows_end);
+            auto scratch = make_vector<char>(backend, scratch_size);
+            if (scratch_size != 0) {
+                backend.call(kernel_of(symmetric_fn), scales.operand(a.raw_values_data()), count, depth, stride,
+                             c.raw_values_data(), c_stride, rows_begin, test_case.rows_end, scratch.raw_values_data(),
+                             scratch_size - 1);
+                stats.expect(backend.synchronize() == nk_unexpected_dimensions_k, "a short workspace was accepted");
+            }
+            backend.call(kernel_of(symmetric_fn), scales.operand(a.raw_values_data()), count, depth, stride,
+                         c.raw_values_data(), c_stride, rows_begin, test_case.rows_end, scratch.raw_values_data(),
+                         scratch_size);
             if (!stats.expect(backend.synchronize())) return stats;
 
             std::vector<reference_t> c_reference(count * count);
             stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
                 scales.operand(a.values_data()), count, depth, stride, c_reference.data(), count * sizeof(reference_t),
-                rows_begin, rows_end, no_tiers_k, nullptr));
+                rows_begin, rows_end, nullptr, 0, no_tiers_k, nullptr));
 
             for (std::size_t row = rows_begin; row < rows_end; row++)
                 for (std::size_t column = row; column < count; column++)
@@ -1174,25 +1233,25 @@ error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type
     auto *cells = output.raw_values_data();
     void const *b_packed = packed.raw_values_data();
     stats.expect(backend.refuses_misaligned(dots_fn_, scales.operand(shifted), b_packed, cells, count, count, depth,
-                                            aligned_stride, output_stride),
+                                            aligned_stride, output_stride, nullptr, 0),
                  "packed took an A off 16 bytes");
     stats.expect(backend.refuses_misaligned(dots_fn_, scales.operand(aligned), b_packed, cells, count, count, depth,
-                                            odd_stride, output_stride),
+                                            odd_stride, output_stride, nullptr, 0),
                  "packed took an A stride off 16 bytes");
     stats.expect(backend.refuses_misaligned(symmetric_fn_, scales.operand(shifted), count, depth, aligned_stride, cells,
-                                            output_stride, 0, count),
+                                            output_stride, 0, count, nullptr, 0),
                  "symmetric took vectors off 16 bytes");
     stats.expect(backend.refuses_misaligned(symmetric_fn_, scales.operand(aligned), count, depth, odd_stride, cells,
-                                            output_stride, 0, count),
+                                            output_stride, 0, count, nullptr, 0),
                  "symmetric took a vectors stride off 16 bytes");
     // Four bytes of padding keep 4-byte results aligned, so only 8-byte results can be caught off their size
     if constexpr (sizeof(result_t) == 8) {
         std::size_t const word_stride = output_stride + 4;
         stats.expect(backend.refuses_misaligned(dots_fn_, scales.operand(aligned), b_packed, cells, count, count, depth,
-                                                aligned_stride, word_stride),
+                                                aligned_stride, word_stride, nullptr, 0),
                      "packed took a C stride off the result size");
         stats.expect(backend.refuses_misaligned(symmetric_fn_, scales.operand(aligned), count, depth, aligned_stride,
-                                                cells, word_stride, 0, count),
+                                                cells, word_stride, 0, count, nullptr, 0),
                      "symmetric took a result stride off the result size");
     }
     if (!stats.expect(backend.synchronize())) return stats;
@@ -1202,7 +1261,7 @@ error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type
     if constexpr (nk::nan_capable_dtype<scalar_t>) {
         reinterpret_cast<scalar_t *>(rows.raw_values_data())[0] = scalar_t::quiet_nan();
         backend.call(symmetric_fn_, scales.operand(aligned), count, depth, aligned_stride, cells, output_stride, 0,
-                     count);
+                     count, nullptr, 0);
         if (!stats.expect(backend.synchronize())) return stats;
         stats.expect(std::isnan(static_cast<double>(cells[0])), "a NaN input summed to a finite dot");
     }
@@ -1271,18 +1330,18 @@ error_stats_t test_sets_packed(settings_t const &settings, pack_size_kernel_type
             stats.expect(
                 pack_fn(b.raw_values_data(), columns, depth, stride, b_packed.raw_values_data(), 0, columns, nullptr));
             stats.expect(sets_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), rows, columns,
-                                 depth, stride, c_stride, nullptr));
+                                 depth, stride, c_stride, nullptr, 0, nullptr));
 
             stats.expect(nk::dots_pack<scalar_t>(b.values_data(), columns, depth, stride,
                                                  b_packed_reference.raw_values_data(), no_tiers_k));
             if constexpr (jaccard)
                 stats.expect(nk::jaccards_packed<scalar_t, result_t>(
                     a.values_data(), b_packed_reference.raw_values_data(), c_reference.values_data(), rows, columns,
-                    depth, stride, c_stride, no_tiers_k));
+                    depth, stride, c_stride, nullptr, 0, no_tiers_k));
             else
                 stats.expect(nk::hammings_packed<scalar_t, result_t>(
                     a.values_data(), b_packed_reference.raw_values_data(), c_reference.values_data(), rows, columns,
-                    depth, stride, c_stride, no_tiers_k));
+                    depth, stride, c_stride, nullptr, 0, no_tiers_k));
 
             for (std::size_t index = 0; index < rows * columns; index++) stats.accumulate(c[index], c_reference[index]);
         }
@@ -1317,13 +1376,15 @@ error_stats_t test_sets_symmetric(settings_t const &settings, symmetric_kernel_t
             fill_canary(c);
 
             stats.expect(symmetric_fn(a.raw_values_data(), count, depth, stride, c.raw_values_data(), c_stride, 0,
-                                      count, nullptr));
+                                      count, nullptr, 0, nullptr));
             if constexpr (jaccard)
-                stats.expect(nk::jaccards_symmetric<scalar_t, result_t>(
-                    a.values_data(), count, depth, stride, c_reference.values_data(), c_stride, 0, count, no_tiers_k));
+                stats.expect(nk::jaccards_symmetric<scalar_t, result_t>(a.values_data(), count, depth, stride,
+                                                                        c_reference.values_data(), c_stride, 0, count,
+                                                                        nullptr, 0, no_tiers_k));
             else
-                stats.expect(nk::hammings_symmetric<scalar_t, result_t>(
-                    a.values_data(), count, depth, stride, c_reference.values_data(), c_stride, 0, count, no_tiers_k));
+                stats.expect(nk::hammings_symmetric<scalar_t, result_t>(a.values_data(), count, depth, stride,
+                                                                        c_reference.values_data(), c_stride, 0, count,
+                                                                        nullptr, 0, no_tiers_k));
 
             for (std::size_t row = 0; row < count; row++)
                 for (std::size_t column = row; column < count; column++)
@@ -1489,8 +1550,8 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
         auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 1, 32));
         auto result = make_vector<result_t>(backend, 1);
         backend.call(pack_fn, &b, 1, 32, 32, packed.raw_values_data(), 0, 1);
-        backend.call(spatials_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, 1, 32, 32,
-                     sizeof(result_t));
+        backend.call(kernel_of(spatials_fn), &a, packed.raw_values_data(), result.raw_values_data(), 1, 1, 32, 32,
+                     sizeof(result_t), nullptr, 0);
         if (!stats.expect(backend.synchronize())) return stats;
         stats.expect(static_cast<float>(result[0]) == 1,
                      "orthogonal block-scaled vectors whose norms pass F32 range are not 1 apart");
@@ -1501,7 +1562,8 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
                             std::size_t c_stride) {
         auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, rows, depth));
         backend.call(pack_fn, operand, rows, depth, stride, packed.raw_values_data(), 0, rows);
-        backend.call(spatials_fn, operand, packed.raw_values_data(), c, rows, rows, depth, stride, c_stride);
+        backend.call(kernel_of(spatials_fn), operand, packed.raw_values_data(), c, rows, rows, depth, stride, c_stride,
+                     nullptr, 0);
         return backend.synchronize();
     };
     if constexpr (angular) expect_angular_edges<scalar_type_, packed_kind>(stats, backend, generator, launch);
@@ -1533,8 +1595,17 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
                          b_packed.raw_values_data(), 0, columns / 2);
             backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, stride,
                          b_packed.raw_values_data(), columns / 2, columns);
-            backend.call(spatials_fn, a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
-                         c.raw_values_data(), rows, columns, depth, stride, columns * sizeof(result_t));
+            std::size_t const scratch_size = workspace_size_bytes(stats, spatials_fn, rows, columns, depth);
+            auto scratch = make_vector<char>(backend, scratch_size);
+            if (scratch_size != 0) {
+                backend.call(kernel_of(spatials_fn), a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
+                             c.raw_values_data(), rows, columns, depth, stride, columns * sizeof(result_t),
+                             scratch.raw_values_data(), scratch_size - 1);
+                stats.expect(backend.synchronize() == nk_unexpected_dimensions_k, "a short workspace was accepted");
+            }
+            backend.call(kernel_of(spatials_fn), a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
+                         c.raw_values_data(), rows, columns, depth, stride, columns * sizeof(result_t),
+                         scratch.raw_values_data(), scratch_size);
             if (!stats.expect(backend.synchronize())) return stats;
 
             auto b_packed_reference = make_vector<char>(
@@ -1545,15 +1616,16 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
                                                      b_packed_reference.raw_values_data(), no_tiers_k, nullptr));
             stats.expect(nk::dots_packed<scalar_type_, reference_t>(
                 a_scales.operand(a.values_data()), b_packed_reference.raw_values_data(), dots_reference.values_data(),
-                rows, columns, depth, stride, columns * sizeof(reference_t), no_tiers_k, nullptr));
+                rows, columns, depth, stride, columns * sizeof(reference_t), nullptr, 0, no_tiers_k, nullptr));
             for (std::size_t row = 0; row < rows; row++)
                 stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
                     a_scales.operand(a.values_data() + row * stride_values, row), 1, depth, stride,
-                    a_squared_norms.values_data() + row, sizeof(reference_t), 0, 1, no_tiers_k, nullptr));
+                    a_squared_norms.values_data() + row, sizeof(reference_t), 0, 1, nullptr, 0, no_tiers_k, nullptr));
             for (std::size_t column = 0; column < columns; column++)
                 stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
                     b_scales.operand(b.values_data() + column * stride_values, column), 1, depth, stride,
-                    b_squared_norms.values_data() + column, sizeof(reference_t), 0, 1, no_tiers_k, nullptr));
+                    b_squared_norms.values_data() + column, sizeof(reference_t), 0, 1, nullptr, 0, no_tiers_k,
+                    nullptr));
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t column = 0; column < columns; column++) {
@@ -1586,7 +1658,7 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
                                                         : nk_kernel_euclideans_symmetric_k;
     auto const launch = [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c,
                             std::size_t c_stride) {
-        backend.call(symmetric_fn, operand, rows, depth, stride, c, c_stride, 0, rows);
+        backend.call(kernel_of(symmetric_fn), operand, rows, depth, stride, c, c_stride, 0, rows, nullptr, 0);
         return backend.synchronize();
     };
     if constexpr (angular) expect_angular_edges<scalar_type_, symmetric_kind>(stats, backend, generator, launch);
@@ -1609,14 +1681,21 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
             fill_canary(c);
             auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 1.5f);
 
-            backend.call(symmetric_fn, scales.operand(a.raw_values_data()), count, depth, stride, c.raw_values_data(),
-                         c_stride, 0, count);
+            std::size_t const scratch_size = workspace_size_bytes(stats, symmetric_fn, count, depth, 0, count);
+            auto scratch = make_vector<char>(backend, scratch_size);
+            if (scratch_size != 0) {
+                backend.call(kernel_of(symmetric_fn), scales.operand(a.raw_values_data()), count, depth, stride,
+                             c.raw_values_data(), c_stride, 0, count, scratch.raw_values_data(), scratch_size - 1);
+                stats.expect(backend.synchronize() == nk_unexpected_dimensions_k, "a short workspace was accepted");
+            }
+            backend.call(kernel_of(symmetric_fn), scales.operand(a.raw_values_data()), count, depth, stride,
+                         c.raw_values_data(), c_stride, 0, count, scratch.raw_values_data(), scratch_size);
             if (!stats.expect(backend.synchronize())) return stats;
 
             auto dots_reference = make_vector<reference_t>(count * count);
             stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
                 scales.operand(a.values_data()), count, depth, stride, dots_reference.values_data(),
-                count * sizeof(reference_t), 0, count, no_tiers_k, nullptr));
+                count * sizeof(reference_t), 0, count, nullptr, 0, no_tiers_k, nullptr));
             for (std::size_t row = 0; row < count; row++)
                 for (std::size_t column = row; column < count; column++) {
                     reference_t const first = dots_reference[row * count + row],
@@ -1767,6 +1846,15 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
                  windowed_output = make_vector<result_t>(backend, query_tokens * layout.query_width());
             auto log_sum_exp = make_vector<result_t>(backend, query_tokens * layout.head_count),
                  windowed_log_sum_exp = make_vector<result_t>(backend, query_tokens * layout.head_count);
+            std::size_t workspace_bytes = 0;
+            if constexpr (!std::is_same_v<backend_type_, host_backend_t>) {
+                auto const queried = nk::attention_packed_workspace_size<scalar_type_>(
+                    layout.head_count, layout.key_value_head_count, layout.depth, query_tokens, test_case.keys_before,
+                    test_case.keys_after, backend.capabilities());
+                stats.expect(queried.status);
+                workspace_bytes = queried.value;
+            }
+            auto workspace = make_vector<char>(backend, workspace_bytes);
 
             pack_attention_in_two_windows(backend, pack_fn, keys, values, key_scales, value_scales, segments, layout,
                                           key_value_packed);
@@ -1776,7 +1864,8 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
                              segments.query_offsets.values_data(), query_tokens, layout.scale, test_case.keys_before,
                              test_case.keys_after, query_scales.operand(queries.raw_values_data()), query_stride,
                              key_value_packed.raw_values_data(), into.raw_values_data(), output_stride,
-                             into_log_sum_exp.raw_values_data(), tasks_begin, tasks_end);
+                             into_log_sum_exp.raw_values_data(), tasks_begin, tasks_end, workspace.raw_values_data(),
+                             workspace_bytes);
             };
             attend(output, log_sum_exp, 0, NUMKONG_SIZE_MAX);
             for (std::size_t window : windows)
@@ -1905,20 +1994,18 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
             auto key_value_packed = make_vector<char>(
                 backend, pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth, key_tokens,
                                          segments.count()));
+            std::size_t workspace_bytes = 0;
+            if constexpr (!std::is_same_v<backend_type_, host_backend_t>) {
+                auto const queried = nk::attention_packed_gradients_workspace_size<scalar_type_>(
+                    layout.head_count, layout.key_value_head_count, layout.depth, query_tokens, test_case.keys_before,
+                    test_case.keys_after, backend.capabilities());
+                stats.expect(queried.status);
+                workspace_bytes = queried.value;
+            }
+            auto workspace = make_vector<char>(backend, workspace_bytes);
 
             pack_attention_in_two_windows(backend, pack_fn, keys, values, key_scales, value_scales, segments, layout,
                                           key_value_packed);
-            std::size_t const windows[2][2] = {{0, 1}, {1, NUMKONG_SIZE_MAX}};
-            for (auto const &window : windows)
-                backend.call(gradients_fn, layout.head_count, layout.key_value_head_count, layout.depth,
-                             segments.query_offsets.values_data(), query_tokens, layout.scale, test_case.keys_before,
-                             test_case.keys_after, query_scales.operand(queries.raw_values_data()), query_stride,
-                             key_value_packed.raw_values_data(), output.raw_values_data(),
-                             output_gradient.raw_values_data(), output_stride, log_sum_exp.raw_values_data(),
-                             query_gradient.raw_values_data(), query_gradient_stride, key_gradient.raw_values_data(),
-                             value_gradient.raw_values_data(), gradient_stride, window[0], window[1]);
-            if (!stats.expect(backend.synchronize())) return stats;
-
             auto const accumulate_gradient = [&](backend_vector<f32_t, backend_type_> const &actual,
                                                  std::size_t actual_width, std::vector<double> const &expected,
                                                  std::vector<double> const &magnitudes, std::size_t width) {
@@ -1928,18 +2015,35 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                     stats.accumulate_bounded(actual[index / width * actual_width + index % width], expected[index],
                                              settings.scale_threshold * largest);
             };
-            accumulate_gradient(query_gradient, query_gradient_width, reference.query_gradient,
-                                reference.query_magnitude, layout.query_width());
-            accumulate_gradient(key_gradient, layout.key_value_width(), reference.key_gradient, reference.key_magnitude,
-                                layout.key_value_width());
-            accumulate_gradient(value_gradient, layout.key_value_width(), reference.value_gradient,
-                                reference.value_magnitude, layout.key_value_width());
-            bool padding_kept = true;
-            for (std::size_t token = 0; token < query_tokens; token++)
-                for (std::size_t column = layout.query_width(); column < query_gradient_width; column++)
-                    padding_kept &= std::isnan(
-                        static_cast<double>(query_gradient[token * query_gradient_width + column]));
-            stats.expect(padding_kept, "query gradient written past its rows");
+            // A workspace takes the single pass where a capability has one, and none the two passes
+            std::size_t const windows[2][2] = {{0, 1}, {1, NUMKONG_SIZE_MAX}};
+            for (std::size_t const scratch_bytes : {workspace_bytes, std::size_t(0)}) {
+                for (auto const &window : windows)
+                    backend.call(
+                        gradients_fn, layout.head_count, layout.key_value_head_count, layout.depth,
+                        segments.query_offsets.values_data(), query_tokens, layout.scale, test_case.keys_before,
+                        test_case.keys_after, query_scales.operand(queries.raw_values_data()), query_stride,
+                        key_value_packed.raw_values_data(), output.raw_values_data(), output_gradient.raw_values_data(),
+                        output_stride, log_sum_exp.raw_values_data(), query_gradient.raw_values_data(),
+                        query_gradient_stride, key_gradient.raw_values_data(), value_gradient.raw_values_data(),
+                        gradient_stride, window[0], window[1], workspace.raw_values_data(), scratch_bytes);
+                if (!stats.expect(backend.synchronize())) return stats;
+
+                accumulate_gradient(query_gradient, query_gradient_width, reference.query_gradient,
+                                    reference.query_magnitude, layout.query_width());
+                accumulate_gradient(key_gradient, layout.key_value_width(), reference.key_gradient,
+                                    reference.key_magnitude, layout.key_value_width());
+                accumulate_gradient(value_gradient, layout.key_value_width(), reference.value_gradient,
+                                    reference.value_magnitude, layout.key_value_width());
+                bool padding_kept = true;
+                for (std::size_t token = 0; token < query_tokens; token++)
+                    for (std::size_t column = layout.query_width(); column < query_gradient_width; column++)
+                        padding_kept &= std::isnan(
+                            static_cast<double>(query_gradient[token * query_gradient_width + column]));
+                stats.expect(padding_kept, "query gradient written past its rows");
+                if (!scratch_bytes) break;
+                fill_canary(query_gradient), fill_canary(key_gradient), fill_canary(value_gradient);
+            }
         }
     }
     return stats;

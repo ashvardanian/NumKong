@@ -503,9 +503,23 @@ nk_define_cross_scaled_exact_(mxfp8e5m2, serial, nk_e5m2_load_f32_serial_, nk_e5
  *  scale rows in @c nk_define_cross_pack_ layout, and symmetric outputs fill each row from its
  *  diagonal to the last column. */
 #define nk_define_cross_scaled_serial_(api_name, input_type_name, wide_metric_fn)                                     \
+    NUMKONG_API nk_status_t nk_##api_name##_packed_workspace_size_##input_type_name##_serial(                         \
+        nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {                                       \
+        nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);                                                     \
+        *bytes = 0;                                                                                                   \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_##api_name##_symmetric_workspace_size_##input_type_name##_serial(                      \
+        nk_size_t vector_count, nk_size_t depth, nk_size_t rows_begin, nk_size_t rows_end, nk_size_t *bytes) {        \
+        nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);                    \
+        *bytes = 0;                                                                                                   \
+        return nk_success_k;                                                                                          \
+    }                                                                                                                 \
     NUMKONG_API nk_status_t nk_##api_name##_packed_##input_type_name##_serial(                                        \
         nk_##input_type_name##_cref_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, \
-        nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {                                \
+        nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes,          \
+        nk_stream_t stream) {                                                                                         \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                           \
         nk_assert_(stream == NUMKONG_NULL);                                                                           \
         nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;            \
         nk_cross_operand_t const a_unpacked = nk_cross_operand_serial_(nk_##input_type_name##_k, a, a_stride);        \
@@ -534,7 +548,9 @@ nk_define_cross_scaled_exact_(mxfp8e5m2, serial, nk_e5m2_load_f32_serial_, nk_e5
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_##api_name##_symmetric_##input_type_name##_serial(                                     \
         nk_##input_type_name##_cref_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride,      \
-        nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {    \
+        nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace,         \
+        nk_size_t workspace_bytes, nk_stream_t stream) {                                                              \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                           \
         nk_assert_(stream == NUMKONG_NULL);                                                                           \
         nk_cross_operand_t const unpacked = nk_cross_operand_serial_(nk_##input_type_name##_k, vectors, stride);      \
         nk_f32_t const tensor_scale = nk_cross_tensor_scale_serial_(unpacked.tensor_scale);                           \
@@ -1640,10 +1656,17 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_serial_(nk_i4x2_t const *data, nk_
         }                                                                                                              \
         return nk_success_k;                                                                                           \
     }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_##api_name##_packed_workspace_size_##input_type_name##_##isa_suffix(                    \
+        nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {                                        \
+        nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);                                                      \
+        *bytes = 0;                                                                                                    \
+        return nk_success_k;                                                                                           \
+    }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##api_name##_packed_##input_type_name##_##isa_suffix(                                   \
         nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                          \
         nk_##result_value_type##_t *c_matrix, nk_size_t rows, nk_size_t column_count, nk_size_t depth,                 \
-        nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {                                                  \
+        nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {      \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                            \
         nk_assert_(stream == NUMKONG_NULL);                                                                            \
         return nk_##api_name##_packed_##input_type_name##_##isa_suffix##_(                                             \
             (nk_##input_value_type##_t const *)a_operand, b_packed_buffer, c_matrix, rows, column_count, depth,        \
@@ -1852,10 +1875,17 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_serial_(nk_i4x2_t const *data, nk_
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_##api_name##_packed_workspace_size_##input_type_name##_##isa_suffix(                    \
+        nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {                                        \
+        nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);                                                      \
+        *bytes = 0;                                                                                                    \
+        return nk_success_k;                                                                                           \
+    }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##api_name##_packed_##input_type_name##_##isa_suffix(                                   \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
         nk_size_t rows, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,               \
-        nk_stream_t stream) {                                                                                          \
+        void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {                                              \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                            \
         nk_assert_(stream == NUMKONG_NULL);                                                                            \
         nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;      \
         if (header->capability != nk_cap_##isa_suffix##_k) return nk_pack_mismatch_k;                                  \
@@ -2461,10 +2491,17 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_serial_(nk_i4x2_t const *data, nk_
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_##api_name##_symmetric_workspace_size_##input_type_name##_##isa_suffix(                 \
+        nk_size_t vector_count, nk_size_t depth, nk_size_t rows_begin, nk_size_t rows_end, nk_size_t *bytes) {         \
+        nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);                     \
+        *bytes = 0;                                                                                                    \
+        return nk_success_k;                                                                                           \
+    }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                                \
         nk_##input_value_type##_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride,           \
         nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end,         \
-        nk_stream_t stream) {                                                                                          \
+        void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {                                              \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                            \
         nk_assert_(stream == NUMKONG_NULL);                                                                            \
         nk_assert_(stride % sizeof(nk_##input_value_type##_t) == 0 &&                                                  \
                    stride >=                                                                                           \
@@ -3018,10 +3055,17 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_serial_(nk_i4x2_t const *data, nk_
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_##api_name##_symmetric_workspace_size_##input_type_name##_##isa_suffix(                 \
+        nk_size_t vector_count, nk_size_t depth, nk_size_t rows_begin, nk_size_t rows_end, nk_size_t *bytes) {         \
+        nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);                     \
+        *bytes = 0;                                                                                                    \
+        return nk_success_k;                                                                                           \
+    }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                                \
         nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vector_count, nk_size_t depth,        \
         nk_size_t stride, nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t rows_begin,           \
-        nk_size_t rows_end, nk_stream_t stream) {                                                                      \
+        nk_size_t rows_end, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {                          \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                            \
         nk_assert_(stream == NUMKONG_NULL);                                                                            \
         nk_##api_name##_symmetric_##input_type_name##_##isa_suffix##_(                                                 \
             (nk_##input_value_type##_t const *)vectors_operand, vector_count, depth, stride, result, result_stride,    \
@@ -3138,9 +3182,17 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_serial_(nk_i4x2_t const *data, nk_
                 }                                                                                                      \
             }                                                                                                          \
     }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_##api_name##_packed_workspace_size_##input_type_name##_##isa_suffix(                    \
+        nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {                                        \
+        nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);                                                      \
+        *bytes = 0;                                                                                                    \
+        return nk_success_k;                                                                                           \
+    }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##api_name##_packed_##input_type_name##_##isa_suffix(                                   \
         nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed, nk_f32_t *c, nk_size_t rows,    \
-        nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {              \
+        nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *workspace,                   \
+        nk_size_t workspace_bytes, nk_stream_t stream) {                                                               \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                            \
         /* Panels of 32 rows take up to 64 KB of values, at most 2048 dims per depth chunk */                          \
         enum {                                                                                                         \
             chunk_k = 2048 * (dimensions_per_value) / sizeof(nk_##packed_value_type##_t) < 2048                        \
@@ -3256,10 +3308,17 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_serial_(nk_i4x2_t const *data, nk_
 #define nk_define_cross_scaled_symmetric_(api_name, input_type_name, isa_suffix, packed_value_type, wide_metric_fn,    \
                                           normalized, depth_simd_dimensions, dimensions_per_value, scale_bytes,        \
                                           register_rows, register_columns)                                             \
+    NUMKONG_API nk_status_t nk_##api_name##_symmetric_workspace_size_##input_type_name##_##isa_suffix(                 \
+        nk_size_t vector_count, nk_size_t depth, nk_size_t rows_begin, nk_size_t rows_end, nk_size_t *bytes) {         \
+        nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);                     \
+        *bytes = 0;                                                                                                    \
+        return nk_success_k;                                                                                           \
+    }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                                \
         nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vector_count, nk_size_t depth,        \
         nk_size_t stride, nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end,         \
-        nk_stream_t stream) {                                                                                          \
+        void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {                                              \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                            \
         /* Row and column panels of 32 vectors take up to 32 KB of values each, at most 1024 dims                      \
          * per chunk */                                                                                                \
         enum {                                                                                                         \
@@ -3769,13 +3828,20 @@ nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot
                                            packed_value_type, dot_result_type, norm_value_type, final_result_type,  \
                                            vec_type, dots_packed_fn, from_dot_fn, compute_norm_fn, load_fn,         \
                                            partial_load_fn, store_fn, partial_store_fn, dimensions_per_value)       \
+    NUMKONG_API nk_status_t nk_##metric_name##s_packed_workspace_size_##input_type_name##_##isa_suffix(             \
+        nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {                                     \
+        nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);                                                   \
+        *bytes = 0;                                                                                                 \
+        return nk_success_k;                                                                                        \
+    }                                                                                                               \
     NUMKONG_API nk_status_t nk_##metric_name##s_packed_##input_type_name##_##isa_suffix(                            \
         nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                       \
         nk_##final_result_type##_t *c_matrix, nk_size_t rows, nk_size_t column_count, nk_size_t depth,              \
-        nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {                                               \
+        nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {   \
         nk_assert_(stream == NUMKONG_NULL);                                                                         \
         nk_status_t const status = dots_packed_fn(a_operand, b_packed_buffer, (nk_##dot_result_type##_t *)c_matrix, \
-                                                  rows, column_count, depth, a_stride, c_stride, stream);           \
+                                                  rows, column_count, depth, a_stride, c_stride, workspace,         \
+                                                  workspace_bytes, stream);                                         \
         if (status != nk_success_k) return status;                                                                  \
         nk_cross_operand_t const a = nk_cross_operand_serial_(nk_##input_type_name##_k, a_operand, a_stride);       \
                                                                                                                     \
@@ -3817,15 +3883,21 @@ nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot
                                               dot_result_type, norm_value_type, final_result_type, vec_type,        \
                                               dots_symmetric_fn, from_dot_fn, compute_norm_fn, load_fn,             \
                                               partial_load_fn, store_fn, partial_store_fn, dimensions_per_value)    \
+    NUMKONG_API nk_status_t nk_##metric_name##s_symmetric_workspace_size_##input_type_name##_##isa_suffix(          \
+        nk_size_t vector_count, nk_size_t depth, nk_size_t rows_begin, nk_size_t rows_end, nk_size_t *bytes) {      \
+        nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);                  \
+        *bytes = 0;                                                                                                 \
+        return nk_success_k;                                                                                        \
+    }                                                                                                               \
     NUMKONG_API nk_status_t nk_##metric_name##s_symmetric_##input_type_name##_##isa_suffix(                         \
         nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vector_count, nk_size_t depth,     \
         nk_size_t stride, nk_##final_result_type##_t *result, nk_size_t result_stride, nk_size_t rows_begin,        \
-        nk_size_t rows_end, nk_stream_t stream) {                                                                   \
+        nk_size_t rows_end, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {                       \
         nk_assert_(stream == NUMKONG_NULL);                                                                         \
         rows_end = nk_min_of_two(rows_end, vector_count);                                                           \
         nk_status_t const status = dots_symmetric_fn(vectors_operand, vector_count, depth, stride,                  \
                                                      (nk_##dot_result_type##_t *)result, result_stride, rows_begin, \
-                                                     rows_end, stream);                                             \
+                                                     rows_end, workspace, workspace_bytes, stream);                 \
         if (status != nk_success_k) return status;                                                                  \
         nk_cross_operand_t const vectors = nk_cross_operand_serial_(nk_##input_type_name##_k, vectors_operand,      \
                                                                     stride);                                        \

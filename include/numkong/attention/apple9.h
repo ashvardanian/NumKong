@@ -72,14 +72,15 @@ NUMKONG_API nk_status_t nk_attention_packed_bf16_apple9(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_bf16_t const *queries,
     nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output, nk_size_t output_stride,
-    nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace, nk_size_t workspace_bytes,
+    nk_stream_t stream) {
     return nk_attention_launch_metal_(
         nk_attention_source_apple9_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cap_apple9_k,
         "nk_attention_packed_bf16_apple9_kernel_", "nk_attention_split_bf16_metal_kernel_", NUMKONG_NULL,
         "nk_attention_merge_bf16_metal_kernel_", sizeof(nk_bf16_t), depth * sizeof(nk_bf16_t), 0, head_count,
         key_value_head_count, depth, query_offsets, query_token_count, scale, keys_before, keys_after,
         nk_cross_operand_serial_(nk_bf16_k, queries, query_stride), query_stride, key_value_packed, output,
-        output_stride, log_sum_exp, tasks_begin, tasks_end, stream);
+        output_stride, log_sum_exp, tasks_begin, tasks_end, workspace, workspace_bytes, stream);
 }
 
 NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_apple9(
@@ -88,7 +89,8 @@ NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_apple9(
     nk_size_t query_stride, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
     nk_size_t output_stride, nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_size_t query_gradient_stride,
     nk_f32_t *key_gradient, nk_f32_t *value_gradient, nk_size_t key_value_gradient_stride, nk_size_t tasks_begin,
-    nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t tasks_end, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     return nk_attention_backward_launch_metal_(
         nk_attention_source_apple9_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cap_apple9_k,
         "nk_attention_backward_keys_bf16_apple9_kernel_", "nk_attention_backward_queries_bf16_apple9_kernel_", 32, 128,
@@ -130,14 +132,15 @@ NUMKONG_API nk_status_t nk_attention_packed_f16_apple9(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_f16_t const *queries,
     nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output, nk_size_t output_stride,
-    nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace, nk_size_t workspace_bytes,
+    nk_stream_t stream) {
     return nk_attention_launch_metal_(
         nk_attention_source_apple9_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cap_apple9_k,
         "nk_attention_packed_f16_apple9_kernel_", "nk_attention_split_f16_metal_kernel_", NUMKONG_NULL,
         "nk_attention_merge_f16_metal_kernel_", sizeof(nk_f16_t), depth * sizeof(nk_f16_t), 0, head_count,
         key_value_head_count, depth, query_offsets, query_token_count, scale, keys_before, keys_after,
         nk_cross_operand_serial_(nk_f16_k, queries, query_stride), query_stride, key_value_packed, output,
-        output_stride, log_sum_exp, tasks_begin, tasks_end, stream);
+        output_stride, log_sum_exp, tasks_begin, tasks_end, workspace, workspace_bytes, stream);
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_apple9(nk_size_t key_value_head_count, nk_size_t depth,
@@ -172,14 +175,15 @@ NUMKONG_API nk_status_t nk_attention_packed_e4m3_apple9(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_e4m3_t const *queries,
     nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output, nk_size_t output_stride,
-    nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace, nk_size_t workspace_bytes,
+    nk_stream_t stream) {
     return nk_attention_launch_metal_(
         nk_attention_source_apple9_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cap_apple9_k,
         "nk_attention_packed_e4m3_apple9_kernel_", "nk_attention_split_e4m3_metal_kernel_", NUMKONG_NULL,
         "nk_attention_merge_e4m3_metal_kernel_", sizeof(nk_e4m3_t), depth * sizeof(nk_e4m3_t), 0, head_count,
         key_value_head_count, depth, query_offsets, query_token_count, scale, keys_before, keys_after,
         nk_cross_operand_serial_(nk_e4m3_k, queries, query_stride), query_stride, key_value_packed, output,
-        output_stride, log_sum_exp, tasks_begin, tasks_end, stream);
+        output_stride, log_sum_exp, tasks_begin, tasks_end, workspace, workspace_bytes, stream);
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_nvfp4_apple9(nk_size_t key_value_head_count, nk_size_t depth,
@@ -215,14 +219,15 @@ NUMKONG_API nk_status_t nk_attention_packed_nvfp4_apple9(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
     nk_nvfp4_cref_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
     return nk_attention_launch_metal_(
         nk_attention_source_apple9_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cap_apple9_k,
         "nk_attention_packed_nvfp4_apple9_kernel_", "nk_attention_split_nvfp4_metal_kernel_", NUMKONG_NULL,
         "nk_attention_merge_nvfp4_metal_kernel_", sizeof(nk_f16_t), depth / 2, depth / 16, head_count,
         key_value_head_count, depth, query_offsets, query_token_count, scale, keys_before, keys_after,
         nk_cross_operand_serial_(nk_nvfp4_k, queries, query_stride), query_stride, key_value_packed, output,
-        output_stride, log_sum_exp, tasks_begin, tasks_end, stream);
+        output_stride, log_sum_exp, tasks_begin, tasks_end, workspace, workspace_bytes, stream);
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_mxfp4_apple9(nk_size_t key_value_head_count, nk_size_t depth,
@@ -259,14 +264,15 @@ NUMKONG_API nk_status_t nk_attention_packed_mxfp4_apple9(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
     nk_mxfp4_cref_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
     return nk_attention_launch_metal_(
         nk_attention_source_apple9_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cap_apple9_k,
         "nk_attention_packed_mxfp4_apple9_kernel_", "nk_attention_split_mxfp4_metal_kernel_", NUMKONG_NULL,
         "nk_attention_merge_mxfp4_metal_kernel_", sizeof(nk_bf16_t), depth / 2, depth / 32, head_count,
         key_value_head_count, depth, query_offsets, query_token_count, scale, keys_before, keys_after,
         nk_cross_operand_serial_(nk_mxfp4_k, queries, query_stride), query_stride, key_value_packed, output,
-        output_stride, log_sum_exp, tasks_begin, tasks_end, stream);
+        output_stride, log_sum_exp, tasks_begin, tasks_end, workspace, workspace_bytes, stream);
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_mxfp6e2m3_apple9(nk_size_t key_value_head_count, nk_size_t depth,
@@ -301,14 +307,15 @@ NUMKONG_API nk_status_t nk_attention_packed_mxfp6e2m3_apple9(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
     nk_mxfp6e2m3_cref_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
     return nk_attention_launch_metal_(
         nk_attention_source_apple9_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cap_apple9_k,
         "nk_attention_packed_mxfp6e2m3_apple9_kernel_", "nk_attention_split_mxfp6e2m3_metal_kernel_", NUMKONG_NULL,
         "nk_attention_merge_mxfp6e2m3_metal_kernel_", sizeof(nk_bf16_t), depth, depth / 32, head_count,
         key_value_head_count, depth, query_offsets, query_token_count, scale, keys_before, keys_after,
         nk_cross_operand_serial_(nk_mxfp6e2m3_k, queries, query_stride), query_stride, key_value_packed, output,
-        output_stride, log_sum_exp, tasks_begin, tasks_end, stream);
+        output_stride, log_sum_exp, tasks_begin, tasks_end, workspace, workspace_bytes, stream);
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_mxfp6e3m2_apple9(nk_size_t key_value_head_count, nk_size_t depth,
@@ -343,14 +350,15 @@ NUMKONG_API nk_status_t nk_attention_packed_mxfp6e3m2_apple9(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
     nk_mxfp6e3m2_cref_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
     return nk_attention_launch_metal_(
         nk_attention_source_apple9_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cap_apple9_k,
         "nk_attention_packed_mxfp6e3m2_apple9_kernel_", "nk_attention_split_mxfp6e3m2_metal_kernel_", NUMKONG_NULL,
         "nk_attention_merge_mxfp6e3m2_metal_kernel_", sizeof(nk_bf16_t), depth, depth / 32, head_count,
         key_value_head_count, depth, query_offsets, query_token_count, scale, keys_before, keys_after,
         nk_cross_operand_serial_(nk_mxfp6e3m2_k, queries, query_stride), query_stride, key_value_packed, output,
-        output_stride, log_sum_exp, tasks_begin, tasks_end, stream);
+        output_stride, log_sum_exp, tasks_begin, tasks_end, workspace, workspace_bytes, stream);
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_mxfp8e4m3_apple9(nk_size_t key_value_head_count, nk_size_t depth,
@@ -385,14 +393,15 @@ NUMKONG_API nk_status_t nk_attention_packed_mxfp8e4m3_apple9(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
     nk_mxfp8e4m3_cref_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
     return nk_attention_launch_metal_(
         nk_attention_source_apple9_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cap_apple9_k,
         "nk_attention_packed_mxfp8e4m3_apple9_kernel_", "nk_attention_split_mxfp8e4m3_metal_kernel_", NUMKONG_NULL,
         "nk_attention_merge_mxfp8e4m3_metal_kernel_", sizeof(nk_bf16_t), depth, depth / 32, head_count,
         key_value_head_count, depth, query_offsets, query_token_count, scale, keys_before, keys_after,
         nk_cross_operand_serial_(nk_mxfp8e4m3_k, queries, query_stride), query_stride, key_value_packed, output,
-        output_stride, log_sum_exp, tasks_begin, tasks_end, stream);
+        output_stride, log_sum_exp, tasks_begin, tasks_end, workspace, workspace_bytes, stream);
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_mxfp8e5m2_apple9(nk_size_t key_value_head_count, nk_size_t depth,
@@ -427,14 +436,106 @@ NUMKONG_API nk_status_t nk_attention_packed_mxfp8e5m2_apple9(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
     nk_size_t query_token_count, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
     nk_mxfp8e5m2_cref_t const *queries, nk_size_t query_stride, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    nk_size_t output_stride, nk_f32_t *log_sum_exp, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
     return nk_attention_launch_metal_(
         nk_attention_source_apple9_, NUMKONG_METAL_LANGUAGE_3_1_, nk_cap_apple9_k,
         "nk_attention_packed_mxfp8e5m2_apple9_kernel_", "nk_attention_split_mxfp8e5m2_metal_kernel_", NUMKONG_NULL,
         "nk_attention_merge_mxfp8e5m2_metal_kernel_", sizeof(nk_bf16_t), depth, depth / 32, head_count,
         key_value_head_count, depth, query_offsets, query_token_count, scale, keys_before, keys_after,
         nk_cross_operand_serial_(nk_mxfp8e5m2_k, queries, query_stride), query_stride, key_value_packed, output,
-        output_stride, log_sum_exp, tasks_begin, tasks_end, stream);
+        output_stride, log_sum_exp, tasks_begin, tasks_end, workspace, workspace_bytes, stream);
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_workspace_size_bf16_apple9(nk_size_t head_count,
+                                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                                       nk_size_t query_token_count,
+                                                                       nk_size_t keys_before, nk_size_t keys_after,
+                                                                       nk_size_t *bytes) {
+    nk_unused_(key_value_head_count), nk_unused_(keys_after);
+    *bytes = nk_attention_split_size_metal_(head_count, depth, query_token_count, keys_before);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_workspace_size_f16_apple9(nk_size_t head_count,
+                                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                                      nk_size_t query_token_count,
+                                                                      nk_size_t keys_before, nk_size_t keys_after,
+                                                                      nk_size_t *bytes) {
+    nk_unused_(key_value_head_count), nk_unused_(keys_after);
+    *bytes = nk_attention_split_size_metal_(head_count, depth, query_token_count, keys_before);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_workspace_size_e4m3_apple9(nk_size_t head_count,
+                                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                                       nk_size_t query_token_count,
+                                                                       nk_size_t keys_before, nk_size_t keys_after,
+                                                                       nk_size_t *bytes) {
+    nk_unused_(key_value_head_count), nk_unused_(keys_after);
+    *bytes = nk_attention_split_size_metal_(head_count, depth, query_token_count, keys_before);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_workspace_size_nvfp4_apple9(nk_size_t head_count,
+                                                                        nk_size_t key_value_head_count, nk_size_t depth,
+                                                                        nk_size_t query_token_count,
+                                                                        nk_size_t keys_before, nk_size_t keys_after,
+                                                                        nk_size_t *bytes) {
+    nk_unused_(key_value_head_count), nk_unused_(keys_after);
+    *bytes = nk_attention_split_size_metal_(head_count, depth, query_token_count, keys_before);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_workspace_size_mxfp4_apple9(nk_size_t head_count,
+                                                                        nk_size_t key_value_head_count, nk_size_t depth,
+                                                                        nk_size_t query_token_count,
+                                                                        nk_size_t keys_before, nk_size_t keys_after,
+                                                                        nk_size_t *bytes) {
+    nk_unused_(key_value_head_count), nk_unused_(keys_after);
+    *bytes = nk_attention_split_size_metal_(head_count, depth, query_token_count, keys_before);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_workspace_size_mxfp6e2m3_apple9(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_size_t query_token_count,
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t *bytes) {
+    nk_unused_(key_value_head_count), nk_unused_(keys_after);
+    *bytes = nk_attention_split_size_metal_(head_count, depth, query_token_count, keys_before);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_workspace_size_mxfp6e3m2_apple9(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_size_t query_token_count,
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t *bytes) {
+    nk_unused_(key_value_head_count), nk_unused_(keys_after);
+    *bytes = nk_attention_split_size_metal_(head_count, depth, query_token_count, keys_before);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_workspace_size_mxfp8e4m3_apple9(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_size_t query_token_count,
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t *bytes) {
+    nk_unused_(key_value_head_count), nk_unused_(keys_after);
+    *bytes = nk_attention_split_size_metal_(head_count, depth, query_token_count, keys_before);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_workspace_size_mxfp8e5m2_apple9(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_size_t query_token_count,
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t *bytes) {
+    nk_unused_(key_value_head_count), nk_unused_(keys_after);
+    *bytes = nk_attention_split_size_metal_(head_count, depth, query_token_count, keys_before);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_gradients_workspace_size_bf16_apple9(
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_size_t query_token_count,
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t *bytes) {
+    nk_unused_(head_count), nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_token_count),
+        nk_unused_(keys_before), nk_unused_(keys_after);
+    *bytes = 0;
+    return nk_success_k;
 }
 
 #if defined(__cplusplus)

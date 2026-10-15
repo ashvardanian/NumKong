@@ -516,9 +516,12 @@ struct f32_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f64_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f64_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = dots_packed_kernel_t;
     using euclideans_packed_kernel_t = dots_packed_kernel_t;
     using angulars_symmetric_kernel_t = dots_symmetric_kernel_t;
@@ -784,9 +787,12 @@ struct f64_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f64_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f64_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = dots_packed_kernel_t;
     using euclideans_packed_kernel_t = dots_packed_kernel_t;
     using angulars_symmetric_kernel_t = dots_symmetric_kernel_t;
@@ -1569,9 +1575,12 @@ struct f16_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = dots_packed_kernel_t;
     using euclideans_packed_kernel_t = dots_packed_kernel_t;
     using angulars_symmetric_kernel_t = dots_symmetric_kernel_t;
@@ -1841,9 +1850,12 @@ struct bf16_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = dots_packed_kernel_t;
     using euclideans_packed_kernel_t = dots_packed_kernel_t;
     using angulars_symmetric_kernel_t = dots_symmetric_kernel_t;
@@ -1855,16 +1867,14 @@ struct bf16_t {
     using attention_pack_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_size_t,
                                                     nk_u32_t const *, nk_u32_t const *, nk_size_t, nk_size_t, nk_size_t,
                                                     void *, nk_size_t, nk_size_t, nk_stream_t);
-    using attention_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_f32_t *, nk_size_t,
-                                                      nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t, nk_size_t,
-                                                      nk_f32_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                      nk_stream_t);
-    using attention_packed_gradients_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t const *,
-                                                                nk_f32_t const *, nk_f32_t const *, nk_f32_t *,
-                                                                nk_f32_t *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t,
-                                                                nk_u32_t const *, nk_u32_t const *, nk_size_t,
-                                                                nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_size_t,
-                                                                nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+    using attention_packed_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t,
+                                                      nk_f32_t, nk_size_t, nk_size_t, raw_t const *, nk_size_t,
+                                                      void const *, nk_f32_t *, nk_size_t, nk_f32_t *, nk_size_t,
+                                                      nk_size_t, void *, nk_size_t, nk_stream_t);
+    using attention_packed_gradients_kernel_t = nk_status_t (*)(
+        nk_size_t, nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t, nk_f32_t, nk_size_t, nk_size_t, raw_t const *,
+        nk_size_t, void const *, nk_f32_t const *, nk_f32_t const *, nk_size_t, nk_f32_t const *, nk_f32_t *, nk_size_t,
+        nk_f32_t *, nk_f32_t *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_bf16_k; }
     static constexpr char const *dtype_name() noexcept { return "bf16"; }
@@ -2315,9 +2325,12 @@ struct e4m3_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = dots_packed_kernel_t;
     using euclideans_packed_kernel_t = dots_packed_kernel_t;
     using angulars_symmetric_kernel_t = dots_symmetric_kernel_t;
@@ -2327,10 +2340,10 @@ struct e4m3_t {
     using attention_pack_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_size_t,
                                                     nk_u32_t const *, nk_u32_t const *, nk_size_t, nk_size_t, nk_size_t,
                                                     void *, nk_size_t, nk_size_t, nk_stream_t);
-    using attention_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_f32_t *, nk_size_t,
-                                                      nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t, nk_size_t,
-                                                      nk_f32_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                      nk_stream_t);
+    using attention_packed_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t,
+                                                      nk_f32_t, nk_size_t, nk_size_t, raw_t const *, nk_size_t,
+                                                      void const *, nk_f32_t *, nk_size_t, nk_f32_t *, nk_size_t,
+                                                      nk_size_t, void *, nk_size_t, nk_stream_t);
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_e4m3_k; }
     static constexpr char const *dtype_name() noexcept { return "e4m3"; }
@@ -2559,9 +2572,12 @@ struct e5m2_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = dots_packed_kernel_t;
     using euclideans_packed_kernel_t = dots_packed_kernel_t;
     using angulars_symmetric_kernel_t = dots_symmetric_kernel_t;
@@ -2800,9 +2816,12 @@ struct e2m3_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = dots_packed_kernel_t;
     using euclideans_packed_kernel_t = dots_packed_kernel_t;
     using angulars_symmetric_kernel_t = dots_symmetric_kernel_t;
@@ -3000,9 +3019,12 @@ struct e3m2_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = dots_packed_kernel_t;
     using euclideans_packed_kernel_t = dots_packed_kernel_t;
     using angulars_symmetric_kernel_t = dots_symmetric_kernel_t;
@@ -4324,9 +4346,12 @@ struct i8_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_i32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_i32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
                                                      nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
     using euclideans_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
@@ -4340,10 +4365,10 @@ struct i8_t {
     using attention_pack_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_size_t,
                                                     nk_u32_t const *, nk_u32_t const *, nk_size_t, nk_size_t, nk_size_t,
                                                     void *, nk_size_t, nk_size_t, nk_stream_t);
-    using attention_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_f32_t *, nk_size_t,
-                                                      nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t, nk_size_t,
-                                                      nk_f32_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                      nk_stream_t);
+    using attention_packed_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_u32_t const *, nk_size_t,
+                                                      nk_f32_t, nk_size_t, nk_size_t, raw_t const *, nk_size_t,
+                                                      void const *, nk_f32_t *, nk_size_t, nk_f32_t *, nk_size_t,
+                                                      nk_size_t, void *, nk_size_t, nk_stream_t);
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_i8_k; }
     static constexpr char const *dtype_name() noexcept { return "i8"; }
@@ -4507,9 +4532,12 @@ struct u8_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_u32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_u32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
                                                      nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
     using euclideans_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
@@ -5750,24 +5778,35 @@ struct u1x8_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_u32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_u32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using maxsim_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_stream_t);
     using hammings_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
     using hammings_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                    nk_size_t, nk_stream_t);
     using hammings_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_u32_t *, nk_size_t, nk_size_t,
-                                                     nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                     nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using hammings_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using hammings_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_u32_t *,
-                                                        nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                        nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
+                                                        nk_stream_t);
+    using hammings_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                       nk_size_t *);
     using jaccards_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
     using jaccards_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                    nk_size_t, nk_stream_t);
     using jaccards_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
-                                                     nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                     nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using jaccards_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using jaccards_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f32_t *,
-                                                        nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                        nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
+                                                        nk_stream_t);
+    using jaccards_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                       nk_size_t *);
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_u1_k; }
     static constexpr char const *dtype_name() noexcept { return "u1x8"; }
@@ -5866,9 +5905,12 @@ struct i4x2_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_i32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_i32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
                                                      nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
     using euclideans_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
@@ -5993,9 +6035,12 @@ struct u4x2_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_u32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_u32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
                                                      nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
     using euclideans_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
@@ -6102,9 +6147,12 @@ struct e2m1x2_t {
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, nk_stream_t);
     using dots_packed_kernel_t = nk_status_t (*)(raw_t const *, void const *, nk_f32_t *, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                 nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_packed_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t *);
     using dots_symmetric_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, nk_f32_t *,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_stream_t);
+                                                    nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t, nk_stream_t);
+    using dots_symmetric_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                                   nk_size_t *);
     using angulars_packed_kernel_t = dots_packed_kernel_t;
     using euclideans_packed_kernel_t = dots_packed_kernel_t;
     using angulars_symmetric_kernel_t = dots_symmetric_kernel_t;

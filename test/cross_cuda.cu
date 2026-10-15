@@ -755,6 +755,10 @@ void test_cross_cuda(error_stats_section_t &check) {
           test_dots_launch_contract<f64_t, cuda_backend_t, nk_dots_pack_size_f64_ampere, nk_dots_packed_f64_ampere,
                                     nk_dots_symmetric_f64_ampere>);
     check("dots_symmetric_f64_ampere", test_dots_symmetric<f64_t, cuda_backend_t>, nk_dots_symmetric_f64_ampere);
+    check("dots_packed_f64_ampere_workspace", test_dots_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_ampere,
+          nk_dots_pack_f64_ampere, with_workspace(nk_dots_packed_f64_ampere, nk_dots_packed_workspace_size_f64_ampere));
+    check("dots_symmetric_f64_ampere_workspace", test_dots_symmetric<f64_t, cuda_backend_t>,
+          with_workspace(nk_dots_symmetric_f64_ampere, nk_dots_symmetric_workspace_size_f64_ampere));
     check("dots_packed_f32_ampere", test_dots_packed<f32_t, cuda_backend_t>, nk_dots_pack_size_f32_ampere,
           nk_dots_pack_f32_ampere, nk_dots_packed_f32_ampere);
     check("dots_pack_f32_ampere", test_dots_pack_layout<f32_t, cuda_backend_t, nk_dots_pack_size_f32_ampere,
@@ -893,6 +897,16 @@ void test_cross_cuda(error_stats_section_t &check) {
           nk_dots_pack_f64_ampere, nk_euclideans_packed_f64_ampere);
     check("euclideans_symmetric_f64_ampere", test_euclideans_symmetric<f64_t, cuda_backend_t>,
           nk_euclideans_symmetric_f64_ampere);
+    check("angulars_packed_f64_ampere_workspace", test_angulars_packed<f64_t, cuda_backend_t>,
+          nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere,
+          with_workspace(nk_angulars_packed_f64_ampere, nk_angulars_packed_workspace_size_f64_ampere));
+    check("angulars_symmetric_f64_ampere_workspace", test_angulars_symmetric<f64_t, cuda_backend_t>,
+          with_workspace(nk_angulars_symmetric_f64_ampere, nk_angulars_symmetric_workspace_size_f64_ampere));
+    check("euclideans_packed_f64_ampere_workspace", test_euclideans_packed<f64_t, cuda_backend_t>,
+          nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere,
+          with_workspace(nk_euclideans_packed_f64_ampere, nk_euclideans_packed_workspace_size_f64_ampere));
+    check("euclideans_symmetric_f64_ampere_workspace", test_euclideans_symmetric<f64_t, cuda_backend_t>,
+          with_workspace(nk_euclideans_symmetric_f64_ampere, nk_euclideans_symmetric_workspace_size_f64_ampere));
     check("angulars_packed_f32_ampere", test_angulars_packed<f32_t, cuda_backend_t>, nk_dots_pack_size_f32_ampere,
           nk_dots_pack_f32_ampere, nk_angulars_packed_f32_ampere);
     check("angulars_symmetric_f32_ampere", test_angulars_symmetric<f32_t, cuda_backend_t>,

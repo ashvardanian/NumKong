@@ -909,7 +909,8 @@ static __global__ void __launch_bounds__(nk_attention_threads_k)
     if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_queries_ampere_(&arguments);
     else nk_attention_backward_queries_bf16_cuda_(&arguments);
 }
-nk_define_attention_backward_cuda_(bf16, hopper, bf16, nk_attention_backward_launch_ampere_)
+nk_define_attention_backward_cuda_(bf16, hopper, bf16, nk_attention_backward_launch_ampere_,
+                                   nk_attention_backward_workspace_size_cuda_)
 
 nk_define_attention_pack_size_simt_(e4m3, hopper, 1)
 nk_define_attention_packed_shape_cuda_(e4m3, hopper)

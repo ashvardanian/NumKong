@@ -218,10 +218,10 @@ static error_stats_t test_best_dots_packed_bf16(settings_t const &settings) {
         stats.expect(nk_dots_pack_bf16_best(b.raw_values_data(), columns, depth, row_bytes,
                                             dispatched_pack.raw_values_data(), 0, columns, capability, nullptr));
         stats.expect(packed(a.raw_values_data(), expected_pack.raw_values_data(), expected.raw_values_data(), rows,
-                            columns, depth, row_bytes, c_stride, nullptr));
+                            columns, depth, row_bytes, c_stride, nullptr, 0, nullptr));
         stats.expect(nk_dots_packed_bf16_best(a.raw_values_data(), dispatched_pack.raw_values_data(),
                                               dispatched.raw_values_data(), rows, columns, depth, row_bytes, c_stride,
-                                              capability, nullptr));
+                                              nullptr, 0, capability, nullptr));
         stats.expect(std::memcmp(expected.raw_values_data(), dispatched.raw_values_data(), expected.size_bytes()) == 0,
                      "the dispatch point ran another capability's kernel");
     }
@@ -229,7 +229,7 @@ static error_stats_t test_best_dots_packed_bf16(settings_t const &settings) {
     stats.expect(nk_cuda_capabilities_compiled(&cuda));
     if (!cuda)
         stats.expect(nk_dots_packed_bf16_best(a.raw_values_data(), b.raw_values_data(), expected.raw_values_data(),
-                                              rows, columns, depth, row_bytes, c_stride, nk_cap_cuda_k,
+                                              rows, columns, depth, row_bytes, c_stride, nullptr, 0, nk_cap_cuda_k,
                                               nullptr) == nk_missing_kernel_k,
                      "a GPU mask found a kernel in a binary without one");
     return stats;
@@ -436,14 +436,24 @@ static error_stats_t test_find_kernel(settings_t const &) {
         nk_kernel_dots_packed_k,
         nk_kernel_dots_packed_shape_k,
         nk_kernel_dots_symmetric_k,
+        nk_kernel_dots_packed_workspace_size_k,
+        nk_kernel_dots_symmetric_workspace_size_k,
         nk_kernel_hammings_packed_k,
         nk_kernel_hammings_symmetric_k,
         nk_kernel_jaccards_packed_k,
         nk_kernel_jaccards_symmetric_k,
+        nk_kernel_hammings_packed_workspace_size_k,
+        nk_kernel_hammings_symmetric_workspace_size_k,
+        nk_kernel_jaccards_packed_workspace_size_k,
+        nk_kernel_jaccards_symmetric_workspace_size_k,
         nk_kernel_angulars_packed_k,
         nk_kernel_angulars_symmetric_k,
         nk_kernel_euclideans_packed_k,
         nk_kernel_euclideans_symmetric_k,
+        nk_kernel_angulars_packed_workspace_size_k,
+        nk_kernel_angulars_symmetric_workspace_size_k,
+        nk_kernel_euclideans_packed_workspace_size_k,
+        nk_kernel_euclideans_symmetric_workspace_size_k,
         nk_kernel_maxsim_pack_size_k,
         nk_kernel_maxsim_pack_k,
         nk_kernel_maxsim_packed_k,
@@ -563,7 +573,7 @@ static void test_dispatch_points(error_stats_section_t &check) {
     });
     check("best_dots_packed_bf16", [](settings_t const &settings) {
         return test_missing_library<nk_dots_packed_bf16_best>(settings, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0,
-                                                              nullptr);
+                                                              nullptr, 0, nullptr);
     });
     check("best_reduce_moments_f32", [](settings_t const &settings) {
         return test_missing_library<nk_reduce_moments_f32_best>(settings, nullptr, 0, 0, nullptr, nullptr, nullptr);

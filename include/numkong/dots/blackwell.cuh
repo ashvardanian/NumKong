@@ -3597,10 +3597,17 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
         nk_diagonal_band_t const band = {NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX};                                          \
         nk_cross_tile_##input_type_name##_blackwell_(nk_cross_metric_##metric##_k, band, &arguments);                  \
     }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_##metric##s_packed_workspace_size_##input_type_name##_##isa_suffix(                     \
+        nk_size_t rows, nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {                                   \
+        nk_unused_(rows), nk_unused_(column_count), nk_unused_(depth);                                                 \
+        *bytes = 0;                                                                                                    \
+        return nk_success_k;                                                                                           \
+    }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##metric##s_packed_##input_type_name##_##isa_suffix(                                    \
         nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                          \
         nk_##result_value_type##_t *c_matrix, nk_size_t rows, nk_size_t column_count, nk_size_t depth,                 \
-        nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {                                                  \
+        nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {      \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                            \
         nk_size_t const row_bytes = nk_cross_padded_values_simt_(depth, depth_simd_dimensions, dimensions_per_value,   \
                                                                  sizeof(nk_##packed_value_type##_t)) *                 \
                                     sizeof(nk_##packed_value_type##_t);                                                \
@@ -3625,10 +3632,17 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
         nk_diagonal_band_t const band = {0, NUMKONG_SIZE_MAX};                                                         \
         nk_cross_tile_##input_type_name##_blackwell_(nk_cross_metric_##metric##_k, band, &arguments);                  \
     }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_##metric##s_symmetric_workspace_size_##input_type_name##_##isa_suffix(                  \
+        nk_size_t vector_count, nk_size_t depth, nk_size_t rows_begin, nk_size_t rows_end, nk_size_t *bytes) {         \
+        nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);                     \
+        *bytes = 0;                                                                                                    \
+        return nk_success_k;                                                                                           \
+    }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##metric##s_symmetric_##input_type_name##_##isa_suffix(                                 \
         nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vector_count, nk_size_t depth,        \
         nk_size_t stride, nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t rows_begin,           \
-        nk_size_t rows_end, nk_stream_t stream) {                                                                      \
+        nk_size_t rows_end, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {                          \
+        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                            \
         rows_end = nk_min_of_two(rows_end, vector_count);                                                              \
         nk_cross_operand_t const vectors = nk_cross_operand_serial_(nk_##input_type_name##_k, vectors_operand,         \
                                                                     stride);                                           \

@@ -215,7 +215,8 @@ void dots_f64c_with_blas(f64c_t const *a, f64c_t const *b, f64c_t *c, nk_size_t 
 /** SYRK over all of A into scratch, copying back the upper triangle of only the requested rows. */
 template <typename scalar_type_>
 nk_status_t dots_symmetric_with_blas(scalar_type_ const *a, nk_size_t n, nk_size_t k, nk_size_t a_stride, nk_f64_t *c,
-                                     nk_size_t c_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t) {
+                                     nk_size_t c_stride, nk_size_t rows_begin, nk_size_t rows_end, void *, nk_size_t,
+                                     nk_stream_t) {
     std::vector<scalar_type_> full(n * n);
     int const size = static_cast<int>(n), depth = static_cast<int>(k);
     int const leading_dimension_a = static_cast<int>(a_stride / sizeof(scalar_type_));

@@ -12,7 +12,8 @@
  *  I8 for exact integer MMA, with one output multiply undoing each widening's power of two. F32
  *  widens exactly into F64 for DMMA, whose FMA chains round as the @c cuda tile's scalar ones do.
  *  F64 runs that I8 tile on residues modulo 24 moduli and rounds each rebuilt integer product once,
- *  with its workspace allocated and freed in the caller's stream order.
+ *  with its workspace from the caller, sized by the matching @c workspace_size query, and Dot2
+ *  alone when the caller passes none.
  */
 #ifndef NUMKONG_DOTS_AMPERE_CUH
 #define NUMKONG_DOTS_AMPERE_CUH
@@ -54,6 +55,7 @@ enum {
     nk_cross_depth_floor_f64_ampere_k = 512,
     nk_cross_depth_limit_f64_ampere_k = 32768,
     nk_cross_threads_f64_ampere_k = 256,
+    nk_cross_residue_blocks_f64_ampere_k = 1024,
     nk_cross_tile_outputs_f64_ampere_k = (int)nk_cross_tile_ampere_k * (int)nk_cross_tile_ampere_k,
 };
 
@@ -2998,17 +3000,42 @@ NUMKONG_INLINE void nk_cross_moduli_f64_ampere_(nk_cross_moduli_f64_ampere_t *mo
     moduli->product_inverse = 1.0 / product_value;
 }
 
+/** The bytes of the residue path over rows from @p rows_begin to @p rows_end, zero where Dot2 runs
+ *  alone; the planes, the grid rows and the per-block scratch come out apart, and the flags of the
+ *  tiles follow them. */
+NUMKONG_INLINE nk_size_t nk_cross_workspace_f64_ampere_(int symmetric, nk_size_t rows_begin, nk_size_t rows_end,
+                                                        nk_size_t column_count, nk_size_t depth,
+                                                        nk_size_t *residues_bytes, nk_size_t *rows_bytes,
+                                                        nk_size_t *scratch_bytes) {
+    *residues_bytes = *rows_bytes = *scratch_bytes = 0;
+    if (rows_end <= rows_begin || column_count == 0 || depth < nk_cross_depth_floor_f64_ampere_k ||
+        depth > nk_cross_depth_limit_f64_ampere_k)
+        return 0;
+    nk_size_t const plane_rows = symmetric ? column_count : rows_end + column_count;
+    nk_size_t const plane_bytes = plane_rows * nk_size_round_up_to_multiple_(depth, nk_cross_slab_bytes_ampere_k);
+    nk_size_t const residue_tiles = nk_size_divide_round_up_(rows_end - rows_begin, nk_cross_tile_ampere_k) *
+                                    nk_size_divide_round_up_(column_count, nk_cross_tile_ampere_k);
+    nk_size_t const tiles = nk_size_divide_round_up_(rows_end - rows_begin, nk_cross_tile_simt_k) *
+                            nk_size_divide_round_up_(column_count, nk_cross_tile_simt_k);
+    *residues_bytes = nk_size_round_up_to_multiple_(nk_cross_moduli_f64_ampere_k * plane_bytes, 256);
+    *rows_bytes = nk_size_round_up_to_multiple_(plane_rows * sizeof(nk_cross_grid_row_f64_ampere_t), 256);
+    *scratch_bytes = nk_min_of_two(residue_tiles, (nk_size_t)nk_cross_residue_blocks_f64_ampere_k) *
+                     nk_cross_moduli_f64_ampere_k * nk_cross_tile_outputs_f64_ampere_k;
+    return *residues_bytes + *rows_bytes + *scratch_bytes + tiles;
+}
+
 /** Launches the F64 GEMM over rows from @p rows_begin to @p rows_end: the Dot2 tiles for depths
- *  outside the residue range or when its workspace can't be had, else the grids and residues, their
- *  products and reconstruction, and Dot2 over the tiles that flagged, with the workspace freed
- *  after them in the order of @p stream. */
+ *  outside the residue range or when @p workspace_bytes is zero, else the grids and residues in
+ *  @p workspace, their products and reconstruction, and Dot2 over the tiles that flagged, all in
+ *  the order of @p stream. */
 NUMKONG_INLINE nk_status_t nk_cross_launch_f64_ampere_(nk_cross_metric_t metric, nk_diagonal_band_t band,
                                                        unsigned char const *a, unsigned char const *b,
                                                        void const *b_norms, void *c, nk_size_t rows_begin,
                                                        nk_size_t rows_end, nk_size_t column_count, nk_size_t depth,
                                                        nk_size_t a_stride, nk_size_t b_stride, nk_size_t c_stride,
-                                                       nk_stream_t stream) {
-    if ((((nk_size_t)a) | a_stride | ((nk_size_t)b) | b_stride) & 15 || (((nk_size_t)c) | c_stride) & 7)
+                                                       void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    if ((((nk_size_t)a) | a_stride | ((nk_size_t)b) | b_stride) & 15 || (((nk_size_t)c) | c_stride) & 7 ||
+        ((nk_size_t)workspace) & (nk_default_alignment_k - 1))
         return nk_misaligned_k;
     if (rows_end <= rows_begin || column_count == 0) return nk_success_k;
     int const symmetric = band.subdiagonals == 0;
@@ -3028,9 +3055,13 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_f64_ampere_(nk_cross_metric_t metric,
     arguments.residues = NUMKONG_NULL, arguments.grid_rows = NUMKONG_NULL, arguments.scratch = NUMKONG_NULL;
     arguments.flags = NUMKONG_NULL, arguments.metric = metric, arguments.band = band;
     void const *fallback_kernel = (void const *)nk_cross_fallback_f64_ampere_kernel_;
-    if (depth < nk_cross_depth_floor_f64_ampere_k || depth > nk_cross_depth_limit_f64_ampere_k)
+    nk_size_t residues_bytes, rows_bytes, scratch_bytes;
+    nk_size_t const needed = nk_cross_workspace_f64_ampere_(symmetric, rows_begin, rows_end, column_count, depth,
+                                                            &residues_bytes, &rows_bytes, &scratch_bytes);
+    if (needed == 0 || workspace_bytes == 0)
         return nk_launch_resident_cuda_(fallback_kernel, nk_cross_threads_simt_k, 0, 0, tiles->tiles, &arguments,
                                         stream);
+    if (workspace_bytes < needed) return nk_unexpected_dimensions_k;
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, nk_cross_slab_bytes_ampere_k);
     nk_size_t const plane_rows = symmetric ? column_count : rows_end + column_count;
@@ -3054,21 +3085,8 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_f64_ampere_(nk_cross_metric_t metric,
         return nk_device_code_mismatch_k;
     }
     nk_size_t const resident = (nk_size_t)multiprocessors * (nk_size_t)per_multiprocessor;
-    nk_size_t const residue_blocks = resident < arguments.residue_tiles ? resident : arguments.residue_tiles;
-    nk_size_t const residues_bytes = nk_size_round_up_to_multiple_(nk_cross_moduli_f64_ampere_k * arguments.plane_bytes,
-                                                                   256);
-    nk_size_t const rows_bytes = nk_size_round_up_to_multiple_(plane_rows * sizeof(nk_cross_grid_row_f64_ampere_t),
-                                                               256);
-    nk_size_t const scratch_bytes = residue_blocks * nk_cross_moduli_f64_ampere_k * nk_cross_tile_outputs_f64_ampere_k;
-    void *workspace = NUMKONG_NULL;
-    cudaError_t const allocated = cudaMallocAsync(
-        &workspace, residues_bytes + rows_bytes + scratch_bytes + tiles->tiles, (cudaStream_t)stream);
-    if (allocated != cudaSuccess) {
-        cudaGetLastError();
-        nk_device_leave_cuda_(caller);
-        return nk_launch_resident_cuda_(fallback_kernel, nk_cross_threads_simt_k, 0, 0, tiles->tiles, &arguments,
-                                        stream);
-    }
+    nk_size_t const residue_blocks = nk_min_of_two(
+        nk_min_of_two(resident, (nk_size_t)nk_cross_residue_blocks_f64_ampere_k), arguments.residue_tiles);
     arguments.residues = (unsigned char *)workspace;
     arguments.grid_rows = (nk_cross_grid_row_f64_ampere_t *)(arguments.residues + residues_bytes);
     arguments.scratch = arguments.residues + residues_bytes + rows_bytes;
@@ -3103,10 +3121,6 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_f64_ampere_(nk_cross_metric_t metric,
     if (status == nk_success_k)
         status = nk_launch_resident_cuda_(fallback_kernel, nk_cross_threads_simt_k, 0, 0, tiles->tiles, &arguments,
                                           stream);
-    if (nk_device_enter_cuda_(stream, &caller) == nk_success_k) {
-        cudaFreeAsync(workspace, (cudaStream_t)stream);
-        nk_device_leave_cuda_(caller);
-    }
     return status;
 }
 
@@ -3114,25 +3128,46 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_f64_ampere_(nk_cross_metric_t metric,
 NUMKONG_INLINE nk_status_t nk_cross_packed_f64_ampere_(nk_cross_metric_t metric, nk_f64_t const *a,
                                                        void const *b_packed, nk_f64_t *c, nk_size_t rows,
                                                        nk_size_t column_count, nk_size_t depth, nk_size_t a_stride,
-                                                       nk_size_t c_stride, nk_stream_t stream) {
+                                                       nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes,
+                                                       nk_stream_t stream) {
     nk_size_t const row_bytes = nk_cross_padded_values_simt_(depth, 2, 1, sizeof(nk_f64_t)) * sizeof(nk_f64_t);
     unsigned char const *b_rows = (unsigned char const *)((nk_cross_packed_buffer_header_t const *)b_packed + 1);
     nk_diagonal_band_t const band = {NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX};
     return nk_cross_launch_f64_ampere_(metric, band, (unsigned char const *)a, b_rows,
                                        b_rows + column_count * row_bytes, c, 0, rows, column_count, depth, a_stride,
-                                       row_bytes, c_stride, stream);
+                                       row_bytes, c_stride, workspace, workspace_bytes, stream);
+}
+
+/** The workspace bytes of @c nk_cross_packed_f64_ampere_, zero where Dot2 runs alone. */
+NUMKONG_INLINE nk_status_t nk_cross_workspace_packed_f64_ampere_(nk_size_t rows, nk_size_t column_count,
+                                                                 nk_size_t depth, nk_size_t *bytes) {
+    nk_size_t residues_bytes, rows_bytes, scratch_bytes;
+    *bytes = nk_cross_workspace_f64_ampere_(0, 0, rows, column_count, depth, &residues_bytes, &rows_bytes,
+                                            &scratch_bytes);
+    return nk_success_k;
+}
+
+/** The workspace bytes of @c nk_cross_symmetric_f64_ampere_, zero where Dot2 runs alone. */
+NUMKONG_INLINE nk_status_t nk_cross_workspace_symmetric_f64_ampere_(nk_size_t vector_count, nk_size_t depth,
+                                                                    nk_size_t rows_begin, nk_size_t rows_end,
+                                                                    nk_size_t *bytes) {
+    nk_size_t residues_bytes, rows_bytes, scratch_bytes;
+    *bytes = nk_cross_workspace_f64_ampere_(1, rows_begin, nk_min_of_two(rows_end, vector_count), vector_count, depth,
+                                            &residues_bytes, &rows_bytes, &scratch_bytes);
+    return nk_success_k;
 }
 
 /** The Gram matrix of F64 vectors, or its distances, over rows @p rows_begin to @p rows_end. */
 NUMKONG_INLINE nk_status_t nk_cross_symmetric_f64_ampere_(nk_cross_metric_t metric, nk_f64_t const *vectors,
                                                           nk_size_t vector_count, nk_size_t depth, nk_size_t stride,
                                                           nk_f64_t *result, nk_size_t result_stride,
-                                                          nk_size_t rows_begin, nk_size_t rows_end,
-                                                          nk_stream_t stream) {
+                                                          nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+                                                          nk_size_t workspace_bytes, nk_stream_t stream) {
     nk_diagonal_band_t const band = {0, NUMKONG_SIZE_MAX};
     return nk_cross_launch_f64_ampere_(metric, band, (unsigned char const *)vectors, (unsigned char const *)vectors,
                                        NUMKONG_NULL, result, rows_begin, nk_min_of_two(rows_end, vector_count),
-                                       vector_count, depth, stride, stride, result_stride, stream);
+                                       vector_count, depth, stride, stride, result_stride, workspace, workspace_bytes,
+                                       stream);
 }
 
 nk_define_cross_pack_size_simt_(f64, ampere, f64, f64, /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
@@ -3140,18 +3175,31 @@ nk_define_cross_packed_shape_cuda_(f64, ampere)
 nk_define_cross_pack_rows_cuda_(f64, ampere, f64, f64, nk_load_b8_simt_, f64, nk_f64_lane_sumsq_cuda_,
                                 /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
 
+NUMKONG_API nk_status_t nk_dots_packed_workspace_size_f64_ampere(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                 nk_size_t *bytes) {
+    return nk_cross_workspace_packed_f64_ampere_(rows, columns, depth, bytes);
+}
+
 NUMKONG_API nk_status_t nk_dots_packed_f64_ampere(nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
                                                   nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
-                                                  nk_size_t c_stride, nk_stream_t stream) {
+                                                  nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes,
+                                                  nk_stream_t stream) {
     return nk_cross_packed_f64_ampere_(nk_cross_metric_dot_k, a, b_packed, c, rows, columns, depth, a_stride, c_stride,
-                                       stream);
+                                       workspace, workspace_bytes, stream);
+}
+
+NUMKONG_API nk_status_t nk_dots_symmetric_workspace_size_f64_ampere(nk_size_t vector_count, nk_size_t depth,
+                                                                    nk_size_t rows_begin, nk_size_t rows_end,
+                                                                    nk_size_t *bytes) {
+    return nk_cross_workspace_symmetric_f64_ampere_(vector_count, depth, rows_begin, rows_end, bytes);
 }
 
 NUMKONG_API nk_status_t nk_dots_symmetric_f64_ampere(nk_f64_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                      nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
-                                                     nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+                                                     nk_size_t rows_begin, nk_size_t rows_end, void *workspace,
+                                                     nk_size_t workspace_bytes, nk_stream_t stream) {
     return nk_cross_symmetric_f64_ampere_(nk_cross_metric_dot_k, vectors, vector_count, depth, stride, result,
-                                          result_stride, rows_begin, rows_end, stream);
+                                          result_stride, rows_begin, rows_end, workspace, workspace_bytes, stream);
 }
 
 #pragma endregion F64

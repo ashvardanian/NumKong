@@ -75,7 +75,7 @@ Query gradient rows take their own `query_gradient_stride`, and key and value gr
 Block-scaled gradients are taken with respect to the decoded values.
 
 The one exception is the Blackwell single pass for BF16, which adds $dQ$ partials in completion order, so the low bits of $dQ$ may differ between runs while $dK$ and $dV$ stay deterministic.
-It allocates a workspace of `query_token_count` × `head_count` × (2 × `depth` + 4) bytes on the caller's stream and frees it after the kernels, which keeps graph capture working; a caller that synchronizes between calls lets the default memory pool unmap it, unless `cudaMemPoolAttrReleaseThreshold` is raised.
+It runs over a caller's workspace of `query_token_count` × `head_count` × (2 × `depth` + 4) bytes, which `nk_attention_packed_gradients_workspace_size_bf16_best` reports, so the library allocates nothing and a captured graph holds no allocation; a call without one takes the two-pass path.
 
 ## Optimizations
 
@@ -100,7 +100,7 @@ Scores sum each query block in F32 and add the blocks into a wide sum, so query 
 ### Split Decode for Short Outputs
 
 A decode call has fewer rows than the GPU has cores, so the GPUs split each row's keys and merge the partial maxima, sums and weighted values in a fixed order, keeping results identical between runs.
-Blackwell pairs blocks in a cluster that merges through distributed shared memory when a call has at most half as many items as multiprocessors, and Metal cuts calls of at most four rows against 512 keys or more into 16 partitions.
+Blackwell pairs blocks in a cluster that merges through distributed shared memory when a call has at most half as many items as multiprocessors, and Metal cuts calls of at most four rows against 512 keys or more into 16 partitions, in the workspace `nk_attention_packed_workspace_size_*` reports.
 
 ### U8-Quantized Probabilities for INT8
 

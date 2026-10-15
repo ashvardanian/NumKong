@@ -1772,6 +1772,7 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_i8_ampere_(
  *  tensor cores or for the device's shared memory. */
 NUMKONG_INLINE nk_status_t nk_attention_backward_launch_ampere_(void const *keys_kernel, void const *queries_kernel,
                                                                 nk_attention_backward_arguments_t arguments,
+                                                                void *workspace, nk_size_t workspace_bytes,
                                                                 nk_stream_t stream) {
     nk_size_t const shared_bytes = nk_attention_backward_shared_ampere_(arguments.depth);
     int shared_limit = 0;
@@ -1779,7 +1780,8 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_ampere_(void const *keys
                                                          stream);
     if (status != nk_success_k) return status;
     if (arguments.depth > nk_attention_backward_depth_ampere_k || shared_bytes > (nk_size_t)shared_limit)
-        return nk_attention_backward_launch_cuda_(keys_kernel, queries_kernel, arguments, stream);
+        return nk_attention_backward_launch_cuda_(keys_kernel, queries_kernel, arguments, workspace, workspace_bytes,
+                                                  stream);
     return nk_attention_backward_launch_kernels_cuda_(NUMKONG_NULL, keys_kernel, queries_kernel, nk_attention_threads_k,
                                                       shared_bytes, shared_bytes, NUMKONG_SIZE_MAX, arguments, stream);
 }
@@ -1808,7 +1810,8 @@ static __global__ void __launch_bounds__(nk_attention_threads_k)
     if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_queries_ampere_(&arguments);
     else nk_attention_backward_queries_bf16_cuda_(&arguments);
 }
-nk_define_attention_backward_cuda_(bf16, ampere, bf16, nk_attention_backward_launch_ampere_)
+nk_define_attention_backward_cuda_(bf16, ampere, bf16, nk_attention_backward_launch_ampere_,
+                                   nk_attention_backward_workspace_size_cuda_)
 
 nk_define_attention_pack_size_simt_(f16, ampere, 2)
 nk_define_attention_packed_shape_cuda_(f16, ampere)

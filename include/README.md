@@ -687,12 +687,18 @@ Each vendor's baseline, `nk_cap_cuda_k`, `nk_cap_rocm_k`, or `nk_cap_metal_k`, p
 A GPU capability, like `nk_dots_packed_bf16_ampere`, takes its CPU twin's arguments, queues on the trailing stream — a `cudaStream_t`, a `hipStream_t`, or an `id<MTLCommandQueue>`, with null for the default one — and returns without waiting.
 Only the capability queries take an ordinal; the stream names the device for everything else.
 `nk_memory_allocate_unified_best` and `nk_memory_free_unified_best` hand out and return memory the host and that device both address, and `nk_stream_synchronize_best` waits for the stream.
+Batched kernels that may need scratch, like the packed and symmetric families and attention, take a `workspace, workspace_bytes` pair before the capabilities and never allocate.
+Their `*_workspace_size_*` twin reports the bytes from the shapes alone, and a zero-byte workspace runs the scratch-free path where the capability has one.
 
 ```c
-nk_size_t devices = 0;
+nk_size_t devices = 0, workspace_bytes = 0;
 nk_capability_t gpu = 0;
 if (nk_cuda_count_devices(&devices) == nk_success_k && nk_cuda_capabilities_enabled(0, &gpu) == nk_success_k) {
-    nk_dots_packed_bf16_best(a, b_packed, c, rows, columns, depth, a_stride, c_stride, gpu, cuda_stream);
+    nk_dots_packed_workspace_size_f64_best(rows, columns, depth, gpu, &workspace_bytes);
+    void *workspace = NULL;
+    nk_memory_allocate_unified_best(workspace_bytes, &workspace, gpu, cuda_stream);
+    nk_dots_packed_f64_best(a, b_packed, c, rows, columns, depth, a_stride, c_stride, workspace, workspace_bytes, gpu,
+                            cuda_stream);
     nk_stream_synchronize_best(gpu, cuda_stream);
 }
 ```

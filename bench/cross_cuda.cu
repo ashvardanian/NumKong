@@ -279,7 +279,8 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
 #if NUMKONG_TARGET_AMPERE
     if (!(enabled & nk_cap_ampere_k)) return;
     run_dots_packed<nk_f64_k>(env, "dots_packed_f64_ampere", nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere,
-                              nk_dots_packed_f64_ampere, backend);
+                              with_workspace(nk_dots_packed_f64_ampere, nk_dots_packed_workspace_size_f64_ampere),
+                              backend);
     run_dots_packed<nk_f32_k>(env, "dots_packed_f32_ampere", nk_dots_pack_size_f32_ampere, nk_dots_pack_f32_ampere,
                               nk_dots_packed_f32_ampere, backend);
     run_dots_packed<nk_bf16_k>(env, "dots_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere, nk_dots_pack_bf16_ampere,
@@ -313,7 +314,9 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_dots_packed<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_ampere", nk_dots_pack_size_mxfp8e5m2_ampere,
                                     nk_dots_pack_mxfp8e5m2_ampere, nk_dots_packed_mxfp8e5m2_ampere, backend);
 
-    run_dots_symmetric<nk_f64_k>(env, "dots_symmetric_f64_ampere", nk_dots_symmetric_f64_ampere, backend);
+    run_dots_symmetric<nk_f64_k>(
+        env, "dots_symmetric_f64_ampere",
+        with_workspace(nk_dots_symmetric_f64_ampere, nk_dots_symmetric_workspace_size_f64_ampere), backend);
     run_dots_symmetric<nk_f32_k>(env, "dots_symmetric_f32_ampere", nk_dots_symmetric_f32_ampere, backend);
     run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_ampere", nk_dots_symmetric_bf16_ampere, backend);
     run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_ampere", nk_dots_symmetric_f16_ampere, backend);
@@ -333,8 +336,9 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_dots_symmetric<nk_mxfp8e5m2_k>(env, "dots_symmetric_mxfp8e5m2_ampere", nk_dots_symmetric_mxfp8e5m2_ampere,
                                        backend);
 
-    run_angulars_packed<nk_f64_k>(env, "angulars_packed_f64_ampere", nk_dots_pack_size_f64_ampere,
-                                  nk_dots_pack_f64_ampere, nk_angulars_packed_f64_ampere, backend);
+    run_angulars_packed<nk_f64_k>(
+        env, "angulars_packed_f64_ampere", nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere,
+        with_workspace(nk_angulars_packed_f64_ampere, nk_angulars_packed_workspace_size_f64_ampere), backend);
     run_angulars_packed<nk_f32_k>(env, "angulars_packed_f32_ampere", nk_dots_pack_size_f32_ampere,
                                   nk_dots_pack_f32_ampere, nk_angulars_packed_f32_ampere, backend);
     run_angulars_packed<nk_bf16_k>(env, "angulars_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere,
@@ -360,7 +364,9 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_angulars_packed<nk_u4_k>(env, "angulars_packed_u4_ampere", nk_dots_pack_size_u4_ampere, nk_dots_pack_u4_ampere,
                                  nk_angulars_packed_u4_ampere, backend);
 
-    run_angulars_symmetric<nk_f64_k>(env, "angulars_symmetric_f64_ampere", nk_angulars_symmetric_f64_ampere, backend);
+    run_angulars_symmetric<nk_f64_k>(
+        env, "angulars_symmetric_f64_ampere",
+        with_workspace(nk_angulars_symmetric_f64_ampere, nk_angulars_symmetric_workspace_size_f64_ampere), backend);
     run_angulars_symmetric<nk_f32_k>(env, "angulars_symmetric_f32_ampere", nk_angulars_symmetric_f32_ampere, backend);
     run_angulars_symmetric<nk_bf16_k>(env, "angulars_symmetric_bf16_ampere", nk_angulars_symmetric_bf16_ampere,
                                       backend);
@@ -380,8 +386,9 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_angulars_symmetric<nk_u8_k>(env, "angulars_symmetric_u8_ampere", nk_angulars_symmetric_u8_ampere, backend);
     run_angulars_symmetric<nk_u4_k>(env, "angulars_symmetric_u4_ampere", nk_angulars_symmetric_u4_ampere, backend);
 
-    run_euclideans_packed<nk_f64_k>(env, "euclideans_packed_f64_ampere", nk_dots_pack_size_f64_ampere,
-                                    nk_dots_pack_f64_ampere, nk_euclideans_packed_f64_ampere, backend);
+    run_euclideans_packed<nk_f64_k>(
+        env, "euclideans_packed_f64_ampere", nk_dots_pack_size_f64_ampere, nk_dots_pack_f64_ampere,
+        with_workspace(nk_euclideans_packed_f64_ampere, nk_euclideans_packed_workspace_size_f64_ampere), backend);
     run_euclideans_packed<nk_f32_k>(env, "euclideans_packed_f32_ampere", nk_dots_pack_size_f32_ampere,
                                     nk_dots_pack_f32_ampere, nk_euclideans_packed_f32_ampere, backend);
     run_euclideans_packed<nk_bf16_k>(env, "euclideans_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere,
@@ -407,8 +414,9 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_euclideans_packed<nk_u4_k>(env, "euclideans_packed_u4_ampere", nk_dots_pack_size_u4_ampere,
                                    nk_dots_pack_u4_ampere, nk_euclideans_packed_u4_ampere, backend);
 
-    run_euclideans_symmetric<nk_f64_k>(env, "euclideans_symmetric_f64_ampere", nk_euclideans_symmetric_f64_ampere,
-                                       backend);
+    run_euclideans_symmetric<nk_f64_k>(
+        env, "euclideans_symmetric_f64_ampere",
+        with_workspace(nk_euclideans_symmetric_f64_ampere, nk_euclideans_symmetric_workspace_size_f64_ampere), backend);
     run_euclideans_symmetric<nk_f32_k>(env, "euclideans_symmetric_f32_ampere", nk_euclideans_symmetric_f32_ampere,
                                        backend);
     run_euclideans_symmetric<nk_bf16_k>(env, "euclideans_symmetric_bf16_ampere", nk_euclideans_symmetric_bf16_ampere,
@@ -1118,8 +1126,8 @@ void run_dots_with_cublaslt(environment_t const &env, std::string const &name, c
         return print_skipped(env, name, cublasLtGetStatusName(status));
     run_unpacked<input_dtype_, output_type_>(
         env, name, dot_compensated_f64,
-        [plan](auto a, void const *b, void *c, std::size_t, std::size_t, std::size_t, std::size_t, std::size_t,
-               nk_stream_t stream) { return plan->launch(operand_codes(a), b, c, (cudaStream_t)stream); },
+        [plan](auto a, void const *b, void *c, std::size_t, std::size_t, std::size_t, std::size_t, std::size_t, void *,
+               std::size_t, nk_stream_t stream) { return plan->launch(operand_codes(a), b, c, (cudaStream_t)stream); },
         backend);
 }
 
@@ -1135,7 +1143,7 @@ void run_dots_f64_with_cublas(environment_t const &env, std::string const &name,
     run_unpacked<nk_f64_k, nk::f64_t>(
         env, name, dot_compensated_f64,
         [handle](void const *a, void const *b, void *c, std::size_t rows, std::size_t columns, std::size_t depth,
-                 std::size_t a_stride, std::size_t, nk_stream_t stream) {
+                 std::size_t a_stride, std::size_t, void *, std::size_t, nk_stream_t stream) {
             double const alpha = 1, beta = 0;
             cublasSetStream(handle.get(), (cudaStream_t)stream);
             cublasStatus_t const status = cublasGemmEx(
@@ -1553,7 +1561,7 @@ void run_spatials_with_cuvs(environment_t const &env, std::string const &name, e
         env, name, compute_expected,
         [resources, distance, bits, ordinal = static_cast<int>(backend.device.ordinal())](
             void const *a, void const *b, void *c, std::size_t rows, std::size_t columns, std::size_t depth,
-            std::size_t a_stride, std::size_t, nk_stream_t stream) {
+            std::size_t a_stride, std::size_t, void *, std::size_t, nk_stream_t stream) {
             if (a_stride * 8 != depth * bits) return cudaErrorInvalidPitchValue;
             std::int64_t a_shape[2] = {std::int64_t(rows), std::int64_t(depth)};
             std::int64_t b_shape[2] = {std::int64_t(columns), std::int64_t(depth)};
