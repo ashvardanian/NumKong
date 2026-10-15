@@ -110,24 +110,6 @@ NUMKONG_INLINE nk_status_t nk_shapes_memset_cuda_(void *pointer, int value, nk_s
 
 #pragma region Packs
 
-/** The x array of a pack of f32 points, with the elements from each axis to the next. */
-NUMKONG_DEVICE nk_f32_t const *nk_shapes_packed_axes_f32_cuda_(void const *packed, nk_size_t *axis_stride) {
-    nk_size_t const points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)packed)->points;
-    nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
-                                                                 nk_shapes_alignment_k_);
-    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f32_t), nk_shapes_alignment_k_) / sizeof(nk_f32_t);
-    return (nk_f32_t const *)((char const *)packed + header_bytes);
-}
-
-/** The x array of a pack of f16 points, with the elements from each axis to the next. */
-NUMKONG_DEVICE nk_f16_t const *nk_shapes_packed_axes_f16_cuda_(void const *packed, nk_size_t *axis_stride) {
-    nk_size_t const points = ((nk_shapes_packed_header_f32_t const *)packed)->points;
-    nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
-                                                                 nk_shapes_alignment_k_);
-    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k_) / sizeof(nk_f16_t);
-    return (nk_f16_t const *)((char const *)packed + header_bytes);
-}
-
 /** Whether the column pack of an f32 pair goes first in the canonical order of
  *  @c nk_shapes_column_first_f32_serial_ : by points, spreads, radius and then bytes. */
 NUMKONG_DEVICE int nk_shapes_column_first_f32_cuda_(void const *row_packed, void const *column_packed) {
@@ -360,8 +342,8 @@ static __global__ void nk_wassersteinprocrustes_packed_f32_cuda_kernel_(
                                    ((nk_shapes_packed_header_f64_t const *)column_pack)->max_radius;
             network.tolerance = radii * radii * 1e-12;
             nk_size_t row_stride, column_stride;
-            nk_f32_t const *row_axes = nk_shapes_packed_axes_f32_cuda_(row_pack, &row_stride);
-            nk_f32_t const *column_axes = nk_shapes_packed_axes_f32_cuda_(column_pack, &column_stride);
+            nk_f32_t const *row_axes = nk_shapes_packed_axes_f32_simt_(row_pack, &row_stride);
+            nk_f32_t const *column_axes = nk_shapes_packed_axes_f32_simt_(column_pack, &column_stride);
             nk_u32_t *saved_plan = schedule.gromov ? (nk_u32_t *)(slot + schedule.plans_offset) + flip * 3 * plan_arcs
                                                    : NUMKONG_NULL;
             nk_shapes_load_rows_f32_simt_(&points, row_axes, row_stride, rows);
@@ -404,8 +386,8 @@ static __global__ void nk_wassersteinprocrustes_packed_f16_cuda_kernel_(
                                    ((nk_shapes_packed_header_f32_t const *)column_pack)->max_radius;
             network.tolerance = (nk_f64_t)(radii * radii) * 1e-12;
             nk_size_t row_stride, column_stride;
-            nk_f16_t const *row_axes = nk_shapes_packed_axes_f16_cuda_(row_pack, &row_stride);
-            nk_f16_t const *column_axes = nk_shapes_packed_axes_f16_cuda_(column_pack, &column_stride);
+            nk_f16_t const *row_axes = nk_shapes_packed_axes_f16_simt_(row_pack, &row_stride);
+            nk_f16_t const *column_axes = nk_shapes_packed_axes_f16_simt_(column_pack, &column_stride);
             nk_u32_t *saved_plan = schedule.gromov ? (nk_u32_t *)(slot + schedule.plans_offset) + flip * 3 * plan_arcs
                                                    : NUMKONG_NULL;
             nk_shapes_load_rows_f16_simt_(&points, row_axes, row_stride, rows);
@@ -619,8 +601,8 @@ static __global__ void nk_gromovwassersteins_packed_f32_cuda_kernel_(
             nk_shapes_gromov_carve_simt_(slot + schedule.gromov_offset + start * schedule.gromov_stride,
                                          schedule.largest, &gromov);
             nk_size_t row_stride, column_stride;
-            nk_f32_t const *row_axes = nk_shapes_packed_axes_f32_cuda_(row_pack, &row_stride);
-            nk_f32_t const *column_axes = nk_shapes_packed_axes_f32_cuda_(column_pack, &column_stride);
+            nk_f32_t const *row_axes = nk_shapes_packed_axes_f32_simt_(row_pack, &row_stride);
+            nk_f32_t const *column_axes = nk_shapes_packed_axes_f32_simt_(column_pack, &column_stride);
             nk_shapes_distances_f32_simt_(row_axes, row_stride, rows, gromov.row_distances);
             nk_shapes_distances_f32_simt_(column_axes, column_stride, columns, gromov.column_distances);
             nk_f64_t const row_spread = nk_shapes_distance_spread_simt_(&network, gromov.row_distances, rows);
@@ -671,8 +653,8 @@ static __global__ void nk_gromovwassersteins_packed_f16_cuda_kernel_(
             nk_shapes_gromov_carve_simt_(slot + schedule.gromov_offset + start * schedule.gromov_stride,
                                          schedule.largest, &gromov);
             nk_size_t row_stride, column_stride;
-            nk_f16_t const *row_axes = nk_shapes_packed_axes_f16_cuda_(row_pack, &row_stride);
-            nk_f16_t const *column_axes = nk_shapes_packed_axes_f16_cuda_(column_pack, &column_stride);
+            nk_f16_t const *row_axes = nk_shapes_packed_axes_f16_simt_(row_pack, &row_stride);
+            nk_f16_t const *column_axes = nk_shapes_packed_axes_f16_simt_(column_pack, &column_stride);
             nk_shapes_distances_f16_simt_(row_axes, row_stride, rows, gromov.row_distances);
             nk_shapes_distances_f16_simt_(column_axes, column_stride, columns, gromov.column_distances);
             nk_f64_t const row_spread = nk_shapes_distance_spread_simt_(&network, gromov.row_distances, rows);
@@ -783,6 +765,206 @@ NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f16_cuda(void const *const 
 
 #pragma endregion Gromov Wasserstein
 #endif // NUMKONG_TARGET_CUDA
+
+#pragma region Chamfer and Hausdorff
+
+/** The Chamfer distance between two packs of F32 points on a whole warp. Every lane calls with the
+ *  same packs and its own @p lane , the lanes split each cloud's points, and the warp sums their
+ *  nearest distances. Distances up to @p limit are exact; past it, the warp may stop early and
+ *  return a lower bound that also lies past @p limit . */
+NUMKONG_DEVICE nk_f64_t nk_chamfer_warp_packed_f32_cuda_(void const *a_packed, void const *b_packed, nk_f64_t limit,
+                                                         unsigned lane) {
+    nk_size_t const a_count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)a_packed)->points;
+    nk_size_t const b_count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)b_packed)->points;
+    if (!a_count || !b_count) return a_count == b_count ? 0 : NUMKONG_F64_INF;
+    nk_size_t a_stride, b_stride;
+    nk_f32_t const *a_axes = nk_shapes_packed_axes_f32_simt_(a_packed, &a_stride);
+    nk_f32_t const *b_axes = nk_shapes_packed_axes_f32_simt_(b_packed, &b_stride);
+    // Per flip, the finished directions' mean distances: F/n after one, F/n + B/m after both
+    nk_f64_t means[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    for (int direction = 0; direction != 2; ++direction) {
+        nk_f32_t const *outer_axes = direction ? b_axes : a_axes, *inner_axes = direction ? a_axes : b_axes;
+        nk_size_t const outer_stride = direction ? b_stride : a_stride, inner_stride = direction ? a_stride : b_stride;
+        nk_size_t const outer_count = direction ? b_count : a_count, inner_count = direction ? a_count : b_count;
+        nk_f64_t const count = (nk_f64_t)outer_count;
+        nk_f64_t sums[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+        for (nk_size_t first = 0; first < outer_count; first += 32) {
+            nk_size_t const point = first + lane;
+            nk_f64_t distances[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+            if (point < outer_count) {
+                nk_shapes_nearest_squares_f32_simt_(outer_axes[point], outer_axes[outer_stride + point],
+                                                    outer_axes[2 * outer_stride + point], inner_axes, inner_stride,
+                                                    inner_count, distances);
+                for (int flip = 0; flip != 8; ++flip) distances[flip] = __dsqrt_rn(distances[flip]);
+            }
+            int exceeded = 1;
+            for (int flip = 0; flip != 8; ++flip) {
+                for (unsigned offset = 16; offset; offset >>= 1)
+                    distances[flip] += nk_shuffle_xor_f64_cuda_(distances[flip], offset);
+                sums[flip] += distances[flip];
+                exceeded &= sums[flip] > (2 * limit - means[flip]) * count;
+            }
+            if (!exceeded) continue;
+            nk_f64_t partial = NUMKONG_F64_INF;
+            for (int flip = 0; flip != 8; ++flip) {
+                nk_f64_t const chamfer = (means[flip] + sums[flip] / count) / 2;
+                partial = chamfer < partial ? chamfer : partial;
+            }
+            if (partial > limit) return partial;
+        }
+        for (int flip = 0; flip != 8; ++flip) means[flip] += sums[flip] / count;
+    }
+    nk_f64_t best = means[0] / 2;
+    for (int flip = 1; flip != 8; ++flip) best = means[flip] / 2 < best ? means[flip] / 2 : best;
+    return best;
+}
+
+/** The Chamfer distance between two packs of F16 points on a whole warp. Every lane calls with the
+ *  same packs and its own @p lane , the lanes split each cloud's points, and the warp sums their
+ *  nearest distances. Distances up to @p limit are exact; past it, the warp may stop early and
+ *  return a lower bound that also lies past @p limit . */
+NUMKONG_DEVICE nk_f32_t nk_chamfer_warp_packed_f16_cuda_(void const *a_packed, void const *b_packed, nk_f32_t limit,
+                                                         unsigned lane) {
+    nk_size_t const a_count = ((nk_shapes_packed_header_f32_t const *)a_packed)->points;
+    nk_size_t const b_count = ((nk_shapes_packed_header_f32_t const *)b_packed)->points;
+    if (!a_count || !b_count) return a_count == b_count ? 0 : NUMKONG_F32_INF;
+    nk_size_t a_stride, b_stride;
+    nk_f16_t const *a_axes = nk_shapes_packed_axes_f16_simt_(a_packed, &a_stride);
+    nk_f16_t const *b_axes = nk_shapes_packed_axes_f16_simt_(b_packed, &b_stride);
+    // Per flip, the finished directions' mean distances: F/n after one, F/n + B/m after both
+    nk_f32_t means[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    for (int direction = 0; direction != 2; ++direction) {
+        nk_f16_t const *outer_axes = direction ? b_axes : a_axes, *inner_axes = direction ? a_axes : b_axes;
+        nk_size_t const outer_stride = direction ? b_stride : a_stride, inner_stride = direction ? a_stride : b_stride;
+        nk_size_t const outer_count = direction ? b_count : a_count, inner_count = direction ? a_count : b_count;
+        nk_f32_t const count = (nk_f32_t)outer_count;
+        nk_f32_t sums[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+        for (nk_size_t first = 0; first < outer_count; first += 32) {
+            nk_size_t const point = first + lane;
+            nk_f32_t distances[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+            if (point < outer_count) {
+                nk_shapes_nearest_squares_f16_simt_(
+                    nk_shapes_coordinate_f16_simt_(outer_axes + point),
+                    nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
+                    nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point), inner_axes, inner_stride,
+                    inner_count, distances);
+                for (int flip = 0; flip != 8; ++flip) distances[flip] = __fsqrt_rn(distances[flip]);
+            }
+            int exceeded = 1;
+            for (int flip = 0; flip != 8; ++flip) {
+                for (unsigned offset = 16; offset; offset >>= 1)
+                    distances[flip] += nk_shuffle_xor_f32_cuda_(distances[flip], offset);
+                sums[flip] += distances[flip];
+                exceeded &= sums[flip] > (2 * limit - means[flip]) * count;
+            }
+            if (!exceeded) continue;
+            nk_f32_t partial = NUMKONG_F32_INF;
+            for (int flip = 0; flip != 8; ++flip) {
+                nk_f32_t const chamfer = (means[flip] + sums[flip] / count) / 2;
+                partial = chamfer < partial ? chamfer : partial;
+            }
+            if (partial > limit) return partial;
+        }
+        for (int flip = 0; flip != 8; ++flip) means[flip] += sums[flip] / count;
+    }
+    nk_f32_t best = means[0] / 2;
+    for (int flip = 1; flip != 8; ++flip) best = means[flip] / 2 < best ? means[flip] / 2 : best;
+    return best;
+}
+
+/** The Hausdorff distance between two packs of F32 points on a whole warp. Every lane calls with
+ *  the same packs and its own @p lane , the lanes split each cloud's points, and the warp keeps the
+ *  farthest nearest square. Distances up to @p limit are exact; past it, the warp may return early,
+ *  even before reading a point, with a lower bound that also lies past @p limit . */
+NUMKONG_DEVICE nk_f64_t nk_hausdorff_warp_packed_f32_cuda_(void const *a_packed, void const *b_packed, nk_f64_t limit,
+                                                           unsigned lane) {
+    nk_size_t const a_count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)a_packed)->points;
+    nk_size_t const b_count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)b_packed)->points;
+    if (!a_count || !b_count) return a_count == b_count ? 0 : NUMKONG_F64_INF;
+    nk_f64_t const bound = nk_hausdorff_bound_packed_f32_simt_(a_packed, b_packed);
+    if (bound > limit) return bound;
+    nk_size_t a_stride, b_stride;
+    nk_f32_t const *a_axes = nk_shapes_packed_axes_f32_simt_(a_packed, &a_stride);
+    nk_f32_t const *b_axes = nk_shapes_packed_axes_f32_simt_(b_packed, &b_stride);
+    nk_f64_t const limit_squared = limit * limit;
+    nk_f64_t farthest[8] = {0, 0, 0, 0, 0, 0, 0, 0}, nearest[8];
+    for (int direction = 0; direction != 2; ++direction) {
+        nk_f32_t const *outer_axes = direction ? b_axes : a_axes, *inner_axes = direction ? a_axes : b_axes;
+        nk_size_t const outer_stride = direction ? b_stride : a_stride, inner_stride = direction ? a_stride : b_stride;
+        nk_size_t const outer_count = direction ? b_count : a_count, inner_count = direction ? a_count : b_count;
+        for (nk_size_t first = 0; first < outer_count; first += 32) {
+            nk_size_t const point = first + lane;
+            if (point < outer_count) {
+                nk_shapes_nearest_squares_f32_simt_(outer_axes[point], outer_axes[outer_stride + point],
+                                                    outer_axes[2 * outer_stride + point], inner_axes, inner_stride,
+                                                    inner_count, nearest);
+                for (int flip = 0; flip != 8; ++flip)
+                    farthest[flip] = nearest[flip] > farthest[flip] ? nearest[flip] : farthest[flip];
+            }
+            nk_f64_t least = NUMKONG_F64_INF;
+            for (int flip = 0; flip != 8; ++flip) {
+                for (unsigned offset = 16; offset; offset >>= 1) {
+                    nk_f64_t const other = nk_shuffle_xor_f64_cuda_(farthest[flip], offset);
+                    farthest[flip] = other > farthest[flip] ? other : farthest[flip];
+                }
+                least = farthest[flip] < least ? farthest[flip] : least;
+            }
+            if (least > limit_squared && __dsqrt_rn(least) > limit) return __dsqrt_rn(least);
+        }
+    }
+    nk_f64_t least = farthest[0];
+    for (int flip = 1; flip != 8; ++flip) least = farthest[flip] < least ? farthest[flip] : least;
+    return __dsqrt_rn(least);
+}
+
+/** The Hausdorff distance between two packs of F16 points on a whole warp. Every lane calls with
+ *  the same packs and its own @p lane , the lanes split each cloud's points, and the warp keeps the
+ *  farthest nearest square. Distances up to @p limit are exact; past it, the warp may return early,
+ *  even before reading a point, with a lower bound that also lies past @p limit . */
+NUMKONG_DEVICE nk_f32_t nk_hausdorff_warp_packed_f16_cuda_(void const *a_packed, void const *b_packed, nk_f32_t limit,
+                                                           unsigned lane) {
+    nk_size_t const a_count = ((nk_shapes_packed_header_f32_t const *)a_packed)->points;
+    nk_size_t const b_count = ((nk_shapes_packed_header_f32_t const *)b_packed)->points;
+    if (!a_count || !b_count) return a_count == b_count ? 0 : NUMKONG_F32_INF;
+    nk_f32_t const bound = nk_hausdorff_bound_packed_f16_simt_(a_packed, b_packed);
+    if (bound > limit) return bound;
+    nk_size_t a_stride, b_stride;
+    nk_f16_t const *a_axes = nk_shapes_packed_axes_f16_simt_(a_packed, &a_stride);
+    nk_f16_t const *b_axes = nk_shapes_packed_axes_f16_simt_(b_packed, &b_stride);
+    nk_f32_t const limit_squared = limit * limit;
+    nk_f32_t farthest[8] = {0, 0, 0, 0, 0, 0, 0, 0}, nearest[8];
+    for (int direction = 0; direction != 2; ++direction) {
+        nk_f16_t const *outer_axes = direction ? b_axes : a_axes, *inner_axes = direction ? a_axes : b_axes;
+        nk_size_t const outer_stride = direction ? b_stride : a_stride, inner_stride = direction ? a_stride : b_stride;
+        nk_size_t const outer_count = direction ? b_count : a_count, inner_count = direction ? a_count : b_count;
+        for (nk_size_t first = 0; first < outer_count; first += 32) {
+            nk_size_t const point = first + lane;
+            if (point < outer_count) {
+                nk_shapes_nearest_squares_f16_simt_(
+                    nk_shapes_coordinate_f16_simt_(outer_axes + point),
+                    nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
+                    nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point), inner_axes, inner_stride,
+                    inner_count, nearest);
+                for (int flip = 0; flip != 8; ++flip)
+                    farthest[flip] = nearest[flip] > farthest[flip] ? nearest[flip] : farthest[flip];
+            }
+            nk_f32_t least = NUMKONG_F32_INF;
+            for (int flip = 0; flip != 8; ++flip) {
+                for (unsigned offset = 16; offset; offset >>= 1) {
+                    nk_f32_t const other = nk_shuffle_xor_f32_cuda_(farthest[flip], offset);
+                    farthest[flip] = other > farthest[flip] ? other : farthest[flip];
+                }
+                least = farthest[flip] < least ? farthest[flip] : least;
+            }
+            if (least > limit_squared && __fsqrt_rn(least) > limit) return __fsqrt_rn(least);
+        }
+    }
+    nk_f32_t least = farthest[0];
+    for (int flip = 1; flip != 8; ++flip) least = farthest[flip] < least ? farthest[flip] : least;
+    return __fsqrt_rn(least);
+}
+
+#pragma endregion Chamfer and Hausdorff
 
 #if defined(__cplusplus)
 } // extern "C"

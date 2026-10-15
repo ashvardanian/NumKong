@@ -1413,6 +1413,7 @@ void test_cast_cuda(error_stats_section_t &check);
 void test_cast_rocm(error_stats_section_t &check);
 void test_cast_metal(error_stats_section_t &check);
 void test_reduce_cuda(error_stats_section_t &check);
+void test_shapes_cuda(error_stats_section_t &check);
 void test_tensor_cuda(error_stats_section_t &check);
 
 /** Forward declarations for cross/batch tests, ISA-family files. */

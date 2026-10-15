@@ -1295,7 +1295,7 @@ if (NUMKONG_BUILD_TEST)
     foreach (NUMKONG_VENDOR_ cuda rocm metal)
         if (NUMKONG_VENDOR_ STREQUAL "cuda")
             set(NUMKONG_SOURCES_ test/cross_cuda.cu test/each_cuda.cu test/cast_cuda.cu test/reduce_cuda.cu
-                                 test/tensor_cuda.cu
+                                 test/tensor_cuda.cu test/shapes_cuda.cu
             )
         elseif (NUMKONG_VENDOR_ STREQUAL "rocm")
             set(NUMKONG_SOURCES_ test/cross_rocm.hip test/each_rocm.hip test/cast_rocm.hip)

@@ -631,6 +631,7 @@ static nk::status_t test_device(error_stats_section_t &check, nk::device_t devic
             test_cast_cuda(check);
             test_each_cuda(check);
             test_reduce_cuda(check);
+            test_shapes_cuda(check);
             test_cross_cuda(check);
             break;
         case nk::device_kind_t::rocm_k:

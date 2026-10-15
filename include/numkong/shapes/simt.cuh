@@ -2191,6 +2191,256 @@ NUMKONG_DEVICE void nk_shapes_plan_fit_f16_simt_(nk_shapes_network_simt_t *netwo
 
 #pragma endregion Gromov Wasserstein
 
+#pragma region Chamfer and Hausdorff
+
+/** The x array of a pack of F32 points, with the elements from each axis to the next. */
+NUMKONG_DEVICE nk_f32_t const *nk_shapes_packed_axes_f32_simt_(void const *packed, nk_size_t *axis_stride) {
+    nk_size_t const points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)packed)->points;
+    nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
+                                                                 nk_shapes_alignment_k_);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f32_t), nk_shapes_alignment_k_) / sizeof(nk_f32_t);
+    return (nk_f32_t const *)((char const *)packed + header_bytes);
+}
+
+/** The x array of a pack of F16 points, with the elements from each axis to the next. */
+NUMKONG_DEVICE nk_f16_t const *nk_shapes_packed_axes_f16_simt_(void const *packed, nk_size_t *axis_stride) {
+    nk_size_t const points = ((nk_shapes_packed_header_f32_t const *)packed)->points;
+    nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
+                                                                 nk_shapes_alignment_k_);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k_) / sizeof(nk_f16_t);
+    return (nk_f16_t const *)((char const *)packed + header_bytes);
+}
+
+/** One packed F16 coordinate in F32, exactly. Packs hold finite coordinates, so it skips the
+ *  compare and select per value that @c nk_f16_to_f32_simt_ spends keeping NaN payloads. */
+NUMKONG_DEVICE nk_f32_t nk_shapes_coordinate_f16_simt_(nk_f16_t const *coordinate) {
+    return __half2float(__ushort_as_half(*(unsigned short const *)coordinate));
+}
+
+/** The least squared distance from the outer point to the inner points of F32 under each of the 8
+ *  axis flips, widened to F64 and rounded in the serial order, so each equals the serial one. */
+NUMKONG_DEVICE void nk_shapes_nearest_squares_f32_simt_(nk_f64_t outer_x, nk_f64_t outer_y, nk_f64_t outer_z,
+                                                        nk_f32_t const *inner_axes, nk_size_t inner_stride,
+                                                        nk_size_t inner_count, nk_f64_t *nearest) {
+    for (int flip = 0; flip != 8; ++flip) nearest[flip] = NUMKONG_F64_INF;
+    for (nk_size_t index = 0; index != inner_count; ++index) {
+        nk_f64_t const inner_x = inner_axes[index], inner_y = inner_axes[inner_stride + index],
+                       inner_z = inner_axes[2 * inner_stride + index];
+        // A flip negates an inner axis, turning its difference into a sum
+        nk_f64_t const minus_x = outer_x - inner_x, plus_x = outer_x + inner_x;
+        nk_f64_t const minus_y = outer_y - inner_y, plus_y = outer_y + inner_y;
+        nk_f64_t const minus_z = outer_z - inner_z, plus_z = outer_z + inner_z;
+        nk_f64_t const minus_xx = __dmul_rn(minus_x, minus_x), plus_xx = __dmul_rn(plus_x, plus_x);
+        nk_f64_t const minus_yy = __dmul_rn(minus_y, minus_y), plus_yy = __dmul_rn(plus_y, plus_y);
+        nk_f64_t const minus_zz = __dmul_rn(minus_z, minus_z), plus_zz = __dmul_rn(plus_z, plus_z);
+        nk_f64_t const planar[4] = {minus_xx + minus_yy, plus_xx + minus_yy, minus_xx + plus_yy, plus_xx + plus_yy};
+        for (int flip = 0; flip != 8; ++flip) {
+            nk_f64_t const distance_squared = planar[flip & 3] + ((flip & 4) ? plus_zz : minus_zz);
+            nearest[flip] = distance_squared < nearest[flip] ? distance_squared : nearest[flip];
+        }
+    }
+}
+
+/** The least squared distance from the outer point to the inner points of F16 under each of the 8
+ *  axis flips, widened to F32 and rounded in the serial order, so each equals the serial one. The
+ *  minimum is @c fminf , one instruction where a select takes two, as no square is NaN or −0. */
+NUMKONG_DEVICE void nk_shapes_nearest_squares_f16_simt_(nk_f32_t outer_x, nk_f32_t outer_y, nk_f32_t outer_z,
+                                                        nk_f16_t const *inner_axes, nk_size_t inner_stride,
+                                                        nk_size_t inner_count, nk_f32_t *nearest) {
+    for (int flip = 0; flip != 8; ++flip) nearest[flip] = NUMKONG_F32_INF;
+    for (nk_size_t index = 0; index != inner_count; ++index) {
+        nk_f32_t const inner_x = nk_shapes_coordinate_f16_simt_(inner_axes + index);
+        nk_f32_t const inner_y = nk_shapes_coordinate_f16_simt_(inner_axes + inner_stride + index);
+        nk_f32_t const inner_z = nk_shapes_coordinate_f16_simt_(inner_axes + 2 * inner_stride + index);
+        // A flip negates an inner axis, turning its difference into a sum
+        nk_f32_t const minus_x = outer_x - inner_x, plus_x = outer_x + inner_x;
+        nk_f32_t const minus_y = outer_y - inner_y, plus_y = outer_y + inner_y;
+        nk_f32_t const minus_z = outer_z - inner_z, plus_z = outer_z + inner_z;
+        nk_f32_t const minus_xx = __fmul_rn(minus_x, minus_x), plus_xx = __fmul_rn(plus_x, plus_x);
+        nk_f32_t const minus_yy = __fmul_rn(minus_y, minus_y), plus_yy = __fmul_rn(plus_y, plus_y);
+        nk_f32_t const minus_zz = __fmul_rn(minus_z, minus_z), plus_zz = __fmul_rn(plus_z, plus_z);
+        nk_f32_t const planar[4] = {minus_xx + minus_yy, plus_xx + minus_yy, minus_xx + plus_yy, plus_xx + plus_yy};
+        for (int flip = 0; flip != 8; ++flip)
+            nearest[flip] = fminf(planar[flip & 3] + ((flip & 4) ? plus_zz : minus_zz), nearest[flip]);
+    }
+}
+
+/** A lower bound of the Hausdorff distance between two packs of F32 points from their headers
+ *  alone: the gap between their largest radii. */
+NUMKONG_DEVICE nk_f64_t nk_hausdorff_bound_packed_f32_simt_(void const *a_packed, void const *b_packed) {
+    nk_f64_t const gap = ((nk_shapes_packed_header_f64_t const *)a_packed)->max_radius -
+                         ((nk_shapes_packed_header_f64_t const *)b_packed)->max_radius;
+    return gap < 0 ? -gap : gap;
+}
+
+/** A lower bound of the Hausdorff distance between two packs of F16 points from their headers
+ *  alone: the gap between their largest radii. */
+NUMKONG_DEVICE nk_f32_t nk_hausdorff_bound_packed_f16_simt_(void const *a_packed, void const *b_packed) {
+    nk_f32_t const gap = ((nk_shapes_packed_header_f32_t const *)a_packed)->max_radius -
+                         ((nk_shapes_packed_header_f32_t const *)b_packed)->max_radius;
+    return gap < 0 ? -gap : gap;
+}
+
+/** The Chamfer distance between two packs of F32 points on one thread, for clouds too small to
+ *  split across a warp. Distances up to @p limit are exact; past it, the thread may stop early and
+ *  return a lower bound that also lies past @p limit . */
+NUMKONG_DEVICE nk_f64_t nk_chamfer_packed_f32_simt_(void const *a_packed, void const *b_packed, nk_f64_t limit) {
+    nk_size_t const a_count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)a_packed)->points;
+    nk_size_t const b_count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)b_packed)->points;
+    if (!a_count || !b_count) return a_count == b_count ? 0 : NUMKONG_F64_INF;
+    nk_size_t a_stride, b_stride;
+    nk_f32_t const *a_axes = nk_shapes_packed_axes_f32_simt_(a_packed, &a_stride);
+    nk_f32_t const *b_axes = nk_shapes_packed_axes_f32_simt_(b_packed, &b_stride);
+    // Per flip, the finished directions' mean distances: F/n after one, F/n + B/m after both
+    nk_f64_t means[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    for (int direction = 0; direction != 2; ++direction) {
+        nk_f32_t const *outer_axes = direction ? b_axes : a_axes, *inner_axes = direction ? a_axes : b_axes;
+        nk_size_t const outer_stride = direction ? b_stride : a_stride, inner_stride = direction ? a_stride : b_stride;
+        nk_size_t const outer_count = direction ? b_count : a_count, inner_count = direction ? a_count : b_count;
+        nk_f64_t const count = (nk_f64_t)outer_count;
+        nk_f64_t sums[8] = {0, 0, 0, 0, 0, 0, 0, 0}, nearest[8];
+        for (nk_size_t point = 0; point != outer_count; ++point) {
+            nk_shapes_nearest_squares_f32_simt_(outer_axes[point], outer_axes[outer_stride + point],
+                                                outer_axes[2 * outer_stride + point], inner_axes, inner_stride,
+                                                inner_count, nearest);
+            int exceeded = 1;
+            for (int flip = 0; flip != 8; ++flip) {
+                sums[flip] += __dsqrt_rn(nearest[flip]);
+                exceeded &= sums[flip] > (2 * limit - means[flip]) * count;
+            }
+            if (!exceeded) continue;
+            nk_f64_t partial = NUMKONG_F64_INF;
+            for (int flip = 0; flip != 8; ++flip) {
+                nk_f64_t const chamfer = (means[flip] + sums[flip] / count) / 2;
+                partial = chamfer < partial ? chamfer : partial;
+            }
+            if (partial > limit) return partial;
+        }
+        for (int flip = 0; flip != 8; ++flip) means[flip] += sums[flip] / count;
+    }
+    nk_f64_t best = means[0] / 2;
+    for (int flip = 1; flip != 8; ++flip) best = means[flip] / 2 < best ? means[flip] / 2 : best;
+    return best;
+}
+
+/** The Chamfer distance between two packs of F16 points on one thread, for clouds too small to
+ *  split across a warp. Distances up to @p limit are exact; past it, the thread may stop early and
+ *  return a lower bound that also lies past @p limit . */
+NUMKONG_DEVICE nk_f32_t nk_chamfer_packed_f16_simt_(void const *a_packed, void const *b_packed, nk_f32_t limit) {
+    nk_size_t const a_count = ((nk_shapes_packed_header_f32_t const *)a_packed)->points;
+    nk_size_t const b_count = ((nk_shapes_packed_header_f32_t const *)b_packed)->points;
+    if (!a_count || !b_count) return a_count == b_count ? 0 : NUMKONG_F32_INF;
+    nk_size_t a_stride, b_stride;
+    nk_f16_t const *a_axes = nk_shapes_packed_axes_f16_simt_(a_packed, &a_stride);
+    nk_f16_t const *b_axes = nk_shapes_packed_axes_f16_simt_(b_packed, &b_stride);
+    // Per flip, the finished directions' mean distances: F/n after one, F/n + B/m after both
+    nk_f32_t means[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    for (int direction = 0; direction != 2; ++direction) {
+        nk_f16_t const *outer_axes = direction ? b_axes : a_axes, *inner_axes = direction ? a_axes : b_axes;
+        nk_size_t const outer_stride = direction ? b_stride : a_stride, inner_stride = direction ? a_stride : b_stride;
+        nk_size_t const outer_count = direction ? b_count : a_count, inner_count = direction ? a_count : b_count;
+        nk_f32_t const count = (nk_f32_t)outer_count;
+        nk_f32_t sums[8] = {0, 0, 0, 0, 0, 0, 0, 0}, nearest[8];
+        for (nk_size_t point = 0; point != outer_count; ++point) {
+            nk_shapes_nearest_squares_f16_simt_(nk_shapes_coordinate_f16_simt_(outer_axes + point),
+                                                nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
+                                                nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point),
+                                                inner_axes, inner_stride, inner_count, nearest);
+            int exceeded = 1;
+            for (int flip = 0; flip != 8; ++flip) {
+                sums[flip] += __fsqrt_rn(nearest[flip]);
+                exceeded &= sums[flip] > (2 * limit - means[flip]) * count;
+            }
+            if (!exceeded) continue;
+            nk_f32_t partial = NUMKONG_F32_INF;
+            for (int flip = 0; flip != 8; ++flip) {
+                nk_f32_t const chamfer = (means[flip] + sums[flip] / count) / 2;
+                partial = chamfer < partial ? chamfer : partial;
+            }
+            if (partial > limit) return partial;
+        }
+        for (int flip = 0; flip != 8; ++flip) means[flip] += sums[flip] / count;
+    }
+    nk_f32_t best = means[0] / 2;
+    for (int flip = 1; flip != 8; ++flip) best = means[flip] / 2 < best ? means[flip] / 2 : best;
+    return best;
+}
+
+/** The Hausdorff distance between two packs of F32 points on one thread, for clouds too small to
+ *  split across a warp. Distances up to @p limit are exact; past it, the thread may return early,
+ *  even before reading a point, with a lower bound that also lies past @p limit . A square root
+ *  keeps the order of its inputs, so the farthest nearest point is found among squares. */
+NUMKONG_DEVICE nk_f64_t nk_hausdorff_packed_f32_simt_(void const *a_packed, void const *b_packed, nk_f64_t limit) {
+    nk_size_t const a_count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)a_packed)->points;
+    nk_size_t const b_count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)b_packed)->points;
+    if (!a_count || !b_count) return a_count == b_count ? 0 : NUMKONG_F64_INF;
+    nk_f64_t const bound = nk_hausdorff_bound_packed_f32_simt_(a_packed, b_packed);
+    if (bound > limit) return bound;
+    nk_size_t a_stride, b_stride;
+    nk_f32_t const *a_axes = nk_shapes_packed_axes_f32_simt_(a_packed, &a_stride);
+    nk_f32_t const *b_axes = nk_shapes_packed_axes_f32_simt_(b_packed, &b_stride);
+    nk_f64_t const limit_squared = limit * limit;
+    nk_f64_t farthest[8] = {0, 0, 0, 0, 0, 0, 0, 0}, nearest[8];
+    for (int direction = 0; direction != 2; ++direction) {
+        nk_f32_t const *outer_axes = direction ? b_axes : a_axes, *inner_axes = direction ? a_axes : b_axes;
+        nk_size_t const outer_stride = direction ? b_stride : a_stride, inner_stride = direction ? a_stride : b_stride;
+        nk_size_t const outer_count = direction ? b_count : a_count, inner_count = direction ? a_count : b_count;
+        for (nk_size_t point = 0; point != outer_count; ++point) {
+            nk_shapes_nearest_squares_f32_simt_(outer_axes[point], outer_axes[outer_stride + point],
+                                                outer_axes[2 * outer_stride + point], inner_axes, inner_stride,
+                                                inner_count, nearest);
+            nk_f64_t least = NUMKONG_F64_INF;
+            for (int flip = 0; flip != 8; ++flip) {
+                farthest[flip] = nearest[flip] > farthest[flip] ? nearest[flip] : farthest[flip];
+                least = farthest[flip] < least ? farthest[flip] : least;
+            }
+            if (least > limit_squared && __dsqrt_rn(least) > limit) return __dsqrt_rn(least);
+        }
+    }
+    nk_f64_t least = farthest[0];
+    for (int flip = 1; flip != 8; ++flip) least = farthest[flip] < least ? farthest[flip] : least;
+    return __dsqrt_rn(least);
+}
+
+/** The Hausdorff distance between two packs of F16 points on one thread, for clouds too small to
+ *  split across a warp. Distances up to @p limit are exact; past it, the thread may return early,
+ *  even before reading a point, with a lower bound that also lies past @p limit . A square root
+ *  keeps the order of its inputs, so the farthest nearest point is found among squares. */
+NUMKONG_DEVICE nk_f32_t nk_hausdorff_packed_f16_simt_(void const *a_packed, void const *b_packed, nk_f32_t limit) {
+    nk_size_t const a_count = ((nk_shapes_packed_header_f32_t const *)a_packed)->points;
+    nk_size_t const b_count = ((nk_shapes_packed_header_f32_t const *)b_packed)->points;
+    if (!a_count || !b_count) return a_count == b_count ? 0 : NUMKONG_F32_INF;
+    nk_f32_t const bound = nk_hausdorff_bound_packed_f16_simt_(a_packed, b_packed);
+    if (bound > limit) return bound;
+    nk_size_t a_stride, b_stride;
+    nk_f16_t const *a_axes = nk_shapes_packed_axes_f16_simt_(a_packed, &a_stride);
+    nk_f16_t const *b_axes = nk_shapes_packed_axes_f16_simt_(b_packed, &b_stride);
+    nk_f32_t const limit_squared = limit * limit;
+    nk_f32_t farthest[8] = {0, 0, 0, 0, 0, 0, 0, 0}, nearest[8];
+    for (int direction = 0; direction != 2; ++direction) {
+        nk_f16_t const *outer_axes = direction ? b_axes : a_axes, *inner_axes = direction ? a_axes : b_axes;
+        nk_size_t const outer_stride = direction ? b_stride : a_stride, inner_stride = direction ? a_stride : b_stride;
+        nk_size_t const outer_count = direction ? b_count : a_count, inner_count = direction ? a_count : b_count;
+        for (nk_size_t point = 0; point != outer_count; ++point) {
+            nk_shapes_nearest_squares_f16_simt_(nk_shapes_coordinate_f16_simt_(outer_axes + point),
+                                                nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
+                                                nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point),
+                                                inner_axes, inner_stride, inner_count, nearest);
+            nk_f32_t least = NUMKONG_F32_INF;
+            for (int flip = 0; flip != 8; ++flip) {
+                farthest[flip] = nearest[flip] > farthest[flip] ? nearest[flip] : farthest[flip];
+                least = farthest[flip] < least ? farthest[flip] : least;
+            }
+            if (least > limit_squared && __fsqrt_rn(least) > limit) return __fsqrt_rn(least);
+        }
+    }
+    nk_f32_t least = farthest[0];
+    for (int flip = 1; flip != 8; ++flip) least = farthest[flip] < least ? farthest[flip] : least;
+    return __fsqrt_rn(least);
+}
+
+#pragma endregion Chamfer and Hausdorff
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
