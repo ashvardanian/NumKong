@@ -197,6 +197,9 @@ static nk_status_t nk_dots_packed_tile_(nk_size_t tile_index, void *context) {
 }
 
 nk_status_t nk_parallel_dots_packed(nk_dots_packed_task_t const *task, nk_size_t threads) {
+    if (task->workspace_bytes)
+        return task->kernel(task->a, task->b_packed, task->c, task->rows, task->columns, task->depth, task->a_stride,
+                            task->c_stride, task->workspace, task->workspace_bytes, task->stream);
     return nk_parallel_for_tiles(nk_size_divide_round_up_(task->rows, NUMKONG_PARALLEL_PACKED_TILE), threads,
                                  nk_dots_packed_tile_, (void *)task);
 }
@@ -210,6 +213,10 @@ static nk_status_t nk_dots_symmetric_tile_(nk_size_t tile_index, void *context) 
 }
 
 nk_status_t nk_parallel_dots_symmetric(nk_dots_symmetric_task_t const *task, nk_size_t threads) {
+    if (task->workspace_bytes)
+        return task->kernel(task->vectors, task->vector_count, task->depth, task->vectors_stride, task->result,
+                            task->result_stride, task->rows_begin, task->rows_end, task->workspace,
+                            task->workspace_bytes, task->stream);
     nk_size_t const rows = task->rows_end - task->rows_begin;
     return nk_parallel_for_tiles(nk_size_divide_round_up_(rows, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads,
                                  nk_dots_symmetric_tile_, (void *)task);

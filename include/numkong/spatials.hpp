@@ -222,8 +222,8 @@ expected<std::size_t> euclideans_packed_workspace_size(std::size_t row_count, st
  *  @param[in] row_start Starting row index, default 0
  *  @param[in] row_count Number of rows to compute, default all
  *
- *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, sized by the matching query
- *  @param[in] workspace_bytes Bytes at @p workspace, zero for the scratch-free path
+ *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, sized by the matching query,
+ *      or empty for the scratch-free path
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
@@ -233,8 +233,8 @@ expected<std::size_t> euclideans_packed_workspace_size(std::size_t row_count, st
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t>
 status_t angulars_symmetric(in_type_ const *a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
                             result_type_ *c, std::size_t c_stride, std::size_t row_start = 0,
-                            std::size_t row_count = std::numeric_limits<std::size_t>::max(), void *workspace = nullptr,
-                            std::size_t workspace_bytes = 0, nk_capability_t capabilities = default_capabilities(),
+                            std::size_t row_count = std::numeric_limits<std::size_t>::max(),
+                            std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                             nk_stream_t stream = nullptr) noexcept {
     if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vector_count;
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::angular_result_t>;
@@ -243,55 +243,55 @@ status_t angulars_symmetric(in_type_ const *a, std::size_t vector_count, std::si
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_f64_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                               row_count, workspace, workspace_bytes, capabilities, stream));
+                                               row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_f32_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                               row_count, workspace, workspace_bytes, capabilities, stream));
+                                               row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_f16_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                               row_count, workspace, workspace_bytes, capabilities, stream));
+                                               row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_bf16_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                row_count, workspace, workspace_bytes, capabilities, stream));
+                                                row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_e4m3_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                row_count, workspace, workspace_bytes, capabilities, stream));
+                                                row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_e5m2_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                row_count, workspace, workspace_bytes, capabilities, stream));
+                                                row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_e2m3_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                row_count, workspace, workspace_bytes, capabilities, stream));
+                                                row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_e2m1_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                row_count, workspace, workspace_bytes, capabilities, stream));
+                                                row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_e3m2_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                row_count, workspace, workspace_bytes, capabilities, stream));
+                                                row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_i8_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                              row_count, workspace, workspace_bytes, capabilities, stream));
+                                              row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_u8_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                              row_count, workspace, workspace_bytes, capabilities, stream));
+                                              row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_i4_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                              row_count, workspace, workspace_bytes, capabilities, stream));
+                                              row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_symmetric_u4_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                              row_count, workspace, workspace_bytes, capabilities, stream));
+                                              row_count, workspace.data(), workspace.size(), capabilities, stream));
     }
     std::size_t depth_values = depth / dimensions_per_value<in_type_>();
     char const *a_bytes = reinterpret_cast<char const *>(a);
@@ -328,8 +328,8 @@ status_t angulars_symmetric(in_type_ const *a, std::size_t vector_count, std::si
  *  @param[in] row_start Starting row index, default 0
  *  @param[in] row_count Number of rows to compute, default all
  *
- *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, sized by the matching query
- *  @param[in] workspace_bytes Bytes at @p workspace, zero for the scratch-free path
+ *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, sized by the matching query,
+ *      or empty for the scratch-free path
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
@@ -340,7 +340,7 @@ template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_
 status_t euclideans_symmetric(in_type_ const *a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
                               result_type_ *c, std::size_t c_stride, std::size_t row_start = 0,
                               std::size_t row_count = std::numeric_limits<std::size_t>::max(),
-                              void *workspace = nullptr, std::size_t workspace_bytes = 0,
+                              std::span<std::byte> workspace = {},
                               nk_capability_t capabilities = default_capabilities(),
                               nk_stream_t stream = nullptr) noexcept {
     if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vector_count;
@@ -350,55 +350,55 @@ status_t euclideans_symmetric(in_type_ const *a, std::size_t vector_count, std::
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_symmetric_f64_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                 row_count, workspace, workspace_bytes, capabilities, stream));
+                                                 row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_symmetric_f32_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                 row_count, workspace, workspace_bytes, capabilities, stream));
+                                                 row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_symmetric_f16_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                 row_count, workspace, workspace_bytes, capabilities, stream));
+                                                 row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
             return static_cast<status_t>(nk_euclideans_symmetric_bf16_best(
-                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace,
-                workspace_bytes, capabilities, stream));
+                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace.data(),
+                workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
             return static_cast<status_t>(nk_euclideans_symmetric_e4m3_best(
-                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace,
-                workspace_bytes, capabilities, stream));
+                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace.data(),
+                workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
             return static_cast<status_t>(nk_euclideans_symmetric_e5m2_best(
-                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace,
-                workspace_bytes, capabilities, stream));
+                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace.data(),
+                workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
             return static_cast<status_t>(nk_euclideans_symmetric_e2m3_best(
-                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace,
-                workspace_bytes, capabilities, stream));
+                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace.data(),
+                workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && dispatch)
             return static_cast<status_t>(nk_euclideans_symmetric_e2m1_best(
-                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace,
-                workspace_bytes, capabilities, stream));
+                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace.data(),
+                workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
             return static_cast<status_t>(nk_euclideans_symmetric_e3m2_best(
-                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace,
-                workspace_bytes, capabilities, stream));
+                &a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start, row_count, workspace.data(),
+                workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_symmetric_i8_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                row_count, workspace, workspace_bytes, capabilities, stream));
+                                                row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_symmetric_u8_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                row_count, workspace, workspace_bytes, capabilities, stream));
+                                                row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_symmetric_i4_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                row_count, workspace, workspace_bytes, capabilities, stream));
+                                                row_count, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_symmetric_u4_best(&a->raw_, vector_count, depth, a_stride, &c->raw_, c_stride, row_start,
-                                                row_count, workspace, workspace_bytes, capabilities, stream));
+                                                row_count, workspace.data(), workspace.size(), capabilities, stream));
     }
     std::size_t depth_values = depth / dimensions_per_value<in_type_>();
     char const *a_bytes = reinterpret_cast<char const *>(a);
@@ -428,8 +428,8 @@ status_t euclideans_symmetric(in_type_ const *a, std::size_t vector_count, std::
  *  @param[in] depth Shared inner dimension, k, in multiples of the values per byte.
  *  @param[in] a_stride Stride between rows of A in bytes
  *  @param[in] c_stride Stride between rows of C in bytes
- *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, sized by the matching query
- *  @param[in] workspace_bytes Bytes at @p workspace, zero for the scratch-free path
+ *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, sized by the matching query,
+ *      or empty for the scratch-free path
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
@@ -439,63 +439,63 @@ status_t euclideans_symmetric(in_type_ const *a, std::size_t vector_count, std::
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t>
 status_t angulars_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
                          std::size_t column_count, std::size_t depth, std::size_t a_stride, std::size_t c_stride,
-                         void *workspace = nullptr, std::size_t workspace_bytes = 0,
-                         nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+                         std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
+                         nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::angular_result_t>;
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(nk_angulars_packed_f64_best(&a->raw_, b_packed, &c->raw_, row_count,
-                                                                     column_count, depth, a_stride, c_stride, workspace,
-                                                                     workspace_bytes, capabilities, stream));
+            return static_cast<status_t>(
+                nk_angulars_packed_f64_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
+                                            c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(nk_angulars_packed_f32_best(&a->raw_, b_packed, &c->raw_, row_count,
-                                                                     column_count, depth, a_stride, c_stride, workspace,
-                                                                     workspace_bytes, capabilities, stream));
+            return static_cast<status_t>(
+                nk_angulars_packed_f32_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
+                                            c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(nk_angulars_packed_f16_best(&a->raw_, b_packed, &c->raw_, row_count,
-                                                                     column_count, depth, a_stride, c_stride, workspace,
-                                                                     workspace_bytes, capabilities, stream));
+            return static_cast<status_t>(
+                nk_angulars_packed_f16_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
+                                            c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_packed_bf16_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                             c_stride, workspace, workspace_bytes, capabilities, stream));
+                                             c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_packed_e4m3_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                             c_stride, workspace, workspace_bytes, capabilities, stream));
+                                             c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_packed_e5m2_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                             c_stride, workspace, workspace_bytes, capabilities, stream));
+                                             c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_packed_e2m3_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                             c_stride, workspace, workspace_bytes, capabilities, stream));
+                                             c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_packed_e2m1_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                             c_stride, workspace, workspace_bytes, capabilities, stream));
+                                             c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
             return static_cast<status_t>(
                 nk_angulars_packed_e3m2_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                             c_stride, workspace, workspace_bytes, capabilities, stream));
+                                             c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
-            return static_cast<status_t>(nk_angulars_packed_i8_best(&a->raw_, b_packed, &c->raw_, row_count,
-                                                                    column_count, depth, a_stride, c_stride, workspace,
-                                                                    workspace_bytes, capabilities, stream));
+            return static_cast<status_t>(
+                nk_angulars_packed_i8_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
+                                           c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
-            return static_cast<status_t>(nk_angulars_packed_u8_best(&a->raw_, b_packed, &c->raw_, row_count,
-                                                                    column_count, depth, a_stride, c_stride, workspace,
-                                                                    workspace_bytes, capabilities, stream));
+            return static_cast<status_t>(
+                nk_angulars_packed_u8_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
+                                           c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
-            return static_cast<status_t>(nk_angulars_packed_i4_best(&a->raw_, b_packed, &c->raw_, row_count,
-                                                                    column_count, depth, a_stride, c_stride, workspace,
-                                                                    workspace_bytes, capabilities, stream));
+            return static_cast<status_t>(
+                nk_angulars_packed_i4_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
+                                           c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
-            return static_cast<status_t>(nk_angulars_packed_u4_best(&a->raw_, b_packed, &c->raw_, row_count,
-                                                                    column_count, depth, a_stride, c_stride, workspace,
-                                                                    workspace_bytes, capabilities, stream));
+            return static_cast<status_t>(
+                nk_angulars_packed_u4_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
+                                           c_stride, workspace.data(), workspace.size(), capabilities, stream));
     }
     // Scalar fallback: extract pointer and stride, compute pairwise angular distances
     in_type_ const *b;
@@ -538,8 +538,8 @@ status_t angulars_packed(in_type_ const *a, void const *b_packed, result_type_ *
  *  @param[in] depth Shared inner dimension, k, in multiples of the values per byte.
  *  @param[in] a_stride Stride between rows of A in bytes
  *  @param[in] c_stride Stride between rows of C in bytes
- *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, sized by the matching query
- *  @param[in] workspace_bytes Bytes at @p workspace, zero for the scratch-free path
+ *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, sized by the matching query,
+ *      or empty for the scratch-free path
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
@@ -549,8 +549,7 @@ status_t angulars_packed(in_type_ const *a, void const *b_packed, result_type_ *
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t>
 status_t euclideans_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
                            std::size_t column_count, std::size_t depth, std::size_t a_stride, std::size_t c_stride,
-                           void *workspace = nullptr, std::size_t workspace_bytes = 0,
-                           nk_capability_t capabilities = default_capabilities(),
+                           std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                            nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::euclidean_result_t>;
 
@@ -558,55 +557,55 @@ status_t euclideans_packed(in_type_ const *a, void const *b_packed, result_type_
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_f64_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                              c_stride, workspace, workspace_bytes, capabilities, stream));
+                                              c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_f32_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                              c_stride, workspace, workspace_bytes, capabilities, stream));
+                                              c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_f16_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                              c_stride, workspace, workspace_bytes, capabilities, stream));
+                                              c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_bf16_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                               c_stride, workspace, workspace_bytes, capabilities, stream));
+                                               c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_e4m3_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                               c_stride, workspace, workspace_bytes, capabilities, stream));
+                                               c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e5m2_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_e5m2_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                               c_stride, workspace, workspace_bytes, capabilities, stream));
+                                               c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m3_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_e2m3_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                               c_stride, workspace, workspace_bytes, capabilities, stream));
+                                               c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m1x2_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_e2m1_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                               c_stride, workspace, workspace_bytes, capabilities, stream));
+                                               c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e3m2_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_e3m2_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                               c_stride, workspace, workspace_bytes, capabilities, stream));
+                                               c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_i8_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                             c_stride, workspace, workspace_bytes, capabilities, stream));
+                                             c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u8_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_u8_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                             c_stride, workspace, workspace_bytes, capabilities, stream));
+                                             c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i4x2_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_i4_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                             c_stride, workspace, workspace_bytes, capabilities, stream));
+                                             c_stride, workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u4x2_t> && dispatch)
             return static_cast<status_t>(
                 nk_euclideans_packed_u4_best(&a->raw_, b_packed, &c->raw_, row_count, column_count, depth, a_stride,
-                                             c_stride, workspace, workspace_bytes, capabilities, stream));
+                                             c_stride, workspace.data(), workspace.size(), capabilities, stream));
     }
     // Scalar fallback: extract pointer and stride, compute pairwise euclidean distances
     in_type_ const *b;
@@ -641,162 +640,181 @@ namespace ashvardanian::numkong {
 
 #pragma region Concept Constrained Symmetric Spatial Distances
 
-/** Symmetric angular distances: C[i,j] = angular(A[i], A[j]). @c unexpected_dimensions_k unless the
- *  output is square over the input rows. */
+/** Symmetric angular distances: C[i,j] = angular(A[i], A[j]), with the pointer overload's tail.
+ *  @c unexpected_dimensions_k unless the output is square over the input rows. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::angular_result_t> output_matrix_>
-status_t angulars_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
+status_t angulars_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t row_start = 0,
+                            std::size_t row_count = std::numeric_limits<std::size_t>::max(),
+                            std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
+                            nk_stream_t stream = nullptr) noexcept {
     std::size_t num_vectors = input.extent(0);
     if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
     return numkong::angulars_symmetric<value_type_>(
         reinterpret_cast<value_type_ const *>(input.data()), num_vectors, input.extent(1),
         static_cast<std::size_t>(input.stride_bytes(0)),
         reinterpret_cast<typename value_type_::angular_result_t *>(output.data()),
-        static_cast<std::size_t>(output.stride_bytes(0)));
+        static_cast<std::size_t>(output.stride_bytes(0)), row_start, row_count, workspace, capabilities, stream);
 }
 
-/** Allocating symmetric angular distances. Empty for an empty input, or the allocation's or
- *  the kernel's failure. */
+/** Allocating symmetric angular distances, with any workspace in the result's block. Empty for an
+ *  empty input, or the allocation's or the kernel's failure. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::angular_result_t>>
     requires(!mutable_matrix_of<allocator_type_, typename value_type_::angular_result_t>)
 expected<matrix<typename value_type_::angular_result_t, allocator_type_>> angulars_symmetric(
-    input_matrix_ const &input, allocator_type_ alloc = {}) noexcept {
+    input_matrix_ const &input, allocator_type_ alloc = {}, nk_capability_t capabilities = default_capabilities(),
+    nk_stream_t stream = nullptr) noexcept {
     using result_t = typename value_type_::angular_result_t;
     using out_tensor_t = matrix<result_t, allocator_type_>;
     if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     std::size_t num_vectors = input.extent(0);
-    auto result = out_tensor_t::zeros({num_vectors, num_vectors}, alloc);
+    auto workspace_bytes = angulars_symmetric_workspace_size<value_type_>(num_vectors, input.extent(1), 0, num_vectors,
+                                                                          capabilities);
+    if (!workspace_bytes) return {out_tensor_t(alloc), workspace_bytes.status};
+    std::span<std::byte> workspace;
+    auto result = uninitialized_with_workspace_<out_tensor_t>({num_vectors, num_vectors}, workspace_bytes.value, alloc,
+                                                              workspace);
     if (!result) return result;
-    if (status_t status = angulars_symmetric<value_type_>(input, result.value.span()); failed(status))
+    if (status_t status = result.value.span().fill_zeros(); failed(status)) return {out_tensor_t(alloc), status};
+    if (status_t status = angulars_symmetric<value_type_>(input, result.value.span(), 0, num_vectors, workspace,
+                                                          capabilities, stream);
+        failed(status))
         return {out_tensor_t(alloc), status};
     return result;
 }
 
-/** Symmetric Euclidean distances: C[i,j] = euclidean(A[i], A[j]). @c unexpected_dimensions_k unless
- *  the output is square over the input rows. */
+/** Symmetric Euclidean distances: C[i,j] = euclidean(A[i], A[j]), trailing like the angular one.
+ *  @c unexpected_dimensions_k unless the output is square over the input rows. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::euclidean_result_t> output_matrix_>
-status_t euclideans_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
+status_t euclideans_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t row_start = 0,
+                              std::size_t row_count = std::numeric_limits<std::size_t>::max(),
+                              std::span<std::byte> workspace = {},
+                              nk_capability_t capabilities = default_capabilities(),
+                              nk_stream_t stream = nullptr) noexcept {
     std::size_t num_vectors = input.extent(0);
     if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
     return numkong::euclideans_symmetric<value_type_>(
         reinterpret_cast<value_type_ const *>(input.data()), num_vectors, input.extent(1),
         static_cast<std::size_t>(input.stride_bytes(0)),
         reinterpret_cast<typename value_type_::euclidean_result_t *>(output.data()),
-        static_cast<std::size_t>(output.stride_bytes(0)));
+        static_cast<std::size_t>(output.stride_bytes(0)), row_start, row_count, workspace, capabilities, stream);
 }
 
-/** Allocating symmetric Euclidean distances. Empty for an empty input, or the allocation's or
- *  the kernel's failure. */
+/** Allocating symmetric Euclidean distances, with any workspace in the result's block. Empty for an
+ *  empty input, or the allocation's or the kernel's failure. */
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::euclidean_result_t>>
     requires(!mutable_matrix_of<allocator_type_, typename value_type_::euclidean_result_t>)
 expected<matrix<typename value_type_::euclidean_result_t, allocator_type_>> euclideans_symmetric(
-    input_matrix_ const &input, allocator_type_ alloc = {}) noexcept {
+    input_matrix_ const &input, allocator_type_ alloc = {}, nk_capability_t capabilities = default_capabilities(),
+    nk_stream_t stream = nullptr) noexcept {
     using result_t = typename value_type_::euclidean_result_t;
     using out_tensor_t = matrix<result_t, allocator_type_>;
     if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
     std::size_t num_vectors = input.extent(0);
-    auto result = out_tensor_t::zeros({num_vectors, num_vectors}, alloc);
+    auto workspace_bytes = euclideans_symmetric_workspace_size<value_type_>(num_vectors, input.extent(1), 0,
+                                                                            num_vectors, capabilities);
+    if (!workspace_bytes) return {out_tensor_t(alloc), workspace_bytes.status};
+    std::span<std::byte> workspace;
+    auto result = uninitialized_with_workspace_<out_tensor_t>({num_vectors, num_vectors}, workspace_bytes.value, alloc,
+                                                              workspace);
     if (!result) return result;
-    if (status_t status = euclideans_symmetric<value_type_>(input, result.value.span()); failed(status))
+    if (status_t status = result.value.span().fill_zeros(); failed(status)) return {out_tensor_t(alloc), status};
+    if (status_t status = euclideans_symmetric<value_type_>(input, result.value.span(), 0, num_vectors, workspace,
+                                                            capabilities, stream);
+        failed(status))
         return {out_tensor_t(alloc), status};
     return result;
-}
-
-/** Partitioned symmetric angular distances for parallel row-range work. @c unexpected_dimensions_k
- *  unless the output is square over the input rows. */
-template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
-          mutable_matrix_of<typename value_type_::angular_result_t> output_matrix_>
-status_t angulars_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t row_start,
-                            std::size_t row_count) noexcept {
-    std::size_t num_vectors = input.extent(0);
-    if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
-    return numkong::angulars_symmetric<value_type_>(
-        reinterpret_cast<value_type_ const *>(input.data()), num_vectors, input.extent(1),
-        static_cast<std::size_t>(input.stride_bytes(0)),
-        reinterpret_cast<typename value_type_::angular_result_t *>(output.data()),
-        static_cast<std::size_t>(output.stride_bytes(0)), row_start, row_count);
-}
-
-/** Partitioned symmetric Euclidean distances for parallel row-range work. @c
- *  unexpected_dimensions_k unless the output is square over the input rows. */
-template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
-          mutable_matrix_of<typename value_type_::euclidean_result_t> output_matrix_>
-status_t euclideans_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t row_start,
-                              std::size_t row_count) noexcept {
-    std::size_t num_vectors = input.extent(0);
-    if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
-    return numkong::euclideans_symmetric<value_type_>(
-        reinterpret_cast<value_type_ const *>(input.data()), num_vectors, input.extent(1),
-        static_cast<std::size_t>(input.stride_bytes(0)),
-        reinterpret_cast<typename value_type_::euclidean_result_t *>(output.data()),
-        static_cast<std::size_t>(output.stride_bytes(0)), row_start, row_count);
 }
 
 #pragma endregion Concept Constrained Symmetric Spatial Distances
 
 #pragma region Concept Constrained Packed Spatial Distances
 
-/** Packed angular distances: C = angular(A, B_packed). @c unexpected_dimensions_k for an empty
- *  pack, a rank below 2 or a mismatched shape. */
+/** Packed angular distances: C = angular(A, B_packed), taking the pointer overload's trailing
+ *  parameters. @c unexpected_dimensions_k for an empty pack, a rank below 2 or a shape mismatch. */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::angular_result_t> output_matrix_>
-status_t angulars_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c) noexcept {
+status_t angulars_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c,
+                         std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
+                         nk_stream_t stream = nullptr) noexcept {
     if (packed_b.empty() || a.rank() < 2 || c.rank() < 2) return status_t::unexpected_dimensions_k;
     if (a.extent(1) != packed_b.depth()) return status_t::unexpected_dimensions_k;
     if (c.extent(0) != a.extent(0) || c.extent(1) != packed_b.rows()) return status_t::unexpected_dimensions_k;
     return numkong::angulars_packed<value_type_>(
         reinterpret_cast<value_type_ const *>(a.data()), packed_b.data(),
         reinterpret_cast<typename value_type_::angular_result_t *>(c.data()), a.extent(0), packed_b.rows(),
-        packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)), static_cast<std::size_t>(c.stride_bytes(0)));
+        packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)), static_cast<std::size_t>(c.stride_bytes(0)),
+        workspace, capabilities, stream);
 }
 
-/** Allocating packed angular distances. @c unexpected_dimensions_k for an empty pack or a rank
- *  below 2, or the allocation's or the kernel's failure. */
+/** Allocating packed angular distances into one block with any workspace.
+ *  @c unexpected_dimensions_k for an empty pack or a rank below 2, else the failure of the
+ *  allocation or of the kernel itself. */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::angular_result_t>>
     requires(!mutable_matrix_of<allocator_type_, typename value_type_::angular_result_t>)
 expected<matrix<typename value_type_::angular_result_t, allocator_type_>> angulars_packed(
-    input_matrix_ const &a, packed_type_ const &packed_b, allocator_type_ alloc = {}) noexcept {
+    input_matrix_ const &a, packed_type_ const &packed_b, allocator_type_ alloc = {},
+    nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     using result_t = typename value_type_::angular_result_t;
     using out_t = matrix<result_t, allocator_type_>;
     if (packed_b.empty() || a.rank() < 2) return {out_t(alloc), status_t::unexpected_dimensions_k};
-    auto c = out_t::uninitialized({a.extent(0), packed_b.rows()}, alloc);
+    auto workspace_bytes = angulars_packed_workspace_size<value_type_>(a.extent(0), packed_b.rows(), packed_b.depth(),
+                                                                       capabilities);
+    if (!workspace_bytes) return {out_t(alloc), workspace_bytes.status};
+    std::span<std::byte> workspace;
+    auto c = uninitialized_with_workspace_<out_t>({a.extent(0), packed_b.rows()}, workspace_bytes.value, alloc,
+                                                  workspace);
     if (!c) return c;
-    if (status_t status = angulars_packed<value_type_>(a, packed_b, c.value.as_matrix_span()); failed(status))
+    if (status_t status = angulars_packed<value_type_>(a, packed_b, c.value.as_matrix_span(), workspace, capabilities,
+                                                       stream);
+        failed(status))
         return {out_t(alloc), status};
     return c;
 }
 
-/** Packed Euclidean distances: C = euclidean(A, B_packed). @c unexpected_dimensions_k for an empty
- *  pack, a rank below 2 or a mismatched shape. */
+/** Packed Euclidean distances: C = euclidean(A, B_packed), trailing like the angular one.
+ *  @c unexpected_dimensions_k for an empty pack, a rank below 2 or a mismatched shape. */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::euclidean_result_t> output_matrix_>
-status_t euclideans_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c) noexcept {
+status_t euclideans_packed(input_matrix_ const &a, packed_type_ const &packed_b, output_matrix_ &&c,
+                           std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
+                           nk_stream_t stream = nullptr) noexcept {
     if (packed_b.empty() || a.rank() < 2 || c.rank() < 2) return status_t::unexpected_dimensions_k;
     if (a.extent(1) != packed_b.depth()) return status_t::unexpected_dimensions_k;
     if (c.extent(0) != a.extent(0) || c.extent(1) != packed_b.rows()) return status_t::unexpected_dimensions_k;
     return numkong::euclideans_packed<value_type_>(
         reinterpret_cast<value_type_ const *>(a.data()), packed_b.data(),
         reinterpret_cast<typename value_type_::euclidean_result_t *>(c.data()), a.extent(0), packed_b.rows(),
-        packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)), static_cast<std::size_t>(c.stride_bytes(0)));
+        packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)), static_cast<std::size_t>(c.stride_bytes(0)),
+        workspace, capabilities, stream);
 }
 
-/** Allocating packed Euclidean distances. @c unexpected_dimensions_k for an empty pack or a rank
- *  below 2, or the allocation's or the kernel's failure. */
+/** Allocating packed Euclidean distances into one block with any workspace.
+ *  @c unexpected_dimensions_k for an empty pack or a rank below 2, else the failure of the
+ *  allocation or of the kernel itself. */
 template <numeric_dtype value_type_, packed_matrix_like packed_type_, const_matrix_of<value_type_> input_matrix_,
           typename allocator_type_ = aligned_allocator<typename value_type_::euclidean_result_t>>
     requires(!mutable_matrix_of<allocator_type_, typename value_type_::euclidean_result_t>)
 expected<matrix<typename value_type_::euclidean_result_t, allocator_type_>> euclideans_packed(
-    input_matrix_ const &a, packed_type_ const &packed_b, allocator_type_ alloc = {}) noexcept {
+    input_matrix_ const &a, packed_type_ const &packed_b, allocator_type_ alloc = {},
+    nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     using result_t = typename value_type_::euclidean_result_t;
     using out_t = matrix<result_t, allocator_type_>;
     if (packed_b.empty() || a.rank() < 2) return {out_t(alloc), status_t::unexpected_dimensions_k};
-    auto c = out_t::uninitialized({a.extent(0), packed_b.rows()}, alloc);
+    auto workspace_bytes = euclideans_packed_workspace_size<value_type_>(a.extent(0), packed_b.rows(), packed_b.depth(),
+                                                                         capabilities);
+    if (!workspace_bytes) return {out_t(alloc), workspace_bytes.status};
+    std::span<std::byte> workspace;
+    auto c = uninitialized_with_workspace_<out_t>({a.extent(0), packed_b.rows()}, workspace_bytes.value, alloc,
+                                                  workspace);
     if (!c) return c;
-    if (status_t status = euclideans_packed<value_type_>(a, packed_b, c.value.as_matrix_span()); failed(status))
+    if (status_t status = euclideans_packed<value_type_>(a, packed_b, c.value.as_matrix_span(), workspace, capabilities,
+                                                         stream);
+        failed(status))
         return {out_t(alloc), status};
     return c;
 }

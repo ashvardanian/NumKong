@@ -222,8 +222,8 @@ nk::status_t shapes_oracle(shapes_packs_t const &rows, shapes_packs_t const &col
                                       .value;
         auto workspace = make_vector<char>(std::max<std::size_t>(bytes, 1));
         return nk::wassersteinprocrustes_packed<scalar_type_, reference_type_, reference_type_>(
-            a, rows.size(), b, columns.size(), results, stride, rotations, workspace.raw_values_data(), bytes,
-            no_tiers_k);
+            a, rows.size(), b, columns.size(), results, stride, rotations,
+            std::span<std::byte>(reinterpret_cast<std::byte *>(workspace.raw_values_data()), bytes), no_tiers_k);
     }
     else {
         std::size_t const bytes = nk::gromovwassersteins_workspace_size<scalar_type_, reference_type_>(
@@ -231,8 +231,8 @@ nk::status_t shapes_oracle(shapes_packs_t const &rows, shapes_packs_t const &col
                                       .value;
         auto workspace = make_vector<char>(std::max<std::size_t>(bytes, 1));
         return nk::gromovwassersteins_packed<scalar_type_, reference_type_, reference_type_>(
-            a, rows.size(), b, columns.size(), results, stride, rotations, workspace.raw_values_data(), bytes,
-            no_tiers_k);
+            a, rows.size(), b, columns.size(), results, stride, rotations,
+            std::span<std::byte>(reinterpret_cast<std::byte *>(workspace.raw_values_data()), bytes), no_tiers_k);
     }
 }
 

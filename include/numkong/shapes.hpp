@@ -1061,10 +1061,10 @@ shapes_wide_<math_type_> shapes_gromov_pair_(shapes_cloud_<in_type_> const &a, s
 template <typename in_type_, nk_kernel_kind_t kind_, typename distance_type_, typename rotation_type_>
 status_t shapes_transport_reference_(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
                                      std::size_t columns, distance_type_ *results, std::size_t results_stride,
-                                     rotation_type_ *rotations, void *workspace, std::size_t workspace_bytes) noexcept {
+                                     rotation_type_ *rotations, std::span<std::byte> workspace) noexcept {
     using math_t = distance_type_;
     if (!rows || !columns) return status_t::success_k;
-    if (reinterpret_cast<std::uintptr_t>(workspace) % nk_default_alignment_k) return status_t::misaligned_k;
+    if (reinterpret_cast<std::uintptr_t>(workspace.data()) % nk_default_alignment_k) return status_t::misaligned_k;
     std::size_t row_points = 0, column_points = 0;
     for (std::size_t row = 0; row != rows; ++row)
         if (std::size_t const points = shapes_cloud_<in_type_>(a_packed[row]).points; row_points < points)
@@ -1073,9 +1073,10 @@ status_t shapes_transport_reference_(void const *const *a_packed, std::size_t ro
         if (std::size_t const points = shapes_cloud_<in_type_>(b_packed[column]).points; column_points < points)
             column_points = points;
     shapes_transport_workspace_<math_t> arrays;
-    if (shapes_transport_layout_<math_t, kind_>(arrays, nullptr, row_points, column_points) > workspace_bytes)
+    if (shapes_transport_layout_<math_t, kind_>(arrays, nullptr, row_points, column_points) > workspace.size())
         return status_t::unexpected_dimensions_k;
-    shapes_transport_layout_<math_t, kind_>(arrays, static_cast<char *>(workspace), row_points, column_points);
+    shapes_transport_layout_<math_t, kind_>(arrays, reinterpret_cast<char *>(workspace.data()), row_points,
+                                            column_points);
 
     for (std::size_t row = 0; row != rows; ++row)
         for (std::size_t column = 0; column != columns; ++column) {
@@ -1390,9 +1391,9 @@ expected<std::size_t> gromovwassersteins_workspace_size(
 
 /**
  *  @brief Wasserstein-Procrustes distances between every row pack and every column pack.
- *  @param[in] workspace At least @p workspace_bytes, aligned to @c nk_default_alignment_k.
- *  @param[in] workspace_bytes What @c wassersteinprocrustes_workspace_size reports for the largest
- *      clouds, with the same capabilities and @p distance_type_, or more.
+ *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, of what
+ *      @c wassersteinprocrustes_workspace_size reports for the largest clouds, with the same
+ *      capabilities and @p distance_type_, or more.
  *  @return @c success_k, @c misaligned_k, @c unexpected_dimensions_k for a short workspace, or
  *      @c missing_kernel_k. The other parameters match @c chamfers_packed.
  */
@@ -1400,8 +1401,7 @@ template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::sh
           typename rotation_type_ = f32_t>
 status_t wassersteinprocrustes_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
                                       std::size_t columns, distance_type_ *results, std::size_t results_stride,
-                                      std::type_identity_t<rotation_type_> *rotations, void *workspace,
-                                      std::size_t workspace_bytes,
+                                      std::type_identity_t<rotation_type_> *rotations, std::span<std::byte> workspace,
                                       nk_capability_t capabilities = default_capabilities(),
                                       nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
@@ -1410,18 +1410,18 @@ status_t wassersteinprocrustes_packed(void const *const *a_packed, std::size_t r
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
             return static_cast<status_t>(nk_wassersteinprocrustes_packed_f64_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+                reinterpret_cast<nk_f32_t *>(rotations), workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(nk_wassersteinprocrustes_packed_f32_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+                reinterpret_cast<nk_f32_t *>(rotations), workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
             return static_cast<status_t>(nk_wassersteinprocrustes_packed_f16_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+                reinterpret_cast<nk_f32_t *>(rotations), workspace.data(), workspace.size(), capabilities, stream));
     }
     return shapes_transport_reference_<in_type_, nk_kernel_wassersteinprocrustes_packed_k>(
-        a_packed, rows, b_packed, columns, results, results_stride, rotations, workspace, workspace_bytes);
+        a_packed, rows, b_packed, columns, results, results_stride, rotations, workspace);
 }
 
 /** Gromov-Wasserstein distances between every row and column pack, with the parameters of
@@ -1430,8 +1430,8 @@ template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::sh
           typename rotation_type_ = f32_t>
 status_t gromovwassersteins_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
                                    std::size_t columns, distance_type_ *results, std::size_t results_stride,
-                                   std::type_identity_t<rotation_type_> *rotations, void *workspace,
-                                   std::size_t workspace_bytes, nk_capability_t capabilities = default_capabilities(),
+                                   std::type_identity_t<rotation_type_> *rotations, std::span<std::byte> workspace,
+                                   nk_capability_t capabilities = default_capabilities(),
                                    nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
                               std::is_same_v<rotation_type_, f32_t>;
@@ -1439,18 +1439,18 @@ status_t gromovwassersteins_packed(void const *const *a_packed, std::size_t rows
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
             return static_cast<status_t>(nk_gromovwassersteins_packed_f64_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+                reinterpret_cast<nk_f32_t *>(rotations), workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(nk_gromovwassersteins_packed_f32_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+                reinterpret_cast<nk_f32_t *>(rotations), workspace.data(), workspace.size(), capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
             return static_cast<status_t>(nk_gromovwassersteins_packed_f16_best(
                 a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                reinterpret_cast<nk_f32_t *>(rotations), workspace, workspace_bytes, capabilities, stream));
+                reinterpret_cast<nk_f32_t *>(rotations), workspace.data(), workspace.size(), capabilities, stream));
     }
     return shapes_transport_reference_<in_type_, nk_kernel_gromovwassersteins_packed_k>(
-        a_packed, rows, b_packed, columns, results, results_stride, rotations, workspace, workspace_bytes);
+        a_packed, rows, b_packed, columns, results, results_stride, rotations, workspace);
 }
 
 /**

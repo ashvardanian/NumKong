@@ -493,8 +493,8 @@ attention_reference_t reference_attention_unmasked(
         layout.head_count, layout.key_value_head_count, layout.depth, segments.query_offsets.values_data(),
         segments.query_tokens(), layout.scale, attention_all_keys_k, attention_all_keys_k,
         query_scales.operand(queries.values_data()), query_stride, key_value_packed_reference.raw_values_data(),
-        reference.output.values_data(), output_stride, reference.log_sum_exp.values_data(), 0, attention_all_keys_k,
-        nullptr, 0, 0));
+        reference.output.values_data(), output_stride, reference.log_sum_exp.values_data(), 0, attention_all_keys_k, {},
+        0));
     return reference;
 }
 
@@ -538,8 +538,7 @@ attention_reference_t reference_attention_masked(
                 query_scales.operand(queries.values_data() + query_row * query_values, query_row), query_stride,
                 key_value_packed_reference.raw_values_data(),
                 reference.output.values_data() + query_row * layout.query_width(), output_stride,
-                reference.log_sum_exp.values_data() + query_row * layout.head_count, 0, attention_all_keys_k, nullptr,
-                0, 0));
+                reference.log_sum_exp.values_data() + query_row * layout.head_count, 0, attention_all_keys_k, {}, 0));
         }
     }
     return reference;
@@ -979,7 +978,7 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
                                                      b_packed_reference.raw_values_data(), no_tiers_k, nullptr));
             stats.expect(nk::dots_packed<scalar_type_, reference_t>(
                 a_scales.operand(a.values_data()), b_packed_reference.raw_values_data(), c_reference.data(), rows,
-                columns, depth, a_stride, columns * sizeof(reference_t), nullptr, 0, no_tiers_k, nullptr));
+                columns, depth, a_stride, columns * sizeof(reference_t), {}, no_tiers_k, nullptr));
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t column = 0; column < columns; column++)
@@ -1157,7 +1156,7 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
             std::vector<reference_t> c_reference(count * count);
             stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
                 scales.operand(a.values_data()), count, depth, stride, c_reference.data(), count * sizeof(reference_t),
-                rows_begin, rows_end, nullptr, 0, no_tiers_k, nullptr));
+                rows_begin, rows_end, {}, no_tiers_k, nullptr));
 
             for (std::size_t row = rows_begin; row < rows_end; row++)
                 for (std::size_t column = row; column < count; column++)
@@ -1337,11 +1336,11 @@ error_stats_t test_sets_packed(settings_t const &settings, pack_size_kernel_type
             if constexpr (jaccard)
                 stats.expect(nk::jaccards_packed<scalar_t, result_t>(
                     a.values_data(), b_packed_reference.raw_values_data(), c_reference.values_data(), rows, columns,
-                    depth, stride, c_stride, nullptr, 0, no_tiers_k));
+                    depth, stride, c_stride, {}, no_tiers_k));
             else
                 stats.expect(nk::hammings_packed<scalar_t, result_t>(
                     a.values_data(), b_packed_reference.raw_values_data(), c_reference.values_data(), rows, columns,
-                    depth, stride, c_stride, nullptr, 0, no_tiers_k));
+                    depth, stride, c_stride, {}, no_tiers_k));
 
             for (std::size_t index = 0; index < rows * columns; index++) stats.accumulate(c[index], c_reference[index]);
         }
@@ -1380,11 +1379,11 @@ error_stats_t test_sets_symmetric(settings_t const &settings, symmetric_kernel_t
             if constexpr (jaccard)
                 stats.expect(nk::jaccards_symmetric<scalar_t, result_t>(a.values_data(), count, depth, stride,
                                                                         c_reference.values_data(), c_stride, 0, count,
-                                                                        nullptr, 0, no_tiers_k));
+                                                                        {}, no_tiers_k));
             else
                 stats.expect(nk::hammings_symmetric<scalar_t, result_t>(a.values_data(), count, depth, stride,
                                                                         c_reference.values_data(), c_stride, 0, count,
-                                                                        nullptr, 0, no_tiers_k));
+                                                                        {}, no_tiers_k));
 
             for (std::size_t row = 0; row < count; row++)
                 for (std::size_t column = row; column < count; column++)
@@ -1616,16 +1615,15 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
                                                      b_packed_reference.raw_values_data(), no_tiers_k, nullptr));
             stats.expect(nk::dots_packed<scalar_type_, reference_t>(
                 a_scales.operand(a.values_data()), b_packed_reference.raw_values_data(), dots_reference.values_data(),
-                rows, columns, depth, stride, columns * sizeof(reference_t), nullptr, 0, no_tiers_k, nullptr));
+                rows, columns, depth, stride, columns * sizeof(reference_t), {}, no_tiers_k, nullptr));
             for (std::size_t row = 0; row < rows; row++)
                 stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
                     a_scales.operand(a.values_data() + row * stride_values, row), 1, depth, stride,
-                    a_squared_norms.values_data() + row, sizeof(reference_t), 0, 1, nullptr, 0, no_tiers_k, nullptr));
+                    a_squared_norms.values_data() + row, sizeof(reference_t), 0, 1, {}, no_tiers_k, nullptr));
             for (std::size_t column = 0; column < columns; column++)
                 stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
                     b_scales.operand(b.values_data() + column * stride_values, column), 1, depth, stride,
-                    b_squared_norms.values_data() + column, sizeof(reference_t), 0, 1, nullptr, 0, no_tiers_k,
-                    nullptr));
+                    b_squared_norms.values_data() + column, sizeof(reference_t), 0, 1, {}, no_tiers_k, nullptr));
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t column = 0; column < columns; column++) {
@@ -1695,7 +1693,7 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
             auto dots_reference = make_vector<reference_t>(count * count);
             stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
                 scales.operand(a.values_data()), count, depth, stride, dots_reference.values_data(),
-                count * sizeof(reference_t), 0, count, nullptr, 0, no_tiers_k, nullptr));
+                count * sizeof(reference_t), 0, count, {}, no_tiers_k, nullptr));
             for (std::size_t row = 0; row < count; row++)
                 for (std::size_t column = row; column < count; column++) {
                     reference_t const first = dots_reference[row * count + row],

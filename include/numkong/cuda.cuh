@@ -110,8 +110,12 @@ NUMKONG_INLINE nk_status_t nk_device_attribute_cuda_(enum cudaDeviceAttr attribu
     return cudaDeviceGetAttribute(value, attribute, device) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
-/** Copies @p bytes from the device back to @p host once everything queued on @p stream is done. */
+/** Copies @p bytes from the device back to @p host once everything queued on @p stream is done.
+ *  Refuses a capturing stream before touching it, as the synchronization would void the capture. */
 NUMKONG_INLINE nk_status_t nk_read_cuda_(void *host, void const *device, nk_size_t bytes, nk_stream_t stream) {
+    enum cudaStreamCaptureStatus capture = cudaStreamCaptureStatusNone;
+    if (cudaStreamIsCapturing((cudaStream_t)stream, &capture) != cudaSuccess || capture != cudaStreamCaptureStatusNone)
+        return nk_device_code_mismatch_k;
     int caller = 0;
     nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
     if (entered != nk_success_k) return entered;

@@ -204,7 +204,9 @@ NUMKONG_API nk_status_t nk_attention_pack_size_mxfp8e5m2_best(nk_size_t key_valu
  *  @param[out] segments Receives the segment count.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *  @return @c nk_success_k, @c nk_missing_kernel_k when no capability in @p capabilities has it, or
+ *      @c nk_device_code_mismatch_k on a GPU stream capturing a graph, which reading the header
+ *      back would void.
  */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_best(void const *key_value_packed,
                                                             nk_size_t *key_value_head_count, nk_size_t *depth,

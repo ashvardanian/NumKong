@@ -2277,6 +2277,30 @@ bool tensor_layout_supported_(tensor_span<value_type_, max_rank_> input) noexcep
     return packed_tensor_layout_supported_<value_type_>(input.shape());
 }
 
+/** Allocates an uninitialized tensor of @p extents with @p workspace_bytes of scratch past its
+ *  values in the same block, kept as spare capacity, so the scratch outlives an asynchronous kernel
+ *  writing the result. Sets @p workspace to the scratch, @c nk_default_alignment_k past the values,
+ *  or to an empty span when none is asked. */
+template <typename tensor_type_>
+expected<tensor_type_> uninitialized_with_workspace_(std::initializer_list<std::size_t> extents,
+                                                     std::size_t workspace_bytes,
+                                                     typename tensor_type_::allocator_type alloc,
+                                                     std::span<std::byte> &workspace) noexcept {
+    using value_t = typename tensor_type_::value_type;
+    workspace = {};
+    if (!workspace_bytes) return tensor_type_::uninitialized(extents, alloc);
+    std::size_t values = 1;
+    for (std::size_t extent : extents) values *= extent;
+    std::size_t const values_bytes = nk_size_round_up_to_multiple_(values * sizeof(value_t), nk_default_alignment_k);
+    auto result = tensor_type_::uninitialized(
+        {nk_size_divide_round_up_(values_bytes + workspace_bytes, sizeof(value_t))}, alloc);
+    if (!result) return result;
+    if (status_t status = result.value.resize(extents.begin(), extents.size()); failed(status))
+        return {tensor_type_(alloc), status};
+    workspace = {reinterpret_cast<std::byte *>(result.value.data()) + values_bytes, workspace_bytes};
+    return result;
+}
+
 template <typename value_type_, std::size_t max_rank_>
 struct normalized_rank1_lane_ {
     value_type_ const *data = nullptr;

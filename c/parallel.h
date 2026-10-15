@@ -69,6 +69,8 @@ typedef struct {
     nk_size_t depth;
     nk_size_t a_stride;
     nk_size_t c_stride;
+    void *workspace;
+    nk_size_t workspace_bytes;
     nk_stream_t stream;
 } nk_dots_packed_task_t;
 
@@ -83,16 +85,20 @@ typedef struct {
     nk_size_t result_stride;
     nk_size_t rows_begin;
     nk_size_t rows_end;
+    void *workspace;
+    nk_size_t workspace_bytes;
     nk_stream_t stream;
 } nk_dots_symmetric_task_t;
 
 /** Runs @p task in tiles of @c NUMKONG_PARALLEL_PACKED_TILE columns of B on @p threads workers. */
 nk_status_t nk_parallel_dots_pack(nk_dots_pack_task_t const *task, nk_size_t threads);
 
-/** Runs @p task in tiles of @c NUMKONG_PARALLEL_PACKED_TILE rows of A on @p threads workers. */
+/** Runs @p task in tiles of @c NUMKONG_PARALLEL_PACKED_TILE rows of A on @p threads workers, or in
+ *  one call when it carries a workspace, which only device kernels take and tiles cannot share. */
 nk_status_t nk_parallel_dots_packed(nk_dots_packed_task_t const *task, nk_size_t threads);
 
-/** Runs @p task in tiles of @c NUMKONG_PARALLEL_SYMMETRIC_TILE rows on @p threads workers. */
+/** Runs @p task in tiles of @c NUMKONG_PARALLEL_SYMMETRIC_TILE rows on @p threads workers, or in
+ *  one call when it carries a workspace, as @c nk_parallel_dots_packed does. */
 nk_status_t nk_parallel_dots_symmetric(nk_dots_symmetric_task_t const *task, nk_size_t threads);
 
 #ifdef __cplusplus
