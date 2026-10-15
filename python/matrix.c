@@ -548,7 +548,7 @@ static PyObject *api_packed_common( //
                                             .stream = stream};
         // A GPU parallelizes the whole slice itself, in one launch rather than the thread pool
         nk_status_t const status = on_gpu ? kernel(task.a, task.b_packed, task.c, task.rows, task.columns, task.depth,
-                                                   task.a_stride, task.c_stride, stream)
+                                                   task.a_stride, task.c_stride, NULL, 0, stream)
                                           : nk_parallel_dots_packed(&task, threads);
         PyEval_RestoreThread(save);
         if (!check_status(status)) {
@@ -699,10 +699,10 @@ static PyObject *api_symmetric_common( //
                                                .rows_begin = window_begin,
                                                .rows_end = window_end,
                                                .stream = stream};
-        nk_status_t const status = on_gpu
-                                       ? kernel(task.vectors, task.vector_count, task.depth, task.vectors_stride,
-                                                task.result, task.result_stride, task.rows_begin, task.rows_end, stream)
-                                       : nk_parallel_dots_symmetric(&task, threads);
+        nk_status_t const status = on_gpu ? kernel(task.vectors, task.vector_count, task.depth, task.vectors_stride,
+                                                   task.result, task.result_stride, task.rows_begin, task.rows_end,
+                                                   NULL, 0, stream)
+                                          : nk_parallel_dots_symmetric(&task, threads);
         PyEval_RestoreThread(save);
         if (!check_status(status)) {
             if (owns_result) Py_DECREF(result);

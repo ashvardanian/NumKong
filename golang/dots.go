@@ -166,7 +166,7 @@ func DotsPackedF64(a []float64, b DotsPackedMatrix, c []float64, rows int) {
 		(*C.nk_f64_t)(&c[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*8),
-		C.nk_size_t(b.columns*8), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(b.columns*8), nil, 0, C.nk_cap_cpus_k, nil))
 }
 
 // DotsPackedF32 computes the dot product of each of rows float32 rows of a with every packed row
@@ -188,7 +188,7 @@ func DotsPackedF32(a []float32, b DotsPackedMatrix, c []float64, rows int) {
 		(*C.nk_f64_t)(&c[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*4),
-		C.nk_size_t(b.columns*8), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(b.columns*8), nil, 0, C.nk_cap_cpus_k, nil))
 }
 
 // DotsPackedI8 computes the dot product of each of rows int8 rows of a with every packed row of
@@ -210,7 +210,7 @@ func DotsPackedI8(a []int8, b DotsPackedMatrix, c []int32, rows int) {
 		(*C.nk_i32_t)(&c[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.columns*4), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(b.columns*4), nil, 0, C.nk_cap_cpus_k, nil))
 }
 
 // DotsPackedU8 computes the dot product of each of rows uint8 rows of a with every packed row of
@@ -232,7 +232,7 @@ func DotsPackedU8(a []uint8, b DotsPackedMatrix, c []uint32, rows int) {
 		(*C.nk_u32_t)(&c[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.columns*4), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(b.columns*4), nil, 0, C.nk_cap_cpus_k, nil))
 }
 
 // endregion
@@ -259,7 +259,7 @@ func dotsSymmetricF64(vectors []float64, nVectors, depth int, result []float64, 
 		C.nk_size_t(depth*8),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), nil, 0, C.nk_cap_cpus_k, nil))
 }
 
 // DotsSymmetricF32 computes the dot product between every pair of nVectors float32 vectors of depth
@@ -282,7 +282,7 @@ func dotsSymmetricF32(vectors []float32, nVectors, depth int, result []float64, 
 		C.nk_size_t(depth*4),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), nil, 0, C.nk_cap_cpus_k, nil))
 }
 
 // DotsSymmetricI8 computes the dot product between every pair of nVectors int8 vectors of depth
@@ -305,7 +305,7 @@ func dotsSymmetricI8(vectors []int8, nVectors, depth int, result []int32, rowsBe
 		C.nk_size_t(depth),
 		(*C.nk_i32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), nil, 0, C.nk_cap_cpus_k, nil))
 }
 
 // DotsSymmetricU8 computes the dot product between every pair of nVectors uint8 vectors of depth
@@ -328,7 +328,7 @@ func dotsSymmetricU8(vectors []uint8, nVectors, depth int, result []uint32, rows
 		C.nk_size_t(depth),
 		(*C.nk_u32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), C.nk_cap_cpus_k, nil))
+		C.nk_size_t(rowsBegin), C.nk_size_t(rowsEnd), nil, 0, C.nk_cap_cpus_k, nil))
 }
 
 // endregion

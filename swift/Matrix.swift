@@ -597,7 +597,7 @@ extension Float64: NumKongDotsMatrixElement {
             nk_dots_packed_f64_best(
                 a,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
-                Capabilities.cpus.native, nil))
+                nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -608,7 +608,7 @@ extension Float64: NumKongDotsMatrixElement {
             nk_dots_symmetric_f64_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -623,7 +623,7 @@ extension Float64: NumKongSpatialsMatrixElement {
             nk_angulars_packed_f64_best(
                 a,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -634,7 +634,7 @@ extension Float64: NumKongSpatialsMatrixElement {
             nk_euclideans_packed_f64_best(
                 a,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -645,7 +645,7 @@ extension Float64: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_f64_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -656,7 +656,7 @@ extension Float64: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_f64_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -699,7 +699,7 @@ extension Float32: NumKongDotsMatrixElement {
             nk_dots_packed_f32_best(
                 a,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
-                Capabilities.cpus.native, nil))
+                nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -710,7 +710,7 @@ extension Float32: NumKongDotsMatrixElement {
             nk_dots_symmetric_f32_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -725,7 +725,7 @@ extension Float32: NumKongSpatialsMatrixElement {
             nk_angulars_packed_f32_best(
                 a,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -736,7 +736,7 @@ extension Float32: NumKongSpatialsMatrixElement {
             nk_euclideans_packed_f32_best(
                 a,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -747,7 +747,7 @@ extension Float32: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_f32_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -758,7 +758,7 @@ extension Float32: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_f32_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -803,7 +803,7 @@ extension BFloat16: NumKongDotsMatrixElement {
             nk_dots_packed_bf16_best(
                 cPtr,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
-                Capabilities.cpus.native, nil))
+                nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -815,7 +815,7 @@ extension BFloat16: NumKongDotsMatrixElement {
             nk_dots_symmetric_bf16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -831,7 +831,7 @@ extension BFloat16: NumKongSpatialsMatrixElement {
             nk_angulars_packed_bf16_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -843,7 +843,7 @@ extension BFloat16: NumKongSpatialsMatrixElement {
             nk_euclideans_packed_bf16_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -855,7 +855,7 @@ extension BFloat16: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_bf16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -867,7 +867,7 @@ extension BFloat16: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_bf16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -913,7 +913,7 @@ extension Float16: NumKongDotsMatrixElement {
             nk_dots_packed_f16_best(
                 cPtr,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
-                Capabilities.cpus.native, nil))
+                nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -925,7 +925,7 @@ extension Float16: NumKongDotsMatrixElement {
             nk_dots_symmetric_f16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -941,7 +941,7 @@ extension Float16: NumKongSpatialsMatrixElement {
             nk_angulars_packed_f16_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -953,7 +953,7 @@ extension Float16: NumKongSpatialsMatrixElement {
             nk_euclideans_packed_f16_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -965,7 +965,7 @@ extension Float16: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_f16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -977,7 +977,7 @@ extension Float16: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_f16_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 #endif
@@ -1023,7 +1023,7 @@ extension E5M2: NumKongDotsMatrixElement {
             nk_dots_packed_e5m2_best(
                 cPtr,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
-                Capabilities.cpus.native, nil))
+                nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -1035,7 +1035,7 @@ extension E5M2: NumKongDotsMatrixElement {
             nk_dots_symmetric_e5m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1051,7 +1051,7 @@ extension E5M2: NumKongSpatialsMatrixElement {
             nk_angulars_packed_e5m2_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1063,7 +1063,7 @@ extension E5M2: NumKongSpatialsMatrixElement {
             nk_euclideans_packed_e5m2_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1075,7 +1075,7 @@ extension E5M2: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_e5m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -1087,7 +1087,7 @@ extension E5M2: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_e5m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1132,7 +1132,7 @@ extension E4M3: NumKongDotsMatrixElement {
             nk_dots_packed_e4m3_best(
                 cPtr,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
-                Capabilities.cpus.native, nil))
+                nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -1144,7 +1144,7 @@ extension E4M3: NumKongDotsMatrixElement {
             nk_dots_symmetric_e4m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1160,7 +1160,7 @@ extension E4M3: NumKongSpatialsMatrixElement {
             nk_angulars_packed_e4m3_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1172,7 +1172,7 @@ extension E4M3: NumKongSpatialsMatrixElement {
             nk_euclideans_packed_e4m3_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1184,7 +1184,7 @@ extension E4M3: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_e4m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -1196,7 +1196,7 @@ extension E4M3: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_e4m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1241,7 +1241,7 @@ extension E3M2: NumKongDotsMatrixElement {
             nk_dots_packed_e3m2_best(
                 cPtr,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
-                Capabilities.cpus.native, nil))
+                nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -1253,7 +1253,7 @@ extension E3M2: NumKongDotsMatrixElement {
             nk_dots_symmetric_e3m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1269,7 +1269,7 @@ extension E3M2: NumKongSpatialsMatrixElement {
             nk_angulars_packed_e3m2_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1281,7 +1281,7 @@ extension E3M2: NumKongSpatialsMatrixElement {
             nk_euclideans_packed_e3m2_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1293,7 +1293,7 @@ extension E3M2: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_e3m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -1305,7 +1305,7 @@ extension E3M2: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_e3m2_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1350,7 +1350,7 @@ extension E2M3: NumKongDotsMatrixElement {
             nk_dots_packed_e2m3_best(
                 cPtr,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
-                Capabilities.cpus.native, nil))
+                nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -1362,7 +1362,7 @@ extension E2M3: NumKongDotsMatrixElement {
             nk_dots_symmetric_e2m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1378,7 +1378,7 @@ extension E2M3: NumKongSpatialsMatrixElement {
             nk_angulars_packed_e2m3_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1390,7 +1390,7 @@ extension E2M3: NumKongSpatialsMatrixElement {
             nk_euclideans_packed_e2m3_best(
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1402,7 +1402,7 @@ extension E2M3: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_e2m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -1414,7 +1414,7 @@ extension E2M3: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_e2m3_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1464,7 +1464,7 @@ extension E2M1x2: NumKongDotsMatrixElement {
                 cPtr,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_e2m1_k)),
                 nk_size_t(aStride),
-                nk_size_t(cStride), Capabilities.cpus.native, nil))
+                nk_size_t(cStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -1476,7 +1476,7 @@ extension E2M1x2: NumKongDotsMatrixElement {
             nk_dots_symmetric_e2m1_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1494,7 +1494,7 @@ extension E2M1x2: NumKongSpatialsMatrixElement {
                 bPacked, result, nk_size_t(rows), nk_size_t(columns),
                 nk_size_t(valuesToDimensions(depth, nk_e2m1_k)),
                 nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1508,7 +1508,7 @@ extension E2M1x2: NumKongSpatialsMatrixElement {
                 bPacked, result, nk_size_t(rows), nk_size_t(columns),
                 nk_size_t(valuesToDimensions(depth, nk_e2m1_k)),
                 nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1520,7 +1520,7 @@ extension E2M1x2: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_e2m1_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -1532,7 +1532,7 @@ extension E2M1x2: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_e2m1_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1575,7 +1575,7 @@ extension Int8: NumKongDotsMatrixElement {
             nk_dots_packed_i8_best(
                 a,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
-                Capabilities.cpus.native, nil))
+                nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -1586,7 +1586,7 @@ extension Int8: NumKongDotsMatrixElement {
             nk_dots_symmetric_i8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1601,7 +1601,7 @@ extension Int8: NumKongSpatialsMatrixElement {
             nk_angulars_packed_i8_best(
                 a,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1612,7 +1612,7 @@ extension Int8: NumKongSpatialsMatrixElement {
             nk_euclideans_packed_i8_best(
                 a,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1623,7 +1623,7 @@ extension Int8: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_i8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -1634,7 +1634,7 @@ extension Int8: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_i8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1682,7 +1682,7 @@ extension I4x2: NumKongDotsMatrixElement {
                 cPtr,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_i4_k)),
                 nk_size_t(aStride),
-                nk_size_t(cStride), Capabilities.cpus.native, nil))
+                nk_size_t(cStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -1694,7 +1694,7 @@ extension I4x2: NumKongDotsMatrixElement {
             nk_dots_symmetric_i4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1711,7 +1711,7 @@ extension I4x2: NumKongSpatialsMatrixElement {
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(valuesToDimensions(depth, nk_i4_k)),
                 nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1724,7 +1724,7 @@ extension I4x2: NumKongSpatialsMatrixElement {
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(valuesToDimensions(depth, nk_i4_k)),
                 nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1736,7 +1736,7 @@ extension I4x2: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_i4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -1748,7 +1748,7 @@ extension I4x2: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_i4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1791,7 +1791,7 @@ extension UInt8: NumKongDotsMatrixElement {
             nk_dots_packed_u8_best(
                 a,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
-                Capabilities.cpus.native, nil))
+                nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -1802,7 +1802,7 @@ extension UInt8: NumKongDotsMatrixElement {
             nk_dots_symmetric_u8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1817,7 +1817,7 @@ extension UInt8: NumKongSpatialsMatrixElement {
             nk_angulars_packed_u8_best(
                 a,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1828,7 +1828,7 @@ extension UInt8: NumKongSpatialsMatrixElement {
             nk_euclideans_packed_u8_best(
                 a,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(depth), nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1839,7 +1839,7 @@ extension UInt8: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_u8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -1850,7 +1850,7 @@ extension UInt8: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_u8_best(
                 vectors,
                 nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
-                nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1898,7 +1898,7 @@ extension U4x2: NumKongDotsMatrixElement {
                 cPtr,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_u4_k)),
                 nk_size_t(aStride),
-                nk_size_t(cStride), Capabilities.cpus.native, nil))
+                nk_size_t(cStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -1910,7 +1910,7 @@ extension U4x2: NumKongDotsMatrixElement {
             nk_dots_symmetric_u4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -1927,7 +1927,7 @@ extension U4x2: NumKongSpatialsMatrixElement {
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(valuesToDimensions(depth, nk_u4_k)),
                 nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1940,7 +1940,7 @@ extension U4x2: NumKongSpatialsMatrixElement {
                 cPtr,
                 bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(valuesToDimensions(depth, nk_u4_k)),
                 nk_size_t(aStride),
-                nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1952,7 +1952,7 @@ extension U4x2: NumKongSpatialsMatrixElement {
             nk_angulars_symmetric_u4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_euclideans_symmetric(
@@ -1964,7 +1964,7 @@ extension U4x2: NumKongSpatialsMatrixElement {
             nk_euclideans_symmetric_u4_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -2012,7 +2012,7 @@ extension U1x8: NumKongDotsMatrixElement {
                 cPtr,
                 bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_u1_k)),
                 nk_size_t(aStride),
-                nk_size_t(cStride), Capabilities.cpus.native, nil))
+                nk_size_t(cStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -2024,7 +2024,7 @@ extension U1x8: NumKongDotsMatrixElement {
             nk_dots_symmetric_u1_best(
                 cPtr,
                 nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }
 
@@ -2043,7 +2043,7 @@ extension U1x8: NumKongSetsMatrixElement {
             nk_hammings_packed_u1_best(
                 cPtr, bPacked, result, nk_size_t(rows), nk_size_t(columns),
                 nk_size_t(valuesToDimensions(depth, nk_u1_k)),
-                nk_size_t(aStride), nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(aStride), nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_hammings_symmetric(
@@ -2054,7 +2054,7 @@ extension U1x8: NumKongSetsMatrixElement {
         try _nkCheck(
             nk_hammings_symmetric_u1_best(
                 cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_jaccards_packed(
@@ -2066,7 +2066,7 @@ extension U1x8: NumKongSetsMatrixElement {
             nk_jaccards_packed_u1_best(
                 cPtr, bPacked, result, nk_size_t(rows), nk_size_t(columns),
                 nk_size_t(valuesToDimensions(depth, nk_u1_k)),
-                nk_size_t(aStride), nk_size_t(rStride), Capabilities.cpus.native, nil))
+                nk_size_t(aStride), nk_size_t(rStride), nil, 0, Capabilities.cpus.native, nil))
     }
 
     public static func _nk_jaccards_symmetric(
@@ -2077,6 +2077,6 @@ extension U1x8: NumKongSetsMatrixElement {
         try _nkCheck(
             nk_jaccards_symmetric_u1_best(
                 cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u1_k)), nk_size_t(stride), result,
-                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), Capabilities.cpus.native, nil))
+                nk_size_t(resultStride), nk_size_t(rowsBegin), nk_size_t(rowsEnd), nil, 0, Capabilities.cpus.native, nil))
     }
 }

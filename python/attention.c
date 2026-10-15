@@ -80,7 +80,7 @@ static nk_status_t attention_tile_(nk_size_t tile_index, void *context) {
                         arguments->keys_before, arguments->keys_after, arguments->queries, arguments->query_stride,
                         arguments->key_value_packed, arguments->output, arguments->output_stride,
                         arguments->log_sum_exp, task->window_bounds[tile_index], task->window_bounds[tile_index + 1],
-                        arguments->stream);
+                        NULL, 0, arguments->stream);
 }
 
 /** The cost of one head of query @p row of a segment of @p queries queries and @p keys keys: the
@@ -143,7 +143,7 @@ static nk_status_t attention_gradients_tile_(nk_size_t tile_index, void *context
                         arguments->key_value_packed, task->output, task->output_gradient, arguments->output_stride,
                         arguments->log_sum_exp, (nk_f32_t *)arguments->output, task->query_gradient_stride,
                         task->key_gradient, task->value_gradient, task->key_value_gradient_stride, tile_index,
-                        tile_index + 1, arguments->stream);
+                        tile_index + 1, NULL, 0, arguments->stream);
 }
 
 static void AttentionPackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }

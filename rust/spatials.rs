@@ -41,6 +41,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -53,6 +55,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -65,6 +69,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -77,6 +83,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -89,6 +97,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -101,6 +111,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -113,6 +125,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -125,6 +139,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -137,6 +153,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -149,6 +167,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -161,6 +181,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -173,6 +195,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -185,6 +209,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -197,6 +223,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -209,6 +237,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -221,6 +251,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -233,6 +265,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -245,6 +279,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -257,6 +293,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -269,6 +307,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -281,6 +321,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -293,6 +335,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -305,6 +349,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -317,6 +363,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -329,6 +377,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -341,6 +391,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -355,6 +407,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -367,6 +421,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -379,6 +435,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -391,6 +449,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -403,6 +463,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -415,6 +477,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -427,6 +491,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -439,6 +505,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -451,6 +519,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -463,6 +533,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -475,6 +547,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -487,6 +561,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -499,6 +575,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -511,6 +589,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -523,6 +603,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -535,6 +617,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -547,6 +631,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -559,6 +645,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -571,6 +659,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -583,6 +673,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -595,6 +687,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -607,6 +701,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -619,6 +715,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -631,6 +729,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -643,6 +743,8 @@ extern "C" {
         depth: nk_size_t,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -655,6 +757,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -797,6 +901,8 @@ impl Angulars for f32 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -822,6 +928,8 @@ impl Angulars for f32 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -851,6 +959,8 @@ impl Euclideans for f32 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -876,6 +986,8 @@ impl Euclideans for f32 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -905,6 +1017,8 @@ impl Angulars for f64 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -930,6 +1044,8 @@ impl Angulars for f64 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -959,6 +1075,8 @@ impl Euclideans for f64 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -984,6 +1102,8 @@ impl Euclideans for f64 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1013,6 +1133,8 @@ impl Angulars for f16 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1038,6 +1160,8 @@ impl Angulars for f16 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1067,6 +1191,8 @@ impl Euclideans for f16 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1092,6 +1218,8 @@ impl Euclideans for f16 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1121,6 +1249,8 @@ impl Angulars for bf16 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1146,6 +1276,8 @@ impl Angulars for bf16 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1175,6 +1307,8 @@ impl Euclideans for bf16 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1200,6 +1334,8 @@ impl Euclideans for bf16 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1229,6 +1365,8 @@ impl Angulars for i8 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1254,6 +1392,8 @@ impl Angulars for i8 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1283,6 +1423,8 @@ impl Euclideans for i8 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1308,6 +1450,8 @@ impl Euclideans for i8 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1337,6 +1481,8 @@ impl Angulars for u8 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1362,6 +1508,8 @@ impl Angulars for u8 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1391,6 +1539,8 @@ impl Euclideans for u8 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1416,6 +1566,8 @@ impl Euclideans for u8 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1445,6 +1597,8 @@ impl Angulars for e4m3 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1470,6 +1624,8 @@ impl Angulars for e4m3 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1499,6 +1655,8 @@ impl Euclideans for e4m3 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1524,6 +1682,8 @@ impl Euclideans for e4m3 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1553,6 +1713,8 @@ impl Angulars for e5m2 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1578,6 +1740,8 @@ impl Angulars for e5m2 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1607,6 +1771,8 @@ impl Euclideans for e5m2 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1632,6 +1798,8 @@ impl Euclideans for e5m2 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1661,6 +1829,8 @@ impl Angulars for e2m3 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1686,6 +1856,8 @@ impl Angulars for e2m3 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1715,6 +1887,8 @@ impl Angulars for e2m1x2 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1740,6 +1914,8 @@ impl Angulars for e2m1x2 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1769,6 +1945,8 @@ impl Euclideans for e2m3 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1794,6 +1972,8 @@ impl Euclideans for e2m3 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1823,6 +2003,8 @@ impl Euclideans for e2m1x2 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1848,6 +2030,8 @@ impl Euclideans for e2m1x2 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1877,6 +2061,8 @@ impl Angulars for e3m2 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1902,6 +2088,8 @@ impl Angulars for e3m2 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1931,6 +2119,8 @@ impl Euclideans for e3m2 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1956,6 +2146,8 @@ impl Euclideans for e3m2 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -1985,6 +2177,8 @@ impl Angulars for u4x2 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2009,6 +2203,8 @@ impl Angulars for u4x2 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2036,6 +2232,8 @@ impl Euclideans for u4x2 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2060,6 +2258,8 @@ impl Euclideans for u4x2 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2087,6 +2287,8 @@ impl Angulars for i4x2 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2111,6 +2313,8 @@ impl Angulars for i4x2 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2138,6 +2342,8 @@ impl Euclideans for i4x2 {
             depth,
             query_stride,
             output_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -2162,6 +2368,8 @@ impl Euclideans for i4x2 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )

@@ -100,6 +100,8 @@ extern "C" {
         log_sum_exp: *mut f32,
         tasks_begin: nk_size_t,
         tasks_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -126,6 +128,8 @@ extern "C" {
         key_value_gradient_stride: nk_size_t,
         tasks_begin: nk_size_t,
         tasks_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -171,6 +175,8 @@ extern "C" {
         log_sum_exp: *mut f32,
         tasks_begin: nk_size_t,
         tasks_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -216,6 +222,8 @@ extern "C" {
         log_sum_exp: *mut f32,
         tasks_begin: nk_size_t,
         tasks_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -261,6 +269,8 @@ extern "C" {
         log_sum_exp: *mut f32,
         tasks_begin: nk_size_t,
         tasks_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -536,6 +546,8 @@ impl Attention for bf16 {
                 log_sum_exp,
                 tasks_begin,
                 tasks_end,
+                null_mut(),
+                0,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -609,6 +621,8 @@ impl bf16 {
                 key_value_gradient_stride,
                 tasks_begin,
                 tasks_end,
+                null_mut(),
+                0,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -724,6 +738,8 @@ impl Attention for f16 {
                 log_sum_exp,
                 tasks_begin,
                 tasks_end,
+                null_mut(),
+                0,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -839,6 +855,8 @@ impl Attention for e4m3 {
                 log_sum_exp,
                 tasks_begin,
                 tasks_end,
+                null_mut(),
+                0,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )
@@ -954,6 +972,8 @@ impl Attention for i8 {
                 log_sum_exp,
                 tasks_begin,
                 tasks_end,
+                null_mut(),
+                0,
                 Capabilities::CPUS.bits(),
                 null_mut(),
             )

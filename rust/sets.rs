@@ -40,6 +40,8 @@ extern "C" {
         depth: nk_size_t,
         v_stride: nk_size_t,
         r_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -52,6 +54,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -65,6 +69,8 @@ extern "C" {
         depth: nk_size_t,
         v_stride: nk_size_t,
         r_stride: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -77,6 +83,8 @@ extern "C" {
         result_stride: nk_size_t,
         rows_begin: nk_size_t,
         rows_end: nk_size_t,
+        workspace: *mut c_void,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -157,6 +165,8 @@ impl Hammings for u1x8 {
             depth,
             v_stride,
             r_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -182,6 +192,8 @@ impl Hammings for u1x8 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -270,6 +282,8 @@ impl Jaccards for u1x8 {
             depth,
             v_stride,
             r_stride,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
@@ -295,6 +309,8 @@ impl Jaccards for u1x8 {
             result_stride,
             rows_begin,
             rows_end,
+            null_mut(),
+            0,
             Capabilities::CPUS.bits(),
             null_mut(),
         )
