@@ -15,12 +15,13 @@
  *  thread and writes P over it, and P · V reads P from there as its A operand into an F32 O that
  *  stays in tensor memory too. A correction warpgroup rescales a row of O only when its maximum
  *  moved, which BF16 lets it do only past 2⁸, and finally normalizes and stores it. BF16 multiplies
- *  as @c kind::f16, E4M3 as @c kind::f8f6f4 with weights e4m3(256 · p), and I8, which this family
- *  has no tensor-core kind for, as exact F16: its pack stores K and V widened and the softmax warps
- *  widen Q as they stage it, under the U8 weights of the serial contract. The pack keeps V
- *  position-major, which P · V reads MN-major, so one tensor map reaches every plane; depths above
- *  256 keep the @c cuda layout and kernel. Only the "100f" family code carries these instructions,
- *  so every other device pass traps.
+ *  as @c kind::f16, E4M3 as @c kind::f8f6f4 with weights e4m3(256 · p), and I8 as exact F16: its
+ *  pack stores K and V widened and the softmax warps widen Q as they stage it, under the U8 weights
+ *  of the serial contract. `tcgen05.mma.kind::i8` exists only in sm_100a and sm_110a code, not in
+ *  the family code shared with the 10.3 and 10.7 parts, so integers multiply as exact F16. The pack
+ *  keeps V position-major, which P · V reads MN-major, so one tensor map reaches every plane;
+ *  depths above 256 keep the @c cuda layout and kernel. Only the "100f" family code carries these
+ *  instructions, so every other device pass traps.
  *
  *  The BF16 backward stages K, V, Q and dO once each in the same swizzled rows, which the products
  *  read K-major or MN-major as each needs. Blocks of 128 keys take Sᵀ and dPᵀ into tensor memory,
@@ -256,17 +257,6 @@ NUMKONG_CONSTEXPR unsigned nk_attention_shared_bytes_blackwell_(unsigned element
 
 #pragma region Instructions
 
-/** A 128-row step reading A from tensor memory at @p a, 16 depths per 8 columns, and B through
- *  its shared-memory descriptor. */
-NUMKONG_DEVICE void nk_mma_f16_tmem_blackwell_(nk_u32_t accumulator, nk_u32_t a, nk_u64_t b, nk_u32_t instruction,
-                                               nk_u32_t accumulate) {
-    asm volatile("{\n.reg .pred accumulate;\n"      //
-                 "setp.ne.b32 accumulate, %4, 0;\n" //
-                 "tcgen05.mma.cta_group::1.kind::f16 [%0], [%1], %2, %3, accumulate;\n}\n" ::"r"(accumulator),
-                 "r"(a), "l"(b), "r"(instruction), "r"(accumulate)
-                 : "memory");
-}
-
 /** A 128-row step reading A from tensor memory at @p a, 32 depths per 8 columns. */
 NUMKONG_DEVICE void nk_mma_f8f6f4_tmem_blackwell_(nk_u32_t accumulator, nk_u32_t a, nk_u64_t b, nk_u32_t instruction,
                                                   nk_u32_t accumulate) {
@@ -351,21 +341,6 @@ NUMKONG_DEVICE void nk_tmem_store_x16_blackwell_(nk_u32_t address, nk_u32_t cons
                  "r"(values[0]), "r"(values[1]), "r"(values[2]), "r"(values[3]), "r"(values[4]), "r"(values[5]),
                  "r"(values[6]), "r"(values[7]), "r"(values[8]), "r"(values[9]), "r"(values[10]), "r"(values[11]),
                  "r"(values[12]), "r"(values[13]), "r"(values[14]), "r"(values[15])
-                 : "memory");
-}
-
-/* Writes 32 consecutive columns of this thread's lane, without waiting. */
-NUMKONG_DEVICE void nk_tmem_store_x32_blackwell_(nk_u32_t address, nk_u32_t const values[32]) {
-    asm volatile("tcgen05.st.sync.aligned.32x32b.x32.b32 [%0], "                                             //
-                 "{%1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, "                  //
-                 "%17, %18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31, %32};\n" ::"r"( //
-                     address),
-                 "r"(values[0]), "r"(values[1]), "r"(values[2]), "r"(values[3]), "r"(values[4]), "r"(values[5]),
-                 "r"(values[6]), "r"(values[7]), "r"(values[8]), "r"(values[9]), "r"(values[10]), "r"(values[11]),
-                 "r"(values[12]), "r"(values[13]), "r"(values[14]), "r"(values[15]), "r"(values[16]), "r"(values[17]),
-                 "r"(values[18]), "r"(values[19]), "r"(values[20]), "r"(values[21]), "r"(values[22]), "r"(values[23]),
-                 "r"(values[24]), "r"(values[25]), "r"(values[26]), "r"(values[27]), "r"(values[28]), "r"(values[29]),
-                 "r"(values[30]), "r"(values[31])
                  : "memory");
 }
 
