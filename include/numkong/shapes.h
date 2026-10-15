@@ -10,10 +10,11 @@
  *  - Hausdorff: the worst of those nearest-partner distances
  *  - Wasserstein-Procrustes: the transport distance after a rotation or reflection fit to the plan
  *  - Gromov-Wasserstein: the transport distance between the two clouds' own distance matrices
+ *  - RMSD: the root mean square deviation of matched frames after the best rotation
  *
- *  None of them needs a correspondence between points, and the two sides may differ in size: a
- *  20-atom molecule scores against a 60-atom one without padding or resampling. Every kind is
- *  invariant to rotation, reflection and translation, and between normalized packs to scale as
+ *  None of the first four needs a correspondence between points, and the two sides may differ in
+ *  size: a 20-atom molecule scores against a 60-atom one without padding or resampling. Every kind
+ *  is invariant to rotation, reflection and translation, and between normalized packs to scale as
  *  well, so mirror images score as equals and the returned rotation's determinant tells them apart.
  *
  *  @section shapes_packing Packing
@@ -62,6 +63,23 @@
  *  Both transport kinds solve each pair in a canonical order, so swapping the sides returns the
  *  same distance bit for bit and the transposed rotation.
  *
+ *  @section shapes_rmsds Superposed RMSD
+ *
+ *  RMSD is the one kind that needs a correspondence: every frame holds the same points in the same
+ *  order, like the frames of one molecular dynamics trajectory. It reads the packs of
+ *  @c nk_shapes_pack_*, which keep the point order, as no proper rotation of either frame changes
+ *  it. Between frames a and b, with G = Σ‖xᵢ′‖² and M = Σ aᵢ × bᵢᵀ over the packed points,
+ *
+ *      RMSD² = min_R Σ‖aᵢ − R × bᵢ‖² / n = (Ga + Gb − 2λ) / n
+ *
+ *  over proper rotations R, where λ is the largest eigenvalue of Theobald's 4 × 4 quaternion key
+ *  matrix of M, or σ₁ + σ₂ ± σ₃ over its singular values. Like the spreads, the norms bound it:
+ *
+ *  - RMSD ≥ |√(Ga / n) − √(Gb / n)|
+ *
+ *  Packs of different sizes cannot pair, and the kernels refuse them. Between normalized packs the
+ *  RMSD is scale-free.
+ *
  *  @section shapes_outputs Outputs
  *
  *  Distances land in a @b [rows,columns] matrix with a byte stride between rows. The optional
@@ -74,7 +92,19 @@
  *
  *  - @c f16 inputs pack with @c f32 constants, compute in @c f32, return @c f32 distances
  *  - @c f32 inputs pack with @c f64 constants, compute in @c f64, return @c f64 distances
+ *  - @c f64 inputs pack with @c f64 constants, which only RMSD reads so far
  *  - Rotations are @c f32 for both
+ *
+ *  RMSD keeps the rules of the one-to-one Kabsch kernels it replaces:
+ *
+ *  - @c f64 packs sum M with TwoProd and TwoSum, and otherwise follow @c f32 packs
+ *  - @c f32 packs sum M in @c f64, fit the Kabsch rotation in @c f64, then sum ‖aᵢ − R × bᵢ‖²
+ *    directly in a second, compensated pass, as folding it into Ga + Gb − 2λ cancels to √ε once
+ *    the frames align, and return @c f64
+ *  - @c f16 packs sum M and G in @c f32 and return @c f32, folding into Ga + Gb − 2λ clamped at
+ *    zero, as the √ε of @c f32 stays below the rounding of their points
+ *  - packing rounds each rotated point once into the input type, which moves an RMSD by at most
+ *    √3 × u × (r_a + r_b), with u the unit roundoff and r the largest radius of each pack
  *
  *  @section shapes_workspace Workspace
  *
@@ -102,6 +132,8 @@ extern "C" {
 NUMKONG_API nk_status_t nk_shapes_pack_size_f16_best(nk_size_t points, nk_capability_t capabilities, nk_size_t *bytes);
 /** @copydoc nk_shapes_pack_size_f16_best */
 NUMKONG_API nk_status_t nk_shapes_pack_size_f32_best(nk_size_t points, nk_capability_t capabilities, nk_size_t *bytes);
+/** @copydoc nk_shapes_pack_size_f16_best */
+NUMKONG_API nk_status_t nk_shapes_pack_size_f64_best(nk_size_t points, nk_capability_t capabilities, nk_size_t *bytes);
 
 /**
  *  @brief Packs one cloud: centers it, rotates it onto its principal axes, and keeps its constants.
@@ -118,6 +150,9 @@ NUMKONG_API nk_status_t nk_shapes_pack_f16_best(nk_f16_t const *points, nk_size_
 /** @copydoc nk_shapes_pack_f16_best */
 NUMKONG_API nk_status_t nk_shapes_pack_f32_best(nk_f32_t const *points, nk_size_t count, void *packed,
                                                 nk_capability_t capabilities, nk_stream_t stream);
+/** @copydoc nk_shapes_pack_f16_best */
+NUMKONG_API nk_status_t nk_shapes_pack_f64_best(nk_f64_t const *points, nk_size_t count, void *packed,
+                                                nk_capability_t capabilities, nk_stream_t stream);
 
 /**
  *  @brief Packs one cloud like @c nk_shapes_pack_f16_best, also dividing it by its RMS distance
@@ -130,6 +165,9 @@ NUMKONG_API nk_status_t nk_shapes_pack_normalized_f16_best(nk_f16_t const *point
                                                            nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_shapes_pack_normalized_f16_best */
 NUMKONG_API nk_status_t nk_shapes_pack_normalized_f32_best(nk_f32_t const *points, nk_size_t count, void *packed,
+                                                           nk_capability_t capabilities, nk_stream_t stream);
+/** @copydoc nk_shapes_pack_normalized_f16_best */
+NUMKONG_API nk_status_t nk_shapes_pack_normalized_f64_best(nk_f64_t const *points, nk_size_t count, void *packed,
                                                            nk_capability_t capabilities, nk_stream_t stream);
 
 /**
@@ -156,6 +194,11 @@ NUMKONG_API nk_status_t nk_shapes_packed_shape_f32_best(void const *packed, nk_s
                                                         nk_f64_t *frame, nk_f64_t *scale, nk_f64_t *spreads,
                                                         nk_f64_t *max_radius, nk_capability_t capabilities,
                                                         nk_stream_t stream);
+/** @copydoc nk_shapes_packed_shape_f16_best */
+NUMKONG_API nk_status_t nk_shapes_packed_shape_f64_best(void const *packed, nk_size_t *points, nk_f64_t *centroid,
+                                                        nk_f64_t *frame, nk_f64_t *scale, nk_f64_t *spreads,
+                                                        nk_f64_t *max_radius, nk_capability_t capabilities,
+                                                        nk_stream_t stream);
 
 /**
  *  @brief Restores a pack's cloud as x = scale × 𝑄ᵀ × x′ + centroid, computed in the math type and
@@ -174,6 +217,9 @@ NUMKONG_API nk_status_t nk_shapes_unpack_f16_best(void const *packed, nk_f16_t *
                                                   nk_stream_t stream);
 /** @copydoc nk_shapes_unpack_f16_best */
 NUMKONG_API nk_status_t nk_shapes_unpack_f32_best(void const *packed, nk_f32_t *points, nk_capability_t capabilities,
+                                                  nk_stream_t stream);
+/** @copydoc nk_shapes_unpack_f16_best */
+NUMKONG_API nk_status_t nk_shapes_unpack_f64_best(void const *packed, nk_f64_t *points, nk_capability_t capabilities,
                                                   nk_stream_t stream);
 
 /**
@@ -294,6 +340,37 @@ NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f32_best(void const *const 
                                                               nk_size_t workspace_bytes, nk_capability_t capabilities,
                                                               nk_stream_t stream);
 
+/**
+ *  @brief Superposed RMSD between every row and every column frame, matched point by point.
+ *
+ *  Each is √(min_R Σ‖aᵢ − R × bᵢ‖² / n) over proper rotations R, and zero between empty frames.
+ *
+ *  @param[in] a_packed The row shape packs, plain or normalized, @p rows pointers.
+ *  @param[in] rows The number of row frames.
+ *  @param[in] b_packed The column packs, @p columns pointers.
+ *  @param[in] columns The number of column frames.
+ *  @param[out] results The @b [rows,columns] distances.
+ *  @param[in] results_stride The bytes between consecutive rows of @p results.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, @c nk_unexpected_dimensions_k when the packs differ in points, or
+ *      @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ */
+NUMKONG_API nk_status_t nk_rmsds_packed_f64_best(void const *const *a_packed, nk_size_t rows,
+                                                 void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                 nk_size_t results_stride, nk_capability_t capabilities,
+                                                 nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f32_best(void const *const *a_packed, nk_size_t rows,
+                                                 void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                 nk_size_t results_stride, nk_capability_t capabilities,
+                                                 nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f16_best(void const *const *a_packed, nk_size_t rows,
+                                                 void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
+                                                 nk_size_t results_stride, nk_capability_t capabilities,
+                                                 nk_stream_t stream);
+
 /** @copydoc nk_shapes_pack_size_f16_best */
 NUMKONG_API nk_status_t nk_shapes_pack_size_f16_serial(nk_size_t points, nk_size_t *bytes);
 /** @copydoc nk_shapes_pack_size_f16_best */
@@ -322,6 +399,20 @@ NUMKONG_API nk_status_t nk_shapes_packed_shape_f32_serial(void const *packed, nk
 NUMKONG_API nk_status_t nk_shapes_unpack_f16_serial(void const *packed, nk_f16_t *points, nk_stream_t stream);
 /** @copydoc nk_shapes_unpack_f16_best */
 NUMKONG_API nk_status_t nk_shapes_unpack_f32_serial(void const *packed, nk_f32_t *points, nk_stream_t stream);
+/** @copydoc nk_shapes_pack_size_f16_best */
+NUMKONG_API nk_status_t nk_shapes_pack_size_f64_serial(nk_size_t points, nk_size_t *bytes);
+/** @copydoc nk_shapes_pack_f16_best */
+NUMKONG_API nk_status_t nk_shapes_pack_f64_serial(nk_f64_t const *points, nk_size_t count, void *packed,
+                                                  nk_stream_t stream);
+/** @copydoc nk_shapes_pack_normalized_f16_best */
+NUMKONG_API nk_status_t nk_shapes_pack_normalized_f64_serial(nk_f64_t const *points, nk_size_t count, void *packed,
+                                                             nk_stream_t stream);
+/** @copydoc nk_shapes_packed_shape_f16_best */
+NUMKONG_API nk_status_t nk_shapes_packed_shape_f64_serial(void const *packed, nk_size_t *points, nk_f64_t *centroid,
+                                                          nk_f64_t *frame, nk_f64_t *scale, nk_f64_t *spreads,
+                                                          nk_f64_t *max_radius, nk_stream_t stream);
+/** @copydoc nk_shapes_unpack_f16_best */
+NUMKONG_API nk_status_t nk_shapes_unpack_f64_serial(void const *packed, nk_f64_t *points, nk_stream_t stream);
 /** @copydoc nk_chamfers_packed_f16_best */
 NUMKONG_API nk_status_t nk_chamfers_packed_f16_serial(void const *const *a_packed, nk_size_t rows,
                                                       void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
@@ -378,6 +469,18 @@ NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f32_serial(void const *cons
                                                                 nk_f64_t *results, nk_size_t results_stride,
                                                                 nk_f32_t *rotations, void *workspace,
                                                                 nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f64_serial(void const *const *a_packed, nk_size_t rows,
+                                                   void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                   nk_size_t results_stride, nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f32_serial(void const *const *a_packed, nk_size_t rows,
+                                                   void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                   nk_size_t results_stride, nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f16_serial(void const *const *a_packed, nk_size_t rows,
+                                                   void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
+                                                   nk_size_t results_stride, nk_stream_t stream);
 
 #if NUMKONG_TARGET_HASWELL
 /** @copydoc nk_chamfers_packed_f16_best */
@@ -471,6 +574,18 @@ NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f32_skylake(void const *con
                                                                  nk_f64_t *results, nk_size_t results_stride,
                                                                  nk_f32_t *rotations, void *workspace,
                                                                  nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f64_skylake(void const *const *a_packed, nk_size_t rows,
+                                                    void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                    nk_size_t results_stride, nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f32_skylake(void const *const *a_packed, nk_size_t rows,
+                                                    void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                    nk_size_t results_stride, nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f16_skylake(void const *const *a_packed, nk_size_t rows,
+                                                    void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
+                                                    nk_size_t results_stride, nk_stream_t stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_V128RELAXED
@@ -621,10 +736,80 @@ NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f32_rvv(void const *const *
                                                              nk_size_t workspace_bytes, nk_stream_t stream);
 #endif // NUMKONG_TARGET_RVV
 
+/*  NVIDIA backends for the compute capability 10.x family, with F16 tensor-core products. */
+#if NUMKONG_TARGET_BLACKWELL
+/** @copydoc nk_chamfers_packed_f16_best */
+NUMKONG_API nk_status_t nk_chamfers_packed_f16_blackwell(void const *const *a_packed, nk_size_t rows,
+                                                         void const *const *b_packed, nk_size_t columns,
+                                                         nk_f32_t *results, nk_size_t results_stride,
+                                                         nk_f32_t *rotations, nk_stream_t stream);
+/** @copydoc nk_hausdorffs_packed_f16_best */
+NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_blackwell(void const *const *a_packed, nk_size_t rows,
+                                                           void const *const *b_packed, nk_size_t columns,
+                                                           nk_f32_t *results, nk_size_t results_stride,
+                                                           nk_f32_t *rotations, nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f16_blackwell(void const *const *a_packed, nk_size_t rows,
+                                                      void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
+                                                      nk_size_t results_stride, nk_stream_t stream);
+#endif // NUMKONG_TARGET_BLACKWELL
+
+/*  CUDA baseline on every NVIDIA device: exact transport by successive shortest paths, one block
+ *  per flip of each pair, with the serial math types. Packs keep the serial layout, and the pack
+ *  tables, packs, outputs and workspace are device memory. */
+#if NUMKONG_TARGET_CUDA
+/** @copydoc nk_wassersteinprocrustes_workspace_size_f16_best */
+NUMKONG_API nk_status_t nk_wassersteinprocrustes_workspace_size_f16_cuda(nk_size_t row_points, nk_size_t column_points,
+                                                                         nk_size_t *bytes);
+/** @copydoc nk_wassersteinprocrustes_workspace_size_f16_best */
+NUMKONG_API nk_status_t nk_wassersteinprocrustes_workspace_size_f32_cuda(nk_size_t row_points, nk_size_t column_points,
+                                                                         nk_size_t *bytes);
+/** @copydoc nk_wassersteinprocrustes_packed_f16_best */
+NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_f16_cuda(void const *const *a_packed, nk_size_t rows,
+                                                                 void const *const *b_packed, nk_size_t columns,
+                                                                 nk_f32_t *results, nk_size_t results_stride,
+                                                                 nk_f32_t *rotations, void *workspace,
+                                                                 nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_wassersteinprocrustes_packed_f16_best */
+NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_f32_cuda(void const *const *a_packed, nk_size_t rows,
+                                                                 void const *const *b_packed, nk_size_t columns,
+                                                                 nk_f64_t *results, nk_size_t results_stride,
+                                                                 nk_f32_t *rotations, void *workspace,
+                                                                 nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_wassersteinprocrustes_workspace_size_f16_best */
+NUMKONG_API nk_status_t nk_gromovwassersteins_workspace_size_f16_cuda(nk_size_t row_points, nk_size_t column_points,
+                                                                      nk_size_t *bytes);
+/** @copydoc nk_wassersteinprocrustes_workspace_size_f16_best */
+NUMKONG_API nk_status_t nk_gromovwassersteins_workspace_size_f32_cuda(nk_size_t row_points, nk_size_t column_points,
+                                                                      nk_size_t *bytes);
+/** @copydoc nk_gromovwassersteins_packed_f16_best */
+NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f16_cuda(void const *const *a_packed, nk_size_t rows,
+                                                              void const *const *b_packed, nk_size_t columns,
+                                                              nk_f32_t *results, nk_size_t results_stride,
+                                                              nk_f32_t *rotations, void *workspace,
+                                                              nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_gromovwassersteins_packed_f16_best */
+NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f32_cuda(void const *const *a_packed, nk_size_t rows,
+                                                              void const *const *b_packed, nk_size_t columns,
+                                                              nk_f64_t *results, nk_size_t results_stride,
+                                                              nk_f32_t *rotations, void *workspace,
+                                                              nk_size_t workspace_bytes, nk_stream_t stream);
+#endif // NUMKONG_TARGET_CUDA
+
 /** Returns the distance dtype of the many-to-many shape kernels, as the C++ @c shapes_distance_t
  *  alias in types.hpp names it. */
 NUMKONG_INLINE nk_dtype_t nk_shapes_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
+    case nk_f32_k: return nk_f64_k;
+    case nk_f16_k: return nk_f32_k;
+    default: return nk_dtype_unknown_k;
+    }
+}
+
+/** Returns the distance dtype of the superposed RMSD kernels. */
+NUMKONG_INLINE nk_dtype_t nk_rmsds_output_dtype(nk_dtype_t dtype) {
+    switch (dtype) {
+    case nk_f64_k: return nk_f64_k;
     case nk_f32_k: return nk_f64_k;
     case nk_f16_k: return nk_f32_k;
     default: return nk_dtype_unknown_k;
@@ -828,6 +1013,65 @@ NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f32_best(void const *const 
     nk_unused_(a_packed), nk_unused_(rows), nk_unused_(b_packed), nk_unused_(columns), nk_unused_(results),
         nk_unused_(results_stride), nk_unused_(rotations), nk_unused_(workspace), nk_unused_(workspace_bytes),
         nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_shapes_pack_size_f64_best(nk_size_t points, nk_capability_t capabilities, nk_size_t *bytes) {
+    nk_unused_(points), nk_unused_(capabilities), nk_unused_(bytes);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_shapes_pack_f64_best(nk_f64_t const *points, nk_size_t count, void *packed,
+                                                nk_capability_t capabilities, nk_stream_t stream) {
+    nk_unused_(points), nk_unused_(count), nk_unused_(packed), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_shapes_pack_normalized_f64_best(nk_f64_t const *points, nk_size_t count, void *packed,
+                                                           nk_capability_t capabilities, nk_stream_t stream) {
+    nk_unused_(points), nk_unused_(count), nk_unused_(packed), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_shapes_packed_shape_f64_best(void const *packed, nk_size_t *points, nk_f64_t *centroid,
+                                                        nk_f64_t *frame, nk_f64_t *scale, nk_f64_t *spreads,
+                                                        nk_f64_t *max_radius, nk_capability_t capabilities,
+                                                        nk_stream_t stream) {
+    nk_unused_(packed), nk_unused_(points), nk_unused_(centroid), nk_unused_(frame), nk_unused_(scale),
+        nk_unused_(spreads), nk_unused_(max_radius), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_shapes_unpack_f64_best(void const *packed, nk_f64_t *points, nk_capability_t capabilities,
+                                                  nk_stream_t stream) {
+    nk_unused_(packed), nk_unused_(points), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_rmsds_packed_f64_best(void const *const *a_packed, nk_size_t rows,
+                                                 void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                 nk_size_t results_stride, nk_capability_t capabilities,
+                                                 nk_stream_t stream) {
+    nk_unused_(a_packed), nk_unused_(rows), nk_unused_(b_packed), nk_unused_(columns), nk_unused_(results),
+        nk_unused_(results_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_rmsds_packed_f32_best(void const *const *a_packed, nk_size_t rows,
+                                                 void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                 nk_size_t results_stride, nk_capability_t capabilities,
+                                                 nk_stream_t stream) {
+    nk_unused_(a_packed), nk_unused_(rows), nk_unused_(b_packed), nk_unused_(columns), nk_unused_(results),
+        nk_unused_(results_stride), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_rmsds_packed_f16_best(void const *const *a_packed, nk_size_t rows,
+                                                 void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
+                                                 nk_size_t results_stride, nk_capability_t capabilities,
+                                                 nk_stream_t stream) {
+    nk_unused_(a_packed), nk_unused_(rows), nk_unused_(b_packed), nk_unused_(columns), nk_unused_(results),
+        nk_unused_(results_stride), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 

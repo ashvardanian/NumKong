@@ -759,6 +759,7 @@ struct f64_t {
     using reduce_moments_sum_t = f64_t;   // `nk_reduce_moments_f64` sum output
     using reduce_moments_sumsq_t = f64_t; // `nk_reduce_moments_f64` sumsq output
     using reduce_minmax_value_t = f64_t;  // `nk_reduce_minmax_f64` value output
+    using shapes_distance_t = f64_t;      // `nk_rmsds_packed_f64` output and pack constants
 
     using dot_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_stream_t);
     using angular_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, nk_f64_t *, nk_stream_t);
@@ -791,6 +792,11 @@ struct f64_t {
     using angulars_symmetric_kernel_t = dots_symmetric_kernel_t;
     using euclideans_symmetric_kernel_t = dots_symmetric_kernel_t;
     using maxsim_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_stream_t);
+    using shapes_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t *);
+    using shapes_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, void *, nk_stream_t);
+    using shapes_packed_shape_kernel_t = nk_status_t (*)(void const *, nk_size_t *, nk_f64_t *, nk_f64_t *, nk_f64_t *,
+                                                         nk_f64_t *, nk_f64_t *, nk_stream_t);
+    using shapes_unpack_kernel_t = nk_status_t (*)(void const *, raw_t *, nk_stream_t);
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_f64_k; }
     static constexpr char const *dtype_name() noexcept { return "f64"; }

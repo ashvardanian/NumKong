@@ -498,6 +498,9 @@ typedef enum {
     /** Many-to-many Gromov-Wasserstein over plain distances within each cloud. */
     nk_kernel_gromovwassersteins_packed_k = 'c',
 
+    /** Many-to-many superposed RMSD between frames matched point by point. */
+    nk_kernel_rmsds_packed_k = '@',
+
     /** Attention packed KV-cache Buffer size in Bytes. */
     nk_kernel_attention_pack_size_k = 'B',
 
@@ -611,6 +614,7 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_wassersteinprocrustes_packed_k: return "wassersteinprocrustes_packed";
     case nk_kernel_gromovwassersteins_workspace_size_k: return "gromovwassersteins_workspace_size";
     case nk_kernel_gromovwassersteins_packed_k: return "gromovwassersteins_packed";
+    case nk_kernel_rmsds_packed_k: return "rmsds_packed";
     case nk_kernel_attention_pack_size_k: return "attention_pack_size";
     case nk_kernel_attention_pack_k: return "attention_pack";
     case nk_kernel_attention_packed_k: return "attention_packed";
@@ -691,6 +695,7 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "gromovwassersteins_workspace_size"))
         return nk_kernel_gromovwassersteins_workspace_size_k;
     if (nk_same_literal_(name, length, "gromovwassersteins_packed")) return nk_kernel_gromovwassersteins_packed_k;
+    if (nk_same_literal_(name, length, "rmsds_packed")) return nk_kernel_rmsds_packed_k;
     if (nk_same_literal_(name, length, "attention_pack_size")) return nk_kernel_attention_pack_size_k;
     if (nk_same_literal_(name, length, "attention_pack")) return nk_kernel_attention_pack_k;
     if (nk_same_literal_(name, length, "attention_packed")) return nk_kernel_attention_packed_k;
@@ -840,6 +845,10 @@ typedef nk_status_t (*nk_shapes_workspace_size_punned_t)(nk_size_t row_points, n
 typedef nk_status_t (*nk_shapes_packed_punned_t)(void const *const *a_packed, nk_size_t rows,
                                                  void const *const *b_packed, nk_size_t columns, void *results,
                                                  nk_size_t results_stride, void *rotations, nk_stream_t stream);
+
+typedef nk_status_t (*nk_rmsds_packed_punned_t)(void const *const *a_packed, nk_size_t rows,
+                                                void const *const *b_packed, nk_size_t columns, void *results,
+                                                nk_size_t results_stride, nk_stream_t stream);
 
 typedef nk_status_t (*nk_shapes_packed_workspace_punned_t)(void const *const *a_packed, nk_size_t rows,
                                                            void const *const *b_packed, nk_size_t columns,

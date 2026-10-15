@@ -52,6 +52,80 @@ namespace ashvardanian::numkong::bench {
 
 #pragma region Rows
 
+#if NUMKONG_TARGET_CUDA
+
+/** Times a CUDA transport kernel over @p rows clouds of @p row_points against @p columns clouds
+ *  of @p column_points , which the serial routine packs on the host before they are uploaded with
+ *  the table of their addresses. */
+template <typename scalar_type_, typename pack_size_type_, typename pack_type_, typename workspace_size_type_,
+          typename kernel_type_>
+void measure_transport_cuda(loop_t &loop, environment_t const &env, cuda_backend_t backend, pack_size_type_ pack_size,
+                            pack_type_ pack, workspace_size_type_ workspace_size, kernel_type_ kernel, std::size_t rows,
+                            std::size_t columns, std::size_t row_points, std::size_t column_points) {
+    using distance_t = typename scalar_type_::shapes_distance_t;
+    using raw_distance_t = typename distance_t::raw_t;
+    nk_size_t row_bytes = 0, column_bytes = 0, workspace_bytes = 0;
+    if (!succeeded(loop, pack_size(row_points, &row_bytes)) ||
+        !succeeded(loop, pack_size(column_points, &column_bytes)) ||
+        !succeeded(loop, workspace_size(row_points, column_points, &workspace_bytes)))
+        return;
+    std::size_t const row_stride = nk_size_round_up_to_multiple_(row_bytes, nk_default_alignment_k);
+    std::size_t const column_stride = nk_size_round_up_to_multiple_(column_bytes, nk_default_alignment_k);
+    std::size_t const table_offset = rows * row_stride + columns * column_stride;
+    std::size_t const bytes = table_offset + (rows + columns) * sizeof(void const *);
+    auto packs = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(bytes, allocator_of<char>(backend));
+    auto workspace = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(workspace_bytes,
+                                                                                      allocator_of<char>(backend));
+    auto results = nk::vector<distance_t, cuda_backend_t::allocator<distance_t>>::uninitialized(
+        rows * columns, allocator_of<distance_t>(backend));
+    if (nk::failed(packs.status) || nk::failed(workspace.status) || nk::failed(results.status))
+        return loop.skip("allocation failed");
+    auto staged = make_vector<char>(bytes);
+    auto cloud = make_vector<scalar_type_>(std::max(row_points, column_points) * 3);
+    std::mt19937 generator(env.settings.seed.value);
+    void const **table = reinterpret_cast<void const **>(staged.raw_values_data() + table_offset);
+    for (std::size_t index = 0; index != rows + columns; ++index) {
+        bool const is_row = index < rows;
+        std::size_t const offset = is_row ? index * row_stride : rows * row_stride + (index - rows) * column_stride;
+        nk::fill_uniform(generator, cloud.values_data(), cloud.size_values());
+        if (!succeeded(loop, pack(cloud.raw_values_data(), is_row ? row_points : column_points,
+                                  staged.raw_values_data() + offset, nullptr)))
+            return;
+        table[index] = packs.value.raw_values_data() + offset;
+    }
+    if (!succeeded(loop, backend.copy(packs.value.raw_values_data(), staged.raw_values_data(), bytes))) return;
+    void const *const *pointers = reinterpret_cast<void const *const *>(packs.value.raw_values_data() + table_offset);
+    raw_distance_t *outputs = results.value.raw_values_data();
+    bool const timed = time_rotating(loop, backend, 1, [&](std::size_t) {
+        return backend.call(kernel, pointers, rows, pointers + rows, columns, outputs, columns * sizeof(raw_distance_t),
+                            static_cast<nk_f32_t *>(nullptr), static_cast<void *>(workspace.value.raw_values_data()),
+                            workspace_bytes);
+    });
+    if (!timed) return;
+    loop.rate("distances", static_cast<double>(rows * columns));
+}
+
+/** Times @p kernel on equal and unequal clouds of 32, 128 and 512 points. */
+template <typename scalar_type_, typename pack_size_type_, typename pack_type_, typename workspace_size_type_,
+          typename kernel_type_>
+void run_transport_cuda(environment_t const &env, std::string const &name, cuda_backend_t const &backend,
+                        pack_size_type_ pack_size, pack_type_ pack, workspace_size_type_ workspace_size,
+                        kernel_type_ kernel) {
+    struct shape_t {
+        std::size_t side, row_points, column_points;
+    };
+    shape_t const shapes[] = {{256, 32, 32}, {256, 32, 45}, {64, 128, 128}, {64, 128, 131}, {16, 512, 512}};
+    for (shape_t const shape : shapes)
+        run_benchmark(
+            env,
+            name + "<" + std::to_string(shape.side) + "x" + std::to_string(shape.side) + "x" +
+                std::to_string(shape.row_points) + "x" + std::to_string(shape.column_points) + ">",
+            measure_transport_cuda<scalar_type_, pack_size_type_, pack_type_, workspace_size_type_, kernel_type_>,
+            backend, pack_size, pack, workspace_size, kernel, shape.side, shape.side, shape.row_points,
+            shape.column_points);
+}
+#endif // NUMKONG_TARGET_CUDA
+
 /** The CUDA baseline rows the tensor-core capabilities have no faster path for, on every device. */
 void bench_cross_cuda([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
                       [[maybe_unused]] nk_capability_t enabled) {
@@ -86,6 +160,18 @@ void bench_cross_cuda([[maybe_unused]] environment_t const &env, [[maybe_unused]
     run_attention_rope<nk_f32_k>(env, "attention_rope_f32_cuda", nk_attention_rope_f32_cuda, backend);
     run_attention_rope<nk_bf16_k>(env, "attention_rope_bf16_cuda", nk_attention_rope_bf16_cuda, backend);
     run_attention_rope<nk_e4m3_k>(env, "attention_rope_e4m3_cuda", nk_attention_rope_e4m3_cuda, backend);
+    run_transport_cuda<nk::f32_t>(env, "wassersteinprocrustes_packed_f32_cuda", backend, nk_shapes_pack_size_f32_serial,
+                                  nk_shapes_pack_f32_serial, nk_wassersteinprocrustes_workspace_size_f32_cuda,
+                                  nk_wassersteinprocrustes_packed_f32_cuda);
+    run_transport_cuda<nk::f16_t>(env, "wassersteinprocrustes_packed_f16_cuda", backend, nk_shapes_pack_size_f16_serial,
+                                  nk_shapes_pack_f16_serial, nk_wassersteinprocrustes_workspace_size_f16_cuda,
+                                  nk_wassersteinprocrustes_packed_f16_cuda);
+    run_transport_cuda<nk::f32_t>(env, "gromovwassersteins_packed_f32_cuda", backend, nk_shapes_pack_size_f32_serial,
+                                  nk_shapes_pack_f32_serial, nk_gromovwassersteins_workspace_size_f32_cuda,
+                                  nk_gromovwassersteins_packed_f32_cuda);
+    run_transport_cuda<nk::f16_t>(env, "gromovwassersteins_packed_f16_cuda", backend, nk_shapes_pack_size_f16_serial,
+                                  nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_cuda,
+                                  nk_gromovwassersteins_packed_f16_cuda);
 #endif // NUMKONG_TARGET_CUDA
 }
 
@@ -386,6 +472,48 @@ void bench_cross_hopper([[maybe_unused]] environment_t const &env, [[maybe_unuse
 #endif // NUMKONG_TARGET_HOPPER
 }
 
+#if NUMKONG_TARGET_BLACKWELL
+
+/** Times a Blackwell shape kernel over @p rows × @p columns clouds of @p points each, packed on the
+ *  host by the serial routine that every capability reads, then uploaded with their addresses. */
+template <typename pack_size_type_, typename pack_type_, typename kernel_type_>
+void measure_shapes_blackwell(loop_t &loop, environment_t const &env, cuda_backend_t backend, pack_size_type_ pack_size,
+                              pack_type_ pack, kernel_type_ kernel, std::size_t rows, std::size_t columns,
+                              std::size_t points) {
+    nk_size_t pack_bytes = 0;
+    if (!succeeded(loop, pack_size(points, &pack_bytes))) return;
+    std::size_t const clouds = rows + columns;
+    std::size_t const stride = nk_size_round_up_to_multiple_(pack_bytes, nk_default_alignment_k);
+    std::size_t const table_offset = clouds * stride, bytes = table_offset + clouds * sizeof(void const *);
+    auto packs = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(bytes, allocator_of<char>(backend));
+    auto results = nk::vector<nk::f32_t, cuda_backend_t::allocator<nk::f32_t>>::uninitialized(
+        rows * columns, allocator_of<nk::f32_t>(backend));
+    if (nk::failed(packs.status) || nk::failed(results.status)) return loop.skip("allocation failed");
+    auto staged = make_vector<char>(bytes);
+    auto cloud = make_vector<nk::f16_t>(points * 3);
+    std::mt19937 generator(env.settings.seed.value);
+    void const **table = reinterpret_cast<void const **>(staged.raw_values_data() + table_offset);
+    for (std::size_t index = 0; index != clouds; ++index) {
+        nk::fill_uniform(generator, cloud.values_data(), cloud.size_values());
+        if (!succeeded(loop, pack(cloud.raw_values_data(), points, staged.raw_values_data() + index * stride, nullptr)))
+            return;
+        table[index] = packs.value.raw_values_data() + index * stride;
+    }
+    if (!succeeded(loop, backend.copy(packs.value.raw_values_data(), staged.raw_values_data(), bytes))) return;
+    void const *const *pointers = reinterpret_cast<void const *const *>(packs.value.raw_values_data() + table_offset);
+    nk_f32_t *outputs = results.value.raw_values_data();
+    bool const timed = time_rotating(loop, backend, 1, [&](std::size_t) {
+        if constexpr (std::is_same_v<kernel_type_, decltype(&nk_rmsds_packed_f16_blackwell)>)
+            return backend.call(kernel, pointers, rows, pointers + rows, columns, outputs, columns * sizeof(nk_f32_t));
+        else
+            return backend.call(kernel, pointers, rows, pointers + rows, columns, outputs, columns * sizeof(nk_f32_t),
+                                static_cast<nk_f32_t *>(nullptr));
+    });
+    if (!timed) return;
+    loop.rate("distances", static_cast<double>(rows * columns));
+}
+#endif // NUMKONG_TARGET_BLACKWELL
+
 /** Every Blackwell entry point, compiled only when the architecture list includes the family. */
 void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
                            [[maybe_unused]] nk_capability_t enabled) {
@@ -579,6 +707,24 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                                        nk_attention_pack_size_bf16_blackwell, nk_attention_pack_bf16_blackwell,
                                        nk_attention_packed_bf16_blackwell, nk_attention_packed_gradients_bf16_blackwell,
                                        backend);
+    run_benchmark(
+        env, "rmsds_packed_f16_blackwell<4096x4096x300>",
+        measure_shapes_blackwell<decltype(&nk_shapes_pack_size_f16_serial), decltype(&nk_shapes_pack_f16_serial),
+                                 decltype(&nk_rmsds_packed_f16_blackwell)>,
+        backend, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_blackwell,
+        std::size_t(4096), std::size_t(4096), std::size_t(300));
+    run_benchmark(
+        env, "chamfers_packed_f16_blackwell<512x512x256>",
+        measure_shapes_blackwell<decltype(&nk_shapes_pack_size_f16_serial), decltype(&nk_shapes_pack_f16_serial),
+                                 decltype(&nk_chamfers_packed_f16_blackwell)>,
+        backend, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_chamfers_packed_f16_blackwell,
+        std::size_t(512), std::size_t(512), std::size_t(256));
+    run_benchmark(
+        env, "hausdorffs_packed_f16_blackwell<512x512x256>",
+        measure_shapes_blackwell<decltype(&nk_shapes_pack_size_f16_serial), decltype(&nk_shapes_pack_f16_serial),
+                                 decltype(&nk_hausdorffs_packed_f16_blackwell)>,
+        backend, nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_hausdorffs_packed_f16_blackwell,
+        std::size_t(512), std::size_t(512), std::size_t(256));
 #endif // NUMKONG_TARGET_BLACKWELL
 }
 

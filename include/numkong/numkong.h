@@ -71,6 +71,7 @@ NUMKONG_CONSTEXPR nk_dtype_t nk_kernel_output_dtype(nk_kernel_kind_t kind, nk_dt
     case nk_kernel_hausdorffs_packed_k:
     case nk_kernel_wassersteinprocrustes_packed_k:
     case nk_kernel_gromovwassersteins_packed_k: return nk_shapes_output_dtype(input);
+    case nk_kernel_rmsds_packed_k: return nk_rmsds_output_dtype(input);
     case nk_kernel_attention_packed_k:
     case nk_kernel_attention_packed_gradients_k: return nk_attention_output_dtype(input);
     default: return nk_dtype_unknown_k;

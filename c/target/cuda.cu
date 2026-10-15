@@ -12,6 +12,7 @@
 #include "numkong/each/cuda.cuh"
 #include "numkong/cast/cuda.cuh"
 #include "numkong/reduce/cuda.cuh"
+#include "numkong/shapes/cuda.cuh"
 
 extern "C" NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
     *count = nk_count_devices_cuda_();

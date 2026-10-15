@@ -40,6 +40,7 @@
 #include "numkong/cast/skylake.h"   // `nk_load_f16x16_to_f32x16_skylake_`
 #include "numkong/shapes/serial.h"  // `nk_define_shapes_network_simplex_`, `nk_shapes_workspace_f64_serial_t`
 #include "numkong/reduce/skylake.h" // `nk_reduce_min_f64x8_skylake_`
+#include "numkong/dot/skylake.h"    // `nk_dot2_f64x8_skylake_`, `nk_dot_stable_sum_f64x8_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -330,6 +331,203 @@ nk_define_shapes_flip_kernels_(f16, f32, skylake, nk_shapes_nearest_f16_skylake_
 nk_define_shapes_flip_kernels_(f32, f64, skylake, nk_shapes_nearest_f32_skylake_, NUMKONG_F64_INF)
 nk_define_shapes_transport_kernels_(f16, f32, skylake, NUMKONG_F32_INF)
 nk_define_shapes_transport_kernels_(f32, f64, skylake, NUMKONG_F64_INF)
+
+/** Σ‖xᵢ′‖² of a pack of @c f16 points, 16 points per step through the zero padding. */
+NUMKONG_INLINE nk_f32_t nk_rmsds_norm_f16_skylake_(void const *packed) {
+    nk_size_t const count = ((nk_shapes_packed_header_f32_t const *)packed)->points;
+    nk_size_t axis_stride;
+    nk_f16_t const *axes = nk_shapes_packed_axes_f16_serial_(packed, &axis_stride);
+    __m512 norm_f32x16 = _mm512_setzero_ps();
+    for (int axis = 0; axis != 3; ++axis)
+        for (nk_size_t index = 0; index < count; index += 16) {
+            __m512 const values_f32x16 = _mm512_cvtph_ps(
+                _mm256_loadu_si256((__m256i const *)(axes + axis * axis_stride + index)));
+            norm_f32x16 = _mm512_fmadd_ps(values_f32x16, values_f32x16, norm_f32x16);
+        }
+    return nk_reduce_add_f32x16_skylake_(norm_f32x16);
+}
+
+/** Superposed RMSD of one pair of @c f16 packs with Ga + Gb in @p norms_squared, M in @c f32. */
+NUMKONG_INLINE nk_f32_t nk_rmsds_pair_f16_skylake_(void const *row_packed, void const *column_packed,
+                                                   nk_f32_t norms_squared) {
+    nk_size_t const count = ((nk_shapes_packed_header_f32_t const *)row_packed)->points;
+    if (!count) return 0;
+    nk_size_t axis_stride;
+    nk_f16_t const *a_axes = nk_shapes_packed_axes_f16_serial_(row_packed, &axis_stride);
+    nk_f16_t const *b_axes = nk_shapes_packed_axes_f16_serial_(column_packed, &axis_stride);
+    __m512 sums_f32x16[9];
+    for (int cell = 0; cell != 9; ++cell) sums_f32x16[cell] = _mm512_setzero_ps();
+    for (nk_size_t index = 0; index < count; index += 16) {
+        __m512 a_f32x16[3], b_f32x16[3];
+        for (int axis = 0; axis != 3; ++axis) {
+            a_f32x16[axis] = _mm512_cvtph_ps(
+                _mm256_loadu_si256((__m256i const *)(a_axes + axis * axis_stride + index)));
+            b_f32x16[axis] = _mm512_cvtph_ps(
+                _mm256_loadu_si256((__m256i const *)(b_axes + axis * axis_stride + index)));
+        }
+        for (int row = 0; row != 3; ++row)
+            for (int column = 0; column != 3; ++column)
+                sums_f32x16[row * 3 + column] = _mm512_fmadd_ps(a_f32x16[row], b_f32x16[column],
+                                                                sums_f32x16[row * 3 + column]);
+    }
+    nk_f32_t cross_covariance[9];
+    for (int cell = 0; cell != 9; ++cell) cross_covariance[cell] = nk_reduce_add_f32x16_skylake_(sums_f32x16[cell]);
+    nk_f32_t const residual = nk_rmsds_folded_f32_serial_(cross_covariance, norms_squared);
+    return nk_sqrt_f32_serial_(residual / (nk_f32_t)count);
+}
+
+/** Superposed RMSD of one pair of @c f32 packs: H in @c f64, then compensated residuals, 8 points
+ *  per step through the zero padding. */
+NUMKONG_INLINE nk_f64_t nk_rmsds_pair_f32_skylake_(void const *row_packed, void const *column_packed) {
+    nk_size_t const count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)row_packed)->points;
+    if (!count) return 0;
+    nk_size_t axis_stride;
+    nk_f32_t const *a_axes = nk_shapes_packed_axes_f32_serial_(row_packed, &axis_stride);
+    nk_f32_t const *b_axes = nk_shapes_packed_axes_f32_serial_(column_packed, &axis_stride);
+    __m512d sums_f64x8[9];
+    for (int cell = 0; cell != 9; ++cell) sums_f64x8[cell] = _mm512_setzero_pd();
+    for (nk_size_t index = 0; index < count; index += 8) {
+        __m512d a_f64x8[3], b_f64x8[3];
+        for (int axis = 0; axis != 3; ++axis) {
+            a_f64x8[axis] = _mm512_cvtps_pd(_mm256_loadu_ps(a_axes + axis * axis_stride + index));
+            b_f64x8[axis] = _mm512_cvtps_pd(_mm256_loadu_ps(b_axes + axis * axis_stride + index));
+        }
+        for (int column = 0; column != 3; ++column)
+            for (int row = 0; row != 3; ++row)
+                sums_f64x8[column * 3 + row] = _mm512_fmadd_pd(b_f64x8[column], a_f64x8[row],
+                                                               sums_f64x8[column * 3 + row]);
+    }
+    nk_f64_t cross_covariance[9], rotation[9];
+    for (int cell = 0; cell != 9; ++cell) cross_covariance[cell] = nk_reduce_add_f64x8_skylake_(sums_f64x8[cell]);
+    nk_rmsds_rotation_f64_serial_(cross_covariance, rotation);
+    __m512d rotation_f64x8[9];
+    for (int cell = 0; cell != 9; ++cell) rotation_f64x8[cell] = _mm512_set1_pd(rotation[cell]);
+    __m512d sum_f64x8 = _mm512_setzero_pd(), compensation_f64x8 = _mm512_setzero_pd();
+    for (nk_size_t index = 0; index < count; index += 8) {
+        __m512d b_f64x8[3];
+        for (int axis = 0; axis != 3; ++axis)
+            b_f64x8[axis] = _mm512_cvtps_pd(_mm256_loadu_ps(b_axes + axis * axis_stride + index));
+        for (int axis = 0; axis != 3; ++axis) {
+            __m512d residual_f64x8 = _mm512_cvtps_pd(_mm256_loadu_ps(a_axes + axis * axis_stride + index));
+            residual_f64x8 = _mm512_fnmadd_pd(rotation_f64x8[axis * 3 + 0], b_f64x8[0], residual_f64x8);
+            residual_f64x8 = _mm512_fnmadd_pd(rotation_f64x8[axis * 3 + 1], b_f64x8[1], residual_f64x8);
+            residual_f64x8 = _mm512_fnmadd_pd(rotation_f64x8[axis * 3 + 2], b_f64x8[2], residual_f64x8);
+            nk_dot2_f64x8_skylake_(&sum_f64x8, &compensation_f64x8, residual_f64x8, residual_f64x8);
+        }
+    }
+    nk_f64_t const residuals = nk_dot_stable_sum_f64x8_skylake_(sum_f64x8, compensation_f64x8);
+    return nk_sqrt_f64_serial_(residuals / (nk_f64_t)count);
+}
+
+/** Superposed RMSD of one pair of @c f64 packs, like the @c f32 pair with H compensated too. */
+NUMKONG_INLINE nk_f64_t nk_rmsds_pair_f64_skylake_(void const *row_packed, void const *column_packed) {
+    nk_size_t const count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)row_packed)->points;
+    if (!count) return 0;
+    nk_size_t axis_stride;
+    nk_f64_t const *a_axes = nk_shapes_packed_axes_f64_serial_(row_packed, &axis_stride);
+    nk_f64_t const *b_axes = nk_shapes_packed_axes_f64_serial_(column_packed, &axis_stride);
+    __m512d sums_f64x8[9], compensations_f64x8[9];
+    for (int cell = 0; cell != 9; ++cell)
+        sums_f64x8[cell] = _mm512_setzero_pd(), compensations_f64x8[cell] = _mm512_setzero_pd();
+    for (nk_size_t index = 0; index < count; index += 8) {
+        __m512d a_f64x8[3], b_f64x8[3];
+        for (int axis = 0; axis != 3; ++axis) {
+            a_f64x8[axis] = _mm512_loadu_pd(a_axes + axis * axis_stride + index);
+            b_f64x8[axis] = _mm512_loadu_pd(b_axes + axis * axis_stride + index);
+        }
+        for (int column = 0; column != 3; ++column)
+            for (int row = 0; row != 3; ++row)
+                nk_dot2_f64x8_skylake_(&sums_f64x8[column * 3 + row], &compensations_f64x8[column * 3 + row],
+                                       b_f64x8[column], a_f64x8[row]);
+    }
+    nk_f64_t cross_covariance[9], rotation[9];
+    for (int cell = 0; cell != 9; ++cell)
+        cross_covariance[cell] = nk_dot_stable_sum_f64x8_skylake_(sums_f64x8[cell], compensations_f64x8[cell]);
+    nk_rmsds_rotation_f64_serial_(cross_covariance, rotation);
+    __m512d rotation_f64x8[9];
+    for (int cell = 0; cell != 9; ++cell) rotation_f64x8[cell] = _mm512_set1_pd(rotation[cell]);
+    __m512d sum_f64x8 = _mm512_setzero_pd(), compensation_f64x8 = _mm512_setzero_pd();
+    for (nk_size_t index = 0; index < count; index += 8) {
+        __m512d b_f64x8[3];
+        for (int axis = 0; axis != 3; ++axis) b_f64x8[axis] = _mm512_loadu_pd(b_axes + axis * axis_stride + index);
+        for (int axis = 0; axis != 3; ++axis) {
+            __m512d residual_f64x8 = _mm512_loadu_pd(a_axes + axis * axis_stride + index);
+            residual_f64x8 = _mm512_fnmadd_pd(rotation_f64x8[axis * 3 + 0], b_f64x8[0], residual_f64x8);
+            residual_f64x8 = _mm512_fnmadd_pd(rotation_f64x8[axis * 3 + 1], b_f64x8[1], residual_f64x8);
+            residual_f64x8 = _mm512_fnmadd_pd(rotation_f64x8[axis * 3 + 2], b_f64x8[2], residual_f64x8);
+            nk_dot2_f64x8_skylake_(&sum_f64x8, &compensation_f64x8, residual_f64x8, residual_f64x8);
+        }
+    }
+    nk_f64_t const residuals = nk_dot_stable_sum_f64x8_skylake_(sum_f64x8, compensation_f64x8);
+    return nk_sqrt_f64_serial_(residuals / (nk_f64_t)count);
+}
+
+NUMKONG_API nk_status_t nk_rmsds_packed_f64_skylake(void const *const *a_packed, nk_size_t rows,
+                                                    void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                    nk_size_t results_stride, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!rows || !columns) return nk_success_k;
+    nk_size_t const points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)a_packed[0])->points;
+    if (!nk_rmsds_same_points_f64_serial_(a_packed, rows, points) ||
+        !nk_rmsds_same_points_f64_serial_(b_packed, columns, points))
+        return nk_unexpected_dimensions_k;
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *results_row = (nk_f64_t *)((char *)results + row * results_stride);
+        for (nk_size_t column = 0; column != columns; ++column)
+            results_row[column] = nk_rmsds_pair_f64_skylake_(a_packed[row], b_packed[column]);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_rmsds_packed_f32_skylake(void const *const *a_packed, nk_size_t rows,
+                                                    void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                    nk_size_t results_stride, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!rows || !columns) return nk_success_k;
+    nk_size_t const points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)a_packed[0])->points;
+    if (!nk_rmsds_same_points_f32_serial_(a_packed, rows, points) ||
+        !nk_rmsds_same_points_f32_serial_(b_packed, columns, points))
+        return nk_unexpected_dimensions_k;
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *results_row = (nk_f64_t *)((char *)results + row * results_stride);
+        for (nk_size_t column = 0; column != columns; ++column)
+            results_row[column] = nk_rmsds_pair_f32_skylake_(a_packed[row], b_packed[column]);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_rmsds_packed_f16_skylake(void const *const *a_packed, nk_size_t rows,
+                                                    void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
+                                                    nk_size_t results_stride, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!rows || !columns) return nk_success_k;
+    nk_size_t const points = ((nk_shapes_packed_header_f32_t const *)a_packed[0])->points;
+    if (!nk_rmsds_same_points_f16_serial_(a_packed, rows, points) ||
+        !nk_rmsds_same_points_f16_serial_(b_packed, columns, points))
+        return nk_unexpected_dimensions_k;
+    nk_f32_t row_norms[nk_rmsds_tile_frames_k_], column_norms[nk_rmsds_tile_frames_k_];
+    for (nk_size_t row_begin = 0; row_begin < rows; row_begin += nk_rmsds_tile_frames_k_) {
+        nk_size_t const row_end = row_begin + nk_rmsds_tile_frames_k_ < rows ? row_begin + nk_rmsds_tile_frames_k_
+                                                                             : rows;
+        for (nk_size_t row = row_begin; row != row_end; ++row)
+            row_norms[row - row_begin] = nk_rmsds_norm_f16_skylake_(a_packed[row]);
+        for (nk_size_t column_begin = 0; column_begin < columns; column_begin += nk_rmsds_tile_frames_k_) {
+            nk_size_t const column_end = column_begin + nk_rmsds_tile_frames_k_ < columns
+                                             ? column_begin + nk_rmsds_tile_frames_k_
+                                             : columns;
+            for (nk_size_t column = column_begin; column != column_end; ++column)
+                column_norms[column - column_begin] = nk_rmsds_norm_f16_skylake_(b_packed[column]);
+            for (nk_size_t row = row_begin; row != row_end; ++row) {
+                nk_f32_t *results_row = (nk_f32_t *)((char *)results + row * results_stride);
+                for (nk_size_t column = column_begin; column != column_end; ++column)
+                    results_row[column] = nk_rmsds_pair_f16_skylake_(
+                        a_packed[row], b_packed[column],
+                        row_norms[row - row_begin] + column_norms[column - column_begin]);
+            }
+        }
+    }
+    return nk_success_k;
+}
 
 #endif // NUMKONG_TARGET_SKYLAKE
 

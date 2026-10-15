@@ -15,3 +15,4 @@
 #include "numkong/dots/blackwell.cuh"
 #include "numkong/spatials/blackwell.cuh"
 #include "numkong/attention/blackwell.cuh"
+#include "numkong/shapes/blackwell.cuh"

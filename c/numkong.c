@@ -81,7 +81,7 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     case nk_kernel_wassersteinprocrustes_packed_k:
     case nk_kernel_gromovwassersteins_workspace_size_k:
     case nk_kernel_gromovwassersteins_packed_k:
-        return nk_shapes_find_kernel(kind, dtype, capabilities, kernel, capability);
+    case nk_kernel_rmsds_packed_k: return nk_shapes_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_attention_pack_size_k:
     case nk_kernel_attention_pack_k:
     case nk_kernel_attention_packed_k:

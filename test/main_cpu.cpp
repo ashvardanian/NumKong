@@ -459,6 +459,7 @@ static error_stats_t test_find_kernel(settings_t const &) {
         nk_kernel_wassersteinprocrustes_packed_k,
         nk_kernel_gromovwassersteins_workspace_size_k,
         nk_kernel_gromovwassersteins_packed_k,
+        nk_kernel_rmsds_packed_k,
         nk_kernel_attention_pack_size_k,
         nk_kernel_attention_pack_k,
         nk_kernel_attention_packed_k,

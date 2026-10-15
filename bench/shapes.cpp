@@ -83,8 +83,65 @@ void run_shapes(environment_t const &env, std::string const &name,
     }
 }
 
+/** Measures a superposed RMSD kernel over @p rows × @p columns frames of @p points each. */
+template <nk_dtype_t input_dtype_, typename distance_type_>
+void measure_rmsds(loop_t &loop, environment_t const &env, nk_status_t (*pack_size)(nk_size_t, nk_size_t *),
+                   nk_status_t (*pack)(typename nk::type_for<input_dtype_>::type::raw_t const *, nk_size_t, void *,
+                                       nk_stream_t),
+                   nk_status_t (*kernel)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                         typename distance_type_::raw_t *, nk_size_t, nk_stream_t),
+                   std::size_t rows, std::size_t columns, std::size_t points) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+
+    nk_size_t pack_bytes = 0;
+    if (!succeeded(loop, pack_size(points, &pack_bytes))) return;
+    std::size_t const frames = rows + columns;
+    std::size_t const pack_stride = nk_size_round_up_to_multiple_(pack_bytes, nk_default_alignment_k);
+    std::size_t const sets_count = input_sets_count(bytes_t {frames * pack_stride});
+    std::vector<nk::vector<char>> sets(sets_count);
+    std::vector<void const *> pointers(sets_count * frames);
+    std::mt19937 generator(env.settings.seed.value);
+    auto frame = make_vector<input_t>(points * 3);
+    for (std::size_t set = 0; set != sets_count; ++set) {
+        sets[set] = make_vector<char>(frames * pack_stride);
+        for (std::size_t index = 0; index != frames; ++index) {
+            nk::fill_uniform(generator, frame.values_data(), frame.size_values());
+            char *packed = sets[set].raw_values_data() + index * pack_stride;
+            if (!succeeded(loop, pack(frame.raw_values_data(), points, packed, nullptr))) return;
+            pointers[set * frames + index] = packed;
+        }
+    }
+    auto results = make_vector<distance_type_>(rows * columns);
+    std::size_t const results_stride = columns * sizeof(typename distance_type_::raw_t);
+    for (std::size_t call : loop) {
+        void const *const *set = pointers.data() + (call & (sets_count - 1)) * frames;
+        if (!succeeded(loop,
+                       kernel(set, rows, set + rows, columns, results.raw_values_data(), results_stride, nullptr)))
+            break;
+        do_not_optimize(results.values_data()[0]);
+    }
+    loop.rate("distances", static_cast<double>(rows * columns));
+}
+
+/** Runs a superposed RMSD @p kernel on one row frame against many, and on a square tile. */
+template <nk_dtype_t input_dtype_, typename distance_type_>
+void run_rmsds(environment_t const &env, std::string const &name, nk_status_t (*pack_size)(nk_size_t, nk_size_t *),
+               nk_status_t (*pack)(typename nk::type_for<input_dtype_>::type::raw_t const *, nk_size_t, void *,
+                                   nk_stream_t),
+               nk_status_t (*kernel)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                     typename distance_type_::raw_t *, nk_size_t, nk_stream_t)) {
+    std::size_t const points = env.settings.shape_points;
+    std::size_t const tiles[][2] = {{1, 16}, {8, 8}};
+    for (auto const &tile : tiles) {
+        std::string const bench_name = name + "<" + std::to_string(tile[0]) + "x" + std::to_string(tile[1]) + "x" +
+                                       std::to_string(points) + ">";
+        run_benchmark(env, bench_name, measure_rmsds<input_dtype_, distance_type_>, pack_size, pack, kernel, tile[0],
+                      tile[1], points);
+    }
+}
+
 void bench_shapes(environment_t const &env) {
-    constexpr nk_dtype_t f32_k = nk_f32_k, f16_k = nk_f16_k;
+    constexpr nk_dtype_t f64_k = nk_f64_k, f32_k = nk_f32_k, f16_k = nk_f16_k;
 
     section(env, "Shapes Serial", nk_cap_serial_k);
     run_shapes<f32_k>(env, "chamfers_packed_f32_serial", nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial,
@@ -107,6 +164,12 @@ void bench_shapes(environment_t const &env) {
     run_shapes<f16_k>(env, "gromovwassersteins_packed_f16_serial", nk_shapes_pack_size_f16_serial,
                       nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_serial,
                       nk_gromovwassersteins_packed_f16_serial);
+    run_rmsds<f64_k, nk::f64_t>(env, "rmsds_packed_f64_serial", nk_shapes_pack_size_f64_serial,
+                                nk_shapes_pack_f64_serial, nk_rmsds_packed_f64_serial);
+    run_rmsds<f32_k, nk::f64_t>(env, "rmsds_packed_f32_serial", nk_shapes_pack_size_f32_serial,
+                                nk_shapes_pack_f32_serial, nk_rmsds_packed_f32_serial);
+    run_rmsds<f16_k, nk::f32_t>(env, "rmsds_packed_f16_serial", nk_shapes_pack_size_f16_serial,
+                                nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_serial);
 
 #if NUMKONG_TARGET_NEON
     if (section(env, "Shapes NEON", nk_cap_neon_k)) {
@@ -189,6 +252,12 @@ void bench_shapes(environment_t const &env) {
         run_shapes<f16_k>(env, "gromovwassersteins_packed_f16_skylake", nk_shapes_pack_size_f16_serial,
                           nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_serial,
                           nk_gromovwassersteins_packed_f16_skylake);
+        run_rmsds<f64_k, nk::f64_t>(env, "rmsds_packed_f64_skylake", nk_shapes_pack_size_f64_serial,
+                                    nk_shapes_pack_f64_serial, nk_rmsds_packed_f64_skylake);
+        run_rmsds<f32_k, nk::f64_t>(env, "rmsds_packed_f32_skylake", nk_shapes_pack_size_f32_serial,
+                                    nk_shapes_pack_f32_serial, nk_rmsds_packed_f32_skylake);
+        run_rmsds<f16_k, nk::f32_t>(env, "rmsds_packed_f16_skylake", nk_shapes_pack_size_f16_serial,
+                                    nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_skylake);
     }
 #endif
 
