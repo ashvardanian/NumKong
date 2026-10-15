@@ -12,8 +12,9 @@
  *  the column norms its pack stored. Integer codes square exactly through @c dp4a, E2M3 and E2M1
  *  included; the other narrow floats sum each slab apart in F32 before adding it to the running F32
  *  sum. F32 squares its rows in Dot2 before the first slab, as the @c cuda tile orders them, and
- *  outputs F64. Output precision, zero-norm handling and the triangle @c symmetric writes follow
- *  the serial kernels: F32 outputs for the other types, with I8 and I4 norms read as I32.
+ *  outputs F64. F64 squares its rows in Dot2 while it scales them onto their grids. Output
+ *  precision, zero-norm handling and the triangle @c symmetric writes follow the serial kernels:
+ *  F32 outputs for the other types, with I8 and I4 norms read as I32.
  */
 #ifndef NUMKONG_SPATIALS_AMPERE_CUH
 #define NUMKONG_SPATIALS_AMPERE_CUH
@@ -30,6 +31,40 @@ extern "C" {
 
 /*  Later generations include this header and emit only their own kernels. */
 #if NUMKONG_TARGET_AMPERE
+
+#pragma region F64
+
+NUMKONG_API nk_status_t nk_angulars_packed_f64_ampere(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
+                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    return nk_cross_packed_f64_ampere_(nk_cross_metric_angular_k, a, b_packed, c, rows, columns, depth, a_stride,
+                                       c_stride, stream);
+}
+
+NUMKONG_API nk_status_t nk_angulars_symmetric_f64_ampere(nk_f64_t const *vectors, nk_size_t vector_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                         nk_size_t result_stride, nk_size_t rows_begin,
+                                                         nk_size_t rows_end, nk_stream_t stream) {
+    return nk_cross_symmetric_f64_ampere_(nk_cross_metric_angular_k, vectors, vector_count, depth, stride, result,
+                                          result_stride, rows_begin, rows_end, stream);
+}
+
+NUMKONG_API nk_status_t nk_euclideans_packed_f64_ampere(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
+                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
+    return nk_cross_packed_f64_ampere_(nk_cross_metric_euclidean_k, a, b_packed, c, rows, columns, depth, a_stride,
+                                       c_stride, stream);
+}
+
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_ampere(nk_f64_t const *vectors, nk_size_t vector_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                           nk_size_t result_stride, nk_size_t rows_begin,
+                                                           nk_size_t rows_end, nk_stream_t stream) {
+    return nk_cross_symmetric_f64_ampere_(nk_cross_metric_euclidean_k, vectors, vector_count, depth, stride, result,
+                                          result_stride, rows_begin, rows_end, stream);
+}
+
+#pragma endregion F64
 
 #pragma region F32
 

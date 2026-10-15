@@ -11,6 +11,8 @@
  *  sub-slab is multiplied. Float8 and E3M2 widen exactly into F16; E2M3, E2M1, I4 and U4 widen into
  *  I8 for exact integer MMA, with one output multiply undoing each widening's power of two. F32
  *  widens exactly into F64 for DMMA, whose FMA chains round as the @c cuda tile's scalar ones do.
+ *  F64 runs that I8 tile on residues modulo 24 moduli and rounds each rebuilt integer product once,
+ *  with its workspace allocated and freed in the caller's stream order.
  */
 #ifndef NUMKONG_DOTS_AMPERE_CUH
 #define NUMKONG_DOTS_AMPERE_CUH
@@ -40,6 +42,105 @@ typedef union {
     unsigned char stages[nk_cross_stages_ampere_k][2][nk_cross_stage_bytes_ampere_k];
     nk_fui32_t norms[2 * nk_cross_tile_ampere_k];
 } nk_cross_shared_ampere_t;
+
+/*  F64 inputs multiply exactly as integers: each row of A and of B scales by its own power of two
+ *  onto an 84-bit grid, and 24 I8 GEMMs of residues modulo pairwise coprime moduli up to 256 give
+ *  their products modulo a 184-bit product, enough for depths up to 2^15. Below a depth of 512,
+ *  where B200 measured grids and reconstruction outweighing the products, F64 stays in Dot2. */
+enum {
+    nk_cross_moduli_f64_ampere_k = 24,
+    nk_cross_limbs_f64_ampere_k = 6,
+    nk_cross_grid_bits_f64_ampere_k = 84,
+    nk_cross_depth_floor_f64_ampere_k = 512,
+    nk_cross_depth_limit_f64_ampere_k = 32768,
+    nk_cross_threads_f64_ampere_k = 256,
+    nk_cross_tile_outputs_f64_ampere_k = (int)nk_cross_tile_ampere_k * (int)nk_cross_tile_ampere_k,
+};
+
+/** The moduli of the F64 products and what reconstruction needs of them, limbs low first. */
+typedef struct {
+
+    /** The pairwise coprime moduli p, from 256 down. */
+    nk_u32_t moduli[nk_cross_moduli_f64_ampere_k];
+
+    /** ⌊2³² / p⌋, for reducing sums below 2³¹. */
+    nk_u32_t reciprocals[nk_cross_moduli_f64_ampere_k];
+
+    /** 2^21, 2^42 and 2^63 mod p, the weights of a grid integer's upper 21-bit digits. */
+    nk_u32_t digit_weights[nk_cross_moduli_f64_ampere_k][3];
+
+    /** (M / p) · ((M / p)⁻¹ mod p) mod M, whose sum against the residues is the integer mod M. */
+    nk_u32_t weights[nk_cross_moduli_f64_ampere_k][nk_cross_limbs_f64_ampere_k];
+
+    /** M, the product of the moduli. */
+    nk_u32_t product[nk_cross_limbs_f64_ampere_k];
+
+    /** 1 / M, rounded. */
+    nk_f64_t product_inverse;
+} nk_cross_moduli_f64_ampere_t;
+
+/** What the epilogue reads of one row of A or B: its grid exponent, and what bounds the loss of
+ *  truncating its values onto that grid, infinite when a value isn't finite. */
+typedef struct {
+
+    /** Σx² in Dot2, which angulars and euclideans read. */
+    nk_f64_t norm;
+
+    /** max |x|, infinite when a value isn't finite. */
+    nk_f64_t maximum;
+
+    /** Σ|x|, rounded up. */
+    nk_f64_t total;
+
+    /** Values that lost bits on the grid. */
+    nk_f64_t truncated;
+
+    /** x · 2^shift lands on the grid, below 2^84 in magnitude. */
+    nk_i32_t shift;
+} nk_cross_grid_row_f64_ampere_t;
+
+/** Everything the F64 kernels of one call share, passed by value to each. */
+typedef struct {
+
+    /** The F64 operands, in the 64 × 64 tiles of the Dot2 fallback. */
+    nk_cross_tile_arguments_t tiles;
+
+    /** The moduli and the weights that rebuild their products. */
+    nk_cross_moduli_f64_ampere_t moduli;
+
+    /** I8 residues as planes, one per modulus, of rows padded to whole 64-byte slabs. */
+    unsigned char *residues;
+
+    /** One grid row per plane row: A's rows, then B's unless they are the same vectors. */
+    nk_cross_grid_row_f64_ampere_t *grid_rows;
+
+    /** Each block's residues of its current output tile, one plane per modulus. */
+    unsigned char *scratch;
+
+    /** One byte per 64 × 64 tile, set when its outputs need Dot2. */
+    unsigned char *flags;
+
+    /** The depth padded to whole 64-byte slabs. */
+    nk_size_t depth_padded;
+
+    /** Bytes of one modulus plane. */
+    nk_size_t plane_bytes;
+
+    /** The plane row where B's rows start. */
+    nk_size_t column_plane_row;
+
+    /** Column tiles of the [128,128] residue products. */
+    nk_size_t residue_column_tiles;
+
+    /** All [128,128] tiles of the residue products. */
+    nk_size_t residue_tiles;
+
+    /** What the epilogue computes. */
+    nk_cross_metric_t metric;
+
+    /** The band of the output the call fills. */
+    nk_diagonal_band_t band;
+} nk_cross_residue_arguments_f64_ampere_t;
 
 /*  F32 inputs keep F64 accumulators, 64 per thread for a [128,128] tile, so twice the warps share
  *  it and each thread squares 8 of the rows a metric needs, 16 lanes to a row. */
@@ -1341,6 +1442,345 @@ NUMKONG_DEVICE void nk_cross_tile_u4_ampere_(nk_cross_metric_t metric, nk_diagon
 
 #pragma endregion Tiles
 
+/*  F64 products come back exact from integer residues, a variant of the Ozaki scheme II. Each row
+ *  of A and of B scales by its own power of two so its largest value has 84 bits, truncating what
+ *  falls below that grid; the I8 residues of the grid integers modulo 24 moduli multiply on the
+ *  I8 tile, one GEMM per modulus; the Chinese remainder theorem rebuilds each output's integer in
+ *  192-bit limbs, and it rounds once to F64. Truncation loses at most one grid unit per value, so
+ *  each output bounds its loss from its rows' truncation counts, maxima and sums, and when that
+ *  bound exceeds half an ulp of the result, its 64 × 64 tile reruns in Dot2. */
+#pragma region F64 Tiles
+
+/** 2^exponent for exponents of normal F64 values. */
+NUMKONG_DEVICE nk_f64_t nk_f64_power_of_two_ampere_(nk_i32_t exponent) {
+    return __longlong_as_double((long long)(exponent + 1023) << 52);
+}
+
+/** @p value modulo @p modulus for values below 2^31, whose reciprocal quotient is short by at most
+ *  one. */
+NUMKONG_DEVICE nk_u32_t nk_cross_modulo_f64_ampere_(nk_u32_t value, nk_u32_t modulus, nk_u32_t reciprocal) {
+    nk_u32_t const remainder = value - __umulhi(value, reciprocal) * modulus;
+    return remainder >= modulus ? remainder - modulus : remainder;
+}
+
+/** The centered I8 residue modulo moduli[index] of ±Σ digits[i] · 2^(21 i), a grid integer. */
+NUMKONG_DEVICE nk_i32_t nk_cross_residue_f64_ampere_(nk_cross_moduli_f64_ampere_t const *moduli, unsigned index,
+                                                     nk_u32_t const digits[4], int negative) {
+    nk_u32_t const modulus = moduli->moduli[index];
+    nk_u32_t const *weights = moduli->digit_weights[index];
+    // Four digits below 2^21 against weights below 2^8 sum below 2^31.
+    nk_u32_t const folded = digits[0] + digits[1] * weights[0] + digits[2] * weights[1] + digits[3] * weights[2];
+    nk_u32_t remainder = nk_cross_modulo_f64_ampere_(folded, modulus, moduli->reciprocals[index]);
+    if (negative && remainder != 0) remainder = modulus - remainder;
+    return 2 * remainder >= modulus ? (nk_i32_t)remainder - (nk_i32_t)modulus : (nk_i32_t)remainder;
+}
+
+/** An I32 sum of residue products modulo @p modulus, in [0, modulus), for sums below 2^29. */
+NUMKONG_DEVICE nk_u32_t nk_cross_reduce_f64_ampere_(nk_i32_t sum, nk_u32_t modulus, nk_u32_t reciprocal) {
+    // A multiple of the modulus above 2^29 makes the sum positive and keeps it below 2^31.
+    return nk_cross_modulo_f64_ampere_((nk_u32_t)sum + (modulus << 22), modulus, reciprocal);
+}
+
+/** Scales one row of F64 values onto its grid, writing its residue in every plane and its grid
+ *  row, with the 32 lanes of one warp. */
+NUMKONG_DEVICE void nk_cross_prepare_row_f64_ampere_(nk_cross_residue_arguments_f64_ampere_t const *arguments,
+                                                     nk_f64_t const *values, nk_size_t plane_row) {
+    unsigned const lane = threadIdx.x & 31;
+    nk_size_t const depth = arguments->tiles.depth, depth_padded = arguments->depth_padded;
+    nk_f64_t maximum = 0, total = 0, sum = 0, compensation = 0;
+    int special = 0;
+    for (nk_size_t index = lane; index < depth; index += 32) {
+        nk_f64_t const value = values[index], magnitude = fabs(value);
+        special |= !(magnitude <= 0x1.fffffffffffffp+1023);
+        maximum = fmax(maximum, magnitude), total += magnitude;
+        nk_cross_step_dot2_f64_cuda_(value, value, &sum, &compensation);
+    }
+    for (unsigned offset = 16; offset != 0; offset >>= 1) {
+        maximum = fmax(maximum, nk_shuffle_xor_f64_cuda_(maximum, offset));
+        total += nk_shuffle_xor_f64_cuda_(total, offset);
+        nk_cross_merge_lanes_dot2_f64_cuda_(offset, &sum, &compensation);
+    }
+    special = __any_sync(0xFFFFFFFFu, special);
+    nk_i32_t const shift = special || maximum == 0 ? 0 : nk_cross_grid_bits_f64_ampere_k - 1 - ilogb(maximum);
+    // Two exact steps, since the shift of a subnormal row passes the largest power of two.
+    nk_f64_t const first_scale = nk_f64_power_of_two_ampere_(shift / 2);
+    nk_f64_t const second_scale = nk_f64_power_of_two_ampere_(shift - shift / 2);
+    nk_u32_t truncated = 0;
+    unsigned char *residues = arguments->residues + plane_row * depth_padded;
+    for (nk_size_t index = lane; index < depth_padded; index += 32) {
+        nk_f64_t const value = index < depth && !special ? values[index] : 0;
+        nk_f64_t const scaled = fabs(value) * first_scale * second_scale, integer = trunc(scaled);
+        truncated += value != 0 && (integer == 0 || integer != scaled);
+        // Both 42-bit halves are exact, and split into 21-bit digits as integers.
+        nk_f64_t const high = floor(integer * 0x1p-42), low = __fma_rn(-high, 0x1p42, integer);
+        nk_u64_t const high_bits = (nk_u64_t)high, low_bits = (nk_u64_t)low;
+        nk_u32_t digits[4];
+        digits[0] = (nk_u32_t)low_bits & 0x1FFFFFu, digits[1] = (nk_u32_t)(low_bits >> 21);
+        digits[2] = (nk_u32_t)high_bits & 0x1FFFFFu, digits[3] = (nk_u32_t)(high_bits >> 21);
+#pragma unroll
+        for (unsigned modulus = 0; modulus < nk_cross_moduli_f64_ampere_k; ++modulus)
+            residues[modulus * arguments->plane_bytes + index] = (unsigned char)nk_cross_residue_f64_ampere_(
+                &arguments->moduli, modulus, digits, value < 0);
+    }
+    for (unsigned offset = 16; offset != 0; offset >>= 1) truncated += __shfl_xor_sync(0xFFFFFFFFu, truncated, offset);
+    if (lane == 0) {
+        nk_f64_t const infinity = __longlong_as_double(0x7FF0000000000000LL);
+        nk_cross_grid_row_f64_ampere_t grid_row;
+        grid_row.norm = nk_f64_add_rn_cuda_(sum, compensation);
+        grid_row.maximum = special ? infinity : maximum;
+        // A recursive sum of at most 2^15 values errs below 2^-37 of itself.
+        grid_row.total = special ? infinity : total * (1 + 0x1p-36);
+        grid_row.truncated = special ? infinity : (nk_f64_t)truncated;
+        grid_row.shift = shift;
+        arguments->grid_rows[plane_row] = grid_row;
+    }
+}
+
+/** Rebuilds the integer of one output from its residues, @p stride bytes apart, rounds it once to
+ *  F64 and scales it by 2^exponent; @p zero says whether the integer is exactly zero. */
+NUMKONG_DEVICE nk_f64_t nk_cross_reconstruct_f64_ampere_(nk_cross_moduli_f64_ampere_t const *moduli,
+                                                         unsigned char const *residues, nk_size_t stride,
+                                                         nk_i32_t exponent, int *zero) {
+    nk_u64_t sums[nk_cross_limbs_f64_ampere_k] = {0};
+#pragma unroll
+    for (unsigned index = 0; index < nk_cross_moduli_f64_ampere_k; ++index) {
+        nk_u64_t const residue = residues[index * stride];
+#pragma unroll
+        for (unsigned limb = 0; limb < nk_cross_limbs_f64_ampere_k; ++limb)
+            sums[limb] += residue * moduli->weights[index][limb];
+    }
+    // S = Σ residue · weight stays below 6144 M, 197 bits.
+    nk_u32_t limbs[nk_cross_limbs_f64_ampere_k + 1];
+    nk_u64_t carry = 0;
+#pragma unroll
+    for (unsigned limb = 0; limb < nk_cross_limbs_f64_ampere_k; ++limb)
+        carry += sums[limb], limbs[limb] = (nk_u32_t)carry, carry >>= 32;
+    limbs[nk_cross_limbs_f64_ampere_k] = (nk_u32_t)carry;
+    // The top three limbs estimate S / M to within one, and S − q M then lands in [−M, 2M).
+    nk_f64_t const estimate = (nk_f64_t)limbs[6] * 0x1p192 + (nk_f64_t)limbs[5] * 0x1p160 +
+                              (nk_f64_t)limbs[4] * 0x1p128;
+    nk_u64_t const quotient = (nk_u64_t)floor(estimate * moduli->product_inverse);
+    nk_u64_t product_carry = 0;
+    nk_i64_t borrow = 0;
+#pragma unroll
+    for (unsigned limb = 0; limb <= nk_cross_limbs_f64_ampere_k; ++limb) {
+        nk_u64_t const subtrahend = product_carry +
+                                    (limb < nk_cross_limbs_f64_ampere_k ? quotient * moduli->product[limb] : 0);
+        product_carry = subtrahend >> 32;
+        nk_i64_t const difference = (nk_i64_t)limbs[limb] - (nk_i64_t)(nk_u32_t)subtrahend + borrow;
+        limbs[limb] = (nk_u32_t)difference, borrow = difference >> 32;
+    }
+    // A negative difference takes M back, and one at or past M gives it up.
+    int const negative_difference = borrow != 0;
+    borrow = 0;
+    nk_u32_t reduced[nk_cross_limbs_f64_ampere_k];
+#pragma unroll
+    for (unsigned limb = 0; limb < nk_cross_limbs_f64_ampere_k; ++limb) {
+        nk_i64_t const term = negative_difference ? (nk_i64_t)moduli->product[limb] : -(nk_i64_t)moduli->product[limb];
+        nk_i64_t const sum = (nk_i64_t)limbs[limb] + term + borrow;
+        reduced[limb] = (nk_u32_t)sum, borrow = sum >> 32;
+    }
+    int const keep_reduced = negative_difference || borrow == 0;
+#pragma unroll
+    for (unsigned limb = 0; limb < nk_cross_limbs_f64_ampere_k; ++limb)
+        limbs[limb] = keep_reduced ? reduced[limb] : limbs[limb];
+    // The residue in [0, M) is the integer itself below M / 2, and M less its magnitude above.
+    nk_u32_t complement[nk_cross_limbs_f64_ampere_k];
+    borrow = 0;
+#pragma unroll
+    for (unsigned limb = 0; limb < nk_cross_limbs_f64_ampere_k; ++limb) {
+        nk_i64_t const difference = (nk_i64_t)moduli->product[limb] - (nk_i64_t)limbs[limb] + borrow;
+        complement[limb] = (nk_u32_t)difference, borrow = difference >> 32;
+    }
+    int greater = 0, decided = 0;
+#pragma unroll
+    for (unsigned limb = nk_cross_limbs_f64_ampere_k; limb-- != 0;) {
+        greater = decided ? greater : limbs[limb] > complement[limb];
+        decided = decided || limbs[limb] != complement[limb];
+    }
+    int const negative = greater;
+    nk_u32_t magnitude[nk_cross_limbs_f64_ampere_k];
+#pragma unroll
+    for (unsigned limb = 0; limb < nk_cross_limbs_f64_ampere_k; ++limb)
+        magnitude[limb] = negative ? complement[limb] : limbs[limb];
+    // Whole limbs shift up until the top one leads, then 64 bits and a sticky bit round once.
+    nk_i32_t limb_shift = 0;
+#pragma unroll
+    for (unsigned step = 0; step + 1 < nk_cross_limbs_f64_ampere_k; ++step) {
+        int const empty = magnitude[nk_cross_limbs_f64_ampere_k - 1] == 0;
+#pragma unroll
+        for (unsigned limb = nk_cross_limbs_f64_ampere_k - 1; limb != 0; --limb)
+            magnitude[limb] = empty ? magnitude[limb - 1] : magnitude[limb];
+        magnitude[0] = empty ? 0 : magnitude[0];
+        limb_shift += empty;
+    }
+    *zero = magnitude[5] == 0;
+    if (*zero) return 0;
+    unsigned const leading_zeros = __clz(magnitude[5]);
+    nk_u64_t const top = ((nk_u64_t)magnitude[5] << 32) | magnitude[4];
+    nk_u64_t const third = (nk_u64_t)magnitude[3] << leading_zeros;
+    nk_u64_t const window = (top << leading_zeros) | (third >> 32);
+    nk_u32_t const sticky = (nk_u32_t)third | magnitude[2] | magnitude[1] | magnitude[0];
+    nk_f64_t const rounded = __ull2double_rn(window | (sticky != 0));
+    nk_f64_t const scaled = ldexp(rounded, 128 - (nk_i32_t)leading_zeros - 32 * limb_shift + exponent);
+    return negative ? -scaled : scaled;
+}
+
+/** Rebuilds, checks and writes the outputs of one [128,128] tile from the block's residues, each
+ *  thread down one column; outputs whose truncation bound fails flag their 64 × 64 tile instead. */
+NUMKONG_DEVICE void nk_cross_finish_tile_f64_ampere_(nk_cross_residue_arguments_f64_ampere_t const *arguments,
+                                                     unsigned char const *scratch, nk_size_t first_row,
+                                                     nk_size_t first_column) {
+    nk_cross_tile_arguments_t const *tiles = &arguments->tiles;
+    nk_size_t const column = first_column + threadIdx.x;
+    if (column >= tiles->column_count) return;
+    nk_cross_grid_row_f64_ampere_t const column_grid = arguments->grid_rows[arguments->column_plane_row + column];
+    nk_f64_t const *column_norms = (nk_f64_t const *)tiles->b_norms;
+    nk_f64_t const column_norm = column_norms ? column_norms[column] : column_grid.norm;
+    for (unsigned tile_row = 0; tile_row < nk_cross_tile_ampere_k; ++tile_row) {
+        nk_size_t const row = first_row + tile_row;
+        if (row >= tiles->rows_end) break;
+        nk_size_t column_begin, column_end;
+        nk_diagonal_band_row_range_simt_(arguments->band, (nk_i64_t)row, tiles->column_count, &column_begin,
+                                         &column_end);
+        if (column < column_begin || column >= column_end) continue;
+        nk_cross_grid_row_f64_ampere_t const row_grid = arguments->grid_rows[row];
+        int zero;
+        nk_f64_t const dot = nk_cross_reconstruct_f64_ampere_(
+            &arguments->moduli, scratch + tile_row * nk_cross_tile_ampere_k + threadIdx.x,
+            nk_cross_tile_outputs_f64_ampere_k, -(row_grid.shift + column_grid.shift), &zero);
+        // Each truncated value lost under one grid unit, times its partner's magnitude.
+        nk_f64_t const lost = ldexp(fmin(row_grid.truncated * column_grid.maximum, column_grid.total),
+                                    -row_grid.shift) +
+                              ldexp(fmin(column_grid.truncated * row_grid.maximum, row_grid.total), -column_grid.shift);
+        nk_f64_t const magnitude = fabs(dot);
+        int const keep = zero ? lost == 0
+                              : magnitude >= 0x1p-1000 && magnitude <= 0x1.fffffffffffffp+1023 &&
+                                    lost * (1 + 0x1p-36) <= 0x1p-54 * magnitude;
+        if (!keep) {
+            arguments->flags[(row - tiles->rows_begin) / nk_cross_tile_simt_k * tiles->column_tiles +
+                             column / nk_cross_tile_simt_k] = 1;
+            continue;
+        }
+        nk_f64_t *output = (nk_f64_t *)((unsigned char *)tiles->c + row * tiles->c_stride);
+        if (arguments->metric == nk_cross_metric_dot_k) output[column] = dot;
+        else if (nk_cross_symmetric_simt_(arguments->band) && column == row) output[column] = 0;
+        else if (arguments->metric == nk_cross_metric_angular_k)
+            output[column] = nk_f64_angular_simt_(dot, row_grid.norm, column_norm);
+        else output[column] = nk_f64_euclidean_simt_(dot, row_grid.norm, column_norm);
+    }
+}
+
+/** The residue products of [128,128] output tiles, one I8 GEMM per modulus on the I8 tile's
+ *  pipeline, then their reconstruction. */
+NUMKONG_DEVICE void nk_cross_tile_residues_f64_ampere_(nk_cross_residue_arguments_f64_ampere_t const *arguments) {
+    __shared__ __align__(128) nk_cross_shared_ampere_t shared;
+    nk_fui32_t accumulators[4][8][4];
+    nk_cross_tile_arguments_t plane = arguments->tiles;
+    plane.a_stride = arguments->depth_padded, plane.b_stride = arguments->depth_padded;
+    plane.depth_bytes = arguments->depth_padded;
+    plane.depth_slabs = arguments->depth_padded / nk_cross_slab_bytes_ampere_k;
+    plane.column_tiles = arguments->residue_column_tiles, plane.tiles = arguments->residue_tiles;
+    unsigned char *scratch = arguments->scratch +
+                             (nk_size_t)blockIdx.x * nk_cross_moduli_f64_ampere_k * nk_cross_tile_outputs_f64_ampere_k;
+    unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, group = lane >> 2, quad = lane & 3;
+    unsigned const warp_row = (warp >> 1) * 64, warp_column = (warp & 1) * 64;
+
+    for (nk_size_t tile = blockIdx.x; tile < plane.tiles; tile += gridDim.x) {
+        // The previous tile's reconstruction reads its residues until every thread is done.
+        __syncthreads();
+        nk_size_t first_row, first_column;
+        if (!nk_cross_tile_origin_ampere_(arguments->band, &plane, tile, &first_row, &first_column)) continue;
+        for (unsigned index = 0; index < nk_cross_moduli_f64_ampere_k; ++index) {
+            plane.a = arguments->residues + index * arguments->plane_bytes;
+            plane.b = plane.a + arguments->column_plane_row * arguments->depth_padded;
+            nk_cross_accumulators_clear_ampere_(accumulators);
+            nk_cross_prologue_ampere_(&shared, &plane, first_row, first_column);
+            unsigned read_stage = 0, write_stage = nk_cross_stages_ampere_k - 1;
+            for (nk_size_t slab = 0; slab < plane.depth_slabs; ++slab) {
+                nk_wait_async_ampere_(nk_cross_stages_ampere_k - 2);
+                __syncthreads();
+                unsigned char *a_stage = shared.stages[read_stage][0], *b_stage = shared.stages[read_stage][1];
+#pragma unroll
+                for (unsigned sub_slab = 0; sub_slab < 2; ++sub_slab) {
+                    nk_u32_t a_fragments[4][4], b_fragments[8][2];
+                    nk_cross_load_fragments_ampere_(a_stage, b_stage, sub_slab, a_fragments, b_fragments);
+                    nk_dots_i8_multiply_ampere_(accumulators, a_fragments, b_fragments);
+                }
+                nk_cross_prefetch_ampere_(&shared, &plane, first_row, first_column, slab, write_stage);
+                read_stage = read_stage + 1 == nk_cross_stages_ampere_k ? 0 : read_stage + 1;
+                write_stage = write_stage + 1 == nk_cross_stages_ampere_k ? 0 : write_stage + 1;
+            }
+            nk_u32_t const modulus = arguments->moduli.moduli[index];
+            nk_u32_t const reciprocal = arguments->moduli.reciprocals[index];
+            unsigned char *residues = scratch + index * nk_cross_tile_outputs_f64_ampere_k;
+#pragma unroll
+            for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
+#pragma unroll
+                for (unsigned column_tile = 0; column_tile < 8; ++column_tile)
+#pragma unroll
+                    for (unsigned half = 0; half < 2; ++half) {
+                        unsigned const tile_row = warp_row + row_tile * 16 + half * 8 + group;
+                        unsigned const tile_column = warp_column + column_tile * 8 + quad * 2;
+                        nk_fui32_t const *pair = &accumulators[row_tile][column_tile][half * 2];
+                        nk_u32_t const low = nk_cross_reduce_f64_ampere_(pair[0].i, modulus, reciprocal);
+                        nk_u32_t const high = nk_cross_reduce_f64_ampere_(pair[1].i, modulus, reciprocal);
+                        *(unsigned short *)(residues + tile_row * nk_cross_tile_ampere_k +
+                                            tile_column) = (unsigned short)(low | (high << 8));
+                    }
+            // The last slab's ring reads retire before the next modulus refills the ring, and the
+            // last modulus's residues land before any thread rebuilds from them.
+            __syncthreads();
+        }
+        nk_cross_finish_tile_f64_ampere_(arguments, scratch, first_row, first_column);
+    }
+}
+
+/** The Dot2 tile of @c cuda, over the 64 × 64 tiles @p flags marks, or every one without flags. */
+NUMKONG_DEVICE void nk_cross_tile_fallback_f64_ampere_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                       nk_cross_tile_arguments_t const *arguments,
+                                                       unsigned char const *flags) {
+    // One extra column breaks the 64-element stride that would put a slab's stores on one bank.
+    __shared__ nk_f64_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_f64_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_f64_t norms[2][nk_cross_tile_simt_k];
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        if (flags && !flags[tile]) continue;
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_f64_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
+        nk_f64_t compensations[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
+        nk_f64_t a_norms[nk_cross_loads_simt_k][2] = {{0}}, b_norms[nk_cross_loads_simt_k][2] = {{0}};
+        for (nk_size_t slab = 0; slab < arguments->depth; slab += nk_cross_slab_simt_k) {
+            nk_f64_t a_values[nk_cross_loads_simt_k], b_values[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_f64_simt_(arguments, first_row, first_column, slab, a_slab, b_slab, a_values, b_values);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_f64_cuda_(band, a_values, b_values, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_dot2_f64_cuda_(a_slab, b_slab, sums, compensations);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_f64_t a_rounded[nk_cross_loads_simt_k], b_rounded[nk_cross_loads_simt_k];
+            nk_cross_round_norms_f64_cuda_(band, a_norms, b_norms, a_rounded, b_rounded);
+            nk_cross_publish_norms_f64_simt_(band, arguments, first_column, a_rounded, b_rounded, norms);
+        }
+#pragma unroll
+        for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
+#pragma unroll
+            for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step)
+                sums[row_step][column_step] = nk_f64_add_rn_cuda_(sums[row_step][column_step],
+                                                                  compensations[row_step][column_step]);
+        nk_cross_store_tile_f64_simt_(band, metric, arguments, first_row, first_column, sums, norms);
+    }
+}
+
+#pragma endregion F64 Tiles
+
 /*  F32 products are exact in F64, and DMMA adds each output's four products in depth order from its
  *  accumulator, one FMA at a time, so this tile rounds exactly as the @c cuda one does at every
  *  step, padding included. Eight warps own a [128,128] output tile, each a [64,32] grid of 8 × 8
@@ -2487,6 +2927,234 @@ NUMKONG_DEVICE void nk_cross_tile_mxfp8e5m2_ampere_(nk_cross_metric_t metric, nk
 
 /*  Later generations read the helpers above and emit only their own kernels. */
 #if NUMKONG_TARGET_AMPERE
+
+#pragma region F64
+
+static __global__ void __launch_bounds__(nk_cross_threads_f64_ampere_k)
+    nk_cross_prepare_f64_ampere_kernel_(__grid_constant__ nk_cross_residue_arguments_f64_ampere_t const arguments,
+                                        unsigned char const *rows, nk_size_t stride, nk_size_t count,
+                                        nk_size_t first_plane_row) {
+    nk_size_t const warps = (nk_size_t)gridDim.x * (blockDim.x >> 5);
+    for (nk_size_t row = (nk_size_t)blockIdx.x * (blockDim.x >> 5) + (threadIdx.x >> 5); row < count; row += warps)
+        nk_cross_prepare_row_f64_ampere_(&arguments, (nk_f64_t const *)(rows + row * stride), first_plane_row + row);
+}
+
+static __global__ void __launch_bounds__(nk_cross_threads_ampere_k)
+    nk_cross_residues_f64_ampere_kernel_(__grid_constant__ nk_cross_residue_arguments_f64_ampere_t const arguments) {
+    nk_cross_tile_residues_f64_ampere_(&arguments);
+}
+
+static __global__ void __launch_bounds__(nk_cross_threads_simt_k)
+    nk_cross_fallback_f64_ampere_kernel_(__grid_constant__ nk_cross_residue_arguments_f64_ampere_t const arguments) {
+    nk_cross_tile_fallback_f64_ampere_(arguments.metric, arguments.band, &arguments.tiles, arguments.flags);
+}
+
+/** Fills the moduli of the F64 products and what reconstruction needs of them. */
+NUMKONG_INLINE void nk_cross_moduli_f64_ampere_(nk_cross_moduli_f64_ampere_t *moduli) {
+    static nk_u32_t const values[nk_cross_moduli_f64_ampere_k] = {256, 255, 253, 251, 247, 241, 239, 233,
+                                                                  229, 227, 223, 211, 199, 197, 193, 191,
+                                                                  181, 179, 173, 167, 163, 157, 151, 149};
+    static nk_u32_t const weights[nk_cross_moduli_f64_ampere_k][nk_cross_limbs_f64_ampere_k] = {
+        {0xCAF98D01u, 0x149EC617u, 0xE2F4F31Du, 0x8DDA2DA9u, 0xF60CCF00u, 0x00768228u},
+        {0xF5ED5400u, 0x4114C791u, 0x740FFED0u, 0xADD0B845u, 0xCADBEFF0u, 0x009EA182u},
+        {0x12A63200u, 0xDF81DBBAu, 0xEBF784CEu, 0x16DC001Eu, 0xA25D6D6Cu, 0x0109C12Fu},
+        {0xAAF5A700u, 0xA6F15389u, 0x3513CA32u, 0xE5351366u, 0xCD8E86E1u, 0x01089AFFu},
+        {0xF76DCC00u, 0x41D992D3u, 0x233CB3E6u, 0x44764DDCu, 0xB1FC3C49u, 0x0105250Eu},
+        {0x262B4500u, 0xF5C9024Du, 0xE7097213u, 0xA0ADB700u, 0xBA59DB65u, 0x0042E95Cu},
+        {0xD99ED000u, 0x4D103FF3u, 0xF2F69B2Fu, 0xFB05F6EDu, 0xE2839B24u, 0x00EDDD99u},
+        {0xBA4EFC00u, 0xA69F4EC0u, 0xE5E3CB84u, 0x7DB8B80Fu, 0x6CB5103Fu, 0x010B739Bu},
+        {0x93577800u, 0x3F106013u, 0xF37E8B69u, 0xEC0A2EEFu, 0xD0FA40B7u, 0x002FBDACu},
+        {0x4D449500u, 0xD2FE088Fu, 0x41DBA407u, 0xB8AE29CCu, 0x8CF7348Cu, 0x00880E6Du},
+        {0xAAE9EC00u, 0x8220D8E5u, 0x3EC9D5F5u, 0x35E89ABBu, 0x704ECD95u, 0x0035ED8Fu},
+        {0xA6CBF500u, 0xAF2DE727u, 0xBACFB561u, 0xA6DD802Du, 0x99BF4024u, 0x00D08CBCu},
+        {0x92D3BF00u, 0x3187FAF5u, 0xC32D44C4u, 0xA2B5A4FFu, 0xFD37CE51u, 0x00A370CFu},
+        {0x32002300u, 0x6DA8B7E8u, 0x25A69763u, 0xAED34084u, 0x325163E3u, 0x00DF5EDCu},
+        {0x4EC79700u, 0xC82CC3DFu, 0x623BCC58u, 0xD8AE2254u, 0x39AE068Fu, 0x0050B872u},
+        {0xD4331000u, 0x597C75EAu, 0xC9C04EA7u, 0x8BBD0AFBu, 0xF60C4159u, 0x0016E548u},
+        {0xE738C800u, 0x4BE095DFu, 0xB6DC3E44u, 0x4250B628u, 0x5B081568u, 0x00243DABu},
+        {0x1F6D7B00u, 0x6D9469F7u, 0x7AEEC418u, 0x4A284CBFu, 0x4626573Eu, 0x00A97CA7u},
+        {0x1BFC0B00u, 0x6DE54DFDu, 0xC4786627u, 0xCCE72990u, 0x7985E515u, 0x003422B4u},
+        {0x5C850100u, 0x2082CCCDu, 0x5B6A91CBu, 0x04CC8303u, 0x9CAE2FDBu, 0x00ABD88Au},
+        {0xB26B9000u, 0x0AB8385Cu, 0xEC911CECu, 0xD47AD8B1u, 0x549C9CB7u, 0x008624A8u},
+        {0xF83D4400u, 0x88AE4C9Bu, 0xD9EA92C5u, 0xD3112CABu, 0xB61AAC22u, 0x0014E3F4u},
+        {0x1BE08800u, 0xBC16A95Du, 0x396960C2u, 0x4BB76ED6u, 0xA9AEDEC8u, 0x008252BEu},
+        {0xF2D98A00u, 0xEC187C37u, 0x6CBC23C1u, 0x4727C109u, 0x881EC0CEu, 0x010479F3u},
+    };
+    static nk_u32_t const product[nk_cross_limbs_f64_ampere_k] = {0x45218F00u, 0xBC3DBFA3u, 0xB867AAEDu,
+                                                                  0xF420B31Du, 0xF9324C1Cu, 0x01115116u};
+    for (unsigned index = 0; index < nk_cross_moduli_f64_ampere_k; ++index) {
+        nk_u32_t const modulus = values[index];
+        moduli->moduli[index] = modulus;
+        moduli->reciprocals[index] = (nk_u32_t)(0x100000000ull / modulus);
+        nk_u64_t weight = 1;
+        for (unsigned digit = 0; digit < 3; ++digit)
+            weight = (weight << 21) % modulus, moduli->digit_weights[index][digit] = (nk_u32_t)weight;
+        for (unsigned limb = 0; limb < nk_cross_limbs_f64_ampere_k; ++limb)
+            moduli->weights[index][limb] = weights[index][limb];
+    }
+    nk_f64_t product_value = 0;
+    for (unsigned limb = nk_cross_limbs_f64_ampere_k; limb-- != 0;)
+        moduli->product[limb] = product[limb], product_value = product_value * 0x1p32 + product[limb];
+    moduli->product_inverse = 1.0 / product_value;
+}
+
+/** Launches the F64 GEMM over rows from @p rows_begin to @p rows_end: the Dot2 tiles for depths
+ *  outside the residue range or when its workspace can't be had, else the grids and residues, their
+ *  products and reconstruction, and Dot2 over the tiles that flagged, with the workspace freed
+ *  after them in the order of @p stream. */
+NUMKONG_INLINE nk_status_t nk_cross_launch_f64_ampere_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                       unsigned char const *a, unsigned char const *b,
+                                                       void const *b_norms, void *c, nk_size_t rows_begin,
+                                                       nk_size_t rows_end, nk_size_t column_count, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t b_stride, nk_size_t c_stride,
+                                                       nk_stream_t stream) {
+    if ((((nk_size_t)a) | a_stride | ((nk_size_t)b) | b_stride) & 15 || (((nk_size_t)c) | c_stride) & 7)
+        return nk_misaligned_k;
+    if (rows_end <= rows_begin || column_count == 0) return nk_success_k;
+    int const symmetric = band.subdiagonals == 0;
+    nk_cross_residue_arguments_f64_ampere_t arguments;
+    nk_cross_tile_arguments_t *tiles = &arguments.tiles;
+    tiles->a = a, tiles->b = b, tiles->c = c;
+    tiles->rows_begin = rows_begin, tiles->rows_end = rows_end, tiles->column_count = column_count;
+    tiles->depth = depth, tiles->depth_bytes = depth * sizeof(nk_f64_t);
+    tiles->a_stride = a_stride, tiles->b_stride = b_stride, tiles->c_stride = c_stride;
+    tiles->a_scales = NUMKONG_NULL, tiles->b_scales = NUMKONG_NULL;
+    tiles->a_scales_stride = 0, tiles->b_scales_stride = 0;
+    tiles->a_tensor_scale = NUMKONG_NULL, tiles->b_tensor_scale = NUMKONG_NULL;
+    tiles->depth_slabs = nk_size_divide_round_up_(tiles->depth_bytes, 64);
+    tiles->column_tiles = nk_size_divide_round_up_(column_count, nk_cross_tile_simt_k);
+    tiles->tiles = nk_size_divide_round_up_(rows_end - rows_begin, nk_cross_tile_simt_k) * tiles->column_tiles;
+    tiles->b_norms = b_norms;
+    arguments.residues = NUMKONG_NULL, arguments.grid_rows = NUMKONG_NULL, arguments.scratch = NUMKONG_NULL;
+    arguments.flags = NUMKONG_NULL, arguments.metric = metric, arguments.band = band;
+    void const *fallback_kernel = (void const *)nk_cross_fallback_f64_ampere_kernel_;
+    if (depth < nk_cross_depth_floor_f64_ampere_k || depth > nk_cross_depth_limit_f64_ampere_k)
+        return nk_launch_resident_cuda_(fallback_kernel, nk_cross_threads_simt_k, 0, 0, tiles->tiles, &arguments,
+                                        stream);
+
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, nk_cross_slab_bytes_ampere_k);
+    nk_size_t const plane_rows = symmetric ? column_count : rows_end + column_count;
+    arguments.depth_padded = depth_padded, arguments.plane_bytes = plane_rows * depth_padded;
+    arguments.column_plane_row = symmetric ? 0 : rows_end;
+    arguments.residue_column_tiles = nk_size_divide_round_up_(column_count, nk_cross_tile_ampere_k);
+    arguments.residue_tiles = nk_size_divide_round_up_(rows_end - rows_begin, nk_cross_tile_ampere_k) *
+                              arguments.residue_column_tiles;
+    nk_cross_moduli_f64_ampere_(&arguments.moduli);
+
+    void const *prepare_kernel = (void const *)nk_cross_prepare_f64_ampere_kernel_;
+    void const *residues_kernel = (void const *)nk_cross_residues_f64_ampere_kernel_;
+    int caller = 0, device = 0, multiprocessors = 0, per_multiprocessor = 0;
+    nk_status_t status = nk_device_enter_cuda_(stream, &caller);
+    if (status != nk_success_k) return status;
+    if (cudaGetDevice(&device) != cudaSuccess ||
+        cudaDeviceGetAttribute(&multiprocessors, cudaDevAttrMultiProcessorCount, device) != cudaSuccess ||
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&per_multiprocessor, residues_kernel, nk_cross_threads_ampere_k,
+                                                      0) != cudaSuccess) {
+        nk_device_leave_cuda_(caller);
+        return nk_device_code_mismatch_k;
+    }
+    nk_size_t const resident = (nk_size_t)multiprocessors * (nk_size_t)per_multiprocessor;
+    nk_size_t const residue_blocks = resident < arguments.residue_tiles ? resident : arguments.residue_tiles;
+    nk_size_t const residues_bytes = nk_size_round_up_to_multiple_(nk_cross_moduli_f64_ampere_k * arguments.plane_bytes,
+                                                                   256);
+    nk_size_t const rows_bytes = nk_size_round_up_to_multiple_(plane_rows * sizeof(nk_cross_grid_row_f64_ampere_t),
+                                                               256);
+    nk_size_t const scratch_bytes = residue_blocks * nk_cross_moduli_f64_ampere_k * nk_cross_tile_outputs_f64_ampere_k;
+    void *workspace = NUMKONG_NULL;
+    cudaError_t const allocated = cudaMallocAsync(
+        &workspace, residues_bytes + rows_bytes + scratch_bytes + tiles->tiles, (cudaStream_t)stream);
+    if (allocated != cudaSuccess) {
+        cudaGetLastError();
+        nk_device_leave_cuda_(caller);
+        return nk_launch_resident_cuda_(fallback_kernel, nk_cross_threads_simt_k, 0, 0, tiles->tiles, &arguments,
+                                        stream);
+    }
+    arguments.residues = (unsigned char *)workspace;
+    arguments.grid_rows = (nk_cross_grid_row_f64_ampere_t *)(arguments.residues + residues_bytes);
+    arguments.scratch = arguments.residues + residues_bytes + rows_bytes;
+    arguments.flags = arguments.scratch + scratch_bytes;
+    status = cudaMemsetAsync(arguments.flags, 0, tiles->tiles, (cudaStream_t)stream) == cudaSuccess
+                 ? nk_success_k
+                 : nk_device_code_mismatch_k;
+    nk_device_leave_cuda_(caller);
+
+    // A's rows take the first plane rows, and B's follow unless they are the same vectors; each
+    // warp prepares a row.
+    nk_size_t first_plane_row = 0, count = symmetric ? column_count : rows_end;
+    nk_size_t blocks = nk_size_divide_round_up_(count, nk_cross_threads_f64_ampere_k / 32);
+    void *prepare_arguments[5];
+    prepare_arguments[0] = &arguments, prepare_arguments[1] = &a, prepare_arguments[2] = &a_stride;
+    prepare_arguments[3] = &count, prepare_arguments[4] = &first_plane_row;
+    if (status == nk_success_k)
+        status = nk_launch_cuda_(prepare_kernel, blocks < 65535 ? blocks : 65535, nk_cross_threads_f64_ampere_k,
+                                 prepare_arguments, 0, stream);
+    if (status == nk_success_k && !symmetric) {
+        first_plane_row = rows_end, count = column_count;
+        blocks = nk_size_divide_round_up_(count, nk_cross_threads_f64_ampere_k / 32);
+        prepare_arguments[1] = &b, prepare_arguments[2] = &b_stride;
+        status = nk_launch_cuda_(prepare_kernel, blocks < 65535 ? blocks : 65535, nk_cross_threads_f64_ampere_k,
+                                 prepare_arguments, 0, stream);
+    }
+    void *residue_arguments[1];
+    residue_arguments[0] = &arguments;
+    if (status == nk_success_k)
+        status = nk_launch_cuda_(residues_kernel, residue_blocks, nk_cross_threads_ampere_k, residue_arguments, 0,
+                                 stream);
+    if (status == nk_success_k)
+        status = nk_launch_resident_cuda_(fallback_kernel, nk_cross_threads_simt_k, 0, 0, tiles->tiles, &arguments,
+                                          stream);
+    if (nk_device_enter_cuda_(stream, &caller) == nk_success_k) {
+        cudaFreeAsync(workspace, (cudaStream_t)stream);
+        nk_device_leave_cuda_(caller);
+    }
+    return status;
+}
+
+/** C = A × Bᵀ of F64 inputs, or its distances, over a B packed by @c nk_dots_pack_f64_ampere. */
+NUMKONG_INLINE nk_status_t nk_cross_packed_f64_ampere_(nk_cross_metric_t metric, nk_f64_t const *a,
+                                                       void const *b_packed, nk_f64_t *c, nk_size_t rows,
+                                                       nk_size_t column_count, nk_size_t depth, nk_size_t a_stride,
+                                                       nk_size_t c_stride, nk_stream_t stream) {
+    nk_size_t const row_bytes = nk_cross_padded_values_simt_(depth, 2, 1, sizeof(nk_f64_t)) * sizeof(nk_f64_t);
+    unsigned char const *b_rows = (unsigned char const *)((nk_cross_packed_buffer_header_t const *)b_packed + 1);
+    nk_diagonal_band_t const band = {NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX};
+    return nk_cross_launch_f64_ampere_(metric, band, (unsigned char const *)a, b_rows,
+                                       b_rows + column_count * row_bytes, c, 0, rows, column_count, depth, a_stride,
+                                       row_bytes, c_stride, stream);
+}
+
+/** The Gram matrix of F64 vectors, or its distances, over rows @p rows_begin to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_cross_symmetric_f64_ampere_(nk_cross_metric_t metric, nk_f64_t const *vectors,
+                                                          nk_size_t vector_count, nk_size_t depth, nk_size_t stride,
+                                                          nk_f64_t *result, nk_size_t result_stride,
+                                                          nk_size_t rows_begin, nk_size_t rows_end,
+                                                          nk_stream_t stream) {
+    nk_diagonal_band_t const band = {0, NUMKONG_SIZE_MAX};
+    return nk_cross_launch_f64_ampere_(metric, band, (unsigned char const *)vectors, (unsigned char const *)vectors,
+                                       NUMKONG_NULL, result, rows_begin, nk_min_of_two(rows_end, vector_count),
+                                       vector_count, depth, stride, stride, result_stride, stream);
+}
+
+nk_define_cross_pack_size_simt_(f64, ampere, f64, f64, /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_cuda_(f64, ampere)
+nk_define_cross_pack_rows_cuda_(f64, ampere, f64, f64, nk_load_b8_simt_, f64, nk_f64_lane_sumsq_cuda_,
+                                /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
+
+NUMKONG_API nk_status_t nk_dots_packed_f64_ampere(nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows,
+                                                  nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
+                                                  nk_size_t c_stride, nk_stream_t stream) {
+    return nk_cross_packed_f64_ampere_(nk_cross_metric_dot_k, a, b_packed, c, rows, columns, depth, a_stride, c_stride,
+                                       stream);
+}
+
+NUMKONG_API nk_status_t nk_dots_symmetric_f64_ampere(nk_f64_t const *vectors, nk_size_t vector_count, nk_size_t depth,
+                                                     nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
+                                                     nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    return nk_cross_symmetric_f64_ampere_(nk_cross_metric_dot_k, vectors, vector_count, depth, stride, result,
+                                          result_stride, rows_begin, rows_end, stream);
+}
+
+#pragma endregion F64
 
 #pragma region F32
 

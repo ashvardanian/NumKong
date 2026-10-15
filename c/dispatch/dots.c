@@ -1216,6 +1216,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_f64_capabilities(void) {
 #if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_dots_pack_size_f64_cuda,
 #endif
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_dots_pack_size_f64_ampere,
+#endif
     };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
@@ -1229,7 +1232,7 @@ static nk_capability_kernels_t const *nk_dots_pack_size_f64_capabilities(void) {
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
         {0, nk_no_kernels_},
     };
@@ -2874,6 +2877,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_f64_capabilities(void
 #if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_dots_packed_shape_f64_cuda,
 #endif
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_dots_packed_shape_f64_ampere,
+#endif
     };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
@@ -2887,7 +2893,7 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_f64_capabilities(void
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
         {0, nk_no_kernels_},
     };
@@ -4572,6 +4578,9 @@ static nk_capability_kernels_t const *nk_dots_pack_f64_capabilities(void) {
 #if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_dots_pack_f64_cuda,
 #endif
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_dots_pack_f64_ampere,
+#endif
     };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
@@ -4585,7 +4594,7 @@ static nk_capability_kernels_t const *nk_dots_pack_f64_capabilities(void) {
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
         {0, nk_no_kernels_},
     };
@@ -6262,6 +6271,9 @@ static nk_capability_kernels_t const *nk_dots_packed_f64_capabilities(void) {
 #if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_dots_packed_f64_cuda,
 #endif
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_dots_packed_f64_ampere,
+#endif
     };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
@@ -6275,7 +6287,7 @@ static nk_capability_kernels_t const *nk_dots_packed_f64_capabilities(void) {
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
         {0, nk_no_kernels_},
     };
@@ -7972,6 +7984,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_f64_capabilities(void) {
 #if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_dots_symmetric_f64_cuda,
 #endif
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_dots_symmetric_f64_ampere,
+#endif
     };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
@@ -7985,7 +8000,7 @@ static nk_capability_kernels_t const *nk_dots_symmetric_f64_capabilities(void) {
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
         {0, nk_no_kernels_},
     };
