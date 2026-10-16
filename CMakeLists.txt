@@ -639,6 +639,7 @@ if (NK_BUILD_TEST)
 
     if (APPLE AND NK_IS_64BIT_ARM_)
         add_executable(nk_test_capabilities_apple test/test_capabilities_apple.c)
+        set_target_properties(nk_test_capabilities_apple PROPERTIES OSX_ARCHITECTURES arm64)
         target_include_directories(nk_test_capabilities_apple PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
         add_test(NAME nk_test_capabilities_apple COMMAND nk_test_capabilities_apple)
     endif ()
