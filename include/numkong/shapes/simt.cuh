@@ -513,9 +513,12 @@ NUMKONG_DEVICE void nk_rotation_from_svd_f32_simt_(nk_f32_t const *svd_left, nk_
 
 #pragma region Transport Network
 
-/** One team's transport between up to @c rows row points and @c columns column points, carved from
- *  dynamic shared memory: residual supplies and demands as integer masses, F64 potentials, the
- *  Dijkstra state, and the positive arcs, each in the list of its column. */
+/** One team's transport between up to @c rows row points and @c columns column points: residual
+ *  supplies and demands as integer masses, F64 potentials, the Dijkstra state, and the positive
+ *  arcs, each in the list of its column. A plan never holds more than n + m arcs: the simplex keeps
+ *  a spanning tree, and shortest paths run only between equal clouds, where every path ships a
+ *  whole row and each row and column keeps one arc. The state lives in the block's shared memory
+ *  when it fits, or in global memory for a team of one or more blocks. */
 typedef struct {
     nk_f64_t *row_potentials;
     nk_f64_t *column_potentials;
@@ -540,7 +543,7 @@ typedef struct {
     nk_u32_t *visits;
     nk_u32_t *team_indices;
 
-    /** The head of the free arcs, and a flag raised when a plan outgrows them. */
+    /** The head of the free arcs. */
     nk_u32_t *free_arcs;
 
     /** The network simplex's spanning tree over row then column nodes, kept as the serial solver
@@ -550,9 +553,16 @@ typedef struct {
         *tree_previous_siblings;
     nk_f64_t *tree_potentials;
 
+    /** Where a team of several blocks meets in global memory: their arrival count and generation,
+     *  then each block's argmins and sums for the others to fold. Null for a team of one block. */
+    nk_u32_t *team_meeting;
+
     /** The serial tolerance of the pair's scale: no reduced cost above its negation enters. */
     nk_f64_t tolerance;
     nk_u32_t rows, columns, arcs;
+
+    /** This thread's index in the team and the team's threads, a whole number of blocks. */
+    unsigned thread, team;
 } nk_shapes_network_simt_t;
 
 enum {
@@ -560,89 +570,143 @@ enum {
     /** Doubles each thread keeps in the team scratch: an argmin's two halves, or a plan's cost and
      *  cross-covariance. */
     nk_shapes_team_values_simt_k = 10,
+
+    /** The most blocks a team spans. */
+    nk_shapes_team_blocks_simt_k = 16,
+
+    /** Bytes where a team of several blocks meets: the barrier, then 2 argmins and 10 sums of
+     *  doubles per block, then the argmins' indices. */
+    nk_shapes_meeting_bytes_simt_k = 64 + (2 + nk_shapes_team_values_simt_k) * nk_shapes_team_blocks_simt_k * 8 +
+                                     2 * nk_shapes_team_blocks_simt_k * 4,
 };
 
-/** Bytes of one team's network and its two point arrays of @p point_bytes per coordinate, for
- *  clouds of up to @p rows and @p columns points and @p team threads, with the simplex tree if some
- *  pair is @p unequal . */
-NUMKONG_INLINE nk_size_t nk_shapes_team_bytes_simt_(nk_size_t rows, nk_size_t columns, nk_size_t team,
-                                                    nk_size_t point_bytes, int unequal) {
-    nk_size_t const arcs = 2 * (rows + columns);
-    nk_size_t const doubles = nk_size_divide_round_up_(3 * (rows + columns) * point_bytes, sizeof(nk_f64_t)) + rows +
-                              2 * columns + nk_shapes_team_values_simt_k * team;
-    nk_size_t const words = 5 * rows + 5 * columns + 5 * arcs + 2 * team + 2;
-    nk_size_t const tree_bytes = unequal ? (rows + columns) * (6 * sizeof(nk_u32_t) + sizeof(nk_f64_t)) : 0;
-    return nk_size_round_up_to_multiple_(doubles * sizeof(nk_f64_t) + words * sizeof(nk_u32_t), sizeof(nk_f64_t)) +
-           tree_bytes;
+/** Bytes of a block's team scratch in shared memory for @p threads threads. */
+NUMKONG_CONSTEXPR nk_size_t nk_shapes_scratch_bytes_simt_(nk_size_t threads) {
+    return nk_shapes_team_values_simt_k * threads * sizeof(nk_f64_t) + 2 * threads * sizeof(nk_u32_t);
 }
 
-/** Carves the network of @p rows and @p columns points from @p shared , after the two point
- *  arrays of @p point_bytes per coordinate it returns, sized by the launch's largest clouds. */
-NUMKONG_DEVICE void *nk_shapes_network_carve_simt_(void *shared, nk_u32_t largest_rows, nk_u32_t largest_columns,
-                                                   nk_u32_t rows, nk_u32_t columns, nk_size_t point_bytes,
-                                                   nk_shapes_network_simt_t *network) {
-    unsigned const team = blockDim.x;
-    nk_u32_t const arcs = 2 * (largest_rows + largest_columns);
-    nk_f64_t *doubles = (nk_f64_t *)shared +
+/** Bytes of one team's network and its two point arrays of @p point_bytes per coordinate, for
+ *  clouds of up to @p rows and @p columns points. The shortest-path arrays and the simplex tree
+ *  share one region, as a pair runs only one of the two solvers. */
+NUMKONG_INLINE nk_size_t nk_shapes_state_bytes_simt_(nk_size_t rows, nk_size_t columns, nk_size_t point_bytes) {
+    nk_size_t const arcs = rows + columns;
+    nk_size_t const common_bytes = nk_size_divide_round_up_(3 * (rows + columns) * point_bytes, sizeof(nk_f64_t)) *
+                                       sizeof(nk_f64_t) +
+                                   (columns + 3 * arcs + 1) * sizeof(nk_u32_t);
+    nk_size_t const paths_bytes = (rows + 2 * columns) * sizeof(nk_f64_t) +
+                                  (5 * rows + 4 * columns + 2 * arcs) * sizeof(nk_u32_t);
+    nk_size_t const tree_bytes = (rows + columns) * (sizeof(nk_f64_t) + 6 * sizeof(nk_u32_t));
+    return nk_size_round_up_to_multiple_(common_bytes, sizeof(nk_f64_t)) +
+           (paths_bytes > tree_bytes ? paths_bytes : tree_bytes);
+}
+
+/** Bytes of shared memory for a block of @p threads holding the whole state of its clouds. */
+NUMKONG_INLINE nk_size_t nk_shapes_team_bytes_simt_(nk_size_t rows, nk_size_t columns, nk_size_t threads,
+                                                    nk_size_t point_bytes) {
+    return nk_shapes_scratch_bytes_simt_(threads) + nk_shapes_state_bytes_simt_(rows, columns, point_bytes);
+}
+
+/** Carves the block's team scratch from @p scratch and the network of @p rows and @p columns
+ *  points from @p state , after the two point arrays of @p point_bytes per coordinate, sized by
+ *  the launch's largest clouds, for a team of this block alone. */
+NUMKONG_DEVICE void nk_shapes_network_carve_simt_(void *scratch, void *state, nk_u32_t largest_rows,
+                                                  nk_u32_t largest_columns, nk_u32_t rows, nk_u32_t columns,
+                                                  nk_size_t point_bytes, nk_shapes_network_simt_t *network) {
+    nk_u32_t const arcs = largest_rows + largest_columns, nodes = largest_rows + largest_columns;
+    network->team_values = (nk_f64_t *)scratch;
+    network->team_indices = (nk_u32_t *)(network->team_values + nk_shapes_team_values_simt_k * blockDim.x);
+    nk_f64_t *doubles = (nk_f64_t *)state +
                         nk_size_divide_round_up_(3 * (largest_rows + largest_columns) * point_bytes, sizeof(nk_f64_t));
+    nk_u32_t *words = (nk_u32_t *)doubles;
+    network->column_arcs = words, words += largest_columns;
+    network->arc_rows = words, words += arcs;
+    network->arc_flows = words, words += arcs;
+    network->arc_next = words, words += arcs;
+    network->free_arcs = words, words += 1;
+    char *shared_region = (char *)state +
+                          nk_size_round_up_to_multiple_((nk_size_t)((char *)words - (char *)state), sizeof(nk_f64_t));
+    doubles = (nk_f64_t *)shared_region;
     network->row_potentials = doubles, doubles += largest_rows;
     network->column_potentials = doubles, doubles += largest_columns;
     network->distances = doubles, doubles += largest_columns;
-    network->team_values = doubles, doubles += nk_shapes_team_values_simt_k * team;
-    nk_u32_t *words = (nk_u32_t *)doubles;
+    words = (nk_u32_t *)doubles;
     network->row_supplies = words, words += largest_rows;
     network->row_reached_columns = words, words += largest_rows;
     network->row_reached_arcs = words, words += largest_rows;
     network->column_demands = words, words += largest_columns;
     network->column_predecessors = words, words += largest_columns;
-    network->column_arcs = words, words += largest_columns;
     network->column_closed = words, words += largest_columns;
-    network->arc_rows = words, words += arcs;
-    network->arc_flows = words, words += arcs;
-    network->arc_next = words, words += arcs;
     network->arc_columns = words, words += arcs;
     network->arc_row_next = words, words += arcs;
     network->row_arcs = words, words += largest_rows;
-    network->visits = words, words += largest_rows + largest_columns;
-    network->team_indices = words, words += 2 * team;
-    network->free_arcs = words, words += 2;
-    nk_u32_t const nodes = largest_rows + largest_columns;
-    nk_f64_t *tree_doubles = (nk_f64_t *)((char *)shared +
-                                          nk_size_round_up_to_multiple_((nk_size_t)((char *)words - (char *)shared),
-                                                                        sizeof(nk_f64_t)));
-    network->tree_potentials = tree_doubles;
-    nk_u32_t *tree_words = (nk_u32_t *)(tree_doubles + nodes);
+    network->visits = words;
+    network->tree_potentials = (nk_f64_t *)shared_region;
+    nk_u32_t *tree_words = (nk_u32_t *)(network->tree_potentials + nodes);
     network->tree_parents = tree_words, network->tree_flows = tree_words + nodes;
     network->tree_depths = tree_words + 2 * nodes, network->tree_first_children = tree_words + 3 * nodes;
     network->tree_next_siblings = tree_words + 4 * nodes, network->tree_previous_siblings = tree_words + 5 * nodes;
     network->tolerance = 0;
     network->rows = rows, network->columns = columns, network->arcs = arcs;
-    return shared;
+    network->team_meeting = NUMKONG_NULL, network->thread = threadIdx.x, network->team = blockDim.x;
+}
+
+/** Widens the team to @p blocks blocks meeting at @p meeting in global memory, this one of
+ *  @p rank , each scan splitting its elements over all of their threads. */
+NUMKONG_DEVICE void nk_shapes_network_join_simt_(nk_shapes_network_simt_t *network, void *meeting, unsigned blocks,
+                                                 unsigned rank) {
+    network->team_meeting = (nk_u32_t *)meeting;
+    network->thread = rank * blockDim.x + threadIdx.x, network->team = blocks * blockDim.x;
+}
+
+/** A team's merge slots past its barrier: 2 argmins, then 10 sums, of a value per block. */
+NUMKONG_DEVICE nk_f64_t volatile *nk_shapes_team_merges_simt_(nk_shapes_network_simt_t const *network) {
+    return (nk_f64_t volatile *)((char *)network->team_meeting + 64);
+}
+
+/** Waits for every thread of the team: the block's barrier, then across blocks an arrival count
+ *  in global memory, whose last arrival opens the next generation. */
+NUMKONG_DEVICE void nk_shapes_team_sync_simt_(nk_shapes_network_simt_t const *network) {
+    __syncthreads();
+    if (!network->team_meeting) return;
+    if (threadIdx.x == 0) {
+        nk_u32_t volatile *generation = network->team_meeting + 1;
+        nk_u32_t const seen = *generation;
+        __threadfence();
+        if (atomicAdd(network->team_meeting, 1u) == network->team / blockDim.x - 1) {
+            atomicExch(network->team_meeting, 0u);
+            __threadfence();
+            atomicAdd(network->team_meeting + 1, 1u);
+        }
+        else
+            while (*generation == seen) {}
+        __threadfence();
+    }
+    __syncthreads();
 }
 
 /** Empties the plan: every row supplies @c columns units and every column takes @c rows . */
 NUMKONG_DEVICE void nk_shapes_network_reset_simt_(nk_shapes_network_simt_t *network) {
     nk_u32_t const no_node = 0xFFFFFFFFu;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     for (nk_u32_t row = thread; row < network->rows; row += team) network->row_supplies[row] = network->columns;
     for (nk_u32_t column = thread; column < network->columns; column += team)
         network->column_demands[column] = network->rows, network->column_arcs[column] = no_node;
     for (nk_u32_t arc = thread; arc < network->arcs; arc += team)
         network->arc_next[arc] = arc + 1 < network->arcs ? arc + 1 : no_node;
-    if (thread == 0) network->free_arcs[0] = 0, network->free_arcs[1] = 0;
-    __syncthreads();
+    if (thread == 0) network->free_arcs[0] = 0;
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** The least @p value over the team, the lower @p index breaking ties, left in every thread. */
 NUMKONG_DEVICE void nk_shapes_team_argmin_simt_(nk_shapes_network_simt_t *network, nk_f64_t *value, nk_u32_t *index,
                                                 unsigned *parity) {
-    unsigned const thread = threadIdx.x, team = blockDim.x;
-    nk_f64_t *values = network->team_values + *parity * team;
-    nk_u32_t *indices = network->team_indices + *parity * team;
+    unsigned const thread = threadIdx.x, threads = blockDim.x;
+    nk_f64_t *values = network->team_values + *parity * threads;
+    nk_u32_t *indices = network->team_indices + *parity * threads;
     values[thread] = *value, indices[thread] = *index;
     __syncthreads();
     // Two barriers per step: every eighth thread folds its 8 entries in place, then all fold those
-    if (thread < team / 8) {
+    if (thread < threads / 8) {
         nk_f64_t best_value = values[thread * 8];
         nk_u32_t best_index = indices[thread * 8];
         for (unsigned other = thread * 8 + 1; other != thread * 8 + 8; ++other)
@@ -653,43 +717,86 @@ NUMKONG_DEVICE void nk_shapes_team_argmin_simt_(nk_shapes_network_simt_t *networ
     __syncthreads();
     nk_f64_t best_value = values[0];
     nk_u32_t best_index = indices[0];
-    for (unsigned group = 8; group < team; group += 8)
+    for (unsigned group = 8; group < threads; group += 8)
         if (values[group] < best_value || (values[group] == best_value && indices[group] < best_index))
             best_value = values[group], best_index = indices[group];
+    if (network->team_meeting) {
+        // The two parities keep a late block's reads apart from the next argmin's writes
+        unsigned const blocks = network->team / threads, block = network->thread / threads;
+        nk_f64_t volatile *merges = nk_shapes_team_merges_simt_(network);
+        nk_u32_t volatile *merge_indices = (nk_u32_t volatile *)(merges + (2 + nk_shapes_team_values_simt_k) *
+                                                                              nk_shapes_team_blocks_simt_k);
+        merges += *parity * nk_shapes_team_blocks_simt_k, merge_indices += *parity * nk_shapes_team_blocks_simt_k;
+        if (thread == 0) {
+            merges[block] = best_value;
+            merge_indices[block] = best_index;
+        }
+        nk_shapes_team_sync_simt_(network);
+        best_value = merges[0], best_index = merge_indices[0];
+        for (unsigned rank = 1; rank != blocks; ++rank) {
+            nk_f64_t const other_value = merges[rank];
+            nk_u32_t const other_index = merge_indices[rank];
+            if (other_value < best_value || (other_value == best_value && other_index < best_index))
+                best_value = other_value, best_index = other_index;
+        }
+    }
     *value = best_value, *index = best_index;
     *parity ^= 1u;
 }
 
 /** Sums each of the @p count values every thread holds over the team, in one fixed order. */
 NUMKONG_DEVICE void nk_shapes_team_sum_f64_simt_(nk_shapes_network_simt_t *network, nk_f64_t *values, unsigned count) {
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = threadIdx.x, threads = blockDim.x;
     __syncthreads();
-    for (unsigned entry = 0; entry != count; ++entry) network->team_values[entry * team + thread] = values[entry];
+    for (unsigned entry = 0; entry != count; ++entry) network->team_values[entry * threads + thread] = values[entry];
     __syncthreads();
     if (thread < count) {
         nk_f64_t total = 0;
-        for (unsigned other = 0; other != team; ++other) total += network->team_values[thread * team + other];
-        network->team_values[thread * team] = total;
+        for (unsigned other = 0; other != threads; ++other) total += network->team_values[thread * threads + other];
+        network->team_values[thread * threads] = total;
     }
     __syncthreads();
-    for (unsigned entry = 0; entry != count; ++entry) values[entry] = network->team_values[entry * team];
+    for (unsigned entry = 0; entry != count; ++entry) values[entry] = network->team_values[entry * threads];
     __syncthreads();
+    if (!network->team_meeting) return;
+    unsigned const blocks = network->team / threads, block = network->thread / threads;
+    nk_f64_t volatile *merges = nk_shapes_team_merges_simt_(network) + 2 * nk_shapes_team_blocks_simt_k;
+    if (thread < count) merges[thread * nk_shapes_team_blocks_simt_k + block] = values[thread];
+    nk_shapes_team_sync_simt_(network);
+    for (unsigned entry = 0; entry != count; ++entry) {
+        nk_f64_t total = 0;
+        for (unsigned rank = 0; rank != blocks; ++rank) total += merges[entry * nk_shapes_team_blocks_simt_k + rank];
+        values[entry] = total;
+    }
+    nk_shapes_team_sync_simt_(network);
 }
 
 NUMKONG_DEVICE void nk_shapes_team_sum_f32_simt_(nk_shapes_network_simt_t *network, nk_f32_t *values, unsigned count) {
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = threadIdx.x, threads = blockDim.x;
     nk_f32_t *scratch = (nk_f32_t *)network->team_values;
     __syncthreads();
-    for (unsigned entry = 0; entry != count; ++entry) scratch[entry * team + thread] = values[entry];
+    for (unsigned entry = 0; entry != count; ++entry) scratch[entry * threads + thread] = values[entry];
     __syncthreads();
     if (thread < count) {
         nk_f32_t total = 0;
-        for (unsigned other = 0; other != team; ++other) total += scratch[thread * team + other];
-        scratch[thread * team] = total;
+        for (unsigned other = 0; other != threads; ++other) total += scratch[thread * threads + other];
+        scratch[thread * threads] = total;
     }
     __syncthreads();
-    for (unsigned entry = 0; entry != count; ++entry) values[entry] = scratch[entry * team];
+    for (unsigned entry = 0; entry != count; ++entry) values[entry] = scratch[entry * threads];
     __syncthreads();
+    if (!network->team_meeting) return;
+    unsigned const blocks = network->team / threads, block = network->thread / threads;
+    nk_f32_t volatile *merges = (nk_f32_t volatile *)(nk_shapes_team_merges_simt_(network) +
+                                                      2 * nk_shapes_team_blocks_simt_k);
+    if (thread < count) merges[thread * nk_shapes_team_blocks_simt_k + block] = values[thread];
+    nk_shapes_team_sync_simt_(network);
+    for (unsigned entry = 0; entry != count; ++entry) {
+        nk_f32_t total = 0;
+        for (unsigned rank = 0; rank != blocks; ++rank) total += merges[entry * nk_shapes_team_blocks_simt_k + rank];
+        values[entry] = total;
+    }
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** Ships @p amount more from @p row to @p column , opening the arc if the plan had none. */
@@ -702,10 +809,6 @@ NUMKONG_DEVICE void nk_shapes_network_ship_simt_(nk_shapes_network_simt_t *netwo
             return;
         }
     nk_u32_t const arc = network->free_arcs[0];
-    if (arc == no_node) {
-        network->free_arcs[1] = 1;
-        return;
-    }
     network->free_arcs[0] = network->arc_next[arc];
     network->arc_rows[arc] = row, network->arc_flows[arc] = amount;
     network->arc_next[arc] = network->column_arcs[column], network->column_arcs[column] = arc;
@@ -762,20 +865,21 @@ NUMKONG_DEVICE void nk_shapes_network_drop_rows_simt_(nk_shapes_network_simt_t *
  *  without flow, for Gromov-Wasserstein to start from. */
 NUMKONG_DEVICE void nk_shapes_network_save_simt_(nk_shapes_network_simt_t const *network, nk_u32_t *saved) {
     nk_u32_t const no_node = 0xFFFFFFFFu, arcs = network->arcs;
-    for (nk_u32_t arc = threadIdx.x; arc < arcs; arc += blockDim.x) saved[2 * arcs + arc] = 0;
-    __syncthreads();
-    for (nk_u32_t column = threadIdx.x; column < network->columns; column += blockDim.x)
+    unsigned const thread = network->thread, team = network->team;
+    for (nk_u32_t arc = thread; arc < arcs; arc += team) saved[2 * arcs + arc] = 0;
+    nk_shapes_team_sync_simt_(network);
+    for (nk_u32_t column = thread; column < network->columns; column += team)
         for (nk_u32_t arc = network->column_arcs[column]; arc != no_node; arc = network->arc_next[arc])
             saved[arc] = network->arc_rows[arc], saved[arcs + arc] = column,
             saved[2 * arcs + arc] = network->arc_flows[arc];
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** Shifts the potentials by the distances of a Dijkstra that reached a sink at @p nearest , which
  *  leaves every arc of the tree tight and none negative. */
 NUMKONG_DEVICE void nk_shapes_network_lift_simt_(nk_shapes_network_simt_t *network, nk_f64_t nearest) {
     nk_u32_t const no_node = 0xFFFFFFFFu, source_marker = 0xFFFFFFFEu;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     for (nk_u32_t column = thread; column < network->columns; column += team)
         if (network->column_closed[column]) network->column_potentials[column] -= nearest - network->distances[column];
     for (nk_u32_t row = thread; row < network->rows; row += team) {
@@ -783,7 +887,7 @@ NUMKONG_DEVICE void nk_shapes_network_lift_simt_(nk_shapes_network_simt_t *netwo
         if (reached == no_node) continue;
         network->row_potentials[row] += nearest - (reached == source_marker ? 0 : network->distances[reached]);
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** Ships the most the path from @p source to @p sink carries: the least of the source's supply,
@@ -948,19 +1052,21 @@ NUMKONG_DEVICE nk_f64_t nk_shapes_point_cost_f32_simt_(nk_shapes_points_f32_simt
     return __dadd_rn(__dadd_rn(__dmul_rn(delta_x, delta_x), __dmul_rn(delta_y, delta_y)), __dmul_rn(delta_z, delta_z));
 }
 
-/** Widens the row pack's points into shared memory. */
-NUMKONG_DEVICE void nk_shapes_load_rows_f32_simt_(nk_shapes_points_f32_simt_t *points, nk_f32_t const *axes,
+/** Widens the row pack's points into the team's state. */
+NUMKONG_DEVICE void nk_shapes_load_rows_f32_simt_(nk_shapes_network_simt_t const *network,
+                                                  nk_shapes_points_f32_simt_t *points, nk_f32_t const *axes,
                                                   nk_size_t axis_stride, nk_u32_t rows) {
-    for (nk_u32_t row = threadIdx.x; row < rows; row += blockDim.x)
+    for (nk_u32_t row = network->thread; row < rows; row += network->team)
         points->row_x[row] = axes[row], points->row_y[row] = axes[axis_stride + row],
         points->row_z[row] = axes[2 * axis_stride + row];
 }
 
-/** Rotates the column pack's points by @p rotation into shared memory like the serial solver. */
-NUMKONG_DEVICE void nk_shapes_rotate_columns_f32_simt_(nk_shapes_points_f32_simt_t *points, nk_f32_t const *axes,
+/** Rotates the column pack's points by @p rotation into the team's state like the serial solver. */
+NUMKONG_DEVICE void nk_shapes_rotate_columns_f32_simt_(nk_shapes_network_simt_t const *network,
+                                                       nk_shapes_points_f32_simt_t *points, nk_f32_t const *axes,
                                                        nk_size_t axis_stride, nk_u32_t columns,
                                                        nk_f64_t const *rotation) {
-    for (nk_u32_t column = threadIdx.x; column < columns; column += blockDim.x) {
+    for (nk_u32_t column = network->thread; column < columns; column += network->team) {
         nk_f64_t const x = axes[column], y = axes[axis_stride + column], z = axes[2 * axis_stride + column];
         points->column_x[column] = __dadd_rn(__dadd_rn(__dmul_rn(rotation[0], x), __dmul_rn(rotation[1], y)),
                                              __dmul_rn(rotation[2], z));
@@ -969,13 +1075,13 @@ NUMKONG_DEVICE void nk_shapes_rotate_columns_f32_simt_(nk_shapes_points_f32_simt
         points->column_z[column] = __dadd_rn(__dadd_rn(__dmul_rn(rotation[6], x), __dmul_rn(rotation[7], y)),
                                              __dmul_rn(rotation[8], z));
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** The first solve's start: column then row reductions, shipping along each arc left tight. */
 NUMKONG_DEVICE void nk_shapes_seed_f32_simt_(nk_shapes_network_simt_t *network,
                                              nk_shapes_points_f32_simt_t const *points) {
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     for (nk_u32_t column = thread; column < network->columns; column += team) {
         nk_f64_t best = NUMKONG_F64_INF;
         nk_u32_t best_row = 0;
@@ -985,7 +1091,7 @@ NUMKONG_DEVICE void nk_shapes_seed_f32_simt_(nk_shapes_network_simt_t *network,
         }
         network->column_potentials[column] = best, network->column_predecessors[column] = best_row;
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     for (nk_u32_t row = thread; row < network->rows; row += team) {
         nk_f64_t best = NUMKONG_F64_INF;
         for (nk_u32_t column = 0; column != network->columns; ++column) {
@@ -995,7 +1101,7 @@ NUMKONG_DEVICE void nk_shapes_seed_f32_simt_(nk_shapes_network_simt_t *network,
         }
         network->row_potentials[row] = best;
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     if (thread == 0)
         for (nk_u32_t column = 0; column != network->columns; ++column) {
             nk_u32_t const row = network->column_predecessors[column];
@@ -1007,7 +1113,7 @@ NUMKONG_DEVICE void nk_shapes_seed_f32_simt_(nk_shapes_network_simt_t *network,
             nk_shapes_network_ship_simt_(network, row, column, amount);
             network->row_supplies[row] -= amount, network->column_demands[column] -= amount;
         }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** A later round's start from the last plan: potentials that leave every arc of the plan tight
@@ -1016,7 +1122,7 @@ NUMKONG_DEVICE void nk_shapes_seed_f32_simt_(nk_shapes_network_simt_t *network,
 NUMKONG_DEVICE void nk_shapes_reseed_f32_simt_(nk_shapes_network_simt_t *network,
                                                nk_shapes_points_f32_simt_t const *points) {
     nk_u32_t const no_node = 0xFFFFFFFFu;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     nk_u32_t const rows = network->rows;
     if (thread == 0) {
         nk_shapes_network_index_rows_simt_(network);
@@ -1048,7 +1154,7 @@ NUMKONG_DEVICE void nk_shapes_reseed_f32_simt_(nk_shapes_network_simt_t *network
             }
         }
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     for (nk_u32_t row = thread; row < rows; row += team) {
         nk_f64_t best = NUMKONG_F64_INF;
         for (nk_u32_t column = 0; column != network->columns; ++column) {
@@ -1062,9 +1168,9 @@ NUMKONG_DEVICE void nk_shapes_reseed_f32_simt_(nk_shapes_network_simt_t *network
         network->row_reached_columns[row] = undercut ? 2 : 0;
         network->row_potentials[row] = best < potential ? best : potential;
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     if (thread == 0) nk_shapes_network_drop_rows_simt_(network);
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** Dijkstra from @p source over the reduced costs until it closes a column with demand, which it
@@ -1074,7 +1180,7 @@ NUMKONG_DEVICE nk_u32_t nk_shapes_shortest_path_f32_simt_(nk_shapes_network_simt
                                                           nk_shapes_points_f32_simt_t const *points, nk_u32_t source,
                                                           nk_f64_t *nearest, unsigned *parity) {
     nk_u32_t const no_node = 0xFFFFFFFFu, source_marker = 0xFFFFFFFEu;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     nk_u32_t const columns = network->columns;
     nk_f64_t const source_potential = network->row_potentials[source];
     for (nk_u32_t column = thread; column < columns; column += team) {
@@ -1094,7 +1200,7 @@ NUMKONG_DEVICE nk_u32_t nk_shapes_shortest_path_f32_simt_(nk_shapes_network_simt
         if (index % team == thread) network->column_closed[index] = 1;
         if (network->column_demands[index]) {
             *nearest = value;
-            __syncthreads();
+            nk_shapes_team_sync_simt_(network);
             return index;
         }
         for (nk_u32_t arc = network->column_arcs[index]; arc != no_node; arc = network->arc_next[arc]) {
@@ -1114,19 +1220,19 @@ NUMKONG_DEVICE nk_u32_t nk_shapes_shortest_path_f32_simt_(nk_shapes_network_simt
 }
 
 /** The optimal plan for the current rotation, from the reductions on the first round or from the
- *  last plan after. Leaves @c free_arcs[1] raised if the plan outgrew its arcs. */
+ *  last plan after. */
 NUMKONG_DEVICE void nk_shapes_transport_f32_simt_(nk_shapes_network_simt_t *network,
                                                   nk_shapes_points_f32_simt_t const *points, int first,
                                                   unsigned *parity) {
     if (first) nk_shapes_seed_f32_simt_(network, points);
     else nk_shapes_reseed_f32_simt_(network, points);
     for (nk_u32_t source = 0; source != network->rows; ++source)
-        while (network->row_supplies[source] && !network->free_arcs[1]) {
+        while (network->row_supplies[source]) {
             nk_f64_t nearest;
             nk_u32_t const sink = nk_shapes_shortest_path_f32_simt_(network, points, source, &nearest, parity);
             nk_shapes_network_lift_simt_(network, nearest);
-            if (threadIdx.x == 0) nk_shapes_network_augment_simt_(network, source, sink);
-            __syncthreads();
+            if (network->thread == 0) nk_shapes_network_augment_simt_(network, source, sink);
+            nk_shapes_team_sync_simt_(network);
         }
 }
 
@@ -1139,7 +1245,7 @@ NUMKONG_DEVICE nk_f64_t nk_shapes_plan_moments_f32_simt_(nk_shapes_network_simt_
     nk_u32_t const no_node = 0xFFFFFFFFu;
     nk_f64_t const mass = (nk_f64_t)((nk_size_t)network->rows * network->columns);
     nk_f64_t sums[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    for (nk_u32_t column = threadIdx.x; column < network->columns; column += blockDim.x) {
+    for (nk_u32_t column = network->thread; column < network->columns; column += network->team) {
         nk_f64_t const column_point[3] = {column_axes[column], column_axes[axis_stride + column],
                                           column_axes[2 * axis_stride + column]};
         for (nk_u32_t arc = network->column_arcs[column]; arc != no_node; arc = network->arc_next[arc]) {
@@ -1191,13 +1297,13 @@ NUMKONG_DEVICE void nk_shapes_tree_potentials_f32_simt_(nk_shapes_network_simt_t
 NUMKONG_DEVICE void nk_shapes_simplex_f32_simt_(nk_shapes_network_simt_t *network,
                                                 nk_shapes_points_f32_simt_t const *points, unsigned *parity) {
     nk_u32_t const no_node = 0xFFFFFFFFu, rows = network->rows, columns = network->columns;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     nk_size_t const arcs = (nk_size_t)rows * columns;
     nk_f64_t const tolerance = network->tolerance;
     nk_size_t block = 10, cursor = 0;
     while (block * block < arcs) ++block;
     if (thread == 0) nk_shapes_tree_potentials_f32_simt_(network, points);
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     for (;;) {
         nk_f64_t entering_cost = -tolerance;
         nk_size_t entering = arcs;
@@ -1227,17 +1333,17 @@ NUMKONG_DEVICE void nk_shapes_simplex_f32_simt_(nk_shapes_network_simt_t *networ
         if (thread == 0)
             nk_shapes_tree_pivot_simt_(network, (nk_u32_t)(entering / columns), (nk_u32_t)(entering % columns),
                                        entering_cost);
-        __syncthreads();
+        nk_shapes_team_sync_simt_(network);
     }
     if (thread == 0) nk_shapes_tree_plan_simt_(network);
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** One flip of Wasserstein-Procrustes: exact transport alternating with the Kabsch fit of its plan
  *  while the mean cost falls, from the axis signs of @p flip . Leaves the least cost and its
- *  rotation of the column points in @p best and @p best_rotation , or NaN if a plan outgrew its
- *  arcs, and its plan in @p saved_plan unless null. @p shared_rotation holds the 9 entries thread 0
- *  fits for the team. */
+ *  rotation of the column points in @p best and @p best_rotation , and its plan in @p saved_plan
+ *  unless null. @p shared_rotation holds the 9 entries each block's first thread fits for it, all
+ *  alike, as every block sums the same moments in the same order. */
 NUMKONG_DEVICE void nk_wassersteinprocrustes_flip_f32_simt_(nk_shapes_network_simt_t *network,
                                                             nk_shapes_points_f32_simt_t *points,
                                                             nk_f32_t const *column_axes, nk_size_t axis_stride,
@@ -1252,15 +1358,11 @@ NUMKONG_DEVICE void nk_wassersteinprocrustes_flip_f32_simt_(nk_shapes_network_si
     // Unequal clouds make staircases of small flows, which one pivot ships but paths take steps for
     int const simplex = network->rows != network->columns;
     nk_shapes_network_reset_simt_(network);
-    if (simplex && threadIdx.x == 0) nk_shapes_tree_northwest_simt_(network);
+    if (simplex && network->thread == 0) nk_shapes_tree_northwest_simt_(network);
     for (int round = 0;; ++round) {
-        nk_shapes_rotate_columns_f32_simt_(points, column_axes, axis_stride, network->columns, current);
+        nk_shapes_rotate_columns_f32_simt_(network, points, column_axes, axis_stride, network->columns, current);
         if (simplex) nk_shapes_simplex_f32_simt_(network, points, parity);
         else nk_shapes_transport_f32_simt_(network, points, round == 0, parity);
-        if (network->free_arcs[1]) {
-            *best = NUMKONG_F64_INF - NUMKONG_F64_INF;
-            return;
-        }
         nk_f64_t cross_covariance[9];
         nk_f64_t const cost = nk_shapes_plan_moments_f32_simt_(network, points, column_axes, axis_stride,
                                                                cross_covariance);
@@ -1313,19 +1415,21 @@ NUMKONG_DEVICE nk_f32_t nk_shapes_point_cost_f16_simt_(nk_shapes_points_f16_simt
     return __fadd_rn(__fadd_rn(__fmul_rn(delta_x, delta_x), __fmul_rn(delta_y, delta_y)), __fmul_rn(delta_z, delta_z));
 }
 
-NUMKONG_DEVICE void nk_shapes_load_rows_f16_simt_(nk_shapes_points_f16_simt_t *points, nk_f16_t const *axes,
+NUMKONG_DEVICE void nk_shapes_load_rows_f16_simt_(nk_shapes_network_simt_t const *network,
+                                                  nk_shapes_points_f16_simt_t *points, nk_f16_t const *axes,
                                                   nk_size_t axis_stride, nk_u32_t rows) {
-    for (nk_u32_t row = threadIdx.x; row < rows; row += blockDim.x) {
+    for (nk_u32_t row = network->thread; row < rows; row += network->team) {
         nk_f16_to_f32_simt_(axes + row, points->row_x + row);
         nk_f16_to_f32_simt_(axes + axis_stride + row, points->row_y + row);
         nk_f16_to_f32_simt_(axes + 2 * axis_stride + row, points->row_z + row);
     }
 }
 
-NUMKONG_DEVICE void nk_shapes_rotate_columns_f16_simt_(nk_shapes_points_f16_simt_t *points, nk_f16_t const *axes,
+NUMKONG_DEVICE void nk_shapes_rotate_columns_f16_simt_(nk_shapes_network_simt_t const *network,
+                                                       nk_shapes_points_f16_simt_t *points, nk_f16_t const *axes,
                                                        nk_size_t axis_stride, nk_u32_t columns,
                                                        nk_f32_t const *rotation) {
-    for (nk_u32_t column = threadIdx.x; column < columns; column += blockDim.x) {
+    for (nk_u32_t column = network->thread; column < columns; column += network->team) {
         nk_f32_t x, y, z;
         nk_f16_to_f32_simt_(axes + column, &x);
         nk_f16_to_f32_simt_(axes + axis_stride + column, &y);
@@ -1337,12 +1441,12 @@ NUMKONG_DEVICE void nk_shapes_rotate_columns_f16_simt_(nk_shapes_points_f16_simt
         points->column_z[column] = __fadd_rn(__fadd_rn(__fmul_rn(rotation[6], x), __fmul_rn(rotation[7], y)),
                                              __fmul_rn(rotation[8], z));
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 NUMKONG_DEVICE void nk_shapes_seed_f16_simt_(nk_shapes_network_simt_t *network,
                                              nk_shapes_points_f16_simt_t const *points) {
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     for (nk_u32_t column = thread; column < network->columns; column += team) {
         nk_f64_t best = NUMKONG_F64_INF;
         nk_u32_t best_row = 0;
@@ -1352,7 +1456,7 @@ NUMKONG_DEVICE void nk_shapes_seed_f16_simt_(nk_shapes_network_simt_t *network,
         }
         network->column_potentials[column] = best, network->column_predecessors[column] = best_row;
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     for (nk_u32_t row = thread; row < network->rows; row += team) {
         nk_f64_t best = NUMKONG_F64_INF;
         for (nk_u32_t column = 0; column != network->columns; ++column) {
@@ -1362,8 +1466,8 @@ NUMKONG_DEVICE void nk_shapes_seed_f16_simt_(nk_shapes_network_simt_t *network,
         }
         network->row_potentials[row] = best;
     }
-    __syncthreads();
-    if (threadIdx.x == 0)
+    nk_shapes_team_sync_simt_(network);
+    if (thread == 0)
         for (nk_u32_t column = 0; column != network->columns; ++column) {
             nk_u32_t const row = network->column_predecessors[column];
             nk_f64_t const reduced = (nk_f64_t)nk_shapes_point_cost_f16_simt_(points, row, column) -
@@ -1374,13 +1478,13 @@ NUMKONG_DEVICE void nk_shapes_seed_f16_simt_(nk_shapes_network_simt_t *network,
             nk_shapes_network_ship_simt_(network, row, column, amount);
             network->row_supplies[row] -= amount, network->column_demands[column] -= amount;
         }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 NUMKONG_DEVICE void nk_shapes_reseed_f16_simt_(nk_shapes_network_simt_t *network,
                                                nk_shapes_points_f16_simt_t const *points) {
     nk_u32_t const no_node = 0xFFFFFFFFu;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     nk_u32_t const rows = network->rows;
     if (thread == 0) {
         nk_shapes_network_index_rows_simt_(network);
@@ -1413,7 +1517,7 @@ NUMKONG_DEVICE void nk_shapes_reseed_f16_simt_(nk_shapes_network_simt_t *network
             }
         }
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     for (nk_u32_t row = thread; row < rows; row += team) {
         nk_f64_t best = NUMKONG_F64_INF;
         for (nk_u32_t column = 0; column != network->columns; ++column) {
@@ -1427,16 +1531,16 @@ NUMKONG_DEVICE void nk_shapes_reseed_f16_simt_(nk_shapes_network_simt_t *network
         network->row_reached_columns[row] = undercut ? 2 : 0;
         network->row_potentials[row] = best < potential ? best : potential;
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     if (thread == 0) nk_shapes_network_drop_rows_simt_(network);
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 NUMKONG_DEVICE nk_u32_t nk_shapes_shortest_path_f16_simt_(nk_shapes_network_simt_t *network,
                                                           nk_shapes_points_f16_simt_t const *points, nk_u32_t source,
                                                           nk_f64_t *nearest, unsigned *parity) {
     nk_u32_t const no_node = 0xFFFFFFFFu, source_marker = 0xFFFFFFFEu;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     nk_u32_t const columns = network->columns;
     nk_f64_t const source_potential = network->row_potentials[source];
     for (nk_u32_t column = thread; column < columns; column += team) {
@@ -1456,7 +1560,7 @@ NUMKONG_DEVICE nk_u32_t nk_shapes_shortest_path_f16_simt_(nk_shapes_network_simt
         if (index % team == thread) network->column_closed[index] = 1;
         if (network->column_demands[index]) {
             *nearest = value;
-            __syncthreads();
+            nk_shapes_team_sync_simt_(network);
             return index;
         }
         for (nk_u32_t arc = network->column_arcs[index]; arc != no_node; arc = network->arc_next[arc]) {
@@ -1481,12 +1585,12 @@ NUMKONG_DEVICE void nk_shapes_transport_f16_simt_(nk_shapes_network_simt_t *netw
     if (first) nk_shapes_seed_f16_simt_(network, points);
     else nk_shapes_reseed_f16_simt_(network, points);
     for (nk_u32_t source = 0; source != network->rows; ++source)
-        while (network->row_supplies[source] && !network->free_arcs[1]) {
+        while (network->row_supplies[source]) {
             nk_f64_t nearest;
             nk_u32_t const sink = nk_shapes_shortest_path_f16_simt_(network, points, source, &nearest, parity);
             nk_shapes_network_lift_simt_(network, nearest);
-            if (threadIdx.x == 0) nk_shapes_network_augment_simt_(network, source, sink);
-            __syncthreads();
+            if (network->thread == 0) nk_shapes_network_augment_simt_(network, source, sink);
+            nk_shapes_team_sync_simt_(network);
         }
 }
 
@@ -1499,7 +1603,7 @@ NUMKONG_DEVICE nk_f32_t nk_shapes_plan_moments_f16_simt_(nk_shapes_network_simt_
     nk_u32_t const no_node = 0xFFFFFFFFu;
     nk_f32_t const mass = (nk_f32_t)((nk_size_t)network->rows * network->columns);
     nk_f32_t sums[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    for (nk_u32_t column = threadIdx.x; column < network->columns; column += blockDim.x) {
+    for (nk_u32_t column = network->thread; column < network->columns; column += network->team) {
         nk_f32_t column_point[3];
         nk_f16_to_f32_simt_(column_axes + column, &column_point[0]);
         nk_f16_to_f32_simt_(column_axes + axis_stride + column, &column_point[1]);
@@ -1548,13 +1652,13 @@ NUMKONG_DEVICE void nk_shapes_tree_potentials_f16_simt_(nk_shapes_network_simt_t
 NUMKONG_DEVICE void nk_shapes_simplex_f16_simt_(nk_shapes_network_simt_t *network,
                                                 nk_shapes_points_f16_simt_t const *points, unsigned *parity) {
     nk_u32_t const no_node = 0xFFFFFFFFu, rows = network->rows, columns = network->columns;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     nk_size_t const arcs = (nk_size_t)rows * columns;
     nk_f64_t const tolerance = network->tolerance;
     nk_size_t block = 10, cursor = 0;
     while (block * block < arcs) ++block;
     if (thread == 0) nk_shapes_tree_potentials_f16_simt_(network, points);
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     for (;;) {
         nk_f64_t entering_cost = -tolerance;
         nk_size_t entering = arcs;
@@ -1584,10 +1688,10 @@ NUMKONG_DEVICE void nk_shapes_simplex_f16_simt_(nk_shapes_network_simt_t *networ
         if (thread == 0)
             nk_shapes_tree_pivot_simt_(network, (nk_u32_t)(entering / columns), (nk_u32_t)(entering % columns),
                                        entering_cost);
-        __syncthreads();
+        nk_shapes_team_sync_simt_(network);
     }
     if (thread == 0) nk_shapes_tree_plan_simt_(network);
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 NUMKONG_DEVICE void nk_wassersteinprocrustes_flip_f16_simt_(nk_shapes_network_simt_t *network,
@@ -1603,15 +1707,11 @@ NUMKONG_DEVICE void nk_wassersteinprocrustes_flip_f16_simt_(nk_shapes_network_si
     for (int cell = 0; cell != 9; ++cell) best_rotation[cell] = current[cell];
     int const simplex = network->rows != network->columns;
     nk_shapes_network_reset_simt_(network);
-    if (simplex && threadIdx.x == 0) nk_shapes_tree_northwest_simt_(network);
+    if (simplex && network->thread == 0) nk_shapes_tree_northwest_simt_(network);
     for (int round = 0;; ++round) {
-        nk_shapes_rotate_columns_f16_simt_(points, column_axes, axis_stride, network->columns, current);
+        nk_shapes_rotate_columns_f16_simt_(network, points, column_axes, axis_stride, network->columns, current);
         if (simplex) nk_shapes_simplex_f16_simt_(network, points, parity);
         else nk_shapes_transport_f16_simt_(network, points, round == 0, parity);
-        if (network->free_arcs[1]) {
-            *best = NUMKONG_F32_INF - NUMKONG_F32_INF;
-            return;
-        }
         nk_f32_t cross_covariance[9];
         nk_f32_t const cost = nk_shapes_plan_moments_f16_simt_(network, points, column_axes, axis_stride,
                                                                cross_covariance);
@@ -1673,7 +1773,7 @@ NUMKONG_DEVICE nk_f64_t nk_shapes_gradient_cost_simt_(nk_shapes_gromov_simt_t co
 
 NUMKONG_DEVICE void nk_shapes_seed_gradient_simt_(nk_shapes_network_simt_t *network,
                                                   nk_shapes_gromov_simt_t const *gromov) {
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     nk_u32_t const columns = network->columns;
     for (nk_u32_t column = thread; column < columns; column += team) {
         nk_f64_t best = NUMKONG_F64_INF;
@@ -1684,7 +1784,7 @@ NUMKONG_DEVICE void nk_shapes_seed_gradient_simt_(nk_shapes_network_simt_t *netw
         }
         network->column_potentials[column] = best, network->column_predecessors[column] = best_row;
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     for (nk_u32_t row = thread; row < network->rows; row += team) {
         nk_f64_t best = NUMKONG_F64_INF;
         for (nk_u32_t column = 0; column != columns; ++column) {
@@ -1694,7 +1794,7 @@ NUMKONG_DEVICE void nk_shapes_seed_gradient_simt_(nk_shapes_network_simt_t *netw
         }
         network->row_potentials[row] = best;
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     if (thread == 0)
         for (nk_u32_t column = 0; column != columns; ++column) {
             nk_u32_t const row = network->column_predecessors[column];
@@ -1706,13 +1806,13 @@ NUMKONG_DEVICE void nk_shapes_seed_gradient_simt_(nk_shapes_network_simt_t *netw
             nk_shapes_network_ship_simt_(network, row, column, amount);
             network->row_supplies[row] -= amount, network->column_demands[column] -= amount;
         }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 NUMKONG_DEVICE void nk_shapes_reseed_gradient_simt_(nk_shapes_network_simt_t *network,
                                                     nk_shapes_gromov_simt_t const *gromov) {
     nk_u32_t const no_node = 0xFFFFFFFFu;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     nk_u32_t const rows = network->rows, columns = network->columns;
     if (thread == 0) {
         nk_shapes_network_index_rows_simt_(network);
@@ -1745,7 +1845,7 @@ NUMKONG_DEVICE void nk_shapes_reseed_gradient_simt_(nk_shapes_network_simt_t *ne
             }
         }
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     for (nk_u32_t row = thread; row < rows; row += team) {
         nk_f64_t best = NUMKONG_F64_INF;
         for (nk_u32_t column = 0; column != columns; ++column) {
@@ -1759,16 +1859,16 @@ NUMKONG_DEVICE void nk_shapes_reseed_gradient_simt_(nk_shapes_network_simt_t *ne
         network->row_reached_columns[row] = undercut ? 2 : 0;
         network->row_potentials[row] = best < potential ? best : potential;
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     if (thread == 0) nk_shapes_network_drop_rows_simt_(network);
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 NUMKONG_DEVICE nk_u32_t nk_shapes_shortest_path_gradient_simt_(nk_shapes_network_simt_t *network,
                                                                nk_shapes_gromov_simt_t const *gromov, nk_u32_t source,
                                                                nk_f64_t *nearest, unsigned *parity) {
     nk_u32_t const no_node = 0xFFFFFFFFu, source_marker = 0xFFFFFFFEu;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     nk_u32_t const columns = network->columns;
     nk_f64_t const source_potential = network->row_potentials[source];
     for (nk_u32_t column = thread; column < columns; column += team) {
@@ -1788,7 +1888,7 @@ NUMKONG_DEVICE nk_u32_t nk_shapes_shortest_path_gradient_simt_(nk_shapes_network
         if (index % team == thread) network->column_closed[index] = 1;
         if (network->column_demands[index]) {
             *nearest = value;
-            __syncthreads();
+            nk_shapes_team_sync_simt_(network);
             return index;
         }
         for (nk_u32_t arc = network->column_arcs[index]; arc != no_node; arc = network->arc_next[arc]) {
@@ -1814,12 +1914,12 @@ NUMKONG_DEVICE void nk_shapes_transport_gradient_simt_(nk_shapes_network_simt_t 
     if (first) nk_shapes_seed_gradient_simt_(network, gromov);
     else nk_shapes_reseed_gradient_simt_(network, gromov);
     for (nk_u32_t source = 0; source != network->rows; ++source)
-        while (network->row_supplies[source] && !network->free_arcs[1]) {
+        while (network->row_supplies[source]) {
             nk_f64_t nearest;
             nk_u32_t const sink = nk_shapes_shortest_path_gradient_simt_(network, gromov, source, &nearest, parity);
             nk_shapes_network_lift_simt_(network, nearest);
-            if (threadIdx.x == 0) nk_shapes_network_augment_simt_(network, source, sink);
-            __syncthreads();
+            if (network->thread == 0) nk_shapes_network_augment_simt_(network, source, sink);
+            nk_shapes_team_sync_simt_(network);
         }
 }
 
@@ -1849,13 +1949,13 @@ NUMKONG_DEVICE void nk_shapes_tree_potentials_gradient_simt_(nk_shapes_network_s
 NUMKONG_DEVICE void nk_shapes_simplex_gradient_simt_(nk_shapes_network_simt_t *network,
                                                      nk_shapes_gromov_simt_t const *gromov, unsigned *parity) {
     nk_u32_t const no_node = 0xFFFFFFFFu, rows = network->rows, columns = network->columns;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     nk_size_t const arcs = (nk_size_t)rows * columns;
     nk_f64_t const tolerance = network->tolerance;
     nk_size_t block = 10, cursor = 0;
     while (block * block < arcs) ++block;
     if (thread == 0) nk_shapes_tree_potentials_gradient_simt_(network, gromov);
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     for (;;) {
         nk_f64_t entering_cost = -tolerance;
         nk_size_t entering = arcs;
@@ -1885,10 +1985,10 @@ NUMKONG_DEVICE void nk_shapes_simplex_gradient_simt_(nk_shapes_network_simt_t *n
         if (thread == 0)
             nk_shapes_tree_pivot_simt_(network, (nk_u32_t)(entering / columns), (nk_u32_t)(entering % columns),
                                        entering_cost);
-        __syncthreads();
+        nk_shapes_team_sync_simt_(network);
     }
     if (thread == 0) nk_shapes_tree_plan_simt_(network);
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** Dx × V × Dy into @c vertex_gradient for the plan V in @p network : first V × Dy into
@@ -1896,10 +1996,10 @@ NUMKONG_DEVICE void nk_shapes_simplex_gradient_simt_(nk_shapes_network_simt_t *n
 NUMKONG_DEVICE void nk_shapes_vertex_gradient_simt_(nk_shapes_network_simt_t const *network,
                                                     nk_shapes_gromov_simt_t *gromov) {
     nk_u32_t const no_node = 0xFFFFFFFFu, rows = network->rows, columns = network->columns;
-    unsigned const thread = threadIdx.x, team = blockDim.x;
+    unsigned const thread = network->thread, team = network->team;
     nk_f64_t const mass = (nk_f64_t)((nk_size_t)rows * columns);
     for (nk_size_t cell = thread; cell < (nk_size_t)rows * columns; cell += team) gromov->products[cell] = 0;
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     for (nk_u32_t column = thread; column < columns; column += team)
         for (nk_u32_t arc_column = 0; arc_column != columns; ++arc_column)
             for (nk_u32_t arc = network->column_arcs[arc_column]; arc != no_node; arc = network->arc_next[arc]) {
@@ -1907,7 +2007,7 @@ NUMKONG_DEVICE void nk_shapes_vertex_gradient_simt_(nk_shapes_network_simt_t con
                 gromov->products[(nk_size_t)network->arc_rows[arc] * columns + column] +=
                     weight * gromov->column_distances[(nk_size_t)arc_column * columns + column];
             }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
     nk_u32_t const tile_rows = (nk_u32_t)nk_size_divide_round_up_(rows, 4),
                    tile_columns = (nk_u32_t)nk_size_divide_round_up_(columns, 4);
     for (nk_u32_t tile = thread; tile < tile_rows * tile_columns; tile += team) {
@@ -1931,14 +2031,14 @@ NUMKONG_DEVICE void nk_shapes_vertex_gradient_simt_(nk_shapes_network_simt_t con
                     gromov->vertex_gradient[(nk_size_t)(row_begin + row) * columns + column_begin + column] =
                         sums[row][column];
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** ⟨G, P⟩ over the dense plan and gradient, the same in every thread. */
 NUMKONG_DEVICE nk_f64_t nk_shapes_plan_score_simt_(nk_shapes_network_simt_t *network,
                                                    nk_shapes_gromov_simt_t const *gromov, unsigned *parity) {
     nk_f64_t score[1] = {0}, largest = 0;
-    for (nk_size_t cell = threadIdx.x; cell < (nk_size_t)network->rows * network->columns; cell += blockDim.x) {
+    for (nk_size_t cell = network->thread; cell < (nk_size_t)network->rows * network->columns; cell += network->team) {
         nk_f64_t const gradient = gromov->gradient[cell];
         score[0] += gradient * gromov->plan[cell];
         nk_f64_t const magnitude = gradient < 0 ? -gradient : gradient;
@@ -1959,7 +2059,7 @@ NUMKONG_DEVICE void nk_shapes_vertex_scores_simt_(nk_shapes_network_simt_t *netw
     nk_u32_t const no_node = 0xFFFFFFFFu, columns = network->columns;
     nk_f64_t const mass = (nk_f64_t)((nk_size_t)network->rows * columns);
     scores[0] = 0, scores[1] = 0;
-    for (nk_u32_t column = threadIdx.x; column < columns; column += blockDim.x)
+    for (nk_u32_t column = network->thread; column < columns; column += network->team)
         for (nk_u32_t arc = network->column_arcs[column]; arc != no_node; arc = network->arc_next[arc]) {
             nk_size_t const cell = (nk_size_t)network->arc_rows[arc] * columns + column;
             nk_f64_t const weight = (nk_f64_t)network->arc_flows[arc] / mass;
@@ -1973,15 +2073,15 @@ NUMKONG_DEVICE void nk_shapes_plan_step_simt_(nk_shapes_network_simt_t const *ne
                                               nk_f64_t step) {
     nk_u32_t const no_node = 0xFFFFFFFFu, columns = network->columns;
     nk_f64_t const keep = 1 - step, mass = (nk_f64_t)((nk_size_t)network->rows * columns);
-    for (nk_size_t cell = threadIdx.x; cell < (nk_size_t)network->rows * columns; cell += blockDim.x)
+    for (nk_size_t cell = network->thread; cell < (nk_size_t)network->rows * columns; cell += network->team)
         gromov->plan[cell] *= keep,
             gromov->gradient[cell] = keep * gromov->gradient[cell] + step * gromov->vertex_gradient[cell];
-    __syncthreads();
-    for (nk_u32_t column = threadIdx.x; column < columns; column += blockDim.x)
+    nk_shapes_team_sync_simt_(network);
+    for (nk_u32_t column = network->thread; column < columns; column += network->team)
         for (nk_u32_t arc = network->column_arcs[column]; arc != no_node; arc = network->arc_next[arc])
             gromov->plan[(nk_size_t)network->arc_rows[arc] * columns + column] +=
                 step * ((nk_f64_t)network->arc_flows[arc] / mass);
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** The product plan and its gradient, the outer product of the two matrices' row sums. */
@@ -1990,14 +2090,14 @@ NUMKONG_DEVICE void nk_shapes_product_start_simt_(nk_shapes_network_simt_t const
     nk_u32_t const rows = network->rows, columns = network->columns;
     nk_f64_t const mass = (nk_f64_t)((nk_size_t)rows * columns);
     // The vertex gradient holds the column sums until the steps need it
-    for (nk_u32_t column = threadIdx.x; column < columns; column += blockDim.x) {
+    for (nk_u32_t column = network->thread; column < columns; column += network->team) {
         nk_f64_t column_sum = 0;
         for (nk_u32_t other = 0; other != columns; ++other)
             column_sum += gromov->column_distances[(nk_size_t)other * columns + column];
         gromov->vertex_gradient[column] = column_sum;
     }
-    __syncthreads();
-    for (nk_u32_t row = threadIdx.x; row < rows; row += blockDim.x) {
+    nk_shapes_team_sync_simt_(network);
+    for (nk_u32_t row = network->thread; row < rows; row += network->team) {
         nk_f64_t row_sum = 0;
         for (nk_u32_t other = 0; other != rows; ++other)
             row_sum += gromov->row_distances[(nk_size_t)row * rows + other];
@@ -2006,7 +2106,7 @@ NUMKONG_DEVICE void nk_shapes_product_start_simt_(nk_shapes_network_simt_t const
             gromov->gradient[(nk_size_t)row * columns + column] = row_sum * gromov->vertex_gradient[column] / mass;
         }
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** Starts from the plan in @p network : its dense copy and its gradient. */
@@ -2014,24 +2114,24 @@ NUMKONG_DEVICE void nk_shapes_plan_start_simt_(nk_shapes_network_simt_t const *n
                                                nk_shapes_gromov_simt_t *gromov) {
     nk_u32_t const no_node = 0xFFFFFFFFu, columns = network->columns;
     nk_f64_t const mass = (nk_f64_t)((nk_size_t)network->rows * columns);
-    for (nk_size_t cell = threadIdx.x; cell < (nk_size_t)network->rows * columns; cell += blockDim.x)
+    for (nk_size_t cell = network->thread; cell < (nk_size_t)network->rows * columns; cell += network->team)
         gromov->plan[cell] = 0;
-    __syncthreads();
-    for (nk_u32_t column = threadIdx.x; column < columns; column += blockDim.x)
+    nk_shapes_team_sync_simt_(network);
+    for (nk_u32_t column = network->thread; column < columns; column += network->team)
         for (nk_u32_t arc = network->column_arcs[column]; arc != no_node; arc = network->arc_next[arc])
             gromov->plan[(nk_size_t)network->arc_rows[arc] * columns + column] = (nk_f64_t)network->arc_flows[arc] /
                                                                                  mass;
     nk_shapes_vertex_gradient_simt_(network, gromov);
-    for (nk_size_t cell = threadIdx.x; cell < (nk_size_t)network->rows * columns; cell += blockDim.x)
+    for (nk_size_t cell = network->thread; cell < (nk_size_t)network->rows * columns; cell += network->team)
         gromov->gradient[cell] = gromov->vertex_gradient[cell];
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** Loads a plan saved by @c nk_shapes_network_save_simt_ into the emptied @p network . */
 NUMKONG_DEVICE void nk_shapes_network_load_simt_(nk_shapes_network_simt_t *network, nk_u32_t const *saved,
                                                  nk_u32_t saved_arcs) {
     nk_shapes_network_reset_simt_(network);
-    if (threadIdx.x == 0)
+    if (network->thread == 0)
         for (nk_u32_t arc = 0; arc != saved_arcs; ++arc) {
             nk_u32_t const flow = saved[2 * saved_arcs + arc];
             if (!flow) continue;
@@ -2039,7 +2139,7 @@ NUMKONG_DEVICE void nk_shapes_network_load_simt_(nk_shapes_network_simt_t *netwo
             nk_shapes_network_ship_simt_(network, row, column, flow);
             network->row_supplies[row] -= flow, network->column_demands[column] -= flow;
         }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** Frank-Wolfe from the start already in @p gromov : up to 32 steps toward exact transport
@@ -2049,11 +2149,10 @@ NUMKONG_DEVICE nk_f64_t nk_shapes_frank_wolfe_simt_(nk_shapes_network_simt_t *ne
     nk_f64_t plan_score = nk_shapes_plan_score_simt_(network, gromov, parity);
     int const simplex = network->rows != network->columns;
     nk_shapes_network_reset_simt_(network);
-    if (simplex && threadIdx.x == 0) nk_shapes_tree_northwest_simt_(network);
+    if (simplex && network->thread == 0) nk_shapes_tree_northwest_simt_(network);
     for (int step_index = 0; step_index != 32; ++step_index) {
         if (simplex) nk_shapes_simplex_gradient_simt_(network, gromov, parity);
         else nk_shapes_transport_gradient_simt_(network, gromov, step_index == 0, parity);
-        if (network->free_arcs[1]) return NUMKONG_F64_INF - NUMKONG_F64_INF;
         nk_shapes_vertex_gradient_simt_(network, gromov);
         nk_f64_t scores[2];
         nk_shapes_vertex_scores_simt_(network, gromov, scores);
@@ -2076,16 +2175,16 @@ NUMKONG_DEVICE nk_f64_t nk_shapes_frank_wolfe_simt_(nk_shapes_network_simt_t *ne
 NUMKONG_DEVICE nk_f64_t nk_shapes_distance_spread_simt_(nk_shapes_network_simt_t *network, nk_f64_t const *distances,
                                                         nk_u32_t count) {
     nk_f64_t spread[1] = {0};
-    for (nk_size_t cell = threadIdx.x; cell < (nk_size_t)count * count; cell += blockDim.x)
+    for (nk_size_t cell = network->thread; cell < (nk_size_t)count * count; cell += network->team)
         spread[0] += distances[cell] * distances[cell];
     nk_shapes_team_sum_f64_simt_(network, spread, 1);
     return spread[0] / (nk_f64_t)((nk_size_t)count * count);
 }
 
 /** The distances within a cloud of f32 points, as @c nk_shapes_distances_f64_serial_ sums them. */
-NUMKONG_DEVICE void nk_shapes_distances_f32_simt_(nk_f32_t const *axes, nk_size_t axis_stride, nk_u32_t count,
-                                                  nk_f64_t *distances) {
-    for (nk_size_t cell = threadIdx.x; cell < (nk_size_t)count * count; cell += blockDim.x) {
+NUMKONG_DEVICE void nk_shapes_distances_f32_simt_(nk_shapes_network_simt_t const *network, nk_f32_t const *axes,
+                                                  nk_size_t axis_stride, nk_u32_t count, nk_f64_t *distances) {
+    for (nk_size_t cell = network->thread; cell < (nk_size_t)count * count; cell += network->team) {
         nk_size_t const first = cell / count, second = cell % count;
         nk_f64_t const delta_x = (nk_f64_t)axes[first] - (nk_f64_t)axes[second];
         nk_f64_t const delta_y = (nk_f64_t)axes[axis_stride + first] - (nk_f64_t)axes[axis_stride + second];
@@ -2093,12 +2192,12 @@ NUMKONG_DEVICE void nk_shapes_distances_f32_simt_(nk_f32_t const *axes, nk_size_
         distances[cell] = nk_sqrt_f64_simt_(__dadd_rn(
             __dadd_rn(__dmul_rn(delta_x, delta_x), __dmul_rn(delta_y, delta_y)), __dmul_rn(delta_z, delta_z)));
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
-NUMKONG_DEVICE void nk_shapes_distances_f16_simt_(nk_f16_t const *axes, nk_size_t axis_stride, nk_u32_t count,
-                                                  nk_f64_t *distances) {
-    for (nk_size_t cell = threadIdx.x; cell < (nk_size_t)count * count; cell += blockDim.x) {
+NUMKONG_DEVICE void nk_shapes_distances_f16_simt_(nk_shapes_network_simt_t const *network, nk_f16_t const *axes,
+                                                  nk_size_t axis_stride, nk_u32_t count, nk_f64_t *distances) {
+    for (nk_size_t cell = network->thread; cell < (nk_size_t)count * count; cell += network->team) {
         nk_size_t const first = cell / count, second = cell % count;
         nk_f32_t first_x, first_y, first_z, second_x, second_y, second_z;
         nk_f16_to_f32_simt_(axes + first, &first_x);
@@ -2113,7 +2212,7 @@ NUMKONG_DEVICE void nk_shapes_distances_f16_simt_(nk_f16_t const *axes, nk_size_
         distances[cell] = nk_sqrt_f64_simt_(__dadd_rn(
             __dadd_rn(__dmul_rn(delta_x, delta_x), __dmul_rn(delta_y, delta_y)), __dmul_rn(delta_z, delta_z)));
     }
-    __syncthreads();
+    nk_shapes_team_sync_simt_(network);
 }
 
 /** The orthogonal Procrustes fit of the dense plan over f32 points, in F64 with the determinant's
@@ -2124,7 +2223,7 @@ NUMKONG_DEVICE void nk_shapes_plan_fit_f32_simt_(nk_shapes_network_simt_t *netwo
                                                  nk_size_t column_stride, nk_f64_t *shared_fit, nk_f64_t *fit) {
     nk_u32_t const rows = network->rows, columns = network->columns;
     nk_f64_t sums[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-    for (nk_u32_t column = threadIdx.x; column < columns; column += blockDim.x) {
+    for (nk_u32_t column = network->thread; column < columns; column += network->team) {
         nk_f64_t const column_point[3] = {column_axes[column], column_axes[column_stride + column],
                                           column_axes[2 * column_stride + column]};
         for (nk_u32_t row = 0; row != rows; ++row) {
@@ -2157,7 +2256,7 @@ NUMKONG_DEVICE void nk_shapes_plan_fit_f16_simt_(nk_shapes_network_simt_t *netwo
                                                  nk_size_t column_stride, nk_f64_t *shared_fit, nk_f64_t *fit) {
     nk_u32_t const rows = network->rows, columns = network->columns;
     nk_f64_t sums[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-    for (nk_u32_t column = threadIdx.x; column < columns; column += blockDim.x) {
+    for (nk_u32_t column = network->thread; column < columns; column += network->team) {
         nk_f32_t column_point[3];
         nk_f16_to_f32_simt_(column_axes + column, &column_point[0]);
         nk_f16_to_f32_simt_(column_axes + column_stride + column, &column_point[1]);

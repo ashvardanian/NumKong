@@ -47,19 +47,16 @@ enum {
     /** The largest cloud the smaller teams take. */
     nk_shapes_small_cloud_cuda_k = 192,
 
-    /** Pairs the default Wasserstein-Procrustes workspace keeps in flight, enough for every
-     *  multiprocessor many times over. */
+    /** Pairs the Wasserstein-Procrustes workspace keeps in flight, enough for every multiprocessor
+     *  many times over. */
     nk_shapes_pair_slots_cuda_k = 16384,
 
-    /** The most pairs the default Gromov-Wasserstein workspace keeps in flight, whose slots also
-     *  hold dense matrices within its byte budget. */
-    nk_gromov_pair_slots_cuda_k = 4096,
+    /** Pairs times points the Gromov-Wasserstein workspace keeps in flight, between 16 and 4096
+     *  pairs, so its bytes grow with the clouds it was sized for and give that bound back. */
+    nk_gromov_pair_points_cuda_k = 131072,
 
     /** Doubles of a flip's or start's record: its least cost or loss, then its rotation's 9. */
     nk_shapes_record_cuda_k = 10,
-
-    /** Bytes before the pair slots: the call's largest and smallest clouds, on one cache line. */
-    nk_shapes_workspace_header_cuda_k = 128,
 
     /** Offset of a slot's 8 flip records, after its counters of flips and of starts done. */
     nk_shapes_slot_records_cuda_k = 8,
@@ -70,14 +67,33 @@ enum {
     /** Offset of a Gromov-Wasserstein slot's flip plans. */
     nk_shapes_slot_plans_cuda_k = nk_shapes_slot_starts_cuda_k + 3 * nk_shapes_record_cuda_k * 8,
 
-    /** MiB the default Gromov-Wasserstein workspace spends on its slots. */
-    nk_gromov_workspace_mebibytes_cuda_k = 2048,
+    /** Blocks of the larger teams each multiprocessor keeps, which caps the registers per thread so
+     *  that the smaller teams of small clouds stay 16 to a multiprocessor. */
+    nk_shapes_blocks_cuda_k = 4,
+
+    /** The same for f16 inputs, whose f32 math leaves room for 21 smaller teams. */
+    nk_shapes_blocks_f16_cuda_k = 5,
+
+    /** Most classes of cloud sizes a Wasserstein-Procrustes chunk sorts its pairs into, up to
+     *  98,304 points. */
+    nk_shapes_classes_cuda_k = 24,
+
+    /** Bytes the workspace spends on teams' states in global memory, for clouds past one block. */
+    nk_shapes_team_budget_cuda_k = 256 << 20,
+
+    /** Most teams' states the workspace keeps, enough for every resident block. */
+    nk_shapes_teams_cuda_k = 1024,
 };
 
 /** One transport launch: the packs, the outputs, the pair slots of the workspace, a slot's layout,
  *  and the pairs it walks, from @c pair_begin on. Gromov-Wasserstein slots add each flip's best
  *  plan at @c plans_offset , then the dense state of each start, @c gromov_stride bytes apart from
- *  @c gromov_offset on. */
+ *  @c gromov_offset on. A Wasserstein-Procrustes launch solves the @c class_count pairs listed at
+ *  @c class_slots , whose larger clouds hold at most @c class_ceiling points, which sizes its
+ *  state, and the last one records those above @c class_limit as unsolvable. Without a list, a
+ *  launch takes every pair of its chunk. With @c team_states , teams of blocks keep their state in
+ *  global memory, @c team_stride bytes apart, at most @c teams of them; without, each block keeps
+ *  its own in shared memory. */
 typedef struct {
     void const *const *a_packed;
     void const *const *b_packed;
@@ -87,23 +103,130 @@ typedef struct {
     nk_size_t pair_begin, pairs;
     unsigned char *slots;
     nk_size_t slot_stride, plans_offset, gromov_offset, gromov_stride;
-    nk_u32_t largest;
-    int gromov, unequal;
+    nk_u32_t *class_counts;
+    nk_u32_t const *class_count, *class_slots;
+    nk_u32_t class_ceiling, class_limit;
+    int gromov;
+    unsigned char *team_states;
+    nk_size_t team_stride, teams;
 } nk_shapes_transport_schedule_cuda_t;
+
+/** The blocks solving one item at a time, from @c first on, @c count teams apart: one block over
+ *  shared memory, or @c blocks blocks over the state at @c region , this one of @c rank . */
+typedef struct {
+    nk_size_t first, count;
+    unsigned blocks, rank;
+    unsigned char *region;
+} nk_shapes_team_cuda_t;
 
 /** Bytes of a Wasserstein-Procrustes pair slot: two counters and 8 flip records. */
 NUMKONG_INLINE nk_size_t nk_shapes_slot_bytes_cuda_(void) { return nk_shapes_slot_starts_cuda_k; }
 
-/** Bytes of a Gromov-Wasserstein pair slot for clouds of up to @p largest points: the records, the
- *  8 flips' plans of up to 4 × @p largest arcs each, and the 3 starts' dense state. */
-NUMKONG_INLINE nk_size_t nk_gromov_slot_bytes_cuda_(nk_size_t largest) {
-    return nk_size_round_up_to_multiple_(nk_shapes_slot_plans_cuda_k + 8 * 3 * 4 * largest * sizeof(nk_u32_t), 128) +
-           3 * nk_shapes_gromov_bytes_simt_(largest);
+/** Bytes of a team's meeting place and state in global memory for clouds of up to @p largest
+ *  points of @p point_bytes per coordinate. */
+NUMKONG_INLINE nk_size_t nk_shapes_team_stride_cuda_(nk_size_t largest, nk_size_t point_bytes) {
+    return nk_size_round_up_to_multiple_(
+        nk_shapes_meeting_bytes_simt_k + nk_shapes_state_bytes_simt_(largest, largest, point_bytes), 256);
 }
 
-NUMKONG_INLINE nk_status_t nk_shapes_memset_cuda_(void *pointer, int value, nk_size_t bytes, nk_stream_t stream) {
-    return cudaMemsetAsync(pointer, value, bytes, (cudaStream_t)stream) == cudaSuccess ? nk_success_k
-                                                                                       : nk_device_code_mismatch_k;
+/** Teams' states a workspace keeps for clouds of up to @p largest points. */
+NUMKONG_INLINE nk_size_t nk_shapes_teams_cuda_(nk_size_t largest, nk_size_t point_bytes) {
+    nk_size_t const teams = (nk_size_t)nk_shapes_team_budget_cuda_k / nk_shapes_team_stride_cuda_(largest, point_bytes);
+    return teams < 1 ? 1 : teams > nk_shapes_teams_cuda_k ? nk_shapes_teams_cuda_k : teams;
+}
+
+/** Bytes of a Wasserstein-Procrustes workspace of @p slots pair slots for clouds of up to
+ *  @p largest points: the teams, the class counts, a list of slots per class, and the slots. */
+NUMKONG_INLINE nk_size_t nk_shapes_workspace_bytes_cuda_(nk_size_t slots, nk_size_t largest, nk_size_t point_bytes) {
+    return nk_shapes_teams_cuda_(largest, point_bytes) * nk_shapes_team_stride_cuda_(largest, point_bytes) +
+           nk_shapes_classes_cuda_k * sizeof(nk_u32_t) * (1 + slots) + slots * nk_shapes_slot_bytes_cuda_();
+}
+
+/** The largest cloud of class @p class_index : 32, 48, 64, 96, 128 and on, two per doubling. */
+NUMKONG_CONSTEXPR nk_u32_t nk_shapes_class_ceiling_cuda_(nk_u32_t class_index) {
+    return (32u << (class_index / 2)) + ((class_index & 1u) ? (16u << (class_index / 2)) : 0u);
+}
+
+/** Offset of a Gromov-Wasserstein slot's dense state, after the 8 flips' plans of up to
+ *  2 × @p largest arcs each. */
+NUMKONG_INLINE nk_size_t nk_gromov_dense_offset_cuda_(nk_size_t largest) {
+    return nk_size_round_up_to_multiple_(nk_shapes_slot_plans_cuda_k + 8 * 3 * 2 * largest * sizeof(nk_u32_t), 128);
+}
+
+/** Bytes of a Gromov-Wasserstein pair slot for clouds of up to @p largest points: the records, the
+ *  plans, and the 3 starts' dense state. */
+NUMKONG_INLINE nk_size_t nk_gromov_slot_bytes_cuda_(nk_size_t largest) {
+    return nk_gromov_dense_offset_cuda_(largest) + 3 * nk_shapes_gromov_bytes_simt_(largest);
+}
+
+/** Pair slots of a Gromov-Wasserstein workspace for clouds of up to @p largest points. */
+NUMKONG_INLINE nk_size_t nk_gromov_slots_cuda_(nk_size_t largest) {
+    nk_size_t const slots = nk_gromov_pair_points_cuda_k / (largest ? largest : 1);
+    return slots < 16 ? 16 : slots > 4096 ? 4096 : slots;
+}
+
+/** Bytes of a Gromov-Wasserstein workspace for clouds of up to @p largest points of @p point_bytes
+ *  per coordinate: the slots, then the teams. */
+NUMKONG_INLINE nk_size_t nk_gromov_workspace_bytes_cuda_(nk_size_t largest, nk_size_t point_bytes) {
+    return nk_size_round_up_to_multiple_(nk_gromov_slots_cuda_(largest) * nk_gromov_slot_bytes_cuda_(largest), 256) +
+           nk_shapes_teams_cuda_(largest, point_bytes) * nk_shapes_team_stride_cuda_(largest, point_bytes);
+}
+
+/** The largest cloud a team of @p team threads holds in the device's shared memory, at
+ *  @p point_bytes per coordinate. */
+NUMKONG_INLINE nk_status_t nk_shapes_largest_supported_cuda_(unsigned team, nk_size_t point_bytes, nk_u32_t *largest,
+                                                             nk_stream_t stream) {
+    int shared_limit = 0;
+    nk_status_t const status = nk_device_attribute_cuda_(cudaDevAttrMaxSharedMemoryPerBlockOptin, &shared_limit,
+                                                         stream);
+    if (status != nk_success_k) return status;
+    nk_u32_t low = 0, high = 1u << 16;
+    while (low + 1 < high) {
+        nk_u32_t const middle = (low + high) / 2;
+        // The kernels' own shared variables take a few dozen bytes beside the dynamic ones
+        if (nk_shapes_team_bytes_simt_(middle, middle, team, point_bytes) + 1024 <= (nk_size_t)shared_limit)
+            low = middle;
+        else high = middle;
+    }
+    *largest = low;
+    return low ? nk_success_k : nk_unexpected_dimensions_k;
+}
+
+/** Zeroes the counters of the first @p used slots, @p stride bytes apart. */
+NUMKONG_INLINE nk_status_t nk_shapes_zero_counters_cuda_(unsigned char *slots, nk_size_t stride, nk_size_t used,
+                                                         nk_stream_t stream) {
+    return cudaMemset2DAsync(slots, stride, 0, 2 * sizeof(nk_u32_t), used, (cudaStream_t)stream) == cudaSuccess
+               ? nk_success_k
+               : nk_device_code_mismatch_k;
+}
+
+/** Launches as many blocks of @p threads running @p kernel as stay resident on the stream's device,
+ *  all at once, as the blocks of a team wait on each other, passing the one argument struct at
+ *  @p arguments by value. */
+NUMKONG_INLINE nk_status_t nk_shapes_launch_teams_cuda_(void const *kernel, unsigned threads, nk_size_t shared_bytes,
+                                                        void *arguments, nk_stream_t stream) {
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
+    if (entered != nk_success_k) return entered;
+    int device = 0, multiprocessors = 0, per_multiprocessor = 0;
+    if (cudaGetDevice(&device) != cudaSuccess ||
+        cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, (int)shared_bytes) != cudaSuccess ||
+        cudaDeviceGetAttribute(&multiprocessors, cudaDevAttrMultiProcessorCount, device) != cudaSuccess ||
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&per_multiprocessor, kernel, (int)threads, shared_bytes) !=
+            cudaSuccess) {
+        nk_device_leave_cuda_(caller);
+        return nk_device_code_mismatch_k;
+    }
+    void *launch_arguments[1];
+    launch_arguments[0] = arguments;
+    dim3 grid, block;
+    grid.x = (unsigned)(multiprocessors * per_multiprocessor), grid.y = 1, grid.z = 1;
+    block.x = threads, block.y = 1, block.z = 1;
+    cudaError_t const status = grid.x ? cudaLaunchCooperativeKernel(kernel, grid, block, launch_arguments, shared_bytes,
+                                                                    (cudaStream_t)stream)
+                                      : cudaErrorInvalidConfiguration;
+    nk_device_leave_cuda_(caller);
+    return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
 #pragma endregion Configuration
@@ -192,57 +315,75 @@ NUMKONG_DEVICE void nk_shapes_rotation_f32_cuda_(nk_f32_t const *row_frame, nk_f
                                          row_axes[6 + row] * inner_column[6 + column];
 }
 
-/** The largest cloud of both batches of f32 packs, raised into @p largest , and the complement of
- *  the smallest into the word after it. */
-static __global__ void nk_shapes_largest_f32_cuda_kernel_(void const *const *a_packed, nk_size_t rows,
-                                                          void const *const *b_packed, nk_size_t columns,
-                                                          nk_u32_t *largest) {
-    for (nk_size_t index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; index < rows + columns;
-         index += (nk_size_t)gridDim.x * blockDim.x) {
-        void const *packed = index < rows ? a_packed[index] : b_packed[index - rows];
-        nk_u32_t const points = (nk_u32_t)((nk_shapes_packed_header_f64_t const *)packed)->points;
-        atomicMax(largest, points), atomicMax(largest + 1, ~points);
+/** Whether a pair with @p rows and @p columns points is above the launch's largest cloud. */
+NUMKONG_DEVICE int nk_shapes_pair_oversize_cuda_(nk_shapes_transport_schedule_cuda_t const *schedule, nk_u32_t rows,
+                                                 nk_u32_t columns) {
+    return (rows > columns ? rows : columns) > schedule->class_ceiling;
+}
+
+/** This block's team for a launch of @p items items: itself alone without team states, else as
+ *  many blocks per item as the grid spares, up to 16, which every block derives alike. Tells
+ *  whether the block has a team, as the grid's last blocks may not fill one. */
+NUMKONG_DEVICE int nk_shapes_find_team_cuda_(nk_shapes_transport_schedule_cuda_t const *schedule, nk_size_t items,
+                                             nk_shapes_team_cuda_t *team) {
+    team->first = blockIdx.x, team->count = gridDim.x, team->blocks = 1, team->rank = 0;
+    team->region = NUMKONG_NULL;
+    if (!schedule->team_states) return 1;
+    nk_size_t const spare = gridDim.x / (items ? items : 1);
+    team->blocks = spare >= nk_shapes_team_blocks_simt_k ? nk_shapes_team_blocks_simt_k : spare ? (unsigned)spare : 1;
+    team->count = gridDim.x / team->blocks;
+    team->count = team->count < schedule->teams ? team->count : schedule->teams;
+    team->first = blockIdx.x / team->blocks, team->rank = blockIdx.x % team->blocks;
+    team->region = schedule->team_states + team->first * schedule->team_stride;
+    return team->first < team->count;
+}
+
+/** Carves a team's network over the largest clouds of the launch, the block's scratch at @p shared
+ *  and the state at @p state , and joins the team's blocks. */
+NUMKONG_DEVICE void nk_shapes_team_carve_cuda_(nk_shapes_team_cuda_t const *team, void *shared, void *state,
+                                               nk_u32_t largest, nk_u32_t rows, nk_u32_t columns, nk_size_t point_bytes,
+                                               nk_shapes_network_simt_t *network) {
+    nk_shapes_network_carve_simt_(shared, state, largest, largest, rows, columns, point_bytes, network);
+    if (team->blocks != 1) nk_shapes_network_join_simt_(network, team->region, team->blocks, team->rank);
+}
+
+/** Lists each pair of the chunk under the class of its larger cloud, the last class taking every
+ *  cloud above @c class_limit . */
+NUMKONG_DEVICE void nk_shapes_classify_cuda_(nk_shapes_transport_schedule_cuda_t const *schedule, nk_size_t slot_index,
+                                             nk_u32_t largest) {
+    nk_u32_t class_index = 0;
+    while (nk_shapes_class_ceiling_cuda_(class_index) < largest &&
+           nk_shapes_class_ceiling_cuda_(class_index) < schedule->class_limit &&
+           class_index + 1 != nk_shapes_classes_cuda_k)
+        ++class_index;
+    nk_u32_t const position = atomicAdd(&schedule->class_counts[class_index], 1u);
+    // The classifying launch fills the lists every solving launch then reads through `class_slots`.
+    nk_u32_t *const lists = (nk_u32_t *)schedule->class_slots;
+    lists[class_index * schedule->pairs + position] = (nk_u32_t)slot_index;
+}
+
+static __global__ void nk_shapes_classify_f32_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
+    for (nk_size_t slot_index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; slot_index < schedule.pairs;
+         slot_index += (nk_size_t)gridDim.x * blockDim.x) {
+        nk_size_t const pair = schedule.pair_begin + slot_index;
+        nk_u32_t const rows =
+            (nk_u32_t)((nk_shapes_packed_header_f64_t const *)schedule.a_packed[pair / schedule.columns])->points;
+        nk_u32_t const columns =
+            (nk_u32_t)((nk_shapes_packed_header_f64_t const *)schedule.b_packed[pair % schedule.columns])->points;
+        nk_shapes_classify_cuda_(&schedule, slot_index, rows > columns ? rows : columns);
     }
 }
 
-static __global__ void nk_shapes_largest_f16_cuda_kernel_(void const *const *a_packed, nk_size_t rows,
-                                                          void const *const *b_packed, nk_size_t columns,
-                                                          nk_u32_t *largest) {
-    for (nk_size_t index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; index < rows + columns;
-         index += (nk_size_t)gridDim.x * blockDim.x) {
-        void const *packed = index < rows ? a_packed[index] : b_packed[index - rows];
-        nk_u32_t const points = ((nk_shapes_packed_header_f32_t const *)packed)->points;
-        atomicMax(largest, points), atomicMax(largest + 1, ~points);
+static __global__ void nk_shapes_classify_f16_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
+    for (nk_size_t slot_index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; slot_index < schedule.pairs;
+         slot_index += (nk_size_t)gridDim.x * blockDim.x) {
+        nk_size_t const pair = schedule.pair_begin + slot_index;
+        nk_u32_t const rows =
+            ((nk_shapes_packed_header_f32_t const *)schedule.a_packed[pair / schedule.columns])->points;
+        nk_u32_t const columns =
+            ((nk_shapes_packed_header_f32_t const *)schedule.b_packed[pair % schedule.columns])->points;
+        nk_shapes_classify_cuda_(&schedule, slot_index, rows > columns ? rows : columns);
     }
-}
-
-/** Reads the largest cloud of the call and the complement of the smallest back through the
- *  workspace's header, into @p extremes . */
-NUMKONG_INLINE nk_status_t nk_shapes_largest_cuda_(void const *kernel, void const *const *a_packed, nk_size_t rows,
-                                                   void const *const *b_packed, nk_size_t columns, void *workspace,
-                                                   nk_u32_t *extremes, nk_stream_t stream) {
-    nk_status_t status = nk_shapes_memset_cuda_(workspace, 0, nk_shapes_workspace_header_cuda_k, stream);
-    if (status != nk_success_k) return status;
-    nk_u32_t *largest_device = (nk_u32_t *)workspace;
-    void *arguments[5] = {(void *)&a_packed, (void *)&rows, (void *)&b_packed, (void *)&columns,
-                          (void *)&largest_device};
-    nk_size_t const blocks = nk_size_divide_round_up_(rows + columns, 256);
-    status = nk_launch_cuda_(kernel, blocks < 1024 ? blocks : 1024, 256, arguments, 0, stream);
-    if (status != nk_success_k) return status;
-    return nk_read_cuda_(extremes, workspace, 2 * sizeof(nk_u32_t), stream);
-}
-
-/** The team size and shared memory of a launch over clouds of up to @p largest points, or a
- *  status if they outgrow the device. */
-NUMKONG_INLINE nk_status_t nk_shapes_team_cuda_(nk_u32_t largest, nk_size_t point_bytes, int unequal, unsigned *team,
-                                                nk_size_t *shared_bytes, nk_stream_t stream) {
-    int shared_limit = 0;
-    nk_status_t const status = nk_device_attribute_cuda_(cudaDevAttrMaxSharedMemoryPerBlockOptin, &shared_limit,
-                                                         stream);
-    if (status != nk_success_k) return status;
-    *team = largest > nk_shapes_small_cloud_cuda_k ? nk_shapes_large_team_cuda_k : nk_shapes_small_team_cuda_k;
-    *shared_bytes = nk_shapes_team_bytes_simt_(largest, largest, *team, point_bytes, unequal);
-    return *shared_bytes > (nk_size_t)shared_limit ? nk_unexpected_dimensions_k : nk_success_k;
 }
 
 #pragma endregion Packs
@@ -264,7 +405,8 @@ NUMKONG_DEVICE void nk_wassersteinprocrustes_finish_f32_cuda_(nk_shapes_transpor
     nk_f64_t const best = records[best_flip * nk_shapes_record_cuda_k];
     nk_f64_t *results_row = (nk_f64_t *)((char *)schedule->results + row * schedule->results_stride);
     int const empty = !row_header->points || !column_header->points;
-    results_row[column] = empty ? best : nk_sqrt_f64_simt_(best);
+    // A pair over the launch's largest cloud records NaN, which the root would turn into zero
+    results_row[column] = empty || best != best ? best : nk_sqrt_f64_simt_(best);
     if (!schedule->rotations) return;
     nk_f64_t inner[9], pair_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     for (int cell = 0; cell != 9; ++cell) inner[cell] = records[best_flip * nk_shapes_record_cuda_k + 1 + cell];
@@ -287,7 +429,7 @@ NUMKONG_DEVICE void nk_wassersteinprocrustes_finish_f16_cuda_(nk_shapes_transpor
     nk_f32_t const best = (nk_f32_t)records[best_flip * nk_shapes_record_cuda_k];
     nk_f32_t *results_row = (nk_f32_t *)((char *)schedule->results + row * schedule->results_stride);
     int const empty = !row_header->points || !column_header->points;
-    results_row[column] = empty ? best : nk_sqrt_f32_simt_(best);
+    results_row[column] = empty || best != best ? best : nk_sqrt_f32_simt_(best);
     if (!schedule->rotations) return;
     nk_f32_t inner[9], pair_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     for (int cell = 0; cell != 9; ++cell)
@@ -312,160 +454,231 @@ NUMKONG_DEVICE void nk_shapes_record_cuda_(unsigned char *slot, nk_size_t offset
     __syncthreads();
 }
 
-/** One block per flip of each pair. Wasserstein-Procrustes finishes each pair in its last block;
- *  for Gromov-Wasserstein, each flip only leaves its record and best plan. */
-static __global__ void nk_wassersteinprocrustes_packed_f32_cuda_kernel_(
-    nk_shapes_transport_schedule_cuda_t const schedule) {
-    extern __shared__ nk_f64_t nk_shapes_shared_cuda_[];
-    __shared__ nk_f64_t shared_rotation[9];
-    __shared__ int last;
+/** Solves the team's flips of a launch's @p items items, the block's scratch at @p shared and the
+ *  team's state at @p state . Wasserstein-Procrustes finishes each pair in its last flip; for
+ *  Gromov-Wasserstein, each flip only leaves its record and best plan. */
+NUMKONG_DEVICE void nk_wassersteinprocrustes_walk_f32_cuda_(nk_shapes_transport_schedule_cuda_t const *schedule,
+                                                            nk_shapes_team_cuda_t const *team, nk_size_t items,
+                                                            void *shared, void *state, nk_f64_t *shared_rotation,
+                                                            int *last) {
     unsigned parity = 0;
-    nk_u32_t const plan_arcs = 4 * schedule.largest;
-    for (nk_size_t item = blockIdx.x; item < schedule.pairs * 8; item += gridDim.x) {
-        nk_size_t const slot_index = item >> 3, pair = schedule.pair_begin + slot_index;
-        unsigned char *slot = schedule.slots + slot_index * schedule.slot_stride;
+    nk_u32_t const plan_arcs = 2 * schedule->class_ceiling;
+    for (nk_size_t item = team->first; item < items; item += team->count) {
+        nk_size_t const slot_index = schedule->class_slots ? schedule->class_slots[item >> 3] : item >> 3;
+        nk_size_t const pair = schedule->pair_begin + slot_index;
+        unsigned char *slot = schedule->slots + slot_index * schedule->slot_stride;
         int const flip = (int)(item & 7);
-        void const *a = schedule.a_packed[pair / schedule.columns], *b = schedule.b_packed[pair % schedule.columns];
+        void const *a = schedule->a_packed[pair / schedule->columns];
+        void const *b = schedule->b_packed[pair % schedule->columns];
         int const swapped = nk_shapes_column_first_f32_cuda_(a, b);
         void const *row_pack = swapped ? b : a, *column_pack = swapped ? a : b;
         nk_u32_t const rows = (nk_u32_t)((nk_shapes_packed_header_f64_t const *)row_pack)->points;
         nk_u32_t const columns = (nk_u32_t)((nk_shapes_packed_header_f64_t const *)column_pack)->points;
         nk_f64_t cost, rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-        if (!rows || !columns) cost = rows == columns ? 0 : NUMKONG_F64_INF;
+        if (nk_shapes_pair_oversize_cuda_(schedule, rows, columns)) cost = NUMKONG_F64_INF - NUMKONG_F64_INF;
+        else if (!rows || !columns) cost = rows == columns ? 0 : NUMKONG_F64_INF;
         else {
             nk_shapes_points_f32_simt_t points;
             nk_shapes_network_simt_t network;
-            nk_shapes_points_carve_f32_simt_(nk_shapes_shared_cuda_, schedule.largest, schedule.largest, &points);
-            nk_shapes_network_carve_simt_(nk_shapes_shared_cuda_, schedule.largest, schedule.largest, rows, columns,
-                                          sizeof(nk_f64_t), &network);
+            nk_shapes_team_carve_cuda_(team, shared, state, schedule->class_ceiling, rows, columns, sizeof(nk_f64_t),
+                                       &network);
+            nk_shapes_points_carve_f32_simt_(state, schedule->class_ceiling, schedule->class_ceiling, &points);
             nk_f64_t const radii = ((nk_shapes_packed_header_f64_t const *)row_pack)->max_radius +
                                    ((nk_shapes_packed_header_f64_t const *)column_pack)->max_radius;
             network.tolerance = radii * radii * 1e-12;
             nk_size_t row_stride, column_stride;
             nk_f32_t const *row_axes = nk_shapes_packed_axes_f32_simt_(row_pack, &row_stride);
             nk_f32_t const *column_axes = nk_shapes_packed_axes_f32_simt_(column_pack, &column_stride);
-            nk_u32_t *saved_plan = schedule.gromov ? (nk_u32_t *)(slot + schedule.plans_offset) + flip * 3 * plan_arcs
-                                                   : NUMKONG_NULL;
-            nk_shapes_load_rows_f32_simt_(&points, row_axes, row_stride, rows);
+            nk_u32_t *saved_plan = schedule->gromov ? (nk_u32_t *)(slot + schedule->plans_offset) + flip * 3 * plan_arcs
+                                                    : NUMKONG_NULL;
+            nk_shapes_load_rows_f32_simt_(&network, &points, row_axes, row_stride, rows);
             nk_wassersteinprocrustes_flip_f32_simt_(&network, &points, column_axes, column_stride, flip,
                                                     shared_rotation, &cost, rotation, saved_plan, &parity);
         }
-        nk_shapes_record_cuda_(slot, nk_shapes_slot_records_cuda_k, (nk_u32_t *)slot, flip, 8, cost, rotation, &last);
-        if (last && !schedule.gromov && threadIdx.x == 0)
-            nk_wassersteinprocrustes_finish_f32_cuda_(&schedule, pair,
+        if (team->rank != 0) continue;
+        nk_shapes_record_cuda_(slot, nk_shapes_slot_records_cuda_k, (nk_u32_t *)slot, flip, 8, cost, rotation, last);
+        if (*last && !schedule->gromov && threadIdx.x == 0)
+            nk_wassersteinprocrustes_finish_f32_cuda_(schedule, pair,
                                                       (nk_f64_t *)(slot + nk_shapes_slot_records_cuda_k));
         __syncthreads();
     }
 }
 
-static __global__ void nk_wassersteinprocrustes_packed_f16_cuda_kernel_(
-    nk_shapes_transport_schedule_cuda_t const schedule) {
+/** One team per flip of each pair, the walk inlined once over shared memory and once over global
+ *  memory, so that the block tier addresses its state as shared. */
+static __global__ void __launch_bounds__(nk_shapes_large_team_cuda_k, nk_shapes_blocks_cuda_k)
+    nk_wassersteinprocrustes_packed_f32_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
     extern __shared__ nk_f64_t nk_shapes_shared_cuda_[];
-    __shared__ nk_f32_t shared_rotation[9];
+    __shared__ nk_f64_t shared_rotation[9];
     __shared__ int last;
+    nk_size_t const items = (schedule.class_slots ? (nk_size_t)*schedule.class_count : schedule.pairs) * 8;
+    nk_shapes_team_cuda_t team;
+    if (!nk_shapes_find_team_cuda_(&schedule, items, &team)) return;
+    if (team.region)
+        nk_wassersteinprocrustes_walk_f32_cuda_(&schedule, &team, items, nk_shapes_shared_cuda_,
+                                                team.region + nk_shapes_meeting_bytes_simt_k, shared_rotation, &last);
+    else
+        nk_wassersteinprocrustes_walk_f32_cuda_(
+            &schedule, &team, items, nk_shapes_shared_cuda_,
+            (char *)nk_shapes_shared_cuda_ + nk_shapes_scratch_bytes_simt_(blockDim.x), shared_rotation, &last);
+}
+
+NUMKONG_DEVICE void nk_wassersteinprocrustes_walk_f16_cuda_(nk_shapes_transport_schedule_cuda_t const *schedule,
+                                                            nk_shapes_team_cuda_t const *team, nk_size_t items,
+                                                            void *shared, void *state, nk_f32_t *shared_rotation,
+                                                            int *last) {
     unsigned parity = 0;
-    nk_u32_t const plan_arcs = 4 * schedule.largest;
-    for (nk_size_t item = blockIdx.x; item < schedule.pairs * 8; item += gridDim.x) {
-        nk_size_t const slot_index = item >> 3, pair = schedule.pair_begin + slot_index;
-        unsigned char *slot = schedule.slots + slot_index * schedule.slot_stride;
+    nk_u32_t const plan_arcs = 2 * schedule->class_ceiling;
+    for (nk_size_t item = team->first; item < items; item += team->count) {
+        nk_size_t const slot_index = schedule->class_slots ? schedule->class_slots[item >> 3] : item >> 3;
+        nk_size_t const pair = schedule->pair_begin + slot_index;
+        unsigned char *slot = schedule->slots + slot_index * schedule->slot_stride;
         int const flip = (int)(item & 7);
-        void const *a = schedule.a_packed[pair / schedule.columns], *b = schedule.b_packed[pair % schedule.columns];
+        void const *a = schedule->a_packed[pair / schedule->columns];
+        void const *b = schedule->b_packed[pair % schedule->columns];
         int const swapped = nk_shapes_column_first_f16_cuda_(a, b);
         void const *row_pack = swapped ? b : a, *column_pack = swapped ? a : b;
         nk_u32_t const rows = ((nk_shapes_packed_header_f32_t const *)row_pack)->points;
         nk_u32_t const columns = ((nk_shapes_packed_header_f32_t const *)column_pack)->points;
         nk_f32_t cost, rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-        if (!rows || !columns) cost = rows == columns ? 0 : NUMKONG_F32_INF;
+        if (nk_shapes_pair_oversize_cuda_(schedule, rows, columns)) cost = NUMKONG_F32_INF - NUMKONG_F32_INF;
+        else if (!rows || !columns) cost = rows == columns ? 0 : NUMKONG_F32_INF;
         else {
             nk_shapes_points_f16_simt_t points;
             nk_shapes_network_simt_t network;
-            nk_shapes_points_carve_f16_simt_(nk_shapes_shared_cuda_, schedule.largest, schedule.largest, &points);
-            nk_shapes_network_carve_simt_(nk_shapes_shared_cuda_, schedule.largest, schedule.largest, rows, columns,
-                                          sizeof(nk_f32_t), &network);
+            nk_shapes_team_carve_cuda_(team, shared, state, schedule->class_ceiling, rows, columns, sizeof(nk_f32_t),
+                                       &network);
+            nk_shapes_points_carve_f16_simt_(state, schedule->class_ceiling, schedule->class_ceiling, &points);
             nk_f32_t const radii = ((nk_shapes_packed_header_f32_t const *)row_pack)->max_radius +
                                    ((nk_shapes_packed_header_f32_t const *)column_pack)->max_radius;
             network.tolerance = (nk_f64_t)(radii * radii) * 1e-12;
             nk_size_t row_stride, column_stride;
             nk_f16_t const *row_axes = nk_shapes_packed_axes_f16_simt_(row_pack, &row_stride);
             nk_f16_t const *column_axes = nk_shapes_packed_axes_f16_simt_(column_pack, &column_stride);
-            nk_u32_t *saved_plan = schedule.gromov ? (nk_u32_t *)(slot + schedule.plans_offset) + flip * 3 * plan_arcs
-                                                   : NUMKONG_NULL;
-            nk_shapes_load_rows_f16_simt_(&points, row_axes, row_stride, rows);
+            nk_u32_t *saved_plan = schedule->gromov ? (nk_u32_t *)(slot + schedule->plans_offset) + flip * 3 * plan_arcs
+                                                    : NUMKONG_NULL;
+            nk_shapes_load_rows_f16_simt_(&network, &points, row_axes, row_stride, rows);
             nk_wassersteinprocrustes_flip_f16_simt_(&network, &points, column_axes, column_stride, flip,
                                                     shared_rotation, &cost, rotation, saved_plan, &parity);
         }
+        if (team->rank != 0) continue;
         nk_f64_t wide_rotation[9];
         for (int cell = 0; cell != 9; ++cell) wide_rotation[cell] = rotation[cell];
         nk_shapes_record_cuda_(slot, nk_shapes_slot_records_cuda_k, (nk_u32_t *)slot, flip, 8, cost, wide_rotation,
-                               &last);
-        if (last && !schedule.gromov && threadIdx.x == 0)
-            nk_wassersteinprocrustes_finish_f16_cuda_(&schedule, pair,
+                               last);
+        if (*last && !schedule->gromov && threadIdx.x == 0)
+            nk_wassersteinprocrustes_finish_f16_cuda_(schedule, pair,
                                                       (nk_f64_t *)(slot + nk_shapes_slot_records_cuda_k));
         __syncthreads();
     }
 }
 
-/** Fills the schedule's slots and launch shape from the workspace, after reading the largest cloud.
- *  Zeroes every slot's counters, and returns the slots in @p slots . */
-NUMKONG_INLINE nk_status_t nk_shapes_transport_prepare_cuda_(
-    void const *largest_kernel, nk_shapes_transport_schedule_cuda_t *schedule, nk_size_t point_bytes, void *workspace,
-    nk_size_t workspace_bytes, unsigned *team, nk_size_t *shared_bytes, nk_size_t *slots, nk_stream_t stream) {
-    if ((nk_size_t)workspace & (nk_default_alignment_k - 1)) return nk_misaligned_k;
-    if (workspace_bytes < nk_shapes_workspace_header_cuda_k) return nk_unexpected_dimensions_k;
-    nk_u32_t extremes[2] = {0, 0};
-    nk_status_t status = nk_shapes_largest_cuda_(largest_kernel, schedule->a_packed, schedule->rows, schedule->b_packed,
-                                                 schedule->columns, workspace, extremes, stream);
-    if (status != nk_success_k) return status;
-    schedule->largest = extremes[0] ? extremes[0] : 1;
-    schedule->unequal = extremes[0] != ~extremes[1];
-    status = nk_shapes_team_cuda_(schedule->largest, point_bytes, schedule->unequal, team, shared_bytes, stream);
-    if (status != nk_success_k) return status;
-    schedule->slot_stride = schedule->gromov ? nk_gromov_slot_bytes_cuda_(schedule->largest)
-                                             : nk_shapes_slot_bytes_cuda_();
-    schedule->plans_offset = nk_shapes_slot_plans_cuda_k;
-    schedule->gromov_stride = nk_shapes_gromov_bytes_simt_(schedule->largest);
-    schedule->gromov_offset = nk_size_round_up_to_multiple_(
-        nk_shapes_slot_plans_cuda_k + 8 * 3 * 4 * (nk_size_t)schedule->largest * sizeof(nk_u32_t), 128);
-    schedule->slots = (unsigned char *)workspace + nk_shapes_workspace_header_cuda_k;
-    *slots = (workspace_bytes - nk_shapes_workspace_header_cuda_k) / schedule->slot_stride;
-    if (!*slots) return nk_unexpected_dimensions_k;
-    nk_size_t const pairs = schedule->rows * schedule->columns, used = pairs < *slots ? pairs : *slots;
-    return cudaMemset2DAsync(schedule->slots, schedule->slot_stride, 0, 2 * sizeof(nk_u32_t), used,
-                             (cudaStream_t)stream) == cudaSuccess
-               ? nk_success_k
-               : nk_device_code_mismatch_k;
+static __global__ void __launch_bounds__(nk_shapes_large_team_cuda_k, nk_shapes_blocks_f16_cuda_k)
+    nk_wassersteinprocrustes_packed_f16_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
+    extern __shared__ nk_f64_t nk_shapes_shared_cuda_[];
+    __shared__ nk_f32_t shared_rotation[9];
+    __shared__ int last;
+    nk_size_t const items = (schedule.class_slots ? (nk_size_t)*schedule.class_count : schedule.pairs) * 8;
+    nk_shapes_team_cuda_t team;
+    if (!nk_shapes_find_team_cuda_(&schedule, items, &team)) return;
+    if (team.region)
+        nk_wassersteinprocrustes_walk_f16_cuda_(&schedule, &team, items, nk_shapes_shared_cuda_,
+                                                team.region + nk_shapes_meeting_bytes_simt_k, shared_rotation, &last);
+    else
+        nk_wassersteinprocrustes_walk_f16_cuda_(
+            &schedule, &team, items, nk_shapes_shared_cuda_,
+            (char *)nk_shapes_shared_cuda_ + nk_shapes_scratch_bytes_simt_(blockDim.x), shared_rotation, &last);
 }
 
-/** Walks every pair in launches of as many pairs as the workspace has slots. */
-NUMKONG_INLINE nk_status_t nk_shapes_transport_launch_cuda_(void const *kernel, void const *largest_kernel,
+/** Walks every pair in chunks of as many pairs as the workspace has slots. A light launch lists the
+ *  chunk's pairs by the class of their larger cloud, then one launch per class, sized for its
+ *  largest cloud, solves the pairs it reads from its list, so no call waits on the device. Classes
+ *  that fit a block's shared memory take a block per flip; larger ones take teams of blocks over
+ *  the workspace, up to clouds of @p largest points, and record any pair above as unsolvable. */
+NUMKONG_INLINE nk_status_t nk_shapes_transport_launch_cuda_(void const *kernel, void const *classify_kernel,
                                                             nk_shapes_transport_schedule_cuda_t schedule,
-                                                            nk_size_t point_bytes, void *workspace,
+                                                            nk_size_t point_bytes, nk_size_t largest, void *workspace,
                                                             nk_size_t workspace_bytes, nk_stream_t stream) {
-    unsigned team = 0;
-    nk_size_t shared_bytes = 0, slots = 0;
-    schedule.gromov = 0;
-    nk_status_t status = nk_shapes_transport_prepare_cuda_(largest_kernel, &schedule, point_bytes, workspace,
-                                                           workspace_bytes, &team, &shared_bytes, &slots, stream);
+    if ((nk_size_t)workspace & (nk_default_alignment_k - 1)) return nk_misaligned_k;
+    if (!largest) return nk_unexpected_dimensions_k;
+    nk_size_t const team_stride = nk_shapes_team_stride_cuda_(largest, point_bytes);
+    nk_size_t const teams = nk_shapes_teams_cuda_(largest, point_bytes);
+    nk_size_t const head_bytes = nk_shapes_workspace_bytes_cuda_(0, largest, point_bytes);
+    nk_size_t const per_slot = nk_shapes_workspace_bytes_cuda_(1, largest, point_bytes) - head_bytes;
+    nk_size_t slots = workspace_bytes > head_bytes ? (workspace_bytes - head_bytes) / per_slot : 0;
+    slots = slots < nk_shapes_pair_slots_cuda_k ? slots : nk_shapes_pair_slots_cuda_k;
+    if (!slots) return nk_unexpected_dimensions_k;
+    nk_u32_t supported = 0;
+    nk_status_t status = nk_shapes_largest_supported_cuda_(nk_shapes_large_team_cuda_k, point_bytes, &supported,
+                                                           stream);
+    if (status != nk_success_k) return status;
     nk_size_t const pairs = schedule.rows * schedule.columns;
+    unsigned char *team_states = (unsigned char *)workspace;
+    nk_u32_t *counts = (nk_u32_t *)(team_states + teams * team_stride), *lists = counts + nk_shapes_classes_cuda_k;
+    schedule.slots = (unsigned char *)(lists + nk_shapes_classes_cuda_k * slots);
+    schedule.slot_stride = nk_shapes_slot_bytes_cuda_(), schedule.gromov = 0;
+    schedule.class_counts = counts, schedule.class_limit = (nk_u32_t)largest;
+    schedule.team_stride = team_stride, schedule.teams = teams;
+    status = nk_shapes_zero_counters_cuda_(schedule.slots, schedule.slot_stride, pairs < slots ? pairs : slots, stream);
+    if (status == nk_success_k && largest > supported)
+        status = nk_shapes_zero_counters_cuda_(team_states, team_stride, teams, stream);
     for (nk_size_t begin = 0; begin < pairs && status == nk_success_k; begin += slots) {
         schedule.pair_begin = begin, schedule.pairs = pairs - begin < slots ? pairs - begin : slots;
-        status = nk_launch_resident_cuda_(kernel, team, shared_bytes, shared_bytes, schedule.pairs * 8, &schedule,
-                                          stream);
+        schedule.class_count = counts, schedule.class_slots = lists, schedule.class_ceiling = (nk_u32_t)largest;
+        schedule.team_states = NUMKONG_NULL;
+        if (cudaMemsetAsync(counts, 0, nk_shapes_classes_cuda_k * sizeof(nk_u32_t), (cudaStream_t)stream) !=
+            cudaSuccess)
+            return nk_device_code_mismatch_k;
+        void *classify_arguments[1] = {(void *)&schedule};
+        nk_size_t const classify_blocks = nk_size_divide_round_up_(schedule.pairs, 256);
+        status = nk_launch_cuda_(classify_kernel, classify_blocks < 1024 ? classify_blocks : 1024, 256,
+                                 classify_arguments, 0, stream);
+        int last = 0;
+        for (nk_u32_t class_index = 0; !last && status == nk_success_k; ++class_index) {
+            nk_u32_t const ceiling = nk_shapes_class_ceiling_cuda_(class_index);
+            last = ceiling >= largest || class_index + 1 == nk_shapes_classes_cuda_k;
+            schedule.class_ceiling = last ? (nk_u32_t)largest : ceiling;
+            schedule.class_count = counts + class_index, schedule.class_slots = lists + class_index * schedule.pairs;
+            if (schedule.class_ceiling > supported) {
+                // Past one block's shared memory, teams of blocks keep their state in the workspace
+                schedule.team_states = team_states;
+                status = nk_shapes_launch_teams_cuda_(kernel, nk_shapes_large_team_cuda_k,
+                                                      nk_shapes_scratch_bytes_simt_(nk_shapes_large_team_cuda_k),
+                                                      &schedule, stream);
+                continue;
+            }
+            unsigned const team = schedule.class_ceiling > nk_shapes_small_cloud_cuda_k ? nk_shapes_large_team_cuda_k
+                                                                                        : nk_shapes_small_team_cuda_k;
+            nk_size_t const shared_bytes = nk_shapes_team_bytes_simt_(schedule.class_ceiling, schedule.class_ceiling,
+                                                                      team, point_bytes);
+            status = nk_launch_resident_cuda_(kernel, team, shared_bytes, shared_bytes, schedule.pairs * 8, &schedule,
+                                              stream);
+        }
     }
     return status;
 }
 
+/** The largest cloud a Wasserstein-Procrustes workspace of @p workspace_bytes holds with every pair
+ *  slot, as the size queries lay it out. */
+NUMKONG_INLINE nk_size_t nk_shapes_workspace_bound_cuda_(nk_size_t workspace_bytes, nk_size_t point_bytes) {
+    nk_size_t largest = nk_shapes_class_ceiling_cuda_(nk_shapes_classes_cuda_k - 1);
+    while (largest &&
+           nk_shapes_workspace_bytes_cuda_(nk_shapes_pair_slots_cuda_k, largest, point_bytes) > workspace_bytes)
+        --largest;
+    return largest;
+}
+
 NUMKONG_API nk_status_t nk_wassersteinprocrustes_workspace_size_f32_cuda(nk_size_t row_points, nk_size_t column_points,
                                                                          nk_size_t *bytes) {
-    nk_unused_(row_points), nk_unused_(column_points);
-    *bytes = nk_shapes_workspace_header_cuda_k + nk_shapes_pair_slots_cuda_k * nk_shapes_slot_bytes_cuda_();
+    nk_size_t const largest = row_points > column_points ? row_points : column_points;
+    *bytes = nk_shapes_workspace_bytes_cuda_(nk_shapes_pair_slots_cuda_k, largest ? largest : 1, sizeof(nk_f64_t));
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_wassersteinprocrustes_workspace_size_f16_cuda(nk_size_t row_points, nk_size_t column_points,
                                                                          nk_size_t *bytes) {
-    nk_unused_(row_points), nk_unused_(column_points);
-    *bytes = nk_shapes_workspace_header_cuda_k + nk_shapes_pair_slots_cuda_k * nk_shapes_slot_bytes_cuda_();
+    nk_size_t const largest = row_points > column_points ? row_points : column_points;
+    *bytes = nk_shapes_workspace_bytes_cuda_(nk_shapes_pair_slots_cuda_k, largest ? largest : 1, sizeof(nk_f32_t));
     return nk_success_k;
 }
 
@@ -481,9 +694,10 @@ NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_f32_cuda(void const *con
     schedule.a_packed = a_packed, schedule.b_packed = b_packed, schedule.results = results;
     schedule.rotations = rotations, schedule.rows = rows, schedule.columns = columns;
     schedule.results_stride = results_stride;
-    return nk_shapes_transport_launch_cuda_((void const *)&nk_wassersteinprocrustes_packed_f32_cuda_kernel_,
-                                            (void const *)&nk_shapes_largest_f32_cuda_kernel_, schedule,
-                                            sizeof(nk_f64_t), workspace, workspace_bytes, stream);
+    return nk_shapes_transport_launch_cuda_(
+        (void const *)&nk_wassersteinprocrustes_packed_f32_cuda_kernel_,
+        (void const *)&nk_shapes_classify_f32_cuda_kernel_, schedule, sizeof(nk_f64_t),
+        nk_shapes_workspace_bound_cuda_(workspace_bytes, sizeof(nk_f64_t)), workspace, workspace_bytes, stream);
 }
 
 NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_f16_cuda(void const *const *a_packed, nk_size_t rows,
@@ -498,9 +712,10 @@ NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_f16_cuda(void const *con
     schedule.a_packed = a_packed, schedule.b_packed = b_packed, schedule.results = results;
     schedule.rotations = rotations, schedule.rows = rows, schedule.columns = columns;
     schedule.results_stride = results_stride;
-    return nk_shapes_transport_launch_cuda_((void const *)&nk_wassersteinprocrustes_packed_f16_cuda_kernel_,
-                                            (void const *)&nk_shapes_largest_f16_cuda_kernel_, schedule,
-                                            sizeof(nk_f32_t), workspace, workspace_bytes, stream);
+    return nk_shapes_transport_launch_cuda_(
+        (void const *)&nk_wassersteinprocrustes_packed_f16_cuda_kernel_,
+        (void const *)&nk_shapes_classify_f16_cuda_kernel_, schedule, sizeof(nk_f32_t),
+        nk_shapes_workspace_bound_cuda_(workspace_bytes, sizeof(nk_f32_t)), workspace, workspace_bytes, stream);
 }
 
 #pragma endregion Wasserstein Procrustes
@@ -530,7 +745,8 @@ NUMKONG_DEVICE void nk_gromovwassersteins_finish_f32_cuda_(nk_shapes_transport_s
     nk_shapes_packed_header_f64_t const *column_header = (nk_shapes_packed_header_f64_t const *)(swapped ? a : b);
     nk_f64_t *results_row = (nk_f64_t *)((char *)schedule->results + row * schedule->results_stride);
     nk_f64_t inner[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}, pair_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-    if (!row_header->points || !column_header->points) results_row[column] = records[0];
+    // A pair over the launch's largest cloud records NaN, which no start's loss would replace
+    if (!row_header->points || !column_header->points || records[0] != records[0]) results_row[column] = records[0];
     else {
         nk_f64_t best = NUMKONG_F64_INF;
         for (int start = 0; start != 3; ++start) {
@@ -556,7 +772,8 @@ NUMKONG_DEVICE void nk_gromovwassersteins_finish_f16_cuda_(nk_shapes_transport_s
     nk_shapes_packed_header_f32_t const *column_header = (nk_shapes_packed_header_f32_t const *)(swapped ? a : b);
     nk_f32_t *results_row = (nk_f32_t *)((char *)schedule->results + row * schedule->results_stride);
     nk_f32_t inner[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}, pair_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-    if (!row_header->points || !column_header->points) results_row[column] = (nk_f32_t)records[0];
+    if (!row_header->points || !column_header->points || records[0] != records[0])
+        results_row[column] = (nk_f32_t)records[0];
     else {
         nk_f64_t best = NUMKONG_F64_INF;
         for (int start = 0; start != 3; ++start) {
@@ -573,38 +790,38 @@ NUMKONG_DEVICE void nk_gromovwassersteins_finish_f16_cuda_(nk_shapes_transport_s
     for (int cell = 0; cell != 9; ++cell) output[cell] = pair_rotation[swapped ? cell % 3 * 3 + cell / 3 : cell];
 }
 
-/** One block per start of each pair, after the Wasserstein-Procrustes launch left every flip's
- *  record and best plan in the pair's slot. */
-static __global__ void nk_gromovwassersteins_packed_f32_cuda_kernel_(
-    nk_shapes_transport_schedule_cuda_t const schedule) {
-    extern __shared__ nk_f64_t nk_shapes_shared_cuda_[];
-    __shared__ nk_f64_t shared_fit[9];
-    __shared__ int last;
+/** Solves the team's starts of a launch's pairs, the block's scratch at @p shared and the team's
+ *  network at @p state , after the Wasserstein-Procrustes launch left every flip's record and best
+ *  plan in the pair's slot. */
+NUMKONG_DEVICE void nk_gromovwassersteins_walk_f32_cuda_(nk_shapes_transport_schedule_cuda_t const *schedule,
+                                                         nk_shapes_team_cuda_t const *team, void *shared, void *state,
+                                                         nk_f64_t *shared_fit, int *last) {
     unsigned parity = 0;
-    nk_u32_t const plan_arcs = 4 * schedule.largest;
-    for (nk_size_t item = blockIdx.x; item < schedule.pairs * 3; item += gridDim.x) {
-        nk_size_t const slot_index = item / 3, pair = schedule.pair_begin + slot_index;
-        unsigned char *slot = schedule.slots + slot_index * schedule.slot_stride;
+    nk_u32_t const plan_arcs = 2 * schedule->class_ceiling;
+    for (nk_size_t item = team->first; item < schedule->pairs * 3; item += team->count) {
+        nk_size_t const slot_index = item / 3, pair = schedule->pair_begin + slot_index;
+        unsigned char *slot = schedule->slots + slot_index * schedule->slot_stride;
         int const start = (int)(item % 3);
-        void const *a = schedule.a_packed[pair / schedule.columns], *b = schedule.b_packed[pair % schedule.columns];
+        void const *a = schedule->a_packed[pair / schedule->columns];
+        void const *b = schedule->b_packed[pair % schedule->columns];
         int const swapped = nk_shapes_column_first_f32_cuda_(a, b);
         void const *row_pack = swapped ? b : a, *column_pack = swapped ? a : b;
         nk_u32_t const rows = (nk_u32_t)((nk_shapes_packed_header_f64_t const *)row_pack)->points;
         nk_u32_t const columns = (nk_u32_t)((nk_shapes_packed_header_f64_t const *)column_pack)->points;
         nk_f64_t loss, fit[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-        if (!rows || !columns) loss = rows == columns ? 0 : NUMKONG_F64_INF;
+        if (nk_shapes_pair_oversize_cuda_(schedule, rows, columns)) loss = NUMKONG_F64_INF - NUMKONG_F64_INF;
+        else if (!rows || !columns) loss = rows == columns ? 0 : NUMKONG_F64_INF;
         else {
             nk_shapes_network_simt_t network;
             nk_shapes_gromov_simt_t gromov;
-            nk_shapes_network_carve_simt_(nk_shapes_shared_cuda_, schedule.largest, schedule.largest, rows, columns, 0,
-                                          &network);
-            nk_shapes_gromov_carve_simt_(slot + schedule.gromov_offset + start * schedule.gromov_stride,
-                                         schedule.largest, &gromov);
+            nk_shapes_team_carve_cuda_(team, shared, state, schedule->class_ceiling, rows, columns, 0, &network);
+            nk_shapes_gromov_carve_simt_(slot + schedule->gromov_offset + start * schedule->gromov_stride,
+                                         schedule->class_ceiling, &gromov);
             nk_size_t row_stride, column_stride;
             nk_f32_t const *row_axes = nk_shapes_packed_axes_f32_simt_(row_pack, &row_stride);
             nk_f32_t const *column_axes = nk_shapes_packed_axes_f32_simt_(column_pack, &column_stride);
-            nk_shapes_distances_f32_simt_(row_axes, row_stride, rows, gromov.row_distances);
-            nk_shapes_distances_f32_simt_(column_axes, column_stride, columns, gromov.column_distances);
+            nk_shapes_distances_f32_simt_(&network, row_axes, row_stride, rows, gromov.row_distances);
+            nk_shapes_distances_f32_simt_(&network, column_axes, column_stride, columns, gromov.column_distances);
             nk_f64_t const row_spread = nk_shapes_distance_spread_simt_(&network, gromov.row_distances, rows);
             nk_f64_t const column_spread = nk_shapes_distance_spread_simt_(&network, gromov.column_distances, columns);
             if (start == 2) nk_shapes_product_start_simt_(&network, &gromov);
@@ -612,7 +829,7 @@ static __global__ void nk_gromovwassersteins_packed_f32_cuda_kernel_(
                 int const flip = nk_gromov_start_flip_cuda_((nk_f64_t const *)(slot + nk_shapes_slot_records_cuda_k),
                                                             start);
                 nk_shapes_network_load_simt_(
-                    &network, (nk_u32_t const *)(slot + schedule.plans_offset) + flip * 3 * plan_arcs, plan_arcs);
+                    &network, (nk_u32_t const *)(slot + schedule->plans_offset) + flip * 3 * plan_arcs, plan_arcs);
                 nk_shapes_plan_start_simt_(&network, &gromov);
             }
             nk_f64_t const plan_score = nk_shapes_frank_wolfe_simt_(&network, &gromov, &parity);
@@ -620,43 +837,61 @@ static __global__ void nk_gromovwassersteins_packed_f32_cuda_kernel_(
             nk_shapes_plan_fit_f32_simt_(&network, &gromov, row_axes, row_stride, column_axes, column_stride,
                                          shared_fit, fit);
         }
-        nk_shapes_record_cuda_(slot, nk_shapes_slot_starts_cuda_k, (nk_u32_t *)slot + 1, start, 3, loss, fit, &last);
-        if (last && threadIdx.x == 0)
-            nk_gromovwassersteins_finish_f32_cuda_(&schedule, pair, (nk_f64_t *)(slot + nk_shapes_slot_starts_cuda_k));
+        if (team->rank != 0) continue;
+        nk_shapes_record_cuda_(slot, nk_shapes_slot_starts_cuda_k, (nk_u32_t *)slot + 1, start, 3, loss, fit, last);
+        if (*last && threadIdx.x == 0)
+            nk_gromovwassersteins_finish_f32_cuda_(schedule, pair, (nk_f64_t *)(slot + nk_shapes_slot_starts_cuda_k));
         __syncthreads();
     }
 }
 
-static __global__ void nk_gromovwassersteins_packed_f16_cuda_kernel_(
-    nk_shapes_transport_schedule_cuda_t const schedule) {
+/** One team per start of each pair, the walk inlined once over shared memory and once over global
+ *  memory, so that the block tier addresses its network as shared. */
+static __global__ void __launch_bounds__(nk_shapes_large_team_cuda_k, nk_shapes_blocks_cuda_k)
+    nk_gromovwassersteins_packed_f32_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
     extern __shared__ nk_f64_t nk_shapes_shared_cuda_[];
     __shared__ nk_f64_t shared_fit[9];
     __shared__ int last;
+    nk_shapes_team_cuda_t team;
+    if (!nk_shapes_find_team_cuda_(&schedule, schedule.pairs * 3, &team)) return;
+    if (team.region)
+        nk_gromovwassersteins_walk_f32_cuda_(&schedule, &team, nk_shapes_shared_cuda_,
+                                             team.region + nk_shapes_meeting_bytes_simt_k, shared_fit, &last);
+    else
+        nk_gromovwassersteins_walk_f32_cuda_(&schedule, &team, nk_shapes_shared_cuda_,
+                                             (char *)nk_shapes_shared_cuda_ + nk_shapes_scratch_bytes_simt_(blockDim.x),
+                                             shared_fit, &last);
+}
+
+NUMKONG_DEVICE void nk_gromovwassersteins_walk_f16_cuda_(nk_shapes_transport_schedule_cuda_t const *schedule,
+                                                         nk_shapes_team_cuda_t const *team, void *shared, void *state,
+                                                         nk_f64_t *shared_fit, int *last) {
     unsigned parity = 0;
-    nk_u32_t const plan_arcs = 4 * schedule.largest;
-    for (nk_size_t item = blockIdx.x; item < schedule.pairs * 3; item += gridDim.x) {
-        nk_size_t const slot_index = item / 3, pair = schedule.pair_begin + slot_index;
-        unsigned char *slot = schedule.slots + slot_index * schedule.slot_stride;
+    nk_u32_t const plan_arcs = 2 * schedule->class_ceiling;
+    for (nk_size_t item = team->first; item < schedule->pairs * 3; item += team->count) {
+        nk_size_t const slot_index = item / 3, pair = schedule->pair_begin + slot_index;
+        unsigned char *slot = schedule->slots + slot_index * schedule->slot_stride;
         int const start = (int)(item % 3);
-        void const *a = schedule.a_packed[pair / schedule.columns], *b = schedule.b_packed[pair % schedule.columns];
+        void const *a = schedule->a_packed[pair / schedule->columns];
+        void const *b = schedule->b_packed[pair % schedule->columns];
         int const swapped = nk_shapes_column_first_f16_cuda_(a, b);
         void const *row_pack = swapped ? b : a, *column_pack = swapped ? a : b;
         nk_u32_t const rows = ((nk_shapes_packed_header_f32_t const *)row_pack)->points;
         nk_u32_t const columns = ((nk_shapes_packed_header_f32_t const *)column_pack)->points;
         nk_f64_t loss, fit[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-        if (!rows || !columns) loss = rows == columns ? 0 : NUMKONG_F64_INF;
+        if (nk_shapes_pair_oversize_cuda_(schedule, rows, columns)) loss = NUMKONG_F64_INF - NUMKONG_F64_INF;
+        else if (!rows || !columns) loss = rows == columns ? 0 : NUMKONG_F64_INF;
         else {
             nk_shapes_network_simt_t network;
             nk_shapes_gromov_simt_t gromov;
-            nk_shapes_network_carve_simt_(nk_shapes_shared_cuda_, schedule.largest, schedule.largest, rows, columns, 0,
-                                          &network);
-            nk_shapes_gromov_carve_simt_(slot + schedule.gromov_offset + start * schedule.gromov_stride,
-                                         schedule.largest, &gromov);
+            nk_shapes_team_carve_cuda_(team, shared, state, schedule->class_ceiling, rows, columns, 0, &network);
+            nk_shapes_gromov_carve_simt_(slot + schedule->gromov_offset + start * schedule->gromov_stride,
+                                         schedule->class_ceiling, &gromov);
             nk_size_t row_stride, column_stride;
             nk_f16_t const *row_axes = nk_shapes_packed_axes_f16_simt_(row_pack, &row_stride);
             nk_f16_t const *column_axes = nk_shapes_packed_axes_f16_simt_(column_pack, &column_stride);
-            nk_shapes_distances_f16_simt_(row_axes, row_stride, rows, gromov.row_distances);
-            nk_shapes_distances_f16_simt_(column_axes, column_stride, columns, gromov.column_distances);
+            nk_shapes_distances_f16_simt_(&network, row_axes, row_stride, rows, gromov.row_distances);
+            nk_shapes_distances_f16_simt_(&network, column_axes, column_stride, columns, gromov.column_distances);
             nk_f64_t const row_spread = nk_shapes_distance_spread_simt_(&network, gromov.row_distances, rows);
             nk_f64_t const column_spread = nk_shapes_distance_spread_simt_(&network, gromov.column_distances, columns);
             if (start == 2) nk_shapes_product_start_simt_(&network, &gromov);
@@ -664,7 +899,7 @@ static __global__ void nk_gromovwassersteins_packed_f16_cuda_kernel_(
                 int const flip = nk_gromov_start_flip_cuda_((nk_f64_t const *)(slot + nk_shapes_slot_records_cuda_k),
                                                             start);
                 nk_shapes_network_load_simt_(
-                    &network, (nk_u32_t const *)(slot + schedule.plans_offset) + flip * 3 * plan_arcs, plan_arcs);
+                    &network, (nk_u32_t const *)(slot + schedule->plans_offset) + flip * 3 * plan_arcs, plan_arcs);
                 nk_shapes_plan_start_simt_(&network, &gromov);
             }
             nk_f64_t const plan_score = nk_shapes_frank_wolfe_simt_(&network, &gromov, &parity);
@@ -672,33 +907,79 @@ static __global__ void nk_gromovwassersteins_packed_f16_cuda_kernel_(
             nk_shapes_plan_fit_f16_simt_(&network, &gromov, row_axes, row_stride, column_axes, column_stride,
                                          shared_fit, fit);
         }
-        nk_shapes_record_cuda_(slot, nk_shapes_slot_starts_cuda_k, (nk_u32_t *)slot + 1, start, 3, loss, fit, &last);
-        if (last && threadIdx.x == 0)
-            nk_gromovwassersteins_finish_f16_cuda_(&schedule, pair, (nk_f64_t *)(slot + nk_shapes_slot_starts_cuda_k));
+        if (team->rank != 0) continue;
+        nk_shapes_record_cuda_(slot, nk_shapes_slot_starts_cuda_k, (nk_u32_t *)slot + 1, start, 3, loss, fit, last);
+        if (*last && threadIdx.x == 0)
+            nk_gromovwassersteins_finish_f16_cuda_(schedule, pair, (nk_f64_t *)(slot + nk_shapes_slot_starts_cuda_k));
         __syncthreads();
     }
 }
 
+static __global__ void __launch_bounds__(nk_shapes_large_team_cuda_k, nk_shapes_blocks_cuda_k)
+    nk_gromovwassersteins_packed_f16_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
+    extern __shared__ nk_f64_t nk_shapes_shared_cuda_[];
+    __shared__ nk_f64_t shared_fit[9];
+    __shared__ int last;
+    nk_shapes_team_cuda_t team;
+    if (!nk_shapes_find_team_cuda_(&schedule, schedule.pairs * 3, &team)) return;
+    if (team.region)
+        nk_gromovwassersteins_walk_f16_cuda_(&schedule, &team, nk_shapes_shared_cuda_,
+                                             team.region + nk_shapes_meeting_bytes_simt_k, shared_fit, &last);
+    else
+        nk_gromovwassersteins_walk_f16_cuda_(&schedule, &team, nk_shapes_shared_cuda_,
+                                             (char *)nk_shapes_shared_cuda_ + nk_shapes_scratch_bytes_simt_(blockDim.x),
+                                             shared_fit, &last);
+}
+
 /** Walks every pair in chunks of as many pairs as the workspace has slots: the flips of a chunk,
- *  then its starts. */
+ *  then its starts, for clouds of up to @p largest points, recording any pair above as unsolvable.
+ *  Clouds that fit a block's shared memory take a block per flip or start; larger ones take teams
+ *  of blocks over the workspace. */
 NUMKONG_INLINE nk_status_t nk_gromov_launch_cuda_(void const *flips_kernel, void const *starts_kernel,
-                                                  void const *largest_kernel,
                                                   nk_shapes_transport_schedule_cuda_t schedule, nk_size_t point_bytes,
-                                                  void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
-    unsigned team = 0;
-    nk_size_t shared_bytes = 0, slots = 0;
-    schedule.gromov = 1;
-    nk_status_t status = nk_shapes_transport_prepare_cuda_(largest_kernel, &schedule, point_bytes, workspace,
-                                                           workspace_bytes, &team, &shared_bytes, &slots, stream);
+                                                  nk_size_t largest, void *workspace, nk_size_t workspace_bytes,
+                                                  nk_stream_t stream) {
+    if ((nk_size_t)workspace & (nk_default_alignment_k - 1)) return nk_misaligned_k;
+    if (!largest || nk_gromov_workspace_bytes_cuda_(largest, point_bytes) > workspace_bytes)
+        return nk_unexpected_dimensions_k;
+    nk_u32_t supported = 0;
+    nk_status_t status = nk_shapes_largest_supported_cuda_(nk_shapes_large_team_cuda_k, point_bytes, &supported,
+                                                           stream);
+    if (status != nk_success_k) return status;
+    nk_size_t const slots = nk_gromov_slots_cuda_(largest), pairs = schedule.rows * schedule.columns;
+    schedule.slots = (unsigned char *)workspace, schedule.slot_stride = nk_gromov_slot_bytes_cuda_(largest);
+    schedule.plans_offset = nk_shapes_slot_plans_cuda_k, schedule.gromov_offset = nk_gromov_dense_offset_cuda_(largest);
+    schedule.gromov_stride = nk_shapes_gromov_bytes_simt_(largest);
+    schedule.class_counts = NUMKONG_NULL, schedule.class_count = NUMKONG_NULL, schedule.class_slots = NUMKONG_NULL;
+    schedule.class_ceiling = (nk_u32_t)largest, schedule.class_limit = (nk_u32_t)largest, schedule.gromov = 1;
+    schedule.team_states = NUMKONG_NULL, schedule.team_stride = nk_shapes_team_stride_cuda_(largest, point_bytes);
+    schedule.teams = nk_shapes_teams_cuda_(largest, point_bytes);
+    unsigned const flips_team = largest > nk_shapes_small_cloud_cuda_k ? nk_shapes_large_team_cuda_k
+                                                                       : nk_shapes_small_team_cuda_k;
+    nk_size_t const flips_shared_bytes = nk_shapes_team_bytes_simt_(largest, largest, flips_team, point_bytes);
     // The starts' dense steps want more threads than the flips' scans
-    unsigned const starts_team = schedule.largest > 64 ? nk_shapes_large_team_cuda_k : 64;
-    nk_size_t const starts_shared_bytes = nk_shapes_team_bytes_simt_(schedule.largest, schedule.largest, starts_team, 0,
-                                                                     schedule.unequal);
-    nk_size_t const pairs = schedule.rows * schedule.columns;
+    unsigned const starts_team = largest > 64 ? nk_shapes_large_team_cuda_k : 64;
+    nk_size_t const starts_shared_bytes = nk_shapes_team_bytes_simt_(largest, largest, starts_team, 0);
+    status = nk_shapes_zero_counters_cuda_(schedule.slots, schedule.slot_stride, pairs < slots ? pairs : slots, stream);
+    if (status == nk_success_k && largest > supported) {
+        // Past one block's shared memory, teams of blocks keep their state after the slots
+        schedule.team_states = (unsigned char *)workspace +
+                               nk_size_round_up_to_multiple_(slots * schedule.slot_stride, 256);
+        status = nk_shapes_zero_counters_cuda_(schedule.team_states, schedule.team_stride, schedule.teams, stream);
+    }
     for (nk_size_t begin = 0; begin < pairs && status == nk_success_k; begin += slots) {
         schedule.pair_begin = begin, schedule.pairs = pairs - begin < slots ? pairs - begin : slots;
-        status = nk_launch_resident_cuda_(flips_kernel, team, shared_bytes, shared_bytes, schedule.pairs * 8, &schedule,
-                                          stream);
+        if (schedule.team_states) {
+            nk_size_t const scratch_bytes = nk_shapes_scratch_bytes_simt_(nk_shapes_large_team_cuda_k);
+            status = nk_shapes_launch_teams_cuda_(flips_kernel, nk_shapes_large_team_cuda_k, scratch_bytes, &schedule,
+                                                  stream);
+            if (status == nk_success_k)
+                status = nk_shapes_launch_teams_cuda_(starts_kernel, nk_shapes_large_team_cuda_k, scratch_bytes,
+                                                      &schedule, stream);
+            continue;
+        }
+        status = nk_launch_resident_cuda_(flips_kernel, flips_team, flips_shared_bytes, flips_shared_bytes,
+                                          schedule.pairs * 8, &schedule, stream);
         if (status == nk_success_k)
             status = nk_launch_resident_cuda_(starts_kernel, starts_team, starts_shared_bytes, starts_shared_bytes,
                                               schedule.pairs * 3, &schedule, stream);
@@ -706,24 +987,23 @@ NUMKONG_INLINE nk_status_t nk_gromov_launch_cuda_(void const *flips_kernel, void
     return status;
 }
 
-/** A Gromov-Wasserstein workspace: as many pair slots as the budget holds, at least one. */
-NUMKONG_INLINE nk_size_t nk_gromov_workspace_bytes_cuda_(nk_size_t row_points, nk_size_t column_points) {
-    nk_size_t const largest = row_points > column_points ? row_points : column_points;
-    nk_size_t const slot_bytes = nk_gromov_slot_bytes_cuda_(largest ? largest : 1);
-    nk_size_t slots = ((nk_size_t)nk_gromov_workspace_mebibytes_cuda_k << 20) / slot_bytes;
-    slots = slots < 1 ? 1 : slots > nk_gromov_pair_slots_cuda_k ? nk_gromov_pair_slots_cuda_k : slots;
-    return nk_shapes_workspace_header_cuda_k + slots * slot_bytes;
+/** The largest cloud a Gromov-Wasserstein workspace of @p workspace_bytes holds, as the size
+ *  queries lay it out. */
+NUMKONG_INLINE nk_size_t nk_gromov_workspace_bound_cuda_(nk_size_t workspace_bytes, nk_size_t point_bytes) {
+    nk_size_t largest = nk_shapes_class_ceiling_cuda_(nk_shapes_classes_cuda_k - 1);
+    while (largest && nk_gromov_workspace_bytes_cuda_(largest, point_bytes) > workspace_bytes) --largest;
+    return largest;
 }
 
 NUMKONG_API nk_status_t nk_gromovwassersteins_workspace_size_f32_cuda(nk_size_t row_points, nk_size_t column_points,
                                                                       nk_size_t *bytes) {
-    *bytes = nk_gromov_workspace_bytes_cuda_(row_points, column_points);
+    *bytes = nk_gromov_workspace_bytes_cuda_(row_points > column_points ? row_points : column_points, sizeof(nk_f64_t));
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_gromovwassersteins_workspace_size_f16_cuda(nk_size_t row_points, nk_size_t column_points,
                                                                       nk_size_t *bytes) {
-    *bytes = nk_gromov_workspace_bytes_cuda_(row_points, column_points);
+    *bytes = nk_gromov_workspace_bytes_cuda_(row_points > column_points ? row_points : column_points, sizeof(nk_f32_t));
     return nk_success_k;
 }
 
@@ -740,8 +1020,8 @@ NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f32_cuda(void const *const 
     schedule.rotations = rotations, schedule.rows = rows, schedule.columns = columns;
     schedule.results_stride = results_stride;
     return nk_gromov_launch_cuda_((void const *)&nk_wassersteinprocrustes_packed_f32_cuda_kernel_,
-                                  (void const *)&nk_gromovwassersteins_packed_f32_cuda_kernel_,
-                                  (void const *)&nk_shapes_largest_f32_cuda_kernel_, schedule, sizeof(nk_f64_t),
+                                  (void const *)&nk_gromovwassersteins_packed_f32_cuda_kernel_, schedule,
+                                  sizeof(nk_f64_t), nk_gromov_workspace_bound_cuda_(workspace_bytes, sizeof(nk_f64_t)),
                                   workspace, workspace_bytes, stream);
 }
 
@@ -758,8 +1038,8 @@ NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f16_cuda(void const *const 
     schedule.rotations = rotations, schedule.rows = rows, schedule.columns = columns;
     schedule.results_stride = results_stride;
     return nk_gromov_launch_cuda_((void const *)&nk_wassersteinprocrustes_packed_f16_cuda_kernel_,
-                                  (void const *)&nk_gromovwassersteins_packed_f16_cuda_kernel_,
-                                  (void const *)&nk_shapes_largest_f16_cuda_kernel_, schedule, sizeof(nk_f32_t),
+                                  (void const *)&nk_gromovwassersteins_packed_f16_cuda_kernel_, schedule,
+                                  sizeof(nk_f32_t), nk_gromov_workspace_bound_cuda_(workspace_bytes, sizeof(nk_f32_t)),
                                   workspace, workspace_bytes, stream);
 }
 

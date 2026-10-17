@@ -182,8 +182,11 @@ Clouds of equal size make an assignment problem, which successive shortest paths
 Each later round warm-starts from potentials that leave the last plan tight under the new rotation, and returns only the rows a cheaper column now undercuts.
 Clouds of unequal size make staircases of small flows, where one simplex pivot ships what takes shortest paths dozens of steps, so they run the serial network simplex, the block pricing spread over the team and the pivot on one thread.
 Gromov-Wasserstein runs one block per start of each pair after the flips, with the same solvers on the costs $-G$ and the vertex gradient as a sparse product by $D_y$, then a dense one by $D_x$.
+A plan never outgrows $n + m$ arcs, so ties of any kind, as in lattices, repeated points or symmetric shapes, solve like any other input: the simplex keeps a spanning tree, and shortest paths ship whole rows between equal clouds.
+The two solvers share one region of shared memory, as a pair runs only one of them.
 The workspace holds pair slots, each a counter and the records of its flips and starts, plus the dense matrices of Gromov-Wasserstein, and a call walks its pairs in launches of as many pairs as it holds slots.
-Pack tables, packs, outputs and workspace are device memory, and each call reads the largest cloud back once to size shared memory, up to 863 points per side for `f32` and 953 for `f16` on 227 KiB.
+No call waits on the device: Wasserstein-Procrustes lists each chunk's pairs on the device by the class of their larger cloud, then launches once per class with the shared memory of its largest cloud, and the bytes of a Gromov-Wasserstein workspace grow with the clouds it was sized for, which bounds its launches.
+Pack tables, packs, outputs and workspace are device memory, and a pair beyond what 227 KiB of shared memory holds, 1448 points per side for `f32` and 1719 for `f16`, or beyond its Gromov-Wasserstein workspace, gets a NaN.
 
 ### Canonical Pair Order
 
