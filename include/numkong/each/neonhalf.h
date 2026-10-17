@@ -31,8 +31,9 @@
  *      vqaddq_s8       SQADD (V.16B, V.16B, V.16B)  2cy @ 2p  3cy @ 2p
  *
  *  The ARMv8.2-FP16 extension enables native half-precision element-wise operations, processing 8
- *  F16 elements per instruction. Operations like sum, scale, blend, and fma work directly in F16,
- *  avoiding conversion overhead while halving memory bandwidth vs F32.
+ *  F16 elements per instruction. Sum uses native F16 arithmetic. Scale, blend, and FMA keep F16
+ *  storage but widen inputs and coefficients to F32 for computation, then round once to F16; doing
+ *  their arithmetic in F16 loses precision because the public coefficients are F32.
  *
  *  For int8 element-wise operations, values are widened to F16 for arithmetic via UCVTF/SCVTF,
  *  then narrowed back with saturating conversion (FCVTA + UQXTN/SQXTN) to handle overflow gracefully.
@@ -74,23 +75,22 @@ NK_PUBLIC void nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t const *b, nk
 
 NK_PUBLIC void nk_each_scale_f16_neonhalf(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
                                           nk_f16_t *result) {
-    nk_f32_t alpha_val = *alpha;
-    nk_f32_t beta_val = *beta;
-    float16_t alpha_f16 = (float16_t)alpha_val;
-    float16_t beta_f16 = (float16_t)beta_val;
-    float16x8_t alpha_f16x8 = vdupq_n_f16(alpha_f16);
-    float16x8_t beta_f16x8 = vdupq_n_f16(beta_f16);
-
-    // The main loop:
+    float32x4_t alpha_f32x4 = vdupq_n_f32(*alpha);
+    float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        float16x8_t a_f16x8 = vld1q_f16((float16_t const *)a + i);
-        float16x8_t result_f16x8 = vfmaq_f16(beta_f16x8, a_f16x8, alpha_f16x8);
+        float16x8_t input_f16x8 = vld1q_f16((float16_t const *)a + i);
+        float32x4_t input_low_f32x4 = vcvt_f32_f16(vget_low_f16(input_f16x8));
+        float32x4_t input_high_f32x4 = vcvt_f32_f16(vget_high_f16(input_f16x8));
+        float32x4_t result_low_f32x4 = vfmaq_f32(beta_f32x4, input_low_f32x4, alpha_f32x4);
+        float32x4_t result_high_f32x4 = vfmaq_f32(beta_f32x4, input_high_f32x4, alpha_f32x4);
+        float16x8_t result_f16x8 = vcombine_f16(vcvt_f16_f32(result_low_f32x4), vcvt_f16_f32(result_high_f32x4));
         vst1q_f16((float16_t *)result + i, result_f16x8);
     }
-
-    // The tail:
-    for (; i < n; ++i) ((float16_t *)result)[i] = alpha_f16 * ((float16_t const *)a)[i] + beta_f16;
+    for (; i < n; ++i) {
+        nk_f32_t input_f32 = (nk_f32_t)((float16_t const *)a)[i];
+        ((float16_t *)result)[i] = (float16_t)(*alpha * input_f32 + *beta);
+    }
 }
 
 NK_PUBLIC void nk_each_blend_f16_neonhalf(             //
@@ -117,48 +117,69 @@ NK_PUBLIC void nk_each_blend_f16_neonhalf(             //
     }
 
     // The general case.
-    float16_t alpha_f16 = (float16_t)alpha_val;
-    float16_t beta_f16 = (float16_t)beta_val;
-
-    // The main loop:
+    float32x4_t alpha_f32x4 = vdupq_n_f32(alpha_val);
+    float32x4_t beta_f32x4 = vdupq_n_f32(beta_val);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         float16x8_t a_f16x8 = vld1q_f16((float16_t const *)a + i);
         float16x8_t b_f16x8 = vld1q_f16((float16_t const *)b + i);
-        float16x8_t a_scaled_f16x8 = vmulq_n_f16(a_f16x8, alpha_f16);
-        float16x8_t result_f16x8 = vfmaq_n_f16(a_scaled_f16x8, b_f16x8, beta_f16);
+        float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
+        float32x4_t a_high_f32x4 = vcvt_f32_f16(vget_high_f16(a_f16x8));
+        float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
+        float32x4_t b_high_f32x4 = vcvt_f32_f16(vget_high_f16(b_f16x8));
+        float32x4_t a_scaled_low_f32x4 = vmulq_f32(a_low_f32x4, alpha_f32x4);
+        float32x4_t a_scaled_high_f32x4 = vmulq_f32(a_high_f32x4, alpha_f32x4);
+        float32x4_t b_scaled_low_f32x4 = vmulq_f32(b_low_f32x4, beta_f32x4);
+        float32x4_t b_scaled_high_f32x4 = vmulq_f32(b_high_f32x4, beta_f32x4);
+        float32x4_t result_low_f32x4 = vaddq_f32(a_scaled_low_f32x4, b_scaled_low_f32x4);
+        float32x4_t result_high_f32x4 = vaddq_f32(a_scaled_high_f32x4, b_scaled_high_f32x4);
+        float16x8_t result_f16x8 = vcombine_f16(vcvt_f16_f32(result_low_f32x4), vcvt_f16_f32(result_high_f32x4));
         vst1q_f16((float16_t *)result + i, result_f16x8);
     }
-
-    // The tail:
-    for (; i < n; ++i)
-        ((float16_t *)result)[i] = alpha_f16 * ((float16_t const *)a)[i] + beta_f16 * ((float16_t const *)b)[i];
+    for (; i < n; ++i) {
+        nk_f32_t a_f32 = (nk_f32_t)((float16_t const *)a)[i];
+        nk_f32_t b_f32 = (nk_f32_t)((float16_t const *)b)[i];
+        nk_f32_t a_scaled_f32 = alpha_val * a_f32;
+        nk_f32_t b_scaled_f32 = beta_val * b_f32;
+        ((float16_t *)result)[i] = (float16_t)(a_scaled_f32 + b_scaled_f32);
+    }
 }
 
 NK_PUBLIC void nk_each_fma_f16_neonhalf(                     //
     nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, //
     nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result) {
-    nk_f32_t alpha_val = *alpha;
-    nk_f32_t beta_val = *beta;
-    float16_t alpha_f16 = (float16_t)alpha_val;
-    float16_t beta_f16 = (float16_t)beta_val;
-
-    // The main loop:
+    float32x4_t alpha_f32x4 = vdupq_n_f32(*alpha);
+    float32x4_t beta_f32x4 = vdupq_n_f32(*beta);
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
         float16x8_t a_f16x8 = vld1q_f16((float16_t const *)a + i);
         float16x8_t b_f16x8 = vld1q_f16((float16_t const *)b + i);
         float16x8_t c_f16x8 = vld1q_f16((float16_t const *)c + i);
-        float16x8_t ab_f16x8 = vmulq_f16(a_f16x8, b_f16x8);
-        float16x8_t ab_scaled_f16x8 = vmulq_n_f16(ab_f16x8, alpha_f16);
-        float16x8_t result_f16x8 = vfmaq_n_f16(ab_scaled_f16x8, c_f16x8, beta_f16);
+        float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
+        float32x4_t a_high_f32x4 = vcvt_f32_f16(vget_high_f16(a_f16x8));
+        float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
+        float32x4_t b_high_f32x4 = vcvt_f32_f16(vget_high_f16(b_f16x8));
+        float32x4_t c_low_f32x4 = vcvt_f32_f16(vget_low_f16(c_f16x8));
+        float32x4_t c_high_f32x4 = vcvt_f32_f16(vget_high_f16(c_f16x8));
+        float32x4_t ab_low_f32x4 = vmulq_f32(a_low_f32x4, b_low_f32x4);
+        float32x4_t ab_high_f32x4 = vmulq_f32(a_high_f32x4, b_high_f32x4);
+        float32x4_t ab_scaled_low_f32x4 = vmulq_f32(ab_low_f32x4, alpha_f32x4);
+        float32x4_t ab_scaled_high_f32x4 = vmulq_f32(ab_high_f32x4, alpha_f32x4);
+        float32x4_t c_scaled_low_f32x4 = vmulq_f32(c_low_f32x4, beta_f32x4);
+        float32x4_t c_scaled_high_f32x4 = vmulq_f32(c_high_f32x4, beta_f32x4);
+        float32x4_t result_low_f32x4 = vaddq_f32(ab_scaled_low_f32x4, c_scaled_low_f32x4);
+        float32x4_t result_high_f32x4 = vaddq_f32(ab_scaled_high_f32x4, c_scaled_high_f32x4);
+        float16x8_t result_f16x8 = vcombine_f16(vcvt_f16_f32(result_low_f32x4), vcvt_f16_f32(result_high_f32x4));
         vst1q_f16((float16_t *)result + i, result_f16x8);
     }
-
-    // The tail:
-    for (; i < n; ++i)
-        ((float16_t *)result)[i] = alpha_f16 * ((float16_t const *)a)[i] * ((float16_t const *)b)[i] +
-                                   beta_f16 * ((float16_t const *)c)[i];
+    for (; i < n; ++i) {
+        nk_f32_t a_f32 = (nk_f32_t)((float16_t const *)a)[i];
+        nk_f32_t b_f32 = (nk_f32_t)((float16_t const *)b)[i];
+        nk_f32_t c_f32 = (nk_f32_t)((float16_t const *)c)[i];
+        nk_f32_t ab_scaled_f32 = a_f32 * b_f32 * *alpha;
+        nk_f32_t c_scaled_f32 = c_f32 * *beta;
+        ((float16_t *)result)[i] = (float16_t)(ab_scaled_f32 + c_scaled_f32);
+    }
 }
 
 NK_PUBLIC void nk_each_scale_u8_neonhalf(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
