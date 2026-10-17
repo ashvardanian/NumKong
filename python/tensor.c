@@ -45,7 +45,7 @@ int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second) {
  *  Accumulates the per-dimension extents into signed minimum and maximum byte offsets, so a
  *  reversed view with negative strides widens the range below its base pointer rather than above.
  */
-static int py_buffers_may_overlap(Py_buffer const *first, Py_buffer const *second) {
+int py_buffers_may_overlap(Py_buffer const *first, Py_buffer const *second) {
     if (!first->len || !second->len) return 0;
 
     Py_ssize_t first_min_offset = 0, first_max_offset = 0;

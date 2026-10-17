@@ -365,13 +365,14 @@ cleanup:
 }
 
 char const doc_scale[] =                                                                               //
-    "Element-wise affine transformation of a tensor.\n\n"                                             //
+    "Element-wise affine transformation of a tensor.\n\n"                                              //
     "Parameters:\n"                                                                                    //
     "    a (Tensor): Input tensor.\n"                                                                  //
     "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
     "    alpha (float, optional): Multiplicative scale, 1.0 by default.\n"                             //
     "    beta (float, optional): Additive offset, 0.0 by default.\n"                                   //
-    "    out (Tensor, optional): C-contiguous tensor with matching shape and dtype; may be `a`.\n\n"    //
+    "    out (Tensor, optional): C-contiguous tensor with matching shape and dtype; may be `a`.\n"     //
+    "        Overlaps with a different element mapping are rejected.\n\n"                              //
     "Returns:\n"                                                                                       //
     "    Tensor: The result if `out` is not provided.\n"                                               //
     "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
@@ -458,8 +459,16 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     if (dtype == nk_dtype_unknown_k) dtype = a_parsed.dtype;
     nk_dtype_t const out_dtype = out_obj ? resolve_nk_dtype_in_py_buffer(&out_buffer) : nk_dtype_unknown_k;
     if (out_obj && out_dtype != dtype) {
-        PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match input dtype '%s'",
-                     nk_dtype_name(out_dtype), nk_dtype_name(dtype));
+        PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match input dtype '%s'", nk_dtype_name(out_dtype),
+                     nk_dtype_name(dtype));
+        goto cleanup;
+    }
+
+    if (out_obj &&
+        (a_buffer.buf != out_buffer.buf || a_buffer.itemsize != out_buffer.itemsize ||
+         !PyBuffer_IsContiguous(&a_buffer, 'C')) &&
+        py_buffers_may_overlap(&a_buffer, &out_buffer)) {
+        PyErr_SetString(PyExc_ValueError, "out must not overlap input with a different element mapping");
         goto cleanup;
     }
 
@@ -495,6 +504,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
 
     char *result_data = NULL;
     Py_ssize_t result_strides[NK_TENSOR_MAX_RANK];
+    compute_contiguous_strides(a_parsed.rank, a_parsed.shape, nk_dtype_bytes_per_value(dtype), result_strides);
     Py_buffer const *input_buffers[] = {&a_buffer};
     size_t contiguous_tail = shared_contiguous_tail_dimensions(input_buffers, 1, a_parsed.rank);
 
@@ -504,15 +514,10 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
         if (!result_tensor) goto cleanup;
         return_obj = (PyObject *)result_tensor;
         result_data = result_tensor->data;
-        compute_contiguous_strides(a_parsed.rank, a_parsed.shape, nk_dtype_bytes_per_value(dtype), result_strides);
     }
     // nk.scale(a, alpha=2.0, out=result) → writes into provided buffer, returns None
     else {
         result_data = out_buffer.buf;
-        for (size_t dimension = 0; dimension < a_parsed.rank; ++dimension)
-            result_strides[dimension] = out_buffer.strides[dimension];
-        Py_buffer const *both_buffers[] = {&a_buffer, &out_buffer};
-        contiguous_tail = shared_contiguous_tail_dimensions(both_buffers, 2, a_parsed.rank);
         return_obj = Py_None;
         Py_INCREF(Py_None);
     }
