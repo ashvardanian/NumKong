@@ -662,6 +662,20 @@ class AttentionPackedMatrix:
         """Size of the packed buffer in bytes."""
         ...
 
+    @classmethod
+    def pack_size(
+        cls,
+        key_value_head_count: int,
+        depth: int,
+        tokens: int,
+        segments: int,
+        /,
+        dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType,
+        capabilities: Capability | int | None = None,
+    ) -> int:
+        """Return packed buffer size in bytes for given dimensions, dtype and capabilities, GPU ones included."""
+        ...
+
     def __repr__(self) -> str:
         """Return a string representation."""
         ...
@@ -1684,6 +1698,7 @@ def attention_pack(
     key_offsets: _BufferType,
     key_lengths: _BufferType | None = None,
     depth: int | None = None,
+    out: Tensor | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> AttentionPackedMatrix:

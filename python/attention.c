@@ -146,7 +146,17 @@ static nk_status_t attention_gradients_tile_(nk_size_t tile_index, void *context
                         tile_index + 1, NULL, 0, arguments->stream);
 }
 
-static void AttentionPackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }
+static void AttentionPackedMatrix_dealloc(PyObject *self) {
+    Py_XDECREF(((AttentionPackedMatrix *)self)->storage);
+    Py_TYPE(self)->tp_free(self);
+}
+
+/** @c nk_get_buffer that also describes a GPU Tensor, for the GPU kernels that alone read it. */
+static int attention_get_buffer(PyObject *object, Py_buffer *buffer, nk_buffer_backing_t *backing) {
+    if (py_object_device(object).device_type == kDLCPU)
+        return nk_get_buffer(object, buffer, PyBUF_STRIDES | PyBUF_FORMAT, backing);
+    return tensor_export_buffer((Tensor *)object, buffer, PyBUF_STRIDES | PyBUF_FORMAT) == 0;
+}
 
 static PyObject *AttentionPackedMatrix_repr(PyObject *self) {
     AttentionPackedMatrix *kv = (AttentionPackedMatrix *)self;
@@ -199,7 +209,7 @@ static PyObject *AttentionPackedMatrix_get_shape(PyObject *self, void *closure) 
         return NULL;
     }
     nk_size_t key_value_head_count = 0, depth = 0, segments = 0;
-    if (!check_status(shape_fn(mm->start, &key_value_head_count, &depth, &segments, NULL))) return NULL;
+    if (!check_status(shape_fn(mm->data, &key_value_head_count, &depth, &segments, NULL))) return NULL;
     PyObject *heads_integer = PyLong_FromSsize_t((Py_ssize_t)key_value_head_count);
     PyObject *depth_integer = PyLong_FromSsize_t((Py_ssize_t)depth);
     PyObject *segments_integer = PyLong_FromSsize_t((Py_ssize_t)segments);
@@ -224,6 +234,62 @@ static PyGetSetDef AttentionPackedMatrix_getset[] = {
     {NULL, NULL, NULL, NULL, NULL},
 };
 
+static PyObject *AttentionPackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py_ssize_t nargs,
+                                                 PyObject *kwnames) {
+    nk_unused_(cls);
+    char const *signature = "pack_size(key_value_head_count, depth, tokens, segments, /, dtype, *, capabilities=None)";
+    Py_ssize_t const keyword_count = kwnames ? PyTuple_Size(kwnames) : 0;
+    if (nargs < 4 || nargs > 5 || nargs + keyword_count > 6) {
+        PyErr_SetString(PyExc_TypeError, signature);
+        return NULL;
+    }
+    PyObject *dtype_object = nargs == 5 ? args[4] : NULL;
+    nk_capability_t capabilities = nk_cap_cpus_k;
+    for (Py_ssize_t keyword_index = 0; keyword_index < keyword_count; keyword_index++) {
+        PyObject *keyword = PyTuple_GET_ITEM(kwnames, keyword_index);
+        PyObject *value = args[nargs + keyword_index];
+        if (PyUnicode_CompareWithASCIIString(keyword, "dtype") == 0 && !dtype_object) dtype_object = value;
+        // Sizes are computed on the host, so unlike `parse_dispatch_keyword` it keeps GPU bits
+        else if (PyUnicode_CompareWithASCIIString(keyword, "capabilities") == 0) {
+            if (value == Py_None) continue;
+            capabilities = (nk_capability_t)PyLong_AsUnsignedLongLong(value);
+            if (capabilities == (nk_capability_t)-1 && PyErr_Occurred()) return NULL;
+        }
+        else {
+            PyErr_SetString(PyExc_TypeError, signature);
+            return NULL;
+        }
+    }
+    if (!dtype_object) {
+        PyErr_SetString(PyExc_TypeError, signature);
+        return NULL;
+    }
+    nk_size_t sizes[4];
+    for (int index = 0; index < 4; index++) {
+        sizes[index] = (nk_size_t)PyLong_AsSize_t(args[index]);
+        if (sizes[index] == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
+    }
+    nk_dtype_t const dtype = py_object_to_nk_dtype(dtype_object);
+    if (dtype == nk_dtype_unknown_k) return NULL;
+    nk_attention_pack_size_punned_t size_fn = NULL;
+    nk_capability_t capability = nk_cap_serial_k;
+    nk_find_kernel_punned(nk_kernel_attention_pack_size_k, dtype, capabilities, (nk_kernel_punned_t *)&size_fn,
+                          &capability);
+    if (!size_fn || !capability) {
+        PyErr_Format(PyExc_LookupError, "No attention pack_size kernel for dtype '%s'", nk_dtype_python_name(dtype));
+        return NULL;
+    }
+    nk_size_t bytes = 0;
+    if (!check_status(size_fn(sizes[0], sizes[1], sizes[2], sizes[3], &bytes))) return NULL;
+    return PyLong_FromSize_t(bytes);
+}
+
+static PyMethodDef AttentionPackedMatrix_methods[] = {
+    {"pack_size", (PyCFunction)AttentionPackedMatrix_pack_size, METH_CLASS | METH_FASTCALL | METH_KEYWORDS,
+     "Return packed buffer size in bytes for given dimensions, dtype and capabilities, GPU ones included."},
+    {NULL, NULL, 0, NULL},
+};
+
 PyTypeObject AttentionPackedMatrixType = {
     PyVarObject_HEAD_INIT(NULL, 0).tp_name = "numkong.AttentionPackedMatrix",
     .tp_doc = "Opaque pre-packed ragged KV-cache for scaled-dot-product attention",
@@ -231,6 +297,7 @@ PyTypeObject AttentionPackedMatrixType = {
     .tp_itemsize = sizeof(char),
     .tp_dealloc = AttentionPackedMatrix_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_methods = AttentionPackedMatrix_methods,
     .tp_getset = AttentionPackedMatrix_getset,
     .tp_repr = AttentionPackedMatrix_repr,
 };
@@ -294,37 +361,43 @@ static int attention_parse_token_matrix(Py_buffer const *buffer, char const *nam
     return 0;
 }
 
-char const doc_attention_pack[] =                                                              //
-    "attention_pack(k, v, /, key_offsets, key_lengths=None, depth=None, threads=1) ->\n"       //
-    "AttentionPackedMatrix\n\n"                                                                //
-    "Pack ragged K/V token matrices into a backend-opaque KV-cache blob.\n\n"                  //
-    "Args:\n"                                                                                  //
-    "    k, v (array_like): Token matrices, 2-D (tokens, heads*depth) or\n"                    //
-    "        3-D (tokens, heads, depth); bf16, f16, e4m3 or i8, rows may be strided\n"         //
-    "        interior views of a fused QKV buffer, and depth may be strided too, so\n"         //
-    "        a depth-major buffer's transposed view packs without a copy.\n"                   //
-    "    key_offsets (u32 array): Slot boundaries of the segments, length segments+1, never\n" //
-    "        decreasing; segment s keeps its keys from row key_offsets[s].\n"                  //
-    "    key_lengths (u32 array, optional): Keys held per segment, at most the slot width;\n"  //
-    "        defaults to adjacent offset differences, as in self-attention.\n"                 //
-    "    depth (int, optional): Required when k/v are 2-D.\n"                                  //
-    "    threads (int): Threads for packing; 0 = all cores.\n\n"                               //
-    "Returns:\n"                                                                               //
-    "    AttentionPackedMatrix: Opaque packed KV-cache for attention_*_packed().\n\n"          //
-    "Signature:\n"                                                                             //
-    "    >>> def attention_pack(k, v, /, key_offsets, key_lengths=None,\n"                     //
-    "    ...                    depth=None, threads=1) -> AttentionPackedMatrix: ...";
+char const doc_attention_pack[] =                                                                  //
+    "attention_pack(k, v, /, key_offsets, key_lengths=None, depth=None, out=None, threads=1) ->\n" //
+    "AttentionPackedMatrix\n\n"                                                                    //
+    "Pack ragged K/V token matrices into a backend-opaque KV-cache blob.\n\n"                      //
+    "Args:\n"                                                                                      //
+    "    k, v (array_like): Token matrices, 2-D (tokens, heads*depth) or\n"                        //
+    "        3-D (tokens, heads, depth); bf16, f16, e4m3 or i8, rows may be strided\n"             //
+    "        interior views of a fused QKV buffer, and depth may be strided too, so\n"             //
+    "        a depth-major buffer's transposed view packs without a copy. CUDA or ROCm\n"          //
+    "        Tensors from from_dlpack() pack on their GPU.\n"                                      //
+    "    key_offsets (u32 array): Slot boundaries of the segments, length segments+1, never\n"     //
+    "        decreasing; segment s keeps its keys from row key_offsets[s]. A GPU reads it\n"       //
+    "        too, so there it sits in pinned or unified memory, as key_lengths does.\n"            //
+    "    key_lengths (u32 array, optional): Keys held per segment, at most the slot width;\n"      //
+    "        defaults to adjacent offset differences, as in self-attention.\n"                     //
+    "    depth (int, optional): Required when k/v are 2-D.\n"                                      //
+    "    out (Tensor, optional): Required for GPU k and v: a C-contiguous Tensor on their\n"       //
+    "        GPU of AttentionPackedMatrix.pack_size(..., capabilities=...) bytes or more,\n"       //
+    "        holding the packed bytes for the AttentionPackedMatrix's lifetime.\n"                 //
+    "    threads (int): Threads for packing; 0 = all cores; ignored on a GPU.\n"                   //
+    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"          //
+    "Returns:\n"                                                                                   //
+    "    AttentionPackedMatrix: Opaque packed KV-cache for attention_*_packed().\n\n"              //
+    "Signature:\n"                                                                                 //
+    "    >>> def attention_pack(k, v, /, key_offsets, key_lengths=None,\n"                         //
+    "    ...                    depth=None, out=None, threads=1) -> AttentionPackedMatrix: ...";
 
 PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
 
-    PyObject *k_obj = NULL, *v_obj = NULL, *offsets_obj = NULL, *lengths_obj = NULL;
+    PyObject *k_obj = NULL, *v_obj = NULL, *offsets_obj = NULL, *lengths_obj = NULL, *out_object = NULL;
     nk_size_t depth = 0, threads = 1;
     nk_capability_t capabilities = nk_cap_cpus_k;
     nk_stream_t stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
-    if (nargs < 2 || nargs > 3 || nargs + nkw > 8) {
+    if (nargs < 2 || nargs > 3 || nargs + nkw > 9) {
         PyErr_SetString(PyExc_TypeError, doc_attention_pack);
         return NULL;
     }
@@ -335,6 +408,9 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         PyObject *value = args[nargs + i];
         if (PyUnicode_CompareWithASCIIString(name, "key_offsets") == 0) offsets_obj = value;
         else if (PyUnicode_CompareWithASCIIString(name, "key_lengths") == 0) lengths_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(name, "out") == 0) {
+            if (value != Py_None) out_object = value;
+        }
         else if (PyUnicode_CompareWithASCIIString(name, "depth") == 0) {
             depth = (nk_size_t)PyLong_AsSize_t(value);
             if (depth == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
@@ -349,14 +425,30 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         PyErr_SetString(PyExc_TypeError, "attention_pack() requires 'key_offsets'");
         return NULL;
     }
+    DLDevice const device = py_object_device(k_obj);
+    if (!same_device(py_object_device(v_obj), device)) {
+        PyErr_SetString(PyExc_ValueError, "k and v must live on one device");
+        return NULL;
+    }
+    if (out_object && (!PyObject_TypeCheck(out_object, &TensorType) || device.device_type == kDLCPU ||
+                       !same_device(((Tensor *)out_object)->device, device))) {
+        PyErr_SetString(PyExc_ValueError, "out must be a Tensor on the GPU of k, as packing on the host allocates");
+        return NULL;
+    }
+    if (device.device_type != kDLCPU && !out_object) {
+        PyErr_SetString(PyExc_ValueError, "packing GPU keys and values needs out=, a Tensor on their device of " //
+                                          "AttentionPackedMatrix.pack_size(..., capabilities=...) bytes");
+        return NULL;
+    }
+    if (device.device_type != kDLCPU && !device_capabilities(device, &capabilities)) return NULL;
 
     Py_buffer k_buffer, v_buffer, offsets_buffer, lengths_buffer;
     nk_buffer_backing_t k_backing, v_backing, offsets_backing, lengths_backing;
-    if (!nk_get_buffer(k_obj, &k_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &k_backing)) {
+    if (!attention_get_buffer(k_obj, &k_buffer, &k_backing)) {
         PyErr_SetString(PyExc_TypeError, "k must support buffer protocol");
         return NULL;
     }
-    if (!nk_get_buffer(v_obj, &v_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &v_backing)) {
+    if (!attention_get_buffer(v_obj, &v_buffer, &v_backing)) {
         PyBuffer_Release(&k_buffer);
         PyErr_SetString(PyExc_TypeError, "v must support buffer protocol");
         return NULL;
@@ -438,7 +530,18 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
 
     nk_size_t packed_bytes = 0;
     if (!check_status(size_fn(heads, depth, token_count, segment_count, &packed_bytes))) goto cleanup;
-    packed = PyObject_NewVar(AttentionPackedMatrix, &AttentionPackedMatrixType, (Py_ssize_t)packed_bytes);
+    Tensor *out = (Tensor *)out_object;
+    if (out) {
+        size_t out_bytes = nk_dtype_bytes_per_value(out->dtype);
+        for (size_t axis = 0; axis < out->rank; axis++)
+            out_bytes *= (size_t)storage_extent(out->dtype, out->rank, out->shape, axis);
+        if (!strides_are_c_contiguous(out->dtype, out->rank, out->shape, out->strides) || out_bytes < packed_bytes) {
+            PyErr_Format(PyExc_ValueError, "out must be a C-contiguous Tensor of at least %zu bytes",
+                         (size_t)packed_bytes);
+            goto cleanup;
+        }
+    }
+    packed = PyObject_NewVar(AttentionPackedMatrix, &AttentionPackedMatrixType, out ? 0 : (Py_ssize_t)packed_bytes);
     if (!packed) {
         PyErr_NoMemory();
         goto cleanup;
@@ -450,6 +553,10 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
     packed->total_tokens = token_count;
     packed->nbytes = packed_bytes;
     packed->capabilities = capabilities;
+    packed->device = device;
+    packed->storage = out_object;
+    Py_XINCREF(packed->storage);
+    packed->data = out ? out->data : packed->start;
 
     {
         attention_pack_task_t task;
@@ -463,10 +570,15 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         task.segment_count = segment_count;
         task.key_stride = k_stride;
         task.value_stride = v_stride;
-        task.key_value_packed = packed->start;
+        task.key_value_packed = packed->data;
         task.stream = stream;
         PyThreadState *save = PyEval_SaveThread();
-        nk_status_t const status = nk_parallel_for_tiles(segment_count * heads, threads, attention_pack_tile_, &task);
+        // A GPU packs every segment and head itself, in one launch rather than the thread pool
+        nk_status_t const status =
+            device.device_type != kDLCPU
+                ? pack_fn(heads, depth, key_offsets, key_lengths, segment_count, task.keys, k_stride, task.values,
+                          v_stride, task.key_value_packed, 0, segment_count * heads, stream)
+                : nk_parallel_for_tiles(segment_count * heads, threads, attention_pack_tile_, &task);
         PyEval_RestoreThread(save);
         check_status(status);
     }
@@ -493,17 +605,21 @@ char const doc_attention_packed[] =                                             
     "no key are zeros.\n\n"                                                                            //
     "Args:\n"                                                                                          //
     "    q (array_like): Query tokens, 2-D (tokens, heads*depth) or 3-D\n"                             //
-    "        (tokens, heads, depth), same dtype as the packed KV-cache.\n"                             //
+    "        (tokens, heads, depth), same dtype and device as the packed KV-cache.\n"                  //
     "    kv (AttentionPackedMatrix): Packed KV-cache from attention_pack().\n"                         //
     "    query_offsets (u32 array): Cumulative query offsets, length segments+1;\n"                    //
-    "        arange(segments+1) turns the call into a batched single-query pool.\n"                    //
-    "    out (Tensor, optional): Pre-allocated f32 output of the same shape as q.\n"                   //
+    "        arange(segments+1) turns the call into a batched single-query pool. A GPU reads\n"        //
+    "        it too, so there it sits in pinned or unified memory.\n"                                  //
+    "    out (Tensor, optional): Pre-allocated f32 output of the same shape as q; required, on\n"      //
+    "        the same GPU, when kv was packed on a GPU.\n"                                             //
     "    scale (float, optional): Score scale; default 1/sqrt(depth).\n"                               //
     "    keys_before (int, optional): Keys visible before each query; None is unbounded.\n"            //
     "    keys_after (int, optional): Keys visible after each query; None is unbounded.\n"              //
     "    log_sum_exp (array_like, optional): Writable contiguous f32 (tokens, heads) that receives\n"  //
     "        each row's natural log-sum-exp, -inf for rows without keys, for the gradients.\n"         //
-    "    threads (int): Threads sharing equal-cost windows of the token*head grid; 0 = all.\n\n"       //
+    "    threads (int): Threads sharing equal-cost windows of the token*head grid; 0 = all;\n"         //
+    "        ignored on a GPU, which covers the grid in one launch and returns before it ends.\n"      //
+    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"              //
     "Returns:\n"                                                                                       //
     "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"                          //
     "Signature:\n"                                                                                     //
@@ -574,7 +690,11 @@ static int attention_arguments_parse_(char const *name, PyObject *queries_object
         scale = (nk_f32_t)scale_f64;
     }
 
-    if (!nk_get_buffer(queries_object, &buffers->queries, PyBUF_STRIDES | PyBUF_FORMAT, &buffers->queries_backing)) {
+    if (!same_device(py_object_device(queries_object), packed->device)) {
+        PyErr_Format(PyExc_ValueError, "%s needs q on the device of the packed KV-cache", name);
+        return 0;
+    }
+    if (!attention_get_buffer(queries_object, &buffers->queries, &buffers->queries_backing)) {
         PyErr_SetString(PyExc_TypeError, "q must support buffer protocol");
         return 0;
     }
@@ -614,7 +734,11 @@ static int attention_arguments_parse_(char const *name, PyObject *queries_object
             goto release_query_offsets;
         }
         Tensor *output = (Tensor *)output_object;
-        if (!tensor_on_host(output)) goto release_query_offsets;
+        if (packed->device.device_type == kDLCPU && !tensor_on_host(output)) goto release_query_offsets;
+        if (!same_device(output->device, packed->device)) {
+            PyErr_Format(PyExc_ValueError, "%s needs out on the device of the packed KV-cache", name);
+            goto release_query_offsets;
+        }
         if (output->dtype != nk_f32_k || output->rank != 2 || (nk_size_t)output->shape[0] < query_tokens ||
             (nk_size_t)output->shape[1] != row_values) {
             PyErr_SetString(PyExc_ValueError, "out must be an f32 Tensor of shape (tokens, heads*depth)");
@@ -623,6 +747,10 @@ static int attention_arguments_parse_(char const *name, PyObject *queries_object
         Py_INCREF(output);
         buffers->output = output;
     }
+    else if (packed->device.device_type != kDLCPU) {
+        PyErr_Format(PyExc_ValueError, "%s on a GPU needs out=, a Tensor on the same device", name);
+        goto release_query_offsets;
+    }
     else {
         Py_ssize_t output_shape[2] = {(Py_ssize_t)query_tokens, (Py_ssize_t)row_values};
         buffers->output = Tensor_new(nk_f32_k, 2, output_shape);
@@ -630,7 +758,7 @@ static int attention_arguments_parse_(char const *name, PyObject *queries_object
     }
 
     arguments->queries = buffers->queries.buf;
-    arguments->key_value_packed = packed->start;
+    arguments->key_value_packed = packed->data;
     arguments->output = buffers->output->data;
     arguments->head_count = head_count;
     arguments->key_value_head_count = packed->key_value_head_count;
@@ -723,6 +851,9 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
         task.arguments.log_sum_exp = (nk_f32_t *)buffers.log_sum_exp.buf;
     }
 
+    // `capabilities=` narrows the CPU dispatch only, while a GPU runs the mask it packed with
+    int const on_gpu = packed->device.device_type != kDLCPU;
+    if (on_gpu) capabilities = packed->capabilities;
     task.kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
     nk_find_kernel_punned(nk_kernel_attention_packed_k, packed->dtype, capabilities, (nk_kernel_punned_t *)&task.kernel,
@@ -734,6 +865,16 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
     }
     if (threads == 0) threads = nk_parallel_concurrency();
     nk_u32_t const *query_offsets = task.arguments.query_offsets;
+    if (on_gpu) {
+        // A GPU covers every row itself, in one launch, and its packed header is not host memory
+        task.window_bounds[0] = query_offsets[0] * task.arguments.head_count;
+        task.window_bounds[1] = query_offsets[packed->segment_count] * task.arguments.head_count;
+        PyThreadState *save = PyEval_SaveThread();
+        nk_status_t const status = attention_tile_(0, &task);
+        PyEval_RestoreThread(save);
+        check_status(status);
+        return attention_buffers_release_(&buffers);
+    }
     nk_size_t const task_count = (query_offsets[packed->segment_count] - query_offsets[0]) * task.arguments.head_count;
     nk_size_t window_count = threads > 1 ? 4 * threads : 1;
     if (window_count > attention_windows_limit_k) window_count = attention_windows_limit_k;
@@ -741,7 +882,7 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
     PyThreadState *save = PyEval_SaveThread();
     nk_diagonal_band_t const band = {keys_before, keys_after};
     nk_u32_t const *pack_key_offsets = NULL, *key_lengths = NULL;
-    nk_attention_packed_segments(packed->start, packed->segment_count, &pack_key_offsets, &key_lengths);
+    nk_attention_packed_segments(packed->data, packed->segment_count, &pack_key_offsets, &key_lengths);
     nk_unused_(pack_key_offsets);
     attention_windows_(query_offsets, key_lengths, packed->segment_count, task.arguments.head_count, band, window_count,
                        task.window_bounds);
@@ -826,6 +967,10 @@ PyObject *api_attention_packed_gradients(PyObject *self, PyObject *const *args, 
     if (!attention_arguments_parse_("attention_packed_gradients", args[0], args[1], query_offsets_object,
                                     query_gradient_object, scale_object, &task.arguments, &buffers, &packed))
         return NULL;
+    if (packed->device.device_type != kDLCPU) {
+        PyErr_SetString(PyExc_ValueError, "attention_packed_gradients reads its KV-cache on the host, not a GPU");
+        return attention_buffers_release_(&buffers);
+    }
     task.arguments.keys_before = keys_before, task.arguments.keys_after = keys_after;
     task.arguments.stream = stream;
     task.query_gradient_stride = (nk_size_t)buffers.output->strides[0];
@@ -859,7 +1004,7 @@ PyObject *api_attention_packed_gradients(PyObject *self, PyObject *const *args, 
     }
     // Rows past each segment's keys stay untouched by the kernel, so the gradients start at zero
     nk_u32_t const *pack_key_offsets = NULL, *pack_key_lengths = NULL;
-    nk_attention_packed_segments(packed->start, packed->segment_count, &pack_key_offsets, &pack_key_lengths);
+    nk_attention_packed_segments(packed->data, packed->segment_count, &pack_key_offsets, &pack_key_lengths);
     nk_unused_(pack_key_lengths);
     nk_size_t const key_row_values = packed->key_value_head_count * packed->depth;
     Py_ssize_t const key_shape[2] = {(Py_ssize_t)pack_key_offsets[packed->segment_count], (Py_ssize_t)key_row_values};

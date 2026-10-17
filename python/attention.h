@@ -12,6 +12,8 @@
 
 #include <numkong/numkong.h>
 
+#include "dlpack_abi.h"
+
 /**
  *  @brief Pre-packed KV-cache for ragged scaled-dot-product attention.
  *
@@ -43,7 +45,17 @@ typedef struct AttentionPackedMatrix {
     /** The mask that packed it; later calls default to it, as only that mask reads the layout. */
     nk_capability_t capabilities;
 
-    /** Variable-length packed data. */
+    /** Where @ref data lives: a GPU when @c attention_pack packed GPU keys and values, else the
+     *  CPU. */
+    DLDevice device;
+
+    /** The `out=` Tensor holding the packed bytes, or NULL when they follow in @ref start. */
+    PyObject *storage;
+
+    /** The packed bytes: @ref start, or the memory of @ref storage. */
+    char *data;
+
+    /** Variable-length packed data, empty when @ref storage holds it. */
     char start[];
 } AttentionPackedMatrix;
 
