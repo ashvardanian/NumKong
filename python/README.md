@@ -35,7 +35,7 @@ print(dot)
 ## Stateful Random Generation
 
 `nk.Generator` provides an independent, reproducible source of random values for pipelines that must not share
-process-global random state. The first API phase supports `random`, `uniform`, `normal`, `standard_normal`, and
+process-global random state. It supports `random`, `uniform`, `normal`, `standard_normal`, and
 `integers`. Every method accepts `size` as an integer or tuple, `dtype=`, and a writable C-contiguous `out=` buffer.
 
 ```python
@@ -53,9 +53,7 @@ The generator owns its state, releases the GIL while filling native output, and 
 `out=` is supplied. With `out=`, the method writes in place and returns `None`; NumPy arrays, `memoryview` objects,
 and NumKong tensors are accepted when their shape, dtype, and C-contiguous layout match the request.
 
-This first phase fixes the stateful Python contract and a deterministic scalar core. It does not claim SIMD speedup
-yet; ISA-specific fill kernels and distribution extensions such as `choice`, `poisson`, `laplace`, and `beta` remain
-follow-up work.
+The implementation uses deterministic scalar kernels. SIMD kernels and additional distributions are not included.
 
 ## Installation
 

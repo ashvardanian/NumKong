@@ -1266,7 +1266,6 @@ PyMODINIT_FUNC PyInit__numkong(void) {
         return NULL;
     }
 
-    // Register the stateful random generator type.
     Py_INCREF(&RandomGeneratorType);
     if (PyModule_AddObject(m, "Generator", (PyObject *)&RandomGeneratorType) < 0) {
         Py_XDECREF(&RandomGeneratorType);

@@ -298,6 +298,21 @@ static void fill_integers(RandomGenerator *generator, char *data, nk_dtype_t dty
         write_integer(data, dtype, i, low_bits + nk_random_bounded_u64(&generator->generator, bound));
 }
 
+static PyObject *generate_floating_output(RandomGenerator *generator, PyObject *out_obj, nk_dtype_t dtype, size_t rank,
+                                          Py_ssize_t const *shape, size_t total,
+                                          void (*fill)(RandomGenerator *, char *, nk_dtype_t, size_t, double, double),
+                                          double first, double second) {
+    RandomOutput output;
+    if (!prepare_output(&output, out_obj, dtype, rank, shape)) {
+        release_output(&output);
+        return NULL;
+    }
+    PyThreadState *gil = PyEval_SaveThread();
+    fill(generator, output.data, dtype, total, first, second);
+    PyEval_RestoreThread(gil);
+    return finish_output(&output);
+}
+
 static PyObject *generator_random(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static char const *const allowed[] = {"size", "dtype", "out", NULL};
     if (nargs > 1 || !reject_unknown_keywords(kwnames, allowed, "Generator.random")) return NULL;
@@ -316,15 +331,8 @@ static PyObject *generator_random(PyObject *self, PyObject *const *args, Py_ssiz
     if (!floating_dtype(dtype))
         return (PyErr_Format(PyExc_TypeError, "random only supports float32 and float64"), NULL);
 
-    RandomOutput output;
-    if (!prepare_output(&output, out_obj, dtype, rank, shape)) {
-        release_output(&output);
-        return NULL;
-    }
-    PyThreadState *gil = PyEval_SaveThread();
-    fill_uniform((RandomGenerator *)self, output.data, dtype, total, 0.0, 1.0);
-    PyEval_RestoreThread(gil);
-    return finish_output(&output);
+    return generate_floating_output((RandomGenerator *)self, out_obj, dtype, rank, shape, total, fill_uniform, 0.0,
+                                    1.0);
 }
 
 static PyObject *generator_uniform(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
@@ -354,15 +362,8 @@ static PyObject *generator_uniform(PyObject *self, PyObject *const *args, Py_ssi
     if (!floating_dtype(dtype))
         return (PyErr_Format(PyExc_TypeError, "uniform only supports float32 and float64"), NULL);
 
-    RandomOutput output;
-    if (!prepare_output(&output, out_obj, dtype, rank, shape)) {
-        release_output(&output);
-        return NULL;
-    }
-    PyThreadState *gil = PyEval_SaveThread();
-    fill_uniform((RandomGenerator *)self, output.data, dtype, total, low, high);
-    PyEval_RestoreThread(gil);
-    return finish_output(&output);
+    return generate_floating_output((RandomGenerator *)self, out_obj, dtype, rank, shape, total, fill_uniform, low,
+                                    high);
 }
 
 static PyObject *generator_normal(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
@@ -396,15 +397,8 @@ static PyObject *generator_normal(PyObject *self, PyObject *const *args, Py_ssiz
     if (!floating_dtype(dtype))
         return (PyErr_Format(PyExc_TypeError, "normal only supports float32 and float64"), NULL);
 
-    RandomOutput output;
-    if (!prepare_output(&output, out_obj, dtype, rank, shape)) {
-        release_output(&output);
-        return NULL;
-    }
-    PyThreadState *gil = PyEval_SaveThread();
-    fill_normal((RandomGenerator *)self, output.data, dtype, total, location, scale);
-    PyEval_RestoreThread(gil);
-    return finish_output(&output);
+    return generate_floating_output((RandomGenerator *)self, out_obj, dtype, rank, shape, total, fill_normal, location,
+                                    scale);
 }
 
 static PyObject *generator_standard_normal(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
@@ -426,15 +420,7 @@ static PyObject *generator_standard_normal(PyObject *self, PyObject *const *args
     if (!floating_dtype(dtype))
         return (PyErr_Format(PyExc_TypeError, "standard_normal only supports float32 and float64"), NULL);
 
-    RandomOutput output;
-    if (!prepare_output(&output, out_obj, dtype, rank, shape)) {
-        release_output(&output);
-        return NULL;
-    }
-    PyThreadState *gil = PyEval_SaveThread();
-    fill_normal((RandomGenerator *)self, output.data, dtype, total, 0.0, 1.0);
-    PyEval_RestoreThread(gil);
-    return finish_output(&output);
+    return generate_floating_output((RandomGenerator *)self, out_obj, dtype, rank, shape, total, fill_normal, 0.0, 1.0);
 }
 
 static PyObject *generator_integers(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
