@@ -491,7 +491,7 @@ The machine was an Apple M4 Max running macOS 27.0.1 with AppleClang 21.0.0;
 the runtime reported NEON FP16 support. Cells show median ± MAD from 101
 interleaved samples after 7 warmups.
 
-| HWC shape | Operation | Direct float16 | Float32 bridge | Direct / bridge |
+| HWC shape | Operation | Direct float16 | Float32 bridge | Time: direct / bridge (lower is faster) |
 | --- | --- | ---: | ---: | ---: |
 | 128×160×3 | `scale` | 0.003125 ± 0.000209 ms | 0.034625 ± 0.001208 ms | 0.09× |
 | 128×160×3 | `blend` | 0.005917 ± 0.000125 ms | 0.042042 ± 0.001125 ms | 0.14× |
