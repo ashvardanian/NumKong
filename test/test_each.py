@@ -606,6 +606,156 @@ def test_scale_edge_cases(ndim: int, dtype: str, capability: str):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_scale_preserves_hwc_shape():
+    image = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+
+    result = nk.scale(image, alpha=0.5, beta=-1.0)
+
+    assert np.asarray(result).shape == image.shape
+    assert_allclose(np.asarray(result), image * 0.5 - 1.0)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("shape", [(2, 3, 4), (2, 3, 4, 5)])
+def test_scale_writes_nd_output(shape: tuple[int, ...]):
+    image = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
+    out = np.empty_like(image)
+
+    assert nk.scale(image, alpha=-0.25, beta=3.0, out=out) is None
+
+    assert_allclose(out, image * -0.25 + 3.0)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("separate_view", [False, True])
+def test_scale_allows_in_place_hwc_output(separate_view: bool):
+    image = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
+    expected = image * 0.5 - 1.0
+
+    out = image.view() if separate_view else image
+    assert nk.scale(image, alpha=0.5, beta=-1.0, out=out) is None
+
+    assert_allclose(image, expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_scale_handles_strided_hwc_input():
+    image = np.arange(4 * 6 * 4, dtype=np.float32).reshape(4, 6, 4)[::2, 1::2]
+    out = np.empty_like(image)
+
+    assert nk.scale(image, alpha=0.5, beta=-1.0, out=out) is None
+
+    assert_allclose(out, image * 0.5 - 1.0)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("layout", ["reversed-planes", "reversed-elements", "transposed", "shifted"])
+def test_scale_rejects_overlapping_nd_views(layout: str):
+    storage = np.arange(27, dtype=np.float32).reshape(3, 3, 3)
+    out = storage[1:]
+    if layout == "reversed-planes":
+        image = out[::-1]
+    elif layout == "reversed-elements":
+        image = out[..., ::-1]
+    elif layout == "transposed":
+        image = out.swapaxes(1, 2)
+    else:
+        image = storage[:-1]
+    original = storage.copy()
+
+    with pytest.raises(ValueError, match="overlap"):
+        nk.scale(image, alpha=2.0, beta=1.0, out=out)
+
+    np.testing.assert_array_equal(storage, original)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_scale_allows_disjoint_views_of_same_storage():
+    storage = np.arange(48, dtype=np.float32).reshape(4, 3, 4)
+    image, out = storage[:2], storage[2:]
+    expected = image * 2.0 + 1.0
+
+    assert nk.scale(image, alpha=2.0, beta=1.0, out=out) is None
+
+    np.testing.assert_array_equal(out, expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64"])
+@pytest.mark.parametrize(
+    "alpha,beta,expected",
+    [
+        (1.5, 0.0, [2, 4, 8, 10, 14, 16, 20, 22]),
+        (-0.5, 0.0, [0, -2, -2, -4, -4, -6, -6, -8]),
+        (1.0, -8.0, [-7, -5, -3, -1, 1, 3, 5, 7]),
+        (1e30, 0.0, "max"),
+        (-1e30, 0.0, "min"),
+        (float("nan"), 0.0, [0]),
+        (float("inf"), 0.0, "max"),
+        (-float("inf"), 0.0, "min"),
+        (1.0, float("nan"), [0]),
+        (1.0, float("inf"), "max"),
+        (1.0, -float("inf"), "min"),
+    ],
+    ids=[
+        "positive-ties",
+        "negative-ties",
+        "negative-results",
+        "overflow",
+        "underflow",
+        "nan-alpha",
+        "inf-alpha",
+        "negative-inf-alpha",
+        "nan-beta",
+        "inf-beta",
+        "negative-inf-beta",
+    ],
+)
+@pytest.mark.parametrize(
+    "layout,output_mode",
+    [
+        ("contiguous", "allocated"),
+        ("contiguous", "out"),
+        ("contiguous", "in-place"),
+        ("outer-strided", "allocated"),
+        ("outer-strided", "out"),
+        ("inner-strided", "allocated"),
+        ("inner-strided", "out"),
+    ],
+)
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_scale_nd_integer_conversion(
+    dtype: str, alpha: float, beta: float, expected, layout: str, output_mode: str, capability: str
+):
+    keep_one_capability(capability)
+    shape = (2, 3, 17)
+    if layout == "outer-strided":
+        image = np.empty((4, 3, 17), dtype=dtype)[::2]
+    elif layout == "inner-strided":
+        image = np.empty((2, 3, 34), dtype=dtype)[..., ::2]
+    else:
+        image = np.empty(shape, dtype=dtype)
+    image[...] = np.resize(np.array([1, 3, 5, 7, 9, 11, 13, 15], dtype=dtype), shape)
+
+    limits = np.iinfo(dtype)
+    if isinstance(expected, str):
+        expected_values = [getattr(limits, expected)]
+    else:
+        expected_values = [max(limits.min, min(limits.max, value)) for value in expected]
+    expected_array = np.resize(np.array(expected_values, dtype=dtype), shape)
+
+    if output_mode == "allocated":
+        result = np.asarray(nk.scale(image, alpha=alpha, beta=beta))
+    else:
+        result = image if output_mode == "in-place" else np.empty(shape, dtype=dtype)
+        assert nk.scale(image, alpha=alpha, beta=beta, out=result) is None
+
+    assert result.shape == shape
+    assert result.dtype == np.dtype(dtype)
+    np.testing.assert_array_equal(result, expected_array)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(randomized_repetitions_count)
 @pytest.mark.parametrize("ndim", dense_dimensions)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])

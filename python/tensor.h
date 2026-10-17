@@ -158,6 +158,9 @@ char *ensure_contiguous_buffer(char const *src_data, nk_dtype_t src_dtype, nk_dt
  */
 int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second);
 
+/** @brief Conservatively check whether strided buffer address ranges overlap. */
+int py_buffers_may_overlap(Py_buffer const *first, Py_buffer const *second);
+
 /**
  *  @brief Validate a caller-supplied `out` buffer for an operation that writes it densely.
  *
