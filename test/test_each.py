@@ -607,7 +607,6 @@ def test_scale_edge_cases(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_scale_preserves_hwc_shape():
-    """scale accepts an HWC buffer directly and preserves its shape."""
     image = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
 
     result = nk.scale(image, alpha=0.5, beta=-1.0)
@@ -619,7 +618,6 @@ def test_scale_preserves_hwc_shape():
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("shape", [(2, 3, 4), (2, 3, 4, 5)])
 def test_scale_writes_nd_output(shape: tuple[int, ...]):
-    """scale writes HWC and NHWC buffers through out= without flattening."""
     image = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
     out = np.empty_like(image)
 
@@ -630,7 +628,6 @@ def test_scale_writes_nd_output(shape: tuple[int, ...]):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_scale_allows_in_place_hwc_output():
-    """scale permits the input HWC buffer as its own output."""
     image = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
     expected = image * 0.5 - 1.0
 
@@ -641,7 +638,6 @@ def test_scale_allows_in_place_hwc_output():
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_scale_handles_strided_hwc_input():
-    """scale reads an HWC view without materializing a flattened copy."""
     image = np.arange(4 * 6 * 4, dtype=np.float32).reshape(4, 6, 4)[::2, 1::2]
     out = np.empty_like(image)
 

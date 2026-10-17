@@ -438,7 +438,6 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
         if (dtype == nk_dtype_unknown_k) return NULL;
     }
 
-    // Convert the input into an N-D view and acquire a writable output buffer when supplied.
     nk_buffer_backing_t a_parsed_backing, out_parsed_backing;
     if (!parse_tensor_nd(a_obj, &a_buffer, &a_parsed, &a_parsed_backing, dtype)) goto cleanup;
     if (out_obj &&
@@ -459,7 +458,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     if (dtype == nk_dtype_unknown_k) dtype = a_parsed.dtype;
     nk_dtype_t const out_dtype = out_obj ? resolve_nk_dtype_in_py_buffer(&out_buffer) : nk_dtype_unknown_k;
     if (out_obj && out_dtype != dtype) {
-        PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match input dtype '%s'", \
+        PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match input dtype '%s'",
                      nk_dtype_name(out_dtype), nk_dtype_name(dtype));
         goto cleanup;
     }
