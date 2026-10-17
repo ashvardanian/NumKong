@@ -3834,7 +3834,7 @@ NK_PUBLIC void nk_reduce_minmax_e5m2_neon(                              //
                                      max_index_ptr);
 }
 
-// F32 inputs are exact after widening, but F32 accumulation can absorb small half subnormal terms.
+// Half values widen to F32 exactly, but F32 accumulation can absorb small subnormal terms.
 NK_INTERNAL void nk_f16x8_accumulate_moments_f64_neon_( //
     float16x8_t values_f16x8, float64x2_t *sum_f64x2, float64x2_t *sumsq_f64x2) {
     float32x4_t low_f32x4 = vcvt_f32_f16(vget_low_f16(values_f16x8));
