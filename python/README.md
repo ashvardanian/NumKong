@@ -36,9 +36,11 @@ print(dot)
 
 `nk.Generator` provides an independent, reproducible source of random values for pipelines that must not share
 process-global random state. It supports `random`, `uniform`, `normal`, `standard_normal`, and
-`integers`. Every method accepts `size` as an integer or tuple, `dtype=`, and a writable C-contiguous `out=` buffer.
+`integers`. Every method requires `size` as an integer or tuple and accepts optional `dtype=` and writable
+C-contiguous `out=` buffers.
 
 ```python
+import numpy as np
 import numkong as nk
 
 generator = nk.Generator(seed=137)
@@ -46,12 +48,13 @@ images = generator.uniform(0.0, 1.0, size=(8, 224, 224, 3), dtype="float32")
 labels = generator.integers(0, 10, size=32, dtype="int32")
 
 same_images = nk.Generator(seed=137).uniform(0.0, 1.0, size=(8, 224, 224, 3), dtype="float32")
-assert images == same_images
+np.testing.assert_array_equal(np.asarray(images), np.asarray(same_images))
 ```
 
-The generator owns its state, releases the GIL while filling native output, and returns a NumKong `Tensor` unless
-`out=` is supplied. With `out=`, the method writes in place and returns `None`; NumPy arrays, `memoryview` objects,
-and NumKong tensors are accepted when their shape, dtype, and C-contiguous layout match the request.
+Each generator serializes fills and state access across threads. It releases the GIL while filling native output
+and returns a NumKong `Tensor` unless `out=` is supplied. With `out=`, the method writes in place and returns `None`.
+NumPy arrays, `memoryview` objects, and NumKong tensors are accepted when their shape, dtype, and C-contiguous layout
+match the request.
 
 The implementation uses deterministic scalar kernels. SIMD kernels and additional distributions are not included.
 

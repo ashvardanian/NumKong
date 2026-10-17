@@ -1,4 +1,4 @@
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, TypeAlias, overload
 
 # Many annotation features depend on the Python version:
 # - `typing.TypeAlias` type aliases are supported in Python 3.10-3.11.
@@ -369,7 +369,6 @@ class Tensor(memoryview):
         """Return the index of the maximum element, or None if all elements are NaN."""
         ...
 
-
 class Generator:
     """Independent stateful pseudo-random number generator."""
 
@@ -384,7 +383,6 @@ class Generator:
 
     @state.setter
     def state(self, value: int) -> None: ...
-
     def random(
         self,
         size: int | tuple[int, ...],
@@ -395,11 +393,12 @@ class Generator:
         """Generate uniform samples in [0, 1)."""
         ...
 
+    @overload
     def uniform(
         self,
-        low: float = 0.0,
-        high: float = 1.0,
-        size: int | tuple[int, ...] = ...,
+        low: float,
+        high: float,
+        size: int | tuple[int, ...],
         *,
         dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
         out: _BufferType | None = None,
@@ -407,12 +406,39 @@ class Generator:
         """Generate uniform samples in [low, high)."""
         ...
 
+    @overload
+    def uniform(
+        self,
+        low: float = 0.0,
+        high: float = 1.0,
+        *,
+        size: int | tuple[int, ...],
+        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
+        out: _BufferType | None = None,
+    ) -> Tensor | None:
+        """Generate uniform samples in [low, high)."""
+        ...
+
+    @overload
+    def normal(
+        self,
+        loc: float,
+        scale: float,
+        size: int | tuple[int, ...],
+        *,
+        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
+        out: _BufferType | None = None,
+    ) -> Tensor | None:
+        """Generate normal samples with the requested location and scale."""
+        ...
+
+    @overload
     def normal(
         self,
         loc: float = 0.0,
         scale: float = 1.0,
-        size: int | tuple[int, ...] = ...,
         *,
+        size: int | tuple[int, ...],
         dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
         out: _BufferType | None = None,
     ) -> Tensor | None:
@@ -429,13 +455,27 @@ class Generator:
         """Generate standard normal samples."""
         ...
 
+    @overload
+    def integers(
+        self,
+        low: int,
+        high: int | None,
+        size: int | tuple[int, ...],
+        *,
+        dtype: Literal["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"] = "int64",
+        out: _BufferType | None = None,
+    ) -> Tensor | None:
+        """Generate uniformly distributed integers in [low, high)."""
+        ...
+
+    @overload
     def integers(
         self,
         low: int,
         high: int | None = None,
-        size: int | tuple[int, ...] = ...,
         *,
-        dtype: _IntegralTypeName = "int64",
+        size: int | tuple[int, ...],
+        dtype: Literal["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"] = "int64",
         out: _BufferType | None = None,
     ) -> Tensor | None:
         """Generate uniformly distributed integers in [low, high)."""

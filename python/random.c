@@ -16,8 +16,8 @@
 #include "tensor.h"
 
 typedef struct {
-    PyObject_HEAD
-    nk_random_generator_t generator;
+    PyObject_HEAD nk_random_generator_t generator;
+    PyThread_type_lock lock;
 } RandomGenerator;
 
 typedef struct {
@@ -28,18 +28,20 @@ typedef struct {
     int has_buffer;
 } RandomOutput;
 
-static int keyword_allowed(PyObject *name, char const *const *allowed) {
-    for (size_t i = 0; allowed[i]; ++i)
-        if (PyUnicode_CompareWithASCIIString(name, allowed[i]) == 0) return 1;
-    return 0;
-}
-
-static int reject_unknown_keywords(PyObject *kwnames, char const *const *allowed, char const *function_name) {
+static int validate_arguments(Py_ssize_t nargs, Py_ssize_t maximum, PyObject *kwnames, char const *const *allowed,
+                              char const *function_name) {
+    if (nargs > maximum) {
+        PyErr_Format(PyExc_TypeError, "%s() takes at most %zd positional arguments (%zd given)", function_name, maximum,
+                     nargs);
+        return 0;
+    }
     Py_ssize_t const keyword_count = kwnames ? PyTuple_GET_SIZE(kwnames) : 0;
     for (Py_ssize_t i = 0; i < keyword_count; ++i) {
         PyObject *name = PyTuple_GET_ITEM(kwnames, i);
-        if (!keyword_allowed(name, allowed)) {
-            PyErr_Format(PyExc_TypeError, "%s() unexpected keyword: %S", function_name, name);
+        size_t j = 0;
+        while (allowed[j] && PyUnicode_CompareWithASCIIString(name, allowed[j]) != 0) ++j;
+        if (!allowed[j]) {
+            PyErr_Format(PyExc_TypeError, "%s() got an unexpected keyword argument '%U'", function_name, name);
             return 0;
         }
     }
@@ -47,26 +49,20 @@ static int reject_unknown_keywords(PyObject *kwnames, char const *const *allowed
 }
 
 static int get_argument(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, Py_ssize_t position,
-                        char const *name, PyObject *default_value, PyObject **value) {
-    int found = 0;
-    if (nargs > position) {
-        *value = args[position];
-        found = 1;
-    }
+                        char const *name, PyObject **value) {
+    *value = nargs > position ? args[position] : NULL;
 
     Py_ssize_t const keyword_count = kwnames ? PyTuple_GET_SIZE(kwnames) : 0;
     for (Py_ssize_t i = 0; i < keyword_count; ++i) {
         PyObject *keyword = PyTuple_GET_ITEM(kwnames, i);
         if (PyUnicode_CompareWithASCIIString(keyword, name) != 0) continue;
-        if (found) {
+        if (*value) {
             PyErr_Format(PyExc_TypeError, "got multiple values for argument '%s'", name);
             return 0;
         }
         *value = args[nargs + i];
-        found = 1;
     }
 
-    if (!found) *value = default_value;
     return 1;
 }
 
@@ -145,20 +141,6 @@ static int parse_f64(PyObject *object, double *value, char const *name) {
     return 1;
 }
 
-static int parse_i64(PyObject *object, int64_t *value, char const *name) {
-    if (!object || !PyLong_Check(object)) {
-        PyErr_Format(PyExc_TypeError, "%s must be an integer", name);
-        return 0;
-    }
-    *value = PyLong_AsLongLong(object);
-    if (PyErr_Occurred()) {
-        PyErr_Clear();
-        PyErr_Format(PyExc_OverflowError, "%s does not fit in int64", name);
-        return 0;
-    }
-    return 1;
-}
-
 static int prepare_output(RandomOutput *output, PyObject *out_obj, nk_dtype_t dtype, size_t rank,
                           Py_ssize_t const *shape) {
     output->owned = NULL;
@@ -214,37 +196,68 @@ static PyObject *finish_output(RandomOutput *output) {
 
 static int floating_dtype(nk_dtype_t dtype) { return dtype == nk_f32_k || dtype == nk_f64_k; }
 
-static int integer_dtype(nk_dtype_t dtype) {
+static int parse_integer_bounds(nk_dtype_t dtype, PyObject *low_obj, PyObject *high_obj, uint64_t *low,
+                                uint64_t *bound) {
+    int is_unsigned;
     switch (dtype) {
     case nk_i8_k:
     case nk_i16_k:
     case nk_i32_k:
-    case nk_i64_k:
+    case nk_i64_k: is_unsigned = 0; break;
     case nk_u8_k:
     case nk_u16_k:
     case nk_u32_k:
-    case nk_u64_k: return 1;
-    default: return 0;
-    }
-}
-
-static int validate_integer_bounds(nk_dtype_t dtype, int64_t low, int64_t high) {
-    int64_t minimum = INT64_MIN, maximum_exclusive = INT64_MAX;
-    switch (dtype) {
-    case nk_i8_k: minimum = INT8_MIN, maximum_exclusive = INT8_MAX + 1; break;
-    case nk_i16_k: minimum = INT16_MIN, maximum_exclusive = INT16_MAX + 1; break;
-    case nk_i32_k: minimum = INT32_MIN, maximum_exclusive = (int64_t)INT32_MAX + 1; break;
-    case nk_u8_k: minimum = 0, maximum_exclusive = UINT8_MAX + 1; break;
-    case nk_u16_k: minimum = 0, maximum_exclusive = UINT16_MAX + 1; break;
-    case nk_u32_k: minimum = 0, maximum_exclusive = (int64_t)UINT32_MAX + 1; break;
-    case nk_u64_k: minimum = 0, maximum_exclusive = INT64_MAX; break;
-    case nk_i64_k: break;
-    default: return 0;
-    }
-    if (low < minimum || high > maximum_exclusive) {
-        PyErr_Format(PyExc_ValueError, "integer bounds do not fit dtype '%s'", nk_dtype_name(dtype));
+    case nk_u64_k: is_unsigned = 1; break;
+    default:
+        PyErr_SetString(PyExc_TypeError, "integers only supports 8-, 16-, 32-, and 64-bit integer dtypes");
         return 0;
     }
+    if (!low_obj || !PyLong_Check(low_obj) || (high_obj && high_obj != Py_None && !PyLong_Check(high_obj))) {
+        PyErr_SetString(PyExc_TypeError, "low and high must be integers");
+        return 0;
+    }
+    if (!high_obj || high_obj == Py_None) {
+        high_obj = low_obj;
+        low_obj = NULL;
+    }
+
+    // Convert the inclusive upper endpoint so high may be 2**63 or 2**64.
+    PyObject *one = PyLong_FromLong(1);
+    if (!one) return 0;
+    PyObject *last_obj = PyNumber_Subtract(high_obj, one);
+    Py_DECREF(one);
+    if (!last_obj) return 0;
+    size_t const bits = nk_dtype_bits(dtype);
+    uint64_t last;
+    int valid;
+    if (is_unsigned) {
+        *low = low_obj ? PyLong_AsUnsignedLongLong(low_obj) : 0;
+        if (PyErr_Occurred()) {
+            Py_DECREF(last_obj);
+            return 0;
+        }
+        last = PyLong_AsUnsignedLongLong(last_obj);
+        valid = *low <= last && last <= (UINT64_MAX >> (64 - bits));
+    }
+    else {
+        int64_t const lower = low_obj ? PyLong_AsLongLong(low_obj) : 0;
+        if (PyErr_Occurred()) {
+            Py_DECREF(last_obj);
+            return 0;
+        }
+        int64_t const upper = PyLong_AsLongLong(last_obj);
+        int64_t const maximum = INT64_MAX >> (64 - bits);
+        valid = lower <= upper && lower >= -maximum - 1 && upper <= maximum;
+        *low = (uint64_t)lower;
+        last = (uint64_t)upper;
+    }
+    Py_DECREF(last_obj);
+    if (PyErr_Occurred()) return 0;
+    if (!valid) {
+        PyErr_Format(PyExc_ValueError, "integers requires low < high within dtype '%s'", nk_dtype_name(dtype));
+        return 0;
+    }
+    *bound = last - *low + 1;
     return 1;
 }
 
@@ -254,12 +267,12 @@ static void fill_uniform(RandomGenerator *generator, char *data, nk_dtype_t dtyp
         float *values = (float *)data;
         float const lower = (float)low;
         float const width = (float)(high - low);
-        for (size_t i = 0; i < total; ++i)
-            values[i] = lower + width * nk_random_uniform_f32(&generator->generator);
+        for (size_t i = 0; i < total; ++i) values[i] = lower + width * nk_random_uniform_f32(&generator->generator);
     }
     else {
         double *values = (double *)data;
-        for (size_t i = 0; i < total; ++i) values[i] = low + (high - low) * nk_random_uniform_f64(&generator->generator);
+        for (size_t i = 0; i < total; ++i)
+            values[i] = low + (high - low) * nk_random_uniform_f64(&generator->generator);
     }
 }
 
@@ -290,12 +303,10 @@ static void write_integer(char *data, nk_dtype_t dtype, size_t index, uint64_t v
     }
 }
 
-static void fill_integers(RandomGenerator *generator, char *data, nk_dtype_t dtype, size_t total, int64_t low,
-                          int64_t high) {
-    uint64_t const bound = (uint64_t)high - (uint64_t)low;
-    uint64_t const low_bits = (uint64_t)low;
+static void fill_integers(RandomGenerator *generator, char *data, nk_dtype_t dtype, size_t total, uint64_t low,
+                          uint64_t bound) {
     for (size_t i = 0; i < total; ++i)
-        write_integer(data, dtype, i, low_bits + nk_random_bounded_u64(&generator->generator, bound));
+        write_integer(data, dtype, i, low + nk_random_bounded_u64(&generator->generator, bound));
 }
 
 static PyObject *generate_floating_output(RandomGenerator *generator, PyObject *out_obj, nk_dtype_t dtype, size_t rank,
@@ -308,19 +319,21 @@ static PyObject *generate_floating_output(RandomGenerator *generator, PyObject *
         return NULL;
     }
     PyThreadState *gil = PyEval_SaveThread();
+    PyThread_acquire_lock(generator->lock, WAIT_LOCK);
     fill(generator, output.data, dtype, total, first, second);
+    PyThread_release_lock(generator->lock);
     PyEval_RestoreThread(gil);
     return finish_output(&output);
 }
 
 static PyObject *generator_random(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static char const *const allowed[] = {"size", "dtype", "out", NULL};
-    if (nargs > 1 || !reject_unknown_keywords(kwnames, allowed, "Generator.random")) return NULL;
+    if (!validate_arguments(nargs, 1, kwnames, allowed, "Generator.random")) return NULL;
 
     PyObject *size_obj = NULL, *dtype_obj = NULL, *out_obj = NULL;
-    if (!get_argument(args, nargs, kwnames, 0, "size", NULL, &size_obj) ||
-        !get_argument(args, nargs, kwnames, 1, "dtype", NULL, &dtype_obj) ||
-        !get_argument(args, nargs, kwnames, 2, "out", NULL, &out_obj))
+    if (!get_argument(args, nargs, kwnames, 0, "size", &size_obj) ||
+        !get_argument(args, nargs, kwnames, 1, "dtype", &dtype_obj) ||
+        !get_argument(args, nargs, kwnames, 2, "out", &out_obj))
         return NULL;
 
     Py_ssize_t shape[NK_TENSOR_MAX_RANK];
@@ -337,20 +350,19 @@ static PyObject *generator_random(PyObject *self, PyObject *const *args, Py_ssiz
 
 static PyObject *generator_uniform(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static char const *const allowed[] = {"low", "high", "size", "dtype", "out", NULL};
-    if (nargs > 3 || !reject_unknown_keywords(kwnames, allowed, "Generator.uniform")) return NULL;
+    if (!validate_arguments(nargs, 3, kwnames, allowed, "Generator.uniform")) return NULL;
 
     PyObject *low_obj = NULL, *high_obj = NULL, *size_obj = NULL, *dtype_obj = NULL, *out_obj = NULL;
-    if (!get_argument(args, nargs, kwnames, 0, "low", NULL, &low_obj) ||
-        !get_argument(args, nargs, kwnames, 1, "high", NULL, &high_obj) ||
-        !get_argument(args, nargs, kwnames, 2, "size", NULL, &size_obj) ||
-        !get_argument(args, nargs, kwnames, 3, "dtype", NULL, &dtype_obj) ||
-        !get_argument(args, nargs, kwnames, 4, "out", NULL, &out_obj))
+    if (!get_argument(args, nargs, kwnames, 0, "low", &low_obj) ||
+        !get_argument(args, nargs, kwnames, 1, "high", &high_obj) ||
+        !get_argument(args, nargs, kwnames, 2, "size", &size_obj) ||
+        !get_argument(args, nargs, kwnames, 3, "dtype", &dtype_obj) ||
+        !get_argument(args, nargs, kwnames, 4, "out", &out_obj))
         return NULL;
     double low, high;
     if (!low_obj) low = 0.0;
     if (!high_obj) high = 1.0;
-    if ((low_obj && !parse_f64(low_obj, &low, "low")) || (high_obj && !parse_f64(high_obj, &high, "high")))
-        return NULL;
+    if ((low_obj && !parse_f64(low_obj, &low, "low")) || (high_obj && !parse_f64(high_obj, &high, "high"))) return NULL;
     if (!isfinite(low) || !isfinite(high) || low >= high)
         return (PyErr_SetString(PyExc_ValueError, "uniform requires finite low < high"), NULL);
 
@@ -368,14 +380,14 @@ static PyObject *generator_uniform(PyObject *self, PyObject *const *args, Py_ssi
 
 static PyObject *generator_normal(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static char const *const allowed[] = {"loc", "scale", "size", "dtype", "out", NULL};
-    if (nargs > 3 || !reject_unknown_keywords(kwnames, allowed, "Generator.normal")) return NULL;
+    if (!validate_arguments(nargs, 3, kwnames, allowed, "Generator.normal")) return NULL;
 
     PyObject *location_obj = NULL, *scale_obj = NULL, *size_obj = NULL, *dtype_obj = NULL, *out_obj = NULL;
-    if (!get_argument(args, nargs, kwnames, 0, "loc", NULL, &location_obj) ||
-        !get_argument(args, nargs, kwnames, 1, "scale", NULL, &scale_obj) ||
-        !get_argument(args, nargs, kwnames, 2, "size", NULL, &size_obj) ||
-        !get_argument(args, nargs, kwnames, 3, "dtype", NULL, &dtype_obj) ||
-        !get_argument(args, nargs, kwnames, 4, "out", NULL, &out_obj))
+    if (!get_argument(args, nargs, kwnames, 0, "loc", &location_obj) ||
+        !get_argument(args, nargs, kwnames, 1, "scale", &scale_obj) ||
+        !get_argument(args, nargs, kwnames, 2, "size", &size_obj) ||
+        !get_argument(args, nargs, kwnames, 3, "dtype", &dtype_obj) ||
+        !get_argument(args, nargs, kwnames, 4, "out", &out_obj))
         return NULL;
     double location, scale;
     if (location_obj) {
@@ -401,15 +413,14 @@ static PyObject *generator_normal(PyObject *self, PyObject *const *args, Py_ssiz
                                     scale);
 }
 
-static PyObject *generator_standard_normal(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
-                                           PyObject *kwnames) {
+static PyObject *generator_standard_normal(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static char const *const allowed[] = {"size", "dtype", "out", NULL};
-    if (nargs > 1 || !reject_unknown_keywords(kwnames, allowed, "Generator.standard_normal")) return NULL;
+    if (!validate_arguments(nargs, 1, kwnames, allowed, "Generator.standard_normal")) return NULL;
 
     PyObject *size_obj = NULL, *dtype_obj = NULL, *out_obj = NULL;
-    if (!get_argument(args, nargs, kwnames, 0, "size", NULL, &size_obj) ||
-        !get_argument(args, nargs, kwnames, 1, "dtype", NULL, &dtype_obj) ||
-        !get_argument(args, nargs, kwnames, 2, "out", NULL, &out_obj))
+    if (!get_argument(args, nargs, kwnames, 0, "size", &size_obj) ||
+        !get_argument(args, nargs, kwnames, 1, "dtype", &dtype_obj) ||
+        !get_argument(args, nargs, kwnames, 2, "out", &out_obj))
         return NULL;
 
     Py_ssize_t shape[NK_TENSOR_MAX_RANK];
@@ -425,56 +436,83 @@ static PyObject *generator_standard_normal(PyObject *self, PyObject *const *args
 
 static PyObject *generator_integers(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static char const *const allowed[] = {"low", "high", "size", "dtype", "out", NULL};
-    if (nargs > 3 || !reject_unknown_keywords(kwnames, allowed, "Generator.integers")) return NULL;
+    if (!validate_arguments(nargs, 3, kwnames, allowed, "Generator.integers")) return NULL;
 
     PyObject *low_obj = NULL, *high_obj = NULL, *size_obj = NULL, *dtype_obj = NULL, *out_obj = NULL;
-    if (!get_argument(args, nargs, kwnames, 0, "low", NULL, &low_obj) ||
-        !get_argument(args, nargs, kwnames, 1, "high", NULL, &high_obj) ||
-        !get_argument(args, nargs, kwnames, 2, "size", NULL, &size_obj) ||
-        !get_argument(args, nargs, kwnames, 3, "dtype", NULL, &dtype_obj) ||
-        !get_argument(args, nargs, kwnames, 4, "out", NULL, &out_obj))
+    if (!get_argument(args, nargs, kwnames, 0, "low", &low_obj) ||
+        !get_argument(args, nargs, kwnames, 1, "high", &high_obj) ||
+        !get_argument(args, nargs, kwnames, 2, "size", &size_obj) ||
+        !get_argument(args, nargs, kwnames, 3, "dtype", &dtype_obj) ||
+        !get_argument(args, nargs, kwnames, 4, "out", &out_obj))
         return NULL;
-    int64_t low, high;
-    if (!parse_i64(low_obj, &low, "low")) return NULL;
-    if (high_obj == NULL || high_obj == Py_None) {
-        high = low;
-        low = 0;
-    }
-    else if (!parse_i64(high_obj, &high, "high")) return NULL;
-    if (low >= high) return (PyErr_SetString(PyExc_ValueError, "integers requires low < high"), NULL);
-
     Py_ssize_t shape[NK_TENSOR_MAX_RANK];
     size_t rank, total;
     if (!parse_shape(size_obj, shape, &rank) || !count_elements(shape, rank, &total)) return NULL;
     nk_dtype_t dtype;
     if (!parse_dtype(dtype_obj, nk_i64_k, &dtype)) return NULL;
-    if (!integer_dtype(dtype) || !validate_integer_bounds(dtype, low, high)) return NULL;
+    uint64_t low, bound;
+    if (!parse_integer_bounds(dtype, low_obj, high_obj, &low, &bound)) return NULL;
 
     RandomOutput output;
     if (!prepare_output(&output, out_obj, dtype, rank, shape)) {
         release_output(&output);
         return NULL;
     }
+    RandomGenerator *generator = (RandomGenerator *)self;
     PyThreadState *gil = PyEval_SaveThread();
-    fill_integers((RandomGenerator *)self, output.data, dtype, total, low, high);
+    PyThread_acquire_lock(generator->lock, WAIT_LOCK);
+    fill_integers(generator, output.data, dtype, total, low, bound);
+    PyThread_release_lock(generator->lock);
     PyEval_RestoreThread(gil);
     return finish_output(&output);
 }
 
+static void lock_generator(RandomGenerator *self) {
+    if (PyThread_acquire_lock(self->lock, NOWAIT_LOCK)) return;
+    PyThreadState *gil = PyEval_SaveThread();
+    PyThread_acquire_lock(self->lock, WAIT_LOCK);
+    PyEval_RestoreThread(gil);
+}
+
+static PyObject *RandomGenerator_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    nk_unused_(args);
+    nk_unused_(kwargs);
+    RandomGenerator *self = (RandomGenerator *)type->tp_alloc(type, 0);
+    if (!self) return NULL;
+    self->lock = PyThread_allocate_lock();
+    if (!self->lock) {
+        Py_DECREF(self);
+        return PyErr_NoMemory();
+    }
+    return (PyObject *)self;
+}
+
+static void RandomGenerator_dealloc(RandomGenerator *self) {
+    if (self->lock) PyThread_free_lock(self->lock);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
 static PyObject *generator_state_get(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyLong_FromUnsignedLongLong(((RandomGenerator *)self)->generator.state);
+    RandomGenerator *generator = (RandomGenerator *)self;
+    lock_generator(generator);
+    uint64_t const state = generator->generator.state;
+    PyThread_release_lock(generator->lock);
+    return PyLong_FromUnsignedLongLong(state);
 }
 
 static int generator_state_set(PyObject *self, PyObject *value, void *closure) {
     nk_unused_(closure);
-    if (!PyLong_Check(value)) {
+    if (!value || !PyLong_Check(value)) {
         PyErr_SetString(PyExc_TypeError, "state must be an integer");
         return -1;
     }
     uint64_t const state = PyLong_AsUnsignedLongLong(value);
     if (PyErr_Occurred()) return -1;
-    nk_random_seed(&((RandomGenerator *)self)->generator, state);
+    RandomGenerator *generator = (RandomGenerator *)self;
+    lock_generator(generator);
+    nk_random_seed(&generator->generator, state);
+    PyThread_release_lock(generator->lock);
     return 0;
 }
 
@@ -491,13 +529,14 @@ static int RandomGenerator_init(RandomGenerator *self, PyObject *args, PyObject 
         seed = PyLong_AsUnsignedLongLong(seed_obj);
         if (PyErr_Occurred()) return -1;
     }
+    lock_generator(self);
     nk_random_seed(&self->generator, seed);
+    PyThread_release_lock(self->lock);
     return 0;
 }
 
 static PyMethodDef RandomGenerator_methods[] = {
-    {"random", (PyCFunction)generator_random, METH_FASTCALL | METH_KEYWORDS,
-     "Generate uniform samples in [0, 1)."},
+    {"random", (PyCFunction)generator_random, METH_FASTCALL | METH_KEYWORDS, "Generate uniform samples in [0, 1)."},
     {"uniform", (PyCFunction)generator_uniform, METH_FASTCALL | METH_KEYWORDS,
      "Generate uniform samples in [low, high)."},
     {"normal", (PyCFunction)generator_normal, METH_FASTCALL | METH_KEYWORDS,
@@ -519,8 +558,9 @@ PyTypeObject RandomGeneratorType = {
     .tp_doc = "Independent stateful pseudo-random number generator.",
     .tp_basicsize = sizeof(RandomGenerator),
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+    .tp_dealloc = (destructor)RandomGenerator_dealloc,
     .tp_methods = RandomGenerator_methods,
     .tp_getset = RandomGenerator_getset,
     .tp_init = (initproc)RandomGenerator_init,
-    .tp_new = PyType_GenericNew,
+    .tp_new = RandomGenerator_new,
 };

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Tests for the stateful NumKong random generator."""
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
 import numkong as nk
 import pytest
 
@@ -62,8 +65,7 @@ def test_out_buffer_is_filled_in_place():
     output = np.empty((2, 3), dtype=np.float32)
 
     assert generator.random((2, 3), out=output) is None
-    assert output.shape == (2, 3)
-    assert np.all((output >= 0.0) & (output < 1.0))
+    np.testing.assert_array_equal(output, np.asarray(nk.Generator(137).random((2, 3))))
 
 
 @pytest.mark.parametrize(
@@ -89,3 +91,89 @@ def test_out_requires_matching_c_contiguous_buffer():
         generator.random((2, 3), out=non_contiguous)
     with pytest.raises(TypeError, match="dtype"):
         generator.random((2, 3), out=wrong_dtype)
+
+
+@pytest.mark.parametrize("method", ["random", "uniform", "normal", "standard_normal", "integers"])
+def test_shared_generator_serializes_complete_fills(method):
+    generator = nk.Generator(137)
+    reference = nk.Generator(137)
+    barrier = Barrier(4)
+    kwargs = {"size": 262144}
+    if method == "integers":
+        kwargs.update(low=0, high=1000000)
+
+    def fill(_):
+        barrier.wait(timeout=10)
+        return np.asarray(getattr(generator, method)(**kwargs))
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        outputs = list(executor.map(fill, range(4)))
+    expected = [np.asarray(getattr(reference, method)(**kwargs)) for _ in range(4)]
+
+    assert generator.state == reference.state
+    for actual, serial in zip(sorted(outputs, key=lambda row: row[0]), sorted(expected, key=lambda row: row[0])):
+        np.testing.assert_array_equal(actual, serial)
+
+
+@pytest.mark.parametrize("dtype", ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"])
+def test_integer_dtype_limits(dtype):
+    limits = np.iinfo(dtype)
+    generator = nk.Generator(137)
+    samples = np.asarray(generator.integers(int(limits.min), int(limits.max) + 1, size=1024, dtype=dtype))
+    assert samples.dtype == np.dtype(dtype)
+    midpoint = (int(limits.min) + int(limits.max) + 1) // 2
+    assert np.any(samples < midpoint)
+    assert np.any(samples >= midpoint)
+    np.testing.assert_array_equal(
+        np.asarray(generator.integers(int(limits.max), int(limits.max) + 1, size=4, dtype=dtype)),
+        np.full(4, limits.max, dtype=dtype),
+    )
+    for low, high in [(int(limits.min) - 1, 1), (0, int(limits.max) + 2)]:
+        with pytest.raises((ValueError, OverflowError)):
+            generator.integers(low, high, size=4, dtype=dtype)
+
+
+def test_uint64_bounds_above_int64():
+    generator = nk.Generator(137)
+    samples = np.asarray(generator.integers(1 << 63, 1 << 64, size=1024, dtype="uint64"))
+    assert np.all(samples >= np.uint64(1 << 63))
+    samples = np.asarray(generator.integers(1 << 64, size=1024, dtype="uint64"))
+    assert samples.dtype == np.uint64
+    assert np.any(samples >= np.uint64(1 << 63))
+
+
+@pytest.mark.parametrize(
+    ("method", "first_argument"),
+    [("random", "size"), ("uniform", "low"), ("normal", "loc"), ("standard_normal", "size"), ("integers", "low")],
+)
+def test_argument_errors_are_type_errors(method, first_argument):
+    function = getattr(nk.Generator(137), method)
+    with pytest.raises(TypeError, match="positional arguments"):
+        function(1, 2, 3, 4, 5, 6)
+    with pytest.raises(TypeError, match="unexpected keyword argument 'unknown'"):
+        function(unknown=1)
+    kwargs = {"low": 0, "high": 10} if method == "integers" else {}
+    with pytest.raises(TypeError, match="size"):
+        function(**kwargs)
+    with pytest.raises(TypeError, match="multiple values"):
+        function(1, **{first_argument: 1})
+
+
+@pytest.mark.parametrize("dtype", ["float32", "int4", "uint1"])
+def test_integers_rejects_unsupported_dtypes(dtype):
+    with pytest.raises(TypeError, match="integer dtypes"):
+        nk.Generator(137).integers(0, 4, size=4, dtype=dtype)
+
+
+def test_state_cannot_be_deleted():
+    generator = nk.Generator(137)
+    with pytest.raises(TypeError, match="state must be an integer"):
+        del generator.state
+    assert generator.state == 137
+
+
+def test_generator_new_and_reinitialization():
+    generator = nk.Generator.__new__(nk.Generator)
+    np.testing.assert_array_equal(np.asarray(generator.random(8)), np.asarray(nk.Generator(0).random(8)))
+    generator.__init__(137)
+    np.testing.assert_array_equal(np.asarray(generator.random(8)), np.asarray(nk.Generator(137).random(8)))

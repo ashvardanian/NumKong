@@ -37,7 +37,6 @@
 #define NK_RANDOM_H
 
 #include <math.h>
-#include <stddef.h>
 #include <stdint.h>
 
 #include "numkong/types.h"
@@ -53,9 +52,7 @@ typedef struct nk_random_generator_t {
 } nk_random_generator_t;
 
 /** @brief Initialize a generator from an explicit seed. */
-NK_PUBLIC void nk_random_seed(nk_random_generator_t *generator, uint64_t seed) {
-    generator->state = seed;
-}
+NK_PUBLIC void nk_random_seed(nk_random_generator_t *generator, uint64_t seed) { generator->state = seed; }
 
 /** @brief Advance the generator and return a deterministic 64-bit value. */
 NK_PUBLIC uint64_t nk_random_next_u64(nk_random_generator_t *generator) {
