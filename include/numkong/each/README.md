@@ -319,6 +319,16 @@ Workloads that significantly degrade CPU frequencies (Intel AMX, Apple SME) run 
 
 ### Apple M5
 
+The `nk_each_scale_f16_neonhalf`, `nk_each_blend_f16_neonhalf`, and
+`nk_each_fma_f16_neonhalf` rows below are historical measurements of the
+previous native-F16 arithmetic. The current kernels widen to F32 for these
+operations. Those ULP values also used the old float32-spacing metric for
+half outputs, so they are not comparable to the binary16-ULP checks below; that
+test-helper issue is tracked in [#397](https://github.com/ashvardanian/NumKong/issues/397).
+The widened kernels address the performance and precision reports in
+[#395](https://github.com/ashvardanian/NumKong/issues/395) and
+[#396](https://github.com/ashvardanian/NumKong/issues/396).
+
 #### Native
 
 | Kernel                         |                      256 |                     1024 |                     4096 |
