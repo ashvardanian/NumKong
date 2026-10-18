@@ -2366,6 +2366,10 @@ NUMKONG_INLINE nk_f64_t nk_rmsds_pair_f64_serial_(void const *row_packed, void c
 }
 
 #if NUMKONG_TARGET_SERIAL
+nk_define_shapes_flip_kernels_(f64, f64, serial, nk_shapes_nearest_f64_serial_, NUMKONG_F64_INF)
+nk_define_shapes_flip_kernels_(f32, f64, serial, nk_shapes_nearest_f32_serial_, NUMKONG_F64_INF)
+nk_define_shapes_flip_kernels_(f16, f32, serial, nk_shapes_nearest_f16_serial_, NUMKONG_F32_INF)
+
 /*  Keep the serial instantiations below actually scalar, regardless of build type. Without this,
  *  -O3 + LTO can vectorize or clone the serial kernels under AVX-512 callers in dispatch_*.c, which
  *  wastes binary and breaks the nk_*_serial-as-scalar-oracle contract that tests and
@@ -2380,9 +2384,6 @@ NUMKONG_INLINE nk_f64_t nk_rmsds_pair_f64_serial_(void const *row_packed, void c
 nk_define_shapes_(f64, f64)
 nk_define_shapes_(f32, f64)
 nk_define_shapes_(f16, f32)
-nk_define_shapes_flip_kernels_(f64, f64, serial, nk_shapes_nearest_f64_serial_, NUMKONG_F64_INF)
-nk_define_shapes_flip_kernels_(f32, f64, serial, nk_shapes_nearest_f32_serial_, NUMKONG_F64_INF)
-nk_define_shapes_flip_kernels_(f16, f32, serial, nk_shapes_nearest_f16_serial_, NUMKONG_F32_INF)
 nk_define_shapes_transport_kernels_(f64, f64, serial, NUMKONG_F64_INF)
 nk_define_shapes_transport_kernels_(f32, f64, serial, NUMKONG_F64_INF)
 nk_define_shapes_transport_kernels_(f16, f32, serial, NUMKONG_F32_INF)

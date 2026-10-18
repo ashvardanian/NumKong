@@ -88,6 +88,105 @@ NUMKONG_INLINE nk_f32_t nk_terrain_height_f32_serial_(nk_f32_t const *heights, n
     return *(nk_f32_t const *)((char const *)heights + row * stride + column * sizeof(nk_f32_t));
 }
 
+/** One sight line in cell coordinates: p(u) = start + u · delta for u in (0, 1), its height
+ *  at u, and the scale of the curvature drop along it. */
+typedef struct nk_terrain_ray_t_ {
+    nk_f64_t column_start, column_delta;
+    nk_f64_t row_start, row_delta;
+    nk_f64_t height_start, height_delta;
+    nk_f64_t distance, drop_scale;
+} nk_terrain_ray_t_;
+
+/** Folds one terrain sample at @p u, interpolated between @p first and @p second at
+ *  @p fraction, into the running @p clearance; missing heights never block. */
+NUMKONG_INLINE void nk_terrain_fold_sample_f32_serial_(nk_terrain_ray_t_ const *ray, nk_f64_t u, nk_f64_t first,
+                                                       nk_f64_t second, nk_f64_t fraction, nk_f64_t *clearance) {
+    nk_f64_t const ground = fraction == 0 ? first : first + fraction * (second - first);
+    if (ground != ground) return;
+    nk_f64_t const along = u * ray->distance;
+    nk_f64_t const gap = ray->height_start + u * ray->height_delta - (ground - ray->drop_scale * along * along);
+    if (gap < *clearance) *clearance = gap;
+}
+
+/** A cell coordinate along a sight line clamped into [0, @p last]: both ends lie on the grid,
+ *  so only a rounding near an edge can step outside it. */
+NUMKONG_INLINE nk_f64_t nk_terrain_clamp_f64_serial_(nk_f64_t coordinate, nk_f64_t last) {
+    return coordinate < 0 ? 0 : (coordinate > last ? last : coordinate);
+}
+
+/** Folds every sample whose crossing falls between @p u_begin and @p u_end into @p clearance:
+ *  the column lines, then the row lines, each interpolated along its own line. */
+NUMKONG_INLINE void nk_terrain_fold_samples_f32_serial_(nk_f32_t const *heights,
+                                                        nk_terrain_packed_header_t const *header,
+                                                        nk_terrain_ray_t_ const *ray, nk_f64_t u_begin, nk_f64_t u_end,
+                                                        nk_f64_t *clearance) {
+    nk_size_t const rows = (nk_size_t)header->rows, columns = (nk_size_t)header->columns;
+    nk_size_t const stride = (nk_size_t)header->heights_stride;
+    nk_f64_t const last_row = (nk_f64_t)(rows - 1), last_column = (nk_f64_t)(columns - 1);
+    if (ray->column_delta != 0) {
+        nk_f64_t low = nk_terrain_clamp_f64_serial_(ray->column_start + u_begin * ray->column_delta, last_column);
+        nk_f64_t high = nk_terrain_clamp_f64_serial_(ray->column_start + u_end * ray->column_delta, last_column);
+        if (low > high) {
+            nk_f64_t const swapped = low;
+            low = high, high = swapped;
+        }
+        nk_size_t const first = (nk_size_t)low + ((nk_f64_t)(nk_size_t)low < low);
+        for (nk_size_t column = first; (nk_f64_t)column <= high; ++column) {
+            nk_f64_t const u = ((nk_f64_t)column - ray->column_start) / ray->column_delta;
+            if (!(u > 0 && u < 1 && u >= u_begin && u <= u_end)) continue;
+            nk_f64_t const row = nk_terrain_clamp_f64_serial_(ray->row_start + u * ray->row_delta, last_row);
+            nk_size_t const row_first = (nk_size_t)row;
+            nk_f64_t const fraction = row - (nk_f64_t)row_first;
+            nk_size_t const row_second = row_first + 1 < rows ? row_first + 1 : row_first;
+            nk_terrain_fold_sample_f32_serial_(
+                ray, u, nk_terrain_height_f32_serial_(heights, stride, row_first, column),
+                nk_terrain_height_f32_serial_(heights, stride, row_second, column), fraction, clearance);
+        }
+    }
+    if (ray->row_delta != 0) {
+        nk_f64_t low = nk_terrain_clamp_f64_serial_(ray->row_start + u_begin * ray->row_delta, last_row);
+        nk_f64_t high = nk_terrain_clamp_f64_serial_(ray->row_start + u_end * ray->row_delta, last_row);
+        if (low > high) {
+            nk_f64_t const swapped = low;
+            low = high, high = swapped;
+        }
+        nk_size_t const first = (nk_size_t)low + ((nk_f64_t)(nk_size_t)low < low);
+        for (nk_size_t row = first; (nk_f64_t)row <= high; ++row) {
+            nk_f64_t const u = ((nk_f64_t)row - ray->row_start) / ray->row_delta;
+            if (!(u > 0 && u < 1 && u >= u_begin && u <= u_end)) continue;
+            nk_f64_t const column = nk_terrain_clamp_f64_serial_(ray->column_start + u * ray->column_delta,
+                                                                 last_column);
+            nk_size_t const column_first = (nk_size_t)column;
+            nk_f64_t const fraction = column - (nk_f64_t)column_first;
+            nk_size_t const column_second = column_first + 1 < columns ? column_first + 1 : column_first;
+            nk_terrain_fold_sample_f32_serial_(
+                ray, u, nk_terrain_height_f32_serial_(heights, stride, row, column_first),
+                nk_terrain_height_f32_serial_(heights, stride, row, column_second), fraction, clearance);
+        }
+    }
+}
+
+/** Whether a target at @p east, @p north and @p up metres from a viewpoint falls outside its
+ *  view of @p azimuth, @p elevation, @p field and @p range. */
+NUMKONG_INLINE int nk_terrain_outside_view_f32_serial_(nk_f64_t east, nk_f64_t north, nk_f64_t up, nk_f64_t azimuth,
+                                                       nk_f64_t elevation, nk_f64_t field, nk_f64_t range) {
+    nk_f64_t const slant = nk_sqrt_f64_serial_(east * east + north * north + up * up);
+    if (range == range && slant > range) return 1;
+    if (azimuth != azimuth || !(field < 2 * 3.14159265358979323846)) return 0;
+    nk_f64_t const half_field = field / 2;
+    if (elevation != elevation) {
+        nk_f64_t const ground = nk_sqrt_f64_serial_(east * east + north * north);
+        if (ground == 0) return 0;
+        nk_f64_t const cosine = (east * nk_sin_f64_serial_(azimuth) + north * nk_cos_f64_serial_(azimuth)) / ground;
+        return cosine < nk_cos_f64_serial_(half_field);
+    }
+    if (slant == 0) return 0;
+    nk_f64_t const cos_elevation = nk_cos_f64_serial_(elevation);
+    nk_f64_t const along = east * nk_sin_f64_serial_(azimuth) * cos_elevation +
+                           north * nk_cos_f64_serial_(azimuth) * cos_elevation + up * nk_sin_f64_serial_(elevation);
+    return along / slant < nk_cos_f64_serial_(half_field);
+}
+
 #if NUMKONG_TARGET_SERIAL
 /*  Keep the serial instantiations below actually scalar, regardless of build type.
  *  See dots/serial.h for rationale. */
@@ -392,84 +491,6 @@ NUMKONG_API nk_status_t nk_terrain_heights_packed_f32_serial(nk_f32_t const *hei
     return nk_success_k;
 }
 
-/** One sight line in cell coordinates: p(u) = start + u · delta for u in (0, 1), its height
- *  at u, and the scale of the curvature drop along it. */
-typedef struct nk_terrain_ray_t_ {
-    nk_f64_t column_start, column_delta;
-    nk_f64_t row_start, row_delta;
-    nk_f64_t height_start, height_delta;
-    nk_f64_t distance, drop_scale;
-} nk_terrain_ray_t_;
-
-/** Folds one terrain sample at @p u, interpolated between @p first and @p second at
- *  @p fraction, into the running @p clearance; missing heights never block. */
-NUMKONG_INLINE void nk_terrain_fold_sample_f32_serial_(nk_terrain_ray_t_ const *ray, nk_f64_t u, nk_f64_t first,
-                                                       nk_f64_t second, nk_f64_t fraction, nk_f64_t *clearance) {
-    nk_f64_t const ground = fraction == 0 ? first : first + fraction * (second - first);
-    if (ground != ground) return;
-    nk_f64_t const along = u * ray->distance;
-    nk_f64_t const gap = ray->height_start + u * ray->height_delta - (ground - ray->drop_scale * along * along);
-    if (gap < *clearance) *clearance = gap;
-}
-
-/** A cell coordinate along a sight line clamped into [0, @p last]: both ends lie on the grid,
- *  so only a rounding near an edge can step outside it. */
-NUMKONG_INLINE nk_f64_t nk_terrain_clamp_f64_serial_(nk_f64_t coordinate, nk_f64_t last) {
-    return coordinate < 0 ? 0 : (coordinate > last ? last : coordinate);
-}
-
-/** Folds every sample whose crossing falls between @p u_begin and @p u_end into @p clearance:
- *  the column lines, then the row lines, each interpolated along its own line. */
-NUMKONG_INLINE void nk_terrain_fold_samples_f32_serial_(nk_f32_t const *heights,
-                                                        nk_terrain_packed_header_t const *header,
-                                                        nk_terrain_ray_t_ const *ray, nk_f64_t u_begin, nk_f64_t u_end,
-                                                        nk_f64_t *clearance) {
-    nk_size_t const rows = (nk_size_t)header->rows, columns = (nk_size_t)header->columns;
-    nk_size_t const stride = (nk_size_t)header->heights_stride;
-    nk_f64_t const last_row = (nk_f64_t)(rows - 1), last_column = (nk_f64_t)(columns - 1);
-    if (ray->column_delta != 0) {
-        nk_f64_t low = nk_terrain_clamp_f64_serial_(ray->column_start + u_begin * ray->column_delta, last_column);
-        nk_f64_t high = nk_terrain_clamp_f64_serial_(ray->column_start + u_end * ray->column_delta, last_column);
-        if (low > high) {
-            nk_f64_t const swapped = low;
-            low = high, high = swapped;
-        }
-        nk_size_t const first = (nk_size_t)low + ((nk_f64_t)(nk_size_t)low < low);
-        for (nk_size_t column = first; (nk_f64_t)column <= high; ++column) {
-            nk_f64_t const u = ((nk_f64_t)column - ray->column_start) / ray->column_delta;
-            if (!(u > 0 && u < 1 && u >= u_begin && u <= u_end)) continue;
-            nk_f64_t const row = nk_terrain_clamp_f64_serial_(ray->row_start + u * ray->row_delta, last_row);
-            nk_size_t const row_first = (nk_size_t)row;
-            nk_f64_t const fraction = row - (nk_f64_t)row_first;
-            nk_size_t const row_second = row_first + 1 < rows ? row_first + 1 : row_first;
-            nk_terrain_fold_sample_f32_serial_(
-                ray, u, nk_terrain_height_f32_serial_(heights, stride, row_first, column),
-                nk_terrain_height_f32_serial_(heights, stride, row_second, column), fraction, clearance);
-        }
-    }
-    if (ray->row_delta != 0) {
-        nk_f64_t low = nk_terrain_clamp_f64_serial_(ray->row_start + u_begin * ray->row_delta, last_row);
-        nk_f64_t high = nk_terrain_clamp_f64_serial_(ray->row_start + u_end * ray->row_delta, last_row);
-        if (low > high) {
-            nk_f64_t const swapped = low;
-            low = high, high = swapped;
-        }
-        nk_size_t const first = (nk_size_t)low + ((nk_f64_t)(nk_size_t)low < low);
-        for (nk_size_t row = first; (nk_f64_t)row <= high; ++row) {
-            nk_f64_t const u = ((nk_f64_t)row - ray->row_start) / ray->row_delta;
-            if (!(u > 0 && u < 1 && u >= u_begin && u <= u_end)) continue;
-            nk_f64_t const column = nk_terrain_clamp_f64_serial_(ray->column_start + u * ray->column_delta,
-                                                                 last_column);
-            nk_size_t const column_first = (nk_size_t)column;
-            nk_f64_t const fraction = column - (nk_f64_t)column_first;
-            nk_size_t const column_second = column_first + 1 < columns ? column_first + 1 : column_first;
-            nk_terrain_fold_sample_f32_serial_(
-                ray, u, nk_terrain_height_f32_serial_(heights, stride, row, column_first),
-                nk_terrain_height_f32_serial_(heights, stride, row, column_second), fraction, clearance);
-        }
-    }
-}
-
 /** Walks the blocks of @p level the ray crosses between @p u_begin and @p u_end, skipping each
  *  whose maximum cannot lower @p clearance and descending into the rest, down to the samples
  *  themselves at level zero. */
@@ -527,27 +548,6 @@ static void nk_terrain_visit_serial_(nk_f32_t const *heights, void const *packed
         }
         u = u_next;
     }
-}
-
-/** Whether a target at @p east, @p north and @p up metres from a viewpoint falls outside its
- *  view of @p azimuth, @p elevation, @p field and @p range. */
-NUMKONG_INLINE int nk_terrain_outside_view_f32_serial_(nk_f64_t east, nk_f64_t north, nk_f64_t up, nk_f64_t azimuth,
-                                                       nk_f64_t elevation, nk_f64_t field, nk_f64_t range) {
-    nk_f64_t const slant = nk_sqrt_f64_serial_(east * east + north * north + up * up);
-    if (range == range && slant > range) return 1;
-    if (azimuth != azimuth || !(field < 2 * 3.14159265358979323846)) return 0;
-    nk_f64_t const half_field = field / 2;
-    if (elevation != elevation) {
-        nk_f64_t const ground = nk_sqrt_f64_serial_(east * east + north * north);
-        if (ground == 0) return 0;
-        nk_f64_t const cosine = (east * nk_sin_f64_serial_(azimuth) + north * nk_cos_f64_serial_(azimuth)) / ground;
-        return cosine < nk_cos_f64_serial_(half_field);
-    }
-    if (slant == 0) return 0;
-    nk_f64_t const cos_elevation = nk_cos_f64_serial_(elevation);
-    nk_f64_t const along = east * nk_sin_f64_serial_(azimuth) * cos_elevation +
-                           north * nk_cos_f64_serial_(azimuth) * cos_elevation + up * nk_sin_f64_serial_(elevation);
-    return along / slant < nk_cos_f64_serial_(half_field);
 }
 
 NUMKONG_API nk_status_t nk_clearances_packed_f32_serial(nk_f32_t const *heights, void const *packed,
