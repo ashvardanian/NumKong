@@ -248,6 +248,44 @@ NK_PUBLIC void nk_f32_to_e3m2(nk_f32_t const *src, nk_e3m2_t *dest) { nk_f32_to_
 
 #endif // !NK_DYNAMIC_DISPATCH
 
+/** @brief Pack byte-addressable strided leaves around an existing contiguous cast kernel.
+ *  Returns zero for packed sub-byte types, which require layout-specific handling. */
+NK_INTERNAL int nk_cast_strided_(void const *from, nk_dtype_t from_type, nk_i64_t from_stride_bytes, nk_size_t n,
+                                 void *to, nk_dtype_t to_type, nk_i64_t to_stride_bytes,
+                                 void (*convert)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t)) {
+    nk_size_t const from_bytes = nk_dtype_bits(from_type) / NK_BITS_PER_BYTE;
+    nk_size_t const to_bytes = nk_dtype_bits(to_type) / NK_BITS_PER_BYTE;
+    if (!from_bytes || !to_bytes) return 0;
+    if (from_stride_bytes == (nk_i64_t)from_bytes && to_stride_bytes == (nk_i64_t)to_bytes) {
+        convert(from, from_type, n, to, to_type);
+        return 1;
+    }
+
+    // One cache-line of padding also accommodates older MSVC masked-store lowering.
+    enum { batch_bytes = 1024, padding_bytes = 64 };
+    NK_ALIGN64 nk_u8_t gathered[batch_bytes + padding_bytes];
+    NK_ALIGN64 nk_u8_t converted[batch_bytes + padding_bytes];
+    nk_size_t const largest_element = from_bytes > to_bytes ? from_bytes : to_bytes;
+    nk_size_t const batch_count = batch_bytes / largest_element;
+    for (nk_size_t offset = 0; offset < n;) {
+        nk_size_t const count = n - offset < batch_count ? n - offset : batch_count;
+        char const *source = (char const *)from + (nk_i64_t)offset * from_stride_bytes;
+        char *destination = (char *)to + (nk_i64_t)offset * to_stride_bytes;
+        if (from_stride_bytes != (nk_i64_t)from_bytes) {
+            for (nk_size_t i = 0; i < count; ++i)
+                nk_copy_bytes_(gathered + i * from_bytes, source + (nk_i64_t)i * from_stride_bytes, from_bytes);
+            source = (char const *)gathered;
+        }
+        void *output = to_stride_bytes == (nk_i64_t)to_bytes ? (void *)destination : (void *)converted;
+        convert(source, from_type, count, output, to_type);
+        if (to_stride_bytes != (nk_i64_t)to_bytes)
+            for (nk_size_t i = 0; i < count; ++i)
+                nk_copy_bytes_(destination + (nk_i64_t)i * to_stride_bytes, converted + i * to_bytes, to_bytes);
+        offset += count;
+    }
+    return 1;
+}
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
