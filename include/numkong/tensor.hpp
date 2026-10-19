@@ -280,6 +280,13 @@ struct tensor_view {
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, 1);
     }
 
+    /** Views contiguous storage values as a rank-1 tensor of every logical dimension they hold,
+     *  the inverse of @ref values. */
+    template <typename span_value_type_, std::size_t span_extent_>
+        requires(max_rank_ >= 1 && std::is_same_v<std::remove_const_t<span_value_type_>, value_type>)
+    constexpr tensor_view(std::span<span_value_type_, span_extent_> values) noexcept
+        : tensor_view(values.data(), values.size() * dimensions_per_value<value_type>()) {}
+
     /** Convenience constructor from a typed pointer and an explicit @p extents list, where rank
      *  equals the list size. An out-of-range rank, empty or greater than @c max_rank_, yields an
      *  empty handle rather than overflowing the fixed-capacity shape storage. */
@@ -566,6 +573,13 @@ struct tensor_span {
         std::size_t extents[1] = {count};
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, 1);
     }
+
+    /** Spans contiguous storage values as a rank-1 tensor of every logical dimension they hold,
+     *  the inverse of @ref values. */
+    template <std::size_t span_extent_>
+        requires(max_rank_ >= 1)
+    constexpr tensor_span(std::span<value_type, span_extent_> values) noexcept
+        : tensor_span(values.data(), values.size() * dimensions_per_value<value_type>()) {}
 
     /** Convenience constructor from a typed pointer and an explicit @p extents list, where rank
      *  equals the list size. An out-of-range rank, empty or greater than @c max_rank_, yields an

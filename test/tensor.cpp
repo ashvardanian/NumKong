@@ -393,6 +393,9 @@ error_stats_t test_sub_byte_u1x8(settings_t const &) {
     stats.expect(v[7] == true, "u1x8_t dim 7 mismatch");
     nk::vector_view<nk::u1x8_t> const bits = std::span<nk::u1x8_t>(v.values_data(), v.size_values());
     stats.expect(bits.size() == 64 && bits[7] == true, "u1x8_t view from a span must count dimensions");
+    nk::tensor_view<nk::u1x8_t, 1> const bit_tensor = std::span<nk::u1x8_t const>(v.values_data(), v.size_values());
+    stats.expect(bit_tensor.extent(0) == 64 && bit_tensor.values() && bit_tensor.values().value.size() == 8,
+                 "u1x8_t tensor from a span must count dimensions and give its values back");
     return stats;
 }
 
@@ -1252,6 +1255,11 @@ error_stats_t test_view_overloads(settings_t const &) {
                  "dot of strided views");
     stats.expect(strided_view.values().status == nk::status_t::unexpected_dimensions_k, "values of a strided view");
     stats.expect(a_view.values() && a_view.values().value.size() == 8, "values of a contiguous view");
+    nk::tensor_span<nk::f32_t, 1> const a_tensor = std::span<nk::f32_t>(a_data);
+    nk::tensor_view<nk::f32_t, 1> const a_tensor_view = std::span<nk::f32_t const>(a_data);
+    stats.expect(a_tensor.extent(0) == 8 && a_tensor.values() && a_tensor.values().value.data() == a_data &&
+                     a_tensor_view.values() && a_tensor_view.values().value.size() == 8,
+                 "a tensor from a span gives the same values back");
 
     // Sub-byte runs must fill whole storage values: 5 nibbles or 13 bits end mid-byte.
     nk::i4x2_t nibbles[4] {};
