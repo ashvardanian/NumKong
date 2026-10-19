@@ -7026,7 +7026,7 @@ template <typename value_type_, typename vector_type_>
 constexpr expected<std::span<value_type_>> contiguous_values_(vector_type_ &&vector) noexcept {
     if constexpr (requires { vector.values(); }) {
         auto const values = vector.values();
-        return {{values.value.data(), values.value.size()}, values.status};
+        return {{reinterpret_cast<value_type_ *>(values.value.data()), values.value.size()}, values.status};
     }
     else if constexpr (requires { vector.size_values(); })
         return {{std::data(vector), vector.size_values()}, status_t::success_k};

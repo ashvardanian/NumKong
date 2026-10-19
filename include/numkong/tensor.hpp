@@ -75,6 +75,14 @@ template <typename... arg_types_>
 inline constexpr bool trailing_tensor_slice_args_v =
     trailing_tensor_slice_args_<std::remove_cvref_t<arg_types_>...>::value;
 
+/** The static rank a slice of a @p max_rank_ handle keeps: one less for every integral index
+ *  among @p arg_types_, so `matrix[row, nk::slice]` is a rank-1 handle, and never below one. */
+template <std::size_t max_rank_, typename... arg_types_>
+constexpr std::size_t sliced_max_rank_() noexcept {
+    constexpr std::size_t indexed = (std::size_t {std::integral<std::remove_cvref_t<arg_types_>>} + ... + 0);
+    return indexed < max_rank_ ? max_rank_ - indexed : 1;
+}
+
 #pragma region Shape Storage
 
 /**
@@ -391,11 +399,13 @@ struct tensor_view {
     /** Trailing @c slice returns the same view. */
     constexpr tensor_view operator[](tensor_slice_t) const noexcept { return *this; }
 
-    /** Prefix leading-axis slicing with a trailing @c slice marker, call syntax, C++20-portable. */
+    /** Prefix leading-axis slicing with a trailing @c slice marker, call syntax, C++20-portable.
+     *  Every integral index drops one static rank. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    constexpr tensor_view operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
-        return tensor_slice_suffix_(*this, first, second, rest...);
+    constexpr auto operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+        constexpr std::size_t sliced_rank = sliced_max_rank_<max_rank_, first_type_, second_type_, rest_types_...>();
+        return tensor_slice_suffix_(*this, first, second, rest...).template with_max_rank<sliced_rank>();
     }
 
 #if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
@@ -403,10 +413,29 @@ struct tensor_view {
     /** C++23 sugar: `t[i, nk::slice]` slicing, delegates to `operator()`. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    constexpr tensor_view operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+    constexpr auto operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
         return (*this)(first, second, rest...);
     }
 #endif
+
+    /** The same view under the static rank @p out_rank_, which must hold its runtime rank; an
+     *  empty view otherwise. */
+    template <std::size_t out_rank_>
+    constexpr tensor_view<value_type_, out_rank_> with_max_rank() const noexcept {
+        if constexpr (out_rank_ == max_rank_) return *this;
+        else {
+            nk_assert_(shape_.rank <= out_rank_);
+            if (shape_.rank > out_rank_) return {};
+            shape_storage_<out_rank_> narrowed;
+            narrowed.rank = shape_.rank;
+            for (size_type d = 0; d < shape_.rank; ++d) {
+                narrowed.extents[d] = shape_.extents[d];
+                narrowed.strides[d] = shape_.strides[d];
+            }
+            narrowed.normalize_spare_();
+            return {data_, narrowed};
+        }
+    }
 
     /** Rank-0 scalar access. */
     constexpr decltype(auto) scalar() const noexcept {
@@ -689,11 +718,13 @@ struct tensor_span {
     /** Trailing @c slice returns the same span. */
     constexpr tensor_span operator[](tensor_slice_t) const noexcept { return *this; }
 
-    /** Prefix leading-axis slicing via call syntax, C++20-portable. */
+    /** Prefix leading-axis slicing via call syntax, C++20-portable. Every integral index drops
+     *  one static rank. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    constexpr tensor_span operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
-        return tensor_slice_suffix_(*this, first, second, rest...);
+    constexpr auto operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+        constexpr std::size_t sliced_rank = sliced_max_rank_<max_rank_, first_type_, second_type_, rest_types_...>();
+        return tensor_slice_suffix_(*this, first, second, rest...).template with_max_rank<sliced_rank>();
     }
 
 #if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
@@ -701,10 +732,29 @@ struct tensor_span {
     /** C++23 sugar: multi-arg `[]` slicing, delegates to `operator()`. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    constexpr tensor_span operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+    constexpr auto operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
         return (*this)(first, second, rest...);
     }
 #endif
+
+    /** The same span under the static rank @p out_rank_, which must hold its runtime rank; an
+     *  empty span otherwise. */
+    template <std::size_t out_rank_>
+    constexpr tensor_span<value_type_, out_rank_> with_max_rank() const noexcept {
+        if constexpr (out_rank_ == max_rank_) return *this;
+        else {
+            nk_assert_(shape_.rank <= out_rank_);
+            if (shape_.rank > out_rank_) return {};
+            shape_storage_<out_rank_> narrowed;
+            narrowed.rank = shape_.rank;
+            for (size_type d = 0; d < shape_.rank; ++d) {
+                narrowed.extents[d] = shape_.extents[d];
+                narrowed.strides[d] = shape_.strides[d];
+            }
+            narrowed.normalize_spare_();
+            return {data_, narrowed};
+        }
+    }
 
     /** Rank-0 mutable scalar access. */
     constexpr decltype(auto) scalar_ref() const noexcept {
@@ -1736,18 +1786,18 @@ struct tensor {
     constexpr span_type operator[](tensor_slice_t) noexcept { return span(); }
     constexpr view_type operator[](tensor_slice_t) const noexcept { return view(); }
 
-    /** Prefix leading-axis slicing via call syntax, C++20-portable. */
+    /** Prefix leading-axis slicing via call syntax, C++20-portable, narrowed like the span's. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    constexpr span_type operator()(first_type_ first, second_type_ second, rest_types_... rest) noexcept {
-        return tensor_slice_suffix_(span(), first, second, rest...);
+    constexpr auto operator()(first_type_ first, second_type_ second, rest_types_... rest) noexcept {
+        return span()(first, second, rest...);
     }
 
     /** Const prefix leading-axis slicing via call syntax. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    constexpr view_type operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
-        return tensor_slice_suffix_(view(), first, second, rest...);
+    constexpr auto operator()(first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+        return view()(first, second, rest...);
     }
 
 #if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
@@ -1755,12 +1805,12 @@ struct tensor {
     /** C++23 sugar: multi-arg `[]` slicing, delegates to `operator()`. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    constexpr span_type operator[](first_type_ first, second_type_ second, rest_types_... rest) noexcept {
+    constexpr auto operator[](first_type_ first, second_type_ second, rest_types_... rest) noexcept {
         return (*this)(first, second, rest...);
     }
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
-    constexpr view_type operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
+    constexpr auto operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
         return (*this)(first, second, rest...);
     }
 #endif

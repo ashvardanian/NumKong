@@ -172,6 +172,10 @@ error_stats_t test_tensor_operator_indexing(settings_t const &) {
     stats.expect((line[3] == cube(1, 2, 3)), "line slice element mismatch");
     auto point = cube(1, 2, 3, nk::slice);
     stats.expect((point.rank() == 0 && point.scalar() == cube(1, 2, 3)), "point slice mismatch");
+    nk::tensor_span<float, 2> const matrix = plane.with_max_rank<2>();
+    nk::tensor_span<float, 1> const matrix_row = matrix(1, nk::slice);
+    stats.expect((matrix_row.extent(0) == 4 && matrix_row[0] == cube(1, 1, 0)),
+                 "an indexed slice of a matrix must bind to a rank-1 span");
 #if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
     auto plane_subscript = cube[1, nk::slice];
     auto line_subscript = cube[1, 2, nk::slice];
@@ -1237,6 +1241,10 @@ error_stats_t test_view_overloads(settings_t const &) {
     stats.expect(nk::succeeded(sqeuclidean_status) && sqeuclidean == nk::f32_t(0), "sqeuclidean of zero vectors");
     auto [raw_dot, raw_dot_status] = nk::dot<nk::f32_t>(a_view, b_raw);
     stats.expect(nk::succeeded(raw_dot_status) && raw_dot == nk::f32_t(0), "dot of raw storage");
+    double raw_matrix[2][4] {{1, 2, 3, 4}, {1, 1, 1, 1}};
+    nk::tensor_view<double, 2> const raw_tensor {&raw_matrix[0][0], 2u, 4u};
+    auto [raw_row_dot, raw_row_dot_status] = nk::dot<nk::f64_t>(raw_tensor(0, nk::slice), raw_tensor(1, nk::slice));
+    stats.expect(nk::succeeded(raw_row_dot_status) && raw_row_dot == nk::f64_t(10.0), "dot of raw tensor rows");
     float raw_rows[16] {};
     double raw_products[16] {};
     stats.expect(nk::dots_symmetric<nk::f32_t>(nk::matrix_view<float>(raw_rows, 4u, 4u),
