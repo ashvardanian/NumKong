@@ -101,7 +101,8 @@ struct shape_storage_ {
     /** Total number of elements. */
     constexpr std::size_t numel() const noexcept {
         std::size_t n = 1;
-        for (std::size_t i = 0; i < rank; ++i) n *= extents[i];
+        // A fixed trip count keeps a kernel's by-value shape in registers; a `rank` bound spills.
+        for (std::size_t i = 0; i != max_rank_; ++i) n *= i < rank ? extents[i] : 1;
         return n;
     }
 
@@ -200,6 +201,15 @@ template <typename value_type_, std::size_t max_rank_>
 constexpr bool packed_tensor_layout_supported_(shape_storage_<max_rank_> const &shape) noexcept {
     if constexpr (dimensions_per_value<value_type_>() == 1) return true;
     else return is_tensor_contiguous_<value_type_>(shape);
+}
+
+/** Byte offset of @p coords over a compile-time rank, so neither the coordinates nor the strides
+ *  leave registers on GPUs. */
+template <std::size_t max_rank_, std::size_t extent_, std::size_t... axes_>
+constexpr std::ptrdiff_t tensor_offset_(shape_storage_<max_rank_> const &shape,
+                                        std::span<std::size_t const, extent_> coords,
+                                        std::index_sequence<axes_...>) noexcept {
+    return ((static_cast<std::ptrdiff_t>(coords[axes_]) * shape.strides[axes_]) + ...);
 }
 
 template <typename value_type_, std::size_t max_rank_, std::size_t... indices_, typename... index_types_>
@@ -911,6 +921,9 @@ constexpr decltype(auto) tensor_lookup_resolved_(tensor_view<value_type_, max_ra
         offset += static_cast<std::ptrdiff_t>(last_index / dims_per_value) * input.stride_bytes(input.rank() - 1);
         return dimension_at_<value_type_>(input.byte_data() + offset, last_index % dims_per_value);
     }
+    else if constexpr (extent_ != std::dynamic_extent)
+        return dimension_at_<value_type_>(
+            input.byte_data() + tensor_offset_(input.shape(), coords, std::make_index_sequence<extent_> {}), 0);
     else return dimension_at_<value_type_>(input.byte_data() + input.shape().linearize(coords.data()), 0);
 }
 
@@ -929,6 +942,9 @@ constexpr decltype(auto) tensor_lookup_resolved_(tensor_span<value_type_, max_ra
         offset += static_cast<std::ptrdiff_t>(last_index / dims_per_value) * input.stride_bytes(input.rank() - 1);
         return dimension_ref_at_<value_type_>(input.byte_data() + offset, last_index % dims_per_value);
     }
+    else if constexpr (extent_ != std::dynamic_extent)
+        return dimension_ref_at_<value_type_>(
+            input.byte_data() + tensor_offset_(input.shape(), coords, std::make_index_sequence<extent_> {}), 0);
     else return dimension_ref_at_<value_type_>(input.byte_data() + input.shape().linearize(coords.data()), 0);
 }
 
@@ -940,6 +956,9 @@ constexpr decltype(auto) tensor_flat_lookup_(tensor_view<value_type_, max_rank_>
     nk_assert_(flat < input.numel());
     if constexpr (dimensions_per_value<value_type_>() == 1) {
         if (input.rank() == 0) return input.scalar();
+        if constexpr (max_rank_ == 1)
+            return dimension_at_<value_type_>(
+                input.byte_data() + static_cast<std::ptrdiff_t>(flat) * input.stride_bytes(0), 0);
     }
 
     std::array<std::size_t, max_rank_> coords {};
@@ -960,6 +979,9 @@ constexpr decltype(auto) tensor_flat_lookup_(tensor_span<value_type_, max_rank_>
     nk_assert_(flat < input.numel());
     if constexpr (dimensions_per_value<value_type_>() == 1) {
         if (input.rank() == 0) return input.scalar_ref();
+        if constexpr (max_rank_ == 1)
+            return dimension_ref_at_<value_type_>(
+                input.byte_data() + static_cast<std::ptrdiff_t>(flat) * input.stride_bytes(0), 0);
     }
 
     std::array<std::size_t, max_rank_> coords {};
