@@ -588,6 +588,19 @@ NUMKONG_DEVICE void nk_mma_commit_blackwell_(nk_u32_t barrier) {
                  : "memory");
 }
 
+/* Adds both F16 products of @p a and @p b to @p sum, low pair first, each exact and rounded once
+ *  by @c fma.rn.f32.f16 , which reads the halves without widening them first. */
+NUMKONG_DEVICE nk_f32_t nk_dot_f16x2_blackwell_(nk_u32_t a, nk_u32_t b, nk_f32_t sum) {
+    asm("{\n.reg .b16 a_low, a_high, b_low, b_high;\n" //
+        "mov.b32 {a_low, a_high}, %1;\n"               //
+        "mov.b32 {b_low, b_high}, %2;\n"               //
+        "fma.rn.f32.f16 %0, a_low, b_low, %0;\n"       //
+        "fma.rn.f32.f16 %0, a_high, b_high, %0;\n}\n"
+        : "+f"(sum)
+        : "r"(a), "r"(b));
+    return sum;
+}
+
 #pragma endregion Instructions
 
 #pragma region Descriptors
@@ -750,14 +763,20 @@ NUMKONG_DEVICE int nk_cross_tile_origin_blackwell_(nk_cross_tile_arguments_black
  *  since a sum of squares has none. Float8 and Float6 square their F16 widenings, and E2M3 and E2M1
  *  their scaled integer ones, so the tile scales them back. */
 
+NUMKONG_DEVICE void nk_cross_norm_words_f16_blackwell_(nk_u32_t const words[4], nk_u32_t *integer_sum,
+                                                       nk_f32_t *real_sum) {
+#pragma unroll
+    for (unsigned word = 0; word < 4; ++word) *real_sum = nk_dot_f16x2_blackwell_(words[word], words[word], *real_sum);
+}
+
 NUMKONG_DEVICE void nk_cross_norm_words_e5m2_blackwell_(nk_u32_t const words[4], nk_u32_t *integer_sum,
                                                         nk_f32_t *real_sum) {
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) {
         nk_u32_t low, high;
         nk_e5m2x4_to_f16x4_ampere_(words[word], &low, &high);
-        nk_f16x2_norm_update_simt_(low, real_sum);
-        nk_f16x2_norm_update_simt_(high, real_sum);
+        *real_sum = nk_dot_f16x2_blackwell_(low, low, *real_sum);
+        *real_sum = nk_dot_f16x2_blackwell_(high, high, *real_sum);
     }
 }
 
@@ -767,8 +786,8 @@ NUMKONG_DEVICE void nk_cross_norm_words_e4m3_blackwell_(nk_u32_t const words[4],
     for (unsigned word = 0; word < 4; ++word) {
         nk_u32_t low, high;
         nk_e4m3x4_to_f16x4_ampere_(words[word], &low, &high);
-        nk_f16x2_norm_update_simt_(low, real_sum);
-        nk_f16x2_norm_update_simt_(high, real_sum);
+        *real_sum = nk_dot_f16x2_blackwell_(low, low, *real_sum);
+        *real_sum = nk_dot_f16x2_blackwell_(high, high, *real_sum);
     }
 }
 
@@ -778,8 +797,8 @@ NUMKONG_DEVICE void nk_cross_norm_words_e3m2_blackwell_(nk_u32_t const words[4],
     for (unsigned word = 0; word < 4; ++word) {
         nk_u32_t low, high;
         nk_e3m2x4_to_f16x4_ampere_(words[word], &low, &high);
-        nk_f16x2_norm_update_simt_(low, real_sum);
-        nk_f16x2_norm_update_simt_(high, real_sum);
+        *real_sum = nk_dot_f16x2_blackwell_(low, low, *real_sum);
+        *real_sum = nk_dot_f16x2_blackwell_(high, high, *real_sum);
     }
 }
 
@@ -863,7 +882,7 @@ NUMKONG_DEVICE void nk_cross_stage_row_f16_blackwell_(unsigned char *operand, un
         uint4 *const address = (uint4 *)(operand + nk_swizzled_offset_simt_(tile_row, chunk * 16, 128));
         uint4 bytes = *address;
         nk_u32_t const words[4] = {bytes.x, bytes.y, bytes.z, bytes.w};
-        if (squares) nk_f16_norm_update_simt_(words, integer_sum, &slab_sum);
+        if (squares) nk_cross_norm_words_f16_blackwell_(words, integer_sum, &slab_sum);
     }
     if (slab_sum != 0) *real_sum += slab_sum;
 }
