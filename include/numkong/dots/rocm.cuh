@@ -895,9 +895,10 @@ NUMKONG_DEVICE nk_f64_t nk_cross_pack_norm_f64_rocm_(nk_f64_t share) {
     return nk_f64_add_rn_rocm_(share, compensation);
 }
 
-/** A column's F32 norm from each of 32 lanes' F64 shares, summed in F64 and rounded once. */
-NUMKONG_DEVICE nk_f32_t nk_cross_pack_norm_f32_rocm_(nk_f64_t share) {
-    return (nk_f32_t)nk_cross_pack_norm_f64_rocm_(share);
+/** A column's F32 norm from each of 32 lanes' F32 shares. */
+NUMKONG_DEVICE nk_f32_t nk_cross_pack_norm_f32_rocm_(nk_f32_t share) {
+    for (unsigned offset = 16; offset != 0; offset >>= 1) share += nk_shuffle_xor_f32_rocm_(share, offset);
+    return share;
 }
 
 /** A column's U32 norm from each of 32 lanes' exact shares, truncated like the serial backends'. */

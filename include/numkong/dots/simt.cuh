@@ -319,32 +319,46 @@ NUMKONG_DEVICE nk_f32_t nk_e2m1_load_f32_simt_(unsigned char const *row, nk_size
 
 #pragma endregion Conversions
 
-/*  Each lane share returns a lane's part of a column's sum of squares, over indices `lane + 32 × k`
- *  below @c depth, which the pack merges across the 32 lanes: F64 for floats and exact 64-bit sums
- *  for integers, while block-scaled columns store `nk_cross_scaled_pack_norm_<dtype>_simt_` in F32
- *  rebased form. The Dot2-compensated shares of F64 and F32 inputs, and the merges, round through
- *  each vendor's primitives in its own header. Rows read bytewise, since the source's stride need
- *  not be element-aligned. */
+/*  Each lane share returns a lane's part of a column's sum of squares, which the pack merges across
+ *  the 32 lanes: F32 for the narrow floats, over the 16-byte chunks lane + 32 × k of the row, and
+ *  exact 64-bit sums over the indices lane + 32 × k for integers, while block-scaled columns store
+ *  `nk_cross_scaled_pack_norm_<dtype>_simt_` in F32 rebased form. The Dot2-compensated shares of
+ *  F64 and F32 inputs, and the merges, round through each vendor's primitives in its own header.
+ *  A chunk loads whole when the row is 16-byte aligned and bytewise otherwise, since the source's
+ *  stride need not be element-aligned; bytes past the depth read as zero, which every float format
+ *  decodes as +0. */
 #pragma region Norms
 
-#define nk_define_lane_sumsq_simt_(input_type_name)                                                                   \
-    NUMKONG_DEVICE nk_f64_t nk_##input_type_name##_lane_sumsq_simt_(unsigned char const *row, nk_size_t depth,        \
+#define nk_define_lane_sumsq_simt_(input_type_name, chunk_dimensions)                                                 \
+    NUMKONG_DEVICE nk_f32_t nk_##input_type_name##_lane_sumsq_simt_(unsigned char const *row, nk_size_t depth,        \
                                                                     unsigned lane, unsigned char const *, nk_f32_t) { \
-        nk_f64_t sum = 0;                                                                                             \
-        for (nk_size_t index = lane; index < depth; index += 32) {                                                    \
-            nk_f64_t const value = nk_##input_type_name##_load_f32_simt_(row, index);                                 \
-            sum = __fma_rn(value, value, sum);                                                                        \
+        nk_size_t const depth_bytes = nk_size_divide_round_up_(depth * 16, chunk_dimensions);                         \
+        int const aligned = ((nk_size_t)row & 15) == 0;                                                               \
+        nk_f32_t sum = 0;                                                                                             \
+        for (nk_size_t first = (nk_size_t)lane * 16; first < depth_bytes; first += 32 * 16) {                         \
+            nk_b128_vec_t chunk;                                                                                      \
+            if (aligned && first + 16 <= depth_bytes) {                                                               \
+                uint4 const words = *(uint4 const *)(row + first);                                                    \
+                chunk.u32s[0] = words.x, chunk.u32s[1] = words.y, chunk.u32s[2] = words.z, chunk.u32s[3] = words.w;   \
+            }                                                                                                         \
+            else                                                                                                      \
+                for (unsigned byte = 0; byte < 16; ++byte)                                                            \
+                    chunk.u8s[byte] = first + byte < depth_bytes ? row[first + byte] : 0;                             \
+            for (unsigned index = 0; index < chunk_dimensions; ++index) {                                             \
+                nk_f32_t const value = nk_##input_type_name##_load_f32_simt_(chunk.u8s, index);                       \
+                sum = __fmaf_rn(value, value, sum);                                                                   \
+            }                                                                                                         \
         }                                                                                                             \
         return sum;                                                                                                   \
     }
 
-nk_define_lane_sumsq_simt_(bf16)
-nk_define_lane_sumsq_simt_(f16)
-nk_define_lane_sumsq_simt_(e5m2)
-nk_define_lane_sumsq_simt_(e4m3)
-nk_define_lane_sumsq_simt_(e3m2)
-nk_define_lane_sumsq_simt_(e2m3)
-nk_define_lane_sumsq_simt_(e2m1)
+nk_define_lane_sumsq_simt_(bf16, 8)
+nk_define_lane_sumsq_simt_(f16, 8)
+nk_define_lane_sumsq_simt_(e5m2, 16)
+nk_define_lane_sumsq_simt_(e4m3, 16)
+nk_define_lane_sumsq_simt_(e3m2, 16)
+nk_define_lane_sumsq_simt_(e2m3, 16)
+nk_define_lane_sumsq_simt_(e2m1, 32)
 
 #undef nk_define_lane_sumsq_simt_
 

@@ -1428,9 +1428,10 @@ NUMKONG_DEVICE nk_f64_t nk_cross_pack_norm_f64_cuda_(nk_f64_t share) {
     return nk_f64_add_rn_cuda_(share, compensation);
 }
 
-/** A column's F32 norm from each of 32 lanes' F64 shares, summed in F64 and rounded once. */
-NUMKONG_DEVICE nk_f32_t nk_cross_pack_norm_f32_cuda_(nk_f64_t share) {
-    return (nk_f32_t)nk_cross_pack_norm_f64_cuda_(share);
+/** A column's F32 norm from each of 32 lanes' F32 shares. */
+NUMKONG_DEVICE nk_f32_t nk_cross_pack_norm_f32_cuda_(nk_f32_t share) {
+    for (unsigned offset = 16; offset != 0; offset >>= 1) share += nk_shuffle_xor_f32_cuda_(share, offset);
+    return share;
 }
 
 /** A block-scaled column's rebased norm, which lane 0 computes whole and alone stores. */
@@ -1440,6 +1441,42 @@ NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_pack_norm_cross_wide_sum_cuda_(nk_cr
 NUMKONG_DEVICE nk_u32_t nk_cross_pack_norm_u32_cuda_(nk_u64_t share) {
     for (unsigned offset = 16; offset != 0; offset >>= 1) share += nk_shuffle_xor_u64_cuda_(share, offset);
     return (nk_u32_t)share;
+}
+
+/** The warps of a device pack's block, all on one column, and the bytes of a column one warp copies
+ *  and norms at a time: enough spans to fill the device on a few hundred columns of a long depth,
+ *  each small enough that its norm rereads the copied bytes from the warp's cache. */
+enum {
+    nk_cross_pack_warps_k = 32,
+    nk_cross_pack_span_bytes_k = 16384,
+};
+
+/*  A device pack splits each column's depth into spans of @c nk_cross_pack_span_bytes_k , which the
+ *  warps of the column's block take in turn: each span's norm merges its 32 lanes as above, each
+ *  warp adds its spans in their order, and the warps then add in warp order, so the sum depends on
+ *  the shape alone. A block-scaled column's norm reads the whole row and its scales at once, so it
+ *  is one span. */
+
+NUMKONG_DEVICE nk_size_t nk_cross_pack_norm_spans_f64_cuda_(nk_size_t depth_bytes) {
+    return nk_size_divide_round_up_(depth_bytes, nk_cross_pack_span_bytes_k);
+}
+NUMKONG_DEVICE nk_size_t nk_cross_pack_norm_spans_f32_cuda_(nk_size_t depth_bytes) {
+    return nk_size_divide_round_up_(depth_bytes, nk_cross_pack_span_bytes_k);
+}
+NUMKONG_DEVICE nk_size_t nk_cross_pack_norm_spans_u32_cuda_(nk_size_t depth_bytes) {
+    return nk_size_divide_round_up_(depth_bytes, nk_cross_pack_span_bytes_k);
+}
+NUMKONG_DEVICE nk_size_t nk_cross_pack_norm_spans_cross_wide_sum_cuda_(nk_size_t depth_bytes) {
+    return depth_bytes != 0;
+}
+
+/** Adds a column's next span norm to the norms of its earlier spans. */
+NUMKONG_DEVICE nk_f64_t nk_cross_pack_fold_f64_cuda_(nk_f64_t total, nk_f64_t span) { return total + span; }
+NUMKONG_DEVICE nk_f32_t nk_cross_pack_fold_f32_cuda_(nk_f32_t total, nk_f32_t span) { return total + span; }
+NUMKONG_DEVICE nk_u32_t nk_cross_pack_fold_u32_cuda_(nk_u32_t total, nk_u32_t span) { return total + span; }
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_pack_fold_cross_wide_sum_cuda_(nk_cross_wide_sum_t,
+                                                                           nk_cross_wide_sum_t span) {
+    return span;
 }
 
 #pragma endregion Pack Norms
@@ -1480,8 +1517,8 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_cuda_(void const *kernel, unsigned ti
     return nk_launch_resident_cuda_(kernel, threads, 0, 0, tiles, &arguments, stream);
 }
 
-/** Launches @p kernel with one 32-lane group per packed column, walked with a grid stride, which
- *  records the packing @p capability and the tensor scale of @p b. */
+/** Launches @p kernel with one block of @c nk_cross_pack_warps_k warps per packed column, walked
+ *  with a grid stride, which records the packing @p capability and the tensor scale of @p b. */
 NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cross_operand_t const *b,
                                                       nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes,
                                                       nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
@@ -1489,8 +1526,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
                                                       nk_capability_t capability, nk_size_t scales_stride,
                                                       nk_stream_t stream) {
     nk_size_t const columns = columns_end > columns_begin ? columns_end - columns_begin : 0;
-    nk_size_t const needed = nk_size_divide_round_up_(columns, nk_cross_pack_groups_k);
-    nk_size_t const blocks = needed == 0 ? 1 : needed < 65535 ? needed : 65535;
+    nk_size_t const blocks = columns == 0 ? 1 : columns < 65535 ? columns : 65535;
     void const *elements = b->elements;
     nk_u8_t const *scale_values = b->scales;
     nk_size_t scale_values_stride = b->scales_stride;
@@ -1500,7 +1536,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
     arguments[4] = &b_stride, arguments[5] = &b_packed, arguments[6] = &columns_begin, arguments[7] = &columns_end;
     arguments[8] = &depth_values_padded, arguments[9] = &capability, arguments[10] = &scale_values;
     arguments[11] = &scale_values_stride, arguments[12] = &tensor_scale, arguments[13] = &scales_stride;
-    return nk_launch_cuda_(kernel, blocks, nk_cross_pack_groups_k * 32, arguments, 0, stream);
+    return nk_launch_cuda_(kernel, blocks, nk_cross_pack_warps_k * 32, arguments, 0, stream);
 }
 
 #pragma endregion Launchers
@@ -1565,21 +1601,64 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
         unsigned char *rows = b_packed + sizeof(nk_cross_packed_buffer_header_t);                                      \
         unsigned char *scales = rows + column_count * row_bytes;                                                       \
         nk_##norm_value_type##_t *norms = (nk_##norm_value_type##_t *)(scales + column_count * scales_stride);         \
-        unsigned const lane = threadIdx.x & 31;                                                                        \
-        nk_size_t const groups = (nk_size_t)gridDim.x * (blockDim.x >> 5);                                             \
-        for (nk_size_t column = columns_begin + (nk_size_t)blockIdx.x * (blockDim.x >> 5) + (threadIdx.x >> 5);        \
-             column < columns_end; column += groups) {                                                                 \
+        __shared__ nk_##norm_value_type##_t warp_norms[nk_cross_pack_warps_k];                                         \
+        unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, warps = blockDim.x >> 5;                      \
+        nk_size_t const span_values = nk_cross_pack_span_bytes_k / sizeof(nk_##input_value_type##_t) *                 \
+                                      dimensions_per_value;                                                            \
+        nk_size_t const copy_spans = nk_size_divide_round_up_(row_bytes, nk_cross_pack_span_bytes_k);                  \
+        nk_size_t const norm_spans = nk_cross_pack_norm_spans_##norm_value_type##_cuda_(depth_bytes);                  \
+        nk_size_t const spans = copy_spans > norm_spans ? copy_spans : norm_spans;                                     \
+        for (nk_size_t column = columns_begin + blockIdx.x; column < columns_end; column += gridDim.x) {               \
             unsigned char const *source = b + column * b_stride;                                                       \
             unsigned char *destination = rows + column * row_bytes;                                                    \
-            for (nk_size_t byte = lane; byte < row_bytes; byte += 32)                                                  \
-                destination[byte] = byte < depth_bytes ? load_fn(source[byte]) : 0;                                    \
             unsigned char const *source_scales = b_scales + column * b_scales_stride;                                  \
-            for (nk_size_t byte = lane; byte < scales_stride; byte += 32)                                              \
+            int const aligned = (((nk_size_t)source | (nk_size_t)destination) & 15) == 0;                              \
+            for (nk_size_t byte = threadIdx.x; byte < scales_stride; byte += blockDim.x)                               \
                 scales[column * scales_stride + byte] =                                                                \
                     byte < nk_cross_scale_blocks_serial_(nk_##input_type_name##_k, depth) ? source_scales[byte] : 0;   \
-            nk_##norm_value_type##_t const norm = nk_cross_pack_norm_##norm_value_type##_cuda_(                        \
-                compute_norm_fn(source, depth, lane, source_scales, tensor_scale));                                    \
-            if (lane == 0) norms[column] = norm;                                                                       \
+            nk_##norm_value_type##_t warp_norm = {0};                                                                  \
+            for (nk_size_t span = warp; span < spans; span += warps) {                                                 \
+                nk_size_t const span_first = span * nk_cross_pack_span_bytes_k;                                        \
+                nk_size_t const span_end = span_first + nk_cross_pack_span_bytes_k < row_bytes                         \
+                                               ? span_first + nk_cross_pack_span_bytes_k                               \
+                                               : row_bytes;                                                            \
+                if (aligned)                                                                                           \
+                    for (nk_size_t first = span_first + (nk_size_t)lane * 16; first < span_end; first += 32 * 16) {    \
+                        nk_b128_vec_t chunk;                                                                           \
+                        if (first + 16 <= depth_bytes) {                                                               \
+                            uint4 const words = *(uint4 const *)(source + first);                                      \
+                            chunk.u32s[0] = words.x, chunk.u32s[1] = words.y;                                          \
+                            chunk.u32s[2] = words.z, chunk.u32s[3] = words.w;                                          \
+                            for (unsigned byte = 0; byte < 16; ++byte) chunk.u8s[byte] = load_fn(chunk.u8s[byte]);     \
+                        }                                                                                              \
+                        else                                                                                           \
+                            for (unsigned byte = 0; byte < 16; ++byte)                                                 \
+                                chunk.u8s[byte] = first + byte < depth_bytes ? load_fn(source[first + byte]) : 0;      \
+                        *(uint4 *)(destination + first) = make_uint4(chunk.u32s[0], chunk.u32s[1], chunk.u32s[2],      \
+                                                                     chunk.u32s[3]);                                   \
+                    }                                                                                                  \
+                else                                                                                                   \
+                    for (nk_size_t byte = span_first + lane; byte < span_end; byte += 32)                              \
+                        destination[byte] = byte < depth_bytes ? load_fn(source[byte]) : 0;                            \
+                if (span >= norm_spans) continue;                                                                      \
+                int const whole = norm_spans == 1;                                                                     \
+                nk_size_t const span_depth = whole                    ? depth                                          \
+                                             : span + 1 == norm_spans ? depth - span * span_values                     \
+                                                                      : span_values;                                   \
+                nk_##norm_value_type##_t const span_norm = nk_cross_pack_norm_##norm_value_type##_cuda_(               \
+                    compute_norm_fn(source + (whole ? 0 : span_first), span_depth, lane, source_scales,                \
+                                    tensor_scale));                                                                    \
+                warp_norm = nk_cross_pack_fold_##norm_value_type##_cuda_(warp_norm, span_norm);                        \
+            }                                                                                                          \
+            if (lane == 0) warp_norms[warp] = warp_norm;                                                               \
+            __syncthreads();                                                                                           \
+            if (threadIdx.x == 0) {                                                                                    \
+                nk_##norm_value_type##_t norm = warp_norms[0];                                                         \
+                for (unsigned other = 1; other < warps && other < norm_spans; ++other)                                 \
+                    norm = nk_cross_pack_fold_##norm_value_type##_cuda_(norm, warp_norms[other]);                      \
+                norms[column] = norm;                                                                                  \
+            }                                                                                                          \
+            __syncthreads();                                                                                           \
         }                                                                                                              \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_dots_pack_##input_type_name##_##isa_suffix(                                             \
