@@ -511,10 +511,12 @@ NUMKONG_DEVICE void nk_attention_advance_blackwell_(nk_attention_schedule_blackw
 #pragma region Schedule
 
 /** Finds work item @p item of @p rows rows past the cursor of @p tasks, moving it to the item's
- *  segment, 32 segments at a time with every lane of the calling warp. Returns 0 once the window
- *  has no more, which items asked for in increasing order reach only at the end. */
+ *  segment, 32 segments at a time with every lane of the calling warp. With @p heaviest_first, a
+ *  whole segment lists its last rows first, which a band bounded above weighs most, every head's
+ *  before the earlier ones. Returns 0 once the window has no more, which items asked for in
+ *  increasing order reach only at the end. */
 NUMKONG_DEVICE int nk_attention_next_work_blackwell_(nk_attention_schedule_t *tasks, nk_size_t rows, nk_size_t item,
-                                                     nk_attention_work_t *work) {
+                                                     int heaviest_first, nk_attention_work_t *work) {
     unsigned const lane = threadIdx.x & 31;
     while (tasks->chunk_first < tasks->segment_end) {
         nk_u64_t const items = nk_attention_segment_items_simt_(tasks, tasks->chunk_first + lane, rows);
@@ -529,7 +531,13 @@ NUMKONG_DEVICE int nk_attention_next_work_blackwell_(nk_attention_schedule_t *ta
             unsigned const found = __ffs(__ballot_sync(0xFFFFFFFFu, tasks->items_before + inclusive > item)) - 1;
             tasks->items_before += __shfl_sync(0xFFFFFFFFu, inclusive - items, found);
             tasks->chunk_first += found;
-            nk_attention_segment_work_simt_(tasks, tasks->chunk_first, item - tasks->items_before, rows, work);
+            nk_size_t index = item - tasks->items_before;
+            if (heaviest_first && nk_attention_segment_whole_simt_(tasks, tasks->chunk_first)) {
+                nk_size_t const key_value_heads = tasks->head_count / tasks->group_heads;
+                nk_size_t const blocks = __shfl_sync(0xFFFFFFFFu, items, found) / key_value_heads;
+                index = index % key_value_heads * blocks + blocks - 1 - index / key_value_heads;
+            }
+            nk_attention_segment_work_simt_(tasks, tasks->chunk_first, index, rows, work);
             return 1;
         }
         tasks->items_before += total, tasks->chunk_first += 32;
@@ -756,9 +764,14 @@ NUMKONG_DEVICE void nk_attention_load_blackwell_(nk_attention_schedule_blackwell
     if (lane == 1 && schedule->queries_mapped) nk_prefetch_map_blackwell_(&arguments->queries_map);
     nk_u32_t stage = 0, phase = 0, sequence = 0, query_items[2] = {0, 0};
     unsigned const item_blocks = schedule->cluster_blocks;
-    for (nk_size_t index = blockIdx.x / item_blocks;; index += gridDim.x / item_blocks, ++sequence) {
+    nk_size_t const rank = blockIdx.x / item_blocks, ranks = gridDim.x / item_blocks;
+    int const heaviest_first = schedule->band.superdiagonals != NUMKONG_SIZE_MAX;
+    for (nk_size_t round = 0;; ++round, ++sequence) {
+        // Odd rounds run the ranks backwards, so the heaviest items meet the lightest last
+        nk_size_t const index = round * ranks + (heaviest_first && (round & 1) ? ranks - 1 - rank : rank);
         nk_attention_work_t work;
-        int const found = started && nk_attention_next_work_blackwell_(&tasks, schedule->item_rows, index, &work);
+        int const found = started &&
+                          nk_attention_next_work_blackwell_(&tasks, schedule->item_rows, index, heaviest_first, &work);
         if (!found) work.row_count = 0;
         if (lane == 0) {
             nk_attention_wait_blackwell_(&control->taken[sequence & 1], ((sequence >> 1) & 1) ^ 1);
