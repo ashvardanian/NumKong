@@ -194,6 +194,12 @@ error_stats_t test_tensor_operator_indexing(settings_t const &) {
     auto first_two_planes = cube(nk::range(0, 2), nk::slice);
     stats.expect(first_two_planes.rank() == 3, "range slice rank mismatch");
     stats.expect(first_two_planes.extent(0) == 2, "range slice extent mismatch");
+    auto no_planes = cube(nk::range(1, 1), nk::slice);
+    stats.expect(no_planes.rank() == 3 && no_planes.extent(0) == 0 && no_planes.numel() == 0,
+                 "empty range slice should keep its rank and hold nothing");
+    auto no_planes_narrowed = cube(nk::range(1, 1), nk::all, nk::slice);
+    stats.expect(no_planes_narrowed.rank() == 3 && no_planes_narrowed.numel() == 0,
+                 "empty range+all slice should keep its rank and hold nothing");
 
     // combined: range + all_t + slice on a 3D tensor
     auto sub = cube(nk::range(0, 2), nk::all, nk::slice);

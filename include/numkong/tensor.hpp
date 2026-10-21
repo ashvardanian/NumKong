@@ -1074,9 +1074,10 @@ constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range_t r, rest_
     auto start = resolve_index_(r.start, leading_extent);
     auto stop = resolve_index_(r.stop, leading_extent);
     auto step = r.step;
-    if (start >= stop || step <= 0) return {};
+    if (step <= 0) return {};
 
-    auto range_extent = divide_round_up(stop - start, static_cast<size_type>(step));
+    // An empty range keeps the rank with a zero leading extent, so its `numel()` reads 0, not 1
+    auto range_extent = start < stop ? divide_round_up(stop - start, static_cast<size_type>(step)) : size_type {0};
     auto range_stride = leading_stride * static_cast<difference_type>(step);
     auto data_offset = static_cast<difference_type>(start) * leading_stride;
 
@@ -1098,7 +1099,9 @@ constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range_t r, rest_
     }
     else {
         // General path: recurse into inner dimensions (like `all_t` but with narrowed leading).
-        auto first_row = input.slice_leading(static_cast<size_type>(start));
+        auto const shape_row = range_extent != 0 ? start : size_type {0};
+        if (shape_row >= leading_extent) return {};
+        auto first_row = input.slice_leading(static_cast<size_type>(shape_row));
         auto inner = tensor_slice_suffix_(first_row, rest...);
 
         // Same degenerate-inner guard as the `all_t` overload: bail before the pointer
