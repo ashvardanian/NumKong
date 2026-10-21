@@ -14,6 +14,6 @@ int main(void) {
     nk_u1x8_t vectors[16 * 8];
     nk_u32_t gram[16 * 16];
     for (int i = 0; i != 16 * 8; ++i) vectors[i] = 0xFF;
-    nk_dots_symmetric_u1_smebi32(vectors, 16, 64, 8, gram, 16 * sizeof(nk_u32_t), 0, 16, 0);
+    nk_dots_symmetric_u1_smebi32(vectors, 16, 64, 8, gram, 16 * sizeof(nk_u32_t), 0, 16, 0, 0, 0);
     return gram[0] != 64;
 }

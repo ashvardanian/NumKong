@@ -12,6 +12,7 @@
 int main(void) {
     nk_f16_t vectors[16 * 32] = {0};
     nk_f32_t gram[16 * 16];
-    nk_dots_symmetric_f16_graniteamx(vectors, 16, 32, 32 * sizeof(nk_f16_t), gram, 16 * sizeof(nk_f32_t), 0, 16, 0);
+    nk_dots_symmetric_f16_graniteamx(vectors, 16, 32, 32 * sizeof(nk_f16_t), gram, 16 * sizeof(nk_f32_t), 0, 16, 0, 0,
+                                     0);
     return gram[0] != 0;
 }

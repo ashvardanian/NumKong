@@ -13,6 +13,6 @@ int main(void) {
     nk_f64_t vectors[8 * 8];
     nk_f64_t gram[8 * 8];
     for (int i = 0; i != 8 * 8; ++i) vectors[i] = 1;
-    nk_dots_symmetric_f64_smef64(vectors, 8, 8, 8 * sizeof(nk_f64_t), gram, 8 * sizeof(nk_f64_t), 0, 8, 0);
+    nk_dots_symmetric_f64_smef64(vectors, 8, 8, 8 * sizeof(nk_f64_t), gram, 8 * sizeof(nk_f64_t), 0, 8, 0, 0, 0);
     return gram[0] != 8;
 }

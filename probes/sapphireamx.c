@@ -14,6 +14,6 @@ int main(void) {
     nk_i8_t vectors[16 * 64];
     nk_i32_t gram[16 * 16];
     for (int i = 0; i != 16 * 64; ++i) vectors[i] = 1;
-    nk_dots_symmetric_i8_sapphireamx(vectors, 16, 64, 64, gram, 16 * sizeof(nk_i32_t), 0, 16, 0);
+    nk_dots_symmetric_i8_sapphireamx(vectors, 16, 64, 64, gram, 16 * sizeof(nk_i32_t), 0, 16, 0, 0, 0);
     return gram[0] != 64;
 }

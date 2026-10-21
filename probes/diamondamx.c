@@ -20,5 +20,6 @@ int main(void) {
     if (bytes > sizeof(packed)) return 1;
     nk_attention_pack_e4m3_diamondamx(1, 64, offsets, lengths, 1, tokens, 64, tokens, 64, packed, 0, 1, 0);
     return nk_attention_packed_e4m3_diamondamx(1, 1, 64, offsets, 1, 0.125f, NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX, tokens,
-                                               64, packed, output, 64 * sizeof(nk_f32_t), 0, 0, 1, 0) != nk_success_k;
+                                               64, packed, output, 64 * sizeof(nk_f32_t), 0, 0, 1, 0, 0,
+                                               0) != nk_success_k;
 }
