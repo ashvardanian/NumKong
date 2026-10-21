@@ -168,7 +168,9 @@ NUMKONG_DEVICE void nk_each_inverse_rms_f64_to_f32_simt_(nk_f64_t sum, nk_size_t
  *  one block per vector, the kernel over it, and the entry point.
  *  Squares sum in @p reduction_type, rounded and shuffled through the primitives of @p vendor,
  *  @c cuda or @c rocm, the @p inverse_rms helper turns them into a scale and a factor of
- *  @p element_type, and every value scales in that @p element_type. */
+ *  @p element_type, and every value scales in that @p element_type. F64 vectors whose sum of
+ *  squares leaves @c [2⁻⁹⁶⁸,2⁹⁶⁸] sum again scaled by the power of two of their largest
+ *  magnitude, as @c nk_each_inverse_rms_f64_serial_ does. */
 #define nk_define_each_rmsnorm_simt_(verb, input_type, output_type, reduction_type, element_type, inverse_rms,         \
                                      isa_suffix, vendor, load_and_convert, convert_and_store)                          \
     NUMKONG_DEVICE void nk_each_##verb##_##output_type##_##isa_suffix##_chunk_(                                        \
@@ -259,6 +261,53 @@ NUMKONG_DEVICE void nk_each_inverse_rms_f64_to_f32_simt_(nk_f64_t sum, nk_size_t
             }                                                                                                          \
             nk_##element_type##_t scale, factor;                                                                       \
             inverse_rms(sum, arguments.columns, arguments.epsilon, &scale, &factor);                                   \
+            if (sizeof(nk_##input_type##_t) == 8 && sum == sum &&                                                      \
+                !(sum >= (nk_##reduction_type##_t)0x1p-968 && sum <= (nk_##reduction_type##_t)0x1p968)) {              \
+                nk_##reduction_type##_t largest = 0, scaled_sum = 0;                                                   \
+                for (nk_size_t column = threadIdx.x; column < arguments.columns; column += blockDim.x) {               \
+                    load_and_convert(x + column, &value);                                                              \
+                    largest = fmax(largest, fabs((nk_##reduction_type##_t)value));                                     \
+                }                                                                                                      \
+                for (unsigned offset = nk_each_team_lanes_simt_k / 2; offset; offset >>= 1)                            \
+                    largest = fmax(largest, nk_shuffle_xor_##reduction_type##_##vendor##_(largest, offset));           \
+                if (teams > 1) {                                                                                       \
+                    if (threadIdx.x % nk_each_team_lanes_simt_k == 0)                                                  \
+                        partials[threadIdx.x / nk_each_team_lanes_simt_k] = largest;                                   \
+                    __syncthreads();                                                                                   \
+                    largest = partials[0];                                                                             \
+                    for (unsigned team = 1; team < teams; ++team) largest = fmax(largest, partials[team]);             \
+                    __syncthreads();                                                                                   \
+                }                                                                                                      \
+                if (largest != 0 && largest != (nk_##reduction_type##_t)NUMKONG_F64_INF) {                             \
+                    int exponent = (int)(((nk_u64_t)__double_as_longlong(largest) >> 52) & 0x7FFu) - 1023;             \
+                    exponent = exponent < -1022 ? -1022 : exponent > 1022 ? 1022 : exponent;                           \
+                    nk_##reduction_type##_t const power = __longlong_as_double(                                        \
+                        (long long)((nk_u64_t)(1023 - exponent) << 52));                                               \
+                    for (nk_size_t column = threadIdx.x; column < arguments.columns; column += blockDim.x) {           \
+                        load_and_convert(x + column, &value);                                                          \
+                        nk_##reduction_type##_t const scaled = (nk_##reduction_type##_t)value * power;                 \
+                        scaled_sum += nk_##reduction_type##_mul_rn_##vendor##_(scaled, scaled);                        \
+                    }                                                                                                  \
+                    for (unsigned offset = nk_each_team_lanes_simt_k / 2; offset; offset >>= 1)                        \
+                        scaled_sum += nk_shuffle_xor_##reduction_type##_##vendor##_(scaled_sum, offset);               \
+                    if (teams > 1) {                                                                                   \
+                        if (threadIdx.x % nk_each_team_lanes_simt_k == 0)                                              \
+                            partials[threadIdx.x / nk_each_team_lanes_simt_k] = scaled_sum;                            \
+                        __syncthreads();                                                                               \
+                        scaled_sum = partials[0];                                                                      \
+                        for (unsigned team = 1; team < teams; ++team) scaled_sum += partials[team];                    \
+                        __syncthreads();                                                                               \
+                    }                                                                                                  \
+                    nk_##reduction_type##_t const scaled_epsilon = (nk_##reduction_type##_t)arguments.epsilon *        \
+                                                                   power * power;                                      \
+                    scale = 1;                                                                                         \
+                    factor =                                                                                           \
+                        scaled_epsilon == (nk_##reduction_type##_t)NUMKONG_F64_INF                                     \
+                            ? 1 / sqrt((nk_##reduction_type##_t)arguments.epsilon)                                     \
+                            : 1 / sqrt(scaled_sum / (nk_##reduction_type##_t)arguments.columns + scaled_epsilon) *     \
+                                  power;                                                                               \
+                }                                                                                                      \
+            }                                                                                                          \
             _Pragma("unroll") for (unsigned slot = 0; slot != kept_chunks; ++slot) {                                   \
                 nk_size_t const chunk = threadIdx.x + slot * blockDim.x;                                               \
                 if (chunk >= chunks) break;                                                                            \
