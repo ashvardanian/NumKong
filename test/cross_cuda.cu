@@ -1218,7 +1218,8 @@ void test_cross_cuda(error_stats_section_t &check) {
 #if NUMKONG_TARGET_BLACKWELL
     check.section("Cross Blackwell", nk_cap_blackwell_k);
     check("dots_packed_bf16_blackwell", test_dots_packed<bf16_t, cuda_backend_t>, nk_dots_pack_size_bf16_blackwell,
-          nk_dots_pack_bf16_blackwell, nk_dots_packed_bf16_blackwell);
+          nk_dots_pack_bf16_blackwell,
+          with_workspace(nk_dots_packed_bf16_blackwell, nk_dots_packed_workspace_size_bf16_blackwell));
     check("dots_pack_bf16_blackwell",
           test_dots_pack_layout<bf16_t, cuda_backend_t, nk_dots_pack_size_bf16_blackwell,
                                 nk_dots_packed_shape_bf16_blackwell, nk_dots_pack_bf16_blackwell>);
@@ -1228,7 +1229,8 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("dots_symmetric_bf16_blackwell", test_dots_symmetric<bf16_t, cuda_backend_t>,
           nk_dots_symmetric_bf16_blackwell);
     check("dots_packed_f16_blackwell", test_dots_packed<f16_t, cuda_backend_t>, nk_dots_pack_size_f16_blackwell,
-          nk_dots_pack_f16_blackwell, nk_dots_packed_f16_blackwell);
+          nk_dots_pack_f16_blackwell,
+          with_workspace(nk_dots_packed_f16_blackwell, nk_dots_packed_workspace_size_f16_blackwell));
     check("dots_pack_f16_blackwell",
           test_dots_pack_layout<f16_t, cuda_backend_t, nk_dots_pack_size_f16_blackwell,
                                 nk_dots_packed_shape_f16_blackwell, nk_dots_pack_f16_blackwell>);
@@ -1237,7 +1239,8 @@ void test_cross_cuda(error_stats_section_t &check) {
                                     nk_dots_packed_f16_blackwell, nk_dots_symmetric_f16_blackwell>);
     check("dots_symmetric_f16_blackwell", test_dots_symmetric<f16_t, cuda_backend_t>, nk_dots_symmetric_f16_blackwell);
     check("dots_packed_e5m2_blackwell", test_dots_packed<e5m2_t, cuda_backend_t>, nk_dots_pack_size_e5m2_blackwell,
-          nk_dots_pack_e5m2_blackwell, nk_dots_packed_e5m2_blackwell);
+          nk_dots_pack_e5m2_blackwell,
+          with_workspace(nk_dots_packed_e5m2_blackwell, nk_dots_packed_workspace_size_e5m2_blackwell));
     check("dots_pack_e5m2_blackwell",
           test_dots_pack_layout<e5m2_t, cuda_backend_t, nk_dots_pack_size_e5m2_blackwell,
                                 nk_dots_packed_shape_e5m2_blackwell, nk_dots_pack_e5m2_blackwell>);
@@ -1247,7 +1250,8 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("dots_symmetric_e5m2_blackwell", test_dots_symmetric<e5m2_t, cuda_backend_t>,
           nk_dots_symmetric_e5m2_blackwell);
     check("dots_packed_e4m3_blackwell", test_dots_packed<e4m3_t, cuda_backend_t>, nk_dots_pack_size_e4m3_blackwell,
-          nk_dots_pack_e4m3_blackwell, nk_dots_packed_e4m3_blackwell);
+          nk_dots_pack_e4m3_blackwell,
+          with_workspace(nk_dots_packed_e4m3_blackwell, nk_dots_packed_workspace_size_e4m3_blackwell));
     check("dots_pack_e4m3_blackwell",
           test_dots_pack_layout<e4m3_t, cuda_backend_t, nk_dots_pack_size_e4m3_blackwell,
                                 nk_dots_packed_shape_e4m3_blackwell, nk_dots_pack_e4m3_blackwell>);
@@ -1257,7 +1261,8 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("dots_symmetric_e4m3_blackwell", test_dots_symmetric<e4m3_t, cuda_backend_t>,
           nk_dots_symmetric_e4m3_blackwell);
     check("dots_packed_e3m2_blackwell", test_dots_packed<e3m2_t, cuda_backend_t>, nk_dots_pack_size_e3m2_blackwell,
-          nk_dots_pack_e3m2_blackwell, nk_dots_packed_e3m2_blackwell);
+          nk_dots_pack_e3m2_blackwell,
+          with_workspace(nk_dots_packed_e3m2_blackwell, nk_dots_packed_workspace_size_e3m2_blackwell));
     check("dots_pack_e3m2_blackwell",
           test_dots_pack_layout<e3m2_t, cuda_backend_t, nk_dots_pack_size_e3m2_blackwell,
                                 nk_dots_packed_shape_e3m2_blackwell, nk_dots_pack_e3m2_blackwell>);
@@ -1267,7 +1272,8 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("dots_symmetric_e3m2_blackwell", test_dots_symmetric<e3m2_t, cuda_backend_t>,
           nk_dots_symmetric_e3m2_blackwell);
     check("dots_packed_e2m3_blackwell", test_dots_packed<e2m3_t, cuda_backend_t>, nk_dots_pack_size_e2m3_blackwell,
-          nk_dots_pack_e2m3_blackwell, nk_dots_packed_e2m3_blackwell);
+          nk_dots_pack_e2m3_blackwell,
+          with_workspace(nk_dots_packed_e2m3_blackwell, nk_dots_packed_workspace_size_e2m3_blackwell));
     check("dots_pack_e2m3_blackwell",
           test_dots_pack_layout<e2m3_t, cuda_backend_t, nk_dots_pack_size_e2m3_blackwell,
                                 nk_dots_packed_shape_e2m3_blackwell, nk_dots_pack_e2m3_blackwell>);
@@ -1277,7 +1283,8 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("dots_symmetric_e2m3_blackwell", test_dots_symmetric<e2m3_t, cuda_backend_t>,
           nk_dots_symmetric_e2m3_blackwell);
     check("dots_packed_e2m1_blackwell", test_dots_packed<e2m1x2_t, cuda_backend_t>, nk_dots_pack_size_e2m1_blackwell,
-          nk_dots_pack_e2m1_blackwell, nk_dots_packed_e2m1_blackwell);
+          nk_dots_pack_e2m1_blackwell,
+          with_workspace(nk_dots_packed_e2m1_blackwell, nk_dots_packed_workspace_size_e2m1_blackwell));
     check("dots_pack_e2m1_blackwell",
           test_dots_pack_layout<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_blackwell,
                                 nk_dots_packed_shape_e2m1_blackwell, nk_dots_pack_e2m1_blackwell>);

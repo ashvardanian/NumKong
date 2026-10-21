@@ -105,8 +105,9 @@ enum {
 /** Everything one launch shares: tensor maps of A and B rows, 128-byte boxes of 128 rows, the
  *  output's map in boxes of 32 rows of 32 outputs, unless it is misaligned for one, maps of both
  *  operands' scale rows in 16-byte boxes of 128 rows, which pairs of block-scaled tiles load unless
- *  a scale row is misaligned for one, the shapes and output every tile takes, and how many row
- *  tiles sweep the columns together. Passed as a grid constant, so the maps keep an address. */
+ *  a scale row is misaligned for one, the shapes and output every tile takes, how many row tiles
+ *  sweep the columns together, and how many depth slices each output tile splits into. Passed as a
+ *  grid constant, so the maps keep an address. */
 typedef struct {
     CUtensorMap a_map;
     CUtensorMap b_map;
@@ -117,6 +118,7 @@ typedef struct {
     int scales_mapped;
     nk_cross_tile_arguments_t tile;
     nk_size_t group_rows;
+    nk_size_t slices;
 } nk_cross_tile_arguments_blackwell_t;
 
 /** How the stage warps prepare a stage before the products read it, fixed by each dtype's tile. */
@@ -724,12 +726,14 @@ NUMKONG_DEVICE void nk_dots_mxfp8e5m2_mma_blackwell_(nk_u32_t accumulator, nk_u6
 /** The origin of output tile @p tile, shaped as @p schedule says, or false for a tile the band of
  *  the output does not reach. Tiles run down a group of @c group_rows row tiles before moving
  *  right, so the group's A rows stay in L2 while every B tile streams from memory once per group
- *  rather than once per row tile. */
+ *  rather than once per row tile. Depth slices walk all output tiles, one after another. */
 NUMKONG_DEVICE int nk_cross_tile_origin_blackwell_(nk_cross_tile_arguments_blackwell_t const *arguments,
                                                    nk_cross_schedule_blackwell_t const *schedule, nk_size_t tile,
                                                    nk_size_t *first_row, nk_size_t *first_column) {
     nk_cross_tile_arguments_t const *const shape = &arguments->tile;
-    nk_size_t const row_tiles = shape->tiles / shape->column_tiles;
+    nk_size_t const output_tiles = shape->tiles / arguments->slices;
+    tile %= output_tiles;
+    nk_size_t const row_tiles = output_tiles / shape->column_tiles;
     nk_size_t const group_tiles = arguments->group_rows * shape->column_tiles;
     nk_size_t const group_first = tile / group_tiles * arguments->group_rows, within = tile % group_tiles;
     nk_size_t const group_rows = row_tiles - group_first < arguments->group_rows ? row_tiles - group_first
@@ -1439,7 +1443,9 @@ NUMKONG_DEVICE void nk_cross_load_blackwell_(nk_cross_schedule_blackwell_t const
     for (nk_size_t tile = schedule->first_tile; tile < arguments->tile.tiles; tile += schedule->tile_stride) {
         nk_size_t first_row, first_column;
         if (!nk_cross_tile_origin_blackwell_(arguments, schedule, tile, &first_row, &first_column)) continue;
-        for (nk_size_t slab = 0; slab < schedule->slabs; ++slab) {
+        // A slice past the depth's end loads boxes the maps fill with zeros.
+        nk_size_t const first_slab = tile / (arguments->tile.tiles / arguments->slices) * schedule->slabs;
+        for (nk_size_t slab = first_slab; slab < first_slab + schedule->slabs; ++slab) {
             nk_u32_t const loaded = nk_shared_address_ampere_(&control->loaded[stage]);
             nk_u32_t const a_box = stages_address + stage * schedule->stage_bytes;
             nk_u32_t const b_box = a_box + schedule->b_box_offset;
@@ -2381,8 +2387,8 @@ NUMKONG_DEVICE void nk_cross_drain_accumulator_blackwell_(nk_cross_schedule_blac
                                                           nk_cross_tile_arguments_blackwell_t const *arguments,
                                                           unsigned char *boxes, nk_u32_t *stores, nk_u32_t lanes,
                                                           nk_u32_t accumulator, nk_size_t chunk, nk_size_t first_row,
-                                                          nk_size_t first_column, nk_u32_t row_norm,
-                                                          nk_u32_t row_byte_sum) {
+                                                          nk_size_t first_column, nk_size_t output_rows_offset,
+                                                          nk_u32_t row_norm, nk_u32_t row_byte_sum) {
     nk_cross_tile_arguments_t const *const shape = &arguments->tile;
     unsigned const tile_row = nk_cross_drain_row_blackwell_();
     nk_size_t const row = first_row + tile_row, warp_first_row = first_row + tile_row / 32 * 32;
@@ -2411,11 +2417,12 @@ NUMKONG_DEVICE void nk_cross_drain_accumulator_blackwell_(nk_cross_schedule_blac
         if (arguments->c_mapped && chunk_column + 32 <= shape->column_count && tile_column + 32 <= columns &&
             (!nk_cross_symmetric_simt_(schedule->band) || chunk_column >= warp_first_row + 31)) {
             nk_cross_store_box_blackwell_(arguments, boxes + (*stores & 1) * nk_cross_output_box_bytes_blackwell_k,
-                                          bits, warp_first_row, chunk_column);
+                                          bits, output_rows_offset + warp_first_row, chunk_column);
             ++*stores;
         }
         else if (row < shape->rows_end)
-            nk_cross_store_sums_blackwell_(schedule->band, shape, bits, row, chunk_column, columns - tile_column);
+            nk_cross_store_sums_blackwell_(schedule->band, shape, bits, output_rows_offset + row, chunk_column,
+                                           columns - tile_column);
     }
 }
 
@@ -3083,6 +3090,9 @@ NUMKONG_DEVICE void nk_cross_drain_blackwell_(nk_cross_schedule_blackwell_t cons
         nk_size_t first_row, first_column;
         if (!nk_cross_tile_origin_blackwell_(arguments, schedule, tile, &first_row, &first_column)) continue;
         first_row += schedule->pair_rank * nk_cross_rows_blackwell_k;
+        // Each slice's partials fill whole row tiles, so boxes past the last row stay in its block.
+        nk_size_t const output_rows_offset = tile / (shape->tiles / arguments->slices) *
+                                             nk_size_round_up_to_multiple_(shape->rows_end, schedule->tile_rows);
         for (nk_size_t chunk = 0; chunk < schedule->chunks; ++chunk, ++iteration) {
             nk_u32_t statistics[4] = {0, 0, 0, 0};
             if (chunk + 1 == schedule->chunks && schedule->publishes) {
@@ -3104,7 +3114,7 @@ NUMKONG_DEVICE void nk_cross_drain_blackwell_(nk_cross_schedule_blackwell_t cons
             nk_tmem_fence_after_blackwell_();
             nk_cross_drain_accumulator_blackwell_(schedule, control, arguments, boxes, &stores, lanes,
                                                   buffer * schedule->tile_columns, chunk, first_row, first_column,
-                                                  statistics[0], statistics[1]);
+                                                  output_rows_offset, statistics[0], statistics[1]);
             nk_tmem_fence_before_blackwell_();
             __syncwarp();
             if ((threadIdx.x & 31) != 0) continue;
@@ -3491,6 +3501,59 @@ static __global__ void nk_cross_empty_blackwell_kernel_(nk_cross_tile_arguments_
     }
 }
 
+/** Adds the @p slices partial outputs a split depth left in @p partials, blocks of @p slice_rows
+ *  rows each, slice after slice into the F32 output @p c, so every run sums them alike. */
+static __global__ void nk_cross_fold_slices_blackwell_kernel_(unsigned char const *partials, nk_size_t partials_stride,
+                                                              nk_size_t slice_rows, nk_size_t slices, nk_f32_t *c,
+                                                              nk_size_t c_stride, nk_size_t rows,
+                                                              nk_size_t column_count) {
+    nk_size_t const outputs = rows * column_count;
+    for (nk_size_t index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; index < outputs;
+         index += gridDim.x * (nk_size_t)blockDim.x) {
+        nk_size_t const row = index / column_count, column = index % column_count;
+        nk_f32_t const *const first = (nk_f32_t const *)(partials + row * partials_stride);
+        nk_size_t const slice_stride = slice_rows * partials_stride / sizeof(nk_f32_t);
+        nk_f32_t sum = first[column];
+        for (nk_size_t slice = 1; slice < slices; ++slice) sum += first[slice * slice_stride + column];
+        nk_f32_t *const output = (nk_f32_t *)((unsigned char *)c + row * c_stride);
+        output[column] = sum;
+    }
+}
+
+/** The depth slices each output tile of a @c packed dot product of @p rows by @p column_count
+ *  splits into, so the tiles of all slices together hold every resident block or pair of the
+ *  stream's device, with equal slabs per slice and only the last one reaching past the depth.
+ *  Distances, block-scaled dtypes and integer outputs never ask, since their epilogues need the
+ *  whole depth. */
+NUMKONG_INLINE nk_status_t nk_cross_depth_slices_blackwell_(nk_size_t rows, nk_size_t column_count,
+                                                            nk_size_t depth_bytes, unsigned box_bytes,
+                                                            unsigned pair_columns, nk_stream_t stream,
+                                                            nk_size_t *slices) {
+    *slices = 1;
+    if (!rows || !column_count || !depth_bytes) return nk_success_k;
+    int multiprocessors = 0;
+    nk_status_t const status = nk_device_attribute_cuda_(cudaDevAttrMultiProcessorCount, &multiprocessors, stream);
+    if (status != nk_success_k) return status;
+    int const paired = pair_columns != 0;
+    nk_size_t const output_tiles = nk_size_divide_round_up_(rows, (nk_size_t)nk_cross_rows_blackwell_k << paired) *
+                                   nk_size_divide_round_up_(
+                                       column_count, paired ? pair_columns : (nk_size_t)nk_cross_columns_blackwell_k);
+    nk_size_t const resident_tiles = (nk_size_t)multiprocessors >> paired;
+    nk_size_t const depth_slabs = nk_size_divide_round_up_(depth_bytes, box_bytes);
+    nk_size_t const wanted = resident_tiles / output_tiles < depth_slabs ? resident_tiles / output_tiles : depth_slabs;
+    if (wanted > 1) *slices = nk_size_divide_round_up_(depth_slabs, nk_size_divide_round_up_(depth_slabs, wanted));
+    return nk_success_k;
+}
+
+/** The workspace of @p slices partial outputs of @p rows by @p column_count F32 sums, each slice a
+ *  block of rows padded to whole tiles of @p tile_rows, in rows padded to 16 bytes for the map. */
+NUMKONG_INLINE nk_size_t nk_cross_slices_bytes_blackwell_(nk_size_t slices, nk_size_t rows, nk_size_t column_count,
+                                                          nk_size_t tile_rows) {
+    return slices > 1 ? slices * nk_size_round_up_to_multiple_(rows, tile_rows) *
+                            nk_size_round_up_to_multiple_(column_count * sizeof(nk_f32_t), 16)
+                      : 0;
+}
+
 /** Validates the contract, describes A's @p a_rows rows and B's @p column_count rows, and launches
  *  as many blocks of @p kernel as stay resident, each walking output tiles with a stride of the
  *  grid, dot products in pairs of blocks over tiles of @p pair_columns columns unless it is zero.
@@ -3503,7 +3566,8 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
     void const *kernel, nk_cross_operand_t const *a, nk_size_t a_rows, nk_cross_operand_t const *b, void const *b_norms,
     void *c, nk_size_t result_bytes, nk_size_t rows_begin, nk_size_t rows_end, nk_size_t column_count, nk_size_t depth,
     nk_size_t block_size, unsigned box_bytes, unsigned pair_columns, nk_cross_metric_t metric, nk_size_t depth_bytes,
-    unsigned b_widening, nk_size_t a_stride, nk_size_t b_stride, nk_size_t c_stride, nk_stream_t stream) {
+    unsigned b_widening, nk_size_t a_stride, nk_size_t b_stride, nk_size_t c_stride, nk_size_t slices, void *workspace,
+    nk_size_t workspace_bytes, nk_stream_t stream) {
     if (block_size && (depth % block_size || (depth && (!a->scales || !b->scales)))) return nk_unexpected_dimensions_k;
     if ((((nk_size_t)a->elements) | a_stride | ((nk_size_t)b->elements) | b_stride) & 15 ||
         (((nk_size_t)c) | c_stride) & (result_bytes - 1))
@@ -3523,6 +3587,15 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
     int const paired = pair_columns && metric == nk_cross_metric_dot_k;
     nk_size_t const tile_rows = nk_cross_rows_blackwell_k << paired,
                     tile_columns = paired ? pair_columns : nk_cross_columns_blackwell_k;
+    // A split depth stores each slice's partials into the workspace, and an empty one runs whole.
+    nk_size_t const partials_bytes = nk_cross_slices_bytes_blackwell_(slices, rows_end, column_count, tile_rows);
+    if (!workspace_bytes) slices = 1;
+    else if (workspace_bytes < partials_bytes) return nk_unexpected_dimensions_k;
+    else if (slices > 1 && ((nk_size_t)workspace & 15)) return nk_misaligned_k;
+    nk_size_t const slice_rows = nk_size_round_up_to_multiple_(rows_end, tile_rows);
+    nk_size_t const partials_stride = nk_size_round_up_to_multiple_(column_count * result_bytes, 16);
+    void *const output = slices > 1 ? workspace : c;
+    nk_size_t const output_stride = slices > 1 ? partials_stride : c_stride;
     if (!nk_cross_map_blackwell_(&arguments.a_map, a->elements, a_rows, depth_bytes, a_stride, box_bytes,
                                  nk_cross_rows_blackwell_k) ||
         // Widened packs pad rows to whole boxes with the codes the products expect past the depth.
@@ -3531,9 +3604,9 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
             b_widening > 1 ? nk_size_round_up_to_multiple_(depth_bytes, box_bytes) * b_widening : depth_bytes, b_stride,
             box_bytes * b_widening, (unsigned)(tile_columns >> paired)))
         return nk_device_memory_mismatch_k;
-    arguments.c_mapped = !((((nk_size_t)c) | c_stride) & 15) &&
-                         nk_cross_map_blackwell_(&arguments.c_map, c, rows_end, column_count * result_bytes, c_stride,
-                                                 128, 32);
+    arguments.c_mapped = !((((nk_size_t)output) | output_stride) & 15) &&
+                         nk_cross_map_blackwell_(&arguments.c_map, output, slices > 1 ? slices * slice_rows : rows_end,
+                                                 column_count * result_bytes, output_stride, 128, 32);
     // Scale rows TMA can reach land as boxes; misaligned dense ones go through the stage warps.
     nk_size_t const blocks = block_size ? depth / block_size : 0;
     arguments.scales_mapped =
@@ -3546,11 +3619,12 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
     nk_cross_tile_arguments_t *const tile = &arguments.tile;
     nk_size_t const column_tiles = nk_size_divide_round_up_(column_count, tile_columns);
     nk_size_t const tiles = nk_size_divide_round_up_(rows_end - rows_begin, tile_rows) * column_tiles;
-    tile->a = (unsigned char const *)a->elements, tile->b = (unsigned char const *)b->elements, tile->c = c;
+    tile->a = (unsigned char const *)a->elements, tile->b = (unsigned char const *)b->elements, tile->c = output;
     tile->rows_begin = rows_begin, tile->rows_end = rows_end, tile->column_count = column_count;
     tile->depth = depth, tile->depth_bytes = depth_bytes, tile->a_stride = a_stride, tile->b_stride = b_stride;
-    tile->c_stride = c_stride, tile->column_tiles = column_tiles, tile->tiles = tiles;
-    tile->depth_slabs = nk_size_divide_round_up_(depth_bytes, box_bytes);
+    tile->c_stride = output_stride, tile->column_tiles = column_tiles, tile->tiles = tiles * slices;
+    tile->depth_slabs = nk_size_divide_round_up_(nk_size_divide_round_up_(depth_bytes, box_bytes), slices);
+    arguments.slices = slices;
     tile->b_norms = b_norms;
     tile->a_scales = a->scales, tile->b_scales = b->scales;
     tile->a_scales_stride = a->scales_stride, tile->b_scales_stride = b->scales_stride;
@@ -3564,11 +3638,18 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
     nk_size_t group_rows = 1;
     while (group_rows * group_rows < resident_tiles && group_rows < 16) ++group_rows;
     arguments.group_rows = group_rows;
-    if (paired)
-        return nk_cross_launch_pairs_blackwell_(kernel, nk_cross_threads_blackwell_k, nk_cross_shared_bytes_blackwell_k,
-                                                tiles, &arguments, stream);
-    return nk_launch_resident_cuda_(kernel, nk_cross_threads_blackwell_k, nk_cross_shared_bytes_blackwell_k,
-                                    nk_cross_shared_bytes_blackwell_k, tiles, &arguments, stream);
+    nk_status_t const launched =
+        paired ? nk_cross_launch_pairs_blackwell_(kernel, nk_cross_threads_blackwell_k,
+                                                  nk_cross_shared_bytes_blackwell_k, tile->tiles, &arguments, stream)
+               : nk_launch_resident_cuda_(kernel, nk_cross_threads_blackwell_k, nk_cross_shared_bytes_blackwell_k,
+                                          nk_cross_shared_bytes_blackwell_k, tile->tiles, &arguments, stream);
+    if (launched != nk_success_k || slices == 1) return launched;
+    unsigned char const *partials = (unsigned char const *)workspace;
+    nk_size_t const outputs_blocks = nk_size_divide_round_up_((rows_end - rows_begin) * column_count, 256);
+    void *fold_arguments[8] = {
+        &partials, (void *)&partials_stride, (void *)&slice_rows, &slices, &c, &c_stride, &rows_end, &column_count};
+    return nk_launch_cuda_((void const *)nk_cross_fold_slices_blackwell_kernel_,
+                           outputs_blocks < 1024 ? outputs_blocks : 1024, 256, fold_arguments, 0, stream);
 }
 #pragma endregion Tile
 
@@ -3597,17 +3678,33 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
         nk_diagonal_band_t const band = {NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX};                                          \
         nk_cross_tile_##input_type_name##_blackwell_(nk_cross_metric_##metric##_k, band, &arguments);                  \
     }                                                                                                                  \
+    NUMKONG_INLINE nk_status_t nk_##metric##s_packed_slices_##input_type_name##_##isa_suffix##_(                       \
+        nk_size_t rows, nk_size_t column_count, nk_size_t depth, nk_stream_t stream, nk_size_t *slices) {              \
+        *slices = 1;                                                                                                   \
+        if (nk_cross_metric_##metric##_k != nk_cross_metric_dot_k || nk_##result_value_type##_k != nk_f32_k ||         \
+            nk_block_scaled_format_of_dtype(nk_##input_type_name##_k).block_size)                                      \
+            return nk_success_k;                                                                                       \
+        return nk_cross_depth_slices_blackwell_(rows, column_count,                                                    \
+                                                depth / dimensions_per_value * sizeof(nk_##input_value_type##_t),      \
+                                                box_bytes, pair_columns, stream, slices);                              \
+    }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##metric##s_packed_workspace_size_##input_type_name##_##isa_suffix(                     \
         nk_size_t rows, nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {                                   \
-        nk_unused_(rows), nk_unused_(column_count), nk_unused_(depth);                                                 \
-        *bytes = 0;                                                                                                    \
-        return nk_success_k;                                                                                           \
+        nk_size_t slices = 1;                                                                                          \
+        nk_status_t const status = nk_##metric##s_packed_slices_##input_type_name##_##isa_suffix##_(                   \
+            rows, column_count, depth, NUMKONG_NULL, &slices);                                                         \
+        *bytes = nk_cross_slices_bytes_blackwell_(slices, rows, column_count,                                          \
+                                                  (nk_size_t)nk_cross_rows_blackwell_k << (pair_columns != 0));        \
+        return status;                                                                                                 \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##metric##s_packed_##input_type_name##_##isa_suffix(                                    \
         nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                          \
         nk_##result_value_type##_t *c_matrix, nk_size_t rows, nk_size_t column_count, nk_size_t depth,                 \
         nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {      \
-        nk_unused_(workspace), nk_unused_(workspace_bytes);                                                            \
+        nk_size_t slices = 1;                                                                                          \
+        nk_status_t const sliced = nk_##metric##s_packed_slices_##input_type_name##_##isa_suffix##_(                   \
+            rows, column_count, depth, stream, &slices);                                                               \
+        if (sliced != nk_success_k) return sliced;                                                                     \
         nk_size_t const row_bytes = nk_cross_padded_values_simt_(depth, depth_simd_dimensions, dimensions_per_value,   \
                                                                  sizeof(nk_##packed_value_type##_t)) *                 \
                                     sizeof(nk_##packed_value_type##_t);                                                \
@@ -3624,7 +3721,7 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
             box_bytes, pair_columns, nk_cross_metric_##metric##_k,                                                     \
             depth / dimensions_per_value * sizeof(nk_##input_value_type##_t),                                          \
             sizeof(nk_##packed_value_type##_t) / sizeof(nk_##input_value_type##_t), a_stride, row_bytes, c_stride,     \
-            stream);                                                                                                   \
+            slices, workspace, workspace_bytes, stream);                                                               \
     }                                                                                                                  \
     static __global__ void __launch_bounds__(nk_cross_threads_blackwell_k, 1)                                          \
         nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_(                                           \
@@ -3651,7 +3748,7 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
             &vectors, 0, result, sizeof(nk_##result_value_type##_t), rows_begin, rows_end, vector_count, depth,        \
             nk_block_scaled_format_of_dtype(nk_##input_type_name##_k).block_size, box_bytes, pair_columns,             \
             nk_cross_metric_##metric##_k, depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), 1, stride, \
-            stride, result_stride, stream);                                                                            \
+            stride, result_stride, 1, NUMKONG_NULL, 0, stream);                                                        \
     }
 
 #pragma endregion Cross Macros

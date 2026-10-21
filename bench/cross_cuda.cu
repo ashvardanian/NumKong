@@ -625,20 +625,27 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                            [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_BLACKWELL
     if (!(enabled & nk_cap_blackwell_k)) return;
-    run_dots_packed<nk_bf16_k>(env, "dots_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell,
-                               nk_dots_pack_bf16_blackwell, nk_dots_packed_bf16_blackwell, backend);
-    run_dots_packed<nk_f16_k>(env, "dots_packed_f16_blackwell", nk_dots_pack_size_f16_blackwell,
-                              nk_dots_pack_f16_blackwell, nk_dots_packed_f16_blackwell, backend);
-    run_dots_packed<nk_e5m2_k>(env, "dots_packed_e5m2_blackwell", nk_dots_pack_size_e5m2_blackwell,
-                               nk_dots_pack_e5m2_blackwell, nk_dots_packed_e5m2_blackwell, backend);
-    run_dots_packed<nk_e4m3_k>(env, "dots_packed_e4m3_blackwell", nk_dots_pack_size_e4m3_blackwell,
-                               nk_dots_pack_e4m3_blackwell, nk_dots_packed_e4m3_blackwell, backend);
-    run_dots_packed<nk_e3m2_k>(env, "dots_packed_e3m2_blackwell", nk_dots_pack_size_e3m2_blackwell,
-                               nk_dots_pack_e3m2_blackwell, nk_dots_packed_e3m2_blackwell, backend);
-    run_dots_packed<nk_e2m3_k>(env, "dots_packed_e2m3_blackwell", nk_dots_pack_size_e2m3_blackwell,
-                               nk_dots_pack_e2m3_blackwell, nk_dots_packed_e2m3_blackwell, backend);
-    run_dots_packed<nk_e2m1_k>(env, "dots_packed_e2m1_blackwell", nk_dots_pack_size_e2m1_blackwell,
-                               nk_dots_pack_e2m1_blackwell, nk_dots_packed_e2m1_blackwell, backend);
+    run_dots_packed<nk_bf16_k>(
+        env, "dots_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell, nk_dots_pack_bf16_blackwell,
+        with_workspace(nk_dots_packed_bf16_blackwell, nk_dots_packed_workspace_size_bf16_blackwell), backend);
+    run_dots_packed<nk_f16_k>(
+        env, "dots_packed_f16_blackwell", nk_dots_pack_size_f16_blackwell, nk_dots_pack_f16_blackwell,
+        with_workspace(nk_dots_packed_f16_blackwell, nk_dots_packed_workspace_size_f16_blackwell), backend);
+    run_dots_packed<nk_e5m2_k>(
+        env, "dots_packed_e5m2_blackwell", nk_dots_pack_size_e5m2_blackwell, nk_dots_pack_e5m2_blackwell,
+        with_workspace(nk_dots_packed_e5m2_blackwell, nk_dots_packed_workspace_size_e5m2_blackwell), backend);
+    run_dots_packed<nk_e4m3_k>(
+        env, "dots_packed_e4m3_blackwell", nk_dots_pack_size_e4m3_blackwell, nk_dots_pack_e4m3_blackwell,
+        with_workspace(nk_dots_packed_e4m3_blackwell, nk_dots_packed_workspace_size_e4m3_blackwell), backend);
+    run_dots_packed<nk_e3m2_k>(
+        env, "dots_packed_e3m2_blackwell", nk_dots_pack_size_e3m2_blackwell, nk_dots_pack_e3m2_blackwell,
+        with_workspace(nk_dots_packed_e3m2_blackwell, nk_dots_packed_workspace_size_e3m2_blackwell), backend);
+    run_dots_packed<nk_e2m3_k>(
+        env, "dots_packed_e2m3_blackwell", nk_dots_pack_size_e2m3_blackwell, nk_dots_pack_e2m3_blackwell,
+        with_workspace(nk_dots_packed_e2m3_blackwell, nk_dots_packed_workspace_size_e2m3_blackwell), backend);
+    run_dots_packed<nk_e2m1_k>(
+        env, "dots_packed_e2m1_blackwell", nk_dots_pack_size_e2m1_blackwell, nk_dots_pack_e2m1_blackwell,
+        with_workspace(nk_dots_packed_e2m1_blackwell, nk_dots_packed_workspace_size_e2m1_blackwell), backend);
     run_dots_packed<nk_nvfp4_k>(env, "dots_packed_nvfp4_blackwell", nk_dots_pack_size_nvfp4_blackwell,
                                 nk_dots_pack_nvfp4_blackwell, nk_dots_packed_nvfp4_blackwell, backend);
     run_dots_packed<nk_mxfp4_k>(env, "dots_packed_mxfp4_blackwell", nk_dots_pack_size_mxfp4_blackwell,
