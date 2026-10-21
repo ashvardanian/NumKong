@@ -10,9 +10,9 @@
 
 # Locate the NDK.
 if (DEFINED ENV{ANDROID_NDK_ROOT})
-    set(_ndk_root "$ENV{ANDROID_NDK_ROOT}")
+    set(numkong_ndk_root_ "$ENV{ANDROID_NDK_ROOT}")
 elseif (DEFINED ENV{ANDROID_NDK})
-    set(_ndk_root "$ENV{ANDROID_NDK}")
+    set(numkong_ndk_root_ "$ENV{ANDROID_NDK}")
 else ()
     message(FATAL_ERROR "Set ANDROID_NDK_ROOT or ANDROID_NDK to the NDK installation path")
 endif ()
@@ -22,4 +22,4 @@ set(ANDROID_ABI "arm64-v8a" CACHE STRING "Android ABI")
 set(ANDROID_PLATFORM "android-28" CACHE STRING "Minimum Android API level")
 
 # Delegate to the NDK's own toolchain.
-include("${_ndk_root}/build/cmake/android.toolchain.cmake")
+include("${numkong_ndk_root_}/build/cmake/android.toolchain.cmake")

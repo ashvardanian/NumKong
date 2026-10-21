@@ -51,12 +51,12 @@ set(ENV{LOONGARCH_TRIPLE} "${LOONGARCH_TRIPLE}")
 # Ubuntu and Debian version their cross compilers as `<triple>-gcc-15`, and an unsuffixed `<triple>-gcc` is whatever
 # the unversioned metapackage points at, so the suffix pins GCC 15; pass an empty one for an unsuffixed GCC 15.
 if (DEFINED ENV{LOONGARCH_COMPILER_SUFFIX})
-    set(LOONGARCH_COMPILER_SUFFIX_DEFAULT_ "$ENV{LOONGARCH_COMPILER_SUFFIX}")
+    set(numkong_loongarch_compiler_suffix_default_ "$ENV{LOONGARCH_COMPILER_SUFFIX}")
 else ()
-    set(LOONGARCH_COMPILER_SUFFIX_DEFAULT_ "-15")
+    set(numkong_loongarch_compiler_suffix_default_ "-15")
 endif ()
-set(LOONGARCH_COMPILER_SUFFIX "${LOONGARCH_COMPILER_SUFFIX_DEFAULT_}" CACHE STRING
-                                                                            "Version suffix on the cross compiler"
+set(LOONGARCH_COMPILER_SUFFIX "${numkong_loongarch_compiler_suffix_default_}"
+    CACHE STRING "Version suffix on the cross compiler"
 )
 set(ENV{LOONGARCH_COMPILER_SUFFIX} "${LOONGARCH_COMPILER_SUFFIX}")
 
@@ -109,12 +109,12 @@ list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES LOONGARCH_TOOLCHAIN_PATH LOONGA
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 if (DEFINED LOONGARCH_TOOLCHAIN_PATH)
-    set(_NUMKONG_LOONGARCH_PREFIX "${LOONGARCH_TOOLCHAIN_PATH}/bin/${LOONGARCH_TRIPLE}-")
+    set(numkong_loongarch_prefix_ "${LOONGARCH_TOOLCHAIN_PATH}/bin/${LOONGARCH_TRIPLE}-")
 else ()
-    set(_NUMKONG_LOONGARCH_PREFIX "${LOONGARCH_TRIPLE}-")
+    set(numkong_loongarch_prefix_ "${LOONGARCH_TRIPLE}-")
 endif ()
-set(CMAKE_C_COMPILER "${_NUMKONG_LOONGARCH_PREFIX}gcc${LOONGARCH_COMPILER_SUFFIX}")
-set(CMAKE_CXX_COMPILER "${_NUMKONG_LOONGARCH_PREFIX}g++${LOONGARCH_COMPILER_SUFFIX}")
+set(CMAKE_C_COMPILER "${numkong_loongarch_prefix_}gcc${LOONGARCH_COMPILER_SUFFIX}")
+set(CMAKE_CXX_COMPILER "${numkong_loongarch_prefix_}g++${LOONGARCH_COMPILER_SUFFIX}")
 
 # No `-march` here: `CMakeLists.txt` pins the dispatch floor with
 # `add_compile_options(-march=loongarch64)`, which lands after `CMAKE_C_FLAGS` and wins.
@@ -124,10 +124,10 @@ if (DEFINED LOONGARCH_SYSROOT)
     set(CMAKE_FIND_ROOT_PATH "${LOONGARCH_SYSROOT}")
 endif ()
 
-find_program(_NUMKONG_QEMU_LOONGARCH qemu-loongarch64)
-if (_NUMKONG_QEMU_LOONGARCH)
+find_program(numkong_qemu_loongarch_ qemu-loongarch64)
+if (numkong_qemu_loongarch_)
     set(CMAKE_CROSSCOMPILING_EMULATOR
-        "${_NUMKONG_QEMU_LOONGARCH};-L;${LOONGARCH_QEMU_LD_PREFIX};-cpu;${LOONGARCH_QEMU_CPU}"
+        "${numkong_qemu_loongarch_};-L;${LOONGARCH_QEMU_LD_PREFIX};-cpu;${LOONGARCH_QEMU_CPU}"
     )
 endif ()
 

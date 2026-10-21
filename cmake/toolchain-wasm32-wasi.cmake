@@ -32,16 +32,16 @@ set(ENV{WASI_SDK_PATH} "${WASI_SDK_PATH}")
 
 # Windows SDK archives ship executable suffixes that Unix hosts do not use.
 if (CMAKE_HOST_WIN32)
-    set(WASI_TOOL_SUFFIX ".exe")
+    set(numkong_wasi_tool_suffix_ ".exe")
 else ()
-    set(WASI_TOOL_SUFFIX "")
+    set(numkong_wasi_tool_suffix_ "")
 endif ()
 
 # Set compilers.
-set(CMAKE_C_COMPILER "${WASI_SDK_PATH}/bin/clang${WASI_TOOL_SUFFIX}")
-set(CMAKE_CXX_COMPILER "${WASI_SDK_PATH}/bin/clang++${WASI_TOOL_SUFFIX}")
-set(CMAKE_AR "${WASI_SDK_PATH}/bin/llvm-ar${WASI_TOOL_SUFFIX}")
-set(CMAKE_RANLIB "${WASI_SDK_PATH}/bin/llvm-ranlib${WASI_TOOL_SUFFIX}")
+set(CMAKE_C_COMPILER "${WASI_SDK_PATH}/bin/clang${numkong_wasi_tool_suffix_}")
+set(CMAKE_CXX_COMPILER "${WASI_SDK_PATH}/bin/clang++${numkong_wasi_tool_suffix_}")
+set(CMAKE_AR "${WASI_SDK_PATH}/bin/llvm-ar${numkong_wasi_tool_suffix_}")
+set(CMAKE_RANLIB "${WASI_SDK_PATH}/bin/llvm-ranlib${numkong_wasi_tool_suffix_}")
 set(CMAKE_SYSROOT "${WASI_SDK_PATH}/share/wasi-sysroot")
 set(CMAKE_FIND_ROOT_PATH "${WASI_SDK_PATH}")
 

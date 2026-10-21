@@ -109,12 +109,12 @@ list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES RISCV_TOOLCHAIN_PATH RISCV_TRIP
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 if (DEFINED RISCV_TOOLCHAIN_PATH)
-    set(_NUMKONG_RISCV_PREFIX "${RISCV_TOOLCHAIN_PATH}/bin/${RISCV_TRIPLE}-")
+    set(numkong_riscv_prefix_ "${RISCV_TOOLCHAIN_PATH}/bin/${RISCV_TRIPLE}-")
 else ()
-    set(_NUMKONG_RISCV_PREFIX "${RISCV_TRIPLE}-")
+    set(numkong_riscv_prefix_ "${RISCV_TRIPLE}-")
 endif ()
-set(CMAKE_C_COMPILER "${_NUMKONG_RISCV_PREFIX}gcc${RISCV_COMPILER_SUFFIX}")
-set(CMAKE_CXX_COMPILER "${_NUMKONG_RISCV_PREFIX}g++${RISCV_COMPILER_SUFFIX}")
+set(CMAKE_C_COMPILER "${numkong_riscv_prefix_}gcc${RISCV_COMPILER_SUFFIX}")
+set(CMAKE_CXX_COMPILER "${numkong_riscv_prefix_}g++${RISCV_COMPILER_SUFFIX}")
 
 if (NOT DEFINED RISCV_MABI)
     if (DEFINED ENV{RISCV_MABI})
@@ -136,9 +136,9 @@ if (DEFINED RISCV_SYSROOT)
     set(CMAKE_FIND_ROOT_PATH "${RISCV_SYSROOT}")
 endif ()
 
-find_program(_NUMKONG_QEMU_RISCV64 qemu-riscv64)
-if (_NUMKONG_QEMU_RISCV64)
-    set(CMAKE_CROSSCOMPILING_EMULATOR "${_NUMKONG_QEMU_RISCV64};-L;${RISCV_QEMU_LD_PREFIX};-cpu;${RISCV_QEMU_CPU}")
+find_program(numkong_qemu_riscv64_ qemu-riscv64)
+if (numkong_qemu_riscv64_)
+    set(CMAKE_CROSSCOMPILING_EMULATOR "${numkong_qemu_riscv64_};-L;${RISCV_QEMU_LD_PREFIX};-cpu;${RISCV_QEMU_CPU}")
 endif ()
 
 # Search paths for libraries and headers (target system only).

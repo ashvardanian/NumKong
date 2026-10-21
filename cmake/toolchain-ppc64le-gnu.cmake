@@ -50,11 +50,11 @@ set(ENV{PPC_TRIPLE} "${PPC_TRIPLE}")
 # Ubuntu and Debian version their cross compilers as `<triple>-gcc-15`, and an unsuffixed `<triple>-gcc` is whatever
 # the unversioned metapackage points at, so the suffix pins GCC 15; pass an empty one for an unsuffixed GCC 15.
 if (DEFINED ENV{PPC_COMPILER_SUFFIX})
-    set(PPC_COMPILER_SUFFIX_DEFAULT_ "$ENV{PPC_COMPILER_SUFFIX}")
+    set(numkong_ppc_compiler_suffix_default_ "$ENV{PPC_COMPILER_SUFFIX}")
 else ()
-    set(PPC_COMPILER_SUFFIX_DEFAULT_ "-15")
+    set(numkong_ppc_compiler_suffix_default_ "-15")
 endif ()
-set(PPC_COMPILER_SUFFIX "${PPC_COMPILER_SUFFIX_DEFAULT_}" CACHE STRING "Version suffix on the cross compiler")
+set(PPC_COMPILER_SUFFIX "${numkong_ppc_compiler_suffix_default_}" CACHE STRING "Version suffix on the cross compiler")
 set(ENV{PPC_COMPILER_SUFFIX} "${PPC_COMPILER_SUFFIX}")
 
 # Only a self-contained rootfs is a sysroot. Distribution cross packages install into the build
@@ -107,12 +107,12 @@ list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES PPC_TOOLCHAIN_PATH PPC_TRIPLE P
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 if (DEFINED PPC_TOOLCHAIN_PATH)
-    set(_NUMKONG_PPC_PREFIX "${PPC_TOOLCHAIN_PATH}/bin/${PPC_TRIPLE}-")
+    set(numkong_ppc_prefix_ "${PPC_TOOLCHAIN_PATH}/bin/${PPC_TRIPLE}-")
 else ()
-    set(_NUMKONG_PPC_PREFIX "${PPC_TRIPLE}-")
+    set(numkong_ppc_prefix_ "${PPC_TRIPLE}-")
 endif ()
-set(CMAKE_C_COMPILER "${_NUMKONG_PPC_PREFIX}gcc${PPC_COMPILER_SUFFIX}")
-set(CMAKE_CXX_COMPILER "${_NUMKONG_PPC_PREFIX}g++${PPC_COMPILER_SUFFIX}")
+set(CMAKE_C_COMPILER "${numkong_ppc_prefix_}gcc${PPC_COMPILER_SUFFIX}")
+set(CMAKE_CXX_COMPILER "${numkong_ppc_prefix_}g++${PPC_COMPILER_SUFFIX}")
 
 # No `-mcpu` here: `CMakeLists.txt` pins the dispatch floor with `add_compile_options(-mcpu=power8)`,
 # which lands after `CMAKE_C_FLAGS` and wins.
@@ -123,9 +123,9 @@ if (DEFINED PPC_SYSROOT)
     set(CMAKE_FIND_ROOT_PATH "${PPC_SYSROOT}")
 endif ()
 
-find_program(_NUMKONG_QEMU_PPC64LE qemu-ppc64le)
-if (_NUMKONG_QEMU_PPC64LE)
-    set(CMAKE_CROSSCOMPILING_EMULATOR "${_NUMKONG_QEMU_PPC64LE};-L;${PPC_QEMU_LD_PREFIX};-cpu;${PPC_QEMU_CPU}")
+find_program(numkong_qemu_ppc64le_ qemu-ppc64le)
+if (numkong_qemu_ppc64le_)
+    set(CMAKE_CROSSCOMPILING_EMULATOR "${numkong_qemu_ppc64le_};-L;${PPC_QEMU_LD_PREFIX};-cpu;${PPC_QEMU_CPU}")
 endif ()
 
 # Search paths for libraries and headers (target system only).

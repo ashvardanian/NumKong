@@ -109,12 +109,12 @@ list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES AARCH64_TOOLCHAIN_PATH AARCH64_
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 if (DEFINED AARCH64_TOOLCHAIN_PATH)
-    set(_NUMKONG_AARCH64_PREFIX "${AARCH64_TOOLCHAIN_PATH}/bin/${AARCH64_TRIPLE}-")
+    set(numkong_aarch64_prefix_ "${AARCH64_TOOLCHAIN_PATH}/bin/${AARCH64_TRIPLE}-")
 else ()
-    set(_NUMKONG_AARCH64_PREFIX "${AARCH64_TRIPLE}-")
+    set(numkong_aarch64_prefix_ "${AARCH64_TRIPLE}-")
 endif ()
-set(CMAKE_C_COMPILER "${_NUMKONG_AARCH64_PREFIX}gcc${AARCH64_COMPILER_SUFFIX}")
-set(CMAKE_CXX_COMPILER "${_NUMKONG_AARCH64_PREFIX}g++${AARCH64_COMPILER_SUFFIX}")
+set(CMAKE_C_COMPILER "${numkong_aarch64_prefix_}gcc${AARCH64_COMPILER_SUFFIX}")
+set(CMAKE_CXX_COMPILER "${numkong_aarch64_prefix_}g++${AARCH64_COMPILER_SUFFIX}")
 
 # No `-march` here: `CMakeLists.txt` pins the dispatch floor with
 # `add_compile_options(-march=armv8-a)`, which lands after `CMAKE_C_FLAGS` and wins, and each
@@ -125,9 +125,9 @@ if (DEFINED AARCH64_SYSROOT)
     set(CMAKE_FIND_ROOT_PATH "${AARCH64_SYSROOT}")
 endif ()
 
-find_program(_NUMKONG_QEMU_AARCH64 qemu-aarch64)
-if (_NUMKONG_QEMU_AARCH64)
-    set(CMAKE_CROSSCOMPILING_EMULATOR "${_NUMKONG_QEMU_AARCH64};-L;${AARCH64_QEMU_LD_PREFIX};-cpu;${AARCH64_QEMU_CPU}")
+find_program(numkong_qemu_aarch64_ qemu-aarch64)
+if (numkong_qemu_aarch64_)
+    set(CMAKE_CROSSCOMPILING_EMULATOR "${numkong_qemu_aarch64_};-L;${AARCH64_QEMU_LD_PREFIX};-cpu;${AARCH64_QEMU_CPU}")
 endif ()
 
 # Search paths for libraries and headers (target system only).

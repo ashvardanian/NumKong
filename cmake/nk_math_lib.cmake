@@ -5,19 +5,19 @@
 # WASM/WASI toolchains do not provide a separate math archive.
 #
 # Contract:
-#   Input:  MSVC, NUMKONG_OS_WASI_, CMAKE_SYSTEM_NAME
+#   Input:  MSVC, numkong_os_wasi_, CMAKE_SYSTEM_NAME
 #   Output: caller-provided output variable with either "" or "m"
 
 include(CheckCXXSourceCompiles)
 
-function (nk_detect_cxx_math_lib_ output_var_)
-    set(${output_var_} "" PARENT_SCOPE)
+function (numkong_detect_cxx_math_library output_)
+    set(${output_} "" PARENT_SCOPE)
 
-    if (MSVC OR NUMKONG_OS_WASI_ OR CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+    if (MSVC OR numkong_os_wasi_ OR CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
         return()
     endif ()
 
-    set(nk_cxx_math_probe_src_
+    set(probe_source_
         "
         #include <cmath>
         int main() {
@@ -31,13 +31,13 @@ function (nk_detect_cxx_math_lib_ output_var_)
 
     set(CMAKE_REQUIRED_QUIET ON)
     set(CMAKE_REQUIRED_LIBRARIES "")
-    check_cxx_source_compiles("${nk_cxx_math_probe_src_}" nk_cxx_links_math_without_libm_)
+    check_cxx_source_compiles("${probe_source_}" numkong_cxx_links_math_without_libm_)
 
-    if (NOT nk_cxx_links_math_without_libm_)
+    if (NOT numkong_cxx_links_math_without_libm_)
         set(CMAKE_REQUIRED_LIBRARIES m)
-        check_cxx_source_compiles("${nk_cxx_math_probe_src_}" nk_cxx_links_math_with_libm_)
-        if (nk_cxx_links_math_with_libm_)
-            set(${output_var_} "m" PARENT_SCOPE)
+        check_cxx_source_compiles("${probe_source_}" numkong_cxx_links_math_with_libm_)
+        if (numkong_cxx_links_math_with_libm_)
+            set(${output_} "m" PARENT_SCOPE)
         endif ()
     endif ()
 

@@ -80,14 +80,14 @@
 cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
 
 # Leverage `ccache` for incremental compilation
-find_program(CCACHE_PROGRAM ccache)
+find_program(NUMKONG_CCACHE_PROGRAM ccache)
 
-if (CCACHE_PROGRAM)
-    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-    set(CMAKE_CUDA_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-    set(CMAKE_HIP_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-    message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+if (NUMKONG_CCACHE_PROGRAM)
+    set(CMAKE_C_COMPILER_LAUNCHER "${NUMKONG_CCACHE_PROGRAM}")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${NUMKONG_CCACHE_PROGRAM}")
+    set(CMAKE_CUDA_COMPILER_LAUNCHER "${NUMKONG_CCACHE_PROGRAM}")
+    set(CMAKE_HIP_COMPILER_LAUNCHER "${NUMKONG_CCACHE_PROGRAM}")
+    message(STATUS "Using ccache: ${NUMKONG_CCACHE_PROGRAM}")
     message(STATUS "IMPORTANT: Set environment variable CCACHE_SLOPPINESS=pch_defines,time_macros")
 endif ()
 
@@ -98,9 +98,9 @@ endif ()
 if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
     execute_process(
         COMMAND git config core.hooksPath .githooks WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        RESULT_VARIABLE _nk_hooks_status OUTPUT_QUIET ERROR_QUIET
+        RESULT_VARIABLE numkong_hooks_status_ OUTPUT_QUIET ERROR_QUIET
     )
-    if (_nk_hooks_status EQUAL 0)
+    if (numkong_hooks_status_ EQUAL 0)
         message(STATUS "numkong: Git hooks enabled (core.hooksPath -> .githooks)")
     endif ()
 endif ()
@@ -114,12 +114,12 @@ if (POLICY CMP0141)
 endif ()
 
 # Every binding reads its version from `VERSION`, which the release bumps.
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" NUMKONG_VERSION_ LIMIT_COUNT 1)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" numkong_version_line_ LIMIT_COUNT 1)
 # CMake versions are numeric, so the pre-release suffix of `VERSION` stays out of `PROJECT_VERSION`.
-string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" NUMKONG_VERSION_ "${NUMKONG_VERSION_}")
+string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" numkong_version_ "${numkong_version_line_}")
 project(
     numkong
-    VERSION ${NUMKONG_VERSION_}
+    VERSION ${numkong_version_}
     LANGUAGES C CXX
     DESCRIPTION "Portable mixed-precision BLAS-like vector math library for x86 and ARM"
     HOMEPAGE_URL "https://github.com/ashvardanian/NumKong"
@@ -135,15 +135,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_CXX_EXTENSIONS NO)
 
 # Determine if NumKong is built as a sub-project (using `add_subdirectory`) or if it is the main project
-set(NUMKONG_IS_MAIN_PROJECT_ ${PROJECT_IS_TOP_LEVEL})
-set(NUMKONG_OS_WASI_ OFF)
+set(numkong_is_main_project_ ${PROJECT_IS_TOP_LEVEL})
+set(numkong_os_wasi_ OFF)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "WASI")
-    set(NUMKONG_OS_WASI_ ON)
+    set(numkong_os_wasi_ ON)
 endif ()
 
-option(NUMKONG_BUILD_SHARED "Compile a dynamic library" ${NUMKONG_IS_MAIN_PROJECT_})
-option(NUMKONG_INSTALL "Install headers, libraries & the CMake package files" ${NUMKONG_IS_MAIN_PROJECT_})
+option(NUMKONG_BUILD_SHARED "Compile a dynamic library" ${numkong_is_main_project_})
+option(NUMKONG_INSTALL "Install headers, libraries & the CMake package files" ${numkong_is_main_project_})
 option(NUMKONG_BUILD_TEST "Compile precision tests, and shared-library tests with NUMKONG_BUILD_SHARED" OFF)
 option(NUMKONG_BUILD_BENCH "Compile micro-benchmarks for current ISA" OFF)
 option(NUMKONG_BUILD_PYTHON "Compile the CPython extension over the static library" OFF)
@@ -157,7 +157,7 @@ option(NUMKONG_BUILD_METAL "Add Metal to the libraries and to whichever of the t
 option(NUMKONG_WITH_HOST_PROBES "Import the capability probes from the WASI host" OFF)
 
 # `nk_cpu_capabilities_detected` lives in the library, so the imports reach every unit, not just the tests.
-if (NUMKONG_OS_WASI_ AND NUMKONG_WITH_HOST_PROBES)
+if (numkong_os_wasi_ AND NUMKONG_WITH_HOST_PROBES)
     add_compile_definitions(NUMKONG_WITH_HOST_PROBES=1)
 endif ()
 
@@ -166,7 +166,7 @@ set(NUMKONG_TARGET_ARCH "$ENV{NUMKONG_TARGET_ARCH}"
     CACHE STRING
           "Host-tuned `-march`, like native, or a WebAssembly module's SIMD capability, serial, v128 or v128relaxed"
 )
-option(NUMKONG_ENABLE_ASAN "Enable AddressSanitizer in Debug builds" ${NUMKONG_IS_MAIN_PROJECT_})
+option(NUMKONG_ENABLE_ASAN "Enable AddressSanitizer in Debug builds" ${numkong_is_main_project_})
 
 # `add_test()` entries are only generated when testing is enabled.
 if (NUMKONG_BUILD_TEST)
@@ -212,38 +212,38 @@ endif ()
 # Apple Clang compiles via `-arch`). Patch it here so the detection below matches the target. We do
 # not build universal2, so CMAKE_OSX_ARCHITECTURES is always single-valued when set.
 if (APPLE AND CMAKE_OSX_ARCHITECTURES)
-    list(LENGTH CMAKE_OSX_ARCHITECTURES nk_osx_archs_len_)
-    if (nk_osx_archs_len_ EQUAL 1)
+    list(LENGTH CMAKE_OSX_ARCHITECTURES numkong_osx_architectures_count_)
+    if (numkong_osx_architectures_count_ EQUAL 1)
         set(CMAKE_SYSTEM_PROCESSOR "${CMAKE_OSX_ARCHITECTURES}")
     else ()
         message(
             FATAL_ERROR "Multi-arch CMAKE_OSX_ARCHITECTURES='${CMAKE_OSX_ARCHITECTURES}' not supported; build per-arch"
         )
     endif ()
-    unset(nk_osx_archs_len_)
+    unset(numkong_osx_architectures_count_)
 endif ()
 
 # Detect target architecture from CMAKE_SYSTEM_PROCESSOR (safe for cross-compilation)
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|X86_64|AMD64|amd64")
-    set(NUMKONG_ARCH_X8664_ TRUE)
+    set(numkong_arch_x8664_ TRUE)
     message(STATUS "NumKong Platform: x86_64 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
 elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64|arm64|ARM64")
-    set(NUMKONG_ARCH_ARM64_ TRUE)
+    set(numkong_arch_arm64_ TRUE)
     message(STATUS "NumKong Platform: ARM64 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
 elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "riscv64|RISCV64")
-    set(NUMKONG_ARCH_RISCV64_ TRUE)
+    set(numkong_arch_riscv64_ TRUE)
     message(STATUS "NumKong Platform: RISC-V 64 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
 elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "loongarch64|LOONGARCH64")
-    set(NUMKONG_ARCH_LOONGARCH64_ TRUE)
+    set(numkong_arch_loongarch64_ TRUE)
     message(STATUS "NumKong Platform: LoongArch 64 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
 elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le|ppc64|powerpc64le|powerpc64")
-    set(NUMKONG_ARCH_PPC64_ TRUE)
+    set(numkong_arch_ppc64_ TRUE)
     message(STATUS "NumKong Platform: Power 64 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
 elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "^arm|^ARM|armv7")
-    set(NUMKONG_ARCH_ARM32_ TRUE)
+    set(numkong_arch_arm32_ TRUE)
     message(STATUS "NumKong Platform: ARM32 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
 elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "^wasm(32|64)$")
-    set(NUMKONG_ARCH_WASM_ TRUE)
+    set(numkong_arch_wasm_ TRUE)
     message(STATUS "NumKong Platform: WebAssembly (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
 else ()
     message(WARNING "Unknown CMAKE_SYSTEM_PROCESSOR: ${CMAKE_SYSTEM_PROCESSOR}")
@@ -251,22 +251,22 @@ endif ()
 
 # Detect target OS for platform-specific optimizations
 if (CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-    set(NUMKONG_OS_FREEBSD_ TRUE)
+    set(numkong_os_freebsd_ TRUE)
     message(STATUS "NumKong OS: FreeBSD")
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set(NUMKONG_OS_LINUX_ TRUE)
+    set(numkong_os_linux_ TRUE)
     message(STATUS "NumKong OS: Linux")
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Android")
-    set(NUMKONG_OS_ANDROID_ TRUE)
+    set(numkong_os_android_ TRUE)
     message(STATUS "NumKong OS: Android (API level ${ANDROID_NATIVE_API_LEVEL})")
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    set(NUMKONG_OS_MACOS_ TRUE)
+    set(numkong_os_macos_ TRUE)
     message(STATUS "NumKong OS: macOS")
 elseif (CMAKE_SYSTEM_NAME STREQUAL "iOS")
-    set(NUMKONG_OS_IOS_ TRUE)
+    set(numkong_os_ios_ TRUE)
     message(STATUS "NumKong OS: iOS")
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Windows" OR WIN32)
-    set(NUMKONG_OS_WINDOWS_ TRUE)
+    set(numkong_os_windows_ TRUE)
     message(STATUS "NumKong OS: Windows")
 endif ()
 
@@ -275,15 +275,15 @@ if (NUMKONG_ENABLE_ASAN)
     if (MSVC)
         # `cl.exe` reports an unknown `-f...` as warning D9002 and still exits 0, so the probe
         # below would pass and then replace `/Zi /Ob0 /Od /RTC1` with flags it ignores.
-        set(NUMKONG_HAS_ASAN_ FALSE)
+        set(numkong_has_asan_ FALSE)
     else ()
         include(CheckCXXSourceCompiles)
         set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
-        check_cxx_source_compiles("int main(){return 0;}" NUMKONG_HAS_ASAN_)
+        check_cxx_source_compiles("int main(){return 0;}" numkong_has_asan_)
         unset(CMAKE_REQUIRED_FLAGS)
     endif ()
 
-    if (NUMKONG_HAS_ASAN_)
+    if (numkong_has_asan_)
         set(CMAKE_CXX_FLAGS_DEBUG "-g -fsanitize=address")
         set(CMAKE_C_FLAGS_DEBUG "-g -fsanitize=address")
     else ()
@@ -308,13 +308,13 @@ add_compile_definitions($<$<CONFIG:Debug>:NUMKONG_DEBUG=1>)
 # unrolling of a runtime-bounded loop can speculatively divide by a tensor shape's zero-filled
 # spare extents and trap (#DE / SIGFPE); see shape_storage_::normalize_spare_.
 include(CheckIPOSupported)
-set(NUMKONG_IPO_CONFIGURATION_ "${CMAKE_TRY_COMPILE_CONFIGURATION}")
+set(numkong_ipo_configuration_ "${CMAKE_TRY_COMPILE_CONFIGURATION}")
 set(CMAKE_TRY_COMPILE_CONFIGURATION Release)
-check_ipo_supported(RESULT NUMKONG_IPO_SUPPORTED_ OUTPUT NUMKONG_IPO_SUPPORT_OUTPUT_)
-set(CMAKE_TRY_COMPILE_CONFIGURATION "${NUMKONG_IPO_CONFIGURATION_}")
-unset(NUMKONG_IPO_CONFIGURATION_)
-if (NOT NUMKONG_IPO_SUPPORTED_)
-    message(STATUS "Link-time optimization not available: ${NUMKONG_IPO_SUPPORT_OUTPUT_}")
+check_ipo_supported(RESULT numkong_ipo_supported_ OUTPUT numkong_ipo_support_output_)
+set(CMAKE_TRY_COMPILE_CONFIGURATION "${numkong_ipo_configuration_}")
+unset(numkong_ipo_configuration_)
+if (NOT numkong_ipo_supported_)
+    message(STATUS "Link-time optimization not available: ${numkong_ipo_support_output_}")
 endif ()
 
 # Portable baseline policy (commits 43e8324d, 453ed5ff, 23f51955): each translation unit gets a per-arch
@@ -342,17 +342,17 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
         # `-arch` already pins the ABI floor per slice, and a universal build passes both
         # to one clang invocation, where a per-arch `-march=` conflicts with the other slice.
         # `CMAKE_SYSTEM_PROCESSOR` names the host, so it cannot pick the flag here.
-    elseif (NUMKONG_ARCH_ARM64_)
+    elseif (numkong_arch_arm64_)
         add_compile_options(-march=armv8-a)
-    elseif (NUMKONG_ARCH_X8664_)
+    elseif (numkong_arch_x8664_)
         add_compile_options(-march=x86-64)
-    elseif (NUMKONG_ARCH_RISCV64_)
+    elseif (numkong_arch_riscv64_)
         add_compile_options(-march=rv64gc)
-    elseif (NUMKONG_ARCH_PPC64_)
+    elseif (numkong_arch_ppc64_)
         add_compile_options(-mcpu=power8)
-    elseif (NUMKONG_ARCH_LOONGARCH64_)
+    elseif (numkong_arch_loongarch64_)
         add_compile_options(-march=loongarch64)
-    elseif (NUMKONG_ARCH_WASM_)
+    elseif (numkong_arch_wasm_)
         # An engine validates a module whole, so every unit carries the module's one SIMD capability,
         # whatever `CMAKE_C_FLAGS` a binding passes; `types.h` reads it back from the flags.
         if (NUMKONG_TARGET_ARCH STREQUAL "v128relaxed")
@@ -368,9 +368,9 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
     endif ()
 elseif (MSVC)
     # MSVC: no per-function target pragma; these match defaults. NVCC would read them as input files.
-    if (NUMKONG_ARCH_X8664_)
+    if (numkong_arch_x8664_)
         add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/arch:SSE2>)
-    elseif (NUMKONG_ARCH_ARM64_)
+    elseif (numkong_arch_arm64_)
         add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/arch:armv8.0>)
     endif ()
 endif ()
@@ -389,11 +389,11 @@ endif ()
 # Define the header-only library. The include path & sources wear `BUILD_INTERFACE` genexes, so the
 # target stays exportable: the installed package resolves headers under the install prefix instead.
 include(GNUInstallDirs)
-file(GLOB NUMKONG_SOURCES include/numkong/*.h include/numkong/*.hpp)
+file(GLOB numkong_header_sources_ include/numkong/*.h include/numkong/*.hpp)
 add_library(numkong_header INTERFACE)
 add_library(numkong::header ALIAS numkong_header)
 set_target_properties(numkong_header PROPERTIES EXPORT_NAME header)
-target_sources(numkong_header INTERFACE "$<BUILD_INTERFACE:${NUMKONG_SOURCES}>")
+target_sources(numkong_header INTERFACE "$<BUILD_INTERFACE:${numkong_header_sources_}>")
 target_include_directories(
     numkong_header INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
                              $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
@@ -402,19 +402,19 @@ target_compile_features(numkong_header INTERFACE c_std_99)
 # Consumers of the header target compile every kernel themselves, and link no dispatch points.
 target_compile_definitions(numkong_header INTERFACE NUMKONG_HEADER_ONLY=1)
 if (APPLE)
-    set(NUMKONG_EMBED_COMPILER_
+    set(numkong_embed_compiler_
         "$<AND:$<PLATFORM_ID:Darwin>,$<OR:$<COMPILE_LANG_AND_ID:C,Clang,AppleClang>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>>>"
     )
     if (IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}")
-        set(NUMKONG_EMBED_INSTALL_DIR_ "${CMAKE_INSTALL_INCLUDEDIR}")
+        set(numkong_embed_install_dir_ "${CMAKE_INSTALL_INCLUDEDIR}")
     else ()
-        set(NUMKONG_EMBED_INSTALL_DIR_ "$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}")
+        set(numkong_embed_install_dir_ "$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}")
     endif ()
-    set(NUMKONG_EMBED_OPTIONS_
-        "$<${NUMKONG_EMBED_COMPILER_}:$<BUILD_INTERFACE:--embed-dir=${PROJECT_SOURCE_DIR}/include>>"
-        "$<${NUMKONG_EMBED_COMPILER_}:$<INSTALL_INTERFACE:--embed-dir=${NUMKONG_EMBED_INSTALL_DIR_}>>"
+    set(numkong_embed_options_
+        "$<${numkong_embed_compiler_}:$<BUILD_INTERFACE:--embed-dir=${PROJECT_SOURCE_DIR}/include>>"
+        "$<${numkong_embed_compiler_}:$<INSTALL_INTERFACE:--embed-dir=${numkong_embed_install_dir_}>>"
     )
-    target_compile_options(numkong_header INTERFACE ${NUMKONG_EMBED_OPTIONS_})
+    target_compile_options(numkong_header INTERFACE ${numkong_embed_options_})
 endif ()
 
 # MSVC's traditional preprocessor can't short-circuit `defined(__has_builtin) && __has_builtin(...)`.
@@ -470,79 +470,83 @@ endif ()
 
 # BLAS/MKL detection (shared by tests and benchmarks)
 # Options can be: ON (require), OFF (disable), AUTO (detect if available)
-set(NUMKONG_BLAS_FOUND FALSE)
-set(NUMKONG_MKL_FOUND FALSE)
+set(numkong_blas_found_ FALSE)
+set(numkong_mkl_found_ FALSE)
 
 # Skip BLAS/MKL/Accelerate detection when cross-compiling (host libraries won't work)
-if (CMAKE_CROSSCOMPILING)
-    if (NUMKONG_COMPARE_TO_MKL STREQUAL "AUTO")
-        message(STATUS "Cross-compiling: skipping MKL detection (host library)")
-        set(NUMKONG_COMPARE_TO_MKL "OFF")
-    endif ()
+if (CMAKE_CROSSCOMPILING AND NUMKONG_COMPARE_TO_MKL STREQUAL "AUTO")
+    message(STATUS "Cross-compiling: skipping MKL detection (host library)")
+    set(numkong_compare_to_mkl_ "OFF")
+else ()
+    set(numkong_compare_to_mkl_ "${NUMKONG_COMPARE_TO_MKL}")
+endif ()
 
-    if (NUMKONG_COMPARE_TO_BLAS STREQUAL "AUTO")
-        message(STATUS "Cross-compiling: skipping BLAS detection (host library)")
-        set(NUMKONG_COMPARE_TO_BLAS "OFF")
-    endif ()
+if (CMAKE_CROSSCOMPILING AND NUMKONG_COMPARE_TO_BLAS STREQUAL "AUTO")
+    message(STATUS "Cross-compiling: skipping BLAS detection (host library)")
+    set(numkong_compare_to_blas_ "OFF")
+else ()
+    set(numkong_compare_to_blas_ "${NUMKONG_COMPARE_TO_BLAS}")
 endif ()
 
 # Probe whether C++ test executables need an explicit math library (`-lm`) on this toolchain.
-set(NUMKONG_CXX_MATH_LIB_ "")
+set(numkong_cxx_math_library_ "")
 if (NUMKONG_BUILD_TEST)
     include(cmake/nk_math_lib.cmake)
-    nk_detect_cxx_math_lib_(NUMKONG_CXX_MATH_LIB_)
-    message(STATUS "NumKong: Explicit libm for C++ tests: ${NUMKONG_CXX_MATH_LIB_}")
+    numkong_detect_cxx_math_library(numkong_cxx_math_library_)
+    message(STATUS "NumKong: Explicit libm for C++ tests: ${numkong_cxx_math_library_}")
 endif ()
 
 # Only attempt detection if building tests or benchmarks
 if (NUMKONG_BUILD_TEST OR NUMKONG_BUILD_BENCH)
     # MKL detection
-    if (NOT NUMKONG_COMPARE_TO_MKL STREQUAL "OFF")
+    if (NOT numkong_compare_to_mkl_ STREQUAL "OFF")
         # Use environment variable MKLROOT or standard MKL paths
         if (DEFINED ENV{MKLROOT})
-            set(MKL_ROOT $ENV{MKLROOT})
+            set(numkong_mkl_root_ $ENV{MKLROOT})
         else ()
             # Try common installation paths
             if (EXISTS "/opt/intel/oneapi/mkl/latest")
-                set(MKL_ROOT "/opt/intel/oneapi/mkl/latest")
+                set(numkong_mkl_root_ "/opt/intel/oneapi/mkl/latest")
             elseif (EXISTS "/opt/intel/mkl")
-                set(MKL_ROOT "/opt/intel/mkl")
+                set(numkong_mkl_root_ "/opt/intel/mkl")
             endif ()
         endif ()
 
-        if (MKL_ROOT)
+        if (numkong_mkl_root_)
             # Verify the libraries actually exist (prefer shared libraries for simpler linking)
-            if (EXISTS "${MKL_ROOT}/lib/libmkl_intel_lp64.so")
-                message(STATUS "MKL found at: ${MKL_ROOT}")
-                set(NUMKONG_MKL_FOUND TRUE)
-                set(NUMKONG_MKL_INCLUDE_DIRS ${MKL_ROOT}/include)
-                set(NUMKONG_MKL_LIBRARIES ${MKL_ROOT}/lib/libmkl_intel_lp64.so ${MKL_ROOT}/lib/libmkl_sequential.so
-                                          ${MKL_ROOT}/lib/libmkl_core.so pthread m dl
+            if (EXISTS "${numkong_mkl_root_}/lib/libmkl_intel_lp64.so")
+                message(STATUS "MKL found at: ${numkong_mkl_root_}")
+                set(numkong_mkl_found_ TRUE)
+                set(numkong_mkl_include_dirs_ ${numkong_mkl_root_}/include)
+                set(numkong_mkl_libraries_
+                    ${numkong_mkl_root_}/lib/libmkl_intel_lp64.so ${numkong_mkl_root_}/lib/libmkl_sequential.so
+                    ${numkong_mkl_root_}/lib/libmkl_core.so pthread m dl
                 )
-            elseif (EXISTS "${MKL_ROOT}/lib/intel64/libmkl_intel_lp64.a")
+            elseif (EXISTS "${numkong_mkl_root_}/lib/intel64/libmkl_intel_lp64.a")
                 # Fallback to static libraries (Linux/FreeBSD)
-                message(STATUS "MKL found at: ${MKL_ROOT} (static)")
-                set(NUMKONG_MKL_FOUND TRUE)
-                set(NUMKONG_MKL_INCLUDE_DIRS ${MKL_ROOT}/include)
-                set(NUMKONG_MKL_LIBRARIES
-                    -Wl,--start-group ${MKL_ROOT}/lib/intel64/libmkl_intel_lp64.a
-                    ${MKL_ROOT}/lib/intel64/libmkl_sequential.a ${MKL_ROOT}/lib/intel64/libmkl_core.a -Wl,--end-group
-                    pthread m dl
+                message(STATUS "MKL found at: ${numkong_mkl_root_} (static)")
+                set(numkong_mkl_found_ TRUE)
+                set(numkong_mkl_include_dirs_ ${numkong_mkl_root_}/include)
+                set(numkong_mkl_libraries_
+                    -Wl,--start-group ${numkong_mkl_root_}/lib/intel64/libmkl_intel_lp64.a
+                    ${numkong_mkl_root_}/lib/intel64/libmkl_sequential.a ${numkong_mkl_root_}/lib/intel64/libmkl_core.a
+                    -Wl,--end-group pthread m dl
                 )
-            elseif (EXISTS "${MKL_ROOT}/lib/mkl_intel_lp64_dll.lib")
+            elseif (EXISTS "${numkong_mkl_root_}/lib/mkl_intel_lp64_dll.lib")
                 # Windows import libraries
-                message(STATUS "MKL found at: ${MKL_ROOT} (Windows)")
-                set(NUMKONG_MKL_FOUND TRUE)
-                set(NUMKONG_MKL_INCLUDE_DIRS ${MKL_ROOT}/include)
-                set(NUMKONG_MKL_LIBRARIES ${MKL_ROOT}/lib/mkl_intel_lp64_dll.lib ${MKL_ROOT}/lib/mkl_sequential_dll.lib
-                                          ${MKL_ROOT}/lib/mkl_core_dll.lib
+                message(STATUS "MKL found at: ${numkong_mkl_root_} (Windows)")
+                set(numkong_mkl_found_ TRUE)
+                set(numkong_mkl_include_dirs_ ${numkong_mkl_root_}/include)
+                set(numkong_mkl_libraries_
+                    ${numkong_mkl_root_}/lib/mkl_intel_lp64_dll.lib ${numkong_mkl_root_}/lib/mkl_sequential_dll.lib
+                    ${numkong_mkl_root_}/lib/mkl_core_dll.lib
                 )
-            elseif (NUMKONG_COMPARE_TO_MKL STREQUAL "ON")
-                message(FATAL_ERROR "MKL libraries not found at ${MKL_ROOT}/lib/")
+            elseif (numkong_compare_to_mkl_ STREQUAL "ON")
+                message(FATAL_ERROR "MKL libraries not found at ${numkong_mkl_root_}/lib/")
             else ()
                 message(STATUS "MKL directory found but libraries missing, skipping MKL")
             endif ()
-        elseif (NUMKONG_COMPARE_TO_MKL STREQUAL "ON")
+        elseif (numkong_compare_to_mkl_ STREQUAL "ON")
             message(FATAL_ERROR "MKL not found. Set MKLROOT environment variable or install Intel oneAPI.")
         else ()
             message(STATUS "MKL not found (auto-detection), skipping MKL benchmarks")
@@ -551,28 +555,28 @@ if (NUMKONG_BUILD_TEST OR NUMKONG_BUILD_BENCH)
 
     # BLAS detection (skip if MKL found in AUTO mode, since MKL provides BLAS)
     # We differentiate between:
-    # - NUMKONG_MKL_FOUND: Intel MKL
-    # - NUMKONG_ACCELERATE_FOUND: Apple Accelerate framework
-    # - NUMKONG_BLAS_FOUND: Generic CBLAS (OpenBLAS, etc.)
-    if (NOT NUMKONG_COMPARE_TO_BLAS STREQUAL "OFF")
-        if (NUMKONG_MKL_FOUND AND NOT NUMKONG_COMPARE_TO_BLAS STREQUAL "ON")
+    # - numkong_mkl_found_: Intel MKL
+    # - numkong_accelerate_found_: Apple Accelerate framework
+    # - numkong_blas_found_: Generic CBLAS (OpenBLAS, etc.)
+    if (NOT numkong_compare_to_blas_ STREQUAL "OFF")
+        if (numkong_mkl_found_ AND NOT numkong_compare_to_blas_ STREQUAL "ON")
             message(STATUS "BLAS: Using MKL (skipping separate BLAS detection)")
         elseif (APPLE)
             # Apple Accelerate is always available on macOS
             message(STATUS "Using Apple Accelerate framework")
-            set(NUMKONG_ACCELERATE_FOUND TRUE)
-            set(NUMKONG_ACCELERATE_LIBRARIES "-framework Accelerate")
-            set(NUMKONG_ACCELERATE_INCLUDE_DIRS "")
+            set(numkong_accelerate_found_ TRUE)
+            set(numkong_accelerate_libraries_ "-framework Accelerate")
+            set(numkong_accelerate_include_dirs_ "")
         else ()
             # Try to find BLAS without REQUIRED flag for auto-detection
             find_package(BLAS QUIET)
 
             if (BLAS_FOUND)
                 message(STATUS "BLAS found: ${BLAS_LIBRARIES}")
-                set(NUMKONG_BLAS_FOUND TRUE)
-                set(NUMKONG_BLAS_LIBRARIES ${BLAS_LIBRARIES})
-                set(NUMKONG_BLAS_INCLUDE_DIRS ${BLAS_INCLUDE_DIRS})
-            elseif (NUMKONG_COMPARE_TO_BLAS STREQUAL "ON")
+                set(numkong_blas_found_ TRUE)
+                set(numkong_blas_libraries_ ${BLAS_LIBRARIES})
+                set(numkong_blas_include_dirs_ ${BLAS_INCLUDE_DIRS})
+            elseif (numkong_compare_to_blas_ STREQUAL "ON")
                 message(FATAL_ERROR "BLAS not found. Install OpenBLAS or set NUMKONG_COMPARE_TO_BLAS=OFF")
             else ()
                 message(STATUS "BLAS not found (auto-detection), skipping BLAS benchmarks")
@@ -581,10 +585,10 @@ if (NUMKONG_BUILD_TEST OR NUMKONG_BUILD_BENCH)
     endif ()
 
     # Summary
-    if (NUMKONG_BLAS_FOUND OR NUMKONG_MKL_FOUND OR NUMKONG_ACCELERATE_FOUND)
+    if (numkong_blas_found_ OR numkong_mkl_found_ OR numkong_accelerate_found_)
         message(
             STATUS
-                "Comparison libraries: BLAS=${NUMKONG_BLAS_FOUND}, MKL=${NUMKONG_MKL_FOUND}, Accelerate=${NUMKONG_ACCELERATE_FOUND}"
+                "Comparison libraries: BLAS=${numkong_blas_found_}, MKL=${numkong_mkl_found_}, Accelerate=${numkong_accelerate_found_}"
         )
     endif ()
 endif ()
@@ -611,32 +615,32 @@ if (NUMKONG_BUILD_BENCH)
     target_link_libraries(numkong_bench numkong_static fmt::fmt)
 
     # Mirror the shipped Release codegen.
-    if (NUMKONG_IPO_SUPPORTED_)
+    if (numkong_ipo_supported_)
         set_target_properties(numkong_bench PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
     endif ()
 
     # WASI-specific configuration for benchmarks
-    if (NUMKONG_OS_WASI_)
+    if (numkong_os_wasi_)
         set_target_properties(numkong_bench PROPERTIES OUTPUT_NAME "numkong_bench.wasm")
         message(STATUS "NumKong: Building benchmarks for WASI (output: numkong_bench.wasm)")
     endif ()
 
-    if (NUMKONG_BLAS_FOUND AND NOT NUMKONG_OS_WASI_)
+    if (numkong_blas_found_ AND NOT numkong_os_wasi_)
         target_compile_definitions(numkong_bench PRIVATE NUMKONG_COMPARE_TO_BLAS=1)
-        target_include_directories(numkong_bench PRIVATE ${NUMKONG_BLAS_INCLUDE_DIRS})
-        target_link_libraries(numkong_bench ${NUMKONG_BLAS_LIBRARIES})
+        target_include_directories(numkong_bench PRIVATE ${numkong_blas_include_dirs_})
+        target_link_libraries(numkong_bench ${numkong_blas_libraries_})
     endif ()
 
-    if (NUMKONG_ACCELERATE_FOUND AND NOT NUMKONG_OS_WASI_)
+    if (numkong_accelerate_found_ AND NOT numkong_os_wasi_)
         target_compile_definitions(numkong_bench PRIVATE NUMKONG_COMPARE_TO_ACCELERATE=1 ACCELERATE_NEW_LAPACK)
-        target_include_directories(numkong_bench PRIVATE ${NUMKONG_ACCELERATE_INCLUDE_DIRS})
-        target_link_libraries(numkong_bench ${NUMKONG_ACCELERATE_LIBRARIES})
+        target_include_directories(numkong_bench PRIVATE ${numkong_accelerate_include_dirs_})
+        target_link_libraries(numkong_bench ${numkong_accelerate_libraries_})
     endif ()
 
-    if (NUMKONG_MKL_FOUND AND NOT NUMKONG_OS_WASI_)
+    if (numkong_mkl_found_ AND NOT numkong_os_wasi_)
         target_compile_definitions(numkong_bench PRIVATE NUMKONG_COMPARE_TO_MKL=1)
-        target_include_directories(numkong_bench PRIVATE ${NUMKONG_MKL_INCLUDE_DIRS})
-        target_link_libraries(numkong_bench ${NUMKONG_MKL_LIBRARIES})
+        target_include_directories(numkong_bench PRIVATE ${numkong_mkl_include_dirs_})
+        target_link_libraries(numkong_bench ${numkong_mkl_libraries_})
     endif ()
 
     # Declares the capability kernels the library defines, to call them directly.
@@ -646,7 +650,7 @@ endif ()
 # The library's units: one dispatch unit per family, holding its dispatch points and finder, and one
 # unit per CPU capability, defining that capability's kernels of every family. Each unit names its own
 # capability, so every file compiles with the same flags and the units build in parallel.
-set(NUMKONG_LIBRARY_UNITS_
+set(numkong_library_units_
     c/dispatch/dot.c
     c/dispatch/dots.c
     c/dispatch/spatial.c
@@ -703,7 +707,7 @@ set(NUMKONG_LIBRARY_UNITS_
 )
 
 # Build tests
-set(NUMKONG_TEST_SOURCES_
+set(numkong_test_sources_
     test/main_cpu.cpp test/dot.cpp test/spatial.cpp test/set.cpp test/curved.cpp test/probability.cpp test/each.cpp
     test/trigonometry.cpp test/geospatial.cpp test/shapes.cpp test/cast.cpp test/reduce.cpp test/sparse.cpp
     # ISA-family cross/batch files for parallel compilation
@@ -713,36 +717,36 @@ set(NUMKONG_TEST_SOURCES_
 
 if (NUMKONG_BUILD_TEST)
     # C++ precision test (ULP-based error analysis)
-    add_executable(numkong_cpu_test ${NUMKONG_TEST_SOURCES_})
-    target_link_libraries(numkong_cpu_test numkong_static fmt::fmt ${NUMKONG_CXX_MATH_LIB_})
+    add_executable(numkong_cpu_test ${numkong_test_sources_})
+    target_link_libraries(numkong_cpu_test numkong_static fmt::fmt ${numkong_cxx_math_library_})
 
     # Mirror the shipped Release codegen.
-    if (NUMKONG_IPO_SUPPORTED_)
+    if (numkong_ipo_supported_)
         set_target_properties(numkong_cpu_test PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
     endif ()
 
     # WASI-specific configuration
-    if (NUMKONG_OS_WASI_)
+    if (numkong_os_wasi_)
         set_target_properties(numkong_cpu_test PROPERTIES OUTPUT_NAME "numkong_cpu_test.wasm")
         message(STATUS "NumKong: Building tests for WASI (output: numkong_cpu_test.wasm)")
     endif ()
 
-    if (NUMKONG_BLAS_FOUND AND NOT NUMKONG_OS_WASI_)
+    if (numkong_blas_found_ AND NOT numkong_os_wasi_)
         target_compile_definitions(numkong_cpu_test PRIVATE NUMKONG_COMPARE_TO_BLAS=1)
-        target_include_directories(numkong_cpu_test PRIVATE ${NUMKONG_BLAS_INCLUDE_DIRS})
-        target_link_libraries(numkong_cpu_test ${NUMKONG_BLAS_LIBRARIES})
+        target_include_directories(numkong_cpu_test PRIVATE ${numkong_blas_include_dirs_})
+        target_link_libraries(numkong_cpu_test ${numkong_blas_libraries_})
     endif ()
 
-    if (NUMKONG_ACCELERATE_FOUND AND NOT NUMKONG_OS_WASI_)
+    if (numkong_accelerate_found_ AND NOT numkong_os_wasi_)
         target_compile_definitions(numkong_cpu_test PRIVATE NUMKONG_COMPARE_TO_ACCELERATE=1 ACCELERATE_NEW_LAPACK)
-        target_include_directories(numkong_cpu_test PRIVATE ${NUMKONG_ACCELERATE_INCLUDE_DIRS})
-        target_link_libraries(numkong_cpu_test ${NUMKONG_ACCELERATE_LIBRARIES})
+        target_include_directories(numkong_cpu_test PRIVATE ${numkong_accelerate_include_dirs_})
+        target_link_libraries(numkong_cpu_test ${numkong_accelerate_libraries_})
     endif ()
 
-    if (NUMKONG_MKL_FOUND AND NOT NUMKONG_OS_WASI_)
+    if (numkong_mkl_found_ AND NOT numkong_os_wasi_)
         target_compile_definitions(numkong_cpu_test PRIVATE NUMKONG_COMPARE_TO_MKL=1)
-        target_include_directories(numkong_cpu_test PRIVATE ${NUMKONG_MKL_INCLUDE_DIRS})
-        target_link_libraries(numkong_cpu_test ${NUMKONG_MKL_LIBRARIES})
+        target_include_directories(numkong_cpu_test PRIVATE ${numkong_mkl_include_dirs_})
+        target_link_libraries(numkong_cpu_test ${numkong_mkl_libraries_})
     endif ()
 
     # Declares the capability kernels the library defines, to call them directly.
@@ -752,25 +756,25 @@ if (NUMKONG_BUILD_TEST)
 
     # The same suites compiling every kernel inline, with stubbed dispatch points, skipping the capabilities this CPU
     # lacks.
-    add_executable(numkong_cpu_header_test ${NUMKONG_TEST_SOURCES_})
+    add_executable(numkong_cpu_header_test ${numkong_test_sources_})
     target_link_libraries(
-        numkong_cpu_header_test numkong_header numkong_cpu_capabilities_compiled fmt::fmt ${NUMKONG_CXX_MATH_LIB_}
+        numkong_cpu_header_test numkong_header numkong_cpu_capabilities_compiled fmt::fmt ${numkong_cxx_math_library_}
     )
     add_test(NAME numkong_cpu_header_test COMMAND numkong_cpu_header_test)
 endif ()
 
 # The static library, which every binding but Swift links and a parent project reaches as `numkong::static`, and the
 # shared library, or the Emscripten JS module
-set(NUMKONG_LIBRARY_SOURCES_ ${NUMKONG_SOURCES} c/numkong.c ${NUMKONG_LIBRARY_UNITS_})
+set(numkong_library_sources_ ${numkong_header_sources_} c/numkong.c ${numkong_library_units_})
 
 # Emscripten requires building as executable to generate JS bindings
 if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
-    set(NUMKONG_LIBRARIES_ numkong_shared numkong_static)
+    set(numkong_libraries_ numkong_shared numkong_static)
     # Detect wasm64 (memory64) mode
     if (CMAKE_SYSTEM_PROCESSOR STREQUAL "wasm64")
-        set(NUMKONG_WASM64_ ON)
+        set(numkong_wasm64_ ON)
     else ()
-        set(NUMKONG_WASM64_ OFF)
+        set(numkong_wasm64_ OFF)
     endif ()
 
     # Create a minimal main() wrapper for Emscripten
@@ -778,34 +782,34 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
          "// Stub main for Emscripten to generate JS bindings\nint main(void) { return 0; }\n"
     )
 
-    add_executable(numkong_shared ${NUMKONG_LIBRARY_SOURCES_} "${CMAKE_BINARY_DIR}/emscripten_stub.c")
+    add_executable(numkong_shared ${numkong_library_sources_} "${CMAKE_BINARY_DIR}/emscripten_stub.c")
 
     # Consumers that `add_subdirectory(numkong)` link a library, not the `.js` executable.
-    add_library(numkong_static STATIC ${NUMKONG_LIBRARY_SOURCES_})
+    add_library(numkong_static STATIC ${numkong_library_sources_})
     add_library(numkong::static ALIAS numkong_static)
     set_target_properties(numkong_static PROPERTIES EXPORT_NAME static)
 
     # One module carries one SIMD capability, the toolchain's NUMKONG_TARGET_ARCH, so its name says which.
-    if (NUMKONG_WASM64_)
-        set(NUMKONG_WASM_MODULE_NAME_ "numkong-wasm64-${NUMKONG_TARGET_ARCH}")
+    if (numkong_wasm64_)
+        set(numkong_wasm_module_name_ "numkong-wasm64-${NUMKONG_TARGET_ARCH}")
     else ()
-        set(NUMKONG_WASM_MODULE_NAME_ "numkong-wasm32-${NUMKONG_TARGET_ARCH}")
+        set(numkong_wasm_module_name_ "numkong-wasm32-${NUMKONG_TARGET_ARCH}")
     endif ()
-    # Generates `${NUMKONG_WASM_MODULE_NAME_}.js` + `.wasm`
-    set_target_properties(numkong_shared PROPERTIES OUTPUT_NAME "${NUMKONG_WASM_MODULE_NAME_}" SUFFIX ".js")
-    message(STATUS "NumKong: Building Emscripten module ${NUMKONG_WASM_MODULE_NAME_}")
+    # Generates `${numkong_wasm_module_name_}.js` + `.wasm`
+    set_target_properties(numkong_shared PROPERTIES OUTPUT_NAME "${numkong_wasm_module_name_}" SUFFIX ".js")
+    message(STATUS "NumKong: Building Emscripten module ${numkong_wasm_module_name_}")
 
     # `types.h` leaves every non-WebAssembly capability off, and `v128` and `v128relaxed` follow `-msimd128` and
     # `-mrelaxed-simd`.
-    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
+    foreach (library_ ${numkong_libraries_})
         # The library, unlike the headers, may use C11: `c/numkong.c` caches detection in <stdatomic.h> atomics.
-        set_target_properties(${nk_library_} PROPERTIES C_STANDARD 11)
+        set_target_properties(${library_} PROPERTIES C_STANDARD 11)
         target_include_directories(
-            ${nk_library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-                                  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+            ${library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                               $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         )
         # The library's units reach their private `dispatch.h` by name.
-        target_include_directories(${nk_library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
+        target_include_directories(${library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
     endforeach ()
 
     target_link_options(
@@ -826,7 +830,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
     )
 
     # Memory64 link option for wasm64 builds
-    if (NUMKONG_WASM64_)
+    if (numkong_wasm64_)
         target_link_options(numkong_shared PRIVATE "SHELL:-sMEMORY64=1")
     endif ()
 
@@ -837,65 +841,65 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
     set_target_properties(numkong_shared PROPERTIES ENABLE_EXPORTS ON)
 else ()
     if (NUMKONG_BUILD_SHARED)
-        set(NUMKONG_LIBRARIES_ numkong_static numkong_shared)
+        set(numkong_libraries_ numkong_static numkong_shared)
     else ()
-        set(NUMKONG_LIBRARIES_ numkong_static)
+        set(numkong_libraries_ numkong_static)
     endif ()
-    add_library(numkong_static STATIC ${NUMKONG_LIBRARY_SOURCES_})
+    add_library(numkong_static STATIC ${numkong_library_sources_})
     add_library(numkong::static ALIAS numkong_static)
     # Position-independent, as the bindings link it into shared objects and position-independent executables.
     set_target_properties(numkong_static PROPERTIES EXPORT_NAME static POSITION_INDEPENDENT_CODE ON)
     if (NUMKONG_BUILD_SHARED)
-        add_library(numkong_shared SHARED ${NUMKONG_LIBRARY_SOURCES_})
+        add_library(numkong_shared SHARED ${numkong_library_sources_})
         add_library(numkong::shared ALIAS numkong_shared)
         # Windows exports every symbol, as `NUMKONG_API` spells no `__declspec` for the DLL.
         set_target_properties(numkong_shared PROPERTIES EXPORT_NAME shared WINDOWS_EXPORT_ALL_SYMBOLS ON)
     endif ()
-    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
+    foreach (library_ ${numkong_libraries_})
         # The library, unlike the headers, may use C11: `c/numkong.c` caches detection in <stdatomic.h> atomics,
         # which MSVC gates behind a flag.
-        set_target_properties(${nk_library_} PROPERTIES C_STANDARD 11)
-        target_compile_options(${nk_library_} PRIVATE $<$<C_COMPILER_ID:MSVC>:/experimental:c11atomics>)
+        set_target_properties(${library_} PROPERTIES C_STANDARD 11)
+        target_compile_options(${library_} PRIVATE $<$<C_COMPILER_ID:MSVC>:/experimental:c11atomics>)
         target_include_directories(
-            ${nk_library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-                                  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+            ${library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                               $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         )
         # The library's units reach their private `dispatch.h` by name.
-        target_include_directories(${nk_library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
+        target_include_directories(${library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
 
         # Hide all symbols by default; only NUMKONG_API-annotated API functions are exported.
         # Strip unwind tables from this pure-C library (saves ~78 KB).
         if (NOT MSVC)
             target_compile_options(
-                ${nk_library_} PRIVATE -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-builtin-memset
-                                       -fno-builtin-memcpy -fno-builtin-memmove
+                ${library_} PRIVATE -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-builtin-memset
+                                    -fno-builtin-memcpy -fno-builtin-memmove
             )
             if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-                target_compile_options(${nk_library_} PRIVATE -fno-tree-loop-distribute-patterns)
+                target_compile_options(${library_} PRIVATE -fno-tree-loop-distribute-patterns)
             endif ()
         endif ()
 
         # MSVC ARM64 cross-compilation: <intrin.h> pulls in <winnt.h> which
         # requires _ARM64_ to be defined. The Visual Studio generator doesn't
         # always propagate this for pure-C targets, so it reaches every binding that includes the headers too.
-        if (MSVC AND NUMKONG_ARCH_ARM64_)
-            target_compile_definitions(${nk_library_} PUBLIC _ARM64_)
+        if (MSVC AND numkong_arch_arm64_)
+            target_compile_definitions(${library_} PUBLIC _ARM64_)
         endif ()
 
         # Link-time optimization for the shared library only: the static archive ships machine code any toolchain,
         # cGo included, can link. MSVC's `/GL` objects hide the symbols `WINDOWS_EXPORT_ALL_SYMBOLS` must list.
-        if (NUMKONG_IPO_SUPPORTED_ AND nk_library_ STREQUAL "numkong_shared" AND NOT MSVC)
-            set_target_properties(${nk_library_} PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+        if (numkong_ipo_supported_ AND library_ STREQUAL "numkong_shared" AND NOT MSVC)
+            set_target_properties(${library_} PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
         endif ()
 
         # Every capability the toolchain builds; `nk_cpu_capabilities_enabled()` picks among them at load.
-        target_link_libraries(${nk_library_} PRIVATE $<BUILD_INTERFACE:numkong_cpu_capabilities_compiled>)
+        target_link_libraries(${library_} PRIVATE $<BUILD_INTERFACE:numkong_cpu_capabilities_compiled>)
     endforeach ()
 endif ()
 
 if (NUMKONG_INSTALL)
     install(
-        TARGETS ${NUMKONG_LIBRARIES_}
+        TARGETS ${numkong_libraries_}
         EXPORT numkongTargets
         ARCHIVE
         BUNDLE
@@ -959,50 +963,50 @@ if (NUMKONG_BUILD_SWIFT)
     set(NUMKONG_SWIFT_DIRECTORY "${PROJECT_BINARY_DIR}" CACHE PATH "Where the Swift artifact lands")
     if (APPLE)
         # The SDK names the XCFramework library an archive joins, and Mac Catalyst builds with the macOS one.
-        get_filename_component(NUMKONG_SWIFT_SDK_ "${CMAKE_OSX_SYSROOT}" NAME)
-        string(TOLOWER "${NUMKONG_SWIFT_SDK_}" NUMKONG_SWIFT_SDK_)
-        string(REGEX REPLACE "[0-9.]*\\.sdk$" "" NUMKONG_SWIFT_SDK_ "${NUMKONG_SWIFT_SDK_}")
+        get_filename_component(numkong_swift_sysroot_name_ "${CMAKE_OSX_SYSROOT}" NAME)
+        string(TOLOWER "${numkong_swift_sysroot_name_}" numkong_swift_sysroot_lowercase_)
+        string(REGEX REPLACE "[0-9.]*\\.sdk$" "" numkong_swift_sdk_ "${numkong_swift_sysroot_lowercase_}")
         if (CMAKE_C_FLAGS MATCHES "-macabi")
-            set(NUMKONG_SWIFT_SDK_ maccatalyst)
-        elseif (NOT NUMKONG_SWIFT_SDK_)
-            set(NUMKONG_SWIFT_SDK_ macosx)
+            set(numkong_swift_sdk_ maccatalyst)
+        elseif (NOT numkong_swift_sdk_)
+            set(numkong_swift_sdk_ macosx)
         endif ()
         if (CMAKE_OSX_ARCHITECTURES)
-            set(NUMKONG_SWIFT_ARCHITECTURE_ "${CMAKE_OSX_ARCHITECTURES}")
+            set(numkong_swift_architecture_ "${CMAKE_OSX_ARCHITECTURES}")
         else ()
-            set(NUMKONG_SWIFT_ARCHITECTURE_ "${CMAKE_SYSTEM_PROCESSOR}")
+            set(numkong_swift_architecture_ "${CMAKE_SYSTEM_PROCESSOR}")
         endif ()
-        set(NUMKONG_SWIFT_TARGET_ -D "NUMKONG_SWIFT_SDK=${NUMKONG_SWIFT_SDK_}" -D
-                                  "NUMKONG_SWIFT_ARCHITECTURE=${NUMKONG_SWIFT_ARCHITECTURE_}"
+        set(numkong_swift_target_ -D "NUMKONG_SWIFT_SDK=${numkong_swift_sdk_}" -D
+                                  "NUMKONG_SWIFT_ARCHITECTURE=${numkong_swift_architecture_}"
         )
     else ()
         # SwiftPM matches a variant by the exact triple it builds for, spelled as Swift spells it.
-        if (NUMKONG_ARCH_X8664_)
-            set(NUMKONG_SWIFT_ARCH_ x86_64)
-        elseif (NUMKONG_ARCH_ARM64_)
-            set(NUMKONG_SWIFT_ARCH_ aarch64)
-        elseif (NUMKONG_ARCH_ARM32_)
-            set(NUMKONG_SWIFT_ARCH_ armv7)
+        if (numkong_arch_x8664_)
+            set(numkong_swift_arch_ x86_64)
+        elseif (numkong_arch_arm64_)
+            set(numkong_swift_arch_ aarch64)
+        elseif (numkong_arch_arm32_)
+            set(numkong_swift_arch_ armv7)
         else ()
-            set(NUMKONG_SWIFT_ARCH_ "${CMAKE_SYSTEM_PROCESSOR}")
+            set(numkong_swift_arch_ "${CMAKE_SYSTEM_PROCESSOR}")
         endif ()
-        set(NUMKONG_SWIFT_TRIPLE_)
-        if (NUMKONG_OS_LINUX_)
-            set(NUMKONG_SWIFT_TRIPLE_ "${NUMKONG_SWIFT_ARCH_}-unknown-linux-gnu")
-        elseif (NUMKONG_OS_ANDROID_)
-            set(NUMKONG_SWIFT_TRIPLE_ "${NUMKONG_SWIFT_ARCH_}-unknown-linux-android${ANDROID_NATIVE_API_LEVEL}")
-        elseif (NUMKONG_OS_WINDOWS_)
-            set(NUMKONG_SWIFT_TRIPLE_ "${NUMKONG_SWIFT_ARCH_}-unknown-windows-msvc")
-        elseif (NUMKONG_OS_WASI_)
-            set(NUMKONG_SWIFT_TRIPLE_ "wasm32-unknown-wasip1")
+        set(numkong_swift_triple_)
+        if (numkong_os_linux_)
+            set(numkong_swift_triple_ "${numkong_swift_arch_}-unknown-linux-gnu")
+        elseif (numkong_os_android_)
+            set(numkong_swift_triple_ "${numkong_swift_arch_}-unknown-linux-android${ANDROID_NATIVE_API_LEVEL}")
+        elseif (numkong_os_windows_)
+            set(numkong_swift_triple_ "${numkong_swift_arch_}-unknown-windows-msvc")
+        elseif (numkong_os_wasi_)
+            set(numkong_swift_triple_ "wasm32-unknown-wasip1")
         endif ()
-        set(NUMKONG_SWIFT_TRIPLES "${NUMKONG_SWIFT_TRIPLE_}" CACHE STRING
+        set(NUMKONG_SWIFT_TRIPLES "${numkong_swift_triple_}" CACHE STRING
                                                                    "Swift target triples the artifact bundle serves"
         )
         if (NOT NUMKONG_SWIFT_TRIPLES)
             message(FATAL_ERROR "NUMKONG_BUILD_SWIFT needs NUMKONG_SWIFT_TRIPLES on ${CMAKE_SYSTEM_NAME}")
         endif ()
-        set(NUMKONG_SWIFT_TARGET_ -D "NUMKONG_SWIFT_TRIPLES=$<JOIN:${NUMKONG_SWIFT_TRIPLES},,>" -D
+        set(numkong_swift_target_ -D "NUMKONG_SWIFT_TRIPLES=$<JOIN:${NUMKONG_SWIFT_TRIPLES},,>" -D
                                   "NUMKONG_SWIFT_VERSION=${PROJECT_VERSION}"
         )
     endif ()
@@ -1011,7 +1015,7 @@ if (NUMKONG_BUILD_SWIFT)
         COMMAND
             "${CMAKE_COMMAND}" -D "NUMKONG_SWIFT_ARCHIVE=$<TARGET_FILE:numkong_static>" -D
             "NUMKONG_SWIFT_HEADERS=${PROJECT_SOURCE_DIR}/include" -D
-            "NUMKONG_SWIFT_DIRECTORY=${NUMKONG_SWIFT_DIRECTORY}" ${NUMKONG_SWIFT_TARGET_} -P
+            "NUMKONG_SWIFT_DIRECTORY=${NUMKONG_SWIFT_DIRECTORY}" ${numkong_swift_target_} -P
             "${PROJECT_SOURCE_DIR}/cmake/nk_swift_artifact.cmake"
         DEPENDS numkong_static
         VERBATIM
@@ -1020,12 +1024,12 @@ endif ()
 
 # Shared-library test (tests runtime dispatch path)
 if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_SHARED)
-    add_executable(numkong_cpu_shared_test ${NUMKONG_TEST_SOURCES_})
+    add_executable(numkong_cpu_shared_test ${numkong_test_sources_})
     target_include_directories(numkong_cpu_shared_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
-    target_link_libraries(numkong_cpu_shared_test numkong_shared fmt::fmt ${NUMKONG_CXX_MATH_LIB_})
+    target_link_libraries(numkong_cpu_shared_test numkong_shared fmt::fmt ${numkong_cxx_math_library_})
 
     # Mirror the shipped Release codegen.
-    if (NUMKONG_IPO_SUPPORTED_)
+    if (numkong_ipo_supported_)
         set_target_properties(numkong_cpu_shared_test PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
     endif ()
 
@@ -1040,16 +1044,16 @@ endif ()
 
 if (NUMKONG_BUILD_CUDA)
     # "native", "all" and "all-major" stand for the lists CMake resolved them to.
-    set(NUMKONG_CUDA_RESOLVED_ARCHITECTURES_)
-    foreach (nk_entry_ IN LISTS NUMKONG_CUDA_ARCHITECTURES)
-        if (nk_entry_ STREQUAL "native")
-            list(APPEND NUMKONG_CUDA_RESOLVED_ARCHITECTURES_ ${CMAKE_CUDA_ARCHITECTURES_NATIVE})
-        elseif (nk_entry_ STREQUAL "all")
-            list(APPEND NUMKONG_CUDA_RESOLVED_ARCHITECTURES_ ${CMAKE_CUDA_ARCHITECTURES_ALL})
-        elseif (nk_entry_ STREQUAL "all-major")
-            list(APPEND NUMKONG_CUDA_RESOLVED_ARCHITECTURES_ ${CMAKE_CUDA_ARCHITECTURES_ALL_MAJOR})
+    set(numkong_cuda_resolved_architectures_)
+    foreach (entry_ IN LISTS NUMKONG_CUDA_ARCHITECTURES)
+        if (entry_ STREQUAL "native")
+            list(APPEND numkong_cuda_resolved_architectures_ ${CMAKE_CUDA_ARCHITECTURES_NATIVE})
+        elseif (entry_ STREQUAL "all")
+            list(APPEND numkong_cuda_resolved_architectures_ ${CMAKE_CUDA_ARCHITECTURES_ALL})
+        elseif (entry_ STREQUAL "all-major")
+            list(APPEND numkong_cuda_resolved_architectures_ ${CMAKE_CUDA_ARCHITECTURES_ALL_MAJOR})
         else ()
-            list(APPEND NUMKONG_CUDA_RESOLVED_ARCHITECTURES_ ${nk_entry_})
+            list(APPEND numkong_cuda_resolved_architectures_ ${entry_})
         endif ()
     endforeach ()
 endif ()
@@ -1064,88 +1068,89 @@ elseif (NUMKONG_BUILD_METAL)
     )
 endif ()
 
-# One `nk_gpu_capability_` row per GPU capability. Past Ampere, the tensor-core capabilities need family- or
+# One `numkong_add_gpu_capability` row per GPU capability. Past Ampere, the tensor-core capabilities need family- or
 # architecture-specific code, like "120f" rather than "120".
 # `mma.sync`: A100, A30, A40, RTX 30, Jetson Orin, L40, RTX 40, and every GPU since.
-nk_gpu_capability_(
+numkong_add_gpu_capability(
     ampere NUMKONG_TARGET_AMPERE CUDA_ARCHITECTURES 80 86 87 88 89 90 90a 100 100a 100f 103 103a 103f 110 110a 110f 120
                                                     120a 120f 121 121a 121f
 )
 # FP8 `mma.sync`: L4, L40S, RTX 40, and every GPU since.
-nk_gpu_capability_(
+numkong_add_gpu_capability(
     ada NUMKONG_TARGET_ADA CUDA_ARCHITECTURES 89 90 90a 100 100a 100f 103 103a 103f 110 110a 110f 120 120a 120f 121
                                               121a 121f
 )
 # `wgmma`: H100, H200, GH200.
-nk_gpu_capability_(hopper NUMKONG_TARGET_HOPPER CUDA_ARCHITECTURES 90a)
+numkong_add_gpu_capability(hopper NUMKONG_TARGET_HOPPER CUDA_ARCHITECTURES 90a)
 # `tcgen05`: B200, GB200, B300, GB300.
-nk_gpu_capability_(blackwell NUMKONG_TARGET_BLACKWELL CUDA_ARCHITECTURES 100a 100f 103a 103f)
+numkong_add_gpu_capability(blackwell NUMKONG_TARGET_BLACKWELL CUDA_ARCHITECTURES 100a 100f 103a 103f)
 # FP6/FP4 `mma.sync`: RTX 50, RTX PRO 6000, DGX Spark.
-nk_gpu_capability_(blackwellrtx NUMKONG_TARGET_BLACKWELLRTX CUDA_ARCHITECTURES 120a 120f 121a 121f)
+numkong_add_gpu_capability(blackwellrtx NUMKONG_TARGET_BLACKWELLRTX CUDA_ARCHITECTURES 120a 120f 121a 121f)
 # `tcgen05.ld.red`: B300, GB300.
-nk_gpu_capability_(blackwellultra NUMKONG_TARGET_BLACKWELLULTRA CUDA_ARCHITECTURES 103a 103f)
+numkong_add_gpu_capability(blackwellultra NUMKONG_TARGET_BLACKWELLULTRA CUDA_ARCHITECTURES 103a 103f)
 # MFMA over BF16, F16 and I8: MI300X, MI300A, MI325X.
-nk_gpu_capability_(cdna3 NUMKONG_TARGET_CDNA3 ROCM_ARCHITECTURES gfx942)
+numkong_add_gpu_capability(cdna3 NUMKONG_TARGET_CDNA3 ROCM_ARCHITECTURES gfx942)
 # MFMA over FP8, FP6 and FP4: MI350X, MI355X.
-nk_gpu_capability_(cdna4 NUMKONG_TARGET_CDNA4 ROCM_ARCHITECTURES gfx950)
+numkong_add_gpu_capability(cdna4 NUMKONG_TARGET_CDNA4 ROCM_ARCHITECTURES gfx950)
 # WMMA over FP8, FP6 and FP4: MI450X and MI455X on gfx1250, MI430X on gfx1251.
-nk_gpu_capability_(cdna5 NUMKONG_TARGET_CDNA5 ROCM_ARCHITECTURES gfx1250 gfx1251)
+numkong_add_gpu_capability(cdna5 NUMKONG_TARGET_CDNA5 ROCM_ARCHITECTURES gfx1250 gfx1251)
 # Apple9 from M3, Apple10 from M5.
-nk_gpu_capability_(apple9 NUMKONG_TARGET_APPLE9 METAL_ARCHITECTURES apple9 apple10)
-nk_gpu_capability_(apple10 NUMKONG_TARGET_APPLE10 METAL_ARCHITECTURES apple10)
+numkong_add_gpu_capability(apple9 NUMKONG_TARGET_APPLE9 METAL_ARCHITECTURES apple9 apple10)
+numkong_add_gpu_capability(apple10 NUMKONG_TARGET_APPLE10 METAL_ARCHITECTURES apple10)
 
-# The entries of `codes` that `capability_codes` names, keeping CMake's "-real" and "-virtual" suffixes.
-function (numkong_gpu_codes_ codes capability_codes output)
-    set(kept)
-    foreach (code IN LISTS codes)
-        string(REGEX REPLACE "-(real|virtual)$" "" architecture "${code}")
-        if (architecture IN_LIST capability_codes)
-            list(APPEND kept "${code}")
+# Sets `output_` to the entries of `codes_` that `capability_codes_` names, keeping CMake's "-real" and "-virtual"
+# suffixes.
+function (numkong_select_gpu_codes output_ codes_ capability_codes_)
+    set(kept_)
+    foreach (code_ IN LISTS codes_)
+        string(REGEX REPLACE "-(real|virtual)$" "" architecture_ "${code_}")
+        if (architecture_ IN_LIST capability_codes_)
+            list(APPEND kept_ "${code_}")
         endif ()
     endforeach ()
-    set(${output} "${kept}" PARENT_SCOPE)
+    set(${output_} "${kept_}" PARENT_SCOPE)
 endfunction ()
 
-# Adds one GPU generation's unit, like c/target/hopper.cu, to both libraries: compiled for `codes` alone, in the
-# language its extension names, without the CPU capabilities and with its vendor's `capabilities` target. A unit
+# Adds one GPU generation's unit, like c/target/hopper.cu, to both libraries: compiled for `codes_` alone, in the
+# language its extension names, without the CPU capabilities and with its vendor's `capabilities_` target. A unit
 # without codes to compile is skipped. The rest are the runtime libraries its calls need.
-function (numkong_add_gpu_unit_ source codes capabilities)
-    if (NOT codes)
+function (numkong_add_gpu_unit source_ codes_ capabilities_)
+    if (NOT codes_)
         return()
     endif ()
-    get_filename_component(unit "${source}" NAME_WE)
-    add_library(numkong_${unit}_ OBJECT ${source})
-    target_include_directories(numkong_${unit}_ PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/c")
+    get_filename_component(unit_ "${source_}" NAME_WE)
+    add_library(numkong_${unit_}_ OBJECT ${source_})
+    target_include_directories(numkong_${unit_}_ PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/c")
     # C++20 makes `NUMKONG_CONSTEXPR` constexpr, which kernels reach through relaxed constexpr.
     set_target_properties(
-        numkong_${unit}_
+        numkong_${unit_}_
         PROPERTIES POSITION_INDEPENDENT_CODE ON
                    CUDA_STANDARD 20
                    CUDA_STANDARD_REQUIRED YES
-                   CUDA_ARCHITECTURES "${codes}"
+                   CUDA_ARCHITECTURES "${codes_}"
                    HIP_STANDARD 20
                    HIP_STANDARD_REQUIRED YES
-                   HIP_ARCHITECTURES "${codes}"
+                   HIP_ARCHITECTURES "${codes_}"
     )
     # Every CPU capability off, as NVCC's front end cannot parse GCC's `arm_neon.h` and its kin, and every GPU
     # capability the listed architectures run on, as the dispatch units see them; the unit turns off the ones its
     # headers include.
-    target_link_libraries(numkong_${unit}_ PRIVATE numkong_cpu_capabilities_disabled_ ${capabilities})
-    if (MSVC AND NUMKONG_ARCH_ARM64_)
-        target_compile_definitions(numkong_${unit}_ PRIVATE _ARM64_)
+    target_link_libraries(numkong_${unit_}_ PRIVATE numkong_cpu_capabilities_disabled_ ${capabilities_})
+    if (MSVC AND numkong_arch_arm64_)
+        target_compile_definitions(numkong_${unit_}_ PRIVATE _ARM64_)
     endif ()
     # NVCC compiles a unit's codes one after another unless told to spread them over threads.
     target_compile_options(
-        numkong_${unit}_ PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;--threads=0>"
-                                 "$<$<COMPILE_LANGUAGE:HIP>:-fvisibility=hidden>"
+        numkong_${unit_}_ PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;--threads=0>"
+                                  "$<$<COMPILE_LANGUAGE:HIP>:-fvisibility=hidden>"
     )
     if (NOT MSVC)
-        target_compile_options(numkong_${unit}_ PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fvisibility=hidden>")
+        target_compile_options(numkong_${unit_}_ PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fvisibility=hidden>")
     endif ()
-    target_link_libraries(numkong_${unit}_ PRIVATE ${ARGN})
-    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
-        target_sources(${nk_library_} PRIVATE $<TARGET_OBJECTS:numkong_${unit}_>)
-        target_link_libraries(${nk_library_} PUBLIC ${ARGN})
+    target_link_libraries(numkong_${unit_}_ PRIVATE ${ARGN})
+    foreach (library_ ${numkong_libraries_})
+        target_sources(${library_} PRIVATE $<TARGET_OBJECTS:numkong_${unit_}_>)
+        target_link_libraries(${library_} PUBLIC ${ARGN})
     endforeach ()
 endfunction ()
 
@@ -1153,49 +1158,49 @@ endfunction ()
 # kernels and the units compile in parallel. The dispatch units see every capability some listed code runs.
 if (NUMKONG_BUILD_CUDA)
     find_package(CUDAToolkit 13.0 REQUIRED)
-    numkong_gpu_codes_(
-        "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${nk_target_ampere_architectures}" NUMKONG_AMPERE_UNIT_CODES_
+    numkong_select_gpu_codes(
+        numkong_ampere_unit_codes_ "${numkong_cuda_resolved_architectures_}" "${nk_target_ampere_architectures}"
     )
-    numkong_gpu_codes_(
-        "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${nk_target_ada_architectures}" NUMKONG_ADA_UNIT_CODES_
+    numkong_select_gpu_codes(
+        numkong_ada_unit_codes_ "${numkong_cuda_resolved_architectures_}" "${nk_target_ada_architectures}"
     )
-    numkong_gpu_codes_(
-        "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${nk_target_hopper_architectures}" NUMKONG_HOPPER_UNIT_CODES_
+    numkong_select_gpu_codes(
+        numkong_hopper_unit_codes_ "${numkong_cuda_resolved_architectures_}" "${nk_target_hopper_architectures}"
     )
-    numkong_gpu_codes_(
-        "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${nk_target_blackwell_architectures}" NUMKONG_BLACKWELL_UNIT_CODES_
+    numkong_select_gpu_codes(
+        numkong_blackwell_unit_codes_ "${numkong_cuda_resolved_architectures_}" "${nk_target_blackwell_architectures}"
     )
-    numkong_gpu_codes_(
-        "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${nk_target_blackwellrtx_architectures}"
-        NUMKONG_BLACKWELLRTX_UNIT_CODES_
+    numkong_select_gpu_codes(
+        numkong_blackwellrtx_unit_codes_ "${numkong_cuda_resolved_architectures_}"
+        "${nk_target_blackwellrtx_architectures}"
     )
-    numkong_gpu_codes_(
-        "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${nk_target_blackwellultra_architectures}"
-        NUMKONG_BLACKWELLULTRA_UNIT_CODES_
+    numkong_select_gpu_codes(
+        numkong_blackwellultra_unit_codes_ "${numkong_cuda_resolved_architectures_}"
+        "${nk_target_blackwellultra_architectures}"
     )
-    numkong_add_gpu_unit_(
-        c/target/cuda.cu "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
+    numkong_add_gpu_unit(
+        c/target/cuda.cu "${numkong_cuda_resolved_architectures_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
     )
-    numkong_add_gpu_unit_(
-        c/target/ampere.cu "${NUMKONG_AMPERE_UNIT_CODES_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
+    numkong_add_gpu_unit(
+        c/target/ampere.cu "${numkong_ampere_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
     )
-    numkong_add_gpu_unit_(c/target/ada.cu "${NUMKONG_ADA_UNIT_CODES_}" numkong_cuda_capabilities_compiled_ CUDA::cudart)
-    numkong_add_gpu_unit_(
-        c/target/hopper.cu "${NUMKONG_HOPPER_UNIT_CODES_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
+    numkong_add_gpu_unit(c/target/ada.cu "${numkong_ada_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart)
+    numkong_add_gpu_unit(
+        c/target/hopper.cu "${numkong_hopper_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
     )
-    numkong_add_gpu_unit_(
-        c/target/blackwell.cu "${NUMKONG_BLACKWELL_UNIT_CODES_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
+    numkong_add_gpu_unit(
+        c/target/blackwell.cu "${numkong_blackwell_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
     )
-    numkong_add_gpu_unit_(
-        c/target/blackwellrtx.cu "${NUMKONG_BLACKWELLRTX_UNIT_CODES_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
+    numkong_add_gpu_unit(
+        c/target/blackwellrtx.cu "${numkong_blackwellrtx_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
     )
-    numkong_add_gpu_unit_(
-        c/target/blackwellultra.cu "${NUMKONG_BLACKWELLULTRA_UNIT_CODES_}" numkong_cuda_capabilities_compiled_
+    numkong_add_gpu_unit(
+        c/target/blackwellultra.cu "${numkong_blackwellultra_unit_codes_}" numkong_cuda_capabilities_compiled_
         CUDA::cudart
     )
-    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
-        target_compile_definitions(${nk_library_} PRIVATE NUMKONG_ARCH_CUDA_=1)
-        target_link_libraries(${nk_library_} PRIVATE $<BUILD_INTERFACE:numkong_cuda_capabilities_compiled_>)
+    foreach (library_ ${numkong_libraries_})
+        target_compile_definitions(${library_} PRIVATE NUMKONG_ARCH_CUDA_=1)
+        target_link_libraries(${library_} PRIVATE $<BUILD_INTERFACE:numkong_cuda_capabilities_compiled_>)
     endforeach ()
 endif ()
 
@@ -1203,28 +1208,34 @@ endif ()
 # and each numbers its own devices.
 if (NUMKONG_BUILD_ROCM)
     find_package(hip REQUIRED)
-    numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${nk_target_cdna3_architectures}" NUMKONG_CDNA3_UNIT_CODES_)
-    numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${nk_target_cdna4_architectures}" NUMKONG_CDNA4_UNIT_CODES_)
-    numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${nk_target_cdna5_architectures}" NUMKONG_CDNA5_UNIT_CODES_)
-    numkong_add_gpu_unit_(
+    numkong_select_gpu_codes(
+        numkong_cdna3_unit_codes_ "${NUMKONG_ROCM_ARCHITECTURES}" "${nk_target_cdna3_architectures}"
+    )
+    numkong_select_gpu_codes(
+        numkong_cdna4_unit_codes_ "${NUMKONG_ROCM_ARCHITECTURES}" "${nk_target_cdna4_architectures}"
+    )
+    numkong_select_gpu_codes(
+        numkong_cdna5_unit_codes_ "${NUMKONG_ROCM_ARCHITECTURES}" "${nk_target_cdna5_architectures}"
+    )
+    numkong_add_gpu_unit(
         c/target/rocm.hip "${NUMKONG_ROCM_ARCHITECTURES}" numkong_rocm_capabilities_compiled_ hip::host
     )
-    numkong_add_gpu_unit_(
-        c/target/cdna3.hip "${NUMKONG_CDNA3_UNIT_CODES_}" numkong_rocm_capabilities_compiled_ hip::host
+    numkong_add_gpu_unit(
+        c/target/cdna3.hip "${numkong_cdna3_unit_codes_}" numkong_rocm_capabilities_compiled_ hip::host
     )
-    numkong_add_gpu_unit_(
-        c/target/cdna4.hip "${NUMKONG_CDNA4_UNIT_CODES_}" numkong_rocm_capabilities_compiled_ hip::host
+    numkong_add_gpu_unit(
+        c/target/cdna4.hip "${numkong_cdna4_unit_codes_}" numkong_rocm_capabilities_compiled_ hip::host
     )
-    numkong_add_gpu_unit_(
-        c/target/cdna5.hip "${NUMKONG_CDNA5_UNIT_CODES_}" numkong_rocm_capabilities_compiled_ hip::host
+    numkong_add_gpu_unit(
+        c/target/cdna5.hip "${numkong_cdna5_unit_codes_}" numkong_rocm_capabilities_compiled_ hip::host
     )
-    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
-        target_compile_definitions(${nk_library_} PRIVATE NUMKONG_ARCH_ROCM_=1)
-        target_link_libraries(${nk_library_} PRIVATE $<BUILD_INTERFACE:numkong_rocm_capabilities_compiled_>)
+    foreach (library_ ${numkong_libraries_})
+        target_compile_definitions(${library_} PRIVATE NUMKONG_ARCH_ROCM_=1)
+        target_link_libraries(${library_} PRIVATE $<BUILD_INTERFACE:numkong_rocm_capabilities_compiled_>)
     endforeach ()
-    set_target_properties(${NUMKONG_LIBRARIES_} PROPERTIES HIP_ARCHITECTURES "${NUMKONG_ROCM_ARCHITECTURES}")
+    set_target_properties(${numkong_libraries_} PROPERTIES HIP_ARCHITECTURES "${NUMKONG_ROCM_ARCHITECTURES}")
     # HIP-Clang cannot read the GCC link-time-optimized objects of the CPU sources, so the host linker links.
-    set_target_properties(${NUMKONG_LIBRARIES_} PROPERTIES LINKER_LANGUAGE C)
+    set_target_properties(${numkong_libraries_} PROPERTIES LINKER_LANGUAGE C)
 endif ()
 
 if (NUMKONG_BUILD_METAL)
@@ -1236,99 +1247,101 @@ if (NUMKONG_BUILD_METAL)
         numkong_metal_ PRIVATE numkong_cpu_capabilities_disabled_ numkong_metal_capabilities_compiled_
     )
     target_compile_options(numkong_metal_ PRIVATE -fvisibility=hidden "--embed-dir=${PROJECT_SOURCE_DIR}/include")
-    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
-        target_sources(${nk_library_} PRIVATE $<TARGET_OBJECTS:numkong_metal_>)
-        target_link_libraries(${nk_library_} PRIVATE $<BUILD_INTERFACE:numkong_metal_capabilities_compiled_>)
-        target_link_libraries(${nk_library_} PUBLIC "-framework Metal" "-framework Foundation")
+    foreach (library_ ${numkong_libraries_})
+        target_sources(${library_} PRIVATE $<TARGET_OBJECTS:numkong_metal_>)
+        target_link_libraries(${library_} PRIVATE $<BUILD_INTERFACE:numkong_metal_capabilities_compiled_>)
+        target_link_libraries(${library_} PUBLIC "-framework Metal" "-framework Foundation")
     endforeach ()
     # Consumers see the Metal entries and the queue they take.
-    foreach (nk_library_ ${NUMKONG_LIBRARIES_})
-        target_compile_definitions(${nk_library_} INTERFACE NUMKONG_ARCH_METAL_=1)
-        target_compile_options(${nk_library_} INTERFACE ${NUMKONG_EMBED_OPTIONS_})
+    foreach (library_ ${numkong_libraries_})
+        target_compile_definitions(${library_} INTERFACE NUMKONG_ARCH_METAL_=1)
+        target_compile_options(${library_} INTERFACE ${numkong_embed_options_})
     endforeach ()
 endif ()
 
-# Configures CUDA suites for `architectures`: C++20, `constexpr` host helpers
+# Configures CUDA suites for `architectures_`: C++20, `constexpr` host helpers
 # callable from device code so the tensor views stay GPU-friendly, and the host baseline forwarded to NVCC.
-function (numkong_cuda_suite_target_ target architectures)
-    target_include_directories(${target} PRIVATE "${PROJECT_SOURCE_DIR}/include")
+function (numkong_configure_cuda_suite target_ architectures_)
+    target_include_directories(${target_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
     set_target_properties(
-        ${target} PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO CUDA_ARCHITECTURES
-                                                                                            "${architectures}"
+        ${target_} PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO CUDA_ARCHITECTURES
+                                                                                             "${architectures_}"
     )
-    target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+    target_compile_options(${target_} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
     if (MSVC)
         # {fmt} demands `/utf-8` for Unicode output, which NVCC's front end on Windows cannot honour.
-        target_compile_definitions(${target} PRIVATE FMT_UNICODE=0)
-        if (NUMKONG_ARCH_ARM64_)
-            target_compile_definitions(${target} PRIVATE _ARM64_)
+        target_compile_definitions(${target_} PRIVATE FMT_UNICODE=0)
+        if (numkong_arch_arm64_)
+            target_compile_definitions(${target_} PRIVATE _ARM64_)
         endif ()
-    elseif (NUMKONG_ARCH_X8664_)
+    elseif (numkong_arch_x8664_)
         target_compile_options(
-            ${target}
+            ${target_}
             PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-march=x86-64>
                     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fno-tree-vectorize>
                     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fno-tree-slp-vectorize>
         )
-    elseif (NUMKONG_ARCH_ARM64_)
+    elseif (numkong_arch_arm64_)
         target_compile_options(
-            ${target}
+            ${target_}
             PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-march=armv8-a>
                     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fno-tree-vectorize>
                     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fno-tree-slp-vectorize>
         )
     endif ()
-    target_link_libraries(${target} PRIVATE fmt::fmt)
+    target_link_libraries(${target_} PRIVATE fmt::fmt)
 endfunction ()
 
-# Compiles a ROCm test target for `architectures` the way every ROCm test expects: C++20 over the public headers.
-function (numkong_rocm_test_target_ target architectures)
-    target_include_directories(${target} PRIVATE "${PROJECT_SOURCE_DIR}/include")
+# Compiles a ROCm test target for `architectures_` the way every ROCm test expects: C++20 over the public headers.
+function (numkong_configure_rocm_test target_ architectures_)
+    target_include_directories(${target_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
     set_target_properties(
-        ${target} PROPERTIES HIP_ARCHITECTURES "${architectures}" HIP_STANDARD 20 HIP_STANDARD_REQUIRED YES
-                             HIP_EXTENSIONS NO
+        ${target_} PROPERTIES HIP_ARCHITECTURES "${architectures_}" HIP_STANDARD 20 HIP_STANDARD_REQUIRED YES
+                              HIP_EXTENSIONS NO
     )
-    target_link_libraries(${target} PRIVATE fmt::fmt)
+    target_link_libraries(${target_} PRIVATE fmt::fmt)
 endfunction ()
 
 if (NUMKONG_BUILD_TEST)
-    foreach (NUMKONG_VENDOR_ cuda rocm metal)
-        if (NUMKONG_VENDOR_ STREQUAL "cuda")
-            set(NUMKONG_SOURCES_ test/cross_cuda.cu test/each_cuda.cu test/cast_cuda.cu test/reduce_cuda.cu
-                                 test/tensor_cuda.cu test/shapes_cuda.cu
+    foreach (vendor_ cuda rocm metal)
+        if (vendor_ STREQUAL "cuda")
+            set(vendor_sources_ test/cross_cuda.cu test/each_cuda.cu test/cast_cuda.cu test/reduce_cuda.cu
+                                test/tensor_cuda.cu test/shapes_cuda.cu
             )
-        elseif (NUMKONG_VENDOR_ STREQUAL "rocm")
-            set(NUMKONG_SOURCES_ test/cross_rocm.hip test/each_rocm.hip test/cast_rocm.hip)
+            set(vendor_enabled_ ${NUMKONG_BUILD_CUDA})
+        elseif (vendor_ STREQUAL "rocm")
+            set(vendor_sources_ test/cross_rocm.hip test/each_rocm.hip test/cast_rocm.hip)
+            set(vendor_enabled_ ${NUMKONG_BUILD_ROCM})
         else ()
-            set(NUMKONG_SOURCES_ test/cross_metal.cpp test/each_metal.cpp test/cast_metal.cpp)
+            set(vendor_sources_ test/cross_metal.cpp test/each_metal.cpp test/cast_metal.cpp)
+            set(vendor_enabled_ ${NUMKONG_BUILD_METAL})
         endif ()
-        set(NUMKONG_LEAF_ numkong_test_${NUMKONG_VENDOR_})
-        add_library(${NUMKONG_LEAF_} OBJECT ${NUMKONG_SOURCES_})
-        target_include_directories(${NUMKONG_LEAF_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
-        target_link_libraries(${NUMKONG_LEAF_} PRIVATE fmt::fmt)
-        target_link_libraries(${NUMKONG_LEAF_} PRIVATE numkong_cpu_capabilities_disabled_)
-        string(TOUPPER "${NUMKONG_VENDOR_}" NUMKONG_VENDOR_UPPER_)
-        if (NUMKONG_BUILD_${NUMKONG_VENDOR_UPPER_})
-            target_link_libraries(${NUMKONG_LEAF_} PRIVATE numkong_${NUMKONG_VENDOR_}_capabilities_compiled_)
+        set(leaf_ numkong_test_${vendor_})
+        add_library(${leaf_} OBJECT ${vendor_sources_})
+        target_include_directories(${leaf_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
+        target_link_libraries(${leaf_} PRIVATE fmt::fmt)
+        target_link_libraries(${leaf_} PRIVATE numkong_cpu_capabilities_disabled_)
+        if (vendor_enabled_)
+            target_link_libraries(${leaf_} PRIVATE numkong_${vendor_}_capabilities_compiled_)
         else ()
-            set_source_files_properties(${NUMKONG_SOURCES_} PROPERTIES LANGUAGE CXX)
+            set_source_files_properties(${vendor_sources_} PROPERTIES LANGUAGE CXX)
         endif ()
-        foreach (NUMKONG_TEST_ numkong_cpu_test numkong_cpu_shared_test)
-            if (TARGET ${NUMKONG_TEST_})
-                target_sources(${NUMKONG_TEST_} PRIVATE $<TARGET_OBJECTS:${NUMKONG_LEAF_}>)
+        foreach (test_ numkong_cpu_test numkong_cpu_shared_test)
+            if (TARGET ${test_})
+                target_sources(${test_} PRIVATE $<TARGET_OBJECTS:${leaf_}>)
             endif ()
         endforeach ()
     endforeach ()
     if (NUMKONG_BUILD_CUDA)
-        numkong_cuda_suite_target_(numkong_test_cuda "${NUMKONG_CUDA_ARCHITECTURES}")
+        numkong_configure_cuda_suite(numkong_test_cuda "${NUMKONG_CUDA_ARCHITECTURES}")
         target_link_libraries(numkong_test_cuda PRIVATE CUDA::cudart)
     endif ()
     if (NUMKONG_BUILD_ROCM)
-        numkong_rocm_test_target_(numkong_test_rocm "${NUMKONG_ROCM_ARCHITECTURES}")
+        numkong_configure_rocm_test(numkong_test_rocm "${NUMKONG_ROCM_ARCHITECTURES}")
         target_link_libraries(numkong_test_rocm PRIVATE hip::host)
     endif ()
     if (NUMKONG_BUILD_METAL)
-        target_compile_options(numkong_test_metal PRIVATE ${NUMKONG_EMBED_OPTIONS_})
+        target_compile_options(numkong_test_metal PRIVATE ${numkong_embed_options_})
     endif ()
 endif ()
 
@@ -1337,10 +1350,10 @@ if (NUMKONG_BUILD_BENCH)
         numkong_bench_cuda OBJECT bench/cross_cuda.cu bench/each_cuda.cu bench/cast_cuda.cu bench/reduce_cuda.cu
     )
     add_library(numkong_bench_rocm OBJECT bench/cross_rocm.hip bench/each_rocm.hip)
-    foreach (NUMKONG_LEAF_ numkong_bench_cuda numkong_bench_rocm)
-        target_include_directories(${NUMKONG_LEAF_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
-        target_link_libraries(${NUMKONG_LEAF_} PRIVATE fmt::fmt)
-        target_link_libraries(${NUMKONG_LEAF_} PRIVATE numkong_cpu_capabilities_disabled_)
+    foreach (leaf_ numkong_bench_cuda numkong_bench_rocm)
+        target_include_directories(${leaf_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
+        target_link_libraries(${leaf_} PRIVATE fmt::fmt)
+        target_link_libraries(${leaf_} PRIVATE numkong_cpu_capabilities_disabled_)
     endforeach ()
     target_sources(numkong_bench PRIVATE $<TARGET_OBJECTS:numkong_bench_cuda> $<TARGET_OBJECTS:numkong_bench_rocm>)
 endif ()
@@ -1348,7 +1361,7 @@ endif ()
 # CUDA rows in the same `numkong_bench`, from bench/*_cuda.cu, with optional cuBLAS, cuDNN and cuVS baselines.
 if (NUMKONG_BUILD_BENCH AND NUMKONG_BUILD_CUDA)
     find_package(CUDAToolkit 13.0 REQUIRED)
-    numkong_cuda_suite_target_(numkong_bench_cuda "${NUMKONG_CUDA_ARCHITECTURES}")
+    numkong_configure_cuda_suite(numkong_bench_cuda "${NUMKONG_CUDA_ARCHITECTURES}")
     target_compile_definitions(
         numkong_bench_cuda
         PRIVATE NUMKONG_COMPARE_TO_CUBLAS=$<BOOL:${NUMKONG_COMPARE_TO_CUBLAS}>
