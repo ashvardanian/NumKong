@@ -50,7 +50,7 @@ jobs:
           retry_wait_seconds: 10
           timeout_minutes: 180
           command: |
-            python -m pip install --no-cache-dir --upgrade pip
+            python -m pip install --no-cache-dir --upgrade "pip>=26.2.2"
             pip install --no-cache-dir --group test --group test-oracles py-cpuinfo
             python -c "from cpuinfo import get_cpu_info; print(get_cpu_info())"
 

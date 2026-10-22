@@ -161,7 +161,7 @@ jobs:
         run: |
           swift sdk install https://download.swift.org/swift-6.4.0-release/wasm-sdk/swift-6.4.0-RELEASE/swift-6.4.0-RELEASE_wasm.artifactbundle.tar.gz --checksum f07b7be3c586d92d7a07051fc6d303b87ebea67eadc40640ba59d5a8b79aa86d
           apt-get update && apt-get install -y curl xz-utils
-          curl -fsSL https://wasmtime.dev/install.sh | bash
+          curl -fsSL https://wasmtime.dev/install.sh | bash -s -- --version "v36.0.19"
       - name: Build Library and Tests
         run: swift build --build-tests --swift-sdk swift-6.4.0-RELEASE_wasm
       - name: Test under Wasmtime
