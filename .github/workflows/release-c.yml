@@ -218,7 +218,7 @@ jobs:
       - name: Set Up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: "24.22.1"
       - name: Build WASM
         run: |
           source ~/emsdk/emsdk_env.sh
@@ -257,7 +257,7 @@ jobs:
       - name: Set Up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: "24.22.1"
       - name: Download WASM Modules
         uses: actions/download-artifact@v8
         with:
