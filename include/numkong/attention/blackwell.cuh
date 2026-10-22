@@ -14,17 +14,17 @@
  *  issues every product. S lands in tensor memory, where a warpgroup per tile reads one row per
  *  thread and writes P over it, and P · V reads P from there as its A operand into an F32 O that
  *  stays in tensor memory too. A correction warpgroup rescales a row of O only when its maximum
- *  moved, which BF16 lets it do only past 2⁸, and finally normalizes and stores it. BF16 multiplies
- *  as @c kind::f16, E4M3 as @c kind::f8f6f4 with weights e4m3(256 · p) and the E4M3 residuals of
- *  those in a product of their own, so P keeps about 8 bits, and I8 as exact F16: its pack stores K
- *  and V widened and the softmax warps widen Q as they stage it, under the U8 weights of the serial
- *  contract. `tcgen05.mma.kind::i8` exists only in sm_100a and sm_110a code, not in the family code
- *  shared with the 10.3 and 10.7 parts, so integers multiply as exact F16. The pack keeps V
- *  position-major, which P · V reads MN-major, so one tensor map reaches every plane; depths above
- *  256 keep the @c cuda layout and kernel. Only the "100f" family code carries these instructions,
- *  so every other device pass traps. Launches of fewer items than half the multiprocessors give
- *  each item a cluster of up to 16 blocks, which split its panels and merge their rows of O through
- *  distributed shared memory.
+ *  moved, which BF16 lets it do only past 2⁸ and E4M3 past 2², then normalizes and stores it.
+ *  BF16 multiplies as @c kind::f16, E4M3 as @c kind::f8f6f4 with weights e4m3(64 · p) and the E4M3
+ *  residuals of those in a product of their own, so P keeps about 8 bits, and I8 as exact F16: its
+ *  pack stores K and V widened and the softmax warps widen Q as they stage it, under the U8 weights
+ *  of the serial contract. `tcgen05.mma.kind::i8` exists only in sm_100a and sm_110a code, not in
+ *  the family code shared with the 10.3 and 10.7 parts, so integers multiply as exact F16. The pack
+ *  keeps V position-major, which P · V reads MN-major, so one tensor map reaches every plane;
+ *  depths above 256 keep the @c cuda layout and kernel. Only the "100f" family code carries these
+ *  instructions, so every other device pass traps. Launches of fewer items than half the
+ *  multiprocessors give each item a cluster of up to 16 blocks, which split its panels and merge
+ *  their rows of O through distributed shared memory.
  *
  *  The BF16 backward stages K, V, Q and dO once each in the same swizzled rows, which the products
  *  read K-major or MN-major as each needs. Blocks of 128 keys take Sᵀ and dPᵀ into tensor memory,
@@ -175,8 +175,9 @@ typedef struct {
     nk_f32_t scale2;
 
     /** How far past a row's maximum a panel's must reach before the row moves to it: 8 for BF16 and
-     *  F16, whose weights hold the 2⁸ of a stale maximum, so O is rarely rescaled, and 0 for the
-     *  dtypes whose weights need the true maximum. */
+     *  F16, whose weights hold the 2⁸ of a stale maximum, so O is rarely rescaled, 2 for E4M3,
+     *  whose 64 · p weights then reach 256 below its 448, and 0 for I8, whose weights need the true
+     *  maximum. */
     nk_f32_t rescale_threshold;
 
     /** The row of the pack's tensor map that the payload starts at. */
@@ -452,10 +453,10 @@ NUMKONG_DEVICE nk_u32_t nk_f16x2_to_e4m3x2_parts_blackwell_(nk_u32_t halves) {
     return parts;
 }
 
-/** E4M3 weights of probabilities the softmax already amplified by 256, each the sum of a high part
- *  e4m3(256 · p) and a low part rounding its residual, which P · V multiply in turn, so a weight
+/** E4M3 weights of probabilities the softmax already amplified by 64, each the sum of a high part
+ *  e4m3(64 · p) and a low part rounding its residual, which P · V multiply in turn, so a weight
  *  keeps about 8 bits as the BF16 weights of the serial contract do. The sums take the
- *  probabilities as they are, within 2⁻⁹ of the weights, and dividing by them undoes the 256. */
+ *  probabilities as they are, within 2⁻⁹ of the weights, and dividing by them undoes the 64. */
 NUMKONG_DEVICE void nk_attention_weights_e4m3_blackwell_(nk_f32_t const probabilities[4], nk_u32_t packed[2],
                                                          nk_u64_t *sums) {
     nk_u32_t const first = nk_f16x2_to_e4m3x2_parts_blackwell_(
@@ -611,7 +612,7 @@ NUMKONG_DEVICE nk_attention_schedule_blackwell_t nk_attention_schedule_blackwell
                                                                 nk_attention_tile_rows_blackwell_k,
                                                                 schedule.value_columns, nk_major_k_k, nk_major_mn_k);
     schedule.scale2 = arguments->scale2;
-    schedule.rescale_threshold = schedule.element_bytes == 2 ? 8.0f : 0.0f;
+    schedule.rescale_threshold = schedule.element_bytes == 2 ? 8.0f : kernel->widens ? 0.0f : 2.0f;
     nk_size_t const segments = ((nk_attention_packed_header_t const *)arguments->packed)->segments;
     schedule.payload_row = nk_attention_payload_offset_simt_(segments, schedule.row_bytes) / schedule.row_bytes;
     schedule.band = nk_attention_kernel_band_simt_(kernel->mask, arguments);
@@ -3263,8 +3264,8 @@ NUMKONG_CONSTEXPR nk_size_t nk_attention_pack_element_bytes_i8_blackwell_(nk_siz
         nk_attention_kernel_blackwell_t const *kernel, nk_u64_t *weighed_half, nk_f32_t scale2, nk_f32_t subtrahend,   \
         nk_u32_t scores, int masked, nk_u32_t const visible[4]) {                                                      \
         nk_u64_t const multiplier = nk_f32x2_blackwell_(scale2, scale2);                                               \
-        /* E4M3 weights take 256 · p, as an exponent 8 higher */                                                       \
-        nk_f32_t const amplifier = kernel->element_bytes == 1 && !kernel->widens ? 8.0f : 0.0f;                        \
+        /* E4M3 weights take 64 · p, an exponent 6 higher, so a maximum 2² stale stays under 448 */                    \
+        nk_f32_t const amplifier = kernel->element_bytes == 1 && !kernel->widens ? 6.0f : 0.0f;                        \
         nk_u64_t const addend = nk_f32x2_blackwell_(amplifier - subtrahend, amplifier - subtrahend);                   \
         nk_u64_t sums = 0;                                                                                             \
         _Pragma("unroll 1") for (unsigned chunk = 0; chunk < nk_attention_panel_blackwell_k; chunk += 32) {            \
@@ -3392,7 +3393,7 @@ NUMKONG_CONSTEXPR nk_size_t nk_attention_pack_element_bytes_i8_blackwell_(nk_siz
                     visible, panel != 0, &row_max, &row_sum);                                                          \
             }                                                                                                          \
             /* A row's weights sum in units of the weights a probability of one takes */                               \
-            nk_f32_t const unit = kernel->element_bytes == 1 && !kernel->widens ? 256.0f : 1.0f;                       \
+            nk_f32_t const unit = kernel->element_bytes == 1 && !kernel->widens ? 64.0f : 1.0f;                        \
             nk_f32_t const unit_probabilities[4] = {unit, 0, 0, 0};                                                    \
             nk_u32_t unit_packed[2];                                                                                   \
             nk_u64_t unit_sums = 0;                                                                                    \
