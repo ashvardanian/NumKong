@@ -1,0 +1,15 @@
+{
+  "description": "NumKong D bindings",
+  "license": "Apache-2.0",
+  "libs": ["numkong"],
+  "authors": ["Sergei Giniatulin"],
+  "targetType": "library",
+  "sourcePaths": ["source"],
+  "cImportPaths": ["c_header"],
+  "dflags": ["-mcpu=native"],
+  "lflags-posix": ["-L."],
+  "lflags-osx": ["-rpath", "@executable_path/"],
+  "lflags-linux": ["-rpath=$$ORIGIN"],
+  "copyright": "Copyright © 2026, Sergei Giniatulin",
+  "name": "numkong_d"
+}

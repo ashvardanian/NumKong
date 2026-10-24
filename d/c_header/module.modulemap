@@ -1,0 +1,129 @@
+// Hierarchical Clang C Module Map for NumKong
+//
+// Layout for fast partial recompilation:
+//   CNumKongCore → CNumKongKernels (per-header submodules) → CNumKongCapabilities → CNumKong
+//
+// `config_macros` documents which macros affect the ABI of each module.
+// SPM's `cSettings: [.define(...)]` only applies when compiling .c sources,
+// NOT when Swift imports these headers — but listing the macros here prevents
+// silent miscompilation if flags ever do differ between TUs.
+
+// Layer 1: Core types (changes rarely, no dependencies)
+module CNumKongCore {
+    config_macros [exhaustive] NK_DYNAMIC_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
+
+    header "numkong/types.h"
+    header "numkong/scalar.h"
+    export *
+}
+
+// Layer 2: Kernel families (independent, change frequently during development)
+module CNumKongKernels {
+    config_macros [exhaustive] NK_DYNAMIC_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
+
+    use CNumKongCore
+
+    explicit module Cast {
+        header "numkong/cast.h"
+        export *
+    }
+
+    explicit module Dot {
+        header "numkong/dot.h"
+        export *
+    }
+
+    explicit module Dots {
+        header "numkong/dots.h"
+        export *
+    }
+
+    explicit module Spatial {
+        header "numkong/spatial.h"
+        export *
+    }
+
+    explicit module Spatials {
+        header "numkong/spatials.h"
+        export *
+    }
+
+    explicit module Set {
+        header "numkong/set.h"
+        export *
+    }
+
+    explicit module Sets {
+        header "numkong/sets.h"
+        export *
+    }
+
+    explicit module Geospatial {
+        header "numkong/geospatial.h"
+        export *
+    }
+
+    explicit module Each {
+        header "numkong/each.h"
+        export *
+    }
+
+    explicit module Trigonometry {
+        header "numkong/trigonometry.h"
+        export *
+    }
+
+    explicit module Reduce {
+        header "numkong/reduce.h"
+        export *
+    }
+
+    explicit module MaxSim {
+        header "numkong/maxsim.h"
+        export *
+    }
+
+    explicit module Mesh {
+        header "numkong/mesh.h"
+        export *
+    }
+
+    explicit module Curved {
+        header "numkong/curved.h"
+        export *
+    }
+
+    explicit module Probability {
+        header "numkong/probability.h"
+        export *
+    }
+
+    explicit module Sparse {
+        header "numkong/sparse.h"
+        export *
+    }
+
+    export *
+}
+
+// Layer 3: Capability detection (depends on Core, used by umbrella)
+module CNumKongCapabilities {
+    config_macros [exhaustive] NK_DYNAMIC_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
+
+    use CNumKongCore
+
+    header "numkong/capabilities.h"
+    export *
+}
+
+// Layer 4: Unified API (top-level umbrella module)
+module CNumKong {
+    config_macros [exhaustive] NK_DYNAMIC_DISPATCH, NK_NATIVE_F16, NK_NATIVE_BF16
+
+    use CNumKongCore
+    use CNumKongKernels
+    use CNumKongCapabilities
+
+    header "numkong/numkong.h"
+    export *
+}

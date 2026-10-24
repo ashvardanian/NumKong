@@ -1,0 +1,10 @@
+{
+  "description": "NumKong D example of library usage",
+  "dependencies": {
+    "numkong_d": { "path": "../" }
+  },
+  "authors": ["Sergei Giniatulin"],
+  "copyright": "Copyright © 2026, Sergei Giniatulin",
+  "license": "Apache-2.0",
+  "name": "example"
+}
