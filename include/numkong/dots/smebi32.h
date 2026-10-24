@@ -254,7 +254,9 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
                                                          (row_tile_start + r) * stride_in_bytes);
             a_tile_pops[r] = nk_sets_reduce_sumsq_u1_streaming_(a_row, depth_bytes);
         }
-        for (nk_size_t r = rows_clamped; r < tile_dim; r++) a_tile_pops[r] = 0;
+        // Zero the tail with a store rather than a loop: Apple Clang turns that loop into `__sme_memset`,
+        // which only macOS 15 and later provide.
+        svst1_u32(svnot_b_z(svptrue_b32(), row_predicate_b32x), a_tile_pops, svdup_u32(0));
 
         // Upper triangle: start from this row tile's column
         nk_size_t column_tile_index = row_tile_start / tile_dim;

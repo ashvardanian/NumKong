@@ -1683,27 +1683,30 @@ NK_INTERNAL void nk_sme_stop_streaming_(void) { __asm__ __volatile__("smstop sm"
  *    memory routines the compiler may emit inside __arm_streaming functions.
  *    Apple Clang provides these in its runtime; upstream LLVM does not. GCC
  *    needs no stub because it never emits calls to them — and must not get one,
- *    as its `arm_sme.h` declares them with C++ linkage.
+ *    as its `arm_sme.h` declares them with C++ linkage. Their stores are volatile
+ *    so that the compiler can't turn the loops back into a call: upstream LLVM
+ *    would call the stub itself, and Apple Clang calls `__sme_memset`, which
+ *    only macOS 15 and later provide.
  */
 __attribute__((weak, used)) void __arm_tpidr2_save(void) {}
 __attribute__((weak, used)) void __arm_tpidr2_restore(void *blk) { nk_unused_(blk); }
 #if defined(__clang__) // GCC's `arm_sme.h` declares these with C++ linkage, which collides here
 __attribute__((weak, target("+sme"))) void *__arm_sc_memset(void *d, int c,
                                                             __SIZE_TYPE__ n) __arm_streaming_compatible {
-    unsigned char *p = (unsigned char *)d;
+    unsigned char volatile *p = (unsigned char volatile *)d;
     for (__SIZE_TYPE__ i = 0; i < n; i++) p[i] = (unsigned char)c;
     return d;
 }
 __attribute__((weak, target("+sme"))) void *__arm_sc_memcpy(void *d, void const *s,
                                                             __SIZE_TYPE__ n) __arm_streaming_compatible {
-    unsigned char *dp = (unsigned char *)d;
+    unsigned char volatile *dp = (unsigned char volatile *)d;
     unsigned char const *sp = (unsigned char const *)s;
     for (__SIZE_TYPE__ i = 0; i < n; i++) dp[i] = sp[i];
     return d;
 }
 __attribute__((weak, target("+sme"))) void *__arm_sc_memmove(void *d, void const *s,
                                                              __SIZE_TYPE__ n) __arm_streaming_compatible {
-    unsigned char *dp = (unsigned char *)d;
+    unsigned char volatile *dp = (unsigned char volatile *)d;
     unsigned char const *sp = (unsigned char const *)s;
     if (dp < sp) {
         for (__SIZE_TYPE__ i = 0; i < n; i++) dp[i] = sp[i];

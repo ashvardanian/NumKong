@@ -460,6 +460,12 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
         goto cleanup;
     }
     if (dtype == nk_dtype_unknown_k) dtype = a_parsed.dtype;
+    nk_dtype_t const out_dtype = out_obj ? resolve_nk_dtype_in_py_buffer(&out_buffer) : nk_dtype_unknown_k;
+    if (out_obj && out_dtype != dtype) {
+        PyErr_Format(PyExc_TypeError, "out dtype '%s' does not match scale dtype '%s'", nk_dtype_name(out_dtype),
+                     nk_dtype_name(dtype));
+        goto cleanup;
+    }
 
     // Convert `alpha_obj` to `alpha_buf` and `beta_obj` to `beta_buf`
     nk_scalar_buffer_t alpha_buf, beta_buf;

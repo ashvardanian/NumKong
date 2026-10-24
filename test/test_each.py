@@ -741,6 +741,19 @@ def test_scale_identity(ndim: int, dtype: str, capability: str):
         assert abs(result[i] - 7.5) < NK_ATOL, f"scale(7.5, 1, 0)[{i}] = {result[i]}"
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", ["float16", "float32"])
+def test_scale_rejects_mismatched_output_dtype(dtype: str) -> None:
+    values = np.array([0.0, 0.5, 1.0, 1.5], dtype=dtype)
+    storage = np.full(values.nbytes, 0xA5, dtype=np.uint8)
+    output = storage[: values.size]
+
+    with pytest.raises(TypeError, match="out dtype"):
+        nk.scale(values, alpha=2.0, out=output)
+
+    np.testing.assert_array_equal(storage, np.full_like(storage, 0xA5))
+
+
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
 @pytest.mark.parametrize("capability", possible_capabilities)
