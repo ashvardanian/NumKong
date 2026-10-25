@@ -131,8 +131,8 @@ NUMKONG_INLINE nk_status_t nk_each_rmsnorm_launch_cuda_(void const *kernel, nk_s
         nk_f32_t const result = scaled / (1.0f + expf(-scaled)) * up_value * output_scale;                             \
         convert_and_store(&result, y);                                                                                 \
     }                                                                                                                  \
-    static __global__ void nk_each_swiglu_##input_type##_##isa_suffix##_kernel_(                                       \
-        nk_each_swiglu_arguments_t arguments) {                                                                        \
+    static __global__ void __launch_bounds__(nk_each_threads_simt_k)                                                   \
+        nk_each_swiglu_##input_type##_##isa_suffix##_kernel_(nk_each_swiglu_arguments_t arguments) {                   \
         unsigned const chunk_values = 16 / sizeof(nk_##input_type##_t),                                                \
                        lane = threadIdx.x % nk_each_team_lanes_simt_k;                                                 \
         nk_size_t const block_teams = blockDim.x / nk_each_team_lanes_simt_k, teams = gridDim.x * block_teams;         \
@@ -281,7 +281,8 @@ nk_define_each_sum_cuda_(u16, i64, cuda, nk_assign_from_to_, nk_i64_to_u16_seria
 nk_define_each_sum_cuda_(i32, i64, cuda, nk_assign_from_to_, nk_i64_to_i32_serial_)
 nk_define_each_sum_cuda_(u32, i64, cuda, nk_assign_from_to_, nk_i64_to_u32_serial_)
 
-static __global__ void nk_each_sum_i64_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_each_threads_simt_k)
+    nk_each_sum_i64_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
     nk_i64_t const *a = (nk_i64_t const *)arguments.a, *b = (nk_i64_t const *)arguments.b;
     nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;
     nk_i64_t *result = (nk_i64_t *)arguments.result;
@@ -295,7 +296,8 @@ NUMKONG_API nk_status_t nk_each_sum_i64_cuda(nk_i64_t const *a, nk_i64_t const *
                                             NUMKONG_NULL, NUMKONG_NULL, NUMKONG_NULL, n, result, stream);
 }
 
-static __global__ void nk_each_sum_u64_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_each_threads_simt_k)
+    nk_each_sum_u64_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
     nk_u64_t const *a = (nk_u64_t const *)arguments.a, *b = (nk_u64_t const *)arguments.b;
     nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;
     nk_u64_t *result = (nk_u64_t *)arguments.result;
@@ -363,7 +365,8 @@ NUMKONG_API nk_status_t nk_each_sum_f32c_cuda(nk_f32c_t const *a, nk_f32c_t cons
                                             NUMKONG_NULL, NUMKONG_NULL, NUMKONG_NULL, 2 * n, result, stream);
 }
 
-static __global__ void nk_each_scale_f32c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_each_threads_simt_k)
+    nk_each_scale_f32c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
     nk_f32c_t const *a = (nk_f32c_t const *)arguments.a, *alpha = (nk_f32c_t const *)arguments.alpha;
     nk_f32c_t const *beta = (nk_f32c_t const *)arguments.beta;
     nk_f32c_t *result = (nk_f32c_t *)arguments.result;
@@ -384,7 +387,8 @@ NUMKONG_API nk_status_t nk_each_scale_f32c_cuda(nk_f32c_t const *a, nk_size_t n,
                                             stream);
 }
 
-static __global__ void nk_each_blend_f32c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_each_threads_simt_k)
+    nk_each_blend_f32c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
     nk_f32c_t const *a = (nk_f32c_t const *)arguments.a, *b = (nk_f32c_t const *)arguments.b;
     nk_f32c_t const *alpha = (nk_f32c_t const *)arguments.alpha, *beta = (nk_f32c_t const *)arguments.beta;
     nk_f32c_t *result = (nk_f32c_t *)arguments.result;
@@ -410,7 +414,8 @@ NUMKONG_API nk_status_t nk_each_blend_f32c_cuda(nk_f32c_t const *a, nk_f32c_t co
                                             sizeof(nk_f32_t), a, b, NUMKONG_NULL, alpha, beta, n, result, stream);
 }
 
-static __global__ void nk_each_fma_f32c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_each_threads_simt_k)
+    nk_each_fma_f32c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
     nk_f32c_t const *a = (nk_f32c_t const *)arguments.a, *b = (nk_f32c_t const *)arguments.b;
     nk_f32c_t const *c = (nk_f32c_t const *)arguments.c;
     nk_f32c_t const *alpha = (nk_f32c_t const *)arguments.alpha, *beta = (nk_f32c_t const *)arguments.beta;
@@ -446,7 +451,8 @@ NUMKONG_API nk_status_t nk_each_sum_f64c_cuda(nk_f64c_t const *a, nk_f64c_t cons
                                             NUMKONG_NULL, NUMKONG_NULL, NUMKONG_NULL, 2 * n, result, stream);
 }
 
-static __global__ void nk_each_scale_f64c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_each_threads_simt_k)
+    nk_each_scale_f64c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
     nk_f64c_t const *a = (nk_f64c_t const *)arguments.a, *alpha = (nk_f64c_t const *)arguments.alpha;
     nk_f64c_t const *beta = (nk_f64c_t const *)arguments.beta;
     nk_f64c_t *result = (nk_f64c_t *)arguments.result;
@@ -467,7 +473,8 @@ NUMKONG_API nk_status_t nk_each_scale_f64c_cuda(nk_f64c_t const *a, nk_size_t n,
                                             stream);
 }
 
-static __global__ void nk_each_blend_f64c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_each_threads_simt_k)
+    nk_each_blend_f64c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
     nk_f64c_t const *a = (nk_f64c_t const *)arguments.a, *b = (nk_f64c_t const *)arguments.b;
     nk_f64c_t const *alpha = (nk_f64c_t const *)arguments.alpha, *beta = (nk_f64c_t const *)arguments.beta;
     nk_f64c_t *result = (nk_f64c_t *)arguments.result;
@@ -493,7 +500,8 @@ NUMKONG_API nk_status_t nk_each_blend_f64c_cuda(nk_f64c_t const *a, nk_f64c_t co
                                             sizeof(nk_f64_t), a, b, NUMKONG_NULL, alpha, beta, n, result, stream);
 }
 
-static __global__ void nk_each_fma_f64c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_each_threads_simt_k)
+    nk_each_fma_f64c_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
     nk_f64c_t const *a = (nk_f64c_t const *)arguments.a, *b = (nk_f64c_t const *)arguments.b;
     nk_f64c_t const *c = (nk_f64c_t const *)arguments.c;
     nk_f64c_t const *alpha = (nk_f64c_t const *)arguments.alpha, *beta = (nk_f64c_t const *)arguments.beta;

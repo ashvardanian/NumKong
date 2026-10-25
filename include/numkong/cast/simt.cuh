@@ -230,6 +230,13 @@ NUMKONG_DEVICE void nk_f64_to_u64_simt_(nk_f64_t const *src, nk_u64_t *dest) {
 
 #pragma region Bulk Casts
 
+/** Launch shapes the cast kernels share. */
+enum {
+
+    /** Threads of every block, each casting a unit of a plan or a value of a block-scaled pass. */
+    nk_cast_threads_simt_k = 256,
+};
+
 /** Code @p index of a packed 4-bit type: the high nibble of its byte for even indices. */
 NUMKONG_DEVICE nk_u32_t nk_cast_nibble_simt_(unsigned char const *bytes, nk_size_t index) {
     nk_u32_t const byte = bytes[index / 2];

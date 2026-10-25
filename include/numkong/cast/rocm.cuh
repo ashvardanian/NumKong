@@ -50,28 +50,31 @@ NUMKONG_INLINE nk_status_t nk_cast_block_scaled_launch_rocm_(void const *kernel,
     if (!count && !arguments.to_tensor_scale) return status;
     if (arguments.to_tensor_scale && count) {
         arguments.phase = nk_cast_block_scaled_amax_k;
-        status = nk_launch_resident_rocm_(kernel, 256, 0, 0, nk_size_divide_round_up_(count, 256), &arguments, stream);
+        status = nk_launch_resident_rocm_(kernel, nk_cast_threads_simt_k, 0, 0,
+                                          nk_size_divide_round_up_(count, nk_cast_threads_simt_k), &arguments, stream);
     }
     if (status != nk_success_k) return status;
     arguments.phase = nk_cast_block_scaled_chunks_k;
     // One block at least, so an empty cast still writes the tensor scale it derives
-    nk_size_t const blocks = nk_size_divide_round_up_(arguments.chunks, 256);
-    return nk_launch_resident_rocm_(kernel, 256, 0, 0, blocks ? blocks : 1, &arguments, stream);
+    nk_size_t const blocks = nk_size_divide_round_up_(arguments.chunks, nk_cast_threads_simt_k);
+    return nk_launch_resident_rocm_(kernel, nk_cast_threads_simt_k, 0, 0, blocks ? blocks : 1, &arguments, stream);
 }
 
 #if NUMKONG_TARGET_ROCM
 
-static __global__ void nk_cast_rocm_kernel_(nk_cast_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k) nk_cast_rocm_kernel_(nk_cast_arguments_t arguments) {
     nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;
     for (nk_size_t unit = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; unit < arguments.plan.units; unit += stride)
         nk_cast_unit_simt_(&arguments, unit);
 }
 
-static __global__ void nk_cast_vectors_rocm_kernel_(nk_cast_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k)
+    nk_cast_vectors_rocm_kernel_(nk_cast_arguments_t arguments) {
     nk_cast_vectors_simt_(&arguments);
 }
 
-static __global__ void nk_cast_block_scaled_rocm_kernel_(nk_cast_block_scaled_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k)
+    nk_cast_block_scaled_rocm_kernel_(nk_cast_block_scaled_arguments_t arguments) {
     __shared__ nk_u32_t partials[256];
     nk_cast_block_scaled_phase_simt_(&arguments, partials);
 }
@@ -94,7 +97,8 @@ NUMKONG_API nk_status_t nk_cast_rocm(void const *from, nk_dtype_t from_dtype, vo
         return nk_success_k;
     void const *const kernel = nk_cast_plan_vectors_simt_(&arguments) ? (void const *)&nk_cast_vectors_rocm_kernel_
                                                                       : (void const *)&nk_cast_rocm_kernel_;
-    return nk_launch_resident_rocm_(kernel, 256, 0, 0, nk_size_divide_round_up_(arguments.plan.units, 256), &arguments,
+    return nk_launch_resident_rocm_(kernel, nk_cast_threads_simt_k, 0, 0,
+                                    nk_size_divide_round_up_(arguments.plan.units, nk_cast_threads_simt_k), &arguments,
                                     stream);
 }
 

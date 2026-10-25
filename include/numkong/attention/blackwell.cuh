@@ -3063,10 +3063,11 @@ NUMKONG_CONSTEXPR nk_size_t nk_attention_pack_element_bytes_i8_blackwell_(nk_siz
 /** Generates a device pack recording the @p isa_suffix capability: both planes position-major for
  *  the tile's depths, the @c cuda layout past them for the fallback kernel. */
 #define nk_define_attention_pack_blackwell_(input_type_name, isa_suffix, input_value_type)                            \
-    static __global__ void nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_(                              \
-        unsigned char const *keys, unsigned char const *values, nk_size_t key_value_head_count, nk_size_t depth,      \
-        nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride,      \
-        nk_size_t value_stride, unsigned char *packed, nk_size_t tasks_begin, nk_size_t tasks_end) {                  \
+    static __global__ void __launch_bounds__(nk_attention_pack_threads_k)                                             \
+        nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_(                                                 \
+            unsigned char const *keys, unsigned char const *values, nk_size_t key_value_head_count, nk_size_t depth,  \
+            nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride,  \
+            nk_size_t value_stride, unsigned char *packed, nk_size_t tasks_begin, nk_size_t tasks_end) {              \
         if (depth <= nk_attention_wide_depth_blackwell_k)                                                             \
             nk_attention_pack_rows_blackwell_(sizeof(nk_##input_value_type##_t), keys, values, key_value_head_count,  \
                                               depth, key_offsets, key_lengths, segment_count, key_stride,             \
@@ -3555,12 +3556,12 @@ NUMKONG_API nk_status_t nk_attention_pack_size_i8_blackwell(nk_size_t key_value_
     return nk_success_k;
 }
 
-static __global__ void nk_attention_pack_i8_blackwell_kernel_(unsigned char const *keys, unsigned char const *values,
-                                                              nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
-                                                              nk_size_t segment_count, nk_size_t key_stride,
-                                                              nk_size_t value_stride, unsigned char *packed,
-                                                              nk_size_t tasks_begin, nk_size_t tasks_end) {
+static __global__ void __launch_bounds__(nk_attention_pack_threads_k)
+    nk_attention_pack_i8_blackwell_kernel_(unsigned char const *keys, unsigned char const *values,
+                                           nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *key_offsets,
+                                           nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride,
+                                           nk_size_t value_stride, unsigned char *packed, nk_size_t tasks_begin,
+                                           nk_size_t tasks_end) {
     nk_attention_pack_payload_i8_blackwell_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
                                             segment_count, key_stride, value_stride, packed, tasks_begin, tasks_end);
 }

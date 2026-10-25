@@ -124,8 +124,8 @@ NUMKONG_INLINE nk_status_t nk_each_rmsnorm_launch_rocm_(void const *kernel, nk_s
         nk_f32_t const result = scaled / (1.0f + expf(-scaled)) * up_value * output_scale;                             \
         convert_and_store(&result, y);                                                                                 \
     }                                                                                                                  \
-    static __global__ void nk_each_swiglu_##input_type##_##isa_suffix##_kernel_(                                       \
-        nk_each_swiglu_arguments_t arguments) {                                                                        \
+    static __global__ void __launch_bounds__(nk_each_threads_simt_k)                                                   \
+        nk_each_swiglu_##input_type##_##isa_suffix##_kernel_(nk_each_swiglu_arguments_t arguments) {                   \
         unsigned const chunk_values = 16 / sizeof(nk_##input_type##_t),                                                \
                        lane = threadIdx.x % nk_each_team_lanes_simt_k;                                                 \
         nk_size_t const block_teams = blockDim.x / nk_each_team_lanes_simt_k, teams = gridDim.x * block_teams;         \

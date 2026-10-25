@@ -88,8 +88,8 @@ typedef struct {
  *  chunk loop stays rolled, as unrolled copies cannot load before the stores they follow and only
  *  add registers, which cost the F64 kernels the occupancy that B300's FP64 pipe needs. */
 #define nk_define_each_elementwise_kernel_simt_(verb, operands, input_type, accumulator_type, isa_suffix)         \
-    static __global__ void nk_each_##verb##_##input_type##_##isa_suffix##_kernel_(                                \
-        nk_each_elementwise_arguments_t arguments) {                                                              \
+    static __global__ void __launch_bounds__(nk_each_threads_simt_k)                                              \
+        nk_each_##verb##_##input_type##_##isa_suffix##_kernel_(nk_each_elementwise_arguments_t arguments) {       \
         nk_##input_type##_t const *a = (nk_##input_type##_t const *)arguments.a;                                  \
         nk_##input_type##_t const *b = operands > 1 ? (nk_##input_type##_t const *)arguments.b : a;               \
         nk_##input_type##_t const *c = operands > 2 ? (nk_##input_type##_t const *)arguments.c : a;               \
@@ -333,8 +333,8 @@ NUMKONG_DEVICE void nk_each_inverse_rms_f64_to_f32_simt_(nk_f64_t sum, nk_size_t
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    static __global__ void nk_each_##verb##_##output_type##_##isa_suffix##_kernel_(                                    \
-        nk_each_rmsnorm_arguments_t arguments) {                                                                       \
+    static __global__ void __launch_bounds__(nk_each_threads_simt_k)                                                   \
+        nk_each_##verb##_##output_type##_##isa_suffix##_kernel_(nk_each_rmsnorm_arguments_t arguments) {               \
         nk_each_##verb##_##output_type##_##isa_suffix##_vectors_(arguments);                                           \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_each_##verb##_##output_type##_##isa_suffix(                                             \

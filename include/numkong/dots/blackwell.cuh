@@ -3505,8 +3505,8 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_pairs_blackwell_(void const *kernel, 
 /** Writes every output of an empty depth, which the tensor maps cannot describe: dots of nothing
  *  times both tensor scales, so an infinite one gives NaN, and zero distances between zero
  *  vectors, over the upper triangle alone for @p upper. Every Blackwell output takes 32 bits. */
-static __global__ void nk_cross_empty_blackwell_kernel_(nk_cross_tile_arguments_t arguments, nk_cross_metric_t metric,
-                                                        int upper) {
+static __global__ void __launch_bounds__(nk_cross_threads_simt_k)
+    nk_cross_empty_blackwell_kernel_(nk_cross_tile_arguments_t arguments, nk_cross_metric_t metric, int upper) {
     nk_f32_t const a_tensor_scale = arguments.a_tensor_scale ? *arguments.a_tensor_scale : 1;
     nk_f32_t const b_tensor_scale = arguments.b_tensor_scale ? *arguments.b_tensor_scale : 1;
     nk_f32_t const value = metric == nk_cross_metric_dot_k ? 0.0f * a_tensor_scale * b_tensor_scale : 0.0f;
@@ -3522,10 +3522,10 @@ static __global__ void nk_cross_empty_blackwell_kernel_(nk_cross_tile_arguments_
 
 /** Adds the @p slices partial outputs a split depth left in @p partials, blocks of @p slice_rows
  *  rows each, slice after slice into the F32 output @p c, so every run sums them alike. */
-static __global__ void nk_cross_fold_slices_blackwell_kernel_(unsigned char const *partials, nk_size_t partials_stride,
-                                                              nk_size_t slice_rows, nk_size_t slices, nk_f32_t *c,
-                                                              nk_size_t c_stride, nk_size_t rows,
-                                                              nk_size_t column_count) {
+static __global__ void __launch_bounds__(nk_cross_threads_simt_k)
+    nk_cross_fold_slices_blackwell_kernel_(unsigned char const *partials, nk_size_t partials_stride,
+                                           nk_size_t slice_rows, nk_size_t slices, nk_f32_t *c, nk_size_t c_stride,
+                                           nk_size_t rows, nk_size_t column_count) {
     nk_size_t const outputs = rows * column_count;
     for (nk_size_t index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; index < outputs;
          index += gridDim.x * (nk_size_t)blockDim.x) {
@@ -3599,9 +3599,10 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
         empty.c_stride = c_stride, empty.a_tensor_scale = a->tensor_scale, empty.b_tensor_scale = b->tensor_scale;
         int upper = b_norms == NUMKONG_NULL;
         void *empty_arguments[3] = {&empty, &metric, &upper};
-        nk_size_t const blocks = nk_size_divide_round_up_((rows_end - rows_begin) * column_count, 256);
-        return nk_launch_cuda_((void const *)nk_cross_empty_blackwell_kernel_, blocks < 1024 ? blocks : 1024, 256,
-                               empty_arguments, 0, stream);
+        nk_size_t const blocks = nk_size_divide_round_up_((rows_end - rows_begin) * column_count,
+                                                          nk_cross_threads_simt_k);
+        return nk_launch_cuda_((void const *)nk_cross_empty_blackwell_kernel_, blocks < 1024 ? blocks : 1024,
+                               nk_cross_threads_simt_k, empty_arguments, 0, stream);
     }
     int const paired = pair_columns && metric == nk_cross_metric_dot_k;
     nk_size_t const tile_rows = nk_cross_rows_blackwell_k << paired,
@@ -3664,11 +3665,13 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(
                                           nk_cross_shared_bytes_blackwell_k, tile->tiles, &arguments, stream);
     if (launched != nk_success_k || slices == 1) return launched;
     unsigned char const *partials = (unsigned char const *)workspace;
-    nk_size_t const outputs_blocks = nk_size_divide_round_up_((rows_end - rows_begin) * column_count, 256);
+    nk_size_t const outputs_blocks = nk_size_divide_round_up_((rows_end - rows_begin) * column_count,
+                                                              nk_cross_threads_simt_k);
     void *fold_arguments[8] = {
         &partials, (void *)&partials_stride, (void *)&slice_rows, &slices, &c, &c_stride, &rows_end, &column_count};
     return nk_launch_cuda_((void const *)nk_cross_fold_slices_blackwell_kernel_,
-                           outputs_blocks < 1024 ? outputs_blocks : 1024, 256, fold_arguments, 0, stream);
+                           outputs_blocks < 1024 ? outputs_blocks : 1024, nk_cross_threads_simt_k, fold_arguments, 0,
+                           stream);
 }
 #pragma endregion Tile
 
@@ -3845,13 +3848,13 @@ nk_define_cross_packed_shape_cuda_(i8, blackwell)
 
 /** Packs B rows of I8 as F16 rows of the same values, exact, which the products read as copied,
  *  so only A widens per stage; norms stay the integer ones of the codes. */
-static __global__ void nk_dots_pack_i8_blackwell_kernel_(unsigned char const *b, nk_size_t column_count,
-                                                         nk_size_t depth, nk_size_t depth_bytes, nk_size_t b_stride,
-                                                         unsigned char *b_packed, nk_size_t columns_begin,
-                                                         nk_size_t columns_end, nk_size_t depth_values_padded,
-                                                         nk_capability_t capability, unsigned char const *b_scales,
-                                                         nk_size_t b_scales_stride, nk_f32_t const *b_tensor_scale,
-                                                         nk_size_t scales_stride) {
+static __global__ void __launch_bounds__(nk_cross_pack_threads_cuda_k)
+    nk_dots_pack_i8_blackwell_kernel_(unsigned char const *b, nk_size_t column_count, nk_size_t depth,
+                                      nk_size_t depth_bytes, nk_size_t b_stride, unsigned char *b_packed,
+                                      nk_size_t columns_begin, nk_size_t columns_end, nk_size_t depth_values_padded,
+                                      nk_capability_t capability, unsigned char const *b_scales,
+                                      nk_size_t b_scales_stride, nk_f32_t const *b_tensor_scale,
+                                      nk_size_t scales_stride) {
     nk_size_t const row_bytes = depth_values_padded * sizeof(nk_f16_t);
     if (columns_begin == 0 && blockIdx.x == 0 && threadIdx.x == 0) {
         nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
@@ -3911,13 +3914,13 @@ nk_define_cross_packed_shape_cuda_(u8, blackwell)
 
 /** Packs B rows of U8 as F16 rows of the codes minus 128, exact, which A's row byte sums restore,
  *  so only A widens per stage; padding meets A's zero-filled tails, and norms stay the codes'. */
-static __global__ void nk_dots_pack_u8_blackwell_kernel_(unsigned char const *b, nk_size_t column_count,
-                                                         nk_size_t depth, nk_size_t depth_bytes, nk_size_t b_stride,
-                                                         unsigned char *b_packed, nk_size_t columns_begin,
-                                                         nk_size_t columns_end, nk_size_t depth_values_padded,
-                                                         nk_capability_t capability, unsigned char const *b_scales,
-                                                         nk_size_t b_scales_stride, nk_f32_t const *b_tensor_scale,
-                                                         nk_size_t scales_stride) {
+static __global__ void __launch_bounds__(nk_cross_pack_threads_cuda_k)
+    nk_dots_pack_u8_blackwell_kernel_(unsigned char const *b, nk_size_t column_count, nk_size_t depth,
+                                      nk_size_t depth_bytes, nk_size_t b_stride, unsigned char *b_packed,
+                                      nk_size_t columns_begin, nk_size_t columns_end, nk_size_t depth_values_padded,
+                                      nk_capability_t capability, unsigned char const *b_scales,
+                                      nk_size_t b_scales_stride, nk_f32_t const *b_tensor_scale,
+                                      nk_size_t scales_stride) {
     nk_size_t const row_bytes = depth_values_padded * sizeof(nk_f16_t);
     if (columns_begin == 0 && blockIdx.x == 0 && threadIdx.x == 0) {
         nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;

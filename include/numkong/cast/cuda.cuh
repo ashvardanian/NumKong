@@ -54,13 +54,14 @@ NUMKONG_INLINE nk_status_t nk_cast_block_scaled_launch_cuda_(void const *kernel,
     if (!count && !arguments.to_tensor_scale) return status;
     if (arguments.to_tensor_scale && count) {
         arguments.phase = nk_cast_block_scaled_amax_k;
-        status = nk_launch_resident_cuda_(kernel, 256, 0, 0, nk_size_divide_round_up_(count, 256), &arguments, stream);
+        status = nk_launch_resident_cuda_(kernel, nk_cast_threads_simt_k, 0, 0,
+                                          nk_size_divide_round_up_(count, nk_cast_threads_simt_k), &arguments, stream);
     }
     if (status != nk_success_k) return status;
     arguments.phase = nk_cast_block_scaled_chunks_k;
     // One block at least, so an empty cast still writes the tensor scale it derives
-    nk_size_t const blocks = nk_size_divide_round_up_(arguments.chunks, 256);
-    return nk_launch_resident_cuda_(kernel, 256, 0, 0, blocks ? blocks : 1, &arguments, stream);
+    nk_size_t const blocks = nk_size_divide_round_up_(arguments.chunks, nk_cast_threads_simt_k);
+    return nk_launch_resident_cuda_(kernel, nk_cast_threads_simt_k, 0, 0, blocks ? blocks : 1, &arguments, stream);
 }
 
 /** Validates and launches a cast with the kernels of one capability: @p block_scaled_kernel when a
@@ -85,23 +86,26 @@ NUMKONG_INLINE nk_status_t nk_cast_launch_cuda_(void const *kernel, void const *
     if (!nk_cast_plan_serial_(from_dtype, to_dtype, count, (nk_size_t)from | (nk_size_t)to, &arguments.plan))
         return nk_success_k;
     if (nk_cast_plan_vectors_simt_(&arguments)) kernel = vectors_kernel;
-    return nk_launch_resident_cuda_(kernel, 256, 0, 0, nk_size_divide_round_up_(arguments.plan.units, 256), &arguments,
+    return nk_launch_resident_cuda_(kernel, nk_cast_threads_simt_k, 0, 0,
+                                    nk_size_divide_round_up_(arguments.plan.units, nk_cast_threads_simt_k), &arguments,
                                     stream);
 }
 
 #if NUMKONG_TARGET_CUDA
 
-static __global__ void nk_cast_cuda_kernel_(nk_cast_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k) nk_cast_cuda_kernel_(nk_cast_arguments_t arguments) {
     nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;
     for (nk_size_t unit = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; unit < arguments.plan.units; unit += stride)
         nk_cast_unit_simt_(&arguments, unit);
 }
 
-static __global__ void nk_cast_vectors_cuda_kernel_(nk_cast_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k)
+    nk_cast_vectors_cuda_kernel_(nk_cast_arguments_t arguments) {
     nk_cast_vectors_simt_(&arguments);
 }
 
-static __global__ void nk_cast_block_scaled_cuda_kernel_(nk_cast_block_scaled_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k)
+    nk_cast_block_scaled_cuda_kernel_(nk_cast_block_scaled_arguments_t arguments) {
     __shared__ nk_u32_t partials[256];
     nk_cast_block_scaled_phase_simt_(&arguments, partials);
 }

@@ -1443,11 +1443,13 @@ NUMKONG_DEVICE nk_u32_t nk_cross_pack_norm_u32_cuda_(nk_u64_t share) {
     return (nk_u32_t)share;
 }
 
-/** The warps of a device pack's block, all on one column, and the bytes of a column one warp copies
- *  and norms at a time: enough spans to fill the device on a few hundred columns of a long depth,
- *  each small enough that its norm rereads the copied bytes from the warp's cache. */
+/** The warps of a device pack's block, all on one column, the threads they make, and the bytes of
+ *  a column one warp copies and norms at a time: enough spans to fill the device on a few hundred
+ *  columns of a long depth, each small enough that its norm rereads the copied bytes from the
+ *  warp's cache. */
 enum {
     nk_cross_pack_warps_k = 32,
+    nk_cross_pack_threads_cuda_k = nk_cross_pack_warps_k * 32,
     nk_cross_pack_span_bytes_k = 16384,
 };
 
@@ -1536,7 +1538,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
     arguments[4] = &b_stride, arguments[5] = &b_packed, arguments[6] = &columns_begin, arguments[7] = &columns_end;
     arguments[8] = &depth_values_padded, arguments[9] = &capability, arguments[10] = &scale_values;
     arguments[11] = &scale_values_stride, arguments[12] = &tensor_scale, arguments[13] = &scales_stride;
-    return nk_launch_cuda_(kernel, blocks, nk_cross_pack_warps_k * 32, arguments, 0, stream);
+    return nk_launch_cuda_(kernel, blocks, nk_cross_pack_threads_cuda_k, arguments, 0, stream);
 }
 
 #pragma endregion Launchers
@@ -1578,11 +1580,12 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
  */
 #define nk_define_cross_pack_rows_cuda_(input_type_name, isa_suffix, input_value_type, packed_value_type, load_fn,     \
                                         norm_value_type, compute_norm_fn, depth_simd_dimensions, dimensions_per_value) \
-    static __global__ void nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_(                                    \
-        unsigned char const *b, nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes, nk_size_t b_stride,    \
-        unsigned char *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_size_t depth_values_padded,        \
-        nk_capability_t capability, unsigned char const *b_scales, nk_size_t b_scales_stride,                          \
-        nk_f32_t const *b_tensor_scale, nk_size_t scales_stride) {                                                     \
+    static __global__ void __launch_bounds__(nk_cross_pack_threads_cuda_k)                                             \
+        nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_(                                                       \
+            unsigned char const *b, nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes,                    \
+            nk_size_t b_stride, unsigned char *b_packed, nk_size_t columns_begin, nk_size_t columns_end,               \
+            nk_size_t depth_values_padded, nk_capability_t capability, unsigned char const *b_scales,                  \
+            nk_size_t b_scales_stride, nk_f32_t const *b_tensor_scale, nk_size_t scales_stride) {                      \
         nk_size_t const row_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                          \
         nk_f32_t const tensor_scale = b_tensor_scale ? *b_tensor_scale : 1;                                            \
         if (columns_begin == 0 && blockIdx.x == 0 && threadIdx.x == 0) {                                               \

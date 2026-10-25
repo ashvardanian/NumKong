@@ -47,6 +47,9 @@ enum {
     /** The largest cloud the smaller teams take. */
     nk_shapes_small_cloud_cuda_k = 192,
 
+    /** Threads of a block sorting pairs into size classes, one pair each per grid stride. */
+    nk_shapes_classify_threads_cuda_k = 256,
+
     /** Pairs the Wasserstein-Procrustes workspace keeps in flight, enough for every multiprocessor
      *  many times over. */
     nk_shapes_pair_slots_cuda_k = 16384,
@@ -362,7 +365,8 @@ NUMKONG_DEVICE void nk_shapes_classify_cuda_(nk_shapes_transport_schedule_cuda_t
     lists[class_index * schedule->pairs + position] = (nk_u32_t)slot_index;
 }
 
-static __global__ void nk_shapes_classify_f32_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
+static __global__ void __launch_bounds__(nk_shapes_classify_threads_cuda_k)
+    nk_shapes_classify_f32_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
     for (nk_size_t slot_index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; slot_index < schedule.pairs;
          slot_index += (nk_size_t)gridDim.x * blockDim.x) {
         nk_size_t const pair = schedule.pair_begin + slot_index;
@@ -374,7 +378,8 @@ static __global__ void nk_shapes_classify_f32_cuda_kernel_(nk_shapes_transport_s
     }
 }
 
-static __global__ void nk_shapes_classify_f16_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
+static __global__ void __launch_bounds__(nk_shapes_classify_threads_cuda_k)
+    nk_shapes_classify_f16_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
     for (nk_size_t slot_index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; slot_index < schedule.pairs;
          slot_index += (nk_size_t)gridDim.x * blockDim.x) {
         nk_size_t const pair = schedule.pair_begin + slot_index;
@@ -630,9 +635,9 @@ NUMKONG_INLINE nk_status_t nk_shapes_transport_launch_cuda_(void const *kernel, 
             cudaSuccess)
             return nk_device_code_mismatch_k;
         void *classify_arguments[1] = {(void *)&schedule};
-        nk_size_t const classify_blocks = nk_size_divide_round_up_(schedule.pairs, 256);
-        status = nk_launch_cuda_(classify_kernel, classify_blocks < 1024 ? classify_blocks : 1024, 256,
-                                 classify_arguments, 0, stream);
+        nk_size_t const classify_blocks = nk_size_divide_round_up_(schedule.pairs, nk_shapes_classify_threads_cuda_k);
+        status = nk_launch_cuda_(classify_kernel, classify_blocks < 1024 ? classify_blocks : 1024,
+                                 nk_shapes_classify_threads_cuda_k, classify_arguments, 0, stream);
         int last = 0;
         for (nk_u32_t class_index = 0; !last && status == nk_success_k; ++class_index) {
             nk_u32_t const ceiling = nk_shapes_class_ceiling_cuda_(class_index);

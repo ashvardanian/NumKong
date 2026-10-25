@@ -965,7 +965,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_rocm_(void const *kernel, nk_cro
     arguments[4] = &b_stride, arguments[5] = &b_packed, arguments[6] = &columns_begin, arguments[7] = &columns_end;
     arguments[8] = &depth_values_padded, arguments[9] = &capability, arguments[10] = &scale_values;
     arguments[11] = &scale_values_stride, arguments[12] = &tensor_scale, arguments[13] = &scales_stride;
-    return nk_launch_rocm_(kernel, blocks, nk_cross_pack_groups_k * 32, arguments, 0, stream);
+    return nk_launch_rocm_(kernel, blocks, nk_cross_pack_threads_simt_k, arguments, 0, stream);
 }
 
 #pragma endregion Launchers
@@ -1002,11 +1002,12 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_rocm_(void const *kernel, nk_cro
         *columns = header.column_count, *depth = header.depth_dimensions;                                            \
         return nk_success_k;                                                                                         \
     }                                                                                                                \
-    static __global__ void nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_(                                  \
-        unsigned char const *b, nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes, nk_size_t b_stride,  \
-        unsigned char *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_size_t depth_values_padded,      \
-        nk_capability_t capability, unsigned char const *b_scales, nk_size_t b_scales_stride,                        \
-        nk_f32_t const *b_tensor_scale, nk_size_t scales_stride) {                                                   \
+    static __global__ void __launch_bounds__(nk_cross_pack_threads_simt_k)                                           \
+        nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_(                                                     \
+            unsigned char const *b, nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes,                  \
+            nk_size_t b_stride, unsigned char *b_packed, nk_size_t columns_begin, nk_size_t columns_end,             \
+            nk_size_t depth_values_padded, nk_capability_t capability, unsigned char const *b_scales,                \
+            nk_size_t b_scales_stride, nk_f32_t const *b_tensor_scale, nk_size_t scales_stride) {                    \
         nk_size_t const row_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                        \
         nk_f32_t const tensor_scale = b_tensor_scale ? *b_tensor_scale : 1;                                          \
         if (columns_begin == 0 && blockIdx.x == 0 && threadIdx.x == 0) {                                             \

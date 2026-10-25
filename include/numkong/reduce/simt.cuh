@@ -38,7 +38,7 @@
 extern "C" {
 #endif
 
-enum { nk_reduce_threads_simt_k = 1024, nk_reduce_batch_simt_k = 8 };
+enum { nk_reduce_threads_simt_k = 1024, nk_reduce_finish_threads_simt_k = 1, nk_reduce_batch_simt_k = 8 };
 
 /** Everything one reduction shares, passed by value as its kernel's only argument: @c first and
  *  @c second are the sum and sum of squares, or the minimum and maximum with their indices. */
@@ -499,8 +499,8 @@ NUMKONG_DEVICE void nk_reduce_e2m1_moments_store_simt_(nk_reduce_e2m1_moments_t 
         nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {                   \
         nk_reduce_minmax_simt_(nk_##input_type##_k, &arguments);                                                    \
     }                                                                                                               \
-    static __global__ void nk_reduce_minmax_##input_type##_finish_##isa_suffix##_kernel_(                           \
-        nk_reduce_arguments_t arguments) {                                                                          \
+    static __global__ void __launch_bounds__(nk_reduce_finish_threads_simt_k)                                       \
+        nk_reduce_minmax_##input_type##_finish_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {            \
         nk_reduce_minmax_finish_simt_(nk_##input_type##_k, min_sentinel, max_sentinel, &arguments);                 \
     }                                                                                                               \
     NUMKONG_API nk_status_t nk_reduce_minmax_##input_type##_##isa_suffix(                                           \

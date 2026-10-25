@@ -38,7 +38,8 @@ extern "C" {
 
 /*  The baseline tiles' launch shape, the same on every vendor. AMD blocks stay whole multiples of
  *  64 threads, so they hold whole wavefronts of either width. The grid side counts the threads
- *  along each side of a tile, and each block of a device pack holds 8 groups of 32 lanes. */
+ *  along each side of a tile, and each block of a device pack holds 8 groups of 32 lanes, the
+ *  threads its launch passes and its kernel is bounded by. */
 #pragma region Configuration
 
 enum {
@@ -49,6 +50,7 @@ enum {
     nk_cross_loads_simt_k = nk_cross_tile_simt_k * nk_cross_slab_simt_k / nk_cross_threads_simt_k,
     nk_cross_grid_side_simt_k = nk_cross_tile_simt_k / nk_cross_thread_tile_simt_k,
     nk_cross_pack_groups_k = 8,
+    nk_cross_pack_threads_simt_k = nk_cross_pack_groups_k * 32,
 };
 
 nk_static_assert_(nk_cross_grid_side_simt_k *nk_cross_grid_side_simt_k == nk_cross_threads_simt_k,

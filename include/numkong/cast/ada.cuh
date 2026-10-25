@@ -107,13 +107,14 @@ NUMKONG_DEVICE void nk_cast_e4m3x16_to_f32x16_ada_(uint4 const *from, uint4 *to)
 
 #if NUMKONG_TARGET_ADA
 
-static __global__ void nk_cast_ada_kernel_(nk_cast_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k) nk_cast_ada_kernel_(nk_cast_arguments_t arguments) {
     nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;
     for (nk_size_t unit = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; unit < arguments.plan.units; unit += stride)
         nk_cast_unit_simt_(&arguments, unit);
 }
 
-static __global__ void nk_cast_vectors_ada_kernel_(nk_cast_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k)
+    nk_cast_vectors_ada_kernel_(nk_cast_arguments_t arguments) {
     nk_size_t const threads = (nk_size_t)gridDim.x * blockDim.x;
     nk_size_t const first = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x;
     nk_size_t const chunks = arguments.plan.count / arguments.plan.unit_values;
@@ -135,7 +136,8 @@ static __global__ void nk_cast_vectors_ada_kernel_(nk_cast_arguments_t arguments
     nk_cast_vectors_tail_simt_(&arguments);
 }
 
-static __global__ void nk_cast_block_scaled_ada_kernel_(nk_cast_block_scaled_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k)
+    nk_cast_block_scaled_ada_kernel_(nk_cast_block_scaled_arguments_t arguments) {
     __shared__ nk_u32_t partials[256];
     nk_cast_block_scaled_phase_simt_(&arguments, partials);
 }

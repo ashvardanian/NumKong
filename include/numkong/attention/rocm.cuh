@@ -363,11 +363,11 @@ NUMKONG_DEVICE void nk_attention_fallback_i8_rocm_(nk_attention_arguments_t cons
 
 /** Writes the header, recording the packing @p capability, and the directory, one block walking the
  *  segments 128 at a time. */
-static __global__ void nk_attention_pack_directory_rocm_kernel_(unsigned char *packed, nk_size_t key_value_head_count,
-                                                                nk_size_t depth, nk_u32_t const *key_offsets,
-                                                                nk_u32_t const *key_lengths, nk_size_t segment_count,
-                                                                nk_size_t row_bytes, nk_size_t directory_bytes,
-                                                                nk_capability_t capability) {
+static __global__ void __launch_bounds__(nk_attention_threads_k)
+    nk_attention_pack_directory_rocm_kernel_(unsigned char *packed, nk_size_t key_value_head_count, nk_size_t depth,
+                                             nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                             nk_size_t segment_count, nk_size_t row_bytes, nk_size_t directory_bytes,
+                                             nk_capability_t capability) {
     __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
     nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)packed;
     if (threadIdx.x == 0) {
@@ -636,10 +636,11 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_rocm_(void const *keys_k
  *  V keeps position rows for BF16 and takes σ-ordered depth rows for 1-byte dtypes.
  */
 #define nk_define_attention_pack_rocm_(input_type_name, isa_suffix, input_value_type)                                \
-    static __global__ void nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_(                             \
-        unsigned char const *keys, unsigned char const *values, nk_size_t key_value_head_count, nk_size_t depth,     \
-        nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride,     \
-        nk_size_t value_stride, unsigned char *packed, nk_size_t tasks_begin, nk_size_t tasks_end) {                 \
+    static __global__ void __launch_bounds__(nk_attention_pack_threads_k)                                            \
+        nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_(                                                \
+            unsigned char const *keys, unsigned char const *values, nk_size_t key_value_head_count, nk_size_t depth, \
+            nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride, \
+            nk_size_t value_stride, unsigned char *packed, nk_size_t tasks_begin, nk_size_t tasks_end) {             \
         nk_attention_pack_payload_##input_value_type##_simt_(keys, values, key_value_head_count, depth, key_offsets, \
                                                              key_lengths, segment_count, key_stride, value_stride,   \
                                                              packed, tasks_begin, tasks_end);                        \

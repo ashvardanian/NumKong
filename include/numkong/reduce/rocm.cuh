@@ -54,7 +54,9 @@ NUMKONG_INLINE nk_status_t nk_reduce_minmax_launch_rocm_(void const *kernel, voi
             stream);
     void *launch_arguments[1];
     launch_arguments[0] = &arguments;
-    return status == nk_success_k ? nk_launch_rocm_(finish_kernel, 1, 1, launch_arguments, 0, stream) : status;
+    return status == nk_success_k
+               ? nk_launch_rocm_(finish_kernel, 1, nk_reduce_finish_threads_simt_k, launch_arguments, 0, stream)
+               : status;
 }
 
 #if NUMKONG_TARGET_ROCM
