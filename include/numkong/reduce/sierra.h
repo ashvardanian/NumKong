@@ -92,7 +92,7 @@ NK_PUBLIC void nk_reduce_moments_i8_sierra(                       //
     int aligned = (stride_bytes % sizeof(nk_i8_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_i8_serial(data, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)32768 * 32) {
+    else if (count > (nk_size_t)NK_I32_MAX / (NK_I8_MIN * NK_I8_MIN)) {
         nk_size_t left_count = count / 2;
         nk_i64_t left_sum, right_sum;
         nk_u64_t left_sumsq, right_sumsq;
@@ -177,7 +177,7 @@ NK_PUBLIC void nk_reduce_moments_u8_sierra(                       //
     int aligned = (stride_bytes % sizeof(nk_u8_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_u8_serial(data, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)16384 * 32) {
+    else if (count > (nk_size_t)NK_U32_MAX / (NK_U8_MAX * NK_U8_MAX)) {
         nk_size_t left_count = count / 2;
         nk_u64_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_u8_sierra(data, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -310,7 +310,7 @@ NK_PUBLIC void nk_reduce_moments_e2m3_sierra(                       //
     int aligned = (stride_bytes % sizeof(nk_e2m3_t) == 0);
     if (count == 0) *sum = 0, *sumsq = 0;
     else if (!aligned) nk_reduce_moments_e2m3_serial(data, count, stride_bytes, sum, sumsq);
-    else if (count > (nk_size_t)(NK_I16_MAX + 1) * 32) {
+    else if (count > (nk_size_t)NK_I32_MAX / (120 * 120)) {
         nk_size_t left_count = count / 2;
         nk_f32_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_e2m3_sierra(data, left_count, stride_bytes, &left_sum, &left_sumsq);
