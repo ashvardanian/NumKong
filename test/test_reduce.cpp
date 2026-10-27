@@ -13,52 +13,50 @@ constexpr std::size_t max_stride_k = 50;
 
 template <typename input_type_>
 error_stats_t test_reduce_moments(typename input_type_::reduce_moments_kernel_t kernel) {
-    using sum_type_ = typename input_type_::reduce_moments_sum_t;
-    using sumsq_type_ = typename input_type_::reduce_moments_sumsq_t;
-    using sum_reference_ = std::conditional_t<(sizeof(input_type_) <= 2), f64_t, sum_type_>;
-    using sumsq_reference_ = std::conditional_t<(sizeof(input_type_) <= 2), f64_t, sumsq_type_>;
-    error_stats_t stats(nk::is_integral_dtype<input_type_>() ? comparison_family_t::exact_k
-                                                             : comparison_family_t::approximate_k);
+    using scalar_t = input_type_;
+    using sum_t = typename scalar_t::reduce_moments_sum_t;
+    using sumsq_t = typename scalar_t::reduce_moments_sumsq_t;
+    using sum_reference_t = std::conditional_t<(scalar_t::bits_per_dimension() <= 16), reference_for<scalar_t>, sum_t>;
+    using sumsq_reference_t =
+        std::conditional_t<(scalar_t::bits_per_dimension() <= 16), reference_for<scalar_t>, sumsq_t>;
+
+    error_stats_t stats(nk::is_integral_dtype<scalar_t>() ? comparison_family_t::exact_k
+                                                          : comparison_family_t::approximate_k);
     std::mt19937 generator(global_config.seed);
     std::uniform_int_distribution<std::size_t> stride_bytes_distribution(1, max_stride_k);
-    std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
+    std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
-    auto buffer = make_vector<input_type_>(n * (max_stride_k + sizeof(input_type_)));
-    if constexpr (std::is_same_v<input_type_, i8_t> || std::is_same_v<input_type_, u8_t> ||
-                  std::is_same_v<input_type_, i16_t> || std::is_same_v<input_type_, u16_t> ||
-                  std::is_same_v<input_type_, e2m3_t> || std::is_same_v<input_type_, e3m2_t>) {
+    auto buffer = make_vector<scalar_t>(n * (max_stride_k + sizeof(scalar_t)));
+    auto compare = [&](nk::vector<scalar_t> const &input, std::size_t count, std::size_t stride_bytes) {
+        sum_t sum;
+        sumsq_t sumsq;
+        kernel(input.raw_values_data(), count, stride_bytes, &sum.raw_, &sumsq.raw_);
+        sum_reference_t ref_sum;
+        sumsq_reference_t ref_sumsq;
+        nk::reduce_moments<scalar_t, sum_reference_t, sumsq_reference_t, nk::no_simd_k>(
+            input.values_data(), count, stride_bytes, &ref_sum, &ref_sumsq);
+        stats.accumulate(sum, ref_sum);
+        stats.accumulate(sumsq, ref_sumsq);
+    };
+    if constexpr (scalar_t::bits_per_dimension() <= 16 && dims_per_value == 1) {
         std::size_t const count = 1'048'577;
-        auto extremes = make_vector<input_type_>(count * 8);
-        input_type_ value = std::is_same_v<input_type_, i8_t> || std::is_same_v<input_type_, i16_t>
-                                ? input_type_::finite_min()
-                                : input_type_::finite_max();
-        if constexpr (std::is_same_v<input_type_, e2m3_t>) value = input_type_(4);
-        if constexpr (std::is_same_v<input_type_, e3m2_t>) value = input_type_(16);
+        auto extremes = make_vector<scalar_t>(count * 8);
+        scalar_t value = scalar_t::finite_max();
+        if constexpr (nk::is_integral_dtype<scalar_t>() && nk::is_signed_dtype<scalar_t>())
+            value = scalar_t::finite_min();
+        else if constexpr (!nk::is_integral_dtype<scalar_t>()) {
+            // Powers of two keep long floating reductions exact while stressing scaled-integer kernels.
+            value = scalar_t(std::ldexp(1.0, std::ilogb(static_cast<double>(value))));
+        }
         std::fill_n(extremes.values_data(), extremes.size_values(), value);
-        auto compare = [&](std::size_t n, std::size_t stride) {
-            typename sum_type_::raw_t sum;
-            typename sumsq_type_::raw_t sumsq;
-            kernel(extremes.raw_values_data(), n, stride, &sum, &sumsq);
-            nk_f64_t const v = static_cast<nk_f64_t>(value);
-            stats.expect(sum == sum_type_(v * n).raw_, "constant sum");
-            stats.expect(sumsq == sumsq_type_(v * v * n).raw_, "constant sum of squares");
-        };
-        compare(33, sizeof(input_type_));
-        compare(count, sizeof(input_type_));
-        compare(count, 8 * sizeof(input_type_));
+        compare(extremes, 33, sizeof(scalar_t));
+        compare(extremes, count, sizeof(scalar_t));
+        compare(extremes, count, 8 * sizeof(scalar_t));
     }
     for (auto start = test_start_time(); within_time_budget(start);) {
         std::size_t stride_bytes = stride_bytes_distribution(generator);
         fill_random(generator, buffer);
-        typename sum_type_::raw_t sum;
-        typename sumsq_type_::raw_t sumsq;
-        kernel(buffer.raw_values_data(), n, stride_bytes, &sum, &sumsq);
-        sum_reference_ ref_sum;
-        sumsq_reference_ ref_sumsq;
-        nk::reduce_moments<input_type_, sum_reference_, sumsq_reference_, nk::no_simd_k>(
-            buffer.values_data(), n, stride_bytes, &ref_sum, &ref_sumsq);
-        stats.accumulate(sum_type_::from_raw(sum), ref_sum);
-        stats.accumulate(sumsq_type_::from_raw(sumsq), ref_sumsq);
+        compare(buffer, n, stride_bytes);
     }
     return stats;
 }
