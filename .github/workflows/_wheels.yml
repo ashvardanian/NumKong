@@ -34,7 +34,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=4.2'
+          command: python -m pip install --upgrade 'pip>=26.2.2' 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -76,7 +76,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=4.2'
+          command: python -m pip install --upgrade 'pip>=26.2.2' 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -120,7 +120,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=4.2'
+          command: python -m pip install --upgrade 'pip>=26.2.2' 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -164,7 +164,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=4.2'
+          command: python -m pip install --upgrade 'pip>=26.2.2' 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -218,7 +218,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=4.2'
+          command: python -m pip install --upgrade 'pip>=26.2.2' 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -264,7 +264,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=4.2'
+          command: python -m pip install --upgrade 'pip>=26.2.2' 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -308,7 +308,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=4.2'
+          command: python -m pip install --upgrade 'pip>=26.2.2' 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -351,7 +351,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: python -m pip install 'cibuildwheel~=4.2'
+          command: python -m pip install --upgrade 'pip>=26.2.2' 'cibuildwheel~=4.2'
       - name: Build Wheels
         uses: nick-fields/retry@v4
         with:
@@ -391,7 +391,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 10
           timeout_minutes: 180
-          command: pip install build
+          command: python -m pip install --upgrade 'pip>=26.2.2' build
       - name: Build Source Distribution
         run: python -m build --sdist
       - name: Upload Source Distribution
