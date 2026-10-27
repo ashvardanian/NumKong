@@ -1019,7 +1019,7 @@ NK_PUBLIC void nk_reduce_moments_i8_haswell(                          //
     int aligned = (stride_bytes % sizeof(nk_i8_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_i8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 32) {
+    else if (count > (nk_size_t)NK_I32_MAX / (NK_I8_MIN * NK_I8_MIN)) {
         nk_size_t left_count = count / 2;
         nk_i64_t left_sum, right_sum;
         nk_u64_t left_sumsq, right_sumsq;
@@ -1216,7 +1216,7 @@ NK_PUBLIC void nk_reduce_moments_u8_haswell(                          //
     int aligned = (stride_bytes % sizeof(nk_u8_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_u8_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 32) {
+    else if (count > (nk_size_t)NK_U32_MAX / (NK_U8_MAX * NK_U8_MAX)) {
         nk_size_t left_count = count / 2;
         nk_u64_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_u8_haswell(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
@@ -1350,8 +1350,8 @@ NK_INTERNAL void nk_reduce_moments_i16_haswell_contiguous_( //
         __m256i data_i16x16 = _mm256_loadu_si256((__m256i const *)(data_ptr + idx));
         sum_i32x8 = _mm256_add_epi32(sum_i32x8, _mm256_madd_epi16(data_i16x16, ones_i16x16));
         __m256i sq_i32x8 = _mm256_madd_epi16(data_i16x16, data_i16x16);
-        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepi32_epi64(_mm256_castsi256_si128(sq_i32x8)));
-        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepi32_epi64(_mm256_extracti128_si256(sq_i32x8, 1)));
+        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepu32_epi64(_mm256_castsi256_si128(sq_i32x8)));
+        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepu32_epi64(_mm256_extracti128_si256(sq_i32x8, 1)));
     }
     nk_size_t remaining = count - idx;
     if (remaining > 0) {
@@ -1360,8 +1360,8 @@ NK_INTERNAL void nk_reduce_moments_i16_haswell_contiguous_( //
         __m256i data_i16x16 = tail_vec.ymm;
         sum_i32x8 = _mm256_add_epi32(sum_i32x8, _mm256_madd_epi16(data_i16x16, ones_i16x16));
         __m256i sq_i32x8 = _mm256_madd_epi16(data_i16x16, data_i16x16);
-        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepi32_epi64(_mm256_castsi256_si128(sq_i32x8)));
-        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepi32_epi64(_mm256_extracti128_si256(sq_i32x8, 1)));
+        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepu32_epi64(_mm256_castsi256_si128(sq_i32x8)));
+        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepu32_epi64(_mm256_extracti128_si256(sq_i32x8, 1)));
     }
     __m256i sum_i64x4 = _mm256_add_epi64(                               //
         _mm256_cvtepi32_epi64(_mm256_castsi256_si128(sum_i32x8)),       //
@@ -1386,8 +1386,8 @@ NK_INTERNAL void nk_reduce_moments_i16_haswell_strided_(                  //
         data_i16x16 = _mm256_and_si256(data_i16x16, stride_mask_i16x16);
         sum_i32x8 = _mm256_add_epi32(sum_i32x8, _mm256_madd_epi16(data_i16x16, ones_i16x16));
         __m256i sq_i32x8 = _mm256_madd_epi16(data_i16x16, data_i16x16);
-        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepi32_epi64(_mm256_castsi256_si128(sq_i32x8)));
-        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepi32_epi64(_mm256_extracti128_si256(sq_i32x8, 1)));
+        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepu32_epi64(_mm256_castsi256_si128(sq_i32x8)));
+        sumsq_i64x4 = _mm256_add_epi64(sumsq_i64x4, _mm256_cvtepu32_epi64(_mm256_extracti128_si256(sq_i32x8, 1)));
     }
     __m256i sum_i64x4 = _mm256_add_epi64(                               //
         _mm256_cvtepi32_epi64(_mm256_castsi256_si128(sum_i32x8)),       //
@@ -1411,7 +1411,7 @@ NK_PUBLIC void nk_reduce_moments_i16_haswell(                          //
     int aligned = (stride_bytes % sizeof(nk_i16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_i16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 16) {
+    else if (count > (nk_size_t)NK_I32_MAX / -(nk_i32_t)NK_I16_MIN) {
         nk_size_t left_count = count / 2;
         nk_i64_t left_sum, right_sum;
         nk_u64_t left_sumsq, right_sumsq;
@@ -1608,7 +1608,7 @@ NK_PUBLIC void nk_reduce_moments_u16_haswell(                          //
     int aligned = (stride_bytes % sizeof(nk_u16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
     else if (!aligned) nk_reduce_moments_u16_serial(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
-    else if (count > (nk_size_t)(NK_U16_MAX + 1) * 8) {
+    else if (count > (nk_size_t)NK_U32_MAX / NK_U16_MAX) {
         nk_size_t left_count = count / 2;
         nk_u64_t left_sum, left_sumsq, right_sum, right_sumsq;
         nk_reduce_moments_u16_haswell(data_ptr, left_count, stride_bytes, &left_sum, &left_sumsq);
