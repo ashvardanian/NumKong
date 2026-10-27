@@ -1178,8 +1178,9 @@ typedef float nk_f32_t;
 /** Double-precision (64-bit) IEEE 754 float. sign(1) + exponent(11) + mantissa(52), bias=1023. */
 typedef double nk_f64_t;
 
-#if NUMKONG_ARCH_X8664_ || NUMKONG_ARCH_ARM64_ || NUMKONG_ARCH_RISCV64_ || NUMKONG_ARCH_PPC64_ || \
-    NUMKONG_ARCH_LOONGARCH64_ || NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_ || defined(__METAL_VERSION__)
+#if NUMKONG_ARCH_X8664_ || NUMKONG_ARCH_ARM64_ || NUMKONG_ARCH_RISCV64_ || NUMKONG_ARCH_PPC64_ ||          \
+    NUMKONG_ARCH_LOONGARCH64_ || NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_ || defined(__METAL_VERSION__) || \
+    defined(__wasm64__)
 #define NUMKONG_ARCH_64BIT_ 1
 #else
 #define NUMKONG_ARCH_64BIT_ 0
