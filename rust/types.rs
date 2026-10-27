@@ -40,6 +40,7 @@
 //!
 //! File: rust/types.rs
 //! Author: Ash Vardanian
+//! Date: December 30, 2025
 
 #![allow(non_camel_case_types)]
 
@@ -456,8 +457,11 @@ impl core::cmp::PartialOrd for bf16 {
 pub struct e4m3(pub u8);
 
 impl e4m3 {
+    /// Positive zero.
     pub const ZERO: Self = e4m3(0x00);
+    /// One.
     pub const ONE: Self = e4m3(0x38);
+    /// Negative one.
     pub const NEG_ONE: Self = e4m3(0xB8);
     /// Quiet NaN, i.e. Not a Number.
     pub const NAN: Self = e4m3(0x7F);
@@ -645,6 +649,7 @@ impl e5m2 {
         e5m2(result)
     }
 
+    /// Convert from this type to f32.
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
@@ -819,6 +824,7 @@ impl e2m3 {
         e2m3(result)
     }
 
+    /// Convert from this type to f32.
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
@@ -985,6 +991,7 @@ impl e3m2 {
         e3m2(result)
     }
 
+    /// Convert from this type to f32.
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
@@ -1565,7 +1572,7 @@ impl From<i4x2> for (i8, i8) {
 ///
 /// This is the storage scalar for the `elements` tensor of NVFP4 / MXFP4. Like the other sub-byte
 /// packers ([`u4x2`]), it reports `dimensions_per_value() == 2` so a tensor of logical shape
-/// __[rows,columns]__ allocates `rows * columns / 2` bytes, as `nk_block_scaled_elements_size`.
+/// __\[rows,columns\]__ allocates `rows * columns / 2` bytes, as `nk_block_scaled_elements_size`.
 /// Bytes are produced and consumed by the C kernel (`element_dtype = nk_e2m1_k`); Rust never
 /// unpacks the nibbles itself.
 #[repr(transparent)]
@@ -1607,7 +1614,8 @@ pub trait StorageElement: Sized + Copy + Clone + Default + core::fmt::Debug {
     ///
     /// The counterpart to [`dimensions_to_values`](Self::dimensions_to_values), for the callers
     /// that must reach an individual dimension rather than count them. Pair it with
-    /// [`Packable::unpack`] to read the dimension out, or with [`DimMut`] to write one back.
+    /// [`FloatConvertible::unpack`] to read the dimension out, or with [`DimMut`] to write one
+    /// back.
     #[inline]
     fn locate_dim(dim_index: usize) -> DimLocation {
         let dims_per_value = Self::dimensions_per_value();
@@ -1672,15 +1680,24 @@ pub trait NumberLike: StorageElement {
     /// Convert from this type to f64 — by default via an f32 roundtrip.
     fn to_f64(self) -> f64 { self.to_f32() as f64 }
 
+    /// Absolute value.
     fn abs(self) -> Self { Self::from_f32(f32_abs_compat(self.to_f32())) }
+    /// Whether the value is NaN.
     fn is_nan(self) -> bool { self.to_f32().is_nan() }
+    /// Whether the value is neither infinite nor NaN.
     fn is_finite(self) -> bool { self.to_f32().is_finite() }
+    /// Whether the value is infinite.
     fn is_infinite(self) -> bool { self.to_f32().is_infinite() }
 
+    /// Whether the type can represent infinity.
     fn has_infinity() -> bool { false }
+    /// Whether the type can represent NaN.
     fn has_nan() -> bool { false }
+    /// Whether the type can represent subnormal values.
     fn has_subnormals() -> bool { false }
+    /// Largest finite value of the type, as f32.
     fn max_value() -> f32 { f32::MAX }
+    /// Smallest positive normal value of the type, as f32.
     fn min_positive() -> f32 { f32::MIN_POSITIVE }
 }
 
@@ -2152,13 +2169,17 @@ impl ComplexComponent for f64 {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct complex<Scalar> {
+    /// Real component.
     pub re: Scalar,
+    /// Imaginary component.
     pub im: Scalar,
 }
 
 impl<Scalar> complex<Scalar> {
+    /// Builds a complex number from its real and imaginary components.
     pub const fn from_real_imag(re: Scalar, im: Scalar) -> Self { Self { re, im } }
 
+    /// Splits the complex number into its real and imaginary components.
     pub const fn to_real_imag(self) -> (Scalar, Scalar)
     where
         Scalar: Copy,
@@ -2168,6 +2189,7 @@ impl<Scalar> complex<Scalar> {
 }
 
 impl<Scalar: ComplexComponent> complex<Scalar> {
+    /// Complex conjugate.
     pub fn conj(self) -> Self {
         Self {
             re: self.re,
@@ -2175,6 +2197,7 @@ impl<Scalar: ComplexComponent> complex<Scalar> {
         }
     }
 
+    /// Squared magnitude, re² + im².
     pub fn norm_sqr(self) -> Scalar::Norm { self.re.norm_component() + self.im.norm_component() }
 }
 
@@ -2713,7 +2736,7 @@ pub(crate) fn align_depth<Scalar: StorageElement>(depth: usize) -> usize {
     depth.div_ceil(dims_per_value) * dims_per_value
 }
 
-/// Compare only the upper-triangle elements of two __[n,n]__ buffers; symmetric kernels do not
+/// Compare only the upper-triangle elements of two __\[n,n\]__ buffers; symmetric kernels do not
 /// write the lower triangle.
 #[cfg(test)]
 pub(crate) fn assert_upper_triangle_eq<X: Copy + PartialEq + core::fmt::Debug>(

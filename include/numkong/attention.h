@@ -6,11 +6,11 @@
  *
  *  Contains the following dispatch points, each with a size/pack/compute triple:
  *
- *  - `nk_attention_pack_size_<dtype>_best` - bytes needed to pack a ragged K/V batch
- *  - `nk_attention_pack_<dtype>_best` - one-time K/V packing into a backend-opaque layout
- *  - `nk_attention_packed_<dtype>_best` - attention over the batch under a band of visible keys
- *  - `nk_attention_packed_gradients_<dtype>_best` - the gradients with respect to queries, keys and
- *    values, for training
+ *  - <tt>nk_attention_pack_size_\<dtype\>_best</tt> - bytes needed to pack a ragged K/V batch
+ *  - <tt>nk_attention_pack_\<dtype\>_best</tt> - one-time K/V packing into a backend-opaque layout
+ *  - <tt>nk_attention_packed_\<dtype\>_best</tt> - attention over the batch under a band of visible keys
+ *  - <tt>nk_attention_packed_gradients_\<dtype\>_best</tt> - the gradients with respect to queries, keys
+ *    and values, for training
  *
  *  For dtypes:
  *
@@ -63,7 +63,7 @@
  *  such as normalization and residual epilogues, wants the accumulator precision anyway.
  *
  *  Unlike cuDNN's fused attention, limited to head dimensions ≤ 256 and a multiple of 8 for 16-bit
- *  dtypes, any `depth ≥ 1` is supported: SIMD backends cover 1…256 with internal zero-padding, and
+ *  dtypes, any <tt>depth ≥ 1</tt> is supported: SIMD backends cover 1…256 with internal zero-padding, and
  *  larger head dimensions fall back to the width-agnostic serial kernel. The fallback rule is a
  *  pure function of the arguments, so packing and attention always agree on the buffer format.
  *
@@ -109,13 +109,13 @@
  *  @section attention_masks Causal, Sliding-Window and Bidirectional Masks
  *
  *  Each segment's queries align to the end of its keys: row @c r of a segment with @c q queries and
- *  @c k keys sits at the signed position `p = r + k − q`, and key `j < k` is visible when
- *  `p − keys_before ≤ j ≤ p + keys_after`, with saturating arithmetic and @c NUMKONG_SIZE_MAX
+ *  @c k keys sits at the signed position <tt>p = r + k − q</tt>, and key <tt>j < k</tt> is visible when
+ *  <tt>p − keys_before ≤ j ≤ p + keys_after</tt>, with saturating arithmetic and @c NUMKONG_SIZE_MAX
  *  unbounded on either side. Causal attention is (NUMKONG_SIZE_MAX, 0), a sliding window of @c w
  *  keys is (w − 1, 0), and bidirectional attention is (NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX).
  *  Prefill, decode and ragged chunked prefill against a longer cache need no offset, as every
- *  segment's `k − q` places its rows, and the segment directory already provides block-diagonal
- *  document masking for packed batches. Rows that see no key, such as `p < 0` under a causal mask,
+ *  segment's <tt>k − q</tt> places its rows, and the segment directory already provides block-diagonal
+ *  document masking for packed batches. Rows that see no key, such as <tt>p < 0</tt> under a causal mask,
  *  produce zeros and a log-sum-exp of −∞, as do segments with no keys.
  *
  *  Masking clips each row's key range instead of writing −∞ scores, because the clamped @c exp2,
@@ -153,8 +153,11 @@ extern "C" {
  *  @param[in] segment_count Number of segments packed together.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The size of the packed buffer.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
  *  @note The packed layout is backend-specific and must be produced by the matching pack function.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_best(nk_size_t key_value_head_count, nk_size_t depth,
                                                          nk_size_t token_count, nk_size_t segment_count,
@@ -199,14 +202,16 @@ NUMKONG_API nk_status_t nk_attention_pack_size_mxfp8e5m2_best(nk_size_t key_valu
 /**
  *  @brief Reads a packed KV cache's shape from its header.
  *  @param[in] key_value_packed A buffer produced by the matching @c nk_attention_pack_bf16_best.
- *  @param[out] heads Receives the K/V head count.
+ *  @param[out] key_value_head_count Receives the K/V head count.
  *  @param[out] depth Receives the head dimension.
  *  @param[out] segments Receives the segment count.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, @c nk_missing_kernel_k when no capability in @p capabilities has it, or
- *      @c nk_device_code_mismatch_k on a GPU stream capturing a graph, which reading the header
- *      back would void.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
+ *  - @c nk_device_code_mismatch_k A GPU stream capturing a graph, which reading the header
+ *    back would void.
  */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_best(void const *key_value_packed,
                                                             nk_size_t *key_value_head_count, nk_size_t *depth,
@@ -263,7 +268,7 @@ NUMKONG_API nk_status_t nk_attention_packed_shape_mxfp8e5m2_best(void const *key
  *  @param[in] segment_count The pack's segment count, from @c nk_attention_packed_shape_bf16_best.
  *  @param[out] key_offsets Points at the pack's @p segment_count + 1 slot boundaries.
  *  @param[out] key_lengths Points at the pack's @p segment_count key counts.
- *  @return @c nk_success_k.
+ *
  *  @note Pure address arithmetic that never dereferences the pack, so it works on device packs too.
  */
 NUMKONG_API nk_status_t nk_attention_packed_segments(void const *key_value_packed, nk_size_t segment_count,
@@ -271,28 +276,34 @@ NUMKONG_API nk_status_t nk_attention_packed_segments(void const *key_value_packe
 
 /**
  *  @brief Packs a ragged batch of K and V segments into a backend-opaque layout.
+ *  @param[in] key_value_head_count K/V heads, at most the query head count.
+ *  @param[in] depth Head dimension.
  *  @param[in] key_offsets The @p segment_count + 1 slot boundaries: segment @c s keeps its keys in
- *      rows `key_offsets[s]` onward, and may leave spare capacity before `key_offsets[s + 1]`.
+ *      rows <tt>key_offsets[s]</tt> onward, and may leave spare capacity before <tt>key_offsets[s + 1]</tt>.
  *      Must not decrease.
  *  @param[in] key_lengths Keys each segment holds, at most its slot's width; zeros mark padding
  *      slots. Null means every slot is full: the difference of consecutive @p key_offsets.
- *  @param[in] keys,values Token-major matrices, one row of @p key_value_head_count × @p depth
+ *  @param[in] segment_count Number of segments in the batch.
+ *  @param[in] keys Token-major matrix, one row of @p key_value_head_count × @p depth
  *      contiguous elements per token, with strided rows. Packing fuses no transposition, so
- *      depth-major K or V is transposed in a separate pass first.
+ *      depth-major K is transposed in a separate pass first.
+ *  @param[in] values Token-major matrix shaped like @p keys. Depth-major V is likewise
+ *      transposed in a separate pass first.
  *  @param[in] key_stride Row (token) stride of @p keys in bytes.
  *  @param[in] value_stride Row (token) stride of @p values in bytes.
- *  @param[out] key_value_packed 64-byte-aligned buffer of `nk_attention_pack_size_*` bytes.
+ *  @param[out] key_value_packed 64-byte-aligned buffer of @c nk_attention_pack_size_* bytes.
  *  @param[in] tasks_begin First task of a window over the segments × K/V heads grid.
  *  @param[in] tasks_end End of that half-open window, clipped to the grid.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, @c nk_unexpected_dimensions_k for a count over @c UINT32_MAX or
- *      slots that decrease or overflow, or @c nk_missing_kernel_k when no capability in
- *      @p capabilities has it.
  *
  *  GPU packs read the arrays on the device, so only their counts are checked.
  *  Windows let callers pack in parallel and in any order: tasks write disjoint ranges, the window
  *  starting at task 0 also writes the header and directory, and no window reads them.
+ *
+ *  @par Statuses:
+ *  - @c nk_unexpected_dimensions_k A count over @c UINT32_MAX or slots that decrease or overflow.
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_attention_pack_bf16_best(nk_size_t key_value_head_count, nk_size_t depth,
                                                     nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
@@ -381,24 +392,29 @@ NUMKONG_API nk_status_t nk_attention_pack_mxfp8e5m2_best(nk_size_t key_value_hea
  *  Computes O[s] = softmax(Q[s] × K[s]ᵀ × scale) × V[s] for every segment s over the keys each
  *  query row sees, as @ref attention_masks defines. Covers self-attention, where @p query_offsets
  *  equal the pack-time @c key_offsets, cross-attention, and pooling, where
- *  `query_offsets = {0, 1, 2, …}` holds one query per segment, plus GQA/MQA via
+ *  <tt>query_offsets = {0, 1, 2, …}</tt> holds one query per segment, plus GQA/MQA via
  *  @p key_value_head_count < @p head_count. Pack @p key_value_packed with the same
  *  @p capabilities: CPU kernels return @c nk_pack_mismatch_k for buffers another capability packed,
  *  while GPU kernels trust it, as reading its device header would wait on the stream.
  *
+ *  @param[in] head_count Query heads.
+ *  @param[in] key_value_head_count K/V heads, at most @p head_count.
+ *  @param[in] depth Head dimension.
  *  @param[in] query_offsets First query row of each segment, as segment count + 1 prefix sums.
- *  @param[in] query_token_count Query rows the call addresses, `query_offsets[segments]`; GPU
+ *  @param[in] query_token_count Query rows the call addresses, <tt>query_offsets[segments]</tt>; GPU
  *      kernels size tensor maps and workspaces from it without reading the offsets.
  *  @param[in] scale Score multiplier, typically 1 / √depth.
  *  @param[in] keys_before Keys visible before each query's position: @c NUMKONG_SIZE_MAX for causal
- *      and bidirectional attention, `w − 1` for a sliding window of @c w keys.
- *  @param[in] keys_after Keys visible after each query's position: `0` for causal attention,
+ *      and bidirectional attention, <tt>w − 1</tt> for a sliding window of @c w keys.
+ *  @param[in] keys_after Keys visible after each query's position: @c 0 for causal attention,
  *      @c NUMKONG_SIZE_MAX for bidirectional.
  *  @param[in] queries Token-major matrix, one row of @p head_count × @p depth elements per query
  *      token, with @p query_stride bytes between rows.
- *  @param[in] key_value_packed Buffer produced by the matching `nk_attention_pack_*` backend.
+ *  @param[in] query_stride Row (token) stride of @p queries in bytes.
+ *  @param[in] key_value_packed Buffer produced by the matching @c nk_attention_pack_* backend.
  *  @param[out] output Token-major F32 matrix, one row of @p head_count × @p depth elements per
  *      query token, with @p output_stride bytes between rows.
+ *  @param[in] output_stride Row (token) stride of @p output in bytes.
  *  @param[out] log_sum_exp Optional natural log of Σ exp(score multiplier × q · k) over each row's
  *      keys, one per query token and head, @b [query_tokens,heads] with no padding, −∞ for a row
  *      without keys: what the backward pass recomputes the weights from. Null skips it.
@@ -414,9 +430,11 @@ NUMKONG_API nk_status_t nk_attention_pack_mxfp8e5m2_best(nk_size_t key_value_hea
  *      for the fast path, or 0 for the path without scratch.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, @c nk_misaligned_k for a misaligned @p workspace,
- *      @c nk_unexpected_dimensions_k for @p workspace_bytes between 0 and the reported size, or
- *      @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_misaligned_k A misaligned @p workspace.
+ *  - @c nk_unexpected_dimensions_k @p workspace_bytes between 0 and the reported size.
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_attention_packed_bf16_best(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
@@ -433,10 +451,19 @@ NUMKONG_API nk_status_t nk_attention_packed_bf16_best(
  *  so every other capability reports 0. The bytes hold whenever the shapes allow the fast path,
  *  which may still decline it for the call's pointers or key count.
  *
+ *  @param[in] head_count Query heads.
+ *  @param[in] key_value_head_count K/V heads, at most @p head_count.
+ *  @param[in] depth Head dimension.
+ *  @param[in] query_token_count Query rows the call addresses.
+ *  @param[in] keys_before Keys visible before each query's position.
+ *  @param[in] keys_after Keys visible after each query's position.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The workspace size, 0 when the capability needs none.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  Every other parameter follows @c nk_attention_packed_bf16_best.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_attention_packed_workspace_size_bf16_best(nk_size_t head_count,
                                                                      nk_size_t key_value_head_count, nk_size_t depth,
@@ -496,7 +523,7 @@ NUMKONG_API nk_status_t nk_attention_packed_workspace_size_mxfp8e5m2_best(
  *  and that per-row statistic is kept. The gradients are F32 and overwritten: @p query_gradient
  *  holds one row of @p head_count × @p depth elements per query token, while @p key_gradient and
  *  @p value_gradient hold one row of @p key_value_head_count × @p depth elements per key token,
- *  token @c t of segment @c s at row `key_offsets[s] + t`, with the offsets the pack stored. Rows
+ *  token @c t of segment @c s at row <tt>key_offsets[s] + t</tt>, with the offsets the pack stored. Rows
  *  past a segment's key count, the gaps and tails before the next segment's first key, are never
  *  written, so callers zero them when they matter. Tasks cover the segments × key-value heads grid,
  *  each owning one KV head of one segment together with the query heads sharing it, so tasks write
@@ -507,8 +534,18 @@ NUMKONG_API nk_status_t nk_attention_packed_workspace_size_mxfp8e5m2_best(
  *  partials of different key blocks in F32 in any order, so their low bits may vary run to run.
  *  Other calls, and calls without a workspace, take the two-pass path.
  *
+ *  @param[in] head_count Query heads.
+ *  @param[in] key_value_head_count K/V heads, at most @p head_count.
+ *  @param[in] depth Head dimension.
+ *  @param[in] query_offsets First query row of each segment, as in the forward pass.
+ *  @param[in] query_token_count Query rows the call addresses, as in the forward pass.
+ *  @param[in] scale Score multiplier of the forward pass.
+ *  @param[in] queries The forward's queries, with @p query_stride bytes between token rows.
+ *  @param[in] query_stride Row (token) stride of @p queries in bytes.
+ *  @param[in] key_value_packed The pack the forward pass read.
  *  @param[in] output The forward's output for these queries and pack.
  *  @param[in] output_gradient Gradient of the loss with respect to @p output, laid out like it.
+ *  @param[in] output_stride Row (token) stride of @p output and @p output_gradient in bytes.
  *  @param[in] log_sum_exp The forward's natural log of Σ exp(scale × score) over each row's keys,
  *      one per query token and head, @b [query_tokens,heads] with no padding.
  *  @param[out] query_gradient Gradient with respect to @p queries.
@@ -522,6 +559,12 @@ NUMKONG_API nk_status_t nk_attention_packed_workspace_size_mxfp8e5m2_best(
  *  @param[in] tasks_end End of that half-open window, clipped to the grid. A window partitions the
  *      outputs the call writes: segments × K/V heads own their @p key_gradient and
  *      @p value_gradient rows and the @p query_gradient rows of their query heads.
+ *  @param[in] workspace Scratch memory on @c nk_default_alignment_k, on the device of @p stream.
+ *  @param[in] workspace_bytes At least what
+ *      @c nk_attention_packed_gradients_workspace_size_bf16_best reports for the fast path, or 0
+ *      for the path without scratch.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  Every other parameter follows @c nk_attention_packed_bf16_best.
  */
@@ -587,9 +630,19 @@ NUMKONG_API nk_status_t nk_attention_packed_gradients_mxfp8e5m2_best(
     nk_size_t key_value_gradient_stride, nk_size_t tasks_begin, nk_size_t tasks_end, void *workspace,
     nk_size_t workspace_bytes, nk_capability_t capabilities, nk_stream_t stream);
 
-/** Returns the workspace bytes @c nk_attention_packed_gradients_bf16_best takes for its fast path
- *  on these shapes, as @c nk_attention_packed_workspace_size_bf16_best does for attention: the
- *  Blackwell single pass for BF16 is the only one that needs any. */
+/**
+ *  @brief Returns the workspace bytes @c nk_attention_packed_gradients_bf16_best takes for its fast
+ *      path on these shapes, as @c nk_attention_packed_workspace_size_bf16_best does for attention:
+ *      the Blackwell single pass for BF16 is the only one that needs any.
+ *  @param[in] head_count Query heads.
+ *  @param[in] key_value_head_count K/V heads, at most @p head_count.
+ *  @param[in] depth Head dimension.
+ *  @param[in] query_token_count Query rows the call addresses.
+ *  @param[in] keys_before Keys before each query that it saw in the forward pass.
+ *  @param[in] keys_after Keys after each query that it saw in the forward pass.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[out] bytes The workspace size, 0 when the capability needs none.
+ */
 NUMKONG_API nk_status_t nk_attention_packed_gradients_workspace_size_bf16_best(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_size_t query_token_count,
     nk_size_t keys_before, nk_size_t keys_after, nk_capability_t capabilities, nk_size_t *bytes);
@@ -706,7 +759,9 @@ NUMKONG_API nk_status_t nk_attention_packed_mxfp8e5m2_best(
  *  @param[in] y_stride Row stride of @p y in bytes.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_attention_rope_f32_best(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
                                                    nk_f32_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
@@ -4333,9 +4388,15 @@ NUMKONG_INLINE nk_f64_t nk_attention_rope_error_bound(nk_dtype_t dtype) {
 
 /**
  *  @brief Finds the attention kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when none of @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_attention_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                                  nk_kernel_punned_t *kernel, nk_capability_t *capability);

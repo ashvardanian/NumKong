@@ -8,7 +8,7 @@
  *  @sa include/numkong/attention/ampere.cuh
  *  @sa include/numkong/dots/blackwell.cuh
  *
- *  FlashAttention-4 on `tcgen05.mma`: persistent blocks take items of up to two 128-row Q tiles of
+ *  FlashAttention-4 on <tt>tcgen05.mma</tt>: persistent blocks take items of up to two 128-row Q tiles of
  *  one K and V head, whose products take turns on the tensor cores. One thread streams 128-position
  *  panels of K and V through a ring of stages with the Tensor Memory Accelerator, and one thread
  *  issues every product. S lands in tensor memory, where a warpgroup per tile reads one row per
@@ -18,7 +18,7 @@
  *  BF16 multiplies as @c kind::f16, E4M3 as @c kind::f8f6f4 with weights e4m3(64 · p) and the E4M3
  *  residuals of those in a product of their own, so P keeps about 8 bits, and I8 as exact F16: its
  *  pack stores K and V widened and the softmax warps widen Q as they stage it, under the U8 weights
- *  of the serial contract. `tcgen05.mma.kind::i8` exists only in sm_100a and sm_110a code, not in
+ *  of the serial contract. <tt>tcgen05.mma.kind::i8</tt> exists only in sm_100a and sm_110a code, not in
  *  the family code shared with the 10.3 and 10.7 parts, so integers multiply as exact F16. The pack
  *  keeps V position-major, which P · V reads MN-major, so one tensor map reaches every plane;
  *  depths above 256 keep the @c cuda layout and kernel. Only the "100f" family code carries these

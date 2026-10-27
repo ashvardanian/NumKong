@@ -7,7 +7,7 @@
  *  @sa include/numkong/attention.h
  *
  *  Compatibility backend for AVX-512F machines without BF16 or AMX ISA extensions. Storage follows
- *  the `dots/skylake.h` conventions exactly: BF16 inputs stay BF16 at rest and widen to F32 inside
+ *  the <tt>dots/skylake.h</tt> conventions exactly: BF16 inputs stay BF16 at rest and widen to F32 inside
  *  the compute loops, shift-based, two ops per 16 lanes; E4M3 converts once to F16 during packing,
  *  so the in-loop widening is a single hardware @c VCVTPH2PS — the same asymmetry the GEMM family
  *  chose, trading one cheap pack-time pass for halved KV streaming traffic against F32 planes.
@@ -15,7 +15,7 @@
  *  The panel structure matches the family design — per query row, KV is swept in panels with an
  *  exact online correction, a base-2 streaming softmax sharing the family's degree-7 polynomial,
  *  and a score core with four KV rows in flight on the dual FMA ports. Packed payload per segment:
- *  K planes then V planes, `[key_value_head][position][channel]` in 16-bit scalars with channels
+ *  K planes then V planes, <tt>[key_value_head][position][channel]</tt> in 16-bit scalars with channels
  *  zero-padded to a multiple of 16. Heads deeper than 256 channels widen the query and accumulate
  *  scores in 256-channel chunks; the output accumulates in place.
  */

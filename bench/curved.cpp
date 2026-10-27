@@ -88,7 +88,7 @@ nk_status_t bilinear_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_f
 
 /**
  *  @brief Measures a @b curved kernel, bilinear or Mahalanobis.
- *  @param[inout] loop The timed loop, which takes the counters.
+ *  @param[in,out] loop The timed loop, which takes the counters.
  *  @param[in] kernel The kernel function to benchmark.
  *  @param[in] dimensions The number of dimensions in the vectors.
  */

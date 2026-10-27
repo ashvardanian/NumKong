@@ -4,7 +4,7 @@
  *  @date October 5, 2026
  *  @brief Tiled ragged attention on the SIMD-group matrices of Apple family 9 GPUs.
  *
- *  @sa include/numkong/attention/apple9.h, which embeds this source after `metal.metal`
+ *  @sa include/numkong/attention/apple9.h, which embeds this source after <tt>metal.metal</tt>
  *
  *  Each of four simdgroups owns eight rows of a 32-row tile: Q · K multiplies them into eight 8 × 8
  *  score blocks per 64-key panel, and P · V four 8 × 8 blocks per 32 channels of the values, on

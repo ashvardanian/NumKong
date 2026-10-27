@@ -18,7 +18,8 @@ namespace ashvardanian::numkong {
 
 /**
  *  @brief Count intersection of two sorted index arrays
- *  @param[in] a,b Sorted index arrays (ascending, unique elements)
+ *  @param[in] a First sorted index array (ascending, unique elements)
+ *  @param[in] b Second sorted index array (ascending, unique elements)
  *  @param[in] a_length Number of elements in @p a
  *  @param[in] b_length Number of elements in @p b
  *  @param[out] result Optional buffer for matches, at least min( @p a_length, @p b_length) long
@@ -70,7 +71,8 @@ status_t sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_
 
 /**
  *  @brief Sparse weighted dot product: Σ aₖ × bₖ over shared indices
- *  @param[in] a,b Sorted index arrays (ascending, unique elements)
+ *  @param[in] a First sorted index array (ascending, unique elements)
+ *  @param[in] b Second sorted index array (ascending, unique elements)
  *  @param[in] a_weights Weights corresponding to indices of @p a
  *  @param[in] b_weights Weights corresponding to indices of @p b
  *  @param[in] a_length Number of elements in @p a

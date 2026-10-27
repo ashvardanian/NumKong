@@ -376,27 +376,27 @@ char const doc_dlpack[] =                                                       
     "Return a DLPack capsule for zero-copy exchange with any framework that implements the Python Array\n" //
     "API DLPack protocol.\n\n"                                                                             //
     "Args:\n"                                                                                              //
-    "    stream (Any, optional): Ignored on CPU, accepted for Array API compatibility.\n"                  //
-    "    max_version (tuple, optional): Major and minor version ceiling. A major of 1 or higher\n"         //
-    "        produces a versioned capsule, 'dltensor_versioned'; otherwise a legacy one, 'dltensor'.\n"    //
-    "    dl_device (tuple, optional): Device type and ID; only kDLCPU with ID 0 is accepted.\n"            //
-    "    copy (bool, optional): Only False and the default None are supported; True raises.\n\n"           //
+    "  stream (Any, optional): Ignored on CPU, accepted for Array API compatibility.\n"                    //
+    "  max_version (tuple, optional): Major and minor version ceiling. A major of 1 or higher\n"           //
+    "    produces a versioned capsule, 'dltensor_versioned'; otherwise a legacy one, 'dltensor'.\n"        //
+    "  dl_device (tuple, optional): Device type and ID; only kDLCPU with ID 0 is accepted.\n"              //
+    "  copy (bool, optional): Only False and the default None are supported; True raises.\n\n"             //
     "Notes:\n"                                                                                             //
-    "    FP6 dtypes, e2m3 and e3m2, silently upgrade to versioned DLPack because they use the\n"           //
-    "    IS_SUBBYTE_TYPE_PADDED flag only available in v1+.\n"                                             //
-    "    A CUDA or ROCm tensor imported by from_dlpack raises BufferError; export the original.\n\n"       //
+    "  FP6 dtypes, e2m3 and e3m2, silently upgrade to versioned DLPack because they use the\n"             //
+    "  IS_SUBBYTE_TYPE_PADDED flag only available in v1+.\n"                                               //
+    "  A CUDA or ROCm tensor imported by from_dlpack raises BufferError; export the original.\n\n"         //
     "Verified interop with:\n"                                                                             //
-    "    - PyTorch       (`torch.from_dlpack`,           PRs pytorch/pytorch#2933, #57110, #145000)\n"     //
-    "    - NumPy         (`np.from_dlpack`,              PR numpy/numpy#19083, NumPy >= 1.22)\n"           //
-    "    - JAX           (`jax.dlpack.from_dlpack`)\n"                                                     //
-    "    - CuPy          (`cupy.from_dlpack`,            PR cupy/cupy#1082)\n"                             //
-    "    - TensorFlow    (`tf.experimental.dlpack.from_dlpack`, RFC tensorflow/community#180)\n"           //
-    "    - PyArrow       (`Array.__dlpack__`,            PR apache/arrow#33984, Arrow >= 15.0.0)\n"        //
-    "    - ONNX Runtime  (`OrtValue` DLPack,             PR microsoft/onnxruntime#23110)\n"                //
-    "    - spaCy / Thinc (cross-framework converter,     PR explosion/thinc#686)\n"                        //
-    "    - TVM, Apache MXNet, MLX, NNabla\n\n"                                                             //
+    "  - PyTorch       (`torch.from_dlpack`,           PRs pytorch/pytorch#2933, #57110, #145000)\n"       //
+    "  - NumPy         (`np.from_dlpack`,              PR numpy/numpy#19083, NumPy >= 1.22)\n"             //
+    "  - JAX           (`jax.dlpack.from_dlpack`)\n"                                                       //
+    "  - CuPy          (`cupy.from_dlpack`,            PR cupy/cupy#1082)\n"                               //
+    "  - TensorFlow    (`tf.experimental.dlpack.from_dlpack`, RFC tensorflow/community#180)\n"             //
+    "  - PyArrow       (`Array.__dlpack__`,            PR apache/arrow#33984, Arrow >= 15.0.0)\n"          //
+    "  - ONNX Runtime  (`OrtValue` DLPack,             PR microsoft/onnxruntime#23110)\n"                  //
+    "  - spaCy / Thinc (cross-framework converter,     PR explosion/thinc#686)\n"                          //
+    "  - TVM, Apache MXNet, MLX, NNabla\n\n"                                                               //
     "Signature:\n"                                                                                         //
-    "    >>> def __dlpack__(self, *, stream=None, max_version=None, dl_device=None, copy=None): ...";
+    "  >>> def __dlpack__(self, *, stream=None, max_version=None, dl_device=None, copy=None): ...";
 
 char const doc_dlpack_device[] =                                                                       //
     "Return the DLPack device tuple for this tensor: (1, 0), kDLCPU, unless from_dlpack imported\n"    //
@@ -405,7 +405,7 @@ char const doc_dlpack_device[] =                                                
     "TensorFlow, and PyArrow call this before `__dlpack__` to know whether a copy or stream sync is\n" //
     "needed before crossing the framework boundary.\n\n"                                               //
     "Signature:\n"                                                                                     //
-    "    >>> def __dlpack_device__(self, /): ...";
+    "  >>> def __dlpack_device__(self, /): ...";
 
 PyObject *Tensor_dlpack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     if (nargs) {
@@ -522,41 +522,41 @@ int nk_dlpack_init(PyObject *module) {
     return 0;
 }
 
-char const doc_from_dlpack[] =                                                                             //
-    "Consume a DLPack capsule, or any object implementing __dlpack__, as a NumKong Tensor.\n\n"            //
-    "Creates a zero-copy view; the underlying memory stays alive as long as the returned Tensor does.\n"   //
-    "Implements the consumer side of the Python Array API DLPack protocol (data-apis/array-api#106).\n\n"  //
-    "Args:\n"                                                                                              //
-    "    obj (Any): A 'dltensor' or 'dltensor_versioned' PyCapsule, or any object implementing\n"          //
-    "        __dlpack__.\n\n"                                                                              //
-    "Returns:\n"                                                                                           //
-    "    Tensor: A NumKong view sharing memory with the producer.\n\n"                                     //
-    "Accepts any DLPack device whose pointer is CPU-readable, as a CPU tensor:\n"                          //
-    "    - kDLCPU        — plain host memory.\n"                                                           //
-    "    - kDLCUDAHost   — cudaMallocHost pinned host memory.\n"                                           //
-    "    - kDLROCMHost   — AMD ROCm pinned host equivalent.\n"                                             //
-    "    - kDLCUDAManaged — cudaMallocManaged unified memory, where the first CPU touch migrates pages.\n" //
-    "    - kDLOneAPI     — Intel oneAPI USM (host / shared variants only).\n"                              //
-    "    - kDLMetal      — Apple Silicon unified memory, as used by MLX.\n"                                //
-    "Accepts kDLCUDA and kDLROCM device memory as a GPU tensor, which keeps its device. Only the\n"        //
-    "GPU paths of dots_pack and the dots, angulars and euclideans _packed and _symmetric functions\n"      //
-    "take it; element access, NumPy conversion and every CPU kernel raise BufferError. No stream\n"        //
-    "is synchronized: order the producer's work before the stream= passed to those functions.\n"           //
-    "Other device memory, such as kDLOpenCL, kDLVulkan, kDLWebGPU, kDLHexagon, kDLMAIA and kDLTrn,\n"      //
-    "is rejected with a clear ValueError naming the device code.\n\n"                                      //
-    "Verified producers (zero-copy round-trip in tests):\n"                                                //
-    "    - PyTorch       `torch.Tensor.__dlpack__`            (pytorch/pytorch#57110, #145000)\n"          //
-    "    - NumPy         `ndarray.__dlpack__`                 (numpy/numpy#19083, NumPy >= 1.22)\n"        //
-    "    - JAX           `jax.Array.__dlpack__`\n"                                                         //
-    "    - CuPy          `cupy.ndarray.__dlpack__`            (cupy/cupy#1082)\n"                          //
-    "    - TensorFlow    `tf.experimental.dlpack.to_dlpack`   (RFC tensorflow/community#180)\n"            //
-    "    - PyArrow       `Array.__dlpack__`                   (apache/arrow#33984, Arrow >= 15.0.0)\n"     //
-    "    - ONNX Runtime  `OrtValue` DLPack                    (microsoft/onnxruntime#23110)\n"             //
-    "    - spaCy / Thinc cross-framework converter            (explosion/thinc#686)\n"                     //
-    "    - MLX           `mx.array.__dlpack__`                (Apple Silicon, ml-explore/mlx#1159)\n"      //
-    "    - TVM, Apache MXNet, NNabla\n\n"                                                                  //
-    "Signature:\n"                                                                                         //
-    "    >>> def from_dlpack(obj, /): ...";
+char const doc_from_dlpack[] =                                                                            //
+    "Consume a DLPack capsule, or any object implementing __dlpack__, as a NumKong Tensor.\n\n"           //
+    "Creates a zero-copy view; the underlying memory stays alive as long as the returned Tensor does.\n"  //
+    "Implements the consumer side of the Python Array API DLPack protocol (data-apis/array-api#106).\n\n" //
+    "Args:\n"                                                                                             //
+    "  obj (Any): A 'dltensor' or 'dltensor_versioned' PyCapsule, or any object implementing\n"           //
+    "    __dlpack__.\n\n"                                                                                 //
+    "Returns:\n"                                                                                          //
+    "  Tensor: A NumKong view sharing memory with the producer.\n\n"                                      //
+    "Accepts any DLPack device whose pointer is CPU-readable, as a CPU tensor:\n"                         //
+    "  - kDLCPU        — plain host memory.\n"                                                            //
+    "  - kDLCUDAHost   — cudaMallocHost pinned host memory.\n"                                            //
+    "  - kDLROCMHost   — AMD ROCm pinned host equivalent.\n"                                              //
+    "  - kDLCUDAManaged — cudaMallocManaged unified memory, where the first CPU touch migrates pages.\n"  //
+    "  - kDLOneAPI     — Intel oneAPI USM (host / shared variants only).\n"                               //
+    "  - kDLMetal      — Apple Silicon unified memory, as used by MLX.\n"                                 //
+    "Accepts kDLCUDA and kDLROCM device memory as a GPU tensor, which keeps its device. Only the\n"       //
+    "GPU paths of dots_pack and the dots, angulars and euclideans _packed and _symmetric functions\n"     //
+    "take it; element access, NumPy conversion and every CPU kernel raise BufferError. No stream\n"       //
+    "is synchronized: order the producer's work before the stream= passed to those functions.\n"          //
+    "Other device memory, such as kDLOpenCL, kDLVulkan, kDLWebGPU, kDLHexagon, kDLMAIA and kDLTrn,\n"     //
+    "is rejected with a clear ValueError naming the device code.\n\n"                                     //
+    "Verified producers (zero-copy round-trip in tests):\n"                                               //
+    "  - PyTorch       `torch.Tensor.__dlpack__`            (pytorch/pytorch#57110, #145000)\n"           //
+    "  - NumPy         `ndarray.__dlpack__`                 (numpy/numpy#19083, NumPy >= 1.22)\n"         //
+    "  - JAX           `jax.Array.__dlpack__`\n"                                                          //
+    "  - CuPy          `cupy.ndarray.__dlpack__`            (cupy/cupy#1082)\n"                           //
+    "  - TensorFlow    `tf.experimental.dlpack.to_dlpack`   (RFC tensorflow/community#180)\n"             //
+    "  - PyArrow       `Array.__dlpack__`                   (apache/arrow#33984, Arrow >= 15.0.0)\n"      //
+    "  - ONNX Runtime  `OrtValue` DLPack                    (microsoft/onnxruntime#23110)\n"              //
+    "  - spaCy / Thinc cross-framework converter            (explosion/thinc#686)\n"                      //
+    "  - MLX           `mx.array.__dlpack__`                (Apple Silicon, ml-explore/mlx#1159)\n"       //
+    "  - TVM, Apache MXNet, NNabla\n\n"                                                                   //
+    "Signature:\n"                                                                                        //
+    "  >>> def from_dlpack(obj, /): ...";
 
 PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
     nk_unused_(self);

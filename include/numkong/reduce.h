@@ -5,8 +5,8 @@
  *  @brief SIMD-accelerated vector reductions.
  *
  *  Provides horizontal reduction operations over vectors with:
- *  - `nk_reduce_moments_*` — sum + sum-of-squares in one pass
- *  - `nk_reduce_minmax_*` — min + max with argmin/argmax in one pass
+ *  - @c nk_reduce_moments_* —sum + sum-of-squares in one pass
+ *  - @c nk_reduce_minmax_* —min + max with argmin/argmax in one pass
  *  - Runtime dispatch for runtime ISA selection
  *
  *  For dtypes:
@@ -54,7 +54,7 @@
  *
  *  @section reduction_strategy Reduction Strategy
  *
- *  The key insight is that `_mm512_reduce_add_ps()` and similar intrinsics are actually serial
+ *  The key insight is that <tt>_mm512_reduce_add_ps()</tt> and similar intrinsics are actually serial
  *  operations, they don't parallelize the reduction across lanes. The correct approach is:
  *
  *  1. Accumulate vertically in SIMD registers throughout the entire loop
@@ -107,12 +107,14 @@ extern "C" {
  *  @brief Horizontal moments reduction (sum + sum-of-squares) over a strided array.
  *  @param[in] data Pointer to the input data.
  *  @param[in] count Counts dimensions, a multiple of the values per byte.
- *  @param[in] stride Byte stride between elements, `sizeof(*data)` for contiguous arrays.
+ *  @param[in] stride Byte stride between elements, <tt>sizeof(*data)</tt> for contiguous arrays.
  *  @param[out] sum_ptr Output sum.
  *  @param[out] sumsq_ptr Output sum of squares.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_reduce_moments_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr, nk_capability_t capabilities,
@@ -122,14 +124,16 @@ NUMKONG_API nk_status_t nk_reduce_moments_f64_best(nk_f64_t const *data, nk_size
  *  @brief Horizontal min+max reduction with argmin/argmax over a strided array.
  *  @param[in] data Pointer to the input data.
  *  @param[in] count Counts dimensions, a multiple of the values per byte.
- *  @param[in] stride Byte stride between elements, `sizeof(*data)` for contiguous arrays.
+ *  @param[in] stride Byte stride between elements, <tt>sizeof(*data)</tt> for contiguous arrays.
  *  @param[out] min_value_ptr Output minimum value.
  *  @param[out] min_index_ptr Output index of the minimum value.
  *  @param[out] max_value_ptr Output maximum value.
  *  @param[out] max_index_ptr Output index of the maximum value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_reduce_minmax_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,
@@ -1360,9 +1364,15 @@ NUMKONG_INLINE nk_dtype_t nk_reduce_minmax_value_dtype(nk_dtype_t dtype) {
 
 /**
  *  @brief Finds the reduce kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_reduce_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                               nk_kernel_punned_t *kernel, nk_capability_t *capability);

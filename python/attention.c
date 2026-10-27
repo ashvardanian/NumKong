@@ -366,27 +366,27 @@ char const doc_attention_pack[] =                                               
     "AttentionPackedMatrix\n\n"                                                                    //
     "Pack ragged K/V token matrices into a backend-opaque KV-cache blob.\n\n"                      //
     "Args:\n"                                                                                      //
-    "    k, v (array_like): Token matrices, 2-D (tokens, heads*depth) or\n"                        //
-    "        3-D (tokens, heads, depth); bf16, f16, e4m3 or i8, rows may be strided\n"             //
-    "        interior views of a fused QKV buffer, and depth may be strided too, so\n"             //
-    "        a depth-major buffer's transposed view packs without a copy. CUDA or ROCm\n"          //
-    "        Tensors from from_dlpack() pack on their GPU.\n"                                      //
-    "    key_offsets (u32 array): Slot boundaries of the segments, length segments+1, never\n"     //
-    "        decreasing; segment s keeps its keys from row key_offsets[s]. A GPU reads it\n"       //
-    "        too, so there it sits in pinned or unified memory, as key_lengths does.\n"            //
-    "    key_lengths (u32 array, optional): Keys held per segment, at most the slot width;\n"      //
-    "        defaults to adjacent offset differences, as in self-attention.\n"                     //
-    "    depth (int, optional): Required when k/v are 2-D.\n"                                      //
-    "    out (Tensor, optional): Required for GPU k and v: a C-contiguous Tensor on their\n"       //
-    "        GPU of AttentionPackedMatrix.pack_size(..., capabilities=...) bytes or more,\n"       //
-    "        holding the packed bytes for the AttentionPackedMatrix's lifetime.\n"                 //
-    "    threads (int): Threads for packing; 0 = all cores; ignored on a GPU.\n"                   //
-    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"          //
+    "  k, v (array_like): Token matrices, 2-D (tokens, heads*depth) or\n"                          //
+    "    3-D (tokens, heads, depth); bf16, f16, e4m3 or i8, rows may be strided\n"                 //
+    "    interior views of a fused QKV buffer, and depth may be strided too, so\n"                 //
+    "    a depth-major buffer's transposed view packs without a copy. CUDA or ROCm\n"              //
+    "    Tensors from from_dlpack() pack on their GPU.\n"                                          //
+    "  key_offsets (u32 array): Slot boundaries of the segments, length segments+1, never\n"       //
+    "    decreasing; segment s keeps its keys from row key_offsets[s]. A GPU reads it\n"           //
+    "    too, so there it sits in pinned or unified memory, as key_lengths does.\n"                //
+    "  key_lengths (u32 array, optional): Keys held per segment, at most the slot width;\n"        //
+    "    defaults to adjacent offset differences, as in self-attention.\n"                         //
+    "  depth (int, optional): Required when k/v are 2-D.\n"                                        //
+    "  out (Tensor, optional): Required for GPU k and v: a C-contiguous Tensor on their\n"         //
+    "    GPU of AttentionPackedMatrix.pack_size(..., capabilities=...) bytes or more,\n"           //
+    "    holding the packed bytes for the AttentionPackedMatrix's lifetime.\n"                     //
+    "  threads (int): Threads for packing; 0 = all cores; ignored on a GPU.\n"                     //
+    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"            //
     "Returns:\n"                                                                                   //
-    "    AttentionPackedMatrix: Opaque packed KV-cache for attention_*_packed().\n\n"              //
+    "  AttentionPackedMatrix: Opaque packed KV-cache for attention_*_packed().\n\n"                //
     "Signature:\n"                                                                                 //
-    "    >>> def attention_pack(k, v, /, key_offsets, key_lengths=None,\n"                         //
-    "    ...                    depth=None, out=None, threads=1) -> AttentionPackedMatrix: ...";
+    "  >>> def attention_pack(k, v, /, key_offsets, key_lengths=None,\n"                           //
+    "  ...                    depth=None, out=None, threads=1) -> AttentionPackedMatrix: ...";
 
 PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -604,27 +604,27 @@ char const doc_attention_packed[] =                                             
     "attention is keys_after=0, a sliding window of w keys adds keys_before=w-1, and rows that see\n"  //
     "no key are zeros.\n\n"                                                                            //
     "Args:\n"                                                                                          //
-    "    q (array_like): Query tokens, 2-D (tokens, heads*depth) or 3-D\n"                             //
-    "        (tokens, heads, depth), same dtype and device as the packed KV-cache.\n"                  //
-    "    kv (AttentionPackedMatrix): Packed KV-cache from attention_pack().\n"                         //
-    "    query_offsets (u32 array): Cumulative query offsets, length segments+1;\n"                    //
-    "        arange(segments+1) turns the call into a batched single-query pool. A GPU reads\n"        //
-    "        it too, so there it sits in pinned or unified memory.\n"                                  //
-    "    out (Tensor, optional): Pre-allocated f32 output of the same shape as q; required, on\n"      //
-    "        the same GPU, when kv was packed on a GPU.\n"                                             //
-    "    scale (float, optional): Score scale; default 1/sqrt(depth).\n"                               //
-    "    keys_before (int, optional): Keys visible before each query; None is unbounded.\n"            //
-    "    keys_after (int, optional): Keys visible after each query; None is unbounded.\n"              //
-    "    log_sum_exp (array_like, optional): Writable contiguous f32 (tokens, heads) that receives\n"  //
-    "        each row's natural log-sum-exp, -inf for rows without keys, for the gradients.\n"         //
-    "    threads (int): Threads sharing equal-cost windows of the token*head grid; 0 = all;\n"         //
-    "        ignored on a GPU, which covers the grid in one launch and returns before it ends.\n"      //
-    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"              //
+    "  q (array_like): Query tokens, 2-D (tokens, heads*depth) or 3-D\n"                               //
+    "    (tokens, heads, depth), same dtype and device as the packed KV-cache.\n"                      //
+    "  kv (AttentionPackedMatrix): Packed KV-cache from attention_pack().\n"                           //
+    "  query_offsets (u32 array): Cumulative query offsets, length segments+1;\n"                      //
+    "    arange(segments+1) turns the call into a batched single-query pool. A GPU reads\n"            //
+    "    it too, so there it sits in pinned or unified memory.\n"                                      //
+    "  out (Tensor, optional): Pre-allocated f32 output of the same shape as q; required, on\n"        //
+    "    the same GPU, when kv was packed on a GPU.\n"                                                 //
+    "  scale (float, optional): Score scale; default 1/sqrt(depth).\n"                                 //
+    "  keys_before (int, optional): Keys visible before each query; None is unbounded.\n"              //
+    "  keys_after (int, optional): Keys visible after each query; None is unbounded.\n"                //
+    "  log_sum_exp (array_like, optional): Writable contiguous f32 (tokens, heads) that receives\n"    //
+    "    each row's natural log-sum-exp, -inf for rows without keys, for the gradients.\n"             //
+    "  threads (int): Threads sharing equal-cost windows of the token*head grid; 0 = all;\n"           //
+    "    ignored on a GPU, which covers the grid in one launch and returns before it ends.\n"          //
+    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"                //
     "Returns:\n"                                                                                       //
-    "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"                          //
+    "  Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"                            //
     "Signature:\n"                                                                                     //
-    "    >>> def attention_packed(q, kv, /, query_offsets, out=None, scale=None, keys_before=None,\n"  //
-    "    ...                      keys_after=None, log_sum_exp=None, threads=1) -> Tensor: ...";
+    "  >>> def attention_packed(q, kv, /, query_offsets, out=None, scale=None, keys_before=None,\n"    //
+    "  ...                      keys_after=None, log_sum_exp=None, threads=1) -> Tensor: ...";
 
 /** Python buffers and the output tensor behind an @c attention_arguments_t, held until its kernel
  *  returns. */
@@ -892,28 +892,29 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
     return attention_buffers_release_(&buffers);
 }
 
-char const doc_attention_packed_gradients[] =                                                        //
-    "attention_packed_gradients(q, kv, /, query_offsets, output, output_gradient,\n"                 //
-    "log_sum_exp, scale=None, keys_before=None, keys_after=None, query_gradient=None,\n"             //
-    "threads=1) -> tuple\n\n"                                                                        //
-    "Gradients of attention_packed() with respect to its queries, keys and values, bf16 only.\n\n"   //
-    "Recomputes every attention weight from the forward's log-sum-exp under the forward's band.\n\n" //
-    "Args:\n"                                                                                        //
-    "    q, query_offsets, scale, keys_before, keys_after: As in the forward attention_packed().\n"  //
-    "    kv (AttentionPackedMatrix): Packed by a gradient-capable capability, SERIAL on CPUs.\n"     //
-    "    output (array_like): The forward's contiguous f32 output for these queries.\n"              //
-    "    output_gradient (array_like): Contiguous f32 gradient of the loss, shaped like output.\n"   //
-    "    log_sum_exp (array_like): The forward's contiguous f32 (tokens, heads) log-sum-exp.\n"      //
-    "    query_gradient (Tensor, optional): Pre-allocated f32 (tokens, heads*depth) query\n"         //
-    "        gradient, rows any multiple of 4 bytes apart, such as a slice of a wider buffer.\n"     //
-    "    threads (int): Threads over the segment*kv_head task grid; 0 = all.\n\n"                    //
-    "Returns:\n"                                                                                     //
-    "    tuple[Tensor, Tensor, Tensor]: f32 query, key and value gradients, the query one shaped\n"  //
-    "        like output and the others (rows across kv's key slots, kv.key_value_head_count*depth).\n\n" "Signature:\n" //
-    "    >>> def attention_packed_gradients(q, kv, /, query_offsets, output,\n"          //
-    "    ...                                output_gradient, log_sum_exp, scale=None,\n" //
-    "    ...                                keys_before=None, keys_after=None,\n"        //
-    "    ...                                query_gradient=None, threads=1) -> tuple: ...";
+char const doc_attention_packed_gradients[] =                                                         //
+    "attention_packed_gradients(q, kv, /, query_offsets, output, output_gradient,\n"                  //
+    "log_sum_exp, scale=None, keys_before=None, keys_after=None, query_gradient=None,\n"              //
+    "threads=1) -> tuple\n\n"                                                                         //
+    "Gradients of attention_packed() with respect to its queries, keys and values, bf16 only.\n\n"    //
+    "Recomputes every attention weight from the forward's log-sum-exp under the forward's band.\n\n"  //
+    "Args:\n"                                                                                         //
+    "  q, query_offsets, scale, keys_before, keys_after: As in the forward attention_packed().\n"     //
+    "  kv (AttentionPackedMatrix): Packed by a gradient-capable capability, SERIAL on CPUs.\n"        //
+    "  output (array_like): The forward's contiguous f32 output for these queries.\n"                 //
+    "  output_gradient (array_like): Contiguous f32 gradient of the loss, shaped like output.\n"      //
+    "  log_sum_exp (array_like): The forward's contiguous f32 (tokens, heads) log-sum-exp.\n"         //
+    "  query_gradient (Tensor, optional): Pre-allocated f32 (tokens, heads*depth) query\n"            //
+    "    gradient, rows any multiple of 4 bytes apart, such as a slice of a wider buffer.\n"          //
+    "  threads (int): Threads over the segment*kv_head task grid; 0 = all.\n\n"                       //
+    "Returns:\n"                                                                                      //
+    "  tuple[Tensor, Tensor, Tensor]: f32 query, key and value gradients, the query one shaped\n"     //
+    "    like output and the others (rows across kv's key slots, kv.key_value_head_count*depth).\n\n" //
+    "Signature:\n"                                                                                    //
+    "  >>> def attention_packed_gradients(q, kv, /, query_offsets, output,\n"                         //
+    "  ...                                output_gradient, log_sum_exp, scale=None,\n"                //
+    "  ...                                keys_before=None, keys_after=None,\n"                       //
+    "  ...                                query_gradient=None, threads=1) -> tuple: ...";
 
 PyObject *api_attention_packed_gradients(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -1045,15 +1046,15 @@ char const doc_attention_rope[] =                                               
     "grids. Bake position lookup and multi-axis, M-RoPE, assignment into the `[rows,depth/2]` cos/sin\n" //
     "grids so a single call rotates the whole head.\n\n"                                                 //
     "Args:\n"                                                                                            //
-    "    x (Tensor): [rows,head_count×depth], float32/bfloat16/e4m3.\n"                                  //
-    "    cos, sin (Tensor): `[rows, depth/2]` float32 angle grids, shared across heads.\n"               //
-    "    head_count (int): Number of heads per token.\n"                                                 //
-    "    depth (int): Even number of channels per head.\n"                                               //
-    "    out (Tensor, optional): Output, same shape/dtype as x; may alias x. Defaults to x.\n\n"         //
+    "  x (Tensor): [rows,head_count×depth], float32/bfloat16/e4m3.\n"                                    //
+    "  cos, sin (Tensor): `[rows, depth/2]` float32 angle grids, shared across heads.\n"                 //
+    "  head_count (int): Number of heads per token.\n"                                                   //
+    "  depth (int): Even number of channels per head.\n"                                                 //
+    "  out (Tensor, optional): Output, same shape/dtype as x; may alias x. Defaults to x.\n\n"           //
     "Returns:\n"                                                                                         //
-    "    None: The result is written into `out`, or into `x` in place.\n\n"                              //
+    "  None: The result is written into `out`, or into `x` in place.\n\n"                                //
     "Signature:\n"                                                                                       //
-    "    >>> def attention_rope(x, cos, sin, head_count, depth, /, *, out) -> None: ...";
+    "  >>> def attention_rope(x, cos, sin, head_count, depth, /, *, out) -> None: ...";
 
 PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                              PyObject *args_names_tuple) {

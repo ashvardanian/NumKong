@@ -7,7 +7,7 @@
  *  Computes MaxSim(Q, D) = Σᵢ minⱼ angular(qᵢ, dⱼ) using ARM SME outer products, ranking
  *  documents by dot / ‖d‖, which orders them by cosine.
  *
- *  Both Q and D are pre-packed with @c nk_dots_pack_bf16_sme from `dots/sme.h`, which frees all 4
+ *  Both Q and D are pre-packed with @c nk_dots_pack_bf16_sme from <tt>dots/sme.h</tt>, which frees all 4
  *  ZA tiles for accumulation, versus 3 with A-side staging.
  *
  *  Key optimization: vertical column reads for max reduction. Traditional extraction reads tile

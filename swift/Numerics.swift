@@ -1,12 +1,11 @@
-//
-//  swift/Numerics.swift
-//  Compact and narrow floating-point scalar types for the NumKong kernels.
-//
-//  - Author: Ash Vardanian
-//  - Date: March 14, 2026
-//
+/**
+ *  @file swift/Numerics.swift
+ *  @author Ash Vardanian
+ *  @date March 14, 2026
+ *  @brief Compact and narrow floating-point scalar types for the NumKong kernels.
+ */
 
-import CNumKong
+import NumKongC
 
 // MARK: - Shared Helpers: Sequence
 

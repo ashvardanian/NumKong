@@ -8,7 +8,7 @@
  *
  *  @section bf16_moments BF16 Moments
  *
- *  `_mm512_dpbf16_ps(accumulator, a, b)`, VDPBF16PS, computes paired bf16 to f32 dot products,
+ *  <tt>_mm512_dpbf16_ps(accumulator, a, b)</tt>, VDPBF16PS, computes paired bf16 to f32 dot products,
  *  packing 32 bf16 values into 16 f32 accumulators per instruction:
  *
  *  @code{.c}

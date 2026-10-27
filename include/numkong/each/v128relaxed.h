@@ -7,7 +7,7 @@
  *  @sa include/numkong/each.h
  *
  *  Provides WASM relaxed-SIMD implementations of elementwise operations:
- *  - Sum: result[i] = a[i] + b[i], for f16 only; the other dtypes live in `each/v128.h`
+ *  - Sum: result[i] = a[i] + b[i], for f16 only; the other dtypes live in <tt>each/v128.h</tt>
  *  - Scale: result[i] = α · a[i] + β
  *  - Blend: result[i] = α · a[i] + β · b[i]
  *  - FMA: result[i] = α · a[i] · b[i] + β · c[i]
@@ -36,7 +36,7 @@ extern "C" {
 
 #pragma region F32 Floats
 
-/** Vectorized `2^x` (Relaxed SIMD); matches @c nk_f32_exp2_serial_ to polynomial precision. */
+/** Vectorized <tt>2^x</tt> (Relaxed SIMD); matches @c nk_f32_exp2_serial_ to polynomial precision. */
 NUMKONG_INLINE v128_t nk_exp2_f32x4_v128relaxed_(v128_t x_f32x4) {
     x_f32x4 = wasm_f32x4_max(wasm_f32x4_min(x_f32x4, wasm_f32x4_splat(127.0f)), wasm_f32x4_splat(-125.0f));
     v128_t whole_f32x4 = wasm_f32x4_nearest(x_f32x4);

@@ -47,22 +47,22 @@ static void flush_cast_staging(char const *staging, nk_dtype_t compute_dtype, Py
  *  in-place case. Returns 1 on success, 0 with a Python error set. The caller always releases @p
  *  out_buffer, safe on the untouched, zeroed buffer of the allocate path.
  */
-char const doc_fma[] =                                                                                 //
-    "Fused-Multiply-Add over 3 tensors of any rank, which must share the same shape.\n\n"              //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): First vector.\n"                                                                  //
-    "    b (Tensor): Second vector.\n"                                                                 //
-    "    c (Tensor): Third vector.\n"                                                                  //
-    "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
-    "    alpha (float, optional): First scale, 1.0 by default.\n"                                      //
-    "    beta (float, optional): Second scale, 1.0 by default.\n"                                      //
-    "    out (Tensor, optional): Vector for resulting distances.\n\n"                                  //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The distances if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `alpha * a * b + beta * c`.\n\n"                                                   //
-    "Signature:\n"                                                                                     //
-    "    >>> def fma(a, b, c, /, dtype, *, alpha, beta, out) -> Optional[Tensor]: ...";
+char const doc_fma[] =                                                                               //
+    "Fused-Multiply-Add over 3 tensors of any rank, which must share the same shape.\n\n"            //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): First vector.\n"                                                                  //
+    "  b (Tensor): Second vector.\n"                                                                 //
+    "  c (Tensor): Third vector.\n"                                                                  //
+    "  dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
+    "  alpha (float, optional): First scale, 1.0 by default.\n"                                      //
+    "  beta (float, optional): Second scale, 1.0 by default.\n"                                      //
+    "  out (Tensor, optional): Vector for resulting distances.\n\n"                                  //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The distances if `out` is not provided.\n"                                            //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
+    "Equivalent to: `alpha * a * b + beta * c`.\n\n"                                                 //
+    "Signature:\n"                                                                                   //
+    "  >>> def fma(a, b, c, /, dtype, *, alpha, beta, out) -> Optional[Tensor]: ...";
 
 PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                   PyObject *args_names_tuple) {
@@ -201,21 +201,21 @@ cleanup:
     return return_obj;
 }
 
-char const doc_blend[] =                                                                               //
-    "Blend of 2 tensors of any rank, which must share the same shape.\n\n"                             //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): First vector.\n"                                                                  //
-    "    b (Tensor): Second vector.\n"                                                                 //
-    "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
-    "    alpha (float, optional): First scale, 1.0 by default.\n"                                      //
-    "    beta (float, optional): Second scale, 1.0 by default.\n"                                      //
-    "    out (Tensor, optional): Vector for resulting distances.\n\n"                                  //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The distances if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `alpha * a + beta * b`.\n\n"                                                       //
-    "Signature:\n"                                                                                     //
-    "    >>> def blend(a, b, /, dtype, *, alpha, beta, out) -> Optional[Tensor]: ...";
+char const doc_blend[] =                                                                             //
+    "Blend of 2 tensors of any rank, which must share the same shape.\n\n"                           //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): First vector.\n"                                                                  //
+    "  b (Tensor): Second vector.\n"                                                                 //
+    "  dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
+    "  alpha (float, optional): First scale, 1.0 by default.\n"                                      //
+    "  beta (float, optional): Second scale, 1.0 by default.\n"                                      //
+    "  out (Tensor, optional): Vector for resulting distances.\n\n"                                  //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The distances if `out` is not provided.\n"                                            //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
+    "Equivalent to: `alpha * a + beta * b`.\n\n"                                                     //
+    "Signature:\n"                                                                                   //
+    "  >>> def blend(a, b, /, dtype, *, alpha, beta, out) -> Optional[Tensor]: ...";
 
 PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                     PyObject *args_names_tuple) {
@@ -348,20 +348,20 @@ cleanup:
     return return_obj;
 }
 
-char const doc_scale[] =                                                                               //
-    "Element-wise affine transformation of a tensor of any rank.\n\n"                                  //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): Input tensor of any rank.\n"                                                      //
-    "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
-    "    alpha (float, optional): Multiplicative scale, 1.0 by default.\n"                             //
-    "    beta (float, optional): Additive offset, 0.0 by default.\n"                                   //
-    "    out (Tensor, optional): Vector for resulting output.\n\n"                                     //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The result if `out` is not provided.\n"                                               //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `alpha * a + beta`.\n\n"                                                           //
-    "Signature:\n"                                                                                     //
-    "    >>> def scale(a, /, dtype, *, alpha, beta, out) -> Optional[Tensor]: ...";
+char const doc_scale[] =                                                                             //
+    "Element-wise affine transformation of a tensor of any rank.\n\n"                                //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): Input tensor of any rank.\n"                                                      //
+    "  dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
+    "  alpha (float, optional): Multiplicative scale, 1.0 by default.\n"                             //
+    "  beta (float, optional): Additive offset, 0.0 by default.\n"                                   //
+    "  out (Tensor, optional): Vector for resulting output.\n\n"                                     //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The result if `out` is not provided.\n"                                               //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
+    "Equivalent to: `alpha * a + beta`.\n\n"                                                         //
+    "Signature:\n"                                                                                   //
+    "  >>> def scale(a, /, dtype, *, alpha, beta, out) -> Optional[Tensor]: ...";
 
 PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                     PyObject *args_names_tuple) {
@@ -486,18 +486,18 @@ char const doc_rmsnorm[] =                                                      
     "Each row, spanning all axes but the last, holds `groups` independent `columns`-vectors, normalized\n" //
     "separately, where `columns = x.shape[-1] // groups`.\n\n"                                             //
     "Args:\n"                                                                                              //
-    "    x (Tensor): Input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n"                   //
-    "    gamma (Tensor, optional): Per-column float32 gain of length `columns`; None for unit scale.\n"    //
-    "    out (Tensor, optional): Output buffer (same shape/dtype as x); may alias x.\n"                    //
-    "    groups (int, optional): Independent sub-vectors per row, 1 by default.\n"                         //
-    "    epsilon (float, optional): Variance epsilon, 1e-6 by default.\n\n"                                //
+    "  x (Tensor): Input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n"                     //
+    "  gamma (Tensor, optional): Per-column float32 gain of length `columns`; None for unit scale.\n"      //
+    "  out (Tensor, optional): Output buffer (same shape/dtype as x); may alias x.\n"                      //
+    "  groups (int, optional): Independent sub-vectors per row, 1 by default.\n"                           //
+    "  epsilon (float, optional): Variance epsilon, 1e-6 by default.\n\n"                                  //
     "Notes:\n"                                                                                             //
-    "    For e4m3, pass epsilon in code units and fold the output scale into gamma.\n\n"                   //
+    "  For e4m3, pass epsilon in code units and fold the output scale into gamma.\n\n"                     //
     "Returns:\n"                                                                                           //
-    "    Tensor: The result if `out` is not provided.\n"                                                   //
-    "    None: If `out` is provided, an in-place operation.\n\n"                                           //
+    "  Tensor: The result if `out` is not provided.\n"                                                     //
+    "  None: If `out` is provided, an in-place operation.\n\n"                                             //
     "Signature:\n"                                                                                         //
-    "    >>> def rmsnorm(x, gamma=None, /, *, out, groups, epsilon) -> Optional[Tensor]: ...";
+    "  >>> def rmsnorm(x, gamma=None, /, *, out, groups, epsilon) -> Optional[Tensor]: ...";
 
 PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                       PyObject *args_names_tuple) {
@@ -640,21 +640,21 @@ char const doc_rmscast[] =                                                      
     "Each row, spanning all axes but the last, holds `groups` independent `columns`-vectors, normalized\n" //
     "separately, where `columns = x.shape[-1] // groups`.\n\n"                                             //
     "Args:\n"                                                                                              //
-    "    x (Tensor): Dot products with a contiguous last axis: float32 for bfloat16, float16, e4m3,\n"     //
-    "        e5m2, e2m3 and e3m2 outputs, float64 for float32, int32 for int8, uint32 for uint8.\n"        //
-    "    gamma (Tensor, optional): Per-column float32 gain of length `columns`; None for unit scale.\n"    //
-    "    dtype: Output dtype name: bfloat16, float16, e4m3, e5m2, e2m3, e3m2, float32, int8 or uint8.\n"   //
-    "    out (Tensor, optional): Output buffer of the shape of x and of `dtype`.\n"                        //
-    "    groups (int, optional): Independent sub-vectors per row, 1 by default.\n"                         //
-    "    epsilon (float, optional): Variance epsilon on the raw input, 1e-6 by default.\n\n"               //
+    "  x (Tensor): Dot products with a contiguous last axis: float32 for bfloat16, float16, e4m3,\n"       //
+    "    e5m2, e2m3 and e3m2 outputs, float64 for float32, int32 for int8, uint32 for uint8.\n"            //
+    "  gamma (Tensor, optional): Per-column float32 gain of length `columns`; None for unit scale.\n"      //
+    "  dtype: Output dtype name: bfloat16, float16, e4m3, e5m2, e2m3, e3m2, float32, int8 or uint8.\n"     //
+    "  out (Tensor, optional): Output buffer of the shape of x and of `dtype`.\n"                          //
+    "  groups (int, optional): Independent sub-vectors per row, 1 by default.\n"                           //
+    "  epsilon (float, optional): Variance epsilon on the raw input, 1e-6 by default.\n\n"                 //
     "Notes:\n"                                                                                             //
-    "    Integer outputs round to nearest even and saturate, with gamma carrying the quantization\n"       //
-    "    scale; uint8 suits only non-negative activations.\n\n"                                            //
+    "  Integer outputs round to nearest even and saturate, with gamma carrying the quantization\n"         //
+    "  scale; uint8 suits only non-negative activations.\n\n"                                              //
     "Returns:\n"                                                                                           //
-    "    Tensor: The result if `out` is not provided.\n"                                                   //
-    "    None: If `out` is provided.\n\n"                                                                  //
+    "  Tensor: The result if `out` is not provided.\n"                                                     //
+    "  None: If `out` is provided.\n\n"                                                                    //
     "Signature:\n"                                                                                         //
-    "    >>> def rmscast(x, gamma=None, /, *, dtype, out, groups, epsilon) -> Optional[Tensor]: ...";
+    "  >>> def rmscast(x, gamma=None, /, *, dtype, out, groups, epsilon) -> Optional[Tensor]: ...";
 
 PyObject *api_rmscast(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                       PyObject *args_names_tuple) {
@@ -798,21 +798,21 @@ cleanup:
     return return_obj;
 }
 
-char const doc_swiglu[] =                                                                        //
-    "Fused SwiGLU: y = silu(gate_scale * gate) * up * output_scale.\n\n"                         //
-    "With up=None this reduces to plain SiLU: y = silu(gate_scale * gate) * output_scale.\n\n"   //
-    "Args:\n"                                                                                    //
-    "    gate (Tensor): Gate input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n" //
-    "    up (Tensor, optional): Up input, same shape/dtype as gate; None for plain SiLU.\n"      //
-    "    out (Tensor, optional): Output buffer (same shape/dtype as gate); may alias gate.\n"    //
-    "    gate_scale (float, optional): Tensor scale of gate, 1.0 by default.\n"                  //
-    "    output_scale (float, optional): Multiplier on the result, 1.0 by default.\n\n"          //
-    "Returns:\n"                                                                                 //
-    "    Tensor: The result if `out` is not provided.\n"                                         //
-    "    None: If `out` is provided, an in-place operation.\n\n"                                 //
-    "Signature:\n"                                                                               //
-    "    >>> def swiglu(gate, up=None, /, *, out, gate_scale, output_scale)\n"                   //
-    "    ...     -> Optional[Tensor]: ...";
+char const doc_swiglu[] =                                                                      //
+    "Fused SwiGLU: y = silu(gate_scale * gate) * up * output_scale.\n\n"                       //
+    "With up=None this reduces to plain SiLU: y = silu(gate_scale * gate) * output_scale.\n\n" //
+    "Args:\n"                                                                                  //
+    "  gate (Tensor): Gate input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n" //
+    "  up (Tensor, optional): Up input, same shape/dtype as gate; None for plain SiLU.\n"      //
+    "  out (Tensor, optional): Output buffer (same shape/dtype as gate); may alias gate.\n"    //
+    "  gate_scale (float, optional): Tensor scale of gate, 1.0 by default.\n"                  //
+    "  output_scale (float, optional): Multiplier on the result, 1.0 by default.\n\n"          //
+    "Returns:\n"                                                                               //
+    "  Tensor: The result if `out` is not provided.\n"                                         //
+    "  None: If `out` is provided, an in-place operation.\n\n"                                 //
+    "Signature:\n"                                                                             //
+    "  >>> def swiglu(gate, up=None, /, *, out, gate_scale, output_scale)\n"                   //
+    "  ...     -> Optional[Tensor]: ...";
 
 PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                      PyObject *args_names_tuple) {
@@ -942,21 +942,21 @@ cleanup:
     return return_obj;
 }
 
-char const doc_add[] =                                                                         //
-    "Element-wise addition of two vectors or a vector and a scalar.\n\n"                       //
-    "Args:\n"                                                                                  //
-    "    a (Union[Tensor, float, int]): First operand, a vector or a scalar.\n"                //
-    "    b (Union[Tensor, float, int]): Second operand, a vector or a scalar.\n"               //
-    "    out (Tensor, optional): Output buffer for the result.\n"                              //
-    "    a_dtype (Union[IntegralType, FloatType], optional): Override dtype for `a`.\n"        //
-    "    b_dtype (Union[IntegralType, FloatType], optional): Override dtype for `b`.\n"        //
-    "    out_dtype (Union[IntegralType, FloatType], optional): Override dtype for output.\n\n" //
-    "Returns:\n"                                                                               //
-    "    Tensor: The sum if `out` is not provided.\n"                                          //
-    "    None: If `out` is provided, an in-place operation.\n\n"                               //
-    "Equivalent to: `a + b`.\n\n"                                                              //
-    "Signature:\n"                                                                             //
-    "    >>> def add(a, b, /, *, out, a_dtype, b_dtype, out_dtype) -> Optional[Tensor]: ...";
+char const doc_add[] =                                                                       //
+    "Element-wise addition of two vectors or a vector and a scalar.\n\n"                     //
+    "Args:\n"                                                                                //
+    "  a (Union[Tensor, float, int]): First operand, a vector or a scalar.\n"                //
+    "  b (Union[Tensor, float, int]): Second operand, a vector or a scalar.\n"               //
+    "  out (Tensor, optional): Output buffer for the result.\n"                              //
+    "  a_dtype (Union[IntegralType, FloatType], optional): Override dtype for `a`.\n"        //
+    "  b_dtype (Union[IntegralType, FloatType], optional): Override dtype for `b`.\n"        //
+    "  out_dtype (Union[IntegralType, FloatType], optional): Override dtype for output.\n\n" //
+    "Returns:\n"                                                                             //
+    "  Tensor: The sum if `out` is not provided.\n"                                          //
+    "  None: If `out` is provided, an in-place operation.\n\n"                               //
+    "Equivalent to: `a + b`.\n\n"                                                            //
+    "Signature:\n"                                                                           //
+    "  >>> def add(a, b, /, *, out, a_dtype, b_dtype, out_dtype) -> Optional[Tensor]: ...";
 
 /** Handle scalar + array addition: result = 1 * array + scalar. */
 static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyObject *out_obj, PyObject *out_dtype_obj,
@@ -1253,21 +1253,21 @@ PyObject *api_add(PyObject *self, PyObject *const *args, Py_ssize_t const positi
     return add_array_array(a_obj, b_obj, out_obj, out_dtype_obj, capabilities, stream);
 }
 
-char const doc_multiply[] =                                                                    //
-    "Element-wise multiplication of two vectors or a vector and a scalar.\n\n"                 //
-    "Args:\n"                                                                                  //
-    "    a (Union[Tensor, float, int]): First operand, a vector or a scalar.\n"                //
-    "    b (Union[Tensor, float, int]): Second operand, a vector or a scalar.\n"               //
-    "    out (Tensor, optional): Output buffer for the result.\n"                              //
-    "    a_dtype (Union[IntegralType, FloatType], optional): Override dtype for `a`.\n"        //
-    "    b_dtype (Union[IntegralType, FloatType], optional): Override dtype for `b`.\n"        //
-    "    out_dtype (Union[IntegralType, FloatType], optional): Override dtype for output.\n\n" //
-    "Returns:\n"                                                                               //
-    "    Tensor: The product if `out` is not provided.\n"                                      //
-    "    None: If `out` is provided, an in-place operation.\n\n"                               //
-    "Equivalent to: `a * b`.\n\n"                                                              //
-    "Signature:\n"                                                                             //
-    "    >>> def multiply(a, b, /, *, out, a_dtype, b_dtype, out_dtype) -> Optional[Tensor]: ...";
+char const doc_multiply[] =                                                                  //
+    "Element-wise multiplication of two vectors or a vector and a scalar.\n\n"               //
+    "Args:\n"                                                                                //
+    "  a (Union[Tensor, float, int]): First operand, a vector or a scalar.\n"                //
+    "  b (Union[Tensor, float, int]): Second operand, a vector or a scalar.\n"               //
+    "  out (Tensor, optional): Output buffer for the result.\n"                              //
+    "  a_dtype (Union[IntegralType, FloatType], optional): Override dtype for `a`.\n"        //
+    "  b_dtype (Union[IntegralType, FloatType], optional): Override dtype for `b`.\n"        //
+    "  out_dtype (Union[IntegralType, FloatType], optional): Override dtype for output.\n\n" //
+    "Returns:\n"                                                                             //
+    "  Tensor: The product if `out` is not provided.\n"                                      //
+    "  None: If `out` is provided, an in-place operation.\n\n"                               //
+    "Equivalent to: `a * b`.\n\n"                                                            //
+    "Signature:\n"                                                                           //
+    "  >>> def multiply(a, b, /, *, out, a_dtype, b_dtype, out_dtype) -> Optional[Tensor]: ...";
 
 /** Handle scalar * array multiplication: result = scalar * array + 0. */
 static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyObject *out_obj,

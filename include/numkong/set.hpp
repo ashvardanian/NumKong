@@ -18,7 +18,8 @@ namespace ashvardanian::numkong {
 
 /**
  *  @brief Hamming distance: Σ(aᵢ ⊕ bᵢ)
- *  @param[in] a,b Input vectors
+ *  @param[in] a First input vector
+ *  @param[in] b Second input vector
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output count
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
@@ -48,7 +49,8 @@ status_t hamming(in_type_ const *a, in_type_ const *b, std::size_t d, result_typ
 
 /**
  *  @brief Jaccard distance: 1 − |A ∩ B| / |A ∪ B|
- *  @param[in] a,b Input vectors
+ *  @param[in] a First input vector
+ *  @param[in] b Second input vector
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template

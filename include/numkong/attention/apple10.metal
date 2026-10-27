@@ -4,7 +4,7 @@
  *  @date October 5, 2026
  *  @brief Tiled ragged attention on the tensor operations of Apple family 10 GPUs.
  *
- *  @sa include/numkong/attention/apple10.h, which embeds this source after `metal.metal`
+ *  @sa include/numkong/attention/apple10.h, which embeds this source after <tt>metal.metal</tt>
  *
  *  @c matmul2d runs Q · K of a 32-row tile against a 64-key panel and P · V against 32 channels of
  *  its values, four simdgroups cooperating, on operands staged in @c half, or @c bfloat for BF16

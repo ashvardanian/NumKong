@@ -18,7 +18,7 @@
  *  The ARMv8.2-FP16 extension enables native half-precision element-wise operations, processing 8
  *  F16 elements per instruction. Only the sum stays in F16, as one F16 addition rounds exactly like
  *  the serial F32 sum narrowed back. Scale, blend, and fma round more than once, so they widen to
- *  F32 in `each/neon.h` instead.
+ *  F32 in <tt>each/neon.h</tt> instead.
  */
 #ifndef NUMKONG_EACH_NEONHALF_H
 #define NUMKONG_EACH_NEONHALF_H

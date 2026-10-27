@@ -287,9 +287,9 @@ int py_number_to_f64(PyObject *obj, nk_f64_t *value);
  *  @brief Parse the `capabilities=` or `stream=` keyword of every kernel-running function.
  *  @param[in] key Keyword name; any other than these two raises @c TypeError.
  *  @param[in] value A @c Capability mask, or a stream pointer as an integer; None keeps a default.
- *  @param[inout] capabilities Mask to find kernels with, kept to this machine's CPU capabilities,
+ *  @param[in,out] capabilities Mask to find kernels with, kept to this machine's CPU capabilities,
  *      as a GPU mask comes from the device of the operands instead.
- *  @param[inout] stream Stream to pass kernels, null on the CPU.
+ *  @param[in,out] stream Stream to pass kernels, null on the CPU.
  *  @return 1 on success, 0 on failure (Python exception set).
  */
 int parse_dispatch_keyword(PyObject *key, PyObject *value, nk_capability_t *capabilities, nk_stream_t *stream);

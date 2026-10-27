@@ -7,7 +7,7 @@
 //! - [`VincentysPackedMatrix`]: Geodesic distances on the WGS-84 ellipsoid
 //!
 //! Each kernel scores every point of one set, the rows, against every point of another, the
-//! columns, into a caller's row-major __[rows,columns]__ slice.
+//! columns, into a caller's row-major __\[rows,columns\]__ slice.
 //!
 //! # Units
 //!
@@ -43,6 +43,7 @@
 //!
 //! File: rust/geospatial.rs
 //! Author: Ash Vardanian
+//! Date: March 8, 2026
 
 use core::{ffi::c_void, ptr::null_mut};
 
@@ -140,7 +141,7 @@ pub trait SqEuclideans3D: Sized {
     /// Squared distance type: `u64` for `i32` points, `f64` for `f64` ones.
     type Distance: Copy + Default;
 
-    /// Fills `results` with the __[rows,columns]__ squared distances from every point of `a` to
+    /// Fills `results` with the __\[rows,columns\]__ squared distances from every point of `a` to
     /// every point of `b`.
     ///
     /// Returns `Err` if `results` does not hold __rows × columns__ entries.
@@ -263,7 +264,7 @@ impl<Alloc: Allocator> HaversinesPackedMatrix<Alloc> {
     }
 
     /// Great-circle distances in meters from every point of `self` to every point of `columns`,
-    /// filling `results` with __[rows,columns]__ entries.
+    /// filling `results` with __\[rows,columns\]__ entries.
     ///
     /// Returns `Err` if `results` does not hold __rows × columns__ entries.
     pub fn haversines<OtherAlloc: Allocator>(
@@ -349,7 +350,7 @@ impl<Alloc: Allocator> VincentysPackedMatrix<Alloc> {
     }
 
     /// Geodesic distances in meters from every point of `self` to every point of `columns`,
-    /// filling `results` with __[rows,columns]__ entries.
+    /// filling `results` with __\[rows,columns\]__ entries.
     ///
     /// Returns `Err` if `results` does not hold __rows × columns__ entries.
     pub fn vincentys<OtherAlloc: Allocator>(

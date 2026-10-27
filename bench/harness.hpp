@@ -693,7 +693,7 @@ template <typename type_>
  *
  *  Used by: dot.cpp, spatial.cpp, set.cpp, probability.cpp
  *
- *  @param[inout] loop The timed loop, which takes the counters.
+ *  @param[in,out] loop The timed loop, which takes the counters.
  *  @param[in] kernel The kernel function to benchmark.
  *  @param[in] dimensions The number of dimensions in the vectors.
  */

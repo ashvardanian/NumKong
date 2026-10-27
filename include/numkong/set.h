@@ -127,10 +127,13 @@ extern "C" {
  *  @param[out] result The output distance value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The output distance value is non-negative.
+ *
  *  @note The output distance value is zero if and only if the two vectors are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_hamming_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
                                            nk_capability_t capabilities, nk_stream_t stream);
@@ -144,10 +147,13 @@ NUMKONG_API nk_status_t nk_hamming_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *
  *  @param[out] result The output distance value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The output distance value is non-negative.
+ *
  *  @note The output distance value is zero if and only if the two vectors are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_jaccard_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_f32_t *result,
                                            nk_capability_t capabilities, nk_stream_t stream);
@@ -161,10 +167,13 @@ NUMKONG_API nk_status_t nk_jaccard_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *
  *  @param[out] result The output distance value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The output distance value is non-negative.
+ *
  *  @note The output distance value is zero if and only if the two vectors are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_jaccard_u32_best(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
                                             nk_capability_t capabilities, nk_stream_t stream);
@@ -178,10 +187,13 @@ NUMKONG_API nk_status_t nk_jaccard_u32_best(nk_u32_t const *a, nk_u32_t const *b
  *  @param[out] result The output distance value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The output distance value is non-negative.
+ *
  *  @note The output distance value is zero if and only if the two vectors are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_hamming_u8_best(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
                                            nk_capability_t capabilities, nk_stream_t stream);
@@ -195,10 +207,13 @@ NUMKONG_API nk_status_t nk_hamming_u8_best(nk_u8_t const *a, nk_u8_t const *b, n
  *  @param[out] result The output distance value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The output distance value is non-negative.
+ *
  *  @note The output distance value is zero if and only if the two vectors are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_jaccard_u16_best(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
                                             nk_capability_t capabilities, nk_stream_t stream);
@@ -381,9 +396,15 @@ NUMKONG_INLINE nk_dtype_t nk_jaccard_output_dtype(nk_dtype_t dtype) {
 
 /**
  *  @brief Finds the set distance kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when none of @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_set_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                            nk_kernel_punned_t *kernel, nk_capability_t *capability);

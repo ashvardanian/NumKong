@@ -202,7 +202,7 @@ NUMKONG_INLINE void nk_each_affine_u8_rvv_(nk_u8_t const *a, nk_size_t n, nk_f32
     }
 }
 
-/** Vectorized `2^x` at e32m4 (RVV); matches @c nk_f32_exp2_serial_ to polynomial precision. */
+/** Vectorized <tt>2^x</tt> at e32m4 (RVV); matches @c nk_f32_exp2_serial_ to polynomial precision. */
 NUMKONG_INLINE vfloat32m4_t nk_exp2_f32m4_rvv_(vfloat32m4_t x_f32m4, nk_size_t vector_length) {
     // Clamp to [-125, 127] like `nk_f32_exp2_serial_`: the lower bound keeps the smallest
     // result a normal float, so downstream multiplies never hit denormal assists.

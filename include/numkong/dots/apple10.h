@@ -9,7 +9,7 @@
  *  @sa include/numkong/dots/ampere.cuh, the CUDA sibling
  *
  *  Every signature matches @c metal's, whose pack, shape reader and launch core these reuse with
- *  wider padding. The kernels travel as their own `.metal` source, embedded after `metal.metal`,
+ *  wider padding. The kernels travel as their own <tt>.metal</tt> source, embedded after <tt>metal.metal</tt>,
  *  whose formats they widen, and compile on the device at first use under Metal 4.0, the first
  *  language version with tensor operations.
  */

@@ -1,27 +1,26 @@
-//
-//  bench/swift/Bench.swift
-//  Swift Testing benchmarks for NumKong.
-//
-//  Runs on an iPad, iPhone or Mac through Xcode, or anywhere SwiftPM runs, over CMake's library:
-//
-//  ```sh
-//  cmake --preset swift && cmake --build --preset swift
-//  export NUMKONG_SWIFT_ARTIFACT=build_swift/CNumKong.xcframework
-//  xcodebuild test -scheme NumKong -destination 'platform=iOS,name=...' -only-testing Bench
-//  swift test -c release --filter Bench
-//  ```
-//
-//  Environment variables, matching C++ numkong_bench:
-//      NUMWARS_DIMS         — pairwise vector length, defaulting to 1536
-//      NUMWARS_DIMS_HEIGHT  — GEMM M / dataset rows, defaulting to 1024
-//      NUMWARS_DIMS_WIDTH   — GEMM N / query rows, defaulting to 128
-//      NUMWARS_DIMS_DEPTH   — GEMM K / vector dims, defaulting to 1536
-//
-//  `xcodebuild` forwards them to the tests only with a `TEST_RUNNER_` prefix.
-//
-//  - Author: Ash Vardanian
-//  - Date: March 14, 2026
-//
+/**
+ *  @file bench/swift/Bench.swift
+ *  @author Ash Vardanian
+ *  @date March 14, 2026
+ *  @brief Swift Testing benchmarks for NumKong.
+ *
+ *  Runs on an iPad, iPhone or Mac through Xcode, or anywhere SwiftPM runs, over CMake's library:
+ *
+ *  ```sh
+ *  cmake --preset swift && cmake --build --preset swift
+ *  export NUMKONG_SWIFT_ARTIFACT=build_swift/NumKongC.xcframework
+ *  xcodebuild test -scheme NumKong -destination 'platform=iOS,name=...' -only-testing Bench
+ *  swift test -c release --filter Bench
+ *  ```
+ *
+ *  Environment variables, matching C++ numkong_bench:
+ *      NUMWARS_DIMS         — pairwise vector length, defaulting to 1536
+ *      NUMWARS_DIMS_HEIGHT  — GEMM M / dataset rows, defaulting to 1024
+ *      NUMWARS_DIMS_WIDTH   — GEMM N / query rows, defaulting to 128
+ *      NUMWARS_DIMS_DEPTH   — GEMM K / vector dims, defaulting to 1536
+ *
+ *  `xcodebuild` forwards them to the tests only with a `TEST_RUNNER_` prefix.
+ */
 
 import Foundation
 import NumKong

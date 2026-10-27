@@ -3,8 +3,8 @@
  *  @author Ash Vardanian
  *  @date October 3, 2026
  *  @brief CUDA host side of element-wise scales, sums, blends, FMAs, RMSNorm and SwiGLU: the
- *      launches, the export generators and the @c cuda exports, over the kernels of `each/simt.cuh`,
- *      with the integer and complex kernels only NVIDIA runs.
+ *      launches, the export generators and the @c cuda exports, over the kernels of
+ *      <tt>each/simt.cuh</tt>, with the integer and complex kernels only NVIDIA runs.
  *
  *  The @c ampere and @c ada capabilities export through the same generators, with converters that
  *  use their conversion instructions.

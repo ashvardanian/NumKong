@@ -17,7 +17,7 @@
  *  the file runs from the contract to device code, then to the tiles' portable stages. The tiles
  *  themselves live beside this file: each vendor's F64 tile, merging lanes and rounding through its
  *  own primitives, and each capability's B32 tile, folding through its own dot instructions, in
- *  `cuda.cuh`, `rocm.cuh` and `cdna3.cuh`, which also size, launch and export them.
+ *  <tt>cuda.cuh</tt>, <tt>rocm.cuh</tt> and <tt>cdna3.cuh</tt>, which also size, launch and export them.
  *
  *  @sa include/numkong/dots/cuda.cuh
  *  @sa include/numkong/dots/rocm.cuh
@@ -438,7 +438,7 @@ NUMKONG_DEVICE nk_fui32_t nk_cross_norm_finalize_simt_(nk_cross_norm_t norm, nk_
 
 #pragma region Metrics
 
-/** 1 − dot / (‖a‖ ‖b‖) clamped at 0, by the rule of `spatials.h`: 0 for two zero norms, 1 for one
+/** 1 − dot / (‖a‖ ‖b‖) clamped at 0, by the rule of <tt>spatials.h</tt>: 0 for two zero norms, 1 for one
  *  zero norm or a zero dot, and NaN for a NaN dot. */
 NUMKONG_DEVICE nk_f64_t nk_f64_angular_simt_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_t column_norm) {
     if (dot != dot) return dot;
@@ -454,7 +454,7 @@ NUMKONG_DEVICE nk_f64_t nk_f64_euclidean_simt_(nk_f64_t dot, nk_f64_t row_norm, 
     return squared < 0 ? 0.0 : sqrt(squared);
 }
 
-/** 1 − dot / (‖a‖ ‖b‖) clamped at 0, by the rule of `spatials.h`: 0 for two zero norms, 1 for one
+/** 1 − dot / (‖a‖ ‖b‖) clamped at 0, by the rule of <tt>spatials.h</tt>: 0 for two zero norms, 1 for one
  *  zero norm or a zero dot, and NaN for a NaN dot. */
 NUMKONG_DEVICE nk_f32_t nk_f32_angular_simt_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_t column_norm) {
     if (dot != dot) return dot;

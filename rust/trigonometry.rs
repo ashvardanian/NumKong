@@ -2,6 +2,7 @@
 //!
 //! File: rust/trigonometry.rs
 //! Author: Ash Vardanian
+//! Date: July 7, 2026
 
 use core::{ffi::c_void, ptr::null_mut};
 
@@ -85,6 +86,7 @@ extern "C" {
 /// Fails with [`Error::ShapeMismatch`] if lengths differ, or [`Error::KernelFailed`]
 /// carrying the kernel's status.
 pub trait TrigSin: Sized + StorageElement {
+    /// Writes the sine of every input element, in radians, into the output slice.
     fn sin(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error>;
 
     /// In-place sine: `data[i] = sin(data[i])`.
@@ -178,6 +180,7 @@ impl TrigSin for f16 {
 /// Fails with [`Error::ShapeMismatch`] if lengths differ, or [`Error::KernelFailed`]
 /// carrying the kernel's status.
 pub trait TrigCos: Sized + StorageElement {
+    /// Writes the cosine of every input element, in radians, into the output slice.
     fn cos(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error>;
 
     /// In-place cosine: `data[i] = cos(data[i])`.
@@ -271,6 +274,7 @@ impl TrigCos for f16 {
 /// Fails with [`Error::ShapeMismatch`] if lengths differ, or [`Error::KernelFailed`]
 /// carrying the kernel's status.
 pub trait TrigAtan: Sized + StorageElement {
+    /// Writes the arctangent of every input element, in radians, into the output slice.
     fn atan(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error>;
 
     /// In-place arctangent: `data[i] = atan(data[i])`.
@@ -365,6 +369,7 @@ impl<Scalar: TrigSin + TrigCos + TrigAtan> Trigonometry for Scalar {}
 
 /// Extension trait: element-wise sine for any [`TensorRef`] implementor.
 pub trait TrigSinOps<Scalar: Clone + TrigSin, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    /// Element-wise sine into a new tensor.
     fn sin(&self) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
@@ -372,6 +377,7 @@ pub trait TrigSinOps<Scalar: Clone + TrigSin, const MAX_RANK: usize>: TensorRef<
         self.view().sin()
     }
 
+    /// Element-wise sine into the output tensor.
     fn sin_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
@@ -384,6 +390,7 @@ impl<Scalar: Clone + TrigSin, const R: usize, C: TensorRef<Scalar, R> + ?Sized> 
 
 /// Extension trait: element-wise cosine for any [`TensorRef`] implementor.
 pub trait TrigCosOps<Scalar: Clone + TrigCos, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    /// Element-wise cosine into a new tensor.
     fn cos(&self) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
@@ -391,6 +398,7 @@ pub trait TrigCosOps<Scalar: Clone + TrigCos, const MAX_RANK: usize>: TensorRef<
         self.view().cos()
     }
 
+    /// Element-wise cosine into the output tensor.
     fn cos_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
@@ -403,6 +411,7 @@ impl<Scalar: Clone + TrigCos, const R: usize, C: TensorRef<Scalar, R> + ?Sized> 
 
 /// Extension trait: element-wise arctangent for any [`TensorRef`] implementor.
 pub trait TrigAtanOps<Scalar: Clone + TrigAtan, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    /// Element-wise arctangent into a new tensor.
     fn atan(&self) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
@@ -410,6 +419,7 @@ pub trait TrigAtanOps<Scalar: Clone + TrigAtan, const MAX_RANK: usize>: TensorRe
         self.view().atan()
     }
 
+    /// Element-wise arctangent into the output tensor.
     fn atan_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,

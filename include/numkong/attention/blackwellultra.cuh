@@ -8,7 +8,7 @@
  *  @sa include/numkong/attention/blackwell.cuh
  *
  *  The Blackwell kernels, whose softmax warps find each row's maximum as they load S from tensor
- *  memory: `tcgen05.ld.red`, which only Blackwell Ultra has, returns the extreme of the 32 columns
+ *  memory: <tt>tcgen05.ld.red</tt>, which only Blackwell Ultra has, returns the extreme of the 32 columns
  *  it loads beside them, where Blackwell reduces them after the load.
  */
 #ifndef NUMKONG_ATTENTION_BLACKWELLULTRA_CUH
@@ -26,7 +26,7 @@ extern "C" {
 #pragma region Instructions
 
 /** The largest of 32 consecutive F32 columns of this thread's lane, or their smallest when
- *  @p smallest, which `tcgen05.ld.red` reduces as it loads them. */
+ *  @p smallest, which <tt>tcgen05.ld.red</tt> reduces as it loads them. */
 NUMKONG_DEVICE nk_f32_t nk_tmem_load_extreme_x32_blackwellultra_(nk_u32_t address, int smallest) {
     nk_u32_t values[32];
     nk_f32_t extreme;

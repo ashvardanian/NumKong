@@ -19,6 +19,10 @@ namespace ashvardanian::numkong {
 
 /**
  *  @brief Returns the workspace bytes of @c angulars_symmetric, zero when no scratch is needed.
+ *  @param[in] vector_count Number of vectors.
+ *  @param[in] depth Counts dimensions, a multiple of the values per byte.
+ *  @param[in] row_start First row of the result to compute, 0 by default.
+ *  @param[in] row_count Rows of the result to compute, all by default.
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t>

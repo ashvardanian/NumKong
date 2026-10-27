@@ -7,7 +7,7 @@
  *      rounding primitives every CUDA kernel shares.
  *
  *  Only nvcc sees past the guard, and nothing here is shared with ROCm, whose twins live in
- *  `rocm.cuh` under their own names, so a library holding both vendors links one body per name.
+ *  <tt>rocm.cuh</tt> under their own names, so a library holding both vendors links one body per name.
  *
  *  @sa include/numkong/rocm.cuh
  */
@@ -308,7 +308,7 @@ NUMKONG_INLINE nk_status_t nk_allocator_init_pinned_cuda_(nk_allocator_t *alloca
 /** Lanes of a warp, 32 on every NVIDIA device. */
 NUMKONG_DEVICE unsigned nk_warp_lanes_cuda_(void) { return 32; }
 
-/** Lane `lane ^ offset`'s @p value, from across the whole warp with @c shfl.sync.bfly . */
+/** Lane <tt>lane ^ offset</tt>'s @p value, from across the whole warp with <tt>shfl.sync.bfly</tt>. */
 NUMKONG_DEVICE nk_u32_t nk_shuffle_xor_u32_cuda_(nk_u32_t value, unsigned offset) {
     return __shfl_xor_sync(0xFFFFFFFFu, value, offset);
 }
@@ -325,7 +325,7 @@ NUMKONG_DEVICE nk_f64_t nk_shuffle_xor_f64_cuda_(nk_f64_t value, unsigned offset
     return __shfl_xor_sync(0xFFFFFFFFu, value, offset);
 }
 
-/** Lane `lane - offset`'s @p value, a lane's own below @p offset, with @c shfl.sync.up . */
+/** Lane <tt>lane - offset</tt>'s @p value, a lane's own below @p offset, with <tt>shfl.sync.up</tt>. */
 NUMKONG_DEVICE nk_u64_t nk_shuffle_up_u64_cuda_(nk_u64_t value, unsigned offset) {
     return __shfl_up_sync(0xFFFFFFFFu, (unsigned long long)value, offset);
 }

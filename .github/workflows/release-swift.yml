@@ -24,7 +24,7 @@ jobs:
           timeout_minutes: 5
           command: |
             assets=$(gh release view "${{ github.event.release.tag_name }}" --repo "${{ github.repository }}" --json assets --jq '.assets[].name')
-            grep -qx CNumKong.xcframework.zip <<< "$assets" && grep -qx CNumKong.artifactbundle.zip <<< "$assets"
+            grep -qx NumKongC.xcframework.zip <<< "$assets" && grep -qx NumKongC.artifactbundle.zip <<< "$assets"
 
   validate_macos:
     name: Validate Swift Package on macOS

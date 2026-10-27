@@ -11,7 +11,7 @@
  *
  *  BF16, E4M3, and I8 inputs, F32 outputs, any @c depth from 1 to 256: channels are zero-padded to
  *  32-deep AMX tiles internally, exact math, padded K channels add zero to every score, padded V
- *  channels are never stored back, and `depth > 256` takes the width-agnostic serial kernel from
+ *  channels are never stored back, and <tt>depth > 256</tt> takes the width-agnostic serial kernel from
  *  all entry points, so packing and attention always agree on the buffer format. E4M3 has no AMX
  *  tile type on Sapphire Rapids, so it widens to BF16 at the boundaries — K/V during packing, Q
  *  during tile loads — and shares every instruction of the BF16 panel pipeline, the @c dots
@@ -22,9 +22,9 @@
  *
  *  The ragged form is the only form: transformer inference packs many variable-length segments into
  *  one token buffer, UForm's @c key_offsets and @c key_lengths convention, and a single-segment
- *  call is just `segment_count == 1`. Grouped-query attention is supported via
+ *  call is just <tt>segment_count == 1</tt>. Grouped-query attention is supported via
  *  @c key_value_head_count; cross-attention and pooling fall out of per-segment query counts that
- *  differ from the packed KV lengths — the attention pool is `query_offsets = {0, 1, 2, …}`, one
+ *  differ from the packed KV lengths — the attention pool is <tt>query_offsets = {0, 1, 2, …}</tt>, one
  *  learned query per segment. Band masking classifies each query block × KV panel tile: tiles
  *  outside the band are skipped, inside tiles run unmasked, and in tiles an edge crosses, row
  *  maxima cover only the row's own columns and weights outside them are zeroed with lane masks.
@@ -78,22 +78,22 @@
  *  32-row where the vector stage dominates each step — sigmoid scoring, the division costs what the
  *  max/sum bookkeeping saves, and software prefetching.
  *
- *  Measured on a single Sapphire Rapids core, Xeon 8468 at ~3.2 GHz sustained, BF16, `depth = 128`:
- *  ~0.63 TFLOPS at `q = kv = 256`, ~0.82 at 1024², ~0.80 at 4096², ~0.81 at 16384², against ~3.4
+ *  Measured on a single Sapphire Rapids core, Xeon 8468 at ~3.2 GHz sustained, BF16, <tt>depth = 128</tt>:
+ *  ~0.63 TFLOPS at <tt>q = kv = 256</tt>, ~0.82 at 1024², ~0.80 at 4096², ~0.81 at 16384², against ~3.4
  *  TFLOPS @c tdpbf16ps peak and ~0.36 TFLOPS for the classic Bᶜ=32 flash schedule this kernel
  *  replaces. On a ragged 52-segment batch, a 128–4096-token mix, task-parallel scaling reaches ~96%
  *  efficiency at one thread per physical core.
  *
  *  @section attention_sapphireamx_packing Packed KV Format
  *
- *  `[64 B header][directory][segment 0 tiles][segment 1 tiles]…`, where the packed directory is
- *  `nk_u64_t tile_offsets[segment_count]`, bytes relative to the first tile block, followed by
- *  `nk_u32_t key_offsets[segment_count + 1]` and `nk_u32_t key_lengths[segment_count]`, padded to
+ *  <tt>[64 B header][directory][segment 0 tiles][segment 1 tiles]…</tt>, where the packed directory is
+ *  <tt>nk_u64_t tile_offsets[segment_count]</tt>, bytes relative to the first tile block, followed by
+ *  <tt>nk_u32_t key_offsets[segment_count + 1]</tt> and <tt>nk_u32_t key_lengths[segment_count]</tt>, padded to
  *  64 bytes. Every segment's sequence is zero-padded to a multiple of 32 and its channels to a
  *  multiple of 32; each block holds K tiles for all KV heads, then V tiles, always as BF16
  *  regardless of the input dtype. K is packed transposed for Q × Kᵀ as pair-interleaved B-tiles
- *  `[kv_tile][depth_tile]` — @c kv_tile is 16 positions, @c depth_tile is 32 channels. V is packed
- *  for P × V as pair-interleaved B-tiles `[depth_tile_idx][position_block_idx]` — depth-major so
+ *  <tt>[kv_tile][depth_tile]</tt> — @c kv_tile is 16 positions, @c depth_tile is 32 channels. V is packed
+ *  for P × V as pair-interleaved B-tiles <tt>[depth_tile_idx][position_block_idx]</tt> — depth-major so
  *  each output tile's depth accumulation streams contiguous 1 KB tiles, one depth tile is 16
  *  channels, one position block is 32 positions. Zero-padded K rows yield zero scores, which the
  *  column-bounded softmax turns into zero weights; padded V rows and channels are multiplied by
@@ -454,7 +454,7 @@ NUMKONG_INLINE void nk_attention_block_ranges_sapphireamx_(                     
 
 /** One block's visible columns of a panel with @p valid_channels live keys: the whole panel for
  *  every live row of an inside tile, or each row's key range clipped to it where an edge of the
- *  band crosses the tile; rows with nothing there become the empty range `[0, 0)`. */
+ *  band crosses the tile; rows with nothing there become the empty range <tt>[0, 0)</tt>. */
 NUMKONG_INLINE void nk_attention_panel_columns_sapphireamx_(      //
     nk_diagonal_band_coverage_t coverage, nk_size_t block_rows,   //
     nk_size_t const *row_key_begin, nk_size_t const *row_key_end, // [32] absolute keys
@@ -479,8 +479,8 @@ NUMKONG_INLINE void nk_attention_panel_columns_sapphireamx_(      //
  *
  *  Per 32-column pair, scores accumulate in TMM0-3 (two 16-row Q tiles × two 16-column K tiles)
  *  with Q in TMM4/5 and K in TMM6/7 — every loaded tile feeds two MACs. The depth loop covers
- *  @c depth_tiles 32-channel steps (4 for the `depth = 128` hot path). Emits per-row raw (unscaled)
- *  maxima for both 16-row groups over each row's own `[column_begin, column_end)`; a row with no
+ *  @c depth_tiles 32-channel steps (4 for the <tt>depth = 128</tt> hot path). Emits per-row raw (unscaled)
+ *  maxima for both 16-row groups over each row's own <tt>[column_begin, column_end)</tt>; a row with no
  *  columns in the panel reports @c NUMKONG_F32_MIN.
  */
 NUMKONG_INLINE void nk_attention_score_panel_sapphireamx_(        //
@@ -543,7 +543,7 @@ NUMKONG_INLINE void nk_attention_score_panel_sapphireamx_(        //
  *
  *  Row-major single pass: weights = bf16(2^(scores · scale₂ − m₂_row)) with the running sum
  *  in a register — one horizontal reduction per row per panel, no per-block online state.
- *  Columns outside each row's `[column_begin, column_end)` (masked keys and sequence
+ *  Columns outside each row's <tt>[column_begin, column_end)</tt> (masked keys and sequence
  *  padding) get zero weights and no sum contribution. @c new_max is the base-2-scaled
  *  running maximum, already merged.
  */
@@ -1005,7 +1005,7 @@ typedef struct {
  *  @brief Stage 1: exact-integer Q × Kᵀ for one KV panel with 2×2 register blocking.
  *
  *  Same tile schedule as the BF16 stage, but TDPBSSD over 64-channel depth steps and an
- *  I32 score panel. The row-max sweep covers only each row's `[column_begin, column_end)`:
+ *  I32 score panel. The row-max sweep covers only each row's <tt>[column_begin, column_end)</tt>:
  *  U8-quantized weights can round to exact zero, so a zero-score padded or masked column
  *  raising the max could zero out an all-negative row's weight sum entirely.
  */
@@ -1068,7 +1068,7 @@ NUMKONG_INLINE void nk_attention_score_panel_i8_sapphireamx_(   //
  *  in integer arithmetic: w̃ = iexp2((score − m_row) · scale₂) in Q15, with the running sum
  *  of the quantized weights accumulated in I32 and converted to F32 for the online
  *  correction. The max-scoring position of a non-empty row lands on 255. Columns outside
- *  each row's `[column_begin, column_end)` get zero weights (U8 zero is an exact zero
+ *  each row's <tt>[column_begin, column_end)</tt> get zero weights (U8 zero is an exact zero
  *  weight) and no sum contribution. */
 NUMKONG_INLINE void nk_attention_exp_panel_i8_sapphireamx_(     //
     nk_i32_t const *scores_panel, nk_u8_t *weights_panel,       // [32][panel] each

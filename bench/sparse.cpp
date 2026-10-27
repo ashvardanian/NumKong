@@ -13,7 +13,7 @@ namespace ashvardanian::numkong::bench {
 
 /**
  *  @brief Measures a @b sparse kernel, set intersection.
- *  @param[inout] loop The timed loop, which takes the counters.
+ *  @param[in,out] loop The timed loop, which takes the counters.
  *  @param[in] kernel The kernel function to benchmark.
  *  @param[in] first_size The number of elements in the first, smaller, set.
  *  @param[in] second_size The number of elements in the second, larger, set.
@@ -110,7 +110,7 @@ void bench_sparse(environment_t const &env) {
 
 /**
  *  @brief Measures a @b sparse dot-product kernel.
- *  @param[inout] loop The timed loop, which takes the counters.
+ *  @param[in,out] loop The timed loop, which takes the counters.
  *  @param[in] kernel The kernel function to benchmark.
  *  @param[in] first_size The number of elements in the first, smaller, set.
  *  @param[in] second_size The number of elements in the second, larger, set.

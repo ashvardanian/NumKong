@@ -88,11 +88,14 @@ extern "C" {
  *  @param[out] result The output divergence value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
+ *
  *  @note The output divergence value is non-negative.
  *  @note The output divergence value is zero if and only if the two distributions are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_kld_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
                                         nk_capability_t capabilities, nk_stream_t stream);
@@ -106,11 +109,14 @@ NUMKONG_API nk_status_t nk_kld_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk
  *  @param[out] result The output divergence value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
+ *
  *  @note The output divergence value is non-negative.
  *  @note The output divergence value is zero if and only if the two distributions are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_kld_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
                                          nk_capability_t capabilities, nk_stream_t stream);
@@ -124,11 +130,14 @@ NUMKONG_API nk_status_t nk_kld_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b,
  *  @param[out] result The output divergence value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
+ *
  *  @note The output divergence value is non-negative.
  *  @note The output divergence value is zero if and only if the two distributions are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_kld_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
                                         nk_capability_t capabilities, nk_stream_t stream);
@@ -142,11 +151,14 @@ NUMKONG_API nk_status_t nk_kld_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk
  *  @param[out] result The output divergence value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
+ *
  *  @note The output divergence value is non-negative.
  *  @note The output divergence value is zero if and only if the two distributions are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_kld_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                         nk_capability_t capabilities, nk_stream_t stream);
@@ -160,11 +172,14 @@ NUMKONG_API nk_status_t nk_kld_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk
  *  @param[out] result The output distance value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
+ *
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two distributions are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_jsd_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
                                         nk_capability_t capabilities, nk_stream_t stream);
@@ -178,11 +193,14 @@ NUMKONG_API nk_status_t nk_jsd_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk
  *  @param[out] result The output distance value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
+ *
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two distributions are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_jsd_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
                                          nk_capability_t capabilities, nk_stream_t stream);
@@ -196,11 +214,14 @@ NUMKONG_API nk_status_t nk_jsd_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b,
  *  @param[out] result The output distance value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
+ *
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two distributions are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_jsd_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
                                         nk_capability_t capabilities, nk_stream_t stream);
@@ -214,11 +235,14 @@ NUMKONG_API nk_status_t nk_jsd_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk
  *  @param[out] result The output distance value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The distributions are assumed to be normalized.
+ *
  *  @note The output distance value is non-negative.
  *  @note The output distance value is zero if and only if the two distributions are identical.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_jsd_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                         nk_capability_t capabilities, nk_stream_t stream);
@@ -355,9 +379,15 @@ NUMKONG_INLINE nk_f64_t nk_probability_error_bound(nk_dtype_t dtype) {
 
 /**
  *  @brief Finds the probability kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_probability_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype,
                                                    nk_capability_t capabilities, nk_kernel_punned_t *kernel,

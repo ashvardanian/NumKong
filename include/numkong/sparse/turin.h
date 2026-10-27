@@ -36,7 +36,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u16_turin( //
     nk_u16_t *result, nk_size_t *count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
-    //! There is no such thing as `_mm512_2intersect_epi16`, only the 32-bit variant!
+    //! There is no such thing as @c _mm512_2intersect_epi16, only the 32-bit variant!
     //! So instead of jumping through 32 entries at a time, like on Ice Lake, we will
     //! step through 16 entries at a time.
     nk_u16_t const *const a_end = a + a_length;
@@ -169,7 +169,7 @@ NUMKONG_API nk_status_t nk_sparse_dot_u16bf16_turin(        //
     }
 #endif
 
-    //! There is no such thing as `_mm512_2intersect_epi16`, only the 32-bit variant!
+    //! There is no such thing as @c _mm512_2intersect_epi16, only the 32-bit variant!
     //! So instead of jumping through 32 entries at a time, like on Ice Lake, we will
     //! step through 16 entries at a time.
     nk_u16_t const *const a_end = a + a_length;

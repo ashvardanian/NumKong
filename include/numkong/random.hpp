@@ -17,7 +17,7 @@
 
 namespace ashvardanian::numkong {
 
-/** Lightweight clamp to avoid pulling in `<algorithm>` for @c std::clamp. */
+/** Lightweight clamp to avoid pulling in <tt>\<algorithm\></tt> for @c std::clamp. */
 template <typename scalar_type_>
 scalar_type_ clamp(scalar_type_ val, scalar_type_ low, scalar_type_ high) noexcept {
     return val < low ? low : val > high ? high : val;
@@ -29,9 +29,11 @@ scalar_type_ clamp(scalar_type_ val, scalar_type_ low, scalar_type_ high) noexce
  *  @tparam value_type_ A NumKong wrapper type, e.g., f32_t, f64_t, i32_t.
  *  @tparam generator_type_ A random number generator type, e.g., @c std::mt19937_64.
  *
- *  @param[inout] generator The random number generator.
+ *  @param[in,out] generator The random number generator.
  *  @param[out] values_ptr Pointer to the array to fill.
  *  @param[in] values_count Number of storage values to fill, not dimensions for sub-byte types.
+ *  @param[in] min_val Lowest value drawn.
+ *  @param[in] max_val Highest value drawn.
  */
 template <typename value_type_, typename generator_type_, typename component_type_ = typename value_type_::component_t>
 void fill_uniform(generator_type_ &generator, value_type_ *values_ptr, std::size_t values_count,

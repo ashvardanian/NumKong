@@ -7,7 +7,7 @@
  *  @sa include/numkong/spatials.h
  *  @sa include/numkong/dots/hopper.cuh
  *
- *  Warpgroup `wgmma.mma_async` over shared-memory descriptors, which only the "90a" code carries,
+ *  Warpgroup <tt>wgmma.mma_async</tt> over shared-memory descriptors, which only the "90a" code carries,
  *  so no other generation compiles these kernels. The dots tile with a metric in its epilogue:
  *  squared norms of A, and for @c symmetric of the column vectors too, accumulate from each staged
  *  slab through Ampere's norm updates before any widening, and @c packed reads the column norms

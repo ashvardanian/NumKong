@@ -27,7 +27,7 @@
  *  the "dots_symmetric" is similar to the "SYRK" (the Symmetric rank-k update of a matrix). It
  *  visits the band (0, NUMKONG_SIZE_MAX) of @c nk_diagonal_band_t, the upper triangle, as the
  *  lower one of A × Aᵀ mirrors it. Symmetric kernels fill the result rows in
- *  `[rows_begin, rows_end)`, clamped to @c vector_count, so threads split the work by rows.
+ *  <tt>[rows_begin, rows_end)</tt>, clamped to @c vector_count, so threads split the work by rows.
  *
  *  For dtypes:
  *
@@ -128,7 +128,7 @@
  *  @endcode
  *
  *  Block-scaled operands arrive as references to their codes, their block scales and, for NVFP4,
- *  their tensor scale. One stride serves both: scale rows sit `stride / block_bytes` apart.
+ *  their tensor scale. One stride serves both: scale rows sit <tt>stride / block_bytes</tt> apart.
  *
  *  @code{.c}
  *  // NVFP4 rows of depth elements: depth / 2 bytes of E2M1 codes and depth / 16 UE4M3 scales each
@@ -223,8 +223,10 @@ extern "C" {
  *  @param[in] depth Columns in B, counting dimensions, a multiple of the values per byte.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The size of the packed buffer.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *  @note The packed layout is backend-specific and must be produced by the matching pack function.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_dots_pack_size_bf16_best(nk_size_t columns, nk_size_t depth, nk_capability_t capabilities,
                                                     nk_size_t *bytes);
@@ -293,9 +295,11 @@ NUMKONG_API nk_status_t nk_dots_pack_size_u1_best(nk_size_t columns, nk_size_t d
  *  @param[out] depth Receives the inner dimension.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, @c nk_missing_kernel_k when no capability in @p capabilities has it, or
- *      @c nk_device_code_mismatch_k on a GPU stream capturing a graph, which reading the header
- *      back would void.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
+ *  - @c nk_device_code_mismatch_k A GPU stream capturing a graph, which reading the header
+ *    back would void.
  */
 NUMKONG_API nk_status_t nk_dots_packed_shape_bf16_best(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                        nk_capability_t capabilities, nk_stream_t stream);
@@ -369,7 +373,9 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_u1_best(void const *b_packed, nk_si
  *  @param[in] columns_end One past the last output column to pack; @p columns for a full pack.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_dots_pack_bf16_best(nk_bf16_t const *b, nk_size_t columns, nk_size_t depth,
                                                nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
@@ -398,7 +404,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m1_best(nk_e2m1x2_t const *b, nk_size_t c
 /**
  *  @copydoc nk_dots_pack_bf16_best
  *  @note Block-scaled B arrives as a reference to its first codes and scales. @p b_stride counts
- *      bytes of codes and whole blocks, and rows of scales sit `b_stride / block_bytes` apart, as
+ *      bytes of codes and whole blocks, and rows of scales sit <tt>b_stride / block_bytes</tt> apart, as
  *      @c nk_block_scaled_format_t says. The pack keeps B's tensor scale and every product applies
  *      it. @p depth must be a multiple of the block size: the CPU backends assert it, and the GPU
  *      backends return @c nk_unexpected_dimensions_k.
@@ -472,7 +478,9 @@ NUMKONG_API nk_status_t nk_dots_pack_u1_best(nk_u1x8_t const *b, nk_size_t colum
  *  @param[in] depth Columns in A and B, counting dimensions.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The workspace size, zero when no scratch is needed.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_dots_packed_workspace_size_bf16_best(nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                                 nk_capability_t capabilities, nk_size_t *bytes);
@@ -493,8 +501,10 @@ NUMKONG_API nk_status_t nk_dots_packed_workspace_size_bf16_best(nk_size_t rows, 
  *      or zero. Anything between zero and that size returns @c nk_unexpected_dimensions_k.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, @c nk_misaligned_k for a misaligned @p workspace, or
- *      @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_misaligned_k A misaligned @p workspace.
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_dots_packed_bf16_best(nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                  nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
@@ -674,7 +684,9 @@ NUMKONG_API nk_status_t nk_dots_packed_u1_best(nk_u1x8_t const *a, void const *b
  *  @param[in] rows_end Result row after the last to compute, clamped to @p vector_count.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The workspace size, zero when no scratch is needed.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_dots_symmetric_workspace_size_bf16_best(nk_size_t vector_count, nk_size_t depth,
                                                                    nk_size_t rows_begin, nk_size_t rows_end,
@@ -699,8 +711,10 @@ NUMKONG_API nk_status_t nk_dots_symmetric_workspace_size_bf16_best(nk_size_t vec
  *      or zero. Anything between zero and that size returns @c nk_unexpected_dimensions_k.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, @c nk_misaligned_k for a misaligned @p workspace, or
- *      @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_misaligned_k A misaligned @p workspace.
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_dots_symmetric_bf16_best(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
@@ -5195,7 +5209,7 @@ NUMKONG_API nk_status_t nk_dots_symmetric_f64_rvv(nk_f64_t const *vectors, nk_si
 
 /**
  *  @copydoc nk_dots_pack_size_bf16_best
- *  @note B is stored as f32, so the vector length comes from `__riscv_vsetvlmax_e32m2()`.
+ *  @note B is stored as f32, so the vector length comes from <tt>__riscv_vsetvlmax_e32m2()</tt>.
  */
 NUMKONG_API nk_status_t nk_dots_pack_size_bf16_rvv(nk_size_t columns, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_dots_packed_shape_bf16_best */
@@ -5235,7 +5249,7 @@ NUMKONG_API nk_status_t nk_dots_symmetric_bf16_rvv(nk_bf16_t const *vectors, nk_
 
 /**
  *  @copydoc nk_dots_pack_size_f16_best
- *  @note B is stored as f32, so the vector length comes from `__riscv_vsetvlmax_e32m2()`.
+ *  @note B is stored as f32, so the vector length comes from <tt>__riscv_vsetvlmax_e32m2()</tt>.
  */
 NUMKONG_API nk_status_t nk_dots_pack_size_f16_rvv(nk_size_t columns, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_dots_packed_shape_f16_best */
@@ -5275,7 +5289,7 @@ NUMKONG_API nk_status_t nk_dots_symmetric_f16_rvv(nk_f16_t const *vectors, nk_si
 
 /**
  *  @copydoc nk_dots_pack_size_i8_best
- *  @note B is stored as i8, so the vector length comes from `__riscv_vsetvlmax_e8m1()`.
+ *  @note B is stored as i8, so the vector length comes from <tt>__riscv_vsetvlmax_e8m1()</tt>.
  */
 NUMKONG_API nk_status_t nk_dots_pack_size_i8_rvv(nk_size_t columns, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_dots_packed_shape_i8_best */
@@ -5314,7 +5328,7 @@ NUMKONG_API nk_status_t nk_dots_symmetric_i8_rvv(nk_i8_t const *vectors, nk_size
 
 /**
  *  @copydoc nk_dots_pack_size_u8_best
- *  @note B is stored as u8, so the vector length comes from `__riscv_vsetvlmax_e8m1()`.
+ *  @note B is stored as u8, so the vector length comes from <tt>__riscv_vsetvlmax_e8m1()</tt>.
  */
 NUMKONG_API nk_status_t nk_dots_pack_size_u8_rvv(nk_size_t columns, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_dots_packed_shape_u8_best */
@@ -10066,9 +10080,15 @@ NUMKONG_API nk_status_t nk_dots_symmetric_u4_apple10(nk_u4x2_t const *vectors, n
 
 /**
  *  @brief Finds the dots kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when none of @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_dots_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                             nk_kernel_punned_t *kernel, nk_capability_t *capability);

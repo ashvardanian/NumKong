@@ -34,9 +34,9 @@
  *
  *  @section spatials_approach Two-Pass Approach
  *
- *  1. Pack B matrix using `nk_dots_pack_*`, which stores the norms in the packed buffer footer.
- *  2. Compute `nk_angulars_packed_*` or `nk_euclideans_packed_*`:
- *     - Internally calls `nk_dots_packed_*` to fill the result buffer with dot products.
+ *  1. Pack B matrix using @c nk_dots_pack_*, which stores the norms in the packed buffer footer.
+ *  2. Compute @c nk_angulars_packed_* or @c nk_euclideans_packed_*:
+ *     - Internally calls @c nk_dots_packed_* to fill the result buffer with dot products.
  *     - Post-processes each result cell by the angular or euclidean formula with precomputed norms.
  *
  *  @section spatials_math Mathematical Foundation
@@ -88,7 +88,9 @@ extern "C" {
  *  @param[in] depth Shared inner dimension in dimensions.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The scratch size, 0 when the capability needs none.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_f32_best(nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                                    nk_capability_t capabilities, nk_size_t *bytes);
@@ -101,7 +103,9 @@ NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_f32_best(nk_size_t row
  *  @param[in] rows_end One past the last row of results to compute.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The scratch size, 0 when the capability needs none.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_f32_best(nk_size_t vector_count, nk_size_t depth,
                                                                       nk_size_t rows_begin, nk_size_t rows_end,
@@ -114,7 +118,9 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_f32_best(nk_size_t 
  *  @param[in] depth Shared inner dimension in dimensions.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The scratch size, 0 when the capability needs none.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_f32_best(nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                                      nk_capability_t capabilities, nk_size_t *bytes);
@@ -127,7 +133,9 @@ NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_f32_best(nk_size_t r
  *  @param[in] rows_end One past the last row of results to compute.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The scratch size, 0 when the capability needs none.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_f32_best(nk_size_t vector_count, nk_size_t depth,
                                                                         nk_size_t rows_begin, nk_size_t rows_end,
@@ -136,7 +144,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_f32_best(nk_size_
 /**
  *  @brief Computes batched angular distances using a packed second matrix.
  *  @param[in] a Input A matrix in row-major order.
- *  @param[in] b_packed Packed B with norms from `nk_dots_pack_*_best` on the same @p capabilities.
+ *  @param[in] b_packed Packed B with norms from @c nk_dots_pack_*_best on the same @p capabilities.
  *  @param[out] result Output matrix (rows x columns) of angular distances.
  *  @param[in] rows Number of rows in A.
  *  @param[in] columns Number of columns in B (packed).
@@ -149,8 +157,10 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_f32_best(nk_size_
  *      path, or 0 for the scratch-free path. Anything in between is @c nk_unexpected_dimensions_k.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, @c nk_misaligned_k for a misaligned @p workspace, or
- *      @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_misaligned_k A misaligned @p workspace.
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_angulars_packed_f32_best(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
                                                     nk_size_t rows, nk_size_t columns, nk_size_t depth,
@@ -174,8 +184,10 @@ NUMKONG_API nk_status_t nk_angulars_packed_f32_best(nk_f32_t const *a, void cons
  *      path, or 0 for the scratch-free path. Anything in between is @c nk_unexpected_dimensions_k.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, @c nk_misaligned_k for a misaligned @p workspace, or
- *      @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_misaligned_k A misaligned @p workspace.
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_angulars_symmetric_f32_best(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                        nk_size_t stride, nk_f64_t *result, nk_size_t result_stride,
@@ -186,7 +198,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_f32_best(nk_f32_t const *vectors, 
 /**
  *  @brief Computes batched euclidean distances using a packed second matrix.
  *  @param[in] a Input A matrix in row-major order.
- *  @param[in] b_packed Packed B with norms from `nk_dots_pack_*_best` on the same @p capabilities.
+ *  @param[in] b_packed Packed B with norms from @c nk_dots_pack_*_best on the same @p capabilities.
  *  @param[out] result Output matrix (rows x columns) of euclidean distances.
  *  @param[in] rows Number of rows in A.
  *  @param[in] columns Number of columns in B (packed).
@@ -199,8 +211,10 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_f32_best(nk_f32_t const *vectors, 
  *      path, or 0 for the scratch-free path. Anything in between is @c nk_unexpected_dimensions_k.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, @c nk_misaligned_k for a misaligned @p workspace, or
- *      @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_misaligned_k A misaligned @p workspace.
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_euclideans_packed_f32_best(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
                                                       nk_size_t rows, nk_size_t columns, nk_size_t depth,
@@ -224,8 +238,10 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f32_best(nk_f32_t const *a, void co
  *      path, or 0 for the scratch-free path. Anything in between is @c nk_unexpected_dimensions_k.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, @c nk_misaligned_k for a misaligned @p workspace, or
- *      @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_misaligned_k A misaligned @p workspace.
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_best(nk_f32_t const *vectors, nk_size_t vector_count,
                                                          nk_size_t depth, nk_size_t stride, nk_f64_t *result,
@@ -12844,9 +12860,15 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_apple10(nk_u4x2_t const *vect
 
 /**
  *  @brief Finds the spatials kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when none of @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_spatials_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                                 nk_kernel_punned_t *kernel, nk_capability_t *capability);

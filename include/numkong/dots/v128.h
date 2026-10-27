@@ -6,7 +6,7 @@
  *
  *  @sa include/numkong/dots.h
  *
- *  Widens i8 and u8 to 16-bit lanes and multiplies adjacent pairs with `i32x4.dot_i16x8_s`, so
+ *  Widens i8 and u8 to 16-bit lanes and multiplies adjacent pairs with <tt>i32x4.dot_i16x8_s</tt>, so
  *  every integer GEMM is exact without a correction pass; bf16 shifts even and odd halves straight
  *  into f32 lanes.
  */

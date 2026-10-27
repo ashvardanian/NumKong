@@ -36,6 +36,7 @@
 //!
 //! File: rust/spatial.rs
 //! Author: Ash Vardanian
+//! Date: March 8, 2026
 
 // Supplies the `Dot` supertrait bound for the `SpatialSimilarity` bundle below.
 use core::{ffi::c_void, ptr::null_mut};
@@ -357,7 +358,9 @@ extern "C" {
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `e4m3`, `e5m2`, `e2m3`, `e3m2`,
 /// `i4x2`, and `u4x2`.
 pub trait Angular: StorageElement {
+    /// Result type of the angular distance.
     type Output;
+    /// Computes the angular distance between two equally long slices.
     fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `angular`.
@@ -620,7 +623,9 @@ impl Angular for u4x2 {
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `e4m3`, `e5m2`, `e2m3`, `e3m2`,
 /// `i4x2`, and `u4x2`.
 pub trait Euclidean: StorageElement {
+    /// Result type of the squared Euclidean distance.
     type SqEuclideanOutput;
+    /// Result type of the Euclidean distance.
     type EuclideanOutput;
 
     /// Squared Euclidean distance, i.e. L2². Faster than `euclidean` for comparisons.

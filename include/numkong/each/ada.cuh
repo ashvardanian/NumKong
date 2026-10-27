@@ -8,7 +8,7 @@
  *  @sa include/numkong/each/cuda.cuh
  *  @sa include/numkong/cast/ada.cuh
  *
- *  The kernels of `each/simt.cuh` through the generators of `each/cuda.cuh`, widening E4M3 inputs
+ *  The kernels of <tt>each/simt.cuh</tt> through the generators of <tt>each/cuda.cuh</tt>, widening E4M3 inputs
  *  and narrowing results to E4M3 in one instruction rather than in branches, RMSNorm reading E4M3
  *  or the F32 of the dot products, which it also narrows to E5M2.
  */

@@ -975,7 +975,7 @@ NUMKONG_API nk_f64_t nk_f64_atan2_serial(nk_f64_t const y_input, nk_f64_t const 
 }
 #endif // NUMKONG_TARGET_SERIAL
 
-/** Scalar `2^x` via a degree-7 polynomial, shared by sigmoid, SiLU, and softmax.
+/** Scalar <tt>2^x</tt> via a degree-7 polynomial, shared by sigmoid, SiLU, and softmax.
  *  Clamps to [-125, 127] to avoid denormal penalties in later multiplies. */
 NUMKONG_INLINE nk_f32_t nk_f32_exp2_serial_(nk_f32_t x) {
     x = x > 127.0f ? 127.0f : x;
@@ -995,7 +995,7 @@ NUMKONG_INLINE nk_f32_t nk_f32_exp2_serial_(nk_f32_t x) {
     return poly * power.f;
 }
 
-/** Scalar logistic sigmoid `1 / (1 + e^-x)`, built on the shared fast exponent. */
+/** Scalar logistic sigmoid <tt>1 / (1 + e^-x)</tt>, built on the shared fast exponent. */
 NUMKONG_INLINE nk_f32_t nk_f32_sigmoid_serial_(nk_f32_t x) {
     return 1.0f / (1.0f + nk_f32_exp2_serial_(-x * NUMKONG_F32_LOG2E_));
 }

@@ -45,7 +45,7 @@ NUMKONG_DEVICE nk_u64_t nk_attention_block_scan_rocm_(nk_u64_t value, nk_u64_t *
 }
 
 /** Fills @p prefix with the running item counts of the 128 segments from
- *  `schedule->chunk_first`. */
+ *  @c schedule->chunk_first. */
 NUMKONG_DEVICE void nk_attention_schedule_chunk_rocm_(nk_attention_schedule_t const *schedule, nk_u64_t *prefix,
                                                       nk_u64_t *warp_totals) {
     nk_u64_t const items = nk_attention_segment_items_simt_(schedule, schedule->chunk_first + threadIdx.x,

@@ -292,7 +292,7 @@ inv_cov = np.eye(32, dtype=np.float32)
 mahalanobis = nk.mahalanobis(x, y, inv_cov)
 ```
 
-## Scalar Types and Low-Precision Formats
+## Scalar Types
 
 NumKong exposes two different low-precision stories in Python.
 It exposes Python scalar objects for a few formats.
@@ -424,7 +424,7 @@ import torch
 scales = torch.from_dlpack(q.block_scales)   # zero-copy view of the scale bytes
 ```
 
-## Tensor Objects and Buffer Interop
+## Tensors and Views
 
 `Tensor` is a memoryview-backed object with NumPy-like metadata.
 It is the central container for strided views, transpose, reshape, flatten, and axis reductions.
@@ -492,7 +492,7 @@ assert np.asarray(all_pairs).shape == (100, 10_000)
 `cdist` and the packed and symmetric kernels take a `threads=` argument, where `0` means every logical processor, and row ranges are still available for partitioning the work yourself.
 `dots_pack` and `hammings_pack` take it too, splitting the packed matrix by columns.
 
-## Elementwise Operations
+## Elementwise and Reductions
 
 Elementwise arithmetic and fused operations are their own family.
 They share the tensor infrastructure but should not be collapsed into the reduction or matrix sections.
@@ -564,7 +564,7 @@ on an Apple M2 Pro, `np.argmin(matrix[:, 1])` on a row-major `2,000,000 x 3` `fl
 The equivalent NumKong `Tensor(... )[:, 1].argmin()` took about `0.67 ms` median.
 That is about `2.45x` faster on this strided reduction case.
 
-## Sparse Operations and Intersections
+## Sparse Operations
 
 Sparse helpers cover both sorted-index intersections and weighted sparse dot products.
 
@@ -581,7 +581,7 @@ sparse_dot = nk.sparse_dot(idx_a, val_a, idx_b, val_b)
 assert sparse_dot > 0, "weighted dot over shared indices"
 ```
 
-## Packed Matrix Kernels for GEMM-Like Workloads
+## Matrix Kernels
 
 Packed matrix kernels are the right tool when the right-hand side is reused across many query batches.
 This is the `GEMM`-like story.
@@ -688,7 +688,7 @@ The pack layout is private, and the `centroids`, `frames`, `scales`, `spreads` a
 Wasserstein-Procrustes and Gromov-Wasserstein allocate their workspace inside the call.
 Every kind takes `threads=`, splitting the row clouds with a workspace per worker, and both packing functions take it to split the clouds.
 
-## MaxSim and ColBERT-Style Late Interaction
+## MaxSim
 
 MaxSim is the late-interaction primitive used by systems such as [ColBERT](https://arxiv.org/abs/2004.12832).
 It is not generic matrix multiplication.
@@ -753,7 +753,7 @@ query_gradient, key_gradient, value_gradient = nk.attention_packed_gradients(
 `query_gradient=` takes a pre-allocated `(tokens, heads * depth)` f32 tensor, whose rows may sit in a wider buffer.
 With `threads=`, attention cuts its grid of query tokens × heads into a few windows of equal cost per thread, so a single decode token still spreads over its heads.
 
-## Capabilities, GIL Behavior, and Parallel Partitioning
+## Parallelism
 
 Capability detection is explicit, through module functions named after each device group:
 
@@ -855,7 +855,7 @@ nk.dots_packed(nk.from_dlpack(left), packed, out=nk.from_dlpack(result), stream=
 nk.synchronize(capabilities, stream=stream)
 ```
 
-## Addressing External Memory
+## External Memory
 
 NumKong implements the Python buffer protocol for zero-copy interop with NumPy, PyTorch, and other buffer-aware libraries.
 Two additional primitives cover pointer-level workflows: `data_ptr` reads the integer address out of any `Tensor`, and `from_pointer()` wraps any integer address back into one.

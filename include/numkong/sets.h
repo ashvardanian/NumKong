@@ -5,7 +5,7 @@
  *  @brief SIMD-accelerated batched set distances.
  *
  *  This module provides efficient batched computation of Hamming and Jaccard distances between
- *  large collections of sets. Unlike the single-vector `set.h` module, this module is optimized for
+ *  large collections of sets. Unlike the single-vector <tt>set.h</tt> module, this module is optimized for
  *  matrix-style operations where you compute distances between:
  *
  *  - All pairs of rows in a query matrix Q against rows in values matrix V
@@ -72,7 +72,9 @@ extern "C" {
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports, or zero.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_hammings_packed_u1_best(nk_u1x8_t const *v, void const *query_packed, nk_u32_t *result,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t d, nk_size_t v_stride,
@@ -93,7 +95,9 @@ NUMKONG_API nk_status_t nk_hammings_packed_u1_best(nk_u1x8_t const *v, void cons
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports, or zero.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_hammings_symmetric_u1_best(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                       nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
@@ -115,7 +119,9 @@ NUMKONG_API nk_status_t nk_hammings_symmetric_u1_best(nk_u1x8_t const *vectors, 
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports, or zero.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_jaccards_packed_u1_best(nk_u1x8_t const *v, void const *query_packed, nk_f32_t *result,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t d, nk_size_t v_stride,
@@ -136,7 +142,9 @@ NUMKONG_API nk_status_t nk_jaccards_packed_u1_best(nk_u1x8_t const *v, void cons
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports, or zero.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_best(nk_u1x8_t const *vectors, nk_size_t vector_count, nk_size_t d,
                                                       nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
@@ -151,7 +159,6 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_best(nk_u1x8_t const *vectors, 
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The scratch the fast path takes, zero when the kernel needs none.
- *  @return @c nk_success_k.
  */
 NUMKONG_API nk_status_t nk_hammings_packed_workspace_size_u1_best(nk_size_t rows, nk_size_t columns, nk_size_t d,
                                                                   nk_capability_t capabilities, nk_size_t *bytes);
@@ -164,7 +171,6 @@ NUMKONG_API nk_status_t nk_hammings_packed_workspace_size_u1_best(nk_size_t rows
  *  @param[in] rows_end Result row after the last to compute.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The scratch the fast path takes, zero when the kernel needs none.
- *  @return @c nk_success_k.
  */
 NUMKONG_API nk_status_t nk_hammings_symmetric_workspace_size_u1_best(nk_size_t vector_count, nk_size_t d,
                                                                      nk_size_t rows_begin, nk_size_t rows_end,
@@ -490,9 +496,15 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_loongsonasx(nk_u1x8_t const *ve
 
 /**
  *  @brief Finds the sets kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when none of @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_sets_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                             nk_kernel_punned_t *kernel, nk_capability_t *capability);

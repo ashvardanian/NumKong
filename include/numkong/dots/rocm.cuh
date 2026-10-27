@@ -3,12 +3,12 @@
  *  @author Ash Vardanian
  *  @date October 3, 2026
  *  @brief The @c rocm baseline of batched dot products: its F64 and B32 tiles over the portable
- *      stages of `dots/simt.cuh`, the pack and tile launches, the generators every ROCm capability
+ *      stages of <tt>dots/simt.cuh</tt>, the pack and tile launches, the generators every ROCm capability
  *      instantiates its exports with, and the baseline exports.
  *
  *  AMD stages depth in F16 pairs and nibbles as packed. Every ROCm device runs @c v_dot4_u32_u8,
  *  @c v_dot8_u32_u4 and @c v_perm_b32, but MI400 lacks CDNA's F16 pair dot and spells the signed
- *  byte dots differently, so the baseline folds those portably and `cdna3.cuh` adds CDNA's.
+ *  byte dots differently, so the baseline folds those portably and <tt>cdna3.cuh</tt> adds CDNA's.
  *
  *  @sa include/numkong/dots/simt.cuh
  *  @sa include/numkong/dots/cuda.cuh
@@ -91,7 +91,7 @@ NUMKONG_DEVICE void nk_cross_step_dot2_rocm_(nk_f64_t a, nk_f64_t b, nk_f64_t *s
     *compensation = nk_f64_add_rn_rocm_(*compensation, nk_f64_add_rn_rocm_(sum_error, product_error));
 }
 
-/** Merges the running sum of lane `lane ^ offset` into this one, through TwoSum. */
+/** Merges the running sum of lane <tt>lane ^ offset</tt> into this one, through TwoSum. */
 NUMKONG_DEVICE void nk_cross_merge_lanes_f64_rocm_(unsigned offset, nk_f64_t *sum, nk_f64_t *compensation) {
     nk_f64_t const other_sum = nk_shuffle_xor_f64_rocm_(*sum, offset);
     nk_f64_t const other_compensation = nk_shuffle_xor_f64_rocm_(*compensation, offset);
@@ -265,7 +265,7 @@ NUMKONG_DEVICE void nk_cross_load_words_b32_rocm_(nk_u32_t a_slab[nk_cross_slab_
         b_words[step] = b_slab[offset][thread_column + nk_cross_grid_side_simt_k * step];
 }
 
-/** Adds lane `lane ^ offset`'s sums of the norms into this one in F32. */
+/** Adds lane <tt>lane ^ offset</tt>'s sums of the norms into this one in F32. */
 NUMKONG_DEVICE void nk_cross_merge_norms_f32_rocm_(nk_diagonal_band_t band, nk_fui32_t a_norms[nk_cross_loads_simt_k],
                                                    nk_fui32_t b_norms[nk_cross_loads_simt_k]) {
 #pragma unroll
@@ -277,7 +277,7 @@ NUMKONG_DEVICE void nk_cross_merge_norms_f32_rocm_(nk_diagonal_band_t band, nk_f
         }
 }
 
-/** Adds lane `lane ^ offset`'s sums of the norms into this one, wrapping. */
+/** Adds lane <tt>lane ^ offset</tt>'s sums of the norms into this one, wrapping. */
 NUMKONG_DEVICE void nk_cross_merge_norms_u32_rocm_(nk_diagonal_band_t band, nk_fui32_t a_norms[nk_cross_loads_simt_k],
                                                    nk_fui32_t b_norms[nk_cross_loads_simt_k]) {
 #pragma unroll

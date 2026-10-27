@@ -54,6 +54,7 @@
 //
 // File: golang/numkong.go
 // Author: Ash Vardanian
+// Date: October 19, 2023
 package numkong
 
 // #cgo CFLAGS: -O3 -I${SRCDIR}/../include

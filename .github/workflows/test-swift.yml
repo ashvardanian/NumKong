@@ -29,7 +29,7 @@ jobs:
       matrix:
         arch: [x86_64, arm64]
     env:
-      NUMKONG_SWIFT_ARTIFACT: CNumKong.artifactbundle.zip
+      NUMKONG_SWIFT_ARTIFACT: NumKongC.artifactbundle.zip
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -57,7 +57,7 @@ jobs:
       matrix:
         arch: [arm64, x86_64]
     env:
-      NUMKONG_SWIFT_ARTIFACT: CNumKong.xcframework.zip
+      NUMKONG_SWIFT_ARTIFACT: NumKongC.xcframework.zip
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -86,7 +86,7 @@ jobs:
       matrix:
         platform: [iOS, tvOS, watchOS, visionOS]
     env:
-      NUMKONG_SWIFT_ARTIFACT: CNumKong.xcframework.zip
+      NUMKONG_SWIFT_ARTIFACT: NumKongC.xcframework.zip
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -111,7 +111,7 @@ jobs:
       matrix:
         arch: [amd64, arm64]
     env:
-      NUMKONG_SWIFT_ARTIFACT: CNumKong.artifactbundle.zip
+      NUMKONG_SWIFT_ARTIFACT: NumKongC.artifactbundle.zip
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -138,7 +138,7 @@ jobs:
       enable_windows_checks: false
       enable_android_sdk_build: true
       needs_token: true
-      linux_env_vars: NUMKONG_SWIFT_ARTIFACT=CNumKong.artifactbundle.zip
+      linux_env_vars: NUMKONG_SWIFT_ARTIFACT=NumKongC.artifactbundle.zip
       android_sdk_pre_build_command: gh run download ${{ github.run_id }} --repo ${{ github.repository }} --name swift-artifactbundle
       android_sdk_build_command: swift build --build-tests
       android_sdk_versions: '["6.4"]'
@@ -149,7 +149,7 @@ jobs:
     runs-on: ubuntu-24.04
     container: swift:6.4
     env:
-      NUMKONG_SWIFT_ARTIFACT: CNumKong.artifactbundle.zip
+      NUMKONG_SWIFT_ARTIFACT: NumKongC.artifactbundle.zip
     steps:
       - name: Checkout
         uses: actions/checkout@v7

@@ -9,8 +9,8 @@
  *  @sa include/numkong/attention/apple9.metal, the kernels this embeds
  *
  *  The @c metal pack and launch contract over @c simdgroup_matrix tiles, for the floats whose
- *  operands stage exactly in @c half or @c bfloat. The kernels travel as their own `.metal` source,
- *  embedded after `metal.metal`, whose online softmax and decode path they share, and compile on
+ *  operands stage exactly in @c half or @c bfloat. The kernels travel as their own <tt>.metal</tt> source,
+ *  embedded after <tt>metal.metal</tt>, whose online softmax and decode path they share, and compile on
  *  the device at first use under Metal 3.1 for its @c bfloat. BF16 gradients run on the same tiles.
  */
 #ifndef NUMKONG_ATTENTION_APPLE9_H

@@ -8,7 +8,7 @@
  *  @sa include/numkong/each/cuda.cuh
  *  @sa include/numkong/cast/ampere.cuh
  *
- *  The kernels of `each/simt.cuh` through the generators of `each/cuda.cuh`, narrowing every result
+ *  The kernels of <tt>each/simt.cuh</tt> through the generators of <tt>each/cuda.cuh</tt>, narrowing every result
  *  to BF16 in one instruction rather than with integer rounding, RMSNorm reading BF16 or the F32 of
  *  the dot products.
  */

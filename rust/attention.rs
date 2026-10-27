@@ -35,6 +35,7 @@
 //!
 //! File: rust/attention.rs
 //! Author: Ash Vardanian
+//! Date: July 7, 2026
 
 use core::{
     ffi::c_void,
@@ -363,7 +364,7 @@ extern "C" {
 /// # Errors
 ///
 /// [`Error::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
-/// other [`Capabilities`](crate::Capabilities) than the current ones.
+/// other [`Capabilities`] than the current ones.
 pub trait Attention: StorageElement + Clone {
     /// Returns bytes enough to pack `token_count` keys in `segment_count` segments, however split.
     fn attention_pack_size(

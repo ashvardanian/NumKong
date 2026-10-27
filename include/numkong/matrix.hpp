@@ -299,12 +299,17 @@ expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std:
 
 /**
  *  @brief Packs ragged K/V token matrices into a backend-opaque KV-cache blob.
+ *  @param[in] key_value_head_count K/V heads.
+ *  @param[in] depth Head dimension.
  *  @param[in] key_offsets The @p segment_count + 1 slot boundaries, which must not decrease.
  *  @param[in] key_lengths Keys each segment holds, at most its slot's width; zeros mark padding
  *      slots. Null means every slot is full.
- *  @param[in] keys,values Token-major matrices, element (token, head, d) of @p keys at @p keys
- *      + token × @p key_stride + (head × depth + d) elements, likewise for @p values. Packing
- *      fuses no transposition, so depth-major K or V is transposed in a separate pass first.
+ *  @param[in] segment_count Number of segments in the batch.
+ *  @param[in] keys Token-major matrix, element (token, head, d) at @p keys + token × @p key_stride
+ *      + (head × depth + d) elements. Packing fuses no transposition, so depth-major K is
+ *      transposed in a separate pass first.
+ *  @param[in] values Token-major matrix laid out like @p keys over @p value_stride. Depth-major V
+ *      is likewise transposed in a separate pass first.
  *  @param[in] key_stride Bytes between tokens of @p keys.
  *  @param[in] value_stride Bytes between tokens of @p values.
  *  @param[out] key_value_packed 64-byte-aligned buffer of @c attention_pack_size bytes.
@@ -432,7 +437,7 @@ constexpr bool attention_rows_supported_(tokens_type_ const &tokens) noexcept {
  *  @tparam allocator_type_ Allocator for the packed buffer, default aligned_allocator<char>.
  *
  *  Wraps @c dots_pack to pre-arrange a matrix B into a cache-friendly layout.
- *  Use `make()` to create from a matrix_view, then pass to `dots_packed()` for computation.
+ *  Use <tt>make()</tt> to create from a matrix_view, then pass to <tt>dots_packed()</tt> for computation.
  */
 template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<char>>
 struct packed_matrix {
@@ -482,9 +487,12 @@ struct packed_matrix {
      *  @brief Pack a 2D matrix_view into cache-efficient layout.
      *  @param[in] b 2D matrix view. Uses extents[0] as rows, extents[1] as depth.
      *  @param[in] alloc Allocator instance.
-     *  @return The packed matrix; @c unexpected_dimensions_k for a rank below 2,
-     *      @c missing_kernel_k when nothing packs @p value_type_, @c bad_alloc_k, or the failure
-     *      the packing kernel itself reports.
+     *  @return The packed matrix.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k A rank below 2.
+     *  - @c missing_kernel_k Nothing packs @p value_type_.
+     *  - The failure the packing kernel itself reports.
      */
     static expected<packed_matrix> make(matrix_view<value_type_> b, allocator_type_ alloc = {}) noexcept {
         if (b.rank() < 2) return {packed_matrix(alloc), status_t::unexpected_dimensions_k};
@@ -525,7 +533,7 @@ struct packed_matrix {
  *  @brief Pre-packed vector set for MaxSim — ColBERT late-interaction.
  *
  *  MaxSim computes Σᵢ minⱼ angular(qᵢ, dⱼ) using quantized i8 screening followed by full-precision
- *  refinement. Both queries and documents must be independently packed before calling `maxsim()`.
+ *  refinement. Both queries and documents must be independently packed before calling <tt>maxsim()</tt>.
  *
  *  Supported types: bf16_t, f32_t, f16_t.
  */
@@ -600,7 +608,7 @@ class packed_maxsim {
  *  @brief Pre-packed ragged KV-cache for scaled-dot-product attention.
  *
  *  Packs K and V once, keeping a copy of the segment offsets after the packed bytes, so the view
- *  overloads of `attention_packed()` run self-attention against it without restating the batch.
+ *  overloads of <tt>attention_packed()</tt> run self-attention against it without restating the batch.
  *
  *  Supported types: bf16_t, e4m3_t, i8_t.
  */
@@ -646,16 +654,21 @@ class packed_attention {
 
     /**
      *  @brief Size, allocate and pack a ragged batch of K and V tokens.
-     *  @param[in] keys,values @b [tokens,key_value_heads,depth] views whose heads sit back to back
-     *      along their depth stride, so a transposed depth packs without a copy.
+     *  @param[in] keys @b [tokens,key_value_heads,depth] view whose heads sit back to back along
+     *      its depth stride, so a transposed depth packs without a copy.
+     *  @param[in] values @b [tokens,key_value_heads,depth] view laid out like @p keys.
      *  @param[in] key_offsets The slot boundaries of the segments, one more than there are
      *      segments, which must not decrease.
      *  @param[in] key_lengths Keys each segment holds, at most its slot's width; zeros mark padding
      *      slots. Empty means every slot is full.
      *  @param[in] alloc Allocator instance.
      *  @param[in] capabilities Capabilities to pack for; attend with the same ones.
-     *  @return The pack; @c unexpected_dimensions_k when the views or segments disagree or overrun
-     *      the tokens, @c missing_kernel_k, @c bad_alloc_k, or the packing kernel's failure.
+     *  @return The pack.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k The views or segments disagree or overrun the tokens.
+     *  - @c missing_kernel_k
+     *  - The packing kernel's failure.
      */
     template <std::size_t max_rank_>
     static expected<packed_attention> make(tensor_view<value_type_, max_rank_> keys,

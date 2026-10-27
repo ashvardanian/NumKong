@@ -9,6 +9,7 @@
 //!
 //! File: rust/scalar.rs
 //! Author: Ash Vardanian
+//! Date: December 30, 2025
 
 use crate::{
     capabilities::{nk_capability_t, Capabilities},

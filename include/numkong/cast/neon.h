@@ -108,10 +108,10 @@ NUMKONG_INLINE void nk_load_b64_neon_(void const *src, nk_b64_vec_t *dst) { dst-
 /**
  *  @brief 8-lane @c uint16x8_t splat that hides the source from the optimizer.
  *
- *  GCC 13 lowers `vdupq_n_u16(X)` to `fmov v.8h, #imm` (a FEAT_FP16 encoding) whenever X matches a
- *  representable FP16 immediate, including bf16 bit patterns like 1.0 (`0x3F80`). That fails to
- *  assemble under a `+bf16`-only pragma. The empty @c __asm__ constraint instead forces the pair
- *  `mov w; dup v.8h, w`, valid on plain `armv8-a+simd`. No-op on Clang, and skipped on MSVC, as
+ *  GCC 13 lowers <tt>vdupq_n_u16(X)</tt> to <tt>fmov v.8h, #imm</tt> (a FEAT_FP16 encoding) whenever X matches a
+ *  representable FP16 immediate, including bf16 bit patterns like 1.0 (<tt>0x3F80</tt>). That fails to
+ *  assemble under a @c +bf16-only pragma. The empty @c __asm__ constraint instead forces the pair
+ *  <tt>mov w; dup v.8h, w</tt>, valid on plain @c armv8-a+simd. No-op on Clang, and skipped on MSVC, as
  *  neither is affected.
  */
 NUMKONG_INLINE uint16x8_t nk_splat_u16x8_neon_(nk_u16_t bits) {
@@ -1242,7 +1242,7 @@ NUMKONG_INLINE void nk_cast_elementwise_neon_(void const *from, nk_dtype_t from_
     if (tail) nk_cast_elementwise_serial_(from_ptr, from_type, tail, to_ptr, to_type);
 }
 
-/** Reduce @p block_count f32s to `max(|x|)` via NEON (f32x4 horizontal max). */
+/** Reduce @p block_count f32s to <tt>max(|x|)</tt> via NEON (f32x4 horizontal max). */
 NUMKONG_INLINE nk_f32_t nk_block_amax_f32_neon_(nk_f32_t const *block, nk_size_t block_count) {
     nk_fui32_t qnan;
     qnan.u = 0x7FC00000u; // NaN in any lane → propagate so the block scale becomes the NaN sentinel

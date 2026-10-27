@@ -1,0 +1,60 @@
+PROJECT_NAME           = NumKong
+OUTPUT_DIRECTORY       = ../build/
+INPUT                  = ../include/numkong
+RECURSIVE              = YES
+FILE_PATTERNS          = *.h *.hpp
+EXTENSION_MAPPING      = cuh=C++
+EXCLUDE_SYMBOLS        = *_ nk_cast_serial nk_f32_fma_serial nk_f32_rsqrt_serial nk_f32_sqrt_serial \
+                         nk_f32_to_bf16_serial nk_f32_to_e2m3_serial nk_f32_to_e3m2_serial \
+                         nk_f32_to_e4m3_serial nk_f32_to_e5m2_serial nk_f32_to_f16_serial \
+                         nk_f64_fma_serial nk_f64_rsqrt_serial nk_f64_sqrt_serial nk_stream_synchronize_serial \
+                         nk_allocator_*_serial nk_angular_*_serial nk_angulars_*_serial nk_attention_*_serial \
+                         nk_bf16_*_serial nk_bilinear_*_serial nk_cast_*_serial nk_chamfers_*_serial \
+                         nk_clearances_*_serial nk_dot_*_serial nk_dots_*_serial nk_e2m3_*_serial \
+                         nk_e3m2_*_serial nk_e4m3_*_serial nk_e5m2_*_serial nk_each_*_serial \
+                         nk_euclidean_*_serial nk_euclideans_*_serial nk_f16_*_serial \
+                         nk_gromovwassersteins_*_serial nk_hamming_*_serial nk_hammings_*_serial \
+                         nk_hausdorffs_*_serial nk_haversines_*_serial nk_i16_*_serial nk_i32_*_serial \
+                         nk_i4x2_*_serial nk_i64_*_serial nk_i8_*_serial nk_jaccard_*_serial \
+                         nk_jaccards_*_serial nk_jsd_*_serial nk_kld_*_serial nk_mahalanobis_*_serial \
+                         nk_maxsim_*_serial nk_memory_*_serial nk_reduce_*_serial nk_rmsds_*_serial \
+                         nk_shapes_*_serial nk_sparse_*_serial nk_sqeuclidean_*_serial \
+                         nk_sqeuclideans3d_*_serial nk_terrain_*_serial nk_trig_*_serial nk_u16_*_serial \
+                         nk_u32_*_serial nk_u4x2_*_serial nk_u64_*_serial nk_u8_*_serial nk_vdot_*_serial \
+                         nk_vincentys_*_serial nk_wassersteinprocrustes_*_serial
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+PREDEFINED             = NUMKONG_API= NUMKONG_INLINE= NUMKONG_CONSTEXPR= NUMKONG_CMATH_CONSTEXPR_= \
+                         NUMKONG_STREAMING_= NUMKONG_STREAMABLE_= NUMKONG_MAY_ALIAS_= NUMKONG_HEADER_ONLY=0 \
+                         NUMKONG_TARGET_SERIAL=0 NUMKONG_TARGET_HASWELL=0 NUMKONG_TARGET_SKYLAKE=0 \
+                         NUMKONG_TARGET_ICELAKE=0 NUMKONG_TARGET_GENOA=0 NUMKONG_TARGET_SAPPHIRE=0 \
+                         NUMKONG_TARGET_SAPPHIREAMX=0 NUMKONG_TARGET_ALDER=0 NUMKONG_TARGET_SIERRA=0 \
+                         NUMKONG_TARGET_TURIN=0 NUMKONG_TARGET_DIAMOND=0 NUMKONG_TARGET_DIAMONDAMX=0 \
+                         NUMKONG_TARGET_GRANITEAMX=0 NUMKONG_TARGET_NEON=0 NUMKONG_TARGET_NEONHALF=0 \
+                         NUMKONG_TARGET_NEONSDOT=0 NUMKONG_TARGET_NEONBFDOT=0 NUMKONG_TARGET_NEONFHM=0 \
+                         NUMKONG_TARGET_NEONFP8=0 NUMKONG_TARGET_SVE=0 NUMKONG_TARGET_SVE2=0 \
+                         NUMKONG_TARGET_SVEHALF=0 NUMKONG_TARGET_SVEBFDOT=0 NUMKONG_TARGET_SVESDOT=0 \
+                         NUMKONG_TARGET_SME=0 NUMKONG_TARGET_SMEF64=0 NUMKONG_TARGET_SMEBI32=0 \
+                         NUMKONG_TARGET_RVV=0 NUMKONG_TARGET_RVVHALF=0 NUMKONG_TARGET_RVVBF16=0 \
+                         NUMKONG_TARGET_RVVBB=0 NUMKONG_TARGET_V128=0 NUMKONG_TARGET_V128RELAXED=0 \
+                         NUMKONG_TARGET_LOONGSONASX=0 NUMKONG_TARGET_POWERVSX=0 NUMKONG_TARGET_CUDA=0 \
+                         NUMKONG_TARGET_ROCM=0 NUMKONG_TARGET_METAL=0 NUMKONG_TARGET_AMPERE=0 \
+                         NUMKONG_TARGET_ADA=0 NUMKONG_TARGET_HOPPER=0 NUMKONG_TARGET_BLACKWELL=0 \
+                         NUMKONG_TARGET_BLACKWELLRTX=0 NUMKONG_TARGET_BLACKWELLULTRA=0 \
+                         NUMKONG_TARGET_CDNA3=0 NUMKONG_TARGET_CDNA4=0 NUMKONG_TARGET_CDNA5=0 \
+                         NUMKONG_TARGET_APPLE9=0 NUMKONG_TARGET_APPLE10=0
+JAVADOC_AUTOBRIEF      = YES
+MARKDOWN_ID_STYLE      = GITHUB
+BUILTIN_STL_SUPPORT    = YES
+TYPEDEF_HIDES_STRUCT   = YES
+EXTRACT_ALL            = NO
+EXTRACT_STATIC         = YES
+GENERATE_HTML          = NO
+GENERATE_LATEX         = NO
+GENERATE_XML           = YES
+HAVE_DOT               = NO
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_INCOMPLETE_DOC = YES
+WARN_AS_ERROR          = FAIL_ON_WARNINGS

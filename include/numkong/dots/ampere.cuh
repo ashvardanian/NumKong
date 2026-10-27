@@ -7,7 +7,7 @@
  *  @sa include/numkong/dots.h
  *
  *  Four warps own a @b [128,128] output tile, streaming 64-byte depth slabs through a three-stage
- *  `cp.async` pipeline into swizzled shared memory, so dtypes differ only in how each 32-byte
+ *  <tt>cp.async</tt> pipeline into swizzled shared memory, so dtypes differ only in how each 32-byte
  *  sub-slab is multiplied. Float8 and E3M2 widen exactly into F16; E2M3, E2M1, I4 and U4 widen into
  *  I8 for exact integer MMA, with one output multiply undoing each widening's power of two. F32
  *  widens exactly into F64 for DMMA, whose FMA chains round as the @c cuda tile's scalar ones do.
@@ -1900,7 +1900,7 @@ NUMKONG_DEVICE void nk_dots_f32_multiply_ampere_(nk_f64_t accumulators[8][4][2],
 }
 
 /** Writes this warp's [64,32] outputs as F64: the dots, or metrics with zeros on the diagonal of a
- *  Gram matrix. Lane `4g + q` holds row g and columns 2q and 2q + 1 of each 8 × 8 tile. */
+ *  Gram matrix. Lane <tt>4g + q</tt> holds row g and columns 2q and 2q + 1 of each 8 × 8 tile. */
 NUMKONG_DEVICE void nk_cross_store_f32_ampere_(nk_cross_shared_f32_ampere_t const *shared,
                                                nk_f64_t accumulators[8][4][2], nk_cross_metric_t metric,
                                                nk_diagonal_band_t band, nk_size_t first_row, nk_size_t first_column,

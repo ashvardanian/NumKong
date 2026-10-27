@@ -73,7 +73,7 @@
  *  B_packed[j, k] = packed[group * group_size * depth + j_in_group * depth + k]
  *  @endverbatim
  *
- *  The inner loop accesses B_packed[j, k:k+simd], which is contiguous, at just `pointer + k`.
+ *  The inner loop accesses B_packed[j, k:k+simd], which is contiguous, at just <tt>pointer + k</tt>.
  */
 
 #ifndef NUMKONG_DOTS_SERIAL_H
@@ -905,7 +905,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_serial_(nk_i4x2_t const *data, nk_
  *  @brief Generates function to calculate packed B matrix buffer size for compensated GEMM.
  *
  *  Like nk_define_cross_pack_size_, but the buffer stores both norms and column sums, laid out as
- *  `[header 64B] [packed data] [norms, norm_type] [column sums, sum_type]`. Norms come first, so
+ *  <tt>[header 64B] [packed data] [norms, norm_type] [column sums, sum_type]</tt>. Norms come first, so
  *  nk_define_cross_normalized_packed_ reads them at the same offset.
  */
 #define nk_define_cross_compensated_pack_size_(api_name, input_type_name, isa_suffix, input_value_type,            \
@@ -2608,12 +2608,13 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_serial_(nk_i4x2_t const *data, nk_
  *  - @b Diagonal @b macro-tiles (i_macro == j_macro): Computes C[i:i+32, i:i+32]
  *    - Loads 32 vectors once (50% load reduction vs off-diagonal)
  *    - Computes upper triangle only within the tile (10 FMAs per 4×4 block)
- *    - Uses nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_ helper
+ *    - Uses <tt>nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_</tt> helper
  *
  *  - @b Off-diagonal @b macro-tiles (i_macro < j_macro): Computes C[i:i+32, j:j+32]
  *    - Loads vec_i[32] + vec_j[32] (full 64 vectors for two sets)
  *    - Computes full 32×32 block (16 FMAs per 4×4 block)
- *    - Uses nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_ helper
+ *    - Uses the
+ *      <tt>nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_</tt> helper
  *
  *  Choose between the symmetric and packed variants by whether both sides are the same matrix:
  *
@@ -2627,9 +2628,9 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_serial_(nk_i4x2_t const *data, nk_
  *    - B can be pre-packed for cache efficiency
  *
  *  This macro generates two NUMKONG_INLINE helpers and one NUMKONG_API wrapper:
- *  1. nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_
- *  2. nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_
- *  3. nk_##api_name##_symmetric_##input_type_name##_##isa_suffix
+ *  1. <tt>nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_</tt>
+ *  2. <tt>nk_##api_name##_symmetric_offdiagonal_##input_type_name##_##isa_suffix##_</tt>
+ *  3. <tt>nk_##api_name##_symmetric_##input_type_name##_##isa_suffix</tt>
  *
  *  @param[in] api_name Operation family, dots/hammings/jaccards, for codegen namespace.
  *  @param[in] input_type_name Type identifier for codegen, e.g. f32, bf16, i8, u1.

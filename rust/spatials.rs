@@ -4,13 +4,14 @@
 //!
 //! - [`Angulars`] / [`Euclideans`]: Low-level per-scalar batched distance traits — FFI-backed
 //! - [`AngularsPackedOps`] / [`EuclideansPackedOps`]: `C = dist(A, Bᵀ)` for any [`TensorRef`]
-//! - [`AngularsPackedParallelOps`] / [`EuclideansPackedParallelOps`]: the same over a thread pool
+//! - `AngularsPackedParallelOps` / `EuclideansPackedParallelOps`: the same over a thread pool
 //! - [`SymmetricAngularsOps`] / [`SymmetricEuclideansOps`]: self-distance upper triangle
 //!
 //! The right-hand operand is a [`DotsPackedMatrix`] from the [`crate::dots`] module.
 //!
 //! File: rust/spatials.rs
 //! Author: Ash Vardanian
+//! Date: July 20, 2026
 use core::{ffi::c_void, ptr::null_mut};
 
 #[cfg(feature = "parallel")]
@@ -784,7 +785,7 @@ extern "C" {
 /// # Errors
 ///
 /// [`Error::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
-/// other [`Capabilities`](crate::Capabilities) than the current ones.
+/// other [`Capabilities`] than the current ones.
 pub trait Angulars: Dots {
     /// Result type for angular distances.
     type SpatialResult: StorageElement;
@@ -840,7 +841,7 @@ pub trait Angulars: Dots {
 /// # Errors
 ///
 /// [`Error::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
-/// other [`Capabilities`](crate::Capabilities) than the current ones.
+/// other [`Capabilities`] than the current ones.
 pub trait Euclideans: Dots {
     /// Result type for euclidean distances.
     type SpatialResult: StorageElement;
@@ -2573,8 +2574,8 @@ where
 pub trait AngularsPackedOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Angular distances: C = angular(self, packed_rightᵀ)
     ///
-    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
-    /// Returns C __[m,n]__, allocated like `self`.
+    /// self must be 2D __\[m,k\]__ with contiguous rows. packed_right contains B __\[n,k\]__
+    /// packed. Returns C __\[m,n\]__, allocated like `self`.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -2779,8 +2780,8 @@ where
 pub trait EuclideansPackedOps<Scalar: Euclideans, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Euclidean distances: C = euclidean(self, packed_rightᵀ)
     ///
-    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
-    /// Returns C __[m,n]__, allocated like `self`.
+    /// self must be 2D __\[m,k\]__ with contiguous rows. packed_right contains B __\[n,k\]__
+    /// packed. Returns C __\[m,n\]__, allocated like `self`.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -3068,7 +3069,10 @@ impl<'queries, Scalar: Euclideans, const MAX_RANK: usize, Alloc: Allocator>
 // endregion: TensorView
 
 // region: Symmetric Extension Traits
+/// Extension trait: symmetric angular-distance matrix for any [`TensorRef`] implementor.
 pub trait SymmetricAngularsOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    /// Computes the upper triangle of the symmetric angular-distance matrix of the rows
+    /// with themselves.
     fn angulars_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
@@ -3101,6 +3105,8 @@ impl<Scalar: Angulars, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symme
 /// Prefer this trait when working through a generic `TensorRef`; reach for the inherent
 /// [`TensorView::euclideans_symmetric`] method when you already hold a view.
 pub trait SymmetricEuclideansOps<Scalar: Euclideans, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    /// Computes the upper triangle of the symmetric Euclidean-distance matrix of the rows
+    /// with themselves.
     fn euclideans_symmetric(&self) -> Result<Tensor<Scalar::SpatialResult, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,

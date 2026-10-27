@@ -489,17 +489,17 @@ char const doc_shapes_pack[] =                                                  
     "Each cloud is packed on its own: centered on its centroid and rotated onto its\n" //
     "principal axes, so a pack is the same on every machine.\n\n"                      //
     "Args:\n"                                                                          //
-    "    points (array_like or list): One cloud of shape [points,3], or a list or\n"   //
-    "        tuple of clouds of any sizes.\n"                                          //
-    "    dtype (string, optional): Packing dtype, 'float16' or 'float32'. Default:\n"  //
-    "        float16 for a float16 first cloud, float32 otherwise.\n"                  //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                //
+    "  points (array_like or list): One cloud of shape [points,3], or a list or\n"     //
+    "    tuple of clouds of any sizes.\n"                                              //
+    "  dtype (string, optional): Packing dtype, 'float16' or 'float32'. Default:\n"    //
+    "    float16 for a float16 first cloud, float32 otherwise.\n"                      //
+    "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                  //
     "Returns:\n"                                                                       //
-    "    ShapesPackedMatrix: The packed clouds, for chamfers_packed(),\n"              //
-    "        hausdorffs_packed(), wassersteinprocrustes_packed() and\n"                //
-    "        gromovwassersteins_packed().\n\n"                                         //
+    "  ShapesPackedMatrix: The packed clouds, for chamfers_packed(),\n"                //
+    "    hausdorffs_packed(), wassersteinprocrustes_packed() and\n"                    //
+    "    gromovwassersteins_packed().\n\n"                                             //
     "Signature:\n"                                                                     //
-    "    >>> def shapes_pack(points, /, dtype=None, *, threads=1) -> ShapesPackedMatrix: ...";
+    "  >>> def shapes_pack(points, /, dtype=None, *, threads=1) -> ShapesPackedMatrix: ...";
 
 PyObject *api_shapes_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -514,16 +514,16 @@ char const doc_shapes_pack_normalized[] =                                       
     "normalized packs, each rotation takes column cloud b onto row cloud a as:\n\n"         //
     "    aᵢ ≈ (scale_a / scale_b) × R × (bⱼ − b̄) + ā\n\n"                                   //
     "Args:\n"                                                                               //
-    "    points (array_like or list): One cloud of shape [points,3], or a list or\n"        //
-    "        tuple of clouds of any sizes.\n"                                               //
-    "    dtype (string, optional): Packing dtype, 'float16' or 'float32'. Default:\n"       //
-    "        float16 for a float16 first cloud, float32 otherwise.\n"                       //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                     //
+    "  points (array_like or list): One cloud of shape [points,3], or a list or\n"          //
+    "    tuple of clouds of any sizes.\n"                                                   //
+    "  dtype (string, optional): Packing dtype, 'float16' or 'float32'. Default:\n"         //
+    "    float16 for a float16 first cloud, float32 otherwise.\n"                           //
+    "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                       //
     "Returns:\n"                                                                            //
-    "    ShapesPackedMatrix: The packed clouds, for the same functions as\n"                //
-    "        shapes_pack().\n\n"                                                            //
+    "  ShapesPackedMatrix: The packed clouds, for the same functions as\n"                  //
+    "    shapes_pack().\n\n"                                                                //
     "Signature:\n"                                                                          //
-    "    >>> def shapes_pack_normalized(points, /, dtype=None, *, threads=1) -> ShapesPackedMatrix: ...";
+    "  >>> def shapes_pack_normalized(points, /, dtype=None, *, threads=1) -> ShapesPackedMatrix: ...";
 
 PyObject *api_shapes_pack_normalized(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -712,39 +712,39 @@ char const doc_chamfers_packed[] =                                              
     "sign flips S of the principal axes, zero between two empty clouds and infinite\n"   //
     "between an empty and a non-empty one.\n\n"                                          //
     "Args:\n"                                                                            //
-    "    a (ShapesPackedMatrix): Row clouds.\n"                                          //
-    "    b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"             //
-    "    rotations (array_like, optional): Writable C-contiguous float32 buffer of\n"    //
-    "        shape [rows,columns,3,3] that receives the rotations taking each column\n"  //
-    "        cloud onto each row cloud, aᵢ ≈ R × (bⱼ − b̄) + ā.\n"                        //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                  //
+    "  a (ShapesPackedMatrix): Row clouds.\n"                                            //
+    "  b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"               //
+    "  rotations (array_like, optional): Writable C-contiguous float32 buffer of\n"      //
+    "    shape [rows,columns,3,3] that receives the rotations taking each column\n"      //
+    "    cloud onto each row cloud, aᵢ ≈ R × (bⱼ − b̄) + ā.\n"                            //
+    "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                    //
     "Returns:\n"                                                                         //
-    "    Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"  //
-    "        for float32 ones.\n\n"                                                      //
+    "  Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"    //
+    "    for float32 ones.\n\n"                                                          //
     "Signature:\n"                                                                       //
-    "    >>> def chamfers_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
+    "  >>> def chamfers_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
 
 PyObject *api_chamfers_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
     return shapes_packed_common(args, nargs, kwnames, nk_kernel_chamfers_packed_k, nk_kernel_unknown_k);
 }
 
-char const doc_hausdorffs_packed[] =                                                    //
-    "hausdorffs_packed(a, b, /, *, rotations=None, threads=1) -> Tensor\n\n"            //
-    "Hausdorff distances between every cloud of a and every cloud of b.\n\n"            //
-    "Each is max(maxᵢ minⱼ ‖aᵢ − S·bⱼ‖, maxⱼ minᵢ ‖aᵢ − S·bⱼ‖), the best of the 8\n"    //
-    "sign flips S of the principal axes, with the empty-cloud convention of\n"          //
-    "chamfers_packed().\n\n"                                                            //
-    "Args:\n"                                                                           //
-    "    a (ShapesPackedMatrix): Row clouds.\n"                                         //
-    "    b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"            //
-    "    rotations (array_like, optional): As in chamfers_packed().\n"                  //
-    "    threads (int, optional): As in chamfers_packed().\n\n"                         //
-    "Returns:\n"                                                                        //
-    "    Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n" //
-    "        for float32 ones.\n\n"                                                     //
-    "Signature:\n"                                                                      //
-    "    >>> def hausdorffs_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
+char const doc_hausdorffs_packed[] =                                                  //
+    "hausdorffs_packed(a, b, /, *, rotations=None, threads=1) -> Tensor\n\n"          //
+    "Hausdorff distances between every cloud of a and every cloud of b.\n\n"          //
+    "Each is max(maxᵢ minⱼ ‖aᵢ − S·bⱼ‖, maxⱼ minᵢ ‖aᵢ − S·bⱼ‖), the best of the 8\n"  //
+    "sign flips S of the principal axes, with the empty-cloud convention of\n"        //
+    "chamfers_packed().\n\n"                                                          //
+    "Args:\n"                                                                         //
+    "  a (ShapesPackedMatrix): Row clouds.\n"                                         //
+    "  b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"            //
+    "  rotations (array_like, optional): As in chamfers_packed().\n"                  //
+    "  threads (int, optional): As in chamfers_packed().\n\n"                         //
+    "Returns:\n"                                                                      //
+    "  Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n" //
+    "    for float32 ones.\n\n"                                                       //
+    "Signature:\n"                                                                    //
+    "  >>> def hausdorffs_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
 
 PyObject *api_hausdorffs_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -761,15 +761,15 @@ char const doc_wassersteinprocrustes_packed[] =                                 
     "that correspondence is an optimal plan. The empty-cloud convention matches\n"        //
     "chamfers_packed(), and every thread's workspace is allocated inside the call.\n\n"   //
     "Args:\n"                                                                             //
-    "    a (ShapesPackedMatrix): Row clouds.\n"                                           //
-    "    b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"              //
-    "    rotations (array_like, optional): As in chamfers_packed().\n"                    //
-    "    threads (int, optional): As in chamfers_packed().\n\n"                           //
+    "  a (ShapesPackedMatrix): Row clouds.\n"                                             //
+    "  b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"                //
+    "  rotations (array_like, optional): As in chamfers_packed().\n"                      //
+    "  threads (int, optional): As in chamfers_packed().\n\n"                             //
     "Returns:\n"                                                                          //
-    "    Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"   //
-    "        for float32 ones.\n\n"                                                       //
+    "  Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"     //
+    "    for float32 ones.\n\n"                                                           //
     "Signature:\n"                                                                        //
-    "    >>> def wassersteinprocrustes_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
+    "  >>> def wassersteinprocrustes_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
 
 PyObject *api_wassersteinprocrustes_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -787,15 +787,15 @@ char const doc_gromovwassersteins_packed[] =                                    
     "convention matches chamfers_packed(), and every thread's workspace is allocated\n"  //
     "inside the call.\n\n"                                                               //
     "Args:\n"                                                                            //
-    "    a (ShapesPackedMatrix): Row clouds.\n"                                          //
-    "    b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"             //
-    "    rotations (array_like, optional): As in chamfers_packed().\n"                   //
-    "    threads (int, optional): As in chamfers_packed().\n\n"                          //
+    "  a (ShapesPackedMatrix): Row clouds.\n"                                            //
+    "  b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"               //
+    "  rotations (array_like, optional): As in chamfers_packed().\n"                     //
+    "  threads (int, optional): As in chamfers_packed().\n\n"                            //
     "Returns:\n"                                                                         //
-    "    Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"  //
-    "        for float32 ones.\n\n"                                                      //
+    "  Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"    //
+    "    for float32 ones.\n\n"                                                          //
     "Signature:\n"                                                                       //
-    "    >>> def gromovwassersteins_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
+    "  >>> def gromovwassersteins_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
 
 PyObject *api_gromovwassersteins_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);

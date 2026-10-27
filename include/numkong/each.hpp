@@ -18,7 +18,8 @@ namespace ashvardanian::numkong {
 
 /**
  *  @brief Elementwise addition: cᵢ = aᵢ + bᵢ
- *  @param[in] a,b Input vectors
+ *  @param[in] a First input vector
+ *  @param[in] b Second input vector
  *  @param[in] d Number of dimensions in input vectors
  *  @param[out] c Output vector
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
@@ -75,7 +76,8 @@ status_t add(in_type_ const *a, in_type_ const *b, std::size_t d, in_type_ *c,
  *  @brief Elementwise scale: cᵢ = α × aᵢ + β
  *  @param[in] a Input vector
  *  @param[in] d Number of dimensions in input vector
- *  @param[in] alpha,beta Scale and shift coefficients
+ *  @param[in] alpha Scale coefficient
+ *  @param[in] beta Shift coefficient
  *  @param[out] c Output vector
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
@@ -156,9 +158,11 @@ status_t scale(in_type_ const *a, std::size_t d, typename in_type_::scale_t cons
 
 /**
  *  @brief Blend: cᵢ = α × aᵢ + β × bᵢ
- *  @param[in] a,b Input vectors
+ *  @param[in] a First input vector
+ *  @param[in] b Second input vector
  *  @param[in] d Number of dimensions in input vectors
- *  @param[in] alpha,beta Weight coefficients
+ *  @param[in] alpha Weight coefficient of @p a
+ *  @param[in] beta Weight coefficient of @p b
  *  @param[out] c Output vector
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
@@ -240,9 +244,12 @@ status_t blend(in_type_ const *a, in_type_ const *b, std::size_t d, typename in_
 
 /**
  *  @brief Elementwise FMA: outᵢ = α × aᵢ × bᵢ + β × cᵢ
- *  @param[in] a,b,c Input vectors
+ *  @param[in] a First input vector
+ *  @param[in] b Second input vector
+ *  @param[in] c Third input vector
  *  @param[in] d Number of dimensions in input vectors
- *  @param[in] alpha,beta Coefficients
+ *  @param[in] alpha Coefficient of the product
+ *  @param[in] beta Coefficient of @p c
  *  @param[out] out Output vector
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
@@ -391,8 +398,11 @@ status_t swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size
  *  @param[in] x Input matrix, shaped @b [rows,groups,columns], each group packed contiguously
  *  @param[in] gamma Per-column gain, length @p columns, shared by groups; @c nullptr is unit scale.
  *  @param[out] y Output matrix, same shape and dtype as @p x; may alias @p x
- *  @param[in] rows,groups,columns Logical shape
- *  @param[in] x_stride, @p y_stride Row (outer) strides in bytes
+ *  @param[in] rows Logical row count
+ *  @param[in] groups Logical group count
+ *  @param[in] columns Logical column count
+ *  @param[in] x_stride Row (outer) stride of @p x in bytes
+ *  @param[in] y_stride Row (outer) stride of @p y in bytes
  *  @param[in] epsilon Variance epsilon added before the reciprocal square root
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes

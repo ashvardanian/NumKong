@@ -7,6 +7,7 @@
 //!
 //! File: rust/curved.rs
 //! Author: Ash Vardanian
+//! Date: March 8, 2026
 
 use core::{ffi::c_void, ptr::null_mut};
 
@@ -143,7 +144,8 @@ pub trait Bilinear: StorageElement {
     /// # Arguments
     /// - `a` - First vector of length n
     /// - `b` - Second vector of length n
-    /// - `c` - Metric tensor, symmetric __[n,n]__ matrix in row-major order, flattened to length n²
+    /// - `c` - Metric tensor, symmetric __\[n,n\]__ matrix in row-major order, flattened to
+    ///   length n²
     ///
     /// # Errors
     /// [`Error::InvalidShape`] for empty vectors, [`Error::ShapeMismatch`] if lengths
@@ -424,7 +426,7 @@ pub trait Mahalanobis: StorageElement {
     /// # Arguments
     /// - `a` - First vector of length n
     /// - `b` - Second vector of length n
-    /// - `c` - Inverse covariance matrix, a symmetric __[n,n]__ matrix in row-major order,
+    /// - `c` - Inverse covariance matrix, a symmetric __\[n,n\]__ matrix in row-major order,
     ///   flattened to length n²
     ///
     /// # Errors

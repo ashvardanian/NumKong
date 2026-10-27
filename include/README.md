@@ -180,7 +180,7 @@ In header-only builds the dispatch points report `nk_missing_library_k`, so wrap
 The API is intentionally not STL-shaped.
 `vector_view`, `tensor_view`, and `matrix_view` prioritize signed strides, sub-byte storage, and kernel compatibility over resizable-container ergonomics.
 
-## Scalar Types and Promotions
+## Scalar Types
 
 The scalar wrappers in `include/numkong/types.hpp` are storage-first types.
 They encode raw layout, default output types, and the kernel function pointer signatures for each family.
@@ -355,7 +355,7 @@ nk_f64_t distance = 0;
 nk_mahalanobis_f32_best(x, y, inv_cov, 64, &distance, capabilities, NULL);
 ```
 
-## Tensors, Views, and Memory Layout
+## Tensors and Views
 
 The native containers are where most integration mistakes happen.
 They need to be documented explicitly.
@@ -472,7 +472,7 @@ for (auto [pos, ref] : matrix.span())   { ref = nk::f32_t{1}; }
 for (auto val : matrix.dims())          { /* scalar only, no position */ }
 ```
 
-## Packed Matrix Kernels for GEMM-Like Workloads
+## Matrix Kernels
 
 This is a separate native subsystem from the raw vector kernels.
 It is the right tool when the right-hand side is reused many times.
@@ -530,7 +530,7 @@ The arithmetic advantage is straightforward.
 The symmetric kernels avoid recomputing both `(i, j)` and `(j, i)` pairs.
 That cuts the pair count almost in half before any micro-kernel details matter.
 
-## Sparse Operations and Intersections
+## Sparse Operations
 
 Sparse helpers cover sorted-index intersection and weighted sparse dot products.
 
@@ -606,7 +606,7 @@ nk::f64_t distances[4];
 status = nk::hausdorffs_packed<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t), nullptr);
 ```
 
-## MaxSim and Late Interaction
+## MaxSim
 
 MaxSim is the late-interaction primitive used by systems such as [ColBERT](https://arxiv.org/abs/2004.12832).
 It is not generic matrix multiplication.
@@ -708,7 +708,7 @@ if (nk_cuda_count_devices(&devices) == nk_success_k && nk_cuda_capabilities_enab
 For exact register-level details, see `capabilities.h`.
 Capability kernels, like `nk_dot_f32_haswell`, stay callable directly if you want to pin a path for testing or benchmarking.
 
-## Parallelism and ForkUnion
+## Parallelism
 
 NumKong does not manage its own threads.
 That is deliberate.
@@ -770,7 +770,7 @@ Its shared and static builds link pthreads only for `pthread_once`, which runs c
 Parallelism is host-controlled: partition work across row ranges and dispatch through ForkUnion, `std::thread`, or any external scheduler.
 The Python and Node bindings parallelize their batched calls through `c/parallel.c`, which the C library never links: OpenMP on Linux and FreeBSD, Grand Central Dispatch on macOS, and the system thread pool on Windows.
 
-## Addressing External Memory
+## External Memory
 
 Every kernel takes plain pointers, so any CPU-accessible memory works: mmap, pinned buffers, CUDA unified memory, custom arenas.
 C++ views wrap any pointer without ownership.

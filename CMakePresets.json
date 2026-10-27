@@ -1,6 +1,6 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "cmakeMinimumRequired": { "major": 3, "minor": 28, "patch": 0 },
   "configurePresets": [
     {
       "name": "base",
@@ -31,7 +31,18 @@
       "hidden": true,
       "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
     },
-    { "name": "debug", "inherits": "base", "displayName": "Debug", "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" } },
+    {
+      "name": "debug",
+      "inherits": "base",
+      "displayName": "Debug",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "NUMKONG_BUILD_SANITIZERS": "address" }
+    },
+    {
+      "name": "check",
+      "inherits": ["base", "clang"],
+      "displayName": "Clang with warnings as errors",
+      "cacheVariables": { "NUMKONG_WERROR": "ON" }
+    },
     {
       "name": "release",
       "inherits": "base",
@@ -181,6 +192,7 @@
   ],
   "buildPresets": [
     { "name": "debug", "configurePreset": "debug" },
+    { "name": "check", "configurePreset": "check" },
     { "name": "release", "configurePreset": "release" },
     { "name": "release_shared", "configurePreset": "release_shared" },
     { "name": "swift", "configurePreset": "swift", "configuration": "Release" },

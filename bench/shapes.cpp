@@ -13,7 +13,7 @@ namespace ashvardanian::numkong::bench {
 
 /**
  *  @brief Measures a many-to-many shape kernel over @p rows × @p columns clouds of @p points each.
- *  @param[inout] loop The timed loop, which takes the counters.
+ *  @param[in,out] loop The timed loop, which takes the counters.
  *  @param[in] workspace_size The transport kinds' workspace query, null for Chamfer and Hausdorff.
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_>

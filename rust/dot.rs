@@ -46,6 +46,7 @@
 //!
 //! File: rust/dot.rs
 //! Author: Ash Vardanian
+//! Date: July 20, 2026
 
 use core::{ffi::c_void, ptr::null_mut};
 
@@ -258,7 +259,9 @@ extern "C" {
 /// assert!((result - 32.0).abs() < 1e-5);
 /// ```
 pub trait Dot: StorageElement {
+    /// Result type of the dot product.
     type Output;
+    /// Computes the dot product of two equally long slices.
     fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `dot`.

@@ -18,7 +18,8 @@ namespace ashvardanian::numkong {
 
 /**
  *  @brief Bilinear form: aᵀ × C × b where C is a d × d matrix (row-major)
- *  @param[in] a,b Input vectors of length d
+ *  @param[in] a First input vector of length d
+ *  @param[in] b Second input vector of length d
  *  @param[in] c Matrix of size dxd (row-major)
  *  @param[in] d Number of dimensions
  *  @param[out] r Pointer to output value
@@ -73,7 +74,8 @@ status_t bilinear(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::
 
 /**
  *  @brief Mahalanobis distance: √((a−b)ᵀ × C × (a−b)) where C is a d × d matrix (row-major)
- *  @param[in] a,b Input vectors of length d
+ *  @param[in] a First input vector of length d
+ *  @param[in] b Second input vector of length d
  *  @param[in] c Covariance matrix of size dxd (row-major)
  *  @param[in] d Number of dimensions
  *  @param[out] r Pointer to output distance value

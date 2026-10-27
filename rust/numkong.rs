@@ -113,9 +113,11 @@
 //!
 //! File: rust/numkong.rs
 //! Author: Ash Vardanian
+//! Date: January 27, 2024
 #![allow(non_camel_case_types)]
 #![allow(clippy::too_many_arguments)]
 #![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+#![warn(missing_docs)]
 // docs.rs builds with `--cfg docsrs`, per Cargo.toml; this enables the "Available on feature …"
 // badges on feature-gated items. It's a nightly-only feature, gated behind `docsrs` so stable
 // builds ignore it.

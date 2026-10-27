@@ -202,19 +202,19 @@ cleanup:
     return (PyObject *)packed;
 }
 
-char const doc_haversines_pack[] =                                                           //
-    "haversines_pack(latitudes, longitudes, /) -> HaversinesPackedMatrix\n\n"                //
-    "Pack points as unit vectors on the mean sphere for haversines_packed().\n\n"            //
-    "One serial routine packs for every capability, so a pack is the same on every\n"        //
-    "machine.\n\n"                                                                           //
-    "Args:\n"                                                                                //
-    "    latitudes (array_like): Latitudes of shape [points] in radians, cast to float64.\n" //
-    "    longitudes (array_like): Longitudes of shape [points] in radians, cast to\n"        //
-    "        float64.\n\n"                                                                   //
-    "Returns:\n"                                                                             //
-    "    HaversinesPackedMatrix: The packed points.\n\n"                                     //
-    "Signature:\n"                                                                           //
-    "    >>> def haversines_pack(latitudes, longitudes, /) -> HaversinesPackedMatrix: ...";
+char const doc_haversines_pack[] =                                                         //
+    "haversines_pack(latitudes, longitudes, /) -> HaversinesPackedMatrix\n\n"              //
+    "Pack points as unit vectors on the mean sphere for haversines_packed().\n\n"          //
+    "One serial routine packs for every capability, so a pack is the same on every\n"      //
+    "machine.\n\n"                                                                         //
+    "Args:\n"                                                                              //
+    "  latitudes (array_like): Latitudes of shape [points] in radians, cast to float64.\n" //
+    "  longitudes (array_like): Longitudes of shape [points] in radians, cast to\n"        //
+    "    float64.\n\n"                                                                     //
+    "Returns:\n"                                                                           //
+    "  HaversinesPackedMatrix: The packed points.\n\n"                                     //
+    "Signature:\n"                                                                         //
+    "  >>> def haversines_pack(latitudes, longitudes, /) -> HaversinesPackedMatrix: ...";
 
 PyObject *api_haversines_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -222,20 +222,20 @@ PyObject *api_haversines_pack(PyObject *self, PyObject *const *args, Py_ssize_t 
                                   nk_kernel_haversines_pack_k);
 }
 
-char const doc_vincentys_pack[] =                                                            //
-    "vincentys_pack(latitudes, longitudes, /) -> VincentysPackedMatrix\n\n"                  //
-    "Pack points as their longitudes and the sines and cosines of their reduced\n"           //
-    "latitudes on the WGS-84 ellipsoid for vincentys_packed().\n\n"                          //
-    "One serial routine packs for every capability, so a pack is the same on every\n"        //
-    "machine.\n\n"                                                                           //
-    "Args:\n"                                                                                //
-    "    latitudes (array_like): Latitudes of shape [points] in radians, cast to float64.\n" //
-    "    longitudes (array_like): Longitudes of shape [points] in radians, cast to\n"        //
-    "        float64.\n\n"                                                                   //
-    "Returns:\n"                                                                             //
-    "    VincentysPackedMatrix: The packed points.\n\n"                                      //
-    "Signature:\n"                                                                           //
-    "    >>> def vincentys_pack(latitudes, longitudes, /) -> VincentysPackedMatrix: ...";
+char const doc_vincentys_pack[] =                                                          //
+    "vincentys_pack(latitudes, longitudes, /) -> VincentysPackedMatrix\n\n"                //
+    "Pack points as their longitudes and the sines and cosines of their reduced\n"         //
+    "latitudes on the WGS-84 ellipsoid for vincentys_packed().\n\n"                        //
+    "One serial routine packs for every capability, so a pack is the same on every\n"      //
+    "machine.\n\n"                                                                         //
+    "Args:\n"                                                                              //
+    "  latitudes (array_like): Latitudes of shape [points] in radians, cast to float64.\n" //
+    "  longitudes (array_like): Longitudes of shape [points] in radians, cast to\n"        //
+    "    float64.\n\n"                                                                     //
+    "Returns:\n"                                                                           //
+    "  VincentysPackedMatrix: The packed points.\n\n"                                      //
+    "Signature:\n"                                                                         //
+    "  >>> def vincentys_pack(latitudes, longitudes, /) -> VincentysPackedMatrix: ...";
 
 PyObject *api_vincentys_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -296,12 +296,12 @@ char const doc_haversines_packed[] =                                            
     "every separation from a millimetre to the antipode, and reads within 0.5% of the\n"   //
     "ellipsoidal geodesic.\n\n"                                                            //
     "Args:\n"                                                                              //
-    "    a (HaversinesPackedMatrix): Row points.\n"                                        //
-    "    b (HaversinesPackedMatrix): Column points.\n\n"                                   //
+    "  a (HaversinesPackedMatrix): Row points.\n"                                          //
+    "  b (HaversinesPackedMatrix): Column points.\n\n"                                     //
     "Returns:\n"                                                                           //
-    "    Tensor: The [rows,columns] float64 distances.\n\n"                                //
+    "  Tensor: The [rows,columns] float64 distances.\n\n"                                  //
     "Signature:\n"                                                                         //
-    "    >>> def haversines_packed(a, b, /) -> Tensor: ...";
+    "  >>> def haversines_packed(a, b, /) -> Tensor: ...";
 
 PyObject *api_haversines_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -316,12 +316,12 @@ char const doc_vincentys_packed[] =                                             
     "radians. A pair still unsettled after 100 iterations, which happens only near the\n" //
     "antipode, reports its last iterate.\n\n"                                             //
     "Args:\n"                                                                             //
-    "    a (VincentysPackedMatrix): Row points.\n"                                        //
-    "    b (VincentysPackedMatrix): Column points.\n\n"                                   //
+    "  a (VincentysPackedMatrix): Row points.\n"                                          //
+    "  b (VincentysPackedMatrix): Column points.\n\n"                                     //
     "Returns:\n"                                                                          //
-    "    Tensor: The [rows,columns] float64 distances.\n\n"                               //
+    "  Tensor: The [rows,columns] float64 distances.\n\n"                                 //
     "Signature:\n"                                                                        //
-    "    >>> def vincentys_packed(a, b, /) -> Tensor: ...";
+    "  >>> def vincentys_packed(a, b, /) -> Tensor: ...";
 
 PyObject *api_vincentys_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -357,14 +357,14 @@ char const doc_sqeuclideans3d[] =                                               
     "Earth-fixed centimetres below 4,359 km of altitude always satisfy. Float64 inputs\n"  //
     "sum their three squares in Dot2.\n\n"                                                 //
     "Args:\n"                                                                              //
-    "    a (array_like): Row points of shape [rows,3], int32 or float64.\n"                //
-    "    b (array_like): Column points of shape [columns,3], in the same dtype.\n"         //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                    //
+    "  a (array_like): Row points of shape [rows,3], int32 or float64.\n"                  //
+    "  b (array_like): Column points of shape [columns,3], in the same dtype.\n"           //
+    "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                      //
     "Returns:\n"                                                                           //
-    "    Tensor: The [rows,columns] squared distances, uint64 for int32 points and\n"      //
-    "        float64 for float64 ones.\n\n"                                                //
+    "  Tensor: The [rows,columns] squared distances, uint64 for int32 points and\n"        //
+    "    float64 for float64 ones.\n\n"                                                    //
     "Signature:\n"                                                                         //
-    "    >>> def sqeuclideans3d(a, b, /, *, threads=1) -> Tensor: ...";
+    "  >>> def sqeuclideans3d(a, b, /, *, threads=1) -> Tensor: ...";
 
 PyObject *api_sqeuclideans3d(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);

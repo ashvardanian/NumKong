@@ -38,6 +38,7 @@
 //!
 //! File: rust/maxsim.rs
 //! Author: Ash Vardanian
+//! Date: March 4, 2026
 
 use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
 
@@ -161,7 +162,7 @@ extern "C" {
 /// # Errors
 ///
 /// [`Error::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
-/// other [`Capabilities`](crate::Capabilities) than the current ones.
+/// other [`Capabilities`] than the current ones.
 pub trait MaxSim: StorageElement + Clone {
     /// Score type returned by MaxSim scoring.
     type Score: Clone + Default;
@@ -496,7 +497,7 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     /// Number of vectors in the packed set.
     pub fn vectors(&self) -> usize { self.vectors }
 
-    /// Returns the shape __[vectors,depth]__ of the original vector set.
+    /// Returns the shape __\[vectors,depth\]__ of the original vector set.
     pub fn shape(&self) -> (usize, usize) { (self.vectors, self.depth) }
 
     /// Bytes a packed buffer occupies for `vectors` vectors of the given `depth` under the active

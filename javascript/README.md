@@ -141,7 +141,7 @@ console.log(angular(a, b));
 
 When the storage type is one of the standard JS typed arrays, dtype inference is automatic.
 
-## Binary Metrics
+## Set Similarity
 
 Binary metrics operate on packed storage rather than on generic boolean arrays.
 
@@ -171,7 +171,7 @@ console.log(jensenshannon(p, q));
 
 These call the underlying SIMD divergence kernels directly.
 
-## DType Tags and Low-Precision Arrays
+## Scalar Types
 
 JavaScript has no built-in `f16`, `bf16`, fp8, or packed-bit numeric model.
 NumKong handles that with explicit dtype tags and wrapper arrays.
@@ -209,7 +209,7 @@ numkong.cast(f32Source, "f32", bf16Dest, "bf16");
 numkong.cast(f32Source, "f32", e4m3Dest, "e4m3");
 ```
 
-## Vector Views and Owned Buffers
+## Tensors and Views
 
 The wrapper hierarchy exists to keep dtype and ownership explicit across addon and WASM boundaries.
 
@@ -241,7 +241,7 @@ Owned `Vector` and `Matrix` are fixed-capacity resizable.
 `reserve(elements)` may allocate a new `ArrayBuffer` to grow, which __invalidates__ any `TypedArray` or `row()` handed out earlier.
 `clear()` empties the length while keeping capacity.
 
-## Capabilities and Runtime Selection
+## Runtime Dispatch
 
 Capability detection is explicit, one `Device` at a time:
 

@@ -7,8 +7,8 @@
  *  @sa include/numkong/reduce.h
  *
  *  Provides serial (non-SIMD) implementations of:
- *  - `nk_reduce_moments_*_serial` — sum + sum-of-squares in one pass
- *  - `nk_reduce_minmax_*_serial` — min + max with indices in one pass
+ *  - @c nk_reduce_moments_*_serial — sum + sum-of-squares in one pass
+ *  - @c nk_reduce_minmax_*_serial — min + max with indices in one pass
  */
 #ifndef NUMKONG_REDUCE_SERIAL_H
 #define NUMKONG_REDUCE_SERIAL_H

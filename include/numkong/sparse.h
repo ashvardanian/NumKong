@@ -33,12 +33,12 @@
  *      scalar_t ai = a[i], bj = b[j];
  *      intersection_size += ai == bj;
  *      i += ai < bj;
- *      j += ai ≥ bj;
+ *      j += ai >= bj;
  *  }
  *  @endcode
  *
  *  Weighted sparse dot-products follow the same merge loop, but accumulate a product for matching
- *  indices. For the `u32+f32` family the matched products are widened before accumulation, matching
+ *  indices. For the <tt>u32+f32</tt> family the matched products are widened before accumulation, matching
  *  the widened @c f64 public result.
  *
  *  @code{.cpp}
@@ -47,7 +47,7 @@
  *      scalar_t ai = a[i], bj = b[j];
  *      product += ai == bj ? a_weights[i] * b_weights[j] : 0;
  *      i += ai < bj;
- *      j += ai ≥ bj;
+ *      j += ai >= bj;
  *  }
  *  @endcode
  *
@@ -105,9 +105,11 @@ extern "C" {
  *  @param[out] count The output intersection count.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_sparse_intersect_u16_best(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
                                                      nk_size_t b_length, nk_u16_t *result, nk_size_t *count,
@@ -124,9 +126,11 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u16_best(nk_u16_t const *a, nk_u16_t
  *  @param[out] count The output intersection count.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_sparse_intersect_u32_best(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
                                                      nk_size_t b_length, nk_u32_t *result, nk_size_t *count,
@@ -143,9 +147,11 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u32_best(nk_u32_t const *a, nk_u32_t
  *  @param[out] count The output intersection count.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_sparse_intersect_u64_best(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
                                                      nk_size_t b_length, nk_u64_t *result, nk_size_t *count,
@@ -163,9 +169,11 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u64_best(nk_u64_t const *a, nk_u64_t
  *  @param[out] product The output dot product.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_sparse_dot_u16bf16_best(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
                                                    nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
@@ -183,9 +191,11 @@ NUMKONG_API nk_status_t nk_sparse_dot_u16bf16_best(nk_u16_t const *a, nk_u16_t c
  *  @param[out] product The output dot product.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_sparse_dot_u32f32_best(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
                                                   nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
@@ -316,9 +326,15 @@ NUMKONG_INLINE nk_f64_t nk_sparse_dot_error_bound(nk_dtype_t dtype) {
 
 /**
  *  @brief Finds the sparse kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when none of @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_sparse_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                               nk_kernel_punned_t *kernel, nk_capability_t *capability);

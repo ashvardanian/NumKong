@@ -74,11 +74,13 @@ typedef void (*nk_f32_to_u8_punned_t)(nk_f32_t const *, nk_u8_t *);
  *  @param[in] count Logical elements, a multiple of both block sizes if either is block-scaled.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  Codes and scales are contiguous runs. A destination NVFP4 @c tensor_scale holding a non-zero
  *  value is applied as is; holding zero, it receives the tensor scale that the kernel derives from
  *  the source data it encodes.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
                                      nk_size_t count, nk_capability_t capabilities, nk_stream_t stream);
@@ -117,6 +119,8 @@ NUMKONG_API nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_dtype, 
  *  @see Stack Overflow on half-precision conversion: https://stackoverflow.com/a/60047308
  *  @see Half-float conversion gist: https://gist.github.com/milhidaka/95863906fe828198f47991c813dbe233
  *  @see Libcanard float16 codec: https://github.com/OpenCyphal/libcanard/blob/636795f4bc395f56af8d2c61d3757b5e762bb9e5/canard.c#L811-L834
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -127,6 +131,8 @@ NUMKONG_API void nk_f16_to_f32_best(nk_f16_t const *src, nk_f32_t *dest, nk_capa
  *
  *  @see Stack Overflow on f32 and bf16 conversion: https://stackoverflow.com/questions/55253233/convert-fp32-to-bfloat16-in-c/55254307#55254307
  *  @see Bfloat16 on Cloud TPUs: https://cloud.google.com/blog/products/ai-machine-learning/bfloat16-the-secret-to-high-performance-on-cloud-tpus
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -155,6 +161,8 @@ NUMKONG_API void nk_bf16_to_f32_best(nk_bf16_t const *src, nk_f32_t *dest, nk_ca
  *  @see FP8 Formats for Deep Learning: https://arxiv.org/pdf/2209.05433
  *  @see OCP 8-bit Floating Point Specification: https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-12-01-pdf-1
  *  @see ONNX Float8 types: https://onnx.ai/onnx/technical/float8.html
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -162,6 +170,8 @@ NUMKONG_API void nk_e4m3_to_f32_best(nk_e4m3_t const *src, nk_f32_t *dest, nk_ca
 
 /**
  *  @brief Scalar conversion from FP8 @c e5m2 to @c f32.
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -169,6 +179,8 @@ NUMKONG_API void nk_e5m2_to_f32_best(nk_e5m2_t const *src, nk_f32_t *dest, nk_ca
 
 /**
  *  @brief Scalar conversion from FP6 @c e2m3 to @c f32.
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -176,6 +188,8 @@ NUMKONG_API void nk_e2m3_to_f32_best(nk_e2m3_t const *src, nk_f32_t *dest, nk_ca
 
 /**
  *  @brief Scalar conversion from FP6 @c e3m2 to @c f32.
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -202,6 +216,8 @@ NUMKONG_API void nk_e3m2_to_f32_best(nk_e3m2_t const *src, nk_f32_t *dest, nk_ca
  *  @see Stack Overflow on half-precision conversion: https://stackoverflow.com/a/60047308
  *  @see Half-float conversion gist: https://gist.github.com/milhidaka/95863906fe828198f47991c813dbe233
  *  @see Libcanard float16 codec: https://github.com/OpenCyphal/libcanard/blob/636795f4bc395f56af8d2c61d3757b5e762bb9e5/canard.c#L811-L834
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -212,6 +228,8 @@ NUMKONG_API void nk_f32_to_f16_best(nk_f32_t const *src, nk_f16_t *dest, nk_capa
  *
  *  @see Stack Overflow on f32 and bf16 conversion: https://stackoverflow.com/questions/55253233/convert-fp32-to-bfloat16-in-c/55254307#55254307
  *  @see Bfloat16 on Cloud TPUs: https://cloud.google.com/blog/products/ai-machine-learning/bfloat16-the-secret-to-high-performance-on-cloud-tpus
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -240,6 +258,8 @@ NUMKONG_API void nk_f32_to_bf16_best(nk_f32_t const *src, nk_bf16_t *dest, nk_ca
  *  @see FP8 Formats for Deep Learning: https://arxiv.org/pdf/2209.05433
  *  @see OCP 8-bit Floating Point Specification: https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-12-01-pdf-1
  *  @see ONNX Float8 types: https://onnx.ai/onnx/technical/float8.html
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -268,6 +288,8 @@ NUMKONG_API void nk_f32_to_e4m3_best(nk_f32_t const *src, nk_e4m3_t *dest, nk_ca
  *  @see FP8 Formats for Deep Learning: https://arxiv.org/pdf/2209.05433
  *  @see OCP 8-bit Floating Point Specification: https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-12-01-pdf-1
  *  @see ONNX Float8 types: https://onnx.ai/onnx/technical/float8.html
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -280,6 +302,8 @@ NUMKONG_API void nk_f32_to_e5m2_best(nk_f32_t const *src, nk_e5m2_t *dest, nk_ca
  *  with no infinities or NaNs, and saturates to the maximum on overflow. Values with |x| < 0.5 are
  *  encoded as subnormals.
  *
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -292,6 +316,8 @@ NUMKONG_API void nk_f32_to_e2m3_best(nk_f32_t const *src, nk_e2m3_t *dest, nk_ca
  *  with no infinities or NaNs, and saturates to the maximum on overflow. Values with |x| < 0.25
  *  are encoded as subnormals.
  *
+ *  @param[in] src The scalar to convert.
+ *  @param[out] dest Receives the converted scalar.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
  */
@@ -325,12 +351,12 @@ NUMKONG_API void nk_e3m2_to_f32_serial(nk_e3m2_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_e3m2_best */
 NUMKONG_API void nk_f32_to_e3m2_serial(nk_f32_t const *src, nk_e3m2_t *dest);
 
-/** Unpacks a byte of two E2M1 nibbles into two f32 values: the high nibble lands in `dest[0]` and
- *  the low nibble in `dest[1]`, as in @c nk_i4x2_t and @c nk_u4x2_t. */
+/** Unpacks a byte of two E2M1 nibbles into two f32 values: the high nibble lands in <tt>dest[0]</tt> and
+ *  the low nibble in <tt>dest[1]</tt>, as in @c nk_i4x2_t and @c nk_u4x2_t. */
 NUMKONG_API void nk_e2m1x2_to_f32x2_serial(nk_e2m1x2_t const *src, nk_f32_t *dest);
 
-/** Packs two f32 values into one byte of two E2M1 nibbles: `src[0]` becomes the high nibble and
- *  `src[1]` the low one, as in @c nk_i4x2_t and @c nk_u4x2_t. */
+/** Packs two f32 values into one byte of two E2M1 nibbles: <tt>src[0]</tt> becomes the high nibble and
+ *  <tt>src[1]</tt> the low one, as in @c nk_i4x2_t and @c nk_u4x2_t. */
 NUMKONG_API void nk_f32x2_to_e2m1x2_serial(nk_f32_t const *src, nk_e2m1x2_t *dest);
 
 /**
@@ -514,9 +540,15 @@ NUMKONG_API nk_status_t nk_cast_metal(void const *from, nk_dtype_t from_dtype, v
 
 /**
  *  @brief Finds the cast kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_cast_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                             nk_kernel_punned_t *kernel, nk_capability_t *capability);

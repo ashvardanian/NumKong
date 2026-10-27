@@ -230,7 +230,7 @@ typedef nk_u64_t nk_capability_t;
 #define nk_cap_powervsx_k    ((nk_capability_t)1 << 33)
 #define nk_cap_loongsonasx_k ((nk_capability_t)1 << 34)
 
-/** GPU capabilities, as each vendor's `nk_<vendor>_capabilities_*` functions report them for one
+/** GPU capabilities, as each vendor's <tt>nk_\<vendor\>_capabilities_*</tt> functions report them for one
  *  device, grouped by vendor above bit 47 to leave room for more CPU capabilities and more per
  *  vendor. Each vendor's baseline runs on all its devices, as @c serial runs on every CPU. */
 #define nk_cap_cuda_k           ((nk_capability_t)1 << 48)
@@ -1464,8 +1464,8 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_(void) {
 }
 
 /** Returns the capabilities whose kernels were compiled into this binary, as decided by the
- *  `NUMKONG_TARGET_*` macros the ISA probes set at build time. Says nothing about the current CPU —
- *  see @b nk_cpu_capabilities_detected_(). */
+ *  @c NUMKONG_TARGET_* macros the ISA probes set at build time. Says nothing about the current CPU
+ *  — see @b nk_cpu_capabilities_detected_(). */
 NUMKONG_CONSTEXPR nk_capability_t nk_cpu_capabilities_compiled_(void) {
     nk_capability_t caps = nk_cap_serial_k;
 #if NUMKONG_ARCH_X8664_
@@ -1538,7 +1538,6 @@ NUMKONG_API nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilitie
 /**
  *  @brief Prepares the calling thread for the kernels of @p capabilities, and only those.
  *  @param[in] capabilities The capabilities to prepare for, like @c nk_cpu_capabilities_enabled.
- *  @return @c nk_success_k.
  *
  *  Most capabilities need nothing. The ones that do, and what they cost:
  *  - @c nk_cap_sapphireamx_k on Linux: one @c arch_prctl syscall for AMX tile state, which the
@@ -1590,8 +1589,9 @@ NUMKONG_API nk_size_t nk_capabilities_name(nk_capability_t capabilities, char *b
 
 /**
  *  @brief Waits for everything queued on @p stream.
- *  @return @c nk_success_k, @c nk_device_code_mismatch_k when queued work failed, or
- *      @c nk_missing_gpu_k.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k
  */
 NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities, nk_stream_t stream);
 
@@ -1670,7 +1670,7 @@ NUMKONG_INLINE nk_status_t nk_stream_free_metal_(nk_stream_t stream) {
 }
 
 /** The CUDA capabilities this binary holds kernels for: the baseline and what
- *  `NUMKONG_TARGET_*` enables. */
+ *  @c NUMKONG_TARGET_* enables. */
 NUMKONG_CONSTEXPR nk_capability_t nk_capabilities_compiled_cuda_(void) {
     return (nk_cap_cuda_k * NUMKONG_TARGET_CUDA) | (nk_cap_ampere_k * NUMKONG_TARGET_AMPERE) |
            (nk_cap_ada_k * NUMKONG_TARGET_ADA) | (nk_cap_hopper_k * NUMKONG_TARGET_HOPPER) |
@@ -1706,7 +1706,10 @@ NUMKONG_CONSTEXPR nk_capability_t nk_capabilities_compiled_metal_(void) {
 
 /**
  *  @brief Counts the CUDA devices the process sees.
- *  @return @c nk_success_k, or @c nk_missing_gpu_k without one.
+ *  @param[out] count The number of devices, zero without one.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Without one.
  */
 NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count);
 
@@ -1714,15 +1717,26 @@ NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count);
  *  @brief Reports the capabilities CUDA device @p ordinal runs.
  *  @param[in] ordinal The CUDA runtime's ordinal, like @c cudaSetDevice takes.
  *  @param[out] capabilities The CUDA baseline and what the device runs, zero on failure.
- *  @return @c nk_success_k, @c nk_missing_gpu_k past the last device, or
- *      @c nk_device_code_mismatch_k when the runtime fails to answer.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Past the last device.
  */
 NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities);
 
-/** Reports the CUDA capabilities this binary holds kernels for. */
+/**
+ *  @brief Reports the CUDA capabilities this binary holds kernels for.
+ *  @param[out] capabilities The CUDA capabilities compiled in, zero without any.
+ */
 NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities);
 
-/** @copydoc nk_cuda_capabilities_detected, narrowed to what this binary holds kernels for. */
+/**
+ *  @brief Reports the capabilities CUDA device @p ordinal runs that this binary holds kernels for.
+ *  @param[in] ordinal The CUDA runtime's ordinal, like @c cudaSetDevice takes.
+ *  @param[out] capabilities The CUDA baseline and what the device runs, zero on failure.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Past the last device.
+ */
 NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** Creates a stream on CUDA device @p ordinal with @c cudaStreamCreate, for any consumer to use. */
@@ -1731,16 +1745,39 @@ NUMKONG_API nk_status_t nk_stream_init_cuda(nk_size_t ordinal, nk_stream_t *stre
 /** Destroys a stream of @ref nk_stream_init_cuda with @c cudaStreamDestroy, once its work ends. */
 NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream);
 
-/** @copydoc nk_cuda_count_devices, for ROCm. */
+/**
+ *  @brief Counts the ROCm devices the process sees.
+ *  @param[out] count The number of devices, zero without one.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Without one.
+ */
 NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count);
 
-/** @copydoc nk_cuda_capabilities_detected, for ROCm, whose ordinal @c hipSetDevice takes. */
+/**
+ *  @brief Reports the capabilities ROCm device @p ordinal runs.
+ *  @param[in] ordinal The HIP runtime's ordinal, like @c hipSetDevice takes.
+ *  @param[out] capabilities The ROCm baseline and what the device runs, zero on failure.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Past the last device.
+ */
 NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities);
 
-/** @copydoc nk_cuda_capabilities_compiled, for ROCm. */
+/**
+ *  @brief Reports the ROCm capabilities this binary holds kernels for.
+ *  @param[out] capabilities The ROCm capabilities compiled in, zero without any.
+ */
 NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilities);
 
-/** @copydoc nk_cuda_capabilities_enabled, for ROCm. */
+/**
+ *  @brief Reports the capabilities ROCm device @p ordinal runs that this binary holds kernels for.
+ *  @param[in] ordinal The HIP runtime's ordinal, like @c hipSetDevice takes.
+ *  @param[out] capabilities The ROCm baseline and what the device runs, zero on failure.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Past the last device.
+ */
 NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** Creates a stream on ROCm device @p ordinal with @c hipStreamCreate, for any consumer to use. */
@@ -1749,16 +1786,39 @@ NUMKONG_API nk_status_t nk_stream_init_rocm(nk_size_t ordinal, nk_stream_t *stre
 /** Destroys a stream of @ref nk_stream_init_rocm with @c hipStreamDestroy, once its work ends. */
 NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream);
 
-/** @copydoc nk_cuda_count_devices, for Metal. */
+/**
+ *  @brief Counts the Metal devices the system lists.
+ *  @param[out] count The number of devices, zero without one.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Without one.
+ */
 NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count);
 
-/** @copydoc nk_cuda_capabilities_detected, for Metal, whose devices count in system order. */
+/**
+ *  @brief Reports the capabilities Metal device @p ordinal runs.
+ *  @param[in] ordinal The device's position in the order the system lists them.
+ *  @param[out] capabilities The Metal baseline when the device supports it, zero otherwise.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Past the last device.
+ */
 NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities);
 
-/** @copydoc nk_cuda_capabilities_compiled, for Metal. */
+/**
+ *  @brief Reports the Metal capabilities this binary holds kernels for.
+ *  @param[out] capabilities The Metal capabilities compiled in, zero without any.
+ */
 NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabilities);
 
-/** @copydoc nk_cuda_capabilities_enabled, for Metal. */
+/**
+ *  @brief Reports the capabilities Metal device @p ordinal runs that this binary holds kernels for.
+ *  @param[in] ordinal The device's position in the order the system lists them.
+ *  @param[out] capabilities The Metal baseline when the device supports it, zero otherwise.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Past the last device.
+ */
 NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** Opens an @c id<MTLCommandQueue> stream on Metal device @p ordinal with @c newCommandQueue. */
@@ -1774,7 +1834,9 @@ NUMKONG_API nk_status_t nk_stream_free_metal(nk_stream_t stream);
  *  @param[in] capabilities One device's mask, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] kernel The kernel, to cast back to its kind's signature, or null.
  *  @param[out] capability The single capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in the mask has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in the mask has it.
  */
 NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                               nk_kernel_punned_t *kernel, nk_capability_t *capability);

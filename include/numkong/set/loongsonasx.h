@@ -24,7 +24,7 @@
  *  __lasx_xvpermi_q             XVPERMI.Q (extract/permute 128-bit lanes)
  *  @endverbatim
  *
- *  LASX provides per-element popcount at multiple widths, `xvpcnt_b/h/w/d`. For binary set
+ *  LASX provides per-element popcount at multiple widths, @c xvpcnt_b/h/w/d. For binary set
  *  operations we use @c xvpcnt_d, which gives 4 x u64 popcount values directly, eliminating the
  *  need for horizontal byte-sum reduction chains.
  *

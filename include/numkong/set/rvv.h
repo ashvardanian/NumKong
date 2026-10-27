@@ -7,7 +7,7 @@
  *  @sa include/numkong/set.h
  *
  *  SpacemiT K1 and similar chips implement RVA22 profile with base RVV 1.0.
- *  This does not include the Zvbb extension, so we lack native element-wise popcount (`vcpop.v`).
+ *  This does not include the Zvbb extension, so we lack native element-wise popcount (<tt>vcpop.v</tt>).
  *
  *  @section rvv_popcount_lut Popcount via vrgather LUT
  *

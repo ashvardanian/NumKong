@@ -7,8 +7,8 @@
  *  @sa include/numkong/attention.h
  *  @sa include/numkong/dots/ampere.cuh
  *
- *  FlashAttention-2 on warp-level `mma.sync`: four warps own 64 rows folding the GQA group, stream
- *  K and V panels through `cp.async`, and keep a base-2 online softmax per row; blocks of at most
+ *  FlashAttention-2 on warp-level <tt>mma.sync</tt>: four warps own 64 rows folding the GQA group, stream
+ *  K and V panels through <tt>cp.async</tt>, and keep a base-2 online softmax per row; blocks of at most
  *  16 rows split every panel across the warps instead. BF16 multiplies on BF16 MMA, E4M3 converts
  *  to F16 for F16 MMA, I8 runs exact integer MMA with U8 probabilities, and depths above 256 fall
  *  back to the @c cuda kernel. The pack layout and the work scheduler are the @c cuda capability's.

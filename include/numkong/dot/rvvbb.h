@@ -6,7 +6,7 @@
  *
  *  @sa include/numkong/dot.h
  *
- *  Zvbb, the Vector Basic Bit-manipulation extension, adds a per-element popcount, `vcpop.v`, which
+ *  Zvbb, the Vector Basic Bit-manipulation extension, adds a per-element popcount, <tt>vcpop.v</tt>, which
  *  replaces the 11-instruction SWAR sequence with one instruction. Only @c nk_dot_u1_rvvbb
  *  benefits, as it needs a byte-level popcount of AND results.
  *

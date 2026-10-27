@@ -7,19 +7,19 @@
  *  Provides owning and non-owning vector types with signed indexing, strided views, and sub-byte
  *  element support built in.
  *
- *  - `nk::vector<T, A>`: Owning, resizable-within-capacity, SIMD-aligned
- *  - `nk::vector_view<T>`: Non-owning, const, strided
- *  - `nk::vector_span<T>`: Non-owning, mutable, strided
+ *  - <tt>nk::vector<T, A></tt>: Owning, resizable-within-capacity, SIMD-aligned
+ *  - @c nk::vector_view<T>: Non-owning, const, strided
+ *  - @c nk::vector_span<T>: Non-owning, mutable, strided
  *
  *  @section vector_terminology Terminology: Dimensions vs Values
  *
- *  The `nk::vector<value_type_>` container uses two distinct counts:
+ *  The @c nk::vector<value_type_> container uses two distinct counts:
  *
- *  - `size()`: Number of logical dimensions — what kernels see. For `vector<i4x2_t>` with 100
+ *  - <tt>size()</tt>: Number of logical dimensions — what kernels see. For @c vector<i4x2_t> with 100
  *    dimensions, you have 100 nibbles.
  *
- *  - `size_values()`: Number of C++ container elements — @c value_type_ instances. For
- *    `vector<i4x2_t>` with 100 dimensions, you have 50 values, at 2 dimensions per value.
+ *  - <tt>size_values()</tt>: Number of C++ container elements — @c value_type_ instances. For
+ *    @c vector<i4x2_t> with 100 dimensions, you have 50 values, at 2 dimensions per value.
  *
  *  @code{.cpp}
  *  auto [v, status] = nk::vector<float>::zeros(5);
@@ -29,7 +29,7 @@
  *  v[nk::range(0,3)]; // view of first 3 elements
  *  @endcode
  *
- *  See `types.hpp` for the full terminology reference.
+ *  See <tt>types.hpp</tt> for the full terminology reference.
  */
 
 #ifndef NUMKONG_VECTOR_HPP
@@ -66,7 +66,7 @@ struct range_t {
           step(static_cast<std::ptrdiff_t>(step)) {}
 };
 
-/** Builds a @c range_t, so slices read `v[nk::range(1, 4)]`. */
+/** Builds a @c range_t, so slices read <tt>v[nk::range(1, 4)]</tt>. */
 template <std::integral start_type_, std::integral stop_type_, std::integral step_type_ = int>
 constexpr range_t range(start_type_ start, stop_type_ stop, step_type_ step = 1) noexcept {
     return range_t(start, stop, step);
@@ -260,7 +260,7 @@ constexpr enumerate_view_<container_type_ const> enumerate(container_type_ const
  *  @brief Non-owning, immutable, strided view into a vector.
  *  @tparam value_type_ Element type.
  *
- *  Supports signed indexing (`v[-1]` = last element) and strided access.
+ *  Supports signed indexing (<tt>v[-1]</tt> = last element) and strided access.
  *  For sub-byte types, only contiguous views are meaningful.
  */
 template <typename value_type_>
@@ -305,7 +305,7 @@ struct vector_view {
     /** Check if empty. */
     constexpr bool empty() const noexcept { return dimensions_ == 0; }
 
-    /** Contextual-bool: truthy when the handle is non-empty. Enables the `if(!v)` empty-check
+    /** Contextual-bool: truthy when the handle is non-empty. Enables the <tt>if(!v)</tt> empty-check
      *  idiom. */
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
@@ -428,7 +428,7 @@ struct vector_span {
     /** Check if empty. */
     constexpr bool empty() const noexcept { return dimensions_ == 0; }
 
-    /** Contextual-bool: truthy when the handle is non-empty. Enables the `if(!v)` empty-check
+    /** Contextual-bool: truthy when the handle is non-empty. Enables the <tt>if(!v)</tt> empty-check
      *  idiom. */
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
@@ -495,7 +495,9 @@ struct vector_span {
     /**
      *  @brief Zero-fill every element. memset on the contiguous fast path, one memset per element
      *      on the strided slow path.
-     *  @return @c misaligned_k for a strided sub-byte span, @c success_k otherwise.
+     *
+     *  @par Statuses:
+     *  - @c misaligned_k A strided sub-byte span.
      */
     status_t fill_zeros() noexcept {
         static_assert(is_memset_zero_safe_v<value_type>,
@@ -522,7 +524,9 @@ struct vector_span {
     /**
      *  @brief Fill every element with @p value, mirroring the free @c fill on tensor_span: 1-byte
      *      storage uses a single byte_pattern memset, multi-byte storage a typed broadcast loop.
-     *  @return @c misaligned_k for a strided sub-byte span, @c success_k otherwise.
+     *
+     *  @par Statuses:
+     *  - @c misaligned_k A strided sub-byte span.
      */
     status_t fill(value_type value) noexcept {
         if (status_t status = fill_zeros(); failed(status)) return status;
@@ -566,8 +570,10 @@ struct vector_span {
     /**
      *  @brief Copy from a same-size view. memcpy on the contiguous fast path, per-element copy on
      *      the strided slow path.
-     *  @return @c unexpected_dimensions_k on a size mismatch, @c misaligned_k for strided sub-byte
-     *      operands, @c success_k otherwise.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k A size mismatch.
+     *  - @c misaligned_k Strided sub-byte operands.
      */
     status_t copy_from(vector_view<value_type> input) noexcept {
         if (input.size() != dimensions_) return status_t::unexpected_dimensions_k;
@@ -604,13 +610,13 @@ struct vector_span {
 /**
  *  @brief Owning, resizable-within-capacity, SIMD-aligned vector.
  *
- *  Use the `zeros()`/`uninitialized()` factories for non-throwing construction, which return the
- *  vector with the @c status_t explaining a failure, or `from_raw()` to adopt existing memory.
- *  `resize()` changes the size within the allocated `capacity()` without moving `values_data()`;
- *  `reserve()` is the explicit opt-in that may reallocate to grow capacity.
+ *  Use the <tt>zeros()</tt>/<tt>uninitialized()</tt> factories for non-throwing construction, which return the
+ *  vector with the @c status_t explaining a failure, or <tt>from_raw()</tt> to adopt existing memory.
+ *  <tt>resize()</tt> changes the size within the allocated <tt>capacity()</tt> without moving <tt>values_data()</tt>;
+ *  <tt>reserve()</tt> is the explicit opt-in that may reallocate to grow capacity.
  *
- *  Supports signed indexing (`v[-1]`), sub-byte types via proxy references, and slicing via
- *  `operator[](range_t)`.
+ *  Supports signed indexing (<tt>v[-1]</tt>), sub-byte types via proxy references, and slicing via
+ *  <tt>operator[](range_t)</tt>.
  *
  *  @tparam value_type_ Element type.
  *  @tparam allocator_type_ Allocator (default: aligned_allocator).
@@ -675,8 +681,10 @@ struct vector {
 
     /**
      *  @brief Factory: allocate a zero-initialized vector with @p dims dimensions.
-     *  @return The vector, empty for zero @p dims; @c unexpected_dimensions_k when @p dims is not a
-     *      whole number of storage values, @c bad_alloc_k when the allocation fails.
+     *  @return The vector, empty for zero @p dims.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k @p dims is not a whole number of storage values.
      */
     static expected<vector> zeros(size_type dims, allocator_type_ alloc = {}) noexcept {
         auto result = uninitialized(dims, alloc);
@@ -693,7 +701,10 @@ struct vector {
 
     /**
      *  @brief Factory: allocate a vector filled with ones.
-     *  @return The vector, or the failure @c full reports.
+     *  @return The vector.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k As @c full reports.
      */
     static expected<vector> ones(size_type dims, allocator_type_ alloc = {}) noexcept {
         return full(dims, value_type_ {1}, alloc);
@@ -701,8 +712,10 @@ struct vector {
 
     /**
      *  @brief Factory: allocate a vector filled with @p val.
-     *  @return The vector, empty for zero @p dims; @c unexpected_dimensions_k when @p dims is not a
-     *      whole number of storage values, @c bad_alloc_k when the allocation fails.
+     *  @return The vector, empty for zero @p dims.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k @p dims is not a whole number of storage values.
      */
     static expected<vector> full(size_type dims, value_type_ val, allocator_type_ alloc = {}) noexcept {
         auto result = uninitialized(dims, alloc);
@@ -713,9 +726,11 @@ struct vector {
 
     /**
      *  @brief Factory: allocate an uninitialized vector.
-     *  @return The vector, empty for zero @p dims; @c unexpected_dimensions_k when @p dims is not a
-     *      whole number of storage values, @c bad_alloc_k when the allocation fails.
+     *  @return The vector, empty for zero @p dims.
      *  @warning Contents are uninitialized. Caller must fill before reading.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k @p dims is not a whole number of storage values.
      */
     static expected<vector> uninitialized(size_type dims, allocator_type_ alloc = {}) noexcept {
         vector v(alloc);
@@ -754,13 +769,15 @@ struct vector {
         if constexpr (alloc_traits::propagate_on_container_swap::value) swap(alloc_, other.alloc_);
     }
 
-    /** Allocated storage-value capacity — the ceiling `resize()` honors. */
+    /** Allocated storage-value capacity — the ceiling <tt>resize()</tt> honors. */
     constexpr size_type capacity() const noexcept { return capacity_values_; }
 
     /**
      *  @brief Resize in place to @p dims dimensions without reallocating: succeeds iff @p dims is a
-     *      whole number of storage values that fits `capacity()`, so `values_data()` never moves.
-     *  @return @c success_k, or @c unexpected_dimensions_k leaving the size untouched.
+     *      whole number of storage values that fits <tt>capacity()</tt>, so <tt>values_data()</tt> never moves.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k Leaving the size untouched.
      */
     constexpr status_t resize(size_type dims) noexcept {
         if (!fills_whole_values_<value_type>(dims) || dimensions_to_values(dims) > capacity_values_)
@@ -770,10 +787,11 @@ struct vector {
     }
 
     /**
-     *  @brief Grow the allocated `capacity()` to at least @p values storage values. Unlike
-     *      `resize()`, this may reallocate and move `values_data()`; the live elements are
+     *  @brief Grow the allocated <tt>capacity()</tt> to at least @p values storage values. Unlike
+     *      <tt>resize()</tt>, this may reallocate and move <tt>values_data()</tt>; the live elements are
      *      preserved. No-op when already large enough.
-     *  @return @c success_k, or @c bad_alloc_k leaving the state unchanged.
+     *
+     *  A failed growth leaves the state unchanged.
      */
     status_t reserve(size_type values) noexcept {
         if (values <= capacity_values_) return status_t::success_k;
@@ -790,7 +808,7 @@ struct vector {
         return status_t::success_k;
     }
 
-    /** Reset to an empty size while keeping `capacity()`; storage frees on destruction. */
+    /** Reset to an empty size while keeping <tt>capacity()</tt>; storage frees on destruction. */
     constexpr void clear() noexcept { dimensions_ = 0; }
 
     /** Number of logical dimensions. */
@@ -799,7 +817,7 @@ struct vector {
     /** Check if empty. */
     constexpr bool empty() const noexcept { return dimensions_ == 0; }
 
-    /** Contextual-bool: truthy when the vector owns storage. Enables the `if(!v)` empty-check
+    /** Contextual-bool: truthy when the vector owns storage. Enables the <tt>if(!v)</tt> empty-check
      *  idiom. */
     constexpr explicit operator bool() const noexcept { return !empty(); }
 

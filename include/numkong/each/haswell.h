@@ -61,7 +61,7 @@ NUMKONG_INLINE void nk_add_f32_haswell_(nk_f32_t const *a, nk_f32_t const *b, nk
     for (; i < n; ++i) result[i] = a[i] + b[i];
 }
 
-/** Computes `alpha * a + beta` over @p n F32 values. */
+/** Computes <tt>alpha * a + beta</tt> over @p n F32 values. */
 NUMKONG_INLINE void nk_affine_f32_haswell_(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
                                            nk_f32_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -96,7 +96,7 @@ NUMKONG_INLINE void nk_add_f64_haswell_(nk_f64_t const *a, nk_f64_t const *b, nk
     for (; i < n; ++i) result[i] = a[i] + b[i];
 }
 
-/** Computes `alpha * a + beta` over @p n F64 values. */
+/** Computes <tt>alpha * a + beta</tt> over @p n F64 values. */
 NUMKONG_INLINE void nk_affine_f64_haswell_(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta,
                                            nk_f64_t *result) {
     nk_f64_t alpha_val = *alpha;
@@ -141,7 +141,7 @@ NUMKONG_INLINE void nk_add_f16_haswell_(nk_f16_t const *a, nk_f16_t const *b, nk
     }
 }
 
-/** Computes `alpha * a + beta` over @p n F16 values, in F32. */
+/** Computes <tt>alpha * a + beta</tt> over @p n F16 values, in F32. */
 NUMKONG_INLINE void nk_affine_f16_haswell_(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
                                            nk_f16_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -193,7 +193,7 @@ NUMKONG_INLINE void nk_add_bf16_haswell_(nk_bf16_t const *a, nk_bf16_t const *b,
     }
 }
 
-/** Computes `alpha * a + beta` over @p n BF16 values, in F32. */
+/** Computes <tt>alpha * a + beta</tt> over @p n BF16 values, in F32. */
 NUMKONG_INLINE void nk_affine_bf16_haswell_(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                             nk_f32_t const *beta, nk_bf16_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -239,7 +239,7 @@ NUMKONG_INLINE void nk_add_i8_haswell_(nk_i8_t const *a, nk_i8_t const *b, nk_si
     }
 }
 
-/** Computes `alpha * a + beta` over @p n I8 values, in F32, saturating. */
+/** Computes <tt>alpha * a + beta</tt> over @p n I8 values, in F32, saturating. */
 NUMKONG_INLINE void nk_affine_i8_haswell_(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
                                           nk_i8_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -256,7 +256,7 @@ NUMKONG_INLINE void nk_affine_i8_haswell_(nk_i8_t const *a, nk_size_t n, nk_f32_
         a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
             a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
         //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on `_mm256_cvtepi32_ps`: 4cy (1/cy) @ p01.
+        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
         __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
         // The normal part.
         __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
@@ -304,7 +304,7 @@ NUMKONG_INLINE void nk_add_u8_haswell_(nk_u8_t const *a, nk_u8_t const *b, nk_si
     }
 }
 
-/** Computes `alpha * a + beta` over @p n U8 values, in F32, saturating. */
+/** Computes <tt>alpha * a + beta</tt> over @p n U8 values, in F32, saturating. */
 NUMKONG_INLINE void nk_affine_u8_haswell_(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
                                           nk_u8_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -321,7 +321,7 @@ NUMKONG_INLINE void nk_affine_u8_haswell_(nk_u8_t const *a, nk_size_t n, nk_f32_
         a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
             a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
         //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on `_mm256_cvtepi32_ps`: 4cy (1/cy) @ p01.
+        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
         __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
         // The normal part.
         __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
@@ -398,7 +398,7 @@ NUMKONG_INLINE __m128i _mm256_cvtpd_epu32_haswell(__m256d a) {
     return _mm256_castsi256_si128(low_halves_i32x8);
 }
 
-/** Vectorized `2^x` (Haswell AVX2); matches @c nk_f32_exp2_serial_ to polynomial precision. */
+/** Vectorized <tt>2^x</tt> (Haswell AVX2); matches @c nk_f32_exp2_serial_ to polynomial precision. */
 NUMKONG_INLINE __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
     x_f32x8 = _mm256_max_ps(_mm256_min_ps(x_f32x8, _mm256_set1_ps(127.0f)), _mm256_set1_ps(-125.0f));
     __m256 n_f32x8 = _mm256_round_ps(x_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
@@ -866,7 +866,7 @@ NUMKONG_API nk_status_t nk_each_blend_i8_haswell(    //
         b_i32s[0] = b[i + 0], b_i32s[1] = b[i + 1], b_i32s[2] = b[i + 2], b_i32s[3] = b[i + 3], //
             b_i32s[4] = b[i + 4], b_i32s[5] = b[i + 5], b_i32s[6] = b[i + 6], b_i32s[7] = b[i + 7];
         //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on `_mm256_cvtepi32_ps`: 4cy (1/cy) @ p01.
+        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
         __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
         __m256 b_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)b_i32s));
         // The normal part.
@@ -950,7 +950,7 @@ NUMKONG_API nk_status_t nk_each_blend_u8_haswell(    //
         b_i32s[0] = b[i + 0], b_i32s[1] = b[i + 1], b_i32s[2] = b[i + 2], b_i32s[3] = b[i + 3], //
             b_i32s[4] = b[i + 4], b_i32s[5] = b[i + 5], b_i32s[6] = b[i + 6], b_i32s[7] = b[i + 7];
         //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on `_mm256_cvtepi32_ps`: 4cy (1/cy) @ p01.
+        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
         __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
         __m256 b_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)b_i32s));
         // The normal part.
@@ -1003,7 +1003,7 @@ NUMKONG_API nk_status_t nk_each_fma_i8_haswell(                        //
         c_i32s[0] = c[i + 0], c_i32s[1] = c[i + 1], c_i32s[2] = c[i + 2], c_i32s[3] = c[i + 3], //
             c_i32s[4] = c[i + 4], c_i32s[5] = c[i + 5], c_i32s[6] = c[i + 6], c_i32s[7] = c[i + 7];
         //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on `_mm256_cvtepi32_ps`: 4cy (1/cy) @ p01.
+        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
         __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
         __m256 b_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)b_i32s));
         __m256 c_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)c_i32s));
@@ -1059,7 +1059,7 @@ NUMKONG_API nk_status_t nk_each_fma_u8_haswell(                        //
         c_i32s[0] = c[i + 0], c_i32s[1] = c[i + 1], c_i32s[2] = c[i + 2], c_i32s[3] = c[i + 3], //
             c_i32s[4] = c[i + 4], c_i32s[5] = c[i + 5], c_i32s[6] = c[i + 6], c_i32s[7] = c[i + 7];
         //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on `_mm256_cvtepi32_ps`: 4cy (1/cy) @ p01.
+        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
         __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
         __m256 b_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)b_i32s));
         __m256 c_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)c_i32s));

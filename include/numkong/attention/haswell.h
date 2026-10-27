@@ -6,7 +6,7 @@
  *
  *  @sa include/numkong/attention.h
  *
- *  Compatibility backend for AVX2/FMA machines. Storage follows the `dots/haswell.h` conventions
+ *  Compatibility backend for AVX2/FMA machines. Storage follows the <tt>dots/haswell.h</tt> conventions
  *  exactly: both BF16 and E4M3 stay in their source encoding at rest — packing is a raw strided-row
  *  copy — and every value widens to F32 on the fly inside the compute loops, 8-wide on the FMA
  *  ports. That keeps the packed KV cache at 2 or even 1 byte per scalar, trading a couple of
@@ -16,8 +16,8 @@
  *  The panel structure matches the family design — per query row, KV is swept in panels with an
  *  exact online correction and the family's base-2 degree-7 softmax polynomial; scores keep four KV
  *  rows in flight. Packed payload per segment: K planes then V planes,
- *  `[key_value_head][position][channel]` in the source dtype with channels zero-padded to a
- *  multiple of 8. `depth > 256` routes to the width-agnostic serial kernel.
+ *  <tt>[key_value_head][position][channel]</tt> in the source dtype with channels zero-padded to a
+ *  multiple of 8. <tt>depth > 256</tt> routes to the width-agnostic serial kernel.
  */
 #ifndef NUMKONG_ATTENTION_HASWELL_H
 #define NUMKONG_ATTENTION_HASWELL_H

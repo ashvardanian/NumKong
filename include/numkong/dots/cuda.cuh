@@ -3,7 +3,7 @@
  *  @author Ash Vardanian
  *  @date October 3, 2026
  *  @brief The @c cuda baseline of batched dot products: its F64, B32 and block-scaled tiles over
- *      the portable stages of `dots/simt.cuh`, the pack and tile launches, the generators every
+ *      the portable stages of <tt>dots/simt.cuh</tt>, the pack and tile launches, the generators every
  *      CUDA capability instantiates its exports with, and the baseline exports.
  *
  *  NVIDIA stages depth in F32 words for its FMA, and folds bytes and nibbles widened to bytes
@@ -88,7 +88,7 @@ NUMKONG_DEVICE void nk_cross_step_dot2_f64_cuda_(nk_f64_t a, nk_f64_t b, nk_f64_
     *compensation = nk_f64_add_rn_cuda_(*compensation, nk_f64_add_rn_cuda_(sum_error, product_error));
 }
 
-/** Merges the running sum of lane `lane ^ offset` into this one, through TwoSum. */
+/** Merges the running sum of lane <tt>lane ^ offset</tt> into this one, through TwoSum. */
 NUMKONG_DEVICE void nk_cross_merge_lanes_dot2_f64_cuda_(unsigned offset, nk_f64_t *sum, nk_f64_t *compensation) {
     nk_f64_t const other_sum = nk_shuffle_xor_f64_cuda_(*sum, offset);
     nk_f64_t const other_compensation = nk_shuffle_xor_f64_cuda_(*compensation, offset);
@@ -379,7 +379,7 @@ NUMKONG_DEVICE void nk_cross_accumulate_norms_u8x4_cuda_(nk_diagonal_band_t band
     }
 }
 
-/** Adds lane `lane ^ offset`'s F32 sum into @p sum. */
+/** Adds lane <tt>lane ^ offset</tt>'s F32 sum into @p sum. */
 NUMKONG_DEVICE nk_fui32_t nk_cross_merge_lanes_f32_cuda_(unsigned offset, nk_fui32_t sum) {
     nk_fui32_t other;
     other.u = nk_shuffle_xor_u32_cuda_(sum.u, offset);
@@ -387,7 +387,7 @@ NUMKONG_DEVICE nk_fui32_t nk_cross_merge_lanes_f32_cuda_(unsigned offset, nk_fui
     return sum;
 }
 
-/** Adds lane `lane ^ offset`'s integer sum into @p sum, wrapping. */
+/** Adds lane <tt>lane ^ offset</tt>'s integer sum into @p sum, wrapping. */
 NUMKONG_DEVICE nk_fui32_t nk_cross_merge_lanes_u32_cuda_(unsigned offset, nk_fui32_t sum) {
     nk_fui32_t other;
     other.u = nk_shuffle_xor_u32_cuda_(sum.u, offset);
@@ -898,7 +898,7 @@ NUMKONG_DEVICE void nk_cross_stage_scales_ue4m3_cuda_(nk_cross_tile_arguments_t 
                                 : 0;
 }
 
-/** Rebases row `first + threadIdx.x` of @p count rows of nvfp4 codes and its scale row into its
+/** Rebases row <tt>first + threadIdx.x</tt> of @p count rows of nvfp4 codes and its scale row into its
  *  slot of @p bases and @p spreads and, for a @p normalized metric, its squared norm relative to
  *  the base into @p norms, read from @p packed_norms unless it is null; zeros past the rows. */
 NUMKONG_DEVICE void nk_cross_rebase_rows_nvfp4_cuda_(unsigned char const *rows, nk_size_t stride,
@@ -919,7 +919,7 @@ NUMKONG_DEVICE void nk_cross_rebase_rows_nvfp4_cuda_(unsigned char const *rows, 
     else norms[slot] = nk_cross_scaled_norm_nvfp4_simt_(rows + row * stride, scales + row * scales_stride, depth, base);
 }
 
-/** Rebases row `first + threadIdx.x` of @p count rows of mxfp4 codes and its scale row into its
+/** Rebases row <tt>first + threadIdx.x</tt> of @p count rows of mxfp4 codes and its scale row into its
  *  slot of @p bases and @p spreads and, for a @p normalized metric, its squared norm relative to
  *  the base into @p norms, read from @p packed_norms unless it is null; zeros past the rows. */
 NUMKONG_DEVICE void nk_cross_rebase_rows_mxfp4_cuda_(unsigned char const *rows, nk_size_t stride,
@@ -940,7 +940,7 @@ NUMKONG_DEVICE void nk_cross_rebase_rows_mxfp4_cuda_(unsigned char const *rows, 
     else norms[slot] = nk_cross_scaled_norm_mxfp4_simt_(rows + row * stride, scales + row * scales_stride, depth, base);
 }
 
-/** Rebases row `first + threadIdx.x` of @p count rows of mxfp8e4m3 codes and its scale row into its
+/** Rebases row <tt>first + threadIdx.x</tt> of @p count rows of mxfp8e4m3 codes and its scale row into its
  *  slot of @p bases and @p spreads and, for a @p normalized metric, its squared norm relative to
  *  the base into @p norms, read from @p packed_norms unless it is null; zeros past the rows. */
 NUMKONG_DEVICE void nk_cross_rebase_rows_mxfp8e4m3_cuda_(unsigned char const *rows, nk_size_t stride,
@@ -963,7 +963,7 @@ NUMKONG_DEVICE void nk_cross_rebase_rows_mxfp8e4m3_cuda_(unsigned char const *ro
                                                            base);
 }
 
-/** Rebases row `first + threadIdx.x` of @p count rows of mxfp8e5m2 codes and its scale row into its
+/** Rebases row <tt>first + threadIdx.x</tt> of @p count rows of mxfp8e5m2 codes and its scale row into its
  *  slot of @p bases and @p spreads and, for a @p normalized metric, its squared norm relative to
  *  the base into @p norms, read from @p packed_norms unless it is null; zeros past the rows. */
 NUMKONG_DEVICE void nk_cross_rebase_rows_mxfp8e5m2_cuda_(unsigned char const *rows, nk_size_t stride,

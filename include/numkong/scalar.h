@@ -103,7 +103,7 @@ NUMKONG_API nk_f16_t nk_f16_fma_best(nk_f16_t a, nk_f16_t b, nk_f16_t c, nk_capa
  *  @param[in] b Second operand.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
- *  @return `clamp(a + b, MIN, MAX)`.
+ *  @return <tt>clamp(a + b, MIN, MAX)</tt>.
  */
 NUMKONG_API nk_u8_t nk_u8_saturating_add_best(nk_u8_t a, nk_u8_t b, nk_capability_t capabilities);
 /** @copydoc nk_u8_saturating_add_best */
@@ -132,7 +132,7 @@ NUMKONG_API nk_u4x2_t nk_u4x2_saturating_add_best(nk_u4x2_t a, nk_u4x2_t b, nk_c
  *  @param[in] b Second operand.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
- *  @return `clamp(a * b, MIN, MAX)`.
+ *  @return <tt>clamp(a * b, MIN, MAX)</tt>.
  */
 NUMKONG_API nk_u8_t nk_u8_saturating_mul_best(nk_u8_t a, nk_u8_t b, nk_capability_t capabilities);
 /** @copydoc nk_u8_saturating_mul_best */
@@ -158,14 +158,14 @@ NUMKONG_API nk_u4x2_t nk_u4x2_saturating_mul_best(nk_u4x2_t a, nk_u4x2_t b, nk_c
  *  @brief Branchless sign-magnitude ordering for non-native floating-point scalars.
  *  @sa std::strong_order, Rust total_cmp
  *
- *  Uses `mask = -sign; ordered = value ^ mask` — the constant offset cancels in subtraction.
+ *  Uses <tt>mask = -sign; ordered = value ^ mask</tt> — the constant offset cancels in subtraction.
  *  Returns negative if a < b, 0 if equal, positive if a > b.
  *
  *  @param[in] a First operand.
  *  @param[in] b Second operand.
  *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
  *      serial always stays.
- *  @return Negative if `a < b`, zero if `a == b`, positive if `a > b`.
+ *  @return Negative if <tt>a < b</tt>, zero if <tt>a == b</tt>, positive if <tt>a > b</tt>.
  *
  *  @note NaN values are ordered at the extremes per IEEE 754 totalOrder (negative NaN < all finite
  *      < positive NaN). Callers requiring NaN-exclusion semantics must filter NaN before calling.
@@ -531,9 +531,15 @@ NUMKONG_API nk_f64_t nk_f64_rsqrt_loongsonasx(nk_f64_t x);
 
 /**
  *  @brief Finds the scalar kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_scalar_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                               nk_kernel_punned_t *kernel, nk_capability_t *capability);

@@ -30,7 +30,7 @@ extern "C" {
 #pragma GCC target("+sme")
 #endif
 
-/** Vectorized `2^x` (SME streaming SVE); matches @c nk_f32_exp2_serial_ to polynomial precision. */
+/** Vectorized <tt>2^x</tt> (SME streaming SVE); matches @c nk_f32_exp2_serial_ to polynomial precision. */
 NUMKONG_INLINE svfloat32_t nk_exp2_f32x_sme_(svfloat32_t x_f32x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     x_f32x = svmax_f32_x(predicate_all_b32x, svmin_f32_x(predicate_all_b32x, x_f32x, svdup_f32(127.0f)),
@@ -50,7 +50,7 @@ NUMKONG_INLINE svfloat32_t nk_exp2_f32x_sme_(svfloat32_t x_f32x) NUMKONG_STREAMI
     return svmul_f32_x(predicate_all_b32x, p_f32x, svreinterpret_f32_s32(n_i32x));
 }
 
-/** Degree-3 evaluation of `2^r` over the reduced fraction `r ∈ [-0.5, 0.5]`, 32 lanes at a time:
+/** Degree-3 evaluation of <tt>2^r</tt> over the reduced fraction <tt>r ∈ [-0.5, 0.5]</tt>, 32 lanes at a time:
  *  the family coefficients truncated to degree 3, which falls below the F16 resolution of
  *  the weights it feeds. */
 NUMKONG_INLINE svfloat16_t nk_exp2_polynomial_f16x_sme_(svfloat16_t reduced_f16x) NUMKONG_STREAMING_ {

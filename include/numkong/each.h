@@ -106,7 +106,9 @@ extern "C" {
  *  @param[out] result The output vector.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_each_scale_f64_best(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha,
                                                nk_f64_t const *beta, nk_f64_t *result, nk_capability_t capabilities,
@@ -189,7 +191,9 @@ NUMKONG_API nk_status_t nk_each_scale_f64c_best(nk_f64c_t const *a, nk_size_t n,
  *  @param[out] result The output vector.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_each_sum_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                              nk_capability_t capabilities, nk_stream_t stream);
@@ -256,7 +260,9 @@ NUMKONG_API nk_status_t nk_each_sum_f64c_best(nk_f64c_t const *a, nk_f64c_t cons
  *  @param[out] result The output vector.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_each_blend_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t const *alpha,
                                                nk_f64_t const *beta, nk_f64_t *result, nk_capability_t capabilities,
@@ -343,7 +349,9 @@ NUMKONG_API nk_status_t nk_each_blend_f64c_best(nk_f64c_t const *a, nk_f64c_t co
  *  @param[out] result The output vector.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_each_fma_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
                                              nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result,
@@ -421,7 +429,7 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_best(nk_f64c_t const *a, nk_f64c_t cons
  *  @brief Fused SwiGLU: y = silu(gate) × up, with a scale on the gate and on the output.
  *
  *  SiLU is not linear, so FP8 codes need @p gate_scale to reach true values first, while the up and
- *  output scales of FP8 tensors fold into @p output_scale as `up_scale / y_scale`.
+ *  output scales of FP8 tensors fold into @p output_scale as <tt>up_scale / y_scale</tt>.
  *
  *  @param[in] gate The gate input matrix of shape @p rows by @p columns.
  *  @param[in] up The up input matrix, same shape as @p gate; NULL collapses to plain SiLU.
@@ -435,7 +443,9 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_best(nk_f64c_t const *a, nk_f64c_t cons
  *  @param[in] output_scale Multiplies every result before the store; 1 for unscaled inputs.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_each_swiglu_f32_best(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride,
@@ -481,7 +491,9 @@ NUMKONG_API nk_status_t nk_each_swiglu_e4m3_best(nk_e4m3_t const *gate, nk_e4m3_
  *  @param[in] epsilon Variance epsilon added before the reciprocal square root.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_each_rmsnorm_f32_best(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
                                                  nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
@@ -530,7 +542,9 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_best(nk_e4m3_t const *x, nk_f32_t c
  *  @param[in] epsilon Variance epsilon added before the reciprocal square root.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_each_rmscast_bf16_best(nk_f32_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
                                                   nk_size_t rows, nk_size_t groups, nk_size_t columns,
@@ -2540,9 +2554,15 @@ NUMKONG_INLINE nk_f64_t nk_each_swiglu_error_bound(nk_dtype_t dtype) { return 5 
 
 /**
  *  @brief Finds the each kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_each_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                             nk_kernel_punned_t *kernel, nk_capability_t *capability);

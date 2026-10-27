@@ -7,9 +7,9 @@
  *  @sa include/numkong/dots.h
  *  @sa include/numkong/dots/ampere.cuh
  *
- *  Warpgroup `wgmma.mma_async` over shared-memory descriptors, which only the "90a" code carries,
+ *  Warpgroup <tt>wgmma.mma_async</tt> over shared-memory descriptors, which only the "90a" code carries,
  *  so no other generation compiles these kernels. Two warpgroups own a @b [128,128] output tile, 64
- *  rows each, over the Ampere tile's three-stage `cp.async` ring of 64-byte depth slabs, whose
+ *  rows each, over the Ampere tile's three-stage <tt>cp.async</tt> ring of 64-byte depth slabs, whose
  *  XOR-swizzled rows are exactly the 64-byte-swizzle K-major layout the tensor cores read, so both
  *  operands stay in shared memory and each slab is two @c m64n128 steps per warpgroup. Once a slab
  *  lands, E2M3, E2M1, I4 and U4 widen in place into 8-bit integers, each thread rewriting one

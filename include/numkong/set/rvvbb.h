@@ -6,11 +6,11 @@
  *
  *  @sa include/numkong/set.h
  *
- *  Zvbb, the Vector Basic Bit-manipulation extension, adds a per-element popcount, `vcpop.v`, which
+ *  Zvbb, the Vector Basic Bit-manipulation extension, adds a per-element popcount, <tt>vcpop.v</tt>, which
  *  replaces the 11-instruction SWAR sequence of set/rvv.h with one instruction.
  *
  *  Only @c nk_hamming_u1_rvvbb and @c nk_jaccard_u1_rvvbb need that byte-level popcount; the u8,
- *  u16 and u32 set kernels count with the mask-level `vcpop.m` that base RVV 1.0 already has.
+ *  u16 and u32 set kernels count with the mask-level <tt>vcpop.m</tt> that base RVV 1.0 already has.
  *
  *  Requires RVV 1.0 with Zvbb, from GCC 14 or Clang 18.
  */

@@ -7,7 +7,7 @@
  *  @sa include/numkong/attention.h
  *
  *  Width-agnostic reference implementation of the ragged scaled-dot-product attention family: any
- *  `depth ≥ 1`, any segment lengths, GQA/MQA, the same base-2 softmax formulation and the same
+ *  <tt>depth ≥ 1</tt>, any segment lengths, GQA/MQA, the same base-2 softmax formulation and the same
  *  [tasks_begin, tasks_end) windows over the flat @b [query_tokens,heads] grid as the SIMD
  *  backends, under any band of visible keys.
  *
@@ -15,7 +15,7 @@
  *
  *  1. Ground truth for every SIMD backend's conformance tests.
  *  2. Final runtime-dispatch fallback on CPUs without any compiled SIMD target.
- *  3. Fallback for shapes outside a SIMD backend's fast-path envelope (`depth > 256`), invoked from
+ *  3. Fallback for shapes outside a SIMD backend's fast-path envelope (<tt>depth > 256</tt>), invoked from
  *     those backends so pack and attention always agree on the packed-buffer format.
  *
  *  @section attention_serial_layout Packed Layout
@@ -29,14 +29,14 @@
  *  @endverbatim
  *
  *  The payload is backend-opaque; serial stores K and V as plain F32 row-major planes
- *  `[key_value_head][position][channel]` per segment, so both input dtypes — BF16, E4M3 — share one
+ *  <tt>[key_value_head][position][channel]</tt> per segment, so both input dtypes — BF16, E4M3 — share one
  *  compute path after per-element conversion at pack.
  *
  *  @section attention_serial_scaled Block-Scaled Planes
  *
  *  NVFP4 planes hold each element times its UE4M3 block scale, which F32 keeps exactly, and the
  *  header keeps both tensor scales. MX planes hold each element times its UE8M0 block scale rebased
- *  by the plane's largest finite block exponent less 31, kept in an `i8 plane_exponents[S][2][H]`
+ *  by the plane's largest finite block exponent less 31, kept in an <tt>i8 plane_exponents[S][2][H]</tt>
  *  table, 64-byte padded, past the bound of the planes. A plane whose block exponents span more
  *  than 89 binades keeps −128 there instead, and each of its rows starts with the row's raw codes,
  *  then its scale codes. Scores sum each query block in F32 and add the blocks into a wide sum, so
@@ -834,7 +834,7 @@ NUMKONG_API nk_status_t nk_attention_packed_shape_mxfp8e5m2_serial(void const *k
 #endif
 #endif // NUMKONG_TARGET_SERIAL
 
-/** BF16 packing core: widen K and V rows to F32 planes `[key_value_head][position][channel]`, and
+/** BF16 packing core: widen K and V rows to F32 planes <tt>[key_value_head][position][channel]</tt>, and
  *  record the packing @p capability. */
 NUMKONG_INLINE void nk_attention_pack_bf16_serial_(nk_bf16_t const *keys, nk_bf16_t const *values,
                                                    nk_size_t key_value_head_count, nk_size_t depth,
@@ -883,7 +883,7 @@ NUMKONG_INLINE void nk_attention_pack_bf16_serial_(nk_bf16_t const *keys, nk_bf1
     }
 }
 
-/** F16 packing core: widen K and V rows to F32 planes `[key_value_head][position][channel]`, and
+/** F16 packing core: widen K and V rows to F32 planes <tt>[key_value_head][position][channel]</tt>, and
  *  record the packing @p capability. */
 NUMKONG_INLINE void nk_attention_pack_f16_serial_(nk_f16_t const *keys, nk_f16_t const *values,
                                                   nk_size_t key_value_head_count, nk_size_t depth,
@@ -931,7 +931,7 @@ NUMKONG_INLINE void nk_attention_pack_f16_serial_(nk_f16_t const *keys, nk_f16_t
     }
 }
 
-/** E4M3 packing core: widen K and V rows to F32 planes `[key_value_head][position][channel]`, and
+/** E4M3 packing core: widen K and V rows to F32 planes <tt>[key_value_head][position][channel]</tt>, and
  *  record the packing @p capability. */
 NUMKONG_INLINE void nk_attention_pack_e4m3_serial_(nk_e4m3_t const *keys, nk_e4m3_t const *values,
                                                    nk_size_t key_value_head_count, nk_size_t depth,
@@ -980,7 +980,7 @@ NUMKONG_INLINE void nk_attention_pack_e4m3_serial_(nk_e4m3_t const *keys, nk_e4m
     }
 }
 
-/** I8 packing core: copy K and V rows into raw I8 planes `[key_value_head][position][channel]`, and
+/** I8 packing core: copy K and V rows into raw I8 planes <tt>[key_value_head][position][channel]</tt>, and
  *  record @p capability as the packing capability. */
 NUMKONG_INLINE void nk_attention_pack_i8_serial_(                                                //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //

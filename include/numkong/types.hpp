@@ -29,7 +29,7 @@
  *
  *  - @b value: A C++ container element, like the @c i4x2_t, @c f32_t, and @c f64c_t.
  *
- *  - @b word: A raw Assembly-level storage unit, like a single `unsigned char` under the @c i4x2_t
+ *  - @b word: A raw Assembly-level storage unit, like a single <tt>unsigned char</tt> under the @c i4x2_t
  *    or one of the two @c doubles forming the @c f64c_t.
  *
  *  - @b dimension: A logical unit of work, like a single nibble of @c i4x2_t, or a single bit of
@@ -130,6 +130,12 @@ namespace ashvardanian::numkong {
  *
  *  Every enumerator takes its value from @c nk_status_t in @c types.h, so the C++ mirror and the
  *  ABI cannot drift, and the crossing is a cast rather than a table.
+ *
+ *  Statuses fall into three categories, with no interruptions or defects to report. Resources:
+ *  @c bad_alloc_k, @c missing_gpu_k, @c device_code_mismatch_k, @c missing_kernel_k and
+ *  @c missing_library_k. Input: @c unexpected_dimensions_k, @c device_memory_mismatch_k and
+ *  @c misaligned_k. State: @c pack_mismatch_k. Any verb that allocates, binds a device or touches a
+ *  file may also return a Resources status. A verb's own block lists only what its contract adds.
  */
 enum class [[nodiscard]] status_t : int {
 
@@ -199,7 +205,7 @@ struct [[nodiscard]] expected<value_type_ &> {
 
 #pragma region Devices
 
-/** Which runtime a device belongs to, as the `nk_<kind>_*` C functions name it. */
+/** Which runtime a device belongs to, as the <tt>nk_\<kind\>_*</tt> C functions name it. */
 enum class device_kind_t : int { cpu_k, cuda_k, rocm_k, metal_k };
 
 /** One device NumKong can run kernels on: the host CPU, or a GPU by its runtime's own ordinal. */
@@ -834,7 +840,7 @@ struct f64_t {
     template <std::integral integral_type_>
     constexpr f64_t(integral_type_ v) noexcept : raw_(static_cast<double>(v)) {}
 
-    /** Upcast from any nk numeric wrapper with `operator float()`, such as f16_t, bf16_t, e4m3_t,
+    /** Upcast from any nk numeric wrapper with <tt>operator float()</tt>, such as f16_t, bf16_t, e4m3_t,
      *  i8_t. */
     template <typename nk_type_>
         requires(std::is_class_v<nk_type_> && std::is_convertible_v<nk_type_, float>)
@@ -1135,7 +1141,7 @@ struct f32c_t {
     constexpr bool operator==(f32c_t o) const noexcept { return raw_.real == o.raw_.real && raw_.imag == o.raw_.imag; }
     constexpr bool operator!=(f32c_t o) const noexcept { return !(*this == o); }
 
-    /** Complex conjugate: `a - bi`. */
+    /** Complex conjugate: <tt>a - bi</tt>. */
     constexpr f32c_t conj() const noexcept { return f32c_t {raw_.real, -raw_.imag}; }
 
     /** Squared magnitude, a² + b². */
@@ -1144,7 +1150,7 @@ struct f32c_t {
     /** Magnitude, √(a² + b²). */
     inline f32_t abs() const noexcept { return norm().sqrt(); }
 
-    /** Phase angle: `atan2(b, a)`. */
+    /** Phase angle: <tt>atan2(b, a)</tt>. */
     inline f32_t arg() const noexcept { return f32_t(raw_.imag).atan2(f32_t(raw_.real)); }
 
     /** Complex exponential, e^(a+bi) = e^a(cos(b) + i · sin(b)). */
@@ -1173,7 +1179,7 @@ struct f32c_t {
     /** Complex power, z^w = e^(w · ln(z)). */
     inline f32c_t pow(f32c_t w) const noexcept { return (w * log()).exp(); }
 
-    /** Real power: `z^x`. */
+    /** Real power: <tt>z^x</tt>. */
     inline f32c_t powf(f32_t x) const noexcept {
         f32_t r = abs();
         f32_t theta = arg();
@@ -1194,7 +1200,7 @@ struct f32c_t {
         return f32c_t {real().cos() * imag().cosh(), -(real().sin() * imag().sinh())};
     }
 
-    /** Complex tangent: `tan(z) = sin(z) / cos(z)`. */
+    /** Complex tangent: <tt>tan(z) = sin(z) / cos(z)</tt>. */
     inline f32c_t tan() const noexcept { return sin() / cos(); }
 
     /** Complex arcsine, asin(z) = -i · ln(iz + √(1 - z²)). */
@@ -1206,7 +1212,7 @@ struct f32c_t {
         return f32c_t {ln_part.raw_.imag, -ln_part.raw_.real}; // -i * ln_part
     }
 
-    /** Complex arccosine: `acos(z) = π/2 - asin(z)`. */
+    /** Complex arccosine: <tt>acos(z) = π/2 - asin(z)</tt>. */
     inline f32c_t acos() const noexcept {
         constexpr float half_pi = 1.5707963267948966f;
         f32c_t as = asin();
@@ -1235,7 +1241,7 @@ struct f32c_t {
         return f32c_t {real().cosh() * imag().cos(), real().sinh() * imag().sin()};
     }
 
-    /** Complex hyperbolic tangent: `tanh(z) = sinh(z) / cosh(z)`. */
+    /** Complex hyperbolic tangent: <tt>tanh(z) = sinh(z) / cosh(z)</tt>. */
     inline f32c_t tanh() const noexcept { return sinh() / cosh(); }
 
     /** Complex inverse hyperbolic sine, asinh(z) = ln(z + √(z² + 1)). */
@@ -1258,7 +1264,7 @@ struct f32c_t {
         return f32c_t {ln_part.raw_.real * 0.5f, ln_part.raw_.imag * 0.5f};
     }
 
-    /** Reciprocal: `1 / z`. */
+    /** Reciprocal: <tt>1 / z</tt>. */
     inline f32c_t recip() const noexcept { return one() / *this; }
 };
 
@@ -1312,7 +1318,7 @@ struct f64c_t {
     constexpr f64c_t(double r, double i) noexcept : raw_ {r, i} {}
     constexpr f64c_t(raw_t r) noexcept : raw_(r) {}
 
-    /** Upcast from any nk complex wrapper with `.real()` / `.imag()`, such as f16c_t, bf16c_t,
+    /** Upcast from any nk complex wrapper with <tt>.real()</tt> / <tt>.imag()</tt>, such as f16c_t, bf16c_t,
      *  f32c_t. */
     template <typename nk_type_>
         requires(!std::is_same_v<nk_type_, f64c_t> && !std::is_same_v<nk_type_, nk_f64c_t> &&
@@ -1387,7 +1393,7 @@ struct f64c_t {
     constexpr bool operator==(f64c_t o) const noexcept { return raw_.real == o.raw_.real && raw_.imag == o.raw_.imag; }
     constexpr bool operator!=(f64c_t o) const noexcept { return !(*this == o); }
 
-    /** Complex conjugate: `a - bi`. */
+    /** Complex conjugate: <tt>a - bi</tt>. */
     constexpr f64c_t conj() const noexcept { return f64c_t {raw_.real, -raw_.imag}; }
 
     /** Squared magnitude, a² + b². */
@@ -1396,7 +1402,7 @@ struct f64c_t {
     /** Magnitude, √(a² + b²). */
     inline f64_t abs() const noexcept { return norm().sqrt(); }
 
-    /** Phase angle: `atan2(b, a)`. */
+    /** Phase angle: <tt>atan2(b, a)</tt>. */
     inline f64_t arg() const noexcept { return f64_t(raw_.imag).atan2(f64_t(raw_.real)); }
 
     /** Complex exponential, e^(a+bi) = e^a(cos(b) + i · sin(b)). */
@@ -1425,7 +1431,7 @@ struct f64c_t {
     /** Complex power, z^w = e^(w · ln(z)). */
     inline f64c_t pow(f64c_t w) const noexcept { return (w * log()).exp(); }
 
-    /** Real power: `z^x`. */
+    /** Real power: <tt>z^x</tt>. */
     inline f64c_t powf(f64_t x) const noexcept {
         f64_t r = abs();
         f64_t theta = arg();
@@ -1446,7 +1452,7 @@ struct f64c_t {
         return f64c_t {real().cos() * imag().cosh(), -(real().sin() * imag().sinh())};
     }
 
-    /** Complex tangent: `tan(z) = sin(z) / cos(z)`. */
+    /** Complex tangent: <tt>tan(z) = sin(z) / cos(z)</tt>. */
     inline f64c_t tan() const noexcept { return sin() / cos(); }
 
     /** Complex arcsine, asin(z) = -i · ln(iz + √(1 - z²)). */
@@ -1458,7 +1464,7 @@ struct f64c_t {
         return f64c_t {ln_part.raw_.imag, -ln_part.raw_.real}; // -i * ln_part
     }
 
-    /** Complex arccosine: `acos(z) = π/2 - asin(z)`. */
+    /** Complex arccosine: <tt>acos(z) = π/2 - asin(z)</tt>. */
     inline f64c_t acos() const noexcept {
         constexpr double half_pi = 1.5707963267948966;
         f64c_t as = asin();
@@ -1487,7 +1493,7 @@ struct f64c_t {
         return f64c_t {real().cosh() * imag().cos(), real().sinh() * imag().sin()};
     }
 
-    /** Complex hyperbolic tangent: `tanh(z) = sinh(z) / cosh(z)`. */
+    /** Complex hyperbolic tangent: <tt>tanh(z) = sinh(z) / cosh(z)</tt>. */
     inline f64c_t tanh() const noexcept { return sinh() / cosh(); }
 
     /** Complex inverse hyperbolic sine, asinh(z) = ln(z + √(z² + 1)). */
@@ -1510,7 +1516,7 @@ struct f64c_t {
         return f64c_t {ln_part.raw_.real * 0.5, ln_part.raw_.imag * 0.5};
     }
 
-    /** Reciprocal: `1 / z`. */
+    /** Reciprocal: <tt>1 / z</tt>. */
     inline f64c_t recip() const noexcept { return one() / *this; }
 };
 
@@ -4086,12 +4092,12 @@ struct f118_t {
     /**
      *  @brief Error-free addition, Knuth two-sum algorithm.
      *
-     *  Computes sum exactly, where `high_ + low_ == a + b` with no rounding error.
+     *  Computes sum exactly, where <tt>high_ + low_ == a + b</tt> with no rounding error.
      *  Works for any IEEE 754 floats.
      *
      *  @param[in] a First operand.
      *  @param[in] b Second operand.
-     *  @return f118_t with `a + b` rounded in @c high_ and its rounding error in @c low_.
+     *  @return f118_t with <tt>a + b</tt> rounded in @c high_ and its rounding error in @c low_.
      *
      *  Reference: Knuth, "The Art of Computer Programming", Vol 2, Section 4.2.2
      */
@@ -4109,7 +4115,7 @@ struct f118_t {
      *
      *  @param[in] a First operand; must satisfy |a| ≥ |b|.
      *  @param[in] b Second operand.
-     *  @return f118_t with `a + b` rounded in @c high_ and its rounding error in @c low_.
+     *  @return f118_t with <tt>a + b</tt> rounded in @c high_ and its rounding error in @c low_.
      *
      *  Reference: Dekker, "A floating-point technique for extending the available precision", 1971
      */
@@ -4118,12 +4124,12 @@ struct f118_t {
     /**
      *  @brief Error-free product using FMA, two_prod_ algorithm.
      *
-     *  Computes product exactly as a double-double, where `high_ + low_ == a * b` with no rounding
+     *  Computes product exactly as a double-double, where <tt>high_ + low_ == a * b</tt> with no rounding
      *  error. Requires FMA hardware support.
      *
      *  @param[in] a First operand.
      *  @param[in] b Second operand.
-     *  @return f118_t with `a * b` rounded in @c high_ and its rounding error in @c low_.
+     *  @return f118_t with <tt>a * b</tt> rounded in @c high_ and its rounding error in @c low_.
      */
     static NUMKONG_CMATH_CONSTEXPR_ f118_t two_prod_(double a, double b) noexcept {
         double product = a * b;
@@ -6209,8 +6215,8 @@ struct e2m1x2_t {
  *  @brief NVIDIA NVFP4 block value: 16 E2M1 nibbles + 1 UE4M3 scale byte per value.
  *
  *  Per-tensor f32 tensor_scale multiplier lives on the enclosing tensor, not per block, and is
- *  passed explicitly to @c decode_to and @c encode_from. `sizeof(nvfp4_t) == 9`, and one value
- *  represents 16 logical elements — `nk::tensor<nvfp4_t>(n)` allocates ⌈n/16⌉ × 9 bytes.
+ *  passed explicitly to @c decode_to and @c encode_from. <tt>sizeof(nvfp4_t) == 9</tt>, and one value
+ *  represents 16 logical elements — <tt>nk::tensor<nvfp4_t>(n)</tt> allocates ⌈n/16⌉ × 9 bytes.
  */
 struct nvfp4_t {
     using raw_t = nk_nvfp4_t;
@@ -6684,9 +6690,9 @@ constexpr unsigned bits_per_dimension() noexcept {
  *  @brief Dimensions per container value. For normal types = 1, for sub-byte packed types > 1.
  *
  *  Block-scaled values, MX and NVFP4, carry a per-block scale byte inside the struct, so
- *  `bits_per_value / bits_per_dimension` would over-count by the scale overhead — NVFP4 is a 9-byte
+ *  <tt>bits_per_value / bits_per_dimension</tt> would over-count by the scale overhead — NVFP4 is a 9-byte
  *  struct holding 16 four-bit dims, so the ratio yields 18, not 16. Every packed/block type exposes
- *  the authoritative logical-dimension count via `elements()`; prefer it when available and fall
+ *  the authoritative logical-dimension count via <tt>elements()</tt>; prefer it when available and fall
  *  back to the bit ratio, correct at 1, for plain scalar types.
  */
 template <typename scalar_type_>
@@ -6705,8 +6711,8 @@ constexpr bool fills_whole_values_(std::size_t dimensions) noexcept {
 /**
  *  @brief The mutable reference type for one logical dimension of a value.
  *
- *  For normal types, 1 dim per value, a plain `value_type_ &`. For sub-byte packed types, a
- *  `sub_byte_ref<value_type_>` proxy.
+ *  For normal types, 1 dim per value, a plain <tt>value_type_ &</tt>. For sub-byte packed types, a
+ *  @c sub_byte_ref<value_type_> proxy.
  */
 template <typename value_type_>
 using value_ref =
@@ -6782,7 +6788,7 @@ template <typename in_type_>
 using operand_pointer = typename operand_pointer_<in_type_>::type;
 
 /**
- *  @brief Trait: is `memset(ptr, 0, n * sizeof(T))` equivalent to value-initialization?
+ *  @brief Trait: is <tt>memset(ptr, 0, n * sizeof(T))</tt> equivalent to value-initialization?
  *
  *  True for trivially-copyable types, built-in scalars, and for all NumKong wrapper types, detected
  *  via @c raw_t member typedef, whose default constructors zero-initialize a single POD field.
@@ -7075,12 +7081,12 @@ namespace ashvardanian::numkong {
 /**
  *  @brief Parsed format spec for NumKong scalar types.
  *
- *  Supports the standard format spec grammar `[[fill]align][sign][#][0][width][.precision][type]`:
- *  - `{}` — clean float value, composes with C++23 range formatting
- *  - `{:#}` — annotated: `3.14 [0x4248]`
- *  - `{:.2f}` — precision/type forwarded to `std::formatter<float>`
- *  - `{:x}` / `{:#x}` / `{:X}` — hex bits, with an optional `0x` prefix
- *  - `{:b}` / `{:#b}` — binary bits, with an optional `0b` prefix
+ *  Supports the standard format spec grammar <tt>[[fill]align][sign][#][0][width][.precision][type]</tt>:
+ *  - <tt>{}</tt> — clean float value, composes with C++23 range formatting
+ *  - <tt>{:#}</tt> — annotated: <tt>3.14 [0x4248]</tt>
+ *  - <tt>{:.2f}</tt> — precision/type forwarded to @c std::formatter<float>
+ *  - <tt>{:x}</tt> / <tt>{:#x}</tt> / <tt>{:X}</tt> — hex bits, with an optional @c 0x prefix
+ *  - <tt>{:b}</tt> / <tt>{:#b}</tt> — binary bits, with an optional @c 0b prefix
  */
 struct scalar_format_spec_t {
     enum class mode_t : unsigned char { float_val_k, hex_k, binary_k };
@@ -7167,7 +7173,7 @@ inline std::format_context::iterator format_bin_(std::format_context::iterator o
     return std::format_to(out, "{:08b}", bits);
 }
 
-/** Write hex annotation suffix: ` [0x{hex}]`. */
+/** Write hex annotation suffix: <tt> [0x{hex}]</tt>. */
 inline std::format_context::iterator format_hex_suffix_(std::format_context::iterator out, unsigned bits,
                                                         unsigned width) {
     if (width == 4) return std::format_to(out, " [0x{:04x}]", bits);
@@ -7294,8 +7300,8 @@ struct std::formatter<ashvardanian::numkong::u1x8_t> {
     }
 };
 
-/** Formatter for a single signed nibble, -8..7. Supports `{}`, `{:#}`, `{:x}`, `{:b}`.
- *  Float-precision specs, such as `{:.2f}`, are not meaningful and ignored. */
+/** Formatter for a single signed nibble, -8..7. Supports <tt>{}</tt>, <tt>{:#}</tt>, <tt>{:x}</tt>, <tt>{:b}</tt>.
+ *  Float-precision specs, such as <tt>{:.2f}</tt>, are not meaningful and ignored. */
 template <>
 struct std::formatter<ashvardanian::numkong::sub_byte_ref<ashvardanian::numkong::i4x2_t>> {
     ashvardanian::numkong::scalar_format_spec_t spec_;
@@ -7319,8 +7325,8 @@ struct std::formatter<ashvardanian::numkong::sub_byte_ref<ashvardanian::numkong:
     }
 };
 
-/** Formatter for a single unsigned nibble, 0..15. Supports `{}`, `{:#}`, `{:x}`, `{:b}`.
- *  Float-precision specs, such as `{:.2f}`, are not meaningful and ignored. */
+/** Formatter for a single unsigned nibble, 0..15. Supports <tt>{}</tt>, <tt>{:#}</tt>, <tt>{:x}</tt>, <tt>{:b}</tt>.
+ *  Float-precision specs, such as <tt>{:.2f}</tt>, are not meaningful and ignored. */
 template <>
 struct std::formatter<ashvardanian::numkong::sub_byte_ref<ashvardanian::numkong::u4x2_t>> {
     ashvardanian::numkong::scalar_format_spec_t spec_;
@@ -7344,7 +7350,7 @@ struct std::formatter<ashvardanian::numkong::sub_byte_ref<ashvardanian::numkong:
     }
 };
 
-/** Formatter for a single bit. Only `{}` is supported — hex and binary are not meaningful. */
+/** Formatter for a single bit. Only <tt>{}</tt> is supported — hex and binary are not meaningful. */
 template <>
 struct std::formatter<ashvardanian::numkong::sub_byte_ref<ashvardanian::numkong::u1x8_t>> {
     constexpr std::format_parse_context::iterator parse(std::format_parse_context &ctx) { return ctx.begin(); }

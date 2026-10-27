@@ -259,9 +259,10 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #define nk_has_builtin_(x) 0
 #endif
 
-/** True when the compiler reserves @c x as a type keyword rather than treating it as a plain
- *  identifier. Clang-only; the wrapper is what lets `#if` mention it on GCC, where the preprocessor
- *  would still have to parse `__is_identifier(...)` even behind a `defined()` guard. */
+/** True when the compiler reserves @c x as a type keyword rather than treating it as a
+ *  plain identifier. Clang-only; the wrapper is what lets @c \#if mention it on GCC,
+ *  where the preprocessor would still have to parse <tt>__is_identifier(...)</tt> even behind
+ *  a <tt>defined()</tt> guard. */
 #if defined(__is_identifier)
 #define nk_is_keyword_(x) (!__is_identifier(x))
 #else
@@ -1061,7 +1062,7 @@ typedef __vector double nk_vf64x2_t;
 /**
  *  @brief C99 static array parameter annotation for minimum array size.
  *
- *  In C it expands to `static n`, which lets the compiler check bounds at every call; C++ and MSVC
+ *  In C it expands to <tt>static n</tt>, which lets the compiler check bounds at every call; C++ and MSVC
  *  have no such syntax, so there it expands to nothing:
  *
  *  @code{.c}
@@ -1197,10 +1198,10 @@ typedef nk_f64_t nk_fmax_t;
 
 #define NUMKONG_SIZE_MAX ((nk_size_t) - 1)
 
-/** @c NUMKONG_NULL, analogous to @c NULL, so headers need not pull in `<stddef.h>`. @c __null gives
- *      better null-pointer diagnostics where the compiler provides it. The @c nullptr branch
- *      matters for MSVC C++: unlike C, it forbids a `void *` arm in a typed conditional, so
- *      `(void *)0` there fails to compile. */
+/** @c NUMKONG_NULL, analogous to @c NULL, so headers need not pull in <tt>\<stddef.h\></tt>. @c __null
+ *      gives better null-pointer diagnostics where the compiler provides it. The @c nullptr branch
+ *      matters for MSVC C++: unlike C, it forbids a <tt>void *</tt> arm in a typed conditional, so
+ *      <tt>(void *)0</tt> there fails to compile. */
 #ifdef __GNUG__
 #define NUMKONG_NULL __null
 #elif defined(__cplusplus)
@@ -1211,7 +1212,7 @@ typedef nk_f64_t nk_fmax_t;
 
 #define NUMKONG_F32_MIN (-3.402823466e+38f)
 
-/** Infinities as an overflowing product, since C names them portably only in `<math.h>`. */
+/** Infinities as an overflowing product, since C names them portably only in <tt>\<math.h\></tt>. */
 #define NUMKONG_F64_INF ((nk_f64_t)(1e300 * 1e300))
 #define NUMKONG_F32_INF ((nk_f32_t)(1e300 * 1e300))
 
@@ -1219,7 +1220,7 @@ typedef nk_f64_t nk_fmax_t;
  *  kernels. Base-2 polynomial evaluation means natural-log/exp quantities fold through log₂e
  *  and ln2, so both the single- and double-precision spellings are provided and each site keeps
  *  its exact bits. Trigonometric range-reduction constants (π high/low, 1/π, π/2) are
- *  intentionally not here — they are a Cody-Waite set local to the `trigonometry/` sources,
+ *  intentionally not here — they are a Cody-Waite set local to the @c trigonometry/ sources,
  *  tuned per approximation. */
 #define NUMKONG_F32_LN2_   0.6931471805599453f // ln2 (single precision)
 #define NUMKONG_F64_LN2_   0.6931471805599453  // ln2 (double precision)
@@ -1273,7 +1274,7 @@ typedef nk_f64_t nk_fmax_t;
  *  Includes complex type descriptors which in C code would use the real counterparts, but the
  *  independent flags contain metadata to be passed between programming language interfaces.
  *
- *  Block-scaled formats are composites, `element_dtype | scale_dtype`: two bits set, so they never
+ *  Block-scaled formats are composites, <tt>element_dtype | scale_dtype</tt>: two bits set, so they never
  *  collide with each other or with a singleton. The scale dtype fixes the block, 16 for UE4M3 in
  *  NVFP4 and 32 for UE8M0 in the MX family.
  */
@@ -1382,8 +1383,17 @@ typedef enum {
     nk_mxint8_k = nk_i8_k | nk_ue8m0_k,
 } nk_dtype_t;
 
-/** Outcome of every NumKong call that can fail: zero on success, negative when nothing was
- *  written. Positive values are reserved for results written with a caveat. */
+/**
+ *  @brief Outcome of every NumKong call that can fail: zero on success, negative when nothing was
+ *      written. Positive values are reserved for results written with a caveat.
+ *
+ *  Statuses fall into three categories, with no interruptions or defects to report. Resources:
+ *  @c nk_bad_alloc_k, @c nk_missing_gpu_k, @c nk_device_code_mismatch_k, @c nk_missing_kernel_k
+ *  and @c nk_missing_library_k. Input: @c nk_unexpected_dimensions_k,
+ *  @c nk_device_memory_mismatch_k and @c nk_misaligned_k. State: @c nk_pack_mismatch_k. Any verb
+ *  that allocates, binds a device or touches a file may also return a Resources status. A verb's
+ *  own block lists only what its contract adds.
+ */
 typedef enum NUMKONG_NODISCARD_ {
 
     /** Scheduled, or finished, without error. */
@@ -1519,8 +1529,8 @@ NUMKONG_API char const *nk_status_name(nk_status_t status) { return nk_status_na
  *  @c tensor_scale_dtype scalar multiplier applies to the whole tensor (NVFP4's per-tensor
  *  FP32 factor; absent for the MX family).
  *
- *  Plain (non-block-scaled) buffers are described by `scale_dtype = nk_dtype_unknown_k`,
- *  `tensor_scale_dtype = nk_dtype_unknown_k`, and `block_size = 0` — use the `nk_plain()` factory.
+ *  Plain (non-block-scaled) buffers are described by <tt>scale_dtype = nk_dtype_unknown_k</tt>,
+ *  <tt>tensor_scale_dtype = nk_dtype_unknown_k</tt>, and <tt>block_size = 0</tt> — use the <tt>nk_plain()</tt> factory.
  */
 typedef struct {
 
@@ -1653,56 +1663,56 @@ NUMKONG_CONSTEXPR int nk_same_literal_(char const *name, nk_size_t length, char 
     return literal[position] == '\0';
 }
 
-/** `{nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16, 8}` — NVIDIA NVFP4 (Blackwell-native). */
+/** <tt>{nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16, 8}</tt> — NVIDIA NVFP4 (Blackwell-native). */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_nvfp4(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16, 8};
     return format;
 }
 
-/** `{nk_e2m1_k, nk_ue8m0_k, unknown, 32, 16}` — OCP MXFP4. */
+/** <tt>{nk_e2m1_k, nk_ue8m0_k, unknown, 32, 16}</tt> — OCP MXFP4. */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp4(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 16};
     return format;
 }
 
-/** `{nk_e2m3_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP6 (E2M3 variant). */
+/** <tt>{nk_e2m3_k, nk_ue8m0_k, unknown, 32, 32}</tt> — OCP MXFP6 (E2M3 variant). */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e2m3(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e2m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
-/** `{nk_e3m2_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP6 (E3M2 variant). */
+/** <tt>{nk_e3m2_k, nk_ue8m0_k, unknown, 32, 32}</tt> — OCP MXFP6 (E3M2 variant). */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e3m2(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e3m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
-/** `{nk_e4m3_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP8 (E4M3 variant). */
+/** <tt>{nk_e4m3_k, nk_ue8m0_k, unknown, 32, 32}</tt> — OCP MXFP8 (E4M3 variant). */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e4m3(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e4m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
-/** `{nk_e5m2_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP8 (E5M2 variant). */
+/** <tt>{nk_e5m2_k, nk_ue8m0_k, unknown, 32, 32}</tt> — OCP MXFP8 (E5M2 variant). */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e5m2(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e5m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
-/** `{nk_i8_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXINT8. */
+/** <tt>{nk_i8_k, nk_ue8m0_k, unknown, 32, 32}</tt> — OCP MXINT8. */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxint8(void) {
     nk_block_scaled_format_t format = {nk_i8_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
-/** `{element_dtype, unknown, unknown, 0, 0}` — plain scalar buffer of @p element_dtype. */
+/** <tt>{element_dtype, unknown, unknown, 0, 0}</tt> — plain scalar buffer of @p element_dtype. */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_plain(nk_dtype_t element_dtype) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {element_dtype, nk_dtype_unknown_k, nk_dtype_unknown_k, 0, 0};
     return format;
 }
 
 /** Build a block-scaled format descriptor from a composite @p dtype enum value. Returns
- *  `nk_plain(dtype)` when @p dtype is not a composite. */
+ *  <tt>nk_plain(dtype)</tt> when @p dtype is not a composite. */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_block_scaled_format_of_dtype(nk_dtype_t dtype) NUMKONG_STREAMABLE_ {
     switch (dtype) {
     case nk_nvfp4_k: return nk_nvfp4();
@@ -1979,14 +1989,14 @@ NUMKONG_CONSTEXPR nk_size_t nk_dimensions_per_value(nk_dtype_t dtype) {
  *  Layout: sign(1) + exponent(5) + mantissa(10), bias=15.
  *  Range: ±65 504, epsilon at 1.0 ≈ 9.77×10⁻⁴. 30 722 of 63 488 finite values (48.4%) in [−1, +1].
  *
- *  - `unsigned short` by default, on every compiler and architecture.
- *  - `NUMKONG_NATIVE_F16=1`: @c __fp16 on Arm, @c _Float16 elsewhere.
+ *  - <tt>unsigned short</tt> by default, on every compiler and architecture.
+ *  - @c NUMKONG_NATIVE_F16=1: @c __fp16 on Arm, @c _Float16 elsewhere.
  *
  *  The type crosses the exported ABI by value — @c nk_f16_sqrt_best, @c nk_f16_order_best — and a
- *  native half is passed in a different register class than `unsigned short`. Deriving it from
- *  `-march`, as this once did, let each consumer reach its own answer: Swift's header import sees a
- *  native half on Apple silicon while the C sources it links were built `unsigned short`, and
- *  `rust/scalar.rs` binds @c u16 outright. Enabling it is a decision for a whole build, never for
+ *  native half is passed in a different register class than <tt>unsigned short</tt>. Deriving it from
+ *  @c -march, as this once did, let each consumer reach its own answer: Swift's header import sees
+ *  a native half on Apple silicon while the C sources it links were built <tt>unsigned short</tt>, and
+ *  <tt>rust/scalar.rs</tt> binds @c u16 outright. Enabling it is a decision for a whole build, never for
  *  one translation unit, so the default cannot depend on flags.
  */
 #if !defined(NUMKONG_NATIVE_F16)
@@ -2015,8 +2025,8 @@ typedef unsigned short nk_f16_t;
  *  Same dynamic range as f32, epsilon ≈ 7.81×10⁻³.
  *  32 514 of 65 280 finite values (49.8%) in [−1, +1]. Wider range than f16 but lower precision.
  *
- *  - `unsigned short` by default, on every compiler and architecture.
- *  - `NUMKONG_NATIVE_BF16=1`: @c __bf16 on GCC and Clang. See @c nk_f16_t for why this is opt-in.
+ *  - <tt>unsigned short</tt> by default, on every compiler and architecture.
+ *  - @c NUMKONG_NATIVE_BF16=1: @c __bf16 on GCC and Clang. See @c nk_f16_t for why this is opt-in.
  *
  *  The compilers have added @c __bf16 support in compliance with the x86-64 psABI spec. The
  *  motivation for this new special type is summed up as:
@@ -2056,7 +2066,7 @@ typedef unsigned short nk_bf16_t;
  *  Clang and GCC bring the @c float16_t symbol when you compile for AArch64.
  *  MSVC lacks it, and it's @c vld1_f16-like intrinsics are in reality macros,
  *  that cast to 16-bit integers internally, instead of using floats.
- *  Some of those are defined as aliases, so we use `#define` preprocessor
+ *  Some of those are defined as aliases, so we use @c \#define preprocessor
  *  directives instead of @c typedef to avoid errors.
  */
 #if NUMKONG_ARCH_ARM64_
@@ -2073,9 +2083,9 @@ typedef unsigned short nk_bf16_t;
  *  @brief Block-scaled composite POD types — one value is one whole block.
  *
  *  Each composite combines a packed element buffer with its per-block scale byte in a single
- *  POD struct. The struct IS the value: `sizeof(nk_nvfp4_t) == 9` means one NVFP4 value, not
- *  one element. Storage in containers strides by `sizeof(struct)`; logical element count per
- *  value is reported by `nk_dimensions_per_value(composite_dtype)` (16 for NVFP4, 32 for MX).
+ *  POD struct. The struct IS the value: <tt>sizeof(nk_nvfp4_t) == 9</tt> means one NVFP4 value, not
+ *  one element. Storage in containers strides by <tt>sizeof(struct)</tt>; logical element count per
+ *  value is reported by <tt>nk_dimensions_per_value(composite_dtype)</tt> (16 for NVFP4, 32 for MX).
  *  Dimension count must be a multiple of that block size.
  *
  *  The NVFP4 per-tensor f32 tensor scale multiplier is not part of the block value — it lives on
@@ -2514,7 +2524,7 @@ NUMKONG_CONSTEXPR void nk_f64_from_u64_(nk_u64_t const *src, nk_f64_t *dest) { *
  *
  *  Bridges different type systems (Python, JavaScript, etc.) where scalars arrive as f64 but
  *  need to be passed to kernels as typed pointers. Callers fill the appropriate union member
- *  based on the target dtype, then pass the union address as `void const *`.
+ *  based on the target dtype, then pass the union address as <tt>void const *</tt>.
  */
 typedef union NUMKONG_MAY_ALIAS_ nk_scalar_buffer_t {
     nk_u8_t bytes[16];

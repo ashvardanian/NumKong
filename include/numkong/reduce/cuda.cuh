@@ -3,7 +3,7 @@
  *  @author Ash Vardanian
  *  @date October 3, 2026
  *  @brief CUDA host side of moments and min/max reductions: the clears and launches, the export
- *      generators and the @c cuda exports, over the kernels of `reduce/simt.cuh`.
+ *      generators and the @c cuda exports, over the kernels of <tt>reduce/simt.cuh</tt>.
  *
  *  @sa include/numkong/reduce/simt.cuh
  */

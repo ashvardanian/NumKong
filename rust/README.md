@@ -114,7 +114,7 @@ A target declaring neither fails the build, rather than quietly falling back to 
 RUSTFLAGS="-C target-feature=+relaxed-simd" cargo build --target wasm32-wasip1
 ```
 
-## Runtime Dispatch and Capabilities
+## Runtime Dispatch
 
 `Capabilities` answers for the CPU and each GPU group through its associated functions, and `Capabilities::configure_thread` enables CPU-specific acceleration features such as Intel AMX.
 It must be called once per thread before using AMX operations.
@@ -217,7 +217,7 @@ let distance = i8::euclidean(&a, &b).unwrap(); // widened output, not int8
 println!("{distance}");
 ```
 
-## Scalar Types and Promotions
+## Scalar Types
 
 The scalar wrappers are storage-first types.
 They are not decorative aliases over `f32`.
@@ -349,7 +349,7 @@ for i in 0..32 { inv_cov[i * 32 + i] = 1.0; } // identity matrix
 let distance = f32::mahalanobis(&x, &y, &inv_cov).unwrap();
 ```
 
-## Vectors, Tensors, Views, and Spans
+## Tensors and Views
 
 The container model is unusual enough that it needs direct documentation.
 
@@ -446,7 +446,7 @@ A shape of `[8]` for `i4x2` means 8 nibbles (stored in 4 bytes), not 8 bytes.
 The innermost extent counts dimensions, a multiple of the values per byte: 2 for nibble types, 8 for bit types.
 Transpose and reshape are not supported for sub-byte types — they return `SubByteUnsupported`.
 
-## Elementwise Operations
+## Elementwise and Reductions
 
 Elementwise kernels live on tensors and views.
 They are not a promise that every arbitrary strided view gets the same SIMD path on every backend.
@@ -528,7 +528,7 @@ assert_eq!(idx, 2);
 ```
 
 
-## Sparse Operations and Intersections
+## Sparse Operations
 
 Sparse helpers cover both sorted-index intersection and weighted sparse dot products.
 
@@ -546,7 +546,7 @@ let dot = u32::sparse_dot(&a_idx, &b_idx, &a_weights, &b_weights).unwrap();
 assert!(dot > 0.0); // weighted dot over shared indices
 ```
 
-## Packed Matrix Kernels for GEMM-Like Workloads
+## Matrix Kernels
 
 Packed kernels are the main "matrix throughput" path in the crate.
 They are `GEMM`-like in workload shape.
@@ -593,7 +593,7 @@ assert_eq!(gram.shape(), &[100, 100]);
 This family is also where row-window partitioning becomes the natural parallel model.
 That is structurally different from packed `GEMM`-style work against a shared packed RHS.
 
-## MaxSim and ColBERT-Style Late Interaction
+## MaxSim
 
 MaxSim is the late-interaction primitive used by systems such as [ColBERT](https://arxiv.org/abs/2004.12832).
 It is not "just another matrix multiply".
@@ -711,7 +711,7 @@ let mut dst = Tensor::<f16>::zeros(&[4, 4]).unwrap();
 src.view().cast_into(&mut dst.span()).unwrap();
 ```
 
-## Parallelism and ForkUnion
+## Parallelism
 
 NumKong does not own a thread pool.
 The `parallel` feature adds host-side orchestration helpers via [ForkUnion](https://github.com/ashvardanian/ForkUnion), not a hidden scheduler.
@@ -740,7 +740,7 @@ Packing splits the same way: `DotsPackedMatrix::new_parallel` by columns, `Atten
 
 Rayon or a manual thread pool can still work if the rest of your application already depends on them.
 
-## Addressing External Memory
+## External Memory
 
 Views wrap raw pointers without ownership, owned containers accept custom allocators, and the scalar trait API works on any `&[T]` regardless of how the memory was allocated.
 

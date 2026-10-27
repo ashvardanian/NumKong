@@ -26,9 +26,14 @@ namespace ashvardanian::numkong {
  *  @brief Great-circle metres between every row and every column point on the mean sphere,
  *      through the haversine 2R · atan2(√h, √(1 − h)) evaluated in @p precision_type_,
  *      where h = sin²(Δφ / 2) + cos φ₁ · cos φ₂ · sin²(Δλ / 2).
- *  @param[in] a_latitudes, @p a_longitudes The @p rows row points, in radians.
- *  @param[in] b_latitudes, @p b_longitudes The @p columns column points, in radians.
+ *  @param[in] a_latitudes The @p rows row latitudes, in radians.
+ *  @param[in] a_longitudes The @p rows row longitudes, in radians.
+ *  @param[in] rows Number of row points.
+ *  @param[in] b_latitudes The @p columns column latitudes, in radians.
+ *  @param[in] b_longitudes The @p columns column longitudes, in radians.
+ *  @param[in] columns Number of column points.
  *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
+ *  @param[in] results_stride Bytes between the rows of @p results.
  */
 template <numeric_dtype precision_type_>
 void haversines(f64_t const *a_latitudes, f64_t const *a_longitudes, std::size_t rows, f64_t const *b_latitudes,
@@ -151,8 +156,12 @@ void vincentys(f64_t const *a_latitudes, f64_t const *a_longitudes, std::size_t 
 
 /**
  *  @brief Squared Euclidean distances between every row point and every column point in 3D.
- *  @param[in] a, b The @p rows and @p columns points, 3 interleaved coordinates each.
+ *  @param[in] a The @p rows points, 3 interleaved coordinates each.
+ *  @param[in] b The @p columns points, 3 interleaved coordinates each.
+ *  @param[in] rows Number of row points.
+ *  @param[in] columns Number of column points.
  *  @param[out] results The @b [rows,columns] squares, @p results_stride bytes apart.
+ *  @param[in] results_stride Bytes between the rows of @p results.
  *  @param[in] capabilities Capabilities to pick from, or zero for the reference in @p result_type_.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *  @tparam result_type_ The reference's arithmetic; the kernels output exact @c u64_t squares for
@@ -198,6 +207,7 @@ status_t sqeuclideans3d(in_type_ const *a, std::size_t rows, in_type_ const *b, 
 
 /**
  *  @brief Returns the bytes a Haversine pack of @p points takes.
+ *  @param[in] points Number of points in the pack.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial layout.
  */
 inline expected<std::size_t> haversines_pack_size(std::size_t points,
@@ -210,7 +220,9 @@ inline expected<std::size_t> haversines_pack_size(std::size_t points,
 
 /**
  *  @brief Packs points as unit vectors on the mean sphere, for @c haversines_packed.
- *  @param[in] latitudes, longitudes The @p count points, in radians.
+ *  @param[in] latitudes The @p count latitudes, in radians.
+ *  @param[in] longitudes The @p count longitudes, in radians.
+ *  @param[in] count Number of points.
  *  @param[out] packed At least @c haversines_pack_size bytes, aligned to @c nk_default_alignment_k.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial kernel.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
@@ -227,7 +239,10 @@ inline status_t haversines_pack(f64_t const *latitudes, f64_t const *longitudes,
 
 /**
  *  @brief Great-circle metres between every row and every column point of two Haversine packs.
+ *  @param[in] a_packed The row points' Haversine pack.
+ *  @param[in] b_packed The column points' Haversine pack.
  *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
+ *  @param[in] results_stride Bytes between the rows of @p results.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial kernel.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  */
@@ -276,6 +291,8 @@ inline status_t vincentys_packed(void const *a_packed, void const *b_packed, f64
 
 /**
  *  @brief Returns the bytes the terrain pack of a @p rows × @p columns grid takes.
+ *  @param[in] rows Number of grid rows.
+ *  @param[in] columns Number of grid columns.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial layout.
  */
 inline expected<std::size_t> terrain_pack_size(std::size_t rows, std::size_t columns,
@@ -289,6 +306,11 @@ inline expected<std::size_t> terrain_pack_size(std::size_t rows, std::size_t col
 /**
  *  @brief Packs the maxima of every 2ᵏ × 2ᵏ block of a north-up grid, its shape and scale.
  *  @param[in] heights The @b [rows,columns] heights in metres, @p heights_stride bytes apart.
+ *  @param[in] rows Number of grid rows.
+ *  @param[in] columns Number of grid columns.
+ *  @param[in] heights_stride Bytes between the rows of @p heights.
+ *  @param[in] row_metres Metres between adjacent rows.
+ *  @param[in] column_metres Metres between adjacent columns.
  *  @param[out] packed At least @c terrain_pack_size bytes, aligned to @c nk_default_alignment_k.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial kernel.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.

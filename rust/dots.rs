@@ -12,6 +12,7 @@
 //!
 //! File: rust/dots.rs
 //! Author: Ash Vardanian
+//! Date: July 20, 2026
 use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
 
 #[cfg(feature = "parallel")]
@@ -818,7 +819,7 @@ mod private {
 /// # Errors
 ///
 /// [`Error::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
-/// other [`Capabilities`](crate::Capabilities) than the current ones.
+/// other [`Capabilities`] than the current ones.
 pub trait Dots: StorageElement + private::Sealed {
     /// Accumulator type for the multiplication.
     type Accumulator: StorageElement;
@@ -866,7 +867,7 @@ pub trait Dots: StorageElement + private::Sealed {
 
     /// Computes C = A × Aᵀ where C is symmetric.
     ///
-    /// Given input matrix A of shape __[n,k]__, computes the symmetric matrix of all pairwise dot
+    /// Given input matrix A of shape __\[n,k\]__, computes the symmetric matrix of all pairwise dot
     /// products. Only the upper triangle is computed, then mirrored to the lower triangle.
     ///
     /// # Safety
@@ -2201,14 +2202,14 @@ impl Dots for u1x8 {
 ///
 /// # Usage
 ///
-/// For C = A × Bᵀ where B is __[n,k]__:
+/// For C = A × Bᵀ where B is __\[n,k\]__:
 /// ```rust,ignore
 /// // Requires linking against libnumkong C library
 /// let b_packed = DotsPackedMatrix::new(&b_array).unwrap();
 /// let c = a_array.dots_packed(&b_packed).unwrap();
 /// ```
 ///
-/// For C = A × B where B is __[k,n]__ in standard GEMM layout:
+/// For C = A × B where B is __\[k,n\]__ in standard GEMM layout:
 /// ```rust,ignore
 /// // Requires linking against libnumkong C library
 /// let b_packed = DotsPackedMatrix::new_transposed(&b_array).unwrap();
@@ -2255,6 +2256,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         }
     }
 
+    /// Packs the matrix into a buffer allocated by `alloc`.
     pub fn new_in<Matrix, const MAX_RANK: usize>(matrix: &Matrix, alloc: Alloc) -> Result<Self, Error>
     where
         Matrix: TensorRef<Scalar, MAX_RANK> + ?Sized,
@@ -2390,7 +2392,8 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         failure.check()
     }
 
-    /// Pack Bᵀ where B is __[k,n]__ row-major, the standard GEMM layout, using a custom allocator.
+    /// Pack Bᵀ where B is __\[k,n\]__ row-major, the standard GEMM layout, using a custom
+    /// allocator.
     ///
     /// Materializes the transpose into a contiguous buffer, then packs normally.
     /// Result computes: C = A × B
@@ -2432,7 +2435,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// Returns a reference to the allocator.
     pub fn allocator(&self) -> &Alloc { self.buffer.allocator() }
 
-    /// Returns the shape __[columns,depth]__ of the original B matrix.
+    /// Returns the shape __\[columns,depth\]__ of the original B matrix.
     pub fn shape(&self) -> (usize, usize) { (self.columns, self.depth) }
 
     /// Bytes a packed buffer occupies for a columns-by-depth B matrix of this scalar type under the
@@ -2477,7 +2480,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
 
 // Convenience methods using Global allocator
 impl<Scalar: Dots> DotsPackedMatrix<Scalar, Global> {
-    /// Pack B matrix where B is __[n,k]__ row-major using the global allocator.
+    /// Pack B matrix where B is __\[n,k\]__ row-major using the global allocator.
     ///
     /// Result computes: C = A × Bᵀ
     pub fn new<Matrix, const MAX_RANK: usize>(matrix: &Matrix) -> Result<Self, Error>
@@ -2487,7 +2490,7 @@ impl<Scalar: Dots> DotsPackedMatrix<Scalar, Global> {
         Self::new_in(matrix, Global)
     }
 
-    /// Pack Bᵀ where B is __[k,n]__ row-major, standard GEMM layout, using the global allocator.
+    /// Pack Bᵀ where B is __\[k,n\]__ row-major, standard GEMM layout, using the global allocator.
     ///
     /// Result computes: C = A × B
     pub fn new_transposed<Matrix, const MAX_RANK: usize>(matrix: &Matrix) -> Result<Self, Error>
@@ -2639,8 +2642,8 @@ where
 impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Dot-product multiply: C = self × packed_rightᵀ
     ///
-    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
-    /// Returns C __[m,n]__ using the same allocator as self.
+    /// self must be 2D __\[m,k\]__ with contiguous rows. packed_right contains B __\[n,k\]__
+    /// packed. Returns C __\[m,n\]__ using the same allocator as self.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -2679,8 +2682,8 @@ impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scala
 pub trait DotsPackedOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Dot-product multiply: C = self × packed_rightᵀ
     ///
-    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
-    /// Returns C __[m,n]__, allocated like `self`.
+    /// self must be 2D __\[m,k\]__ with contiguous rows. packed_right contains B __\[n,k\]__
+    /// packed. Returns C __\[m,n\]__, allocated like `self`.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -3025,7 +3028,7 @@ where
 {
     /// Computes the symmetric dot-product matrix C = A × Aᵀ.
     ///
-    /// Given a matrix of row vectors, computes the symmetric __[n,n]__ matrix of all pairwise dot
+    /// Given a matrix of row vectors, computes the symmetric __\[n,n\]__ matrix of all pairwise dot
     /// products, where result\[i,j\] = dot(row_i, row_j).
     ///
     /// # Example
@@ -3100,6 +3103,7 @@ pub trait SymmetricDotsOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scala
 where
     Scalar::Accumulator: 'static,
 {
+    /// Computes the upper triangle of the symmetric dot-product matrix of the rows with themselves.
     fn dots_symmetric(&self) -> Result<Tensor<Scalar::Accumulator, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,

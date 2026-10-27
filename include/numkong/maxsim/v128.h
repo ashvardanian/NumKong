@@ -6,7 +6,7 @@
  *
  *  @sa include/numkong/maxsim.h
  *
- *  Packs vectors into the i8 coarse-screening layout of `maxsim/v128relaxed.h`, the only capability
+ *  Packs vectors into the i8 coarse-screening layout of <tt>maxsim/v128relaxed.h</tt>, the only capability
  *  that runs these helpers, as only it multiplies: quantization keeps both operands within the i7
  *  range [-63, 63].
  *

@@ -8,9 +8,9 @@
  *
  *  @section vnni_advantage VNNI Advantage
  *
- *  `_mm512_dpwssd_epi32(accumulator, a, b)`, the compiler builtin for VPDPWSSD, directly fuses
- *  `accumulator + _mm512_madd_epi16(a, b)` into one instruction, 5 cycles at p0 on Ice Lake or 4
- *  cycles at p01 on Genoa, saving one @c _mm512_add_epi32 per call versus the Skylake `madd + add`
+ *  <tt>_mm512_dpwssd_epi32(accumulator, a, b)</tt>, the compiler builtin for VPDPWSSD, directly fuses
+ *  <tt>accumulator + _mm512_madd_epi16(a, b)</tt> into one instruction, 5 cycles at p0 on Ice Lake or 4
+ *  cycles at p01 on Genoa, saving one @c _mm512_add_epi32 per call versus the Skylake <tt>madd + add</tt>
  *  pair it replaces.
  */
 #ifndef NUMKONG_REDUCE_ICELAKE_H

@@ -23,7 +23,7 @@
  *  the serial ones, and E2M1 sums twice its values as exact integers.
  *
  *  Min/max orders every value by a signed key: the narrow floats by the sign-magnitude order of
- *  `nk_*_order_`, -0 below +0, and F32 and F64 by value, ±0 tied, both skipping NaNs. Ties go to
+ *  @c nk_*_order_, -0 below +0, and F32 and F64 by value, ±0 tied, both skipping NaNs. Ties go to
  *  the first index, and a side with no value keeps the serial sentinels and @c NUMKONG_SIZE_MAX.
  */
 #ifndef NUMKONG_REDUCE_SIMT_CUH

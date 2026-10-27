@@ -1,8 +1,8 @@
-# cmake/nk_isa_probe.cmake — which CPU and GPU capabilities the build compiles
+# cmake/numkong_probes.cmake — which CPU and GPU capabilities the build compiles
 #
 # One `numkong_add_cpu_capability` row per CPU capability, run here. Each probes `probes/<capability>.c` into the
-# cached `nk_target_<capability>_compiles`, caches the flags enabling the capability across a unit as
-# `nk_target_<capability>_flags`, and defines its `NUMKONG_TARGET_<CAPABILITY>` macro on the targets below.
+# cached `numkong_target_<capability>_compiles`, caches the flags enabling the capability across a unit as
+# `numkong_target_<capability>_flags`, and defines its `NUMKONG_TARGET_<CAPABILITY>` macro on the targets below.
 # `-D NUMKONG_TARGET_<CAPABILITY>=0` leaves a capability out.
 #
 # A compiled capability is not one the unit's own flags enable, nor one the CPU runs. `numkong_header` carries no
@@ -32,10 +32,10 @@ function (numkong_add_cpu_capability capability_name_ capability_macro_)
     else ()
         set(unit_flags_ ${arg_GCC_FLAGS})
     endif ()
-    set(nk_target_${capability_name_}_flags "${unit_flags_}" CACHE INTERNAL
-                                                                   "Flags enabling ${capability_macro_} across a unit"
+    set(numkong_target_${capability_name_}_flags "${unit_flags_}"
+        CACHE INTERNAL "Flags enabling ${capability_macro_} across a unit"
     )
-    if (NOT DEFINED nk_target_${capability_name_}_compiles)
+    if (NOT DEFINED numkong_target_${capability_name_}_compiles)
         set(CMAKE_TRY_COMPILE_CONFIGURATION "Release")
         # Library definitions do not reach try_compile; the Windows SDK needs its ARM64 selector here too.
         if (MSVC AND numkong_arch_arm64_)
@@ -44,14 +44,16 @@ function (numkong_add_cpu_capability capability_name_ capability_macro_)
             set(probe_definitions_)
         endif ()
         try_compile(
-            nk_target_${capability_name_}_compiles ${CMAKE_BINARY_DIR}/nk_probes
+            numkong_target_${capability_name_}_compiles ${CMAKE_BINARY_DIR}/numkong_probes
             ${PROJECT_SOURCE_DIR}/probes/${capability_name_}.c
             CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${PROJECT_SOURCE_DIR}/include" C_STANDARD 99
             COMPILE_DEFINITIONS ${probe_definitions_}
         )
     endif ()
-    message(STATUS "Performing ISA probe ${capability_macro_} - compiles: ${nk_target_${capability_name_}_compiles}")
-    set(capability_enabled_ ${nk_target_${capability_name_}_compiles})
+    message(
+        STATUS "Performing ISA probe ${capability_macro_} - compiles: ${numkong_target_${capability_name_}_compiles}"
+    )
+    set(capability_enabled_ ${numkong_target_${capability_name_}_compiles})
     if (DEFINED ${capability_macro_} AND NOT ${capability_macro_})
         set(capability_enabled_ FALSE)
     endif ()
@@ -158,8 +160,8 @@ add_library(numkong_metal_capabilities_compiled_ INTERFACE)
 target_compile_definitions(numkong_metal_capabilities_compiled_ INTERFACE NUMKONG_ARCH_METAL_=1)
 
 # One GPU capability, named `capability_name_` in its cache variable: caches the `CUDA_ARCHITECTURES`,
-# `ROCM_ARCHITECTURES` or `METAL_ARCHITECTURES` running it as `nk_target_<capability>_architectures`, the twin of a
-# CPU capability's `nk_target_<capability>_flags`, so a project embedding NumKong, like USearch, reads the same lists,
+# `ROCM_ARCHITECTURES` or `METAL_ARCHITECTURES` running it as `numkong_target_<capability>_architectures`, the twin of a
+# CPU capability's `numkong_target_<capability>_flags`, so a project embedding NumKong, like USearch, reads the same lists,
 # and defines `capability_macro_` on that vendor's target.
 function (numkong_add_gpu_capability capability_name_ capability_macro_)
     cmake_parse_arguments(PARSE_ARGV 2 arg "" "" "CUDA_ARCHITECTURES;ROCM_ARCHITECTURES;METAL_ARCHITECTURES")
@@ -176,7 +178,7 @@ function (numkong_add_gpu_capability capability_name_ capability_macro_)
         set(compiled_architectures_ ${NUMKONG_METAL_ARCHITECTURES})
         set(capabilities_target_ numkong_metal_capabilities_compiled_)
     endif ()
-    set(nk_target_${capability_name_}_architectures "${capability_architectures_}"
+    set(numkong_target_${capability_name_}_architectures "${capability_architectures_}"
         CACHE INTERNAL "Architectures running ${capability_macro_}"
     )
     set(capability_enabled_ FALSE)

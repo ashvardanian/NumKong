@@ -32,7 +32,7 @@ ctest --preset release                  # the static and shared-library suites
 build_release/numkong_bench
 ```
 
-`debug`, `cuda`, `rocm`, `metal`, the `linux_<arch>` cross builds under QEMU, Android and WASM follow the same three commands.
+`debug`, `check`, `cuda`, `rocm`, `metal`, the `linux_<arch>` cross builds under QEMU, Android and WASM follow the same three commands.
 Machine-specific settings, like a compiler path, belong in an untracked `CMakeUserPresets.json`.
 
 | CMake Flag                    | Default                         | Description                                                                   |
@@ -44,7 +44,8 @@ Machine-specific settings, like a compiler path, belong in an untracked `CMakeUs
 | `NUMKONG_BUILD_SWIFT`         | `OFF`                           | Package the static library for SwiftPM, as the `swift` preset does            |
 | `NUMKONG_BUILD_SHARED`        | `ON`, if top-level              | Compile dynamic library                                                       |
 | `NUMKONG_INSTALL`             | `ON`, if top-level              | Install headers, libraries, and the CMake package files                       |
-| `NUMKONG_ENABLE_ASAN`         | `ON`, if top-level              | Enable AddressSanitizer in Debug builds                                       |
+| `NUMKONG_BUILD_SANITIZERS`    | `off`                           | Instrument the build with `address`, plus UBSan, or `thread`                  |
+| `NUMKONG_WERROR`              | `OFF`                           | Treat warnings as errors, as the `check` preset does                          |
 | `NUMKONG_BUILD_CUDA`          | `OFF`                           | Add CUDA to the libraries and to whichever of the test and bench builds is on |
 | `NUMKONG_BUILD_ROCM`          | `OFF`                           | Add ROCm, compiled through HIP, to the libraries and to the test build        |
 | `NUMKONG_BUILD_METAL`         | `OFF`                           | Add Metal to the libraries and to the test and bench builds that are on       |
@@ -65,7 +66,7 @@ Capabilities are scoped per function by target pragmas on every platform; LASX a
 The library compiles every capability the toolchain builds and dispatches between them by runtime detection, and `-D NUMKONG_TARGET_<CAPABILITY>=0` leaves a capability out.
 Units calling capability kernels link `numkong::cpu_capabilities_compiled`, the build-tree twin of `nk_cpu_capabilities_compiled()`: every CPU capability the toolchain compiles.
 `numkong::header` carries no verdict, so a header-only consumer enables what its own flags name, and the runtime mask picks the compiled capabilities the CPU runs.
-Each CPU capability's flags for a unit compiled whole for it are cached as `nk_target_<capability>_flags`, and each GPU capability's architectures as `nk_target_<capability>_architectures`.
+Each CPU capability's flags for a unit compiled whole for it are cached as `numkong_target_<capability>_flags`, and each GPU capability's architectures as `numkong_target_<capability>_architectures`.
 Each binding hands CMake its options its own way:
 
 | Binding | Builds                                            | Passing another option                                                  |
@@ -123,12 +124,11 @@ The resulting artifact bakes host-specific instructions into scaffolding code an
 | RISC-V Vector — RVV 1.0                 |  16+ |   17+ | …              |           … |
 | RVV + Zvfh/Zvfbfwma/Zvbb                |  16+ |   18+ | …              |           … |
 
-To install on Ubuntu 22.04:
+NumKong builds with GCC 13, Clang 18, Apple Clang 16, MSVC 19.40 or newer.
+On Ubuntu 24.04 the default packages are enough:
 
 ```sh
-sudo apt install gcc-12 g++-12
-sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100
-sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100
+sudo apt install gcc g++
 ```
 
 ### Cross-Compilation
@@ -428,7 +428,7 @@ A checkout builds its own and points `NUMKONG_SWIFT_ARTIFACT` at it, relative to
 
 ```sh
 cmake --preset swift && cmake --build --preset swift
-export NUMKONG_SWIFT_ARTIFACT=build_swift/CNumKong.xcframework # or build_swift/CNumKong.artifactbundle off Apple platforms
+export NUMKONG_SWIFT_ARTIFACT=build_swift/NumKongC.xcframework # or build_swift/NumKongC.artifactbundle off Apple platforms
 swift build && swift test -v
 ```
 
@@ -446,7 +446,7 @@ cmake --build build_swift_iossim
 
 The simulators lack the `__sme_memset` routine streaming SME code calls, hence the SME verdicts turned off.
 `.github/workflows/_swift.yml` builds every slice and triple the release ships, and `release.yml` writes their checksums into `Package.swift` before tagging.
-On Linux, `swift package experimental-audit-binary-artifact build_swift/CNumKong.artifactbundle` checks that the archive needs nothing beyond the C library.
+On Linux, `swift package experimental-audit-binary-artifact build_swift/NumKongC.artifactbundle` checks that the archive needs nothing beyond the C library.
 
 `Package.swift` declares `swift-tools-version:6.4`, so the package needs Swift 6.4 or newer.
 Running Swift on Linux requires a couple of extra steps, as the Swift compiler is not available in the default repositories.
@@ -479,7 +479,7 @@ sudo docker run --rm -v "$PWD:/workspace" -w /workspace swift:6.4 /bin/bash -cl 
     apt-get update && apt-get install -y cmake &&
     cmake --preset swift -B build_swift_linux -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ &&
     cmake --build build_swift_linux &&
-    NUMKONG_SWIFT_ARTIFACT=build_swift_linux/CNumKong.artifactbundle swift test -c release"
+    NUMKONG_SWIFT_ARTIFACT=build_swift_linux/NumKongC.artifactbundle swift test -c release"
 ```
 
 ## GoLang
@@ -540,6 +540,7 @@ There are two intentional exceptions:
 
 A lot of effort goes into keeping the wording and styling of the code consistent.
 Variable names must reflect the __semantic operation__, not just the intrinsic name.
+A `@par Statuses:` block lists only the statuses a function's contract adds, while resource failures, cancellation, deferral and defects are covered once by the categories in the `nk_status_t` docblock.
 
 ### Variable Names & Type Suffixes
 

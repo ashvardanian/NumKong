@@ -10,7 +10,7 @@
  *  Superposed RMSD multiplies frames as one product, C = A × Bᵀ, over their points. A holds the x,
  *  y and z rows of 32 row frames as lanes 0-31, 32-63 and 64-95, and B those of 32 column frames as
  *  columns 0-31, 32-63 and 64-95, so a frame's three axes land in one lane of warps 0, 1 and 2, and
- *  each pair's 3 × 3 cross-covariance in one 3 × 3 block of C. `tcgen05.mma.kind::f16` sums it in
+ *  each pair's 3 × 3 cross-covariance in one 3 × 3 block of C. <tt>tcgen05.mma.kind::f16</tt> sums it in
  *  F32 tensor memory over 64-point slabs, which every thread copies from the packs into the
  *  128-byte swizzle, two slabs in flight. The three warps drain it through shared memory, and all
  *  four solve Theobald's quaternion polynomial in F32 per pair, folding into Ga + Gb − 2λ as the

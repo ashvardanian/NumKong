@@ -8,7 +8,7 @@
  *  @sa include/numkong/cast/ampere.cuh
  *  @sa include/numkong/dots/ada.cuh
  *
- *  The lowest NVIDIA capability with `cvt.*e4m3x2` and `cvt.*e5m2x2`, whose helpers the later
+ *  The lowest NVIDIA capability with <tt>cvt.*e4m3x2</tt> and <tt>cvt.*e5m2x2</tt>, whose helpers the later
  *  capabilities reuse. Its E4M3 conversions and E5M2 narrowing take one instruction for two values,
  *  NaNs and E5M2 overflows patched to the serial casts' codes, and the @c ada bulk cast runs the
  *  E4M3 ones, and Ampere's BF16 narrowing, in 16-byte chunks.

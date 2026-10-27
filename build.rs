@@ -3,6 +3,7 @@
 //!
 //! File: build.rs
 //! Author: Ash Vardanian
+//! Date: January 27, 2024
 use std::{
     env,
     path::{Path, PathBuf},
@@ -85,8 +86,6 @@ fn build_library(manifest: &Path, enabled: impl Fn(&str) -> bool) -> PathBuf {
         .profile("Release")
         .define("NUMKONG_INSTALL", "ON")
         .define("CMAKE_INSTALL_LIBDIR", "lib")
-        .define("NUMKONG_BUILD_TEST", "OFF")
-        .define("NUMKONG_BUILD_BENCH", "OFF")
         .define("NUMKONG_BUILD_SHARED", "OFF");
     for (feature, option) in FEATURE_OPTIONS {
         library.define(option, if enabled(feature) { "ON" } else { "OFF" });

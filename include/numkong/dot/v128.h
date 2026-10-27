@@ -4,10 +4,10 @@
  *  @date September 12, 2026
  *  @brief SIMD-accelerated dot products for WASM.
  *
- *  Requires Emscripten 3.1.27+ or a WASI SDK with the `-msimd128` flag.
+ *  Requires Emscripten 3.1.27+ or a WASI SDK with the @c -msimd128 flag.
  *
  *  Key optimizations:
- *  - i8/u8 dot products widen to i16 and multiply-add adjacent pairs with `i32x4.dot_i16x8_s`
+ *  - i8/u8 dot products widen to i16 and multiply-add adjacent pairs with <tt>i32x4.dot_i16x8_s</tt>
  *  - bf16 dot products shift the even and odd halves into f32 lanes without a separate upcast
  *  - u1 dot products accumulate popcounts in u8 for 31 iterations before widening
  */

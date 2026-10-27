@@ -129,7 +129,9 @@ extern "C" {
  *  @param[in] points The number of 3D points.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The size of the pack.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_shapes_pack_size_f64_best(nk_size_t points, nk_capability_t capabilities, nk_size_t *bytes);
 /** @copydoc nk_shapes_pack_size_f64_best */
@@ -145,7 +147,9 @@ NUMKONG_API nk_status_t nk_shapes_pack_size_f16_best(nk_size_t points, nk_capabi
  *      on an @c nk_default_alignment_k boundary.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_shapes_pack_f64_best(nk_f64_t const *points, nk_size_t count, void *packed,
                                                 nk_capability_t capabilities, nk_stream_t stream);
@@ -185,7 +189,9 @@ NUMKONG_API nk_status_t nk_shapes_pack_normalized_f16_best(nk_f16_t const *point
  *  @param[out] max_radius Null, or the largest packed point norm.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_shapes_packed_shape_f64_best(void const *packed, nk_size_t *points, nk_f64_t *centroid,
                                                         nk_f64_t *frame, nk_f64_t *scale, nk_f64_t *spreads,
@@ -213,7 +219,9 @@ NUMKONG_API nk_status_t nk_shapes_packed_shape_f16_best(void const *packed, nk_s
  *  @param[out] points The cloud, its points × 3 interleaved [x0,y0,z0, x1,y1,z1, ...].
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_shapes_unpack_f64_best(void const *packed, nk_f64_t *points, nk_capability_t capabilities,
                                                   nk_stream_t stream);
@@ -240,7 +248,9 @@ NUMKONG_API nk_status_t nk_shapes_unpack_f16_best(void const *packed, nk_f16_t *
  *      each row cloud.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_chamfers_packed_f64_best(void const *const *a_packed, nk_size_t rows,
                                                     void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
@@ -285,7 +295,9 @@ NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_best(void const *const *a_packe
  *  @param[in] column_points The largest column cloud.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The size of the workspace.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_wassersteinprocrustes_workspace_size_f64_best(nk_size_t row_points, nk_size_t column_points,
                                                                          nk_capability_t capabilities,
@@ -316,12 +328,24 @@ NUMKONG_API nk_status_t nk_gromovwassersteins_workspace_size_f16_best(nk_size_t 
  *  reaches from the 8 axis flips, zero between two empty clouds and infinite between an empty and a
  *  non-empty one. Other parameters match the Chamfer kernel's.
  *
+ *  @param[in] a_packed The row packs, @p rows pointers.
+ *  @param[in] rows The number of row clouds.
+ *  @param[in] b_packed The column packs, @p columns pointers.
+ *  @param[in] columns The number of column clouds.
+ *  @param[out] results The @b [rows,columns] distances.
+ *  @param[in] results_stride The bytes between consecutive rows of @p results.
+ *  @param[out] rotations Null, or the @b [rows,columns,3,3] rotations taking each column cloud onto
+ *      each row cloud.
  *  @param[in] workspace The scratch memory, aligned to @c nk_default_alignment_k.
  *  @param[in] workspace_bytes At least the bytes the matching workspace-size query reports for the
  *      largest clouds on each side.
- *  @return @c nk_success_k, @c nk_misaligned_k for a misaligned @p workspace,
- *      @c nk_unexpected_dimensions_k when @p workspace_bytes falls short, or
- *      @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *
+ *  @par Statuses:
+ *  - @c nk_misaligned_k A misaligned @p workspace.
+ *  - @c nk_unexpected_dimensions_k @p workspace_bytes falls short.
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_f64_best(void const *const *a_packed, nk_size_t rows,
                                                                  void const *const *b_packed, nk_size_t columns,
@@ -386,8 +410,10 @@ NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f16_best(void const *const 
  *  @param[in] results_stride The bytes between consecutive rows of @p results.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, @c nk_unexpected_dimensions_k when the packs differ in points, or
- *      @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_unexpected_dimensions_k The packs differ in points.
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_rmsds_packed_f64_best(void const *const *a_packed, nk_size_t rows,
                                                  void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
@@ -902,9 +928,15 @@ NUMKONG_INLINE nk_dtype_t nk_rmsds_output_dtype(nk_dtype_t dtype) {
 
 /**
  *  @brief Finds the shape kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_shapes_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                               nk_kernel_punned_t *kernel, nk_capability_t *capability);

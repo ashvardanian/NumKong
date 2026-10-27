@@ -62,12 +62,13 @@ NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocato
  *      CPU storage uses @c nk_default_alignment_k alignment.
  *  @param[in] capabilities The group to allocate for, like @c nk_cuda_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or a stream of that group, naming the device.
- *  @return @c nk_success_k, @c nk_bad_alloc_k, or @c nk_missing_gpu_k for a group without a device
- *      or missing from this build.
  *
  *  CUDA and ROCm hand out managed memory, CUDA from the device's managed pool in the order of
  *  @p stream, and Metal a shared buffer every kernel on that device binds, so the host reads what a
  *  kernel wrote once the stream is synchronized.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k A group without a device or missing from this build.
  */
 NUMKONG_API nk_status_t nk_memory_allocate_unified_best(nk_size_t bytes, void **pointer, nk_capability_t capabilities,
                                                         nk_stream_t stream);
@@ -77,12 +78,16 @@ NUMKONG_API nk_status_t nk_memory_allocate_unified_best(nk_size_t bytes, void **
  *      @p stream is done with it.
  *  @param[in] pointer The block, or null for none.
  *  @param[in] bytes The size it was allocated with.
- *  @return @c nk_success_k, @c nk_device_memory_mismatch_k for a block the group never handed out,
- *      or @c nk_missing_gpu_k.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream The stream the block was allocated on, or null for the default.
  *
  *  CUDA frees blocks of its managed pool once the work queued on @p stream completes, without
  *  waiting; devices without concurrent managed access and ROCm wait for the device first; Metal
  *  releases the buffer once the work committed to @p stream so far completes.
+ *
+ *  @par Statuses:
+ *  - @c nk_device_memory_mismatch_k A block the group never handed out.
+ *  - @c nk_missing_gpu_k
  */
 NUMKONG_API nk_status_t nk_memory_free_unified_best(void *pointer, nk_size_t bytes, nk_capability_t capabilities,
                                                     nk_stream_t stream);

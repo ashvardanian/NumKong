@@ -721,31 +721,31 @@ cleanup:
     return return_obj;
 }
 
-char const doc_dots_pack[] =                                                                //
-    "dots_pack(b, /, dtype=None, *, out=None, threads=1, stream=None) -> PackedMatrix\n\n"  //
-    "Pack a 2D matrix for repeated dot-product style cross operations.\n\n"                 //
-    "Args:\n"                                                                               //
-    "    b (array_like): Source matrix with shape [columns,depth] and contiguous rows,\n"   //
-    "        or a CUDA or ROCm Tensor from from_dlpack() to pack on that GPU. Packing\n"    //
-    "        fuses no transposition: transpose w.T into a contiguous copy first.\n"         //
-    "    dtype (str, optional): Packing dtype. Default: inferred from input.\n"             //
-    "        Supported values: 'bf16', 'f16', 'f32', 'f64', 'i8', 'u8',\n"                  //
-    "        'e4m3', 'e5m2', 'e3m2', 'e2m3', 'e2m1', 'i4', 'u4', 'u1'.\n"                   //
-    "    out (Tensor, optional): Required for a GPU b: a C-contiguous Tensor on its GPU,\n" //
-    "        of PackedMatrix.pack_size(..., capabilities=cuda_capabilities_enabled(0))\n"   //
-    "        bytes or more, holding the packed bytes for the PackedMatrix's lifetime.\n"    //
-    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"     //
-    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0,\n"     //
-    "        the legacy stream. The call returns before the packing finishes.\n\n"          //
-    "Returns:\n"                                                                            //
-    "    PackedMatrix: Opaque packed matrix accepted by dots_packed(),\n"                   //
-    "        angulars_packed(), euclideans_packed(), and Tensor @ PackedMatrix.\n"          //
-    "        A GPU one keeps its device and that device's capabilities.\n\n"                //
-    "Example:\n"                                                                            //
-    "    >>> b_packed = nk.dots_pack(b, dtype=nk.bfloat16)\n"                               //
-    "    >>> distances = nk.dots_packed(a, b_packed)  # shape: [100,200]\n\n"               //
-    "Signature:\n"                                                                          //
-    "    >>> def dots_pack(b, /, dtype=None, *, out=None, threads=1, stream=None) -> PackedMatrix: ...";
+char const doc_dots_pack[] =                                                               //
+    "dots_pack(b, /, dtype=None, *, out=None, threads=1, stream=None) -> PackedMatrix\n\n" //
+    "Pack a 2D matrix for repeated dot-product style cross operations.\n\n"                //
+    "Args:\n"                                                                              //
+    "  b (array_like): Source matrix with shape [columns,depth] and contiguous rows,\n"    //
+    "    or a CUDA or ROCm Tensor from from_dlpack() to pack on that GPU. Packing\n"       //
+    "    fuses no transposition: transpose w.T into a contiguous copy first.\n"            //
+    "  dtype (str, optional): Packing dtype. Default: inferred from input.\n"              //
+    "    Supported values: 'bf16', 'f16', 'f32', 'f64', 'i8', 'u8',\n"                     //
+    "    'e4m3', 'e5m2', 'e3m2', 'e2m3', 'e2m1', 'i4', 'u4', 'u1'.\n"                      //
+    "  out (Tensor, optional): Required for a GPU b: a C-contiguous Tensor on its GPU,\n"  //
+    "    of PackedMatrix.pack_size(..., capabilities=cuda_capabilities_enabled(0))\n"      //
+    "    bytes or more, holding the packed bytes for the PackedMatrix's lifetime.\n"       //
+    "  threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"      //
+    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0,\n"      //
+    "    the legacy stream. The call returns before the packing finishes.\n\n"             //
+    "Returns:\n"                                                                           //
+    "  PackedMatrix: Opaque packed matrix accepted by dots_packed(),\n"                    //
+    "    angulars_packed(), euclideans_packed(), and Tensor @ PackedMatrix.\n"             //
+    "    A GPU one keeps its device and that device's capabilities.\n\n"                   //
+    "Example:\n"                                                                           //
+    "  >>> b_packed = nk.dots_pack(b, dtype=nk.bfloat16)\n"                                //
+    "  >>> distances = nk.dots_packed(a, b_packed)  # shape: [100,200]\n\n"                //
+    "Signature:\n"                                                                         //
+    "  >>> def dots_pack(b, /, dtype=None, *, out=None, threads=1, stream=None) -> PackedMatrix: ...";
 
 static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, nk_dtype_t default_dtype) {
 
@@ -939,43 +939,43 @@ char const doc_dots_packed[] =                                                  
     "dots_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise dot products between matrix a and pre-packed matrix b.\n\n"                //
     "Args:\n"                                                                                    //
-    "    a (array_like): Query matrix with shape [rows,depth], on the device of b.\n"            //
-    "    b (PackedMatrix): Matrix packed with dots_pack(); shape [columns,depth].\n"             //
-    "    out (Tensor, optional): C-contiguous output tensor with shape\n"                        //
-    "        [rows,columns] and matching output dtype. Required, on the same GPU,\n"             //
-    "        when b was packed on a GPU.\n"                                                      //
-    "    rows_begin (int, optional): First row of a to process, defaulting to 0.\n"              //
-    "    rows_end (int, optional): One-past-last row of a to process, defaulting to rows.\n"     //
-    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"          //
-    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"        //
+    "  a (array_like): Query matrix with shape [rows,depth], on the device of b.\n"              //
+    "  b (PackedMatrix): Matrix packed with dots_pack(); shape [columns,depth].\n"               //
+    "  out (Tensor, optional): C-contiguous output tensor with shape\n"                          //
+    "    [rows,columns] and matching output dtype. Required, on the same GPU,\n"                 //
+    "    when b was packed on a GPU.\n"                                                          //
+    "  rows_begin (int, optional): First row of a to process, defaulting to 0.\n"                //
+    "  rows_end (int, optional): One-past-last row of a to process, defaulting to rows.\n"       //
+    "  threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"            //
+    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"          //
     "Returns:\n"                                                                                 //
-    "    Tensor: Dot-product matrix with shape [rows,columns].\n"                                //
-    "    Returns out when provided.\n\n"                                                         //
+    "  Tensor: Dot-product matrix with shape [rows,columns].\n"                                  //
+    "  Returns out when provided.\n\n"                                                           //
     "Note:\n"                                                                                    //
-    "    Equivalent to A @ B.T where B is the original unpacked matrix.\n"                       //
-    "    On a GPU it runs the device's kernel and returns before it finishes.\n\n"               //
+    "  Equivalent to A @ B.T where B is the original unpacked matrix.\n"                         //
+    "  On a GPU it runs the device's kernel and returns before it finishes.\n\n"                 //
     "Signature:\n"                                                                               //
-    "    >>> def dots_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None,\n"            //
-    "    ...                 threads=1) -> Tensor: ...";
+    "  >>> def dots_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None,\n"              //
+    "  ...                 threads=1) -> Tensor: ...";
 
 PyObject *api_dots_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
     return api_packed_common(args, nargs, kwnames, &spec_dots);
 }
 
-char const doc_hammings_pack[] =                                             //
-    "hammings_pack(b, /, dtype='uint1', *, threads=1) -> PackedMatrix\n\n"   //
-    "Pack a 2D matrix for repeated set-distance cross operations.\n\n"       //
-    "Args:\n"                                                                //
-    "    b (array_like): Source matrix with shape [columns,depth].\n"        //
-    "    dtype (str, optional): Packing dtype. Default: 'uint1'.\n"          //
-    "        For 'uint1', packed bits are represented as uint8 bytes.\n"     //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"      //
-    "Returns:\n"                                                             //
-    "    PackedMatrix: Opaque packed matrix accepted by hammings_packed()\n" //
-    "        and jaccards_packed().\n\n"                                     //
-    "Signature:\n"                                                           //
-    "    >>> def hammings_pack(b, /, dtype='uint1', *, threads=1) -> PackedMatrix: ...";
+char const doc_hammings_pack[] =                                           //
+    "hammings_pack(b, /, dtype='uint1', *, threads=1) -> PackedMatrix\n\n" //
+    "Pack a 2D matrix for repeated set-distance cross operations.\n\n"     //
+    "Args:\n"                                                              //
+    "  b (array_like): Source matrix with shape [columns,depth].\n"        //
+    "  dtype (str, optional): Packing dtype. Default: 'uint1'.\n"          //
+    "    For 'uint1', packed bits are represented as uint8 bytes.\n"       //
+    "  threads (int, optional): Worker threads, defaulting to 1.\n\n"      //
+    "Returns:\n"                                                           //
+    "  PackedMatrix: Opaque packed matrix accepted by hammings_packed()\n" //
+    "    and jaccards_packed().\n\n"                                       //
+    "Signature:\n"                                                         //
+    "  >>> def hammings_pack(b, /, dtype='uint1', *, threads=1) -> PackedMatrix: ...";
 
 PyObject *api_hammings_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -986,22 +986,22 @@ char const doc_hammings_packed[] =                                              
     "hammings_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise Hamming distances between matrix a and pre-packed b.\n\n"                      //
     "Args:\n"                                                                                        //
-    "    a (array_like): Query matrix with shape [rows,depth].\n"                                    //
-    "    b (PackedMatrix): Matrix packed with hammings_pack();\n"                                    //
-    "        shape [columns,depth].\n"                                                               //
-    "    out (Tensor, optional): C-contiguous output tensor with shape\n"                            //
-    "        [rows,columns] and dtype uint32.\n"                                                     //
-    "    rows_begin (int, optional): First row of a to process, defaulting to 0.\n"                  //
-    "    rows_end (int, optional): One-past-last row of a to process, defaulting to rows.\n"         //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                              //
+    "  a (array_like): Query matrix with shape [rows,depth].\n"                                      //
+    "  b (PackedMatrix): Matrix packed with hammings_pack();\n"                                      //
+    "    shape [columns,depth].\n"                                                                   //
+    "  out (Tensor, optional): C-contiguous output tensor with shape\n"                              //
+    "    [rows,columns] and dtype uint32.\n"                                                         //
+    "  rows_begin (int, optional): First row of a to process, defaulting to 0.\n"                    //
+    "  rows_end (int, optional): One-past-last row of a to process, defaulting to rows.\n"           //
+    "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                                //
     "Returns:\n"                                                                                     //
-    "    Tensor: Hamming-distance matrix with shape [rows,columns].\n"                               //
-    "    Returns out when provided.\n\n"                                                             //
+    "  Tensor: Hamming-distance matrix with shape [rows,columns].\n"                                 //
+    "  Returns out when provided.\n\n"                                                               //
     "Note:\n"                                                                                        //
-    "    Output dtype is uint32; Hamming distances are unsigned integer counts.\n\n"                 //
+    "  Output dtype is uint32; Hamming distances are unsigned integer counts.\n\n"                   //
     "Signature:\n"                                                                                   //
-    "    >>> def hammings_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None,\n"            //
-    "    ...                     threads=1) -> Tensor: ...";
+    "  >>> def hammings_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None,\n"              //
+    "  ...                     threads=1) -> Tensor: ...";
 
 PyObject *api_hammings_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -1012,23 +1012,23 @@ char const doc_jaccards_packed[] =                                              
     "jaccards_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise Jaccard distances between matrix a and pre-packed b.\n\n"                      //
     "Args:\n"                                                                                        //
-    "    a (array_like): Query matrix with shape [rows,depth].\n"                                    //
-    "    b (PackedMatrix): Matrix packed with hammings_pack();\n"                                    //
-    "        shape [columns,depth].\n"                                                               //
-    "    out (Tensor, optional): C-contiguous output tensor with\n"                                  //
-    "        shape [rows,columns] and matching output dtype.\n"                                      //
-    "    rows_begin (int, optional): First row of a to process, defaulting to 0.\n"                  //
-    "    rows_end (int, optional): One-past-last row of a to process, defaulting to rows.\n"         //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                              //
+    "  a (array_like): Query matrix with shape [rows,depth].\n"                                      //
+    "  b (PackedMatrix): Matrix packed with hammings_pack();\n"                                      //
+    "    shape [columns,depth].\n"                                                                   //
+    "  out (Tensor, optional): C-contiguous output tensor with\n"                                    //
+    "    shape [rows,columns] and matching output dtype.\n"                                          //
+    "  rows_begin (int, optional): First row of a to process, defaulting to 0.\n"                    //
+    "  rows_end (int, optional): One-past-last row of a to process, defaulting to rows.\n"           //
+    "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                                //
     "Returns:\n"                                                                                     //
-    "    Tensor: Jaccard-distance matrix with shape [rows,columns].\n"                               //
-    "    Returns out when provided.\n\n"                                                             //
+    "  Tensor: Jaccard-distance matrix with shape [rows,columns].\n"                                 //
+    "  Returns out when provided.\n\n"                                                               //
     "Note:\n"                                                                                        //
-    "    Jaccard distances reuse the Hamming packing format.\n"                                      //
-    "    Use hammings_pack() to prepare the packed matrix.\n\n"                                      //
+    "  Jaccard distances reuse the Hamming packing format.\n"                                        //
+    "  Use hammings_pack() to prepare the packed matrix.\n\n"                                        //
     "Signature:\n"                                                                                   //
-    "    >>> def jaccards_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None,\n"            //
-    "    ...                     threads=1) -> Tensor: ...";
+    "  >>> def jaccards_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None,\n"              //
+    "  ...                     threads=1) -> Tensor: ...";
 
 PyObject *api_jaccards_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -1039,25 +1039,25 @@ char const doc_angulars_packed[] =                                              
     "angulars_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise angular distances between matrix a and pre-packed b.\n\n"                      //
     "Args:\n"                                                                                        //
-    "    a (array_like): Query matrix with shape [rows,depth], on the device of b.\n"                //
-    "    b (PackedMatrix): Matrix packed with dots_pack();\n"                                        //
-    "        shape [columns,depth].\n"                                                               //
-    "    out (Tensor, optional): C-contiguous output tensor with\n"                                  //
-    "        shape [rows,columns] and matching output dtype. Required, on the\n"                     //
-    "        same GPU, when b was packed on a GPU.\n"                                                //
-    "    rows_begin (int, optional): First row of a to process, defaulting to 0.\n"                  //
-    "    rows_end (int, optional): One-past-last row of a to process, defaulting to rows.\n"         //
-    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"              //
-    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"            //
+    "  a (array_like): Query matrix with shape [rows,depth], on the device of b.\n"                  //
+    "  b (PackedMatrix): Matrix packed with dots_pack();\n"                                          //
+    "    shape [columns,depth].\n"                                                                   //
+    "  out (Tensor, optional): C-contiguous output tensor with\n"                                    //
+    "    shape [rows,columns] and matching output dtype. Required, on the\n"                         //
+    "    same GPU, when b was packed on a GPU.\n"                                                    //
+    "  rows_begin (int, optional): First row of a to process, defaulting to 0.\n"                    //
+    "  rows_end (int, optional): One-past-last row of a to process, defaulting to rows.\n"           //
+    "  threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                //
+    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"              //
     "Returns:\n"                                                                                     //
-    "    Tensor: Angular-distance matrix with shape [rows,columns].\n"                               //
-    "    Returns out when provided.\n\n"                                                             //
+    "  Tensor: Angular-distance matrix with shape [rows,columns].\n"                                 //
+    "  Returns out when provided.\n\n"                                                               //
     "Note:\n"                                                                                        //
-    "    Use dots_pack() to prepare the packed matrix — angular\n"                                   //
-    "    distances reuse the dot-product packing layout.\n\n"                                        //
+    "  Use dots_pack() to prepare the packed matrix — angular\n"                                     //
+    "  distances reuse the dot-product packing layout.\n\n"                                          //
     "Signature:\n"                                                                                   //
-    "    >>> def angulars_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None,\n"            //
-    "    ...                     threads=1) -> Tensor: ...";
+    "  >>> def angulars_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None,\n"              //
+    "  ...                     threads=1) -> Tensor: ...";
 
 PyObject *api_angulars_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -1068,25 +1068,25 @@ char const doc_euclideans_packed[] =                                            
     "euclideans_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise Euclidean distances between matrix a and pre-packed b.\n\n"                      //
     "Args:\n"                                                                                          //
-    "    a (array_like): Query matrix with shape [rows,depth], on the device of b.\n"                  //
-    "    b (PackedMatrix): Matrix packed with dots_pack();\n"                                          //
-    "        shape [columns,depth].\n"                                                                 //
-    "    out (Tensor, optional): C-contiguous output tensor with\n"                                    //
-    "        shape [rows,columns] and matching output dtype. Required, on the\n"                       //
-    "        same GPU, when b was packed on a GPU.\n"                                                  //
-    "    rows_begin (int, optional): First row of a to process, defaulting to 0.\n"                    //
-    "    rows_end (int, optional): One-past-last row of a to process, defaulting to rows.\n"           //
-    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                //
-    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"              //
+    "  a (array_like): Query matrix with shape [rows,depth], on the device of b.\n"                    //
+    "  b (PackedMatrix): Matrix packed with dots_pack();\n"                                            //
+    "    shape [columns,depth].\n"                                                                     //
+    "  out (Tensor, optional): C-contiguous output tensor with\n"                                      //
+    "    shape [rows,columns] and matching output dtype. Required, on the\n"                           //
+    "    same GPU, when b was packed on a GPU.\n"                                                      //
+    "  rows_begin (int, optional): First row of a to process, defaulting to 0.\n"                      //
+    "  rows_end (int, optional): One-past-last row of a to process, defaulting to rows.\n"             //
+    "  threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                  //
+    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"                //
     "Returns:\n"                                                                                       //
-    "    Tensor: Euclidean-distance matrix with shape [rows,columns].\n"                               //
-    "    Returns out when provided.\n\n"                                                               //
+    "  Tensor: Euclidean-distance matrix with shape [rows,columns].\n"                                 //
+    "  Returns out when provided.\n\n"                                                                 //
     "Note:\n"                                                                                          //
-    "    Use dots_pack() to prepare the packed matrix — Euclidean\n"                                   //
-    "    distances reuse the dot-product packing layout.\n\n"                                          //
+    "  Use dots_pack() to prepare the packed matrix — Euclidean\n"                                     //
+    "  distances reuse the dot-product packing layout.\n\n"                                            //
     "Signature:\n"                                                                                     //
-    "    >>> def euclideans_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None,\n"            //
-    "    ...                       threads=1) -> Tensor: ...";
+    "  >>> def euclideans_packed(a, b, /, *, out=None, rows_begin=None, rows_end=None,\n"              //
+    "  ...                       threads=1) -> Tensor: ...";
 
 PyObject *api_euclideans_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -1099,25 +1099,25 @@ char const doc_dots_symmetric[] =                                               
     "Compute the symmetric all-pairs dot-product matrix, the Gram matrix. Only the upper triangle of\n"   //
     "the output is guaranteed to be initialized.\n\n"                                                     //
     "Args:\n"                                                                                             //
-    "    vectors (array_like): Input matrix with shape [count,depth], or a CUDA or ROCm Tensor\n"         //
-    "        from from_dlpack() to run on that GPU with its capabilities.\n"                              //
-    "    dtype (str, optional): Optional dtype override for kernel dispatch.\n"                           //
-    "    out (Tensor, optional): C-contiguous output tensor with shape\n"                                 //
-    "        [count,count] and matching output dtype. Required, on the same GPU, for GPU vectors.\n"      //
-    "    rows_begin (int, optional): First row to compute, defaulting to 0.\n"                            //
-    "    rows_end (int, optional): One-past-last row to compute, defaulting to count.\n"                  //
-    "        Only the upper triangle overlapping with the specified row range is filled.\n"               //
-    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                   //
-    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0. A GPU call\n"        //
-    "        returns before the kernel finishes.\n\n"                                                     //
+    "  vectors (array_like): Input matrix with shape [count,depth], or a CUDA or ROCm Tensor\n"           //
+    "    from from_dlpack() to run on that GPU with its capabilities.\n"                                  //
+    "  dtype (str, optional): Optional dtype override for kernel dispatch.\n"                             //
+    "  out (Tensor, optional): C-contiguous output tensor with shape\n"                                   //
+    "    [count,count] and matching output dtype. Required, on the same GPU, for GPU vectors.\n"          //
+    "  rows_begin (int, optional): First row to compute, defaulting to 0.\n"                              //
+    "  rows_end (int, optional): One-past-last row to compute, defaulting to count.\n"                    //
+    "    Only the upper triangle overlapping with the specified row range is filled.\n"                   //
+    "  threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                     //
+    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0. A GPU call\n"          //
+    "    returns before the kernel finishes.\n\n"                                                         //
     "Returns:\n"                                                                                          //
-    "    Tensor: Symmetric dot-product matrix with shape [count,count].\n"                                //
-    "    Returns out when provided.\n\n"                                                                  //
+    "  Tensor: Symmetric dot-product matrix with shape [count,count].\n"                                  //
+    "  Returns out when provided.\n\n"                                                                    //
     "Example:\n"                                                                                          //
-    "    >>> gram = nk.dots_symmetric(vectors)  # shape: [N,N]\n\n"                                       //
+    "  >>> gram = nk.dots_symmetric(vectors)  # shape: [N,N]\n\n"                                         //
     "Signature:\n"                                                                                        //
-    "    >>> def dots_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None,\n"                  //
-    "    ...                    rows_end=None, threads=1) -> Tensor: ...";
+    "  >>> def dots_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None,\n"                    //
+    "  ...                    rows_end=None, threads=1) -> Tensor: ...";
 
 PyObject *api_dots_symmetric( //
     PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count, PyObject *args_names_tuple) {
@@ -1131,23 +1131,23 @@ char const doc_hammings_symmetric[] =                                           
     "Compute the symmetric all-pairs Hamming-distance matrix. Only the upper triangle of the output is\n"  //
     "guaranteed to be initialized.\n\n"                                                                    //
     "Args:\n"                                                                                              //
-    "    vectors (array_like): Input matrix with shape [count,depth].\n"                                   //
-    "        For dtype='uint1', packed bits are represented as uint8 bytes.\n"                             //
-    "    dtype (str, optional): Optional dtype override for kernel dispatch.\n"                            //
-    "    out (Tensor, optional): C-contiguous output tensor with shape\n"                                  //
-    "        [count,count] and dtype uint32.\n"                                                            //
-    "    rows_begin (int, optional): First row to compute, defaulting to 0.\n"                             //
-    "    rows_end (int, optional): One-past-last row to compute, defaulting to count.\n"                   //
-    "        Only the upper triangle overlapping with the specified row range is filled.\n"                //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                                    //
+    "  vectors (array_like): Input matrix with shape [count,depth].\n"                                     //
+    "    For dtype='uint1', packed bits are represented as uint8 bytes.\n"                                 //
+    "  dtype (str, optional): Optional dtype override for kernel dispatch.\n"                              //
+    "  out (Tensor, optional): C-contiguous output tensor with shape\n"                                    //
+    "    [count,count] and dtype uint32.\n"                                                                //
+    "  rows_begin (int, optional): First row to compute, defaulting to 0.\n"                               //
+    "  rows_end (int, optional): One-past-last row to compute, defaulting to count.\n"                     //
+    "    Only the upper triangle overlapping with the specified row range is filled.\n"                    //
+    "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                                      //
     "Returns:\n"                                                                                           //
-    "    Tensor: Symmetric Hamming-distance matrix with shape [count,count].\n"                            //
-    "    Returns out when provided.\n\n"                                                                   //
+    "  Tensor: Symmetric Hamming-distance matrix with shape [count,count].\n"                              //
+    "  Returns out when provided.\n\n"                                                                     //
     "Example:\n"                                                                                           //
-    "    >>> gram = nk.hammings_symmetric(vectors)  # shape: [N,N]\n\n"                                    //
+    "  >>> gram = nk.hammings_symmetric(vectors)  # shape: [N,N]\n\n"                                      //
     "Signature:\n"                                                                                         //
-    "    >>> def hammings_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None,\n"               //
-    "    ...                        rows_end=None, threads=1) -> Tensor: ...";
+    "  >>> def hammings_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None,\n"                 //
+    "  ...                        rows_end=None, threads=1) -> Tensor: ...";
 
 PyObject *api_hammings_symmetric( //
     PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count, PyObject *args_names_tuple) {
@@ -1161,23 +1161,23 @@ char const doc_jaccards_symmetric[] =                                           
     "Compute the symmetric all-pairs Jaccard-distance matrix. Only the upper triangle of the output is\n"  //
     "guaranteed to be initialized.\n\n"                                                                    //
     "Args:\n"                                                                                              //
-    "    vectors (array_like): Input matrix with shape [count,depth].\n"                                   //
-    "        For dtype='uint1', packed bits are represented as uint8 bytes.\n"                             //
-    "    dtype (str, optional): Optional dtype override for kernel dispatch.\n"                            //
-    "    out (Tensor, optional): C-contiguous output tensor with shape\n"                                  //
-    "        [count,count] and matching output dtype.\n"                                                   //
-    "    rows_begin (int, optional): First row to compute, defaulting to 0.\n"                             //
-    "    rows_end (int, optional): One-past-last row to compute, defaulting to count.\n"                   //
-    "        Only the upper triangle overlapping with the specified row range is filled.\n"                //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                                    //
+    "  vectors (array_like): Input matrix with shape [count,depth].\n"                                     //
+    "    For dtype='uint1', packed bits are represented as uint8 bytes.\n"                                 //
+    "  dtype (str, optional): Optional dtype override for kernel dispatch.\n"                              //
+    "  out (Tensor, optional): C-contiguous output tensor with shape\n"                                    //
+    "    [count,count] and matching output dtype.\n"                                                       //
+    "  rows_begin (int, optional): First row to compute, defaulting to 0.\n"                               //
+    "  rows_end (int, optional): One-past-last row to compute, defaulting to count.\n"                     //
+    "    Only the upper triangle overlapping with the specified row range is filled.\n"                    //
+    "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                                      //
     "Returns:\n"                                                                                           //
-    "    Tensor: Symmetric Jaccard-distance matrix with shape [count,count].\n"                            //
-    "    Returns out when provided.\n\n"                                                                   //
+    "  Tensor: Symmetric Jaccard-distance matrix with shape [count,count].\n"                              //
+    "  Returns out when provided.\n\n"                                                                     //
     "Example:\n"                                                                                           //
-    "    >>> gram = nk.jaccards_symmetric(vectors)  # shape: [N,N]\n\n"                                    //
+    "  >>> gram = nk.jaccards_symmetric(vectors)  # shape: [N,N]\n\n"                                      //
     "Signature:\n"                                                                                         //
-    "    >>> def jaccards_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None,\n"               //
-    "    ...                        rows_end=None, threads=1) -> Tensor: ...";
+    "  >>> def jaccards_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None,\n"                 //
+    "  ...                        rows_end=None, threads=1) -> Tensor: ...";
 
 PyObject *api_jaccards_symmetric( //
     PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count, PyObject *args_names_tuple) {
@@ -1191,25 +1191,25 @@ char const doc_angulars_symmetric[] =                                           
     "Compute the symmetric all-pairs angular-distance matrix. Only the upper triangle of the output is\n"  //
     "guaranteed to be initialized.\n\n"                                                                    //
     "Args:\n"                                                                                              //
-    "    vectors (array_like): Input matrix with shape [count,depth], or a CUDA or ROCm Tensor\n"          //
-    "        from from_dlpack() to run on that GPU with its capabilities.\n"                               //
-    "    dtype (str, optional): Optional dtype override for kernel dispatch.\n"                            //
-    "    out (Tensor, optional): C-contiguous output tensor with shape\n"                                  //
-    "        [count,count] and matching output dtype. Required, on the same GPU, for GPU vectors.\n"       //
-    "    rows_begin (int, optional): First row to compute, defaulting to 0.\n"                             //
-    "    rows_end (int, optional): One-past-last row to compute, defaulting to count.\n"                   //
-    "        Only the upper triangle overlapping with the specified row range is filled.\n"                //
-    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                    //
-    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0. A GPU call\n"         //
-    "        returns before the kernel finishes.\n\n"                                                      //
+    "  vectors (array_like): Input matrix with shape [count,depth], or a CUDA or ROCm Tensor\n"            //
+    "    from from_dlpack() to run on that GPU with its capabilities.\n"                                   //
+    "  dtype (str, optional): Optional dtype override for kernel dispatch.\n"                              //
+    "  out (Tensor, optional): C-contiguous output tensor with shape\n"                                    //
+    "    [count,count] and matching output dtype. Required, on the same GPU, for GPU vectors.\n"           //
+    "  rows_begin (int, optional): First row to compute, defaulting to 0.\n"                               //
+    "  rows_end (int, optional): One-past-last row to compute, defaulting to count.\n"                     //
+    "    Only the upper triangle overlapping with the specified row range is filled.\n"                    //
+    "  threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                      //
+    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0. A GPU call\n"           //
+    "    returns before the kernel finishes.\n\n"                                                          //
     "Returns:\n"                                                                                           //
-    "    Tensor: Symmetric angular-distance matrix with shape [count,count].\n"                            //
-    "    Returns out when provided.\n\n"                                                                   //
+    "  Tensor: Symmetric angular-distance matrix with shape [count,count].\n"                              //
+    "  Returns out when provided.\n\n"                                                                     //
     "Example:\n"                                                                                           //
-    "    >>> gram = nk.angulars_symmetric(vectors)  # shape: [N,N]\n\n"                                    //
+    "  >>> gram = nk.angulars_symmetric(vectors)  # shape: [N,N]\n\n"                                      //
     "Signature:\n"                                                                                         //
-    "    >>> def angulars_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None,\n"               //
-    "    ...                        rows_end=None, threads=1) -> Tensor: ...";
+    "  >>> def angulars_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None,\n"                 //
+    "  ...                        rows_end=None, threads=1) -> Tensor: ...";
 
 PyObject *api_angulars_symmetric( //
     PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count, PyObject *args_names_tuple) {
@@ -1223,25 +1223,25 @@ char const doc_euclideans_symmetric[] =                                         
     "Compute the symmetric all-pairs Euclidean-distance matrix. Only the upper triangle of the output\n" //
     "is guaranteed to be initialized.\n\n"                                                               //
     "Args:\n"                                                                                            //
-    "    vectors (array_like): Input matrix with shape [count,depth], or a CUDA or ROCm Tensor\n"        //
-    "        from from_dlpack() to run on that GPU with its capabilities.\n"                             //
-    "    dtype (str, optional): Optional dtype override for kernel dispatch.\n"                          //
-    "    out (Tensor, optional): C-contiguous output tensor with shape\n"                                //
-    "        [count,count] and matching output dtype. Required, on the same GPU, for GPU vectors.\n"     //
-    "    rows_begin (int, optional): First row to compute, defaulting to 0.\n"                           //
-    "    rows_end (int, optional): One-past-last row to compute, defaulting to count.\n"                 //
-    "        Only the upper triangle overlapping with the specified row range is filled.\n"              //
-    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                  //
-    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0. A GPU call\n"       //
-    "        returns before the kernel finishes.\n\n"                                                    //
+    "  vectors (array_like): Input matrix with shape [count,depth], or a CUDA or ROCm Tensor\n"          //
+    "    from from_dlpack() to run on that GPU with its capabilities.\n"                                 //
+    "  dtype (str, optional): Optional dtype override for kernel dispatch.\n"                            //
+    "  out (Tensor, optional): C-contiguous output tensor with shape\n"                                  //
+    "    [count,count] and matching output dtype. Required, on the same GPU, for GPU vectors.\n"         //
+    "  rows_begin (int, optional): First row to compute, defaulting to 0.\n"                             //
+    "  rows_end (int, optional): One-past-last row to compute, defaulting to count.\n"                   //
+    "    Only the upper triangle overlapping with the specified row range is filled.\n"                  //
+    "  threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                    //
+    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0. A GPU call\n"         //
+    "    returns before the kernel finishes.\n\n"                                                        //
     "Returns:\n"                                                                                         //
-    "    Tensor: Symmetric Euclidean-distance matrix with shape [count,count].\n"                        //
-    "    Returns out when provided.\n\n"                                                                 //
+    "  Tensor: Symmetric Euclidean-distance matrix with shape [count,count].\n"                          //
+    "  Returns out when provided.\n\n"                                                                   //
     "Example:\n"                                                                                         //
-    "    >>> gram = nk.euclideans_symmetric(vectors)  # shape: [N,N]\n\n"                                //
+    "  >>> gram = nk.euclideans_symmetric(vectors)  # shape: [N,N]\n\n"                                  //
     "Signature:\n"                                                                                       //
-    "    >>> def euclideans_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None,\n"           //
-    "    ...                          rows_end=None, threads=1) -> Tensor: ...";
+    "  >>> def euclideans_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None,\n"             //
+    "  ...                          rows_end=None, threads=1) -> Tensor: ...";
 
 PyObject *api_euclideans_symmetric( //
     PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count, PyObject *args_names_tuple) {

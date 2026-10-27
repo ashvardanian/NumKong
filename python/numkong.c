@@ -1042,7 +1042,7 @@ static char const doc_cpu_capabilities_detected[] =                             
     "Says nothing about whether the kernels were compiled in, which `cpu_capabilities_compiled`\n" //
     "reports.\n\n"                                                                                 //
     "Signature:\n"                                                                                 //
-    "    >>> def cpu_capabilities_detected() -> Capability: ...";
+    "  >>> def cpu_capabilities_detected() -> Capability: ...";
 
 static PyObject *api_cpu_capabilities_detected(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
@@ -1055,33 +1055,33 @@ static char const doc_cpu_capabilities_compiled[] =                             
     "still detects this machine's full set while containing no SIMD kernels at all, which is what\n"     //
     "makes a scalar build hard to spot.\n\n"                                                             //
     "Signature:\n"                                                                                       //
-    "    >>> def cpu_capabilities_compiled() -> Capability: ...";
+    "  >>> def cpu_capabilities_compiled() -> Capability: ...";
 
 static PyObject *api_cpu_capabilities_compiled(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
     return capabilities_reported(nk_cpu_capabilities_compiled);
 }
 
-static char const doc_cpu_capabilities_enabled[] =                                                   //
+static char const doc_cpu_capabilities_enabled[] =                                                      //
     "Get the CPU capabilities kernels run within, unless a call passes a narrower `capabilities=`.\n\n" //
-    "`cpu_capabilities_detected() & cpu_capabilities_compiled()`, which the library settles as it\n"   //
-    "loads, always with SERIAL.\n\n"                                                                   //
-    "Signature:\n"                                                                                     //
-    "    >>> def cpu_capabilities_enabled() -> Capability: ...";
+    "`cpu_capabilities_detected() & cpu_capabilities_compiled()`, which the library settles as it\n"    //
+    "loads, always with SERIAL.\n\n"                                                                    //
+    "Signature:\n"                                                                                      //
+    "  >>> def cpu_capabilities_enabled() -> Capability: ...";
 
 static PyObject *api_cpu_capabilities_enabled(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
     return capabilities_reported(nk_cpu_capabilities_enabled);
 }
 
-static char const doc_cpu_configure_thread[] =                                                     //
-    "Prepare the calling thread for kernels of `capabilities`, like Arm's FPCR or AMX tiles.\n\n" //
+static char const doc_cpu_configure_thread[] =                                                       //
+    "Prepare the calling thread for kernels of `capabilities`, like Arm's FPCR or AMX tiles.\n\n"    //
     "The library already asks for AMX tiles for the whole process as it loads; call this on every\n" //
-    "thread whose kernels need more.\n\n"                                                         //
-    "Args:\n"                                                                                     //
-    "    capabilities (Capability): The mask kernels on this thread run with.\n\n"                //
-    "Signature:\n"                                                                                //
-    "    >>> def cpu_configure_thread(capabilities, /) -> None: ...";
+    "thread whose kernels need more.\n\n"                                                            //
+    "Args:\n"                                                                                        //
+    "  capabilities (Capability): The mask kernels on this thread run with.\n\n"                     //
+    "Signature:\n"                                                                                   //
+    "  >>> def cpu_configure_thread(capabilities, /) -> None: ...";
 
 static PyObject *api_cpu_configure_thread(PyObject *self, PyObject *capabilities) {
     nk_unused_(self);
@@ -1091,51 +1091,51 @@ static PyObject *api_cpu_configure_thread(PyObject *self, PyObject *capabilities
     Py_RETURN_NONE;
 }
 
-static char const doc_count_devices[] =                                            //
-    "Count the GPUs of one vendor this process sees.\n\n"                          //
-    "Returns:\n"                                                                   //
-    "    int: Zero without that runtime or without its kernels in this build.\n\n" //
-    "Signature:\n"                                                                 //
-    "    >>> def cuda_count_devices() -> int: ...  # rocm_ and metal_ alike";
+static char const doc_count_devices[] =                                          //
+    "Count the GPUs of one vendor this process sees.\n\n"                        //
+    "Returns:\n"                                                                 //
+    "  int: Zero without that runtime or without its kernels in this build.\n\n" //
+    "Signature:\n"                                                               //
+    "  >>> def cuda_count_devices() -> int: ...  # rocm_ and metal_ alike";
 
-static char const doc_capabilities_detected[] =                                                      //
-    "Get the capabilities one GPU can execute, from its runtime.\n\n"                                //
-    "Args:\n"                                                                                        //
-    "    ordinal (int): The device's index, as its vendor's runtime numbers them.\n\n"               //
-    "Returns:\n"                                                                                     //
-    "    Capability: One flag per capability; GPU bits sit above every member, so they print as a\n" //
-    "        number. Raises ValueError past the devices this process sees.\n\n"                      //
-    "Signature:\n"                                                                                   //
-    "    >>> def cuda_capabilities_detected(ordinal, /) -> Capability: ...  # rocm_ and metal_ alike";
+static char const doc_capabilities_detected[] =                                                    //
+    "Get the capabilities one GPU can execute, from its runtime.\n\n"                              //
+    "Args:\n"                                                                                      //
+    "  ordinal (int): The device's index, as its vendor's runtime numbers them.\n\n"               //
+    "Returns:\n"                                                                                   //
+    "  Capability: One flag per capability; GPU bits sit above every member, so they print as a\n" //
+    "    number. Raises ValueError past the devices this process sees.\n\n"                        //
+    "Signature:\n"                                                                                 //
+    "  >>> def cuda_capabilities_detected(ordinal, /) -> Capability: ...  # rocm_ and metal_ alike";
 
 static char const doc_capabilities_compiled[] =                                  //
     "Get the GPU capabilities of one vendor whose kernels were compiled in.\n\n" //
     "Signature:\n"                                                               //
-    "    >>> def cuda_capabilities_compiled() -> Capability: ...  # rocm_ and metal_ alike";
+    "  >>> def cuda_capabilities_compiled() -> Capability: ...  # rocm_ and metal_ alike";
 
 static char const doc_capabilities_enabled[] =                                                        //
     "Get the mask one GPU dispatches with: what it executes and this binary holds kernels for.\n\n"   //
     "Pass it as `capabilities=` with a stream of that device, to `synchronize`, and to the unified\n" //
     "memory of the bindings. Raises ValueError past the devices this process sees.\n\n"               //
     "Signature:\n"                                                                                    //
-    "    >>> def cuda_capabilities_enabled(ordinal, /) -> Capability: ...  # rocm_ and metal_ alike";
+    "  >>> def cuda_capabilities_enabled(ordinal, /) -> Capability: ...  # rocm_ and metal_ alike";
 
 static char const doc_stream_init[] =                                                               //
     "Create a stream on one GPU, which names that device to every call taking it as `stream=`.\n\n" //
     "Free it with the matching `*_stream_free` once `synchronize` joined its work.\n\n"             //
     "Args:\n"                                                                                       //
-    "    ordinal (int): The device's index, as its vendor's runtime numbers them.\n\n"              //
+    "  ordinal (int): The device's index, as its vendor's runtime numbers them.\n\n"                //
     "Returns:\n"                                                                                    //
-    "    int: The `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>` pointer as an integer.\n"  //
-    "        Raises ValueError past the devices this process sees.\n\n"                             //
+    "  int: The `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>` pointer as an integer.\n"    //
+    "    Raises ValueError past the devices this process sees.\n\n"                                 //
     "Signature:\n"                                                                                  //
-    "    >>> def stream_init_cuda(ordinal, /) -> int: ...  # rocm_ and metal_ alike";
+    "  >>> def stream_init_cuda(ordinal, /) -> int: ...  # rocm_ and metal_ alike";
 
 static char const doc_stream_free[] =                                                                 //
     "Free a stream `stream_init_cuda` made, once `synchronize` joined whatever was queued on it.\n\n" //
     "Nothing may use the stream afterwards.\n\n"                                                      //
     "Signature:\n"                                                                                    //
-    "    >>> def stream_free_cuda(stream, /) -> None: ...  # rocm_ and metal_ alike";
+    "  >>> def stream_free_cuda(stream, /) -> None: ...  # rocm_ and metal_ alike";
 
 static PyObject *api_cuda_count_devices(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
@@ -1210,14 +1210,14 @@ static PyObject *api_metal_stream_free(PyObject *self, PyObject *stream) {
     return stream_freed(nk_stream_free_metal, stream);
 }
 
-static char const doc_synchronize[] =                                                                   //
-    "Wait for everything queued on a stream of the device `capabilities` describes.\n\n"                //
-    "Args:\n"                                                                                           //
-    "    capabilities (Capability): A mask like `cuda_capabilities_enabled(0)` reports.\n"              //
-    "    stream (int, optional): A `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>` pointer as\n" //
-    "        an integer, None for the default stream, and None on the CPU.\n\n"                         //
-    "Signature:\n"                                                                                      //
-    "    >>> def synchronize(capabilities, /, stream=None) -> None: ...";
+static char const doc_synchronize[] =                                                                 //
+    "Wait for everything queued on a stream of the device `capabilities` describes.\n\n"              //
+    "Args:\n"                                                                                         //
+    "  capabilities (Capability): A mask like `cuda_capabilities_enabled(0)` reports.\n"              //
+    "  stream (int, optional): A `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>` pointer as\n" //
+    "    an integer, None for the default stream, and None on the CPU.\n\n"                           //
+    "Signature:\n"                                                                                    //
+    "  >>> def synchronize(capabilities, /, stream=None) -> None: ...";
 
 static PyObject *api_synchronize(PyObject *self, PyObject *const *args, Py_ssize_t const positional_count,
                                  PyObject *keywords) {
@@ -1432,16 +1432,16 @@ static char const doc_module[] =                                                
     "   of their device, into an `out=` on the same device. Every other function refuses them.\n"    //
     "\n"                                                                                             //
     "Example:\n"                                                                                     //
-    "    >>> import numkong\n"                                                                       //
-    "    >>> numkong.euclidean(a, b)\n"                                                              //
+    "  >>> import numkong\n"                                                                         //
+    "  >>> numkong.euclidean(a, b)\n"                                                                //
     "\n"                                                                                             //
     "Mixed-precision 1-to-N example with numeric types missing in NumPy, but present in PyTorch:\n"  //
-    "    >>> import numkong\n"                                                                       //
-    "    >>> import torch\n"                                                                         //
-    "    >>> a = torch.randn(1536, dtype=torch.bfloat16)\n"                                          //
-    "    >>> b = torch.randn((100, 1536), dtype=torch.bfloat16)\n"                                   //
-    "    >>> c = torch.zeros(100, dtype=torch.float32)\n"                                            //
-    "    >>> numkong.euclidean(a, b, dtype='bfloat16', out=c)\n";
+    "  >>> import numkong\n"                                                                         //
+    "  >>> import torch\n"                                                                           //
+    "  >>> a = torch.randn(1536, dtype=torch.bfloat16)\n"                                            //
+    "  >>> b = torch.randn((100, 1536), dtype=torch.bfloat16)\n"                                     //
+    "  >>> c = torch.zeros(100, dtype=torch.float32)\n"                                              //
+    "  >>> numkong.euclidean(a, b, dtype='bfloat16', out=c)\n";
 
 static PyModuleDef nk_module = {
     PyModuleDef_HEAD_INIT, .m_name = "NumKong",     .m_doc = doc_module,

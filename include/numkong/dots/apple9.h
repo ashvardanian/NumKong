@@ -10,7 +10,7 @@
  *
  *  The @c metal pack and launch contract over @c simdgroup_matrix products, the fastest multiply M3
  *  and M4 expose to Metal. Every signature matches @c metal's, and the packed B is @c metal's byte
- *  for byte. The kernels travel as their own `.metal` source, embedded after `metal.metal`, whose
+ *  for byte. The kernels travel as their own <tt>.metal</tt> source, embedded after <tt>metal.metal</tt>, whose
  *  formats they widen, and compile on the device at first use under Metal 3.1 for its @c bfloat, so
  *  M3 and M4 run them from macOS 14.
  *

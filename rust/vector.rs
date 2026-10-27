@@ -49,6 +49,7 @@
 //!
 //! File: rust/vector.rs
 //! Author: Ash Vardanian
+//! Date: March 4, 2026
 
 use core::{marker::PhantomData, ptr::NonNull};
 

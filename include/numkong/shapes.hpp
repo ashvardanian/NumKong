@@ -667,7 +667,7 @@ struct shapes_simplex_ {
     }
 
     /** Pivots by block pricing from a cursor restarting at arc 0, until no arc's reduced cost
-     *  falls below `-tolerance`. */
+     *  falls below @c -tolerance. */
     template <typename cost_type_>
     void solve(cost_type_ const &cost, dual_t tolerance) noexcept {
         std::size_t const arcs = rows * columns;
@@ -1117,6 +1117,7 @@ status_t shapes_transport_reference_(void const *const *a_packed, std::size_t ro
 
 /**
  *  @brief Returns the bytes a pack of @p points takes.
+ *  @param[in] points Number of points in the cloud.
  *  @param[in] capabilities Capabilities to pick from, or zero for the layout of @c shapes/serial.h.
  *  @tparam in_type_ Point type, @c f64_t, @c f32_t or @c f16_t.
  */
@@ -1138,6 +1139,7 @@ expected<std::size_t> shapes_pack_size(std::size_t points,
 /**
  *  @brief Packs one cloud: centers it, rotates it onto its principal axes, and keeps its constants.
  *  @param[in] points The cloud, @p count × 3 interleaved values.
+ *  @param[in] count Number of points in the cloud.
  *  @param[out] packed At least @c shapes_pack_size bytes, aligned to @c nk_default_alignment_k.
  *  @param[in] capabilities Capabilities to pick from, or zero for the template in @p math_type_.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
@@ -1183,9 +1185,14 @@ status_t shapes_pack_normalized(typename in_type_::raw_t const *points, std::siz
 
 /**
  *  @brief Reads a pack's points and constants, skipping every null output.
+ *  @param[in] packed The pack to read.
+ *  @param[out] points Null, or the number of 3D points.
  *  @param[out] centroid Null, or the 3 coordinates of the mean input point.
  *  @param[out] frame Null, or the unit quaternion (x, y, z, w) of 𝑄.
+ *  @param[out] scale Null, or what the rotated inputs were divided by: their RMS distance from the
+ *      centroid, or 1.
  *  @param[out] spreads Null, or the 3 descending eigenvalues of the packed points' second moments.
+ *  @param[out] max_radius Null, or the largest packed point norm.
  *  @param[in] capabilities Capabilities to pick from, or zero for the layout of @c shapes/serial.h.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  */
@@ -1230,6 +1237,7 @@ status_t shapes_packed_shape(void const *packed, std::size_t *points, typename i
 
 /**
  *  @brief Restores a pack's cloud as x = scale × 𝑄ᵀ × x′ + centroid, rounded once into @p in_type_.
+ *  @param[in] packed The pack to restore the cloud from.
  *  @param[out] points The cloud, as many × 3 interleaved values as the pack holds points.
  *  @param[in] capabilities Capabilities to pick from, or zero for the template in @p math_type_.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
@@ -1265,7 +1273,12 @@ status_t shapes_unpack(void const *packed, typename in_type_::raw_t *points,
 
 /**
  *  @brief Chamfer distances between every row pack and every column pack, the best of 8 axis flips.
+ *  @param[in] a_packed The row packs, one per row cloud.
+ *  @param[in] rows Number of row packs.
+ *  @param[in] b_packed The column packs, one per column cloud.
+ *  @param[in] columns Number of column packs.
  *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
+ *  @param[in] results_stride Bytes between the rows of @p results.
  *  @param[out] rotations Null, or the @b [rows,columns,3,3] rotations taking each column cloud onto
  *      each row cloud through the centroids.
  *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
@@ -1330,6 +1343,8 @@ status_t hausdorffs_packed(void const *const *a_packed, std::size_t rows, void c
 /**
  *  @brief Returns the workspace bytes of @c wassersteinprocrustes_packed between clouds of up to
  *      @p row_points and @p column_points points.
+ *  @param[in] row_points Most points in any row cloud.
+ *  @param[in] column_points Most points in any column cloud.
  *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
  */
 template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
@@ -1391,11 +1406,26 @@ expected<std::size_t> gromovwassersteins_workspace_size(
 
 /**
  *  @brief Wasserstein-Procrustes distances between every row pack and every column pack.
+ *  @param[in] a_packed The row packs, one per row cloud.
+ *  @param[in] rows Number of row packs.
+ *  @param[in] b_packed The column packs, one per column cloud.
+ *  @param[in] columns Number of column packs.
+ *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
+ *  @param[in] results_stride Bytes between the rows of @p results.
+ *  @param[out] rotations Null, or the @b [rows,columns,3,3] rotations taking each column cloud onto
+ *      each row cloud through the centroids.
  *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, of what
  *      @c wassersteinprocrustes_workspace_size reports for the largest clouds, with the same
  *      capabilities and @p distance_type_, or more.
- *  @return @c success_k, @c misaligned_k, @c unexpected_dimensions_k for a short workspace, or
- *      @c missing_kernel_k. The other parameters match @c chamfers_packed.
+ *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
+ *
+ *  The other parameters match @c chamfers_packed.
+ *
+ *  @par Statuses:
+ *  - @c misaligned_k
+ *  - @c unexpected_dimensions_k A short workspace.
+ *  - @c missing_kernel_k
  */
 template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
           typename rotation_type_ = f32_t>
@@ -1506,9 +1536,15 @@ class shapes_packed {
 
     /**
      *  @brief Packs every cloud of @p clouds, each @b [points,3] interleaved.
+     *  @param[in] clouds The point clouds to pack, one pack per cloud.
+     *  @param[in] alloc Source of the packs' blocks.
      *  @param[in] capabilities Capabilities to pack with; measure with the same ones.
-     *  @return The packs; @c unexpected_dimensions_k when a cloud's length is not a multiple of 3,
-     *      @c missing_kernel_k, @c bad_alloc_k, or the packing kernel's failure.
+     *  @return The packs.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k A cloud's length is not a multiple of 3.
+     *  - @c missing_kernel_k
+     *  - The packing kernel's failure.
      */
     static expected<shapes_packed> make(std::span<std::span<value_type_ const> const> clouds,
                                         allocator_type_ alloc = {},
@@ -1532,6 +1568,8 @@ class shapes_packed {
     /**
      *  @brief Packs every cloud like @c make, through one backend's kernels instead of a capability
      *      mask, such as @c nk_shapes_pack_size_f32_serial and @c nk_shapes_pack_f32_serial.
+     *  @param[in] clouds The point clouds to pack, one pack per cloud.
+     *  @param[in] alloc Source of the packs' blocks.
      *  @param[in] pack_size Measures one pack; pair it with @p pack.
      *  @param[in] pack Packs one cloud on the CPU, with a null stream; a normalized one packs like
      *      @c make_normalized.

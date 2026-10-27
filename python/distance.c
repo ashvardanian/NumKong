@@ -774,22 +774,22 @@ static PyObject *implement_pointer_access(nk_kernel_kind_t metric_kind, PyObject
 char const doc_cdist[] =                                                                                //
     "Compute pairwise distances between two input sets.\n\n"                                            //
     "Args:\n"                                                                                           //
-    "    a (Tensor): First matrix.\n"                                                                   //
-    "    b (Tensor): Second matrix.\n"                                                                  //
-    "    metric (str, optional): One of 'euclidean', 'sqeuclidean', 'angular' or 'dot', defaulting\n"   //
-    "        to 'euclidean'.\n"                                                                         //
-    "    out (Tensor, optional): Output matrix to store the result.\n"                                  //
-    "    dtype (Union[IntegralType, FloatType, ComplexType], optional): Override the presumed input\n"  //
-    "        type name.\n"                                                                              //
-    "    out_dtype (Union[FloatType, ComplexType], optional): Result type, default is 'float64'.\n"     //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                                 //
+    "  a (Tensor): First matrix.\n"                                                                     //
+    "  b (Tensor): Second matrix.\n"                                                                    //
+    "  metric (str, optional): One of 'euclidean', 'sqeuclidean', 'angular' or 'dot', defaulting\n"     //
+    "    to 'euclidean'.\n"                                                                             //
+    "  out (Tensor, optional): Output matrix to store the result.\n"                                    //
+    "  dtype (Union[IntegralType, FloatType, ComplexType], optional): Override the presumed input\n"    //
+    "    type name.\n"                                                                                  //
+    "  out_dtype (Union[FloatType, ComplexType], optional): Result type, default is 'float64'.\n"       //
+    "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                                   //
     "Returns:\n"                                                                                        //
-    "    Tensor: Pairwise distances between all inputs.\n\n"                                            //
+    "  Tensor: Pairwise distances between all inputs.\n\n"                                              //
     "Equivalent to: `scipy.spatial.distance.cdist`.\n\n"                                                //
     "GPU tensors raise BufferError, as packing b and mirroring a symmetric result both need device\n"   //
     "memory NumKong cannot allocate: use dots_pack(b, out=...) with the _packed functions instead.\n\n" //
     "Signature:\n"                                                                                      //
-    "    >>> def cdist(a, b, /, metric, *, dtype, out, out_dtype, threads) -> Optional[Tensor]: ...";
+    "  >>> def cdist(a, b, /, metric, *, dtype, out, out_dtype, threads) -> Optional[Tensor]: ...";
 
 PyObject *api_cdist( //
     PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count, PyObject *args_names_tuple) {
@@ -917,211 +917,211 @@ PyObject *api_jaccard_pointer(PyObject *self, PyObject *dtype_obj) {
     return implement_pointer_access(nk_kernel_jaccard_k, dtype_obj);
 }
 
-char const doc_euclidean[] =                                                                           //
-    "Compute Euclidean distances between two matrices.\n\n"                                            //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): First matrix or vector.\n"                                                        //
-    "    b (Tensor): Second matrix or vector.\n"                                                       //
-    "    dtype (Union[IntegralType, FloatType], optional): Override the presumed input type name.\n"   //
-    "        Supported values: 'f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2',\n"         //
-    "        'i8', 'u8', 'i4', 'u4'.\n"                                                                //
-    "    out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
-    "    out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The distances if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `scipy.spatial.distance.euclidean`.\n\n"                                           //
-    "Signature:\n"                                                                                     //
-    "    >>> def euclidean(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
+char const doc_euclidean[] =                                                                         //
+    "Compute Euclidean distances between two matrices.\n\n"                                          //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): First matrix or vector.\n"                                                        //
+    "  b (Tensor): Second matrix or vector.\n"                                                       //
+    "  dtype (Union[IntegralType, FloatType], optional): Override the presumed input type name.\n"   //
+    "    Supported values: 'f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2',\n"           //
+    "    'i8', 'u8', 'i4', 'u4'.\n"                                                                  //
+    "  out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
+    "  out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The distances if `out` is not provided.\n"                                            //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
+    "Equivalent to: `scipy.spatial.distance.euclidean`.\n\n"                                         //
+    "Signature:\n"                                                                                   //
+    "  >>> def euclidean(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
 
 PyObject *api_euclidean(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                         PyObject *args_names_tuple) {
     return implement_dense_metric(nk_kernel_euclidean_k, args, positional_args_count, args_names_tuple);
 }
 
-char const doc_sqeuclidean[] =                                                                         //
-    "Compute squared Euclidean distances between two matrices.\n\n"                                    //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): First matrix or vector.\n"                                                        //
-    "    b (Tensor): Second matrix or vector.\n"                                                       //
-    "    dtype (Union[IntegralType, FloatType], optional): Override the presumed input type name.\n"   //
-    "        Supported values: 'f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2',\n"         //
-    "        'i8', 'u8', 'i4', 'u4'.\n"                                                                //
-    "    out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
-    "    out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The distances if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `scipy.spatial.distance.sqeuclidean`.\n\n"                                         //
-    "Signature:\n"                                                                                     //
-    "    >>> def sqeuclidean(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
+char const doc_sqeuclidean[] =                                                                       //
+    "Compute squared Euclidean distances between two matrices.\n\n"                                  //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): First matrix or vector.\n"                                                        //
+    "  b (Tensor): Second matrix or vector.\n"                                                       //
+    "  dtype (Union[IntegralType, FloatType], optional): Override the presumed input type name.\n"   //
+    "    Supported values: 'f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2',\n"           //
+    "    'i8', 'u8', 'i4', 'u4'.\n"                                                                  //
+    "  out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
+    "  out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The distances if `out` is not provided.\n"                                            //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
+    "Equivalent to: `scipy.spatial.distance.sqeuclidean`.\n\n"                                       //
+    "Signature:\n"                                                                                   //
+    "  >>> def sqeuclidean(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
 
 PyObject *api_sqeuclidean(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                           PyObject *args_names_tuple) {
     return implement_dense_metric(nk_kernel_sqeuclidean_k, args, positional_args_count, args_names_tuple);
 }
 
-char const doc_angular[] =                                                                             //
-    "Compute angular distances between two matrices.\n\n"                                              //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): First matrix or vector.\n"                                                        //
-    "    b (Tensor): Second matrix or vector.\n"                                                       //
-    "    dtype (Union[IntegralType, FloatType], optional): Override the presumed input type name.\n"   //
-    "        Supported values: 'f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2',\n"         //
-    "        'i8', 'u8', 'i4', 'u4'.\n"                                                                //
-    "    out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
-    "    out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The distances if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `scipy.spatial.distance.cosine`.\n\n"                                              //
-    "Signature:\n"                                                                                     //
-    "    >>> def angular(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
+char const doc_angular[] =                                                                           //
+    "Compute angular distances between two matrices.\n\n"                                            //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): First matrix or vector.\n"                                                        //
+    "  b (Tensor): Second matrix or vector.\n"                                                       //
+    "  dtype (Union[IntegralType, FloatType], optional): Override the presumed input type name.\n"   //
+    "    Supported values: 'f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2',\n"           //
+    "    'i8', 'u8', 'i4', 'u4'.\n"                                                                  //
+    "  out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
+    "  out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The distances if `out` is not provided.\n"                                            //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
+    "Equivalent to: `scipy.spatial.distance.cosine`.\n\n"                                            //
+    "Signature:\n"                                                                                   //
+    "  >>> def angular(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
 
 PyObject *api_angular(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                       PyObject *args_names_tuple) {
     return implement_dense_metric(nk_kernel_angular_k, args, positional_args_count, args_names_tuple);
 }
 
-char const doc_dot[] =                                                                                     //
-    "Compute the dot product between two matrices, real or complex.\n\n"                                   //
-    "Args:\n"                                                                                              //
-    "    a (Tensor): First matrix or vector.\n"                                                            //
-    "    b (Tensor): Second matrix or vector.\n"                                                           //
-    "    dtype (Union[IntegralType, FloatType, ComplexType], optional): Override the input type.\n"        //
-    "        Supported values: 'f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2', 'i8', 'u8',\n" //
-    "        'i4', 'u4', 'u1', 'complex64', 'complex128', 'complex32', 'bcomplex32'.\n"                    //
-    "    out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n"     //
-    "    out_dtype (Union[FloatType, ComplexType], optional): Result type, default is 'float64'.\n\n"      //
-    "Returns:\n"                                                                                           //
-    "    Tensor: The distances if `out` is not provided.\n"                                                //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                            //
-    "Equivalent to: `numpy.inner`.\n\n"                                                                    //
-    "Signature:\n"                                                                                         //
-    "    >>> def dot(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
+char const doc_dot[] =                                                                                 //
+    "Compute the dot product between two matrices, real or complex.\n\n"                               //
+    "Args:\n"                                                                                          //
+    "  a (Tensor): First matrix or vector.\n"                                                          //
+    "  b (Tensor): Second matrix or vector.\n"                                                         //
+    "  dtype (Union[IntegralType, FloatType, ComplexType], optional): Override the input type.\n"      //
+    "    Supported values: 'f64', 'f32', 'f16', 'bf16', 'e4m3', 'e5m2', 'e2m3', 'e3m2', 'i8', 'u8',\n" //
+    "    'i4', 'u4', 'u1', 'complex64', 'complex128', 'complex32', 'bcomplex32'.\n"                    //
+    "  out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n"   //
+    "  out_dtype (Union[FloatType, ComplexType], optional): Result type, default is 'float64'.\n\n"    //
+    "Returns:\n"                                                                                       //
+    "  Tensor: The distances if `out` is not provided.\n"                                              //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                          //
+    "Equivalent to: `numpy.inner`.\n\n"                                                                //
+    "Signature:\n"                                                                                     //
+    "  >>> def dot(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
 
 PyObject *api_dot(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                   PyObject *args_names_tuple) {
     return implement_dense_metric(nk_kernel_dot_k, args, positional_args_count, args_names_tuple);
 }
 
-char const doc_vdot[] =                                                                                //
-    "Compute the conjugate dot product between two complex matrices.\n\n"                              //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): First complex matrix or vector.\n"                                                //
-    "    b (Tensor): Second complex matrix or vector.\n"                                               //
-    "    dtype (ComplexType, optional): Override the presumed input type name.\n"                      //
-    "        Supported values: 'complex64', 'complex128', 'complex32', 'bcomplex32'.\n"                //
-    "    out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
-    "    out_dtype (Union[ComplexType], optional): Result type, default is 'float64'.\n\n"             //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The distances if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `numpy.vdot`.\n\n"                                                                 //
-    "Signature:\n"                                                                                     //
-    "    >>> def vdot(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
+char const doc_vdot[] =                                                                              //
+    "Compute the conjugate dot product between two complex matrices.\n\n"                            //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): First complex matrix or vector.\n"                                                //
+    "  b (Tensor): Second complex matrix or vector.\n"                                               //
+    "  dtype (ComplexType, optional): Override the presumed input type name.\n"                      //
+    "    Supported values: 'complex64', 'complex128', 'complex32', 'bcomplex32'.\n"                  //
+    "  out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
+    "  out_dtype (Union[ComplexType], optional): Result type, default is 'float64'.\n\n"             //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The distances if `out` is not provided.\n"                                            //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
+    "Equivalent to: `numpy.vdot`.\n\n"                                                               //
+    "Signature:\n"                                                                                   //
+    "  >>> def vdot(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
 
 PyObject *api_vdot(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                    PyObject *args_names_tuple) {
     return implement_dense_metric(nk_kernel_vdot_k, args, positional_args_count, args_names_tuple);
 }
 
-char const doc_kld[] =                                                                                 //
-    "Compute Kullback-Leibler divergences between two matrices.\n\n"                                   //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): First floating-point matrix or vector.\n"                                         //
-    "    b (Tensor): Second floating-point matrix or vector.\n"                                        //
-    "    dtype (FloatType, optional): Override the presumed input type name.\n"                        //
-    "        Supported values: 'f64', 'f32', 'f16', 'bf16'.\n"                                         //
-    "    out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
-    "    out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The distances if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `scipy.special.kl_div`.\n\n"                                                       //
-    "Signature:\n"                                                                                     //
-    "    >>> def kld(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
+char const doc_kld[] =                                                                               //
+    "Compute Kullback-Leibler divergences between two matrices.\n\n"                                 //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): First floating-point matrix or vector.\n"                                         //
+    "  b (Tensor): Second floating-point matrix or vector.\n"                                        //
+    "  dtype (FloatType, optional): Override the presumed input type name.\n"                        //
+    "    Supported values: 'f64', 'f32', 'f16', 'bf16'.\n"                                           //
+    "  out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
+    "  out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The distances if `out` is not provided.\n"                                            //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
+    "Equivalent to: `scipy.special.kl_div`.\n\n"                                                     //
+    "Signature:\n"                                                                                   //
+    "  >>> def kld(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
 
 PyObject *api_kld(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                   PyObject *args_names_tuple) {
     return implement_dense_metric(nk_kernel_kld_k, args, positional_args_count, args_names_tuple);
 }
 
-char const doc_jsd[] =                                                                                 //
-    "Compute Jensen-Shannon distances between two matrices.\n\n"                                       //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): First floating-point matrix or vector.\n"                                         //
-    "    b (Tensor): Second floating-point matrix or vector.\n"                                        //
-    "    dtype (FloatType, optional): Override the presumed input type name.\n"                        //
-    "        Supported values: 'f64', 'f32', 'f16', 'bf16'.\n"                                         //
-    "    out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
-    "    out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The distances if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Equivalent to: `scipy.spatial.distance.jensenshannon`.\n\n"                                       //
-    "Signature:\n"                                                                                     //
-    "    >>> def jsd(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
+char const doc_jsd[] =                                                                               //
+    "Compute Jensen-Shannon distances between two matrices.\n\n"                                     //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): First floating-point matrix or vector.\n"                                         //
+    "  b (Tensor): Second floating-point matrix or vector.\n"                                        //
+    "  dtype (FloatType, optional): Override the presumed input type name.\n"                        //
+    "    Supported values: 'f64', 'f32', 'f16', 'bf16'.\n"                                           //
+    "  out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
+    "  out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The distances if `out` is not provided.\n"                                            //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
+    "Equivalent to: `scipy.spatial.distance.jensenshannon`.\n\n"                                     //
+    "Signature:\n"                                                                                   //
+    "  >>> def jsd(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
 
 PyObject *api_jsd(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                   PyObject *args_names_tuple) {
     return implement_dense_metric(nk_kernel_jsd_k, args, positional_args_count, args_names_tuple);
 }
 
-char const doc_hamming[] =                                                                             //
-    "Compute Hamming distances between two matrices.\n\n"                                              //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): First binary matrix or vector.\n"                                                 //
-    "    b (Tensor): Second binary matrix or vector.\n"                                                //
-    "    dtype (IntegralType, optional): Override the presumed input type name.\n"                     //
-    "        Supported values: 'u1', 'u8'.\n"                                                          //
-    "    out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
-    "    out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The distances if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Similar to: `scipy.spatial.distance.hamming`.\n\n"                                                //
-    "Signature:\n"                                                                                     //
-    "    >>> def hamming(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
+char const doc_hamming[] =                                                                           //
+    "Compute Hamming distances between two matrices.\n\n"                                            //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): First binary matrix or vector.\n"                                                 //
+    "  b (Tensor): Second binary matrix or vector.\n"                                                //
+    "  dtype (IntegralType, optional): Override the presumed input type name.\n"                     //
+    "    Supported values: 'u1', 'u8'.\n"                                                            //
+    "  out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
+    "  out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The distances if `out` is not provided.\n"                                            //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
+    "Similar to: `scipy.spatial.distance.hamming`.\n\n"                                              //
+    "Signature:\n"                                                                                   //
+    "  >>> def hamming(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
 
 PyObject *api_hamming(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                       PyObject *args_names_tuple) {
     return implement_dense_metric(nk_kernel_hamming_k, args, positional_args_count, args_names_tuple);
 }
 
-char const doc_jaccard[] =                                                                             //
-    "Compute Jaccard distances, the bitwise Tanimoto metric, between two matrices.\n\n"                //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): First binary matrix or vector.\n"                                                 //
-    "    b (Tensor): Second binary matrix or vector.\n"                                                //
-    "    dtype (IntegralType, optional): Override the presumed input type name.\n"                     //
-    "        Supported values: 'u1', 'u16', 'u32'.\n"                                                  //
-    "    out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
-    "    out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The distances if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
-    "Similar to: `scipy.spatial.distance.jaccard`.\n\n"                                                //
-    "Signature:\n"                                                                                     //
-    "    >>> def jaccard(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
+char const doc_jaccard[] =                                                                           //
+    "Compute Jaccard distances, the bitwise Tanimoto metric, between two matrices.\n\n"              //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): First binary matrix or vector.\n"                                                 //
+    "  b (Tensor): Second binary matrix or vector.\n"                                                //
+    "  dtype (IntegralType, optional): Override the presumed input type name.\n"                     //
+    "    Supported values: 'u1', 'u16', 'u32'.\n"                                                    //
+    "  out (Tensor, optional): Vector for resulting distances. Allocates a new tensor by default.\n" //
+    "  out_dtype (FloatType, optional): Result type, default is 'float64'.\n\n"                      //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The distances if `out` is not provided.\n"                                            //
+    "  None: If `out` is provided. Operation will be performed in-place.\n\n"                        //
+    "Similar to: `scipy.spatial.distance.jaccard`.\n\n"                                              //
+    "Signature:\n"                                                                                   //
+    "  >>> def jaccard(a, b, /, dtype, *, out, out_dtype) -> Optional[Tensor]: ...";
 
 PyObject *api_jaccard(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                       PyObject *args_names_tuple) {
     return implement_dense_metric(nk_kernel_jaccard_k, args, positional_args_count, args_names_tuple);
 }
 
-char const doc_bilinear[] =                                                       //
-    "Compute the bilinear form between two vectors given a metric tensor.\n\n"    //
-    "Args:\n"                                                                     //
-    "    a (Tensor): First vector.\n"                                             //
-    "    b (Tensor): Second vector.\n"                                            //
-    "    metric_tensor (Tensor): The metric tensor defining the bilinear form.\n" //
-    "    dtype (FloatType, optional): Override the presumed input type name.\n\n" //
-    "Returns:\n"                                                                  //
-    "    float: The bilinear form.\n\n"                                           //
-    "Equivalent to: `numpy.dot` with a metric tensor.\n\n"                        //
-    "Signature:\n"                                                                //
-    "    >>> def bilinear(a, b, metric_tensor, /, dtype) -> float: ...";
+char const doc_bilinear[] =                                                     //
+    "Compute the bilinear form between two vectors given a metric tensor.\n\n"  //
+    "Args:\n"                                                                   //
+    "  a (Tensor): First vector.\n"                                             //
+    "  b (Tensor): Second vector.\n"                                            //
+    "  metric_tensor (Tensor): The metric tensor defining the bilinear form.\n" //
+    "  dtype (FloatType, optional): Override the presumed input type name.\n\n" //
+    "Returns:\n"                                                                //
+    "  float: The bilinear form.\n\n"                                           //
+    "Equivalent to: `numpy.dot` with a metric tensor.\n\n"                      //
+    "Signature:\n"                                                              //
+    "  >>> def bilinear(a, b, metric_tensor, /, dtype) -> float: ...";
 
 PyObject *api_bilinear(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                        PyObject *args_names_tuple) {
@@ -1131,15 +1131,15 @@ PyObject *api_bilinear(PyObject *self, PyObject *const *args, Py_ssize_t const p
 char const doc_mahalanobis[] =                                                                     //
     "Compute the Mahalanobis distance between two vectors given an inverse covariance matrix.\n\n" //
     "Args:\n"                                                                                      //
-    "    a (Tensor): First vector.\n"                                                              //
-    "    b (Tensor): Second vector.\n"                                                             //
-    "    inverse_covariance (Tensor): The inverse of the covariance matrix.\n"                     //
-    "    dtype (FloatType, optional): Override the presumed input type name.\n\n"                  //
+    "  a (Tensor): First vector.\n"                                                                //
+    "  b (Tensor): Second vector.\n"                                                               //
+    "  inverse_covariance (Tensor): The inverse of the covariance matrix.\n"                       //
+    "  dtype (FloatType, optional): Override the presumed input type name.\n\n"                    //
     "Returns:\n"                                                                                   //
-    "    float: The Mahalanobis distance.\n\n"                                                     //
+    "  float: The Mahalanobis distance.\n\n"                                                       //
     "Equivalent to: `scipy.spatial.distance.mahalanobis`.\n\n"                                     //
     "Signature:\n"                                                                                 //
-    "    >>> def mahalanobis(a, b, inverse_covariance, /, dtype) -> float: ...";
+    "  >>> def mahalanobis(a, b, inverse_covariance, /, dtype) -> float: ...";
 
 PyObject *api_mahalanobis(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                           PyObject *args_names_tuple) {
@@ -1149,29 +1149,29 @@ PyObject *api_mahalanobis(PyObject *self, PyObject *const *args, Py_ssize_t cons
 char const doc_intersect[] =                                     //
     "Compute the intersection of two sorted integer arrays.\n\n" //
     "Args:\n"                                                    //
-    "    a (Tensor): First sorted integer array.\n"              //
-    "    b (Tensor): Second sorted integer array.\n\n"           //
+    "  a (Tensor): First sorted integer array.\n"                //
+    "  b (Tensor): Second sorted integer array.\n\n"             //
     "Returns:\n"                                                 //
-    "    int: The number of intersecting elements.\n\n"          //
+    "  int: The number of intersecting elements.\n\n"            //
     "Similar to: `numpy.intersect1d`.\n\n"                       //
     "Signature:\n"                                               //
-    "    >>> def intersect(a, b, /) -> int: ...";
+    "  >>> def intersect(a, b, /) -> int: ...";
 
 PyObject *api_intersect(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     return implement_sparse_metric(nk_kernel_sparse_intersect_k, args, nargs, kwnames);
 }
 
-char const doc_sparse_dot[] =                                                                       //
-    "Compute the weighted sparse dot product of two sorted index arrays.\n\n"                       //
-    "Args:\n"                                                                                       //
-    "    a_indices (Tensor): First sorted index array, uint16 or uint32.\n"                         //
-    "    a_values (Tensor): Weight array corresponding to a_indices, bf16 or float32.\n"            //
-    "    b_indices (Tensor): Second sorted index array, matching a_indices' dtype.\n"               //
-    "    b_values (Tensor): Weight array corresponding to b_indices, matching a_values' dtype.\n\n" //
-    "Returns:\n"                                                                                    //
-    "    float: The weighted dot product of intersecting indices.\n\n"                              //
-    "Signature:\n"                                                                                  //
-    "    >>> def sparse_dot(a_indices, a_values, b_indices, b_values, /) -> float: ...";
+char const doc_sparse_dot[] =                                                                     //
+    "Compute the weighted sparse dot product of two sorted index arrays.\n\n"                     //
+    "Args:\n"                                                                                     //
+    "  a_indices (Tensor): First sorted index array, uint16 or uint32.\n"                         //
+    "  a_values (Tensor): Weight array corresponding to a_indices, bf16 or float32.\n"            //
+    "  b_indices (Tensor): Second sorted index array, matching a_indices' dtype.\n"               //
+    "  b_values (Tensor): Weight array corresponding to b_indices, matching a_values' dtype.\n\n" //
+    "Returns:\n"                                                                                  //
+    "  float: The weighted dot product of intersecting indices.\n\n"                              //
+    "Signature:\n"                                                                                //
+    "  >>> def sparse_dot(a_indices, a_values, b_indices, b_values, /) -> float: ...";
 
 PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);

@@ -1184,11 +1184,11 @@ char const doc_method_resize[] =                                                
     "element count exceeds capacity() (call reserve() to grow first), if the tensor is a view, or if\n"   //
     "any buffer is currently exported (memoryview / NumPy).\n\n"                                          //
     "Args:\n"                                                                                             //
-    "    *shape: New dimensions, ints or a single shape tuple.\n\n"                                       //
+    "  *shape: New dimensions, ints or a single shape tuple.\n\n"                                         //
     "Returns:\n"                                                                                          //
-    "    Tensor: self.\n\n"                                                                               //
+    "  Tensor: self.\n\n"                                                                                 //
     "Signature:\n"                                                                                        //
-    "    >>> def resize(self, *shape: int) -> 'Tensor': ...\n";
+    "  >>> def resize(self, *shape: int) -> 'Tensor': ...\n";
 
 static PyObject *Tensor_resize(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
     Tensor *tensor = (Tensor *)self;
@@ -1221,11 +1221,11 @@ char const doc_method_reserve[] =                                               
     "buffer, so it invalidates outstanding views, memoryviews, NumPy arrays, and DLPack capsules. Fails\n" //
     "on a view or while buffers are exported.\n\n"                                                         //
     "Args:\n"                                                                                              //
-    "    capacity: Minimum element capacity to guarantee.\n\n"                                             //
+    "  capacity: Minimum element capacity to guarantee.\n\n"                                               //
     "Returns:\n"                                                                                           //
-    "    None.\n\n"                                                                                        //
+    "  None.\n\n"                                                                                          //
     "Signature:\n"                                                                                         //
-    "    >>> def reserve(self, capacity: int) -> None: ...\n";
+    "  >>> def reserve(self, capacity: int) -> None: ...\n";
 
 static PyObject *Tensor_reserve(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
     Tensor *tensor = (Tensor *)self;
@@ -1267,9 +1267,9 @@ char const doc_method_clear[] =                                                 
     "The buffer can be refilled via resize() without reallocating. Fails on a view, or while any\n" //
     "buffers stay exported.\n\n"                                                                    //
     "Returns:\n"                                                                                    //
-    "    None.\n\n"                                                                                 //
+    "  None.\n\n"                                                                                   //
     "Signature:\n"                                                                                  //
-    "    >>> def clear(self) -> None: ...\n";
+    "  >>> def clear(self) -> None: ...\n";
 
 static PyObject *Tensor_clear(PyObject *self, PyObject *ignored) {
     nk_unused_(ignored);
@@ -1376,16 +1376,16 @@ static char *validate_out_buffer(PyObject *out_obj, nk_dtype_t out_dtype, size_t
     return out->data;
 }
 
-char const doc_method_copy[] =                                                  //
-    "Return a deep copy of the tensor.\n\n"                                     //
-    "Args:\n"                                                                   //
-    "    out (Tensor, optional): Pre-allocated destination of the same dtype\n" //
-    "        and shape, C-contiguous. When given, the copy writes into it\n"    //
-    "        with no allocation and returns `out`.\n\n"                         //
-    "Returns:\n"                                                                //
-    "    Tensor: Independent copy, or `out` when provided.\n\n"                 //
-    "Signature:\n"                                                              //
-    "    >>> def copy(self, /, *, out=None): ...";
+char const doc_method_copy[] =                                                //
+    "Return a deep copy of the tensor.\n\n"                                   //
+    "Args:\n"                                                                 //
+    "  out (Tensor, optional): Pre-allocated destination of the same dtype\n" //
+    "    and shape, C-contiguous. When given, the copy writes into it\n"      //
+    "    with no allocation and returns `out`.\n\n"                           //
+    "Returns:\n"                                                              //
+    "  Tensor: Independent copy, or `out` when provided.\n\n"                 //
+    "Signature:\n"                                                            //
+    "  >>> def copy(self, /, *, out=None): ...";
 
 PyObject *Tensor_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
@@ -1426,14 +1426,14 @@ PyObject *Tensor_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, P
     return (PyObject *)result;
 }
 
-char const doc_method_reshape[] =                                                       //
-    "Return a tensor reshaped to the given dimensions.\n\n"                             //
-    "Args:\n"                                                                           //
-    "    *dims (int): New dimensions. Total element count must match the original.\n\n" //
-    "Returns:\n"                                                                        //
-    "    Tensor: Reshaped view, or a copy if the layout requires it.\n\n"               //
-    "Signature:\n"                                                                      //
-    "    >>> def reshape(self, *dims): ...";
+char const doc_method_reshape[] =                                                     //
+    "Return a tensor reshaped to the given dimensions.\n\n"                           //
+    "Args:\n"                                                                         //
+    "  *dims (int): New dimensions. Total element count must match the original.\n\n" //
+    "Returns:\n"                                                                      //
+    "  Tensor: Reshaped view, or a copy if the layout requires it.\n\n"               //
+    "Signature:\n"                                                                    //
+    "  >>> def reshape(self, *dims): ...";
 
 PyObject *Tensor_reshape(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
     Tensor *tensor = (Tensor *)self;
@@ -1513,17 +1513,17 @@ PyObject *Tensor_reshape(PyObject *self, PyObject *const *args, Py_ssize_t nargs
     return (PyObject *)result;
 }
 
-char const doc_method_flatten[] =                                                          //
-    "Return a flattened 1D view of the tensor.\n\n"                                        //
-    "Args:\n"                                                                              //
-    "    out (Tensor, optional): Pre-allocated 1D destination of the same dtype, length\n" //
-    "        `size`, C-contiguous, filled with no allocation, never a view; `out` is\n"    //
-    "        returned.\n\n"                                                                //
-    "Returns:\n"                                                                           //
-    "    Tensor: 1D view when contiguous and `out` is omitted; otherwise a 1D copy, or\n"  //
-    "        the provided `out`.\n\n"                                                      //
-    "Signature:\n"                                                                         //
-    "    >>> def flatten(self, /, *, out=None): ...";
+char const doc_method_flatten[] =                                                        //
+    "Return a flattened 1D view of the tensor.\n\n"                                      //
+    "Args:\n"                                                                            //
+    "  out (Tensor, optional): Pre-allocated 1D destination of the same dtype, length\n" //
+    "    `size`, C-contiguous, filled with no allocation, never a view; `out` is\n"      //
+    "    returned.\n\n"                                                                  //
+    "Returns:\n"                                                                         //
+    "  Tensor: 1D view when contiguous and `out` is omitted; otherwise a 1D copy, or\n"  //
+    "    the provided `out`.\n\n"                                                        //
+    "Signature:\n"                                                                       //
+    "  >>> def flatten(self, /, *, out=None): ...";
 
 PyObject *Tensor_flatten(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
@@ -1575,14 +1575,14 @@ PyObject *Tensor_flatten(PyObject *self, PyObject *const *args, Py_ssize_t nargs
     return (PyObject *)result;
 }
 
-char const doc_method_squeeze[] =                                                           //
-    "Remove dimensions of size 1.\n\n"                                                      //
-    "Args:\n"                                                                               //
-    "    *axes (int, optional): Specific axes to squeeze. If omitted, all size-1 axes.\n\n" //
-    "Returns:\n"                                                                            //
-    "    Tensor: View with the specified size-1 dimensions removed.\n\n"                    //
-    "Signature:\n"                                                                          //
-    "    >>> def squeeze(self, /, *axes): ...";
+char const doc_method_squeeze[] =                                                         //
+    "Remove dimensions of size 1.\n\n"                                                    //
+    "Args:\n"                                                                             //
+    "  *axes (int, optional): Specific axes to squeeze. If omitted, all size-1 axes.\n\n" //
+    "Returns:\n"                                                                          //
+    "  Tensor: View with the specified size-1 dimensions removed.\n\n"                    //
+    "Signature:\n"                                                                        //
+    "  >>> def squeeze(self, /, *axes): ...";
 
 PyObject *Tensor_squeeze(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
     Tensor *tensor = (Tensor *)self;
@@ -1966,12 +1966,12 @@ static int impl_reduce_minmax(nk_tensor_view_t const *view, nk_capability_t capa
     return 0;
 }
 
-char const doc_method_moments[] =                            //
-    "Compute sum and sum-of-squares of all elements.\n\n"    //
-    "Returns:\n"                                             //
-    "    tuple: (sum, sum_of_squares) for all elements.\n\n" //
-    "Signature:\n"                                           //
-    "    >>> def moments(self, /): ...";
+char const doc_method_moments[] =                          //
+    "Compute sum and sum-of-squares of all elements.\n\n"  //
+    "Returns:\n"                                           //
+    "  tuple: (sum, sum_of_squares) for all elements.\n\n" //
+    "Signature:\n"                                         //
+    "  >>> def moments(self, /): ...";
 
 static PyObject *impl_moments_from_view(nk_tensor_view_t const *view, nk_capability_t capabilities,
                                         nk_stream_t stream) {
@@ -2000,12 +2000,12 @@ PyObject *Tensor_moments(PyObject *self, PyObject *args) {
     return impl_moments_from_view(&view, nk_cap_cpus_k, NULL);
 }
 
-char const doc_method_minmax[] =                                                                //
-    "Find minimum and maximum elements with their indices.\n\n"                                 //
-    "Returns:\n"                                                                                //
-    "    tuple: (min_val, min_index, max_val, max_index), or None if all elements are NaN.\n\n" //
-    "Signature:\n"                                                                              //
-    "    >>> def minmax(self, /): ...";
+char const doc_method_minmax[] =                                                              //
+    "Find minimum and maximum elements with their indices.\n\n"                               //
+    "Returns:\n"                                                                              //
+    "  tuple: (min_val, min_index, max_val, max_index), or None if all elements are NaN.\n\n" //
+    "Signature:\n"                                                                            //
+    "  >>> def minmax(self, /): ...";
 
 static PyObject *impl_minmax_from_view(nk_tensor_view_t const *view, nk_capability_t capabilities, nk_stream_t stream) {
     nk_scalar_buffer_t min_buf, max_buf;
@@ -2384,18 +2384,18 @@ static int norm_slice(nk_tensor_view_t const *slice, reduce_args_t const *parsed
     return result;
 }
 
-char const doc_method_sum[] =                                                                        //
-    "Return the sum of all elements, or per-slice sums along one or more axes.\n\n"                  //
-    "Args:\n"                                                                                        //
-    "    axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
-    "        which reduces all elements.\n"                                                          //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                    //
-    "Returns:\n"                                                                                     //
-    "    Scalar sum when axis is None.\n"                                                            //
-    "    Tensor of per-slice sums when axis is given.\n\n"                                           //
-    "Signature:\n"                                                                                   //
-    "    >>> def sum(self, /, axis=None, *, keepdims=False, out=None): ...";
+char const doc_method_sum[] =                                                                      //
+    "Return the sum of all elements, or per-slice sums along one or more axes.\n\n"                //
+    "Args:\n"                                                                                      //
+    "  axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
+    "    which reduces all elements.\n"                                                            //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                    //
+    "Returns:\n"                                                                                   //
+    "  Scalar sum when axis is None.\n"                                                            //
+    "  Tensor of per-slice sums when axis is given.\n\n"                                           //
+    "Signature:\n"                                                                                 //
+    "  >>> def sum(self, /, axis=None, *, keepdims=False, out=None): ...";
 
 static PyObject *Tensor_sum(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
@@ -2413,18 +2413,18 @@ static PyObject *Tensor_sum(PyObject *self, PyObject *const *args, Py_ssize_t na
     return reduce_axis_dispatch(&view, &parsed, nk_reduce_moments_sum_dtype(view.dtype), sum_slice);
 }
 
-char const doc_method_norm[] =                                                                       //
-    "Return the L2 norm, or per-slice norms along one or more axes.\n\n"                             //
-    "Args:\n"                                                                                        //
-    "    axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
-    "        which reduces all elements.\n"                                                          //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                    //
-    "Returns:\n"                                                                                     //
-    "    Scalar L2 norm when axis is None.\n"                                                        //
-    "    Tensor of per-slice norms when axis is given.\n\n"                                          //
-    "Signature:\n"                                                                                   //
-    "    >>> def norm(self, /, axis=None, *, keepdims=False, out=None): ...";
+char const doc_method_norm[] =                                                                     //
+    "Return the L2 norm, or per-slice norms along one or more axes.\n\n"                           //
+    "Args:\n"                                                                                      //
+    "  axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
+    "    which reduces all elements.\n"                                                            //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                    //
+    "Returns:\n"                                                                                   //
+    "  Scalar L2 norm when axis is None.\n"                                                        //
+    "  Tensor of per-slice norms when axis is given.\n\n"                                          //
+    "Signature:\n"                                                                                 //
+    "  >>> def norm(self, /, axis=None, *, keepdims=False, out=None): ...";
 
 static PyObject *Tensor_norm(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
@@ -2443,18 +2443,18 @@ static PyObject *Tensor_norm(PyObject *self, PyObject *const *args, Py_ssize_t n
     return reduce_axis_dispatch(&view, &parsed, nk_f64_k, norm_slice);
 }
 
-char const doc_method_min[] =                                                                        //
-    "Return the minimum element, or per-slice minimums along one or more axes.\n\n"                  //
-    "Args:\n"                                                                                        //
-    "    axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
-    "        which reduces all elements.\n"                                                          //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                    //
-    "Returns:\n"                                                                                     //
-    "    Scalar minimum when axis is None; None if all elements are NaN.\n"                          //
-    "    Tensor of per-slice minimums when axis is given.\n\n"                                       //
-    "Signature:\n"                                                                                   //
-    "    >>> def min(self, /, axis=None, *, keepdims=False, out=None): ...";
+char const doc_method_min[] =                                                                      //
+    "Return the minimum element, or per-slice minimums along one or more axes.\n\n"                //
+    "Args:\n"                                                                                      //
+    "  axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
+    "    which reduces all elements.\n"                                                            //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                    //
+    "Returns:\n"                                                                                   //
+    "  Scalar minimum when axis is None; None if all elements are NaN.\n"                          //
+    "  Tensor of per-slice minimums when axis is given.\n\n"                                       //
+    "Signature:\n"                                                                                 //
+    "  >>> def min(self, /, axis=None, *, keepdims=False, out=None): ...";
 
 static PyObject *Tensor_min(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
@@ -2474,18 +2474,18 @@ static PyObject *Tensor_min(PyObject *self, PyObject *const *args, Py_ssize_t na
     return reduce_axis_dispatch(&view, &parsed, nk_reduce_minmax_value_dtype(view.dtype), min_slice);
 }
 
-char const doc_method_max[] =                                                                        //
-    "Return the maximum element, or per-slice maximums along one or more axes.\n\n"                  //
-    "Args:\n"                                                                                        //
-    "    axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
-    "        which reduces all elements.\n"                                                          //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                    //
-    "Returns:\n"                                                                                     //
-    "    Scalar maximum when axis is None; None if all elements are NaN.\n"                          //
-    "    Tensor of per-slice maximums when axis is given.\n\n"                                       //
-    "Signature:\n"                                                                                   //
-    "    >>> def max(self, /, axis=None, *, keepdims=False, out=None): ...";
+char const doc_method_max[] =                                                                      //
+    "Return the maximum element, or per-slice maximums along one or more axes.\n\n"                //
+    "Args:\n"                                                                                      //
+    "  axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
+    "    which reduces all elements.\n"                                                            //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                    //
+    "Returns:\n"                                                                                   //
+    "  Scalar maximum when axis is None; None if all elements are NaN.\n"                          //
+    "  Tensor of per-slice maximums when axis is given.\n\n"                                       //
+    "Signature:\n"                                                                                 //
+    "  >>> def max(self, /, axis=None, *, keepdims=False, out=None): ...";
 
 static PyObject *Tensor_max(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
@@ -2505,17 +2505,17 @@ static PyObject *Tensor_max(PyObject *self, PyObject *const *args, Py_ssize_t na
     return reduce_axis_dispatch(&view, &parsed, nk_reduce_minmax_value_dtype(view.dtype), max_slice);
 }
 
-char const doc_method_argmin[] =                                                                        //
-    "Return the index of the minimum element, or per-slice indices along an axis.\n\n"                  //
-    "Args:\n"                                                                                           //
-    "    axis (int, optional): Axis to reduce along, defaulting to None, which reduces all elements.\n" //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"      //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                       //
-    "Returns:\n"                                                                                        //
-    "    Integer index when axis is None.\n"                                                            //
-    "    Tensor of per-slice indices when axis is given.\n\n"                                           //
-    "Signature:\n"                                                                                      //
-    "    >>> def argmin(self, /, axis=None, *, keepdims=False, out=None): ...";
+char const doc_method_argmin[] =                                                                      //
+    "Return the index of the minimum element, or per-slice indices along an axis.\n\n"                //
+    "Args:\n"                                                                                         //
+    "  axis (int, optional): Axis to reduce along, defaulting to None, which reduces all elements.\n" //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"      //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                       //
+    "Returns:\n"                                                                                      //
+    "  Integer index when axis is None.\n"                                                            //
+    "  Tensor of per-slice indices when axis is given.\n\n"                                           //
+    "Signature:\n"                                                                                    //
+    "  >>> def argmin(self, /, axis=None, *, keepdims=False, out=None): ...";
 
 static PyObject *Tensor_argmin(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
@@ -2536,17 +2536,17 @@ static PyObject *Tensor_argmin(PyObject *self, PyObject *const *args, Py_ssize_t
     return reduce_axis_dispatch(&view, &parsed, nk_i64_k, argmin_slice);
 }
 
-char const doc_method_argmax[] =                                                                        //
-    "Return the index of the maximum element, or per-slice indices along an axis.\n\n"                  //
-    "Args:\n"                                                                                           //
-    "    axis (int, optional): Axis to reduce along, defaulting to None, which reduces all elements.\n" //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"      //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                       //
-    "Returns:\n"                                                                                        //
-    "    Integer index when axis is None.\n"                                                            //
-    "    Tensor of per-slice indices when axis is given.\n\n"                                           //
-    "Signature:\n"                                                                                      //
-    "    >>> def argmax(self, /, axis=None, *, keepdims=False, out=None): ...";
+char const doc_method_argmax[] =                                                                      //
+    "Return the index of the maximum element, or per-slice indices along an axis.\n\n"                //
+    "Args:\n"                                                                                         //
+    "  axis (int, optional): Axis to reduce along, defaulting to None, which reduces all elements.\n" //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"      //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n\n"                       //
+    "Returns:\n"                                                                                      //
+    "  Integer index when axis is None.\n"                                                            //
+    "  Tensor of per-slice indices when axis is given.\n\n"                                           //
+    "Signature:\n"                                                                                    //
+    "  >>> def argmax(self, /, axis=None, *, keepdims=False, out=None): ...";
 
 static PyObject *Tensor_argmax(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
@@ -2718,19 +2718,19 @@ static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dt
     return (PyObject *)result;
 }
 
-char const doc_method_astype[] =                                                             //
-    "Cast the tensor to a different dtype.\n\n"                                              //
-    "Args:\n"                                                                                //
-    "    dtype (str): Target data type. Standard dtypes, such as 'float32' or 'bf16',\n"     //
-    "        return a Tensor; block-scaled dtypes ('nvfp4', 'mxfp4', 'mxfp8e4m3',\n"         //
-    "        ...) quantize along the last axis and return a ScaledTensor.\n"                 //
-    "    out (Tensor, optional): Pre-allocated destination. When given, conversion writes\n" //
-    "        into it with no allocation; must match the target dtype and source shape.\n"    //
-    "        Unsupported for block-scaled targets; returns `out`.\n\n"                       //
-    "Returns:\n"                                                                             //
-    "    Tensor or ScaledTensor: Converted result, or `out` when provided.\n\n"              //
-    "Signature:\n"                                                                           //
-    "    >>> def astype(self, dtype, /, *, out=None): ...";
+char const doc_method_astype[] =                                                           //
+    "Cast the tensor to a different dtype.\n\n"                                            //
+    "Args:\n"                                                                              //
+    "  dtype (str): Target data type. Standard dtypes, such as 'float32' or 'bf16',\n"     //
+    "    return a Tensor; block-scaled dtypes ('nvfp4', 'mxfp4', 'mxfp8e4m3',\n"           //
+    "    ...) quantize along the last axis and return a ScaledTensor.\n"                   //
+    "  out (Tensor, optional): Pre-allocated destination. When given, conversion writes\n" //
+    "    into it with no allocation; must match the target dtype and source shape.\n"      //
+    "    Unsupported for block-scaled targets; returns `out`.\n\n"                         //
+    "Returns:\n"                                                                           //
+    "  Tensor or ScaledTensor: Converted result, or `out` when provided.\n\n"              //
+    "Signature:\n"                                                                         //
+    "  >>> def astype(self, dtype, /, *, out=None): ...";
 
 PyObject *Tensor_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
@@ -2793,22 +2793,22 @@ PyObject *Tensor_astype(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
     return (PyObject *)result;
 }
 
-char const doc_astype[] =                                                                  //
-    "Cast a buffer-protocol input to a NumKong dtype.\n\n"                                 //
-    "Args:\n"                                                                              //
-    "    a: Input buffer with arbitrary rank and strides.\n"                               //
-    "    dtype: Target NumKong dtype name.\n"                                              //
-    "    out: Optional writable C-contiguous output buffer with the exact input shape\n"   //
-    "        and requested dtype. It must not overlap `a`.\n\n"                            //
-    "Returns:\n"                                                                           //
-    "    Tensor: A new tensor with the input shape and requested dtype, or `out` itself\n" //
-    "        when provided.\n\n"                                                           //
-    "Notes:\n"                                                                             //
-    "    Unlike `Tensor(a).astype(dtype)`, the input is never staged through a Tensor.\n"  //
-    "    Narrower floating formats round ties to even. Float-to-integer casts round\n"     //
-    "    ties to even, saturate overflow and infinity, and map NaN to zero.\n\n"           //
-    "Signature:\n"                                                                         //
-    "    >>> def astype(a, dtype, /, *, out=None) -> Tensor: ...";
+char const doc_astype[] =                                                                //
+    "Cast a buffer-protocol input to a NumKong dtype.\n\n"                               //
+    "Args:\n"                                                                            //
+    "  a: Input buffer with arbitrary rank and strides.\n"                               //
+    "  dtype: Target NumKong dtype name.\n"                                              //
+    "  out: Optional writable C-contiguous output buffer with the exact input shape\n"   //
+    "    and requested dtype. It must not overlap `a`.\n\n"                              //
+    "Returns:\n"                                                                         //
+    "  Tensor: A new tensor with the input shape and requested dtype, or `out` itself\n" //
+    "    when provided.\n\n"                                                             //
+    "Notes:\n"                                                                           //
+    "  Unlike `Tensor(a).astype(dtype)`, the input is never staged through a Tensor.\n"  //
+    "  Narrower floating formats round ties to even. Float-to-integer casts round\n"     //
+    "  ties to even, saturate overflow and infinity, and map NaN to zero.\n\n"           //
+    "Signature:\n"                                                                       //
+    "  >>> def astype(a, dtype, /, *, out=None) -> Tensor: ...";
 
 PyObject *api_astype(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -2885,16 +2885,16 @@ cleanup:
     return return_obj;
 }
 
-char const doc_method___array__[] =                                                         //
-    "Convert to a NumPy array.\n\n"                                                         //
-    "Args:\n"                                                                               //
-    "    dtype (str, optional): Desired NumPy dtype, defaulting to None, which preserves\n" //
-    "        the original.\n"                                                               //
-    "    copy (bool, optional): If True, force a copy. Default None.\n\n"                   //
-    "Returns:\n"                                                                            //
-    "    numpy.ndarray: Array sharing data when possible.\n\n"                              //
-    "Signature:\n"                                                                          //
-    "    >>> def __array__(self, /, dtype=None, *, copy=None): ...";
+char const doc_method___array__[] =                                                       //
+    "Convert to a NumPy array.\n\n"                                                       //
+    "Args:\n"                                                                             //
+    "  dtype (str, optional): Desired NumPy dtype, defaulting to None, which preserves\n" //
+    "    the original.\n"                                                                 //
+    "  copy (bool, optional): If True, force a copy. Default None.\n\n"                   //
+    "Returns:\n"                                                                          //
+    "  numpy.ndarray: Array sharing data when possible.\n\n"                              //
+    "Signature:\n"                                                                        //
+    "  >>> def __array__(self, /, dtype=None, *, copy=None): ...";
 
 static PyObject *Tensor___array__(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     PyObject *dtype_arg = NULL;
@@ -3558,11 +3558,11 @@ char const doc_method_scaled_resize[] =                                         
     "Atomic: fails, unchanged, if either child would exceed capacity, if the last axis is not a\n"      //
     "multiple of block_size, or while any child buffer is exported. Takes the dense logical shape.\n\n" //
     "Args:\n"                                                                                           //
-    "    *shape: New logical dimensions, ints or a single shape tuple.\n\n"                             //
+    "  *shape: New logical dimensions, ints or a single shape tuple.\n\n"                               //
     "Returns:\n"                                                                                        //
-    "    ScaledTensor: self.\n\n"                                                                       //
+    "  ScaledTensor: self.\n\n"                                                                         //
     "Signature:\n"                                                                                      //
-    "    >>> def resize(self, *shape: int) -> 'ScaledTensor': ...\n";
+    "  >>> def resize(self, *shape: int) -> 'ScaledTensor': ...\n";
 
 static PyObject *ScaledTensor_resize(PyObject *self, PyObject *const *args, Py_ssize_t nargs) {
     ScaledTensor *scaled = (ScaledTensor *)self;
@@ -3612,14 +3612,14 @@ static PyGetSetDef ScaledTensor_getset[] = {
     {NULL, NULL, NULL, NULL, NULL},
 };
 
-char const doc_method_scaled_astype[] =                                                    //
-    "Materialize the block-scaled tensor to a dense dtype.\n\n"                            //
-    "Args:\n"                                                                              //
-    "    dtype (str): Target dense dtype, for example 'float32', 'float16' or 'bf16'.\n\n" //
-    "Returns:\n"                                                                           //
-    "    Tensor: Dequantized dense tensor of the requested dtype.\n\n"                     //
-    "Signature:\n"                                                                         //
-    "    >>> def astype(self, dtype, /): ...";
+char const doc_method_scaled_astype[] =                                                  //
+    "Materialize the block-scaled tensor to a dense dtype.\n\n"                          //
+    "Args:\n"                                                                            //
+    "  dtype (str): Target dense dtype, for example 'float32', 'float16' or 'bf16'.\n\n" //
+    "Returns:\n"                                                                         //
+    "  Tensor: Dequantized dense tensor of the requested dtype.\n\n"                     //
+    "Signature:\n"                                                                       //
+    "  >>> def astype(self, dtype, /): ...";
 
 /** Transcode a @c ScaledTensor into another block-scaled format, e.g. NVFP4 → MXFP8. */
 static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_dtype) {
@@ -4050,18 +4050,18 @@ static int parse_shape(PyObject *shape_obj, Py_ssize_t *shape, size_t *rank) {
     return 1;
 }
 
-char const doc_from_pointer[] =                                                          //
-    "Create a zero-copy Tensor view from a raw memory address.\n\n"                      //
-    "Args:\n"                                                                            //
-    "    address: Integer memory address of the data buffer.\n"                          //
-    "    shape: Shape of the array, an int or a tuple of ints.\n"                        //
-    "    dtype: Data type string, for example 'float32' or 'bf16'.\n"                    //
-    "    strides: Optional byte strides, defaulting to C-contiguous.\n"                  //
-    "    owner: Optional Python object to prevent garbage collection of the source.\n\n" //
-    "Returns:\n"                                                                         //
-    "    Tensor: Non-owning view into the given memory.\n\n"                             //
-    "Signature:\n"                                                                       //
-    "    >>> def from_pointer(address, shape, dtype, /, *, strides=None, owner=None): ...";
+char const doc_from_pointer[] =                                                        //
+    "Create a zero-copy Tensor view from a raw memory address.\n\n"                    //
+    "Args:\n"                                                                          //
+    "  address: Integer memory address of the data buffer.\n"                          //
+    "  shape: Shape of the array, an int or a tuple of ints.\n"                        //
+    "  dtype: Data type string, for example 'float32' or 'bf16'.\n"                    //
+    "  strides: Optional byte strides, defaulting to C-contiguous.\n"                  //
+    "  owner: Optional Python object to prevent garbage collection of the source.\n\n" //
+    "Returns:\n"                                                                       //
+    "  Tensor: Non-owning view into the given memory.\n\n"                             //
+    "Signature:\n"                                                                     //
+    "  >>> def from_pointer(address, shape, dtype, /, *, strides=None, owner=None): ...";
 
 PyObject *api_from_pointer(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -4141,12 +4141,12 @@ PyObject *api_from_pointer(PyObject *self, PyObject *const *args, Py_ssize_t con
 char const doc_empty[] =                                       //
     "Create an uninitialized Tensor with the given shape.\n\n" //
     "Args:\n"                                                  //
-    "    shape: Shape of the array.\n"                         //
-    "    dtype: Data type, defaulting to 'float32'.\n\n"       //
+    "  shape: Shape of the array.\n"                           //
+    "  dtype: Data type, defaulting to 'float32'.\n\n"         //
     "Returns:\n"                                               //
-    "    Tensor: Uninitialized array.\n\n"                     //
+    "  Tensor: Uninitialized array.\n\n"                       //
     "Signature:\n"                                             //
-    "    >>> def empty(shape, /, *, dtype='float32'): ...";
+    "  >>> def empty(shape, /, *, dtype='float32'): ...";
 
 PyObject *api_empty(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -4181,15 +4181,15 @@ PyObject *api_empty(PyObject *self, PyObject *const *args, Py_ssize_t const narg
     return (PyObject *)Tensor_new(dtype, rank, shape);
 }
 
-char const doc_zeros[] =                                 //
-    "Create a Tensor filled with zeros.\n\n"             //
-    "Args:\n"                                            //
-    "    shape: Shape of the array.\n"                   //
-    "    dtype: Data type, defaulting to 'float32'.\n\n" //
-    "Returns:\n"                                         //
-    "    Tensor: Array of zeros.\n\n"                    //
-    "Signature:\n"                                       //
-    "    >>> def zeros(shape, /, *, dtype='float32'): ...";
+char const doc_zeros[] =                               //
+    "Create a Tensor filled with zeros.\n\n"           //
+    "Args:\n"                                          //
+    "  shape: Shape of the array.\n"                   //
+    "  dtype: Data type, defaulting to 'float32'.\n\n" //
+    "Returns:\n"                                       //
+    "  Tensor: Array of zeros.\n\n"                    //
+    "Signature:\n"                                     //
+    "  >>> def zeros(shape, /, *, dtype='float32'): ...";
 
 PyObject *api_zeros(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -4230,15 +4230,15 @@ PyObject *api_zeros(PyObject *self, PyObject *const *args, Py_ssize_t const narg
     return (PyObject *)result;
 }
 
-char const doc_ones[] =                                  //
-    "Create a Tensor filled with ones.\n\n"              //
-    "Args:\n"                                            //
-    "    shape: Shape of the array.\n"                   //
-    "    dtype: Data type, defaulting to 'float32'.\n\n" //
-    "Returns:\n"                                         //
-    "    Tensor: Array of ones.\n\n"                     //
-    "Signature:\n"                                       //
-    "    >>> def ones(shape, /, *, dtype='float32'): ...";
+char const doc_ones[] =                                //
+    "Create a Tensor filled with ones.\n\n"            //
+    "Args:\n"                                          //
+    "  shape: Shape of the array.\n"                   //
+    "  dtype: Data type, defaulting to 'float32'.\n\n" //
+    "Returns:\n"                                       //
+    "  Tensor: Array of ones.\n\n"                     //
+    "Signature:\n"                                     //
+    "  >>> def ones(shape, /, *, dtype='float32'): ...";
 
 PyObject *api_ones(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -4277,16 +4277,16 @@ PyObject *api_ones(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
     return (PyObject *)result;
 }
 
-char const doc_full[] =                                  //
-    "Create a Tensor filled with a given value.\n\n"     //
-    "Args:\n"                                            //
-    "    shape: Shape of the array.\n"                   //
-    "    fill_value: Value to fill the array with.\n"    //
-    "    dtype: Data type, defaulting to 'float32'.\n\n" //
-    "Returns:\n"                                         //
-    "    Tensor: Array filled with fill_value.\n\n"      //
-    "Signature:\n"                                       //
-    "    >>> def full(shape, fill_value, /, *, dtype='float32'): ...";
+char const doc_full[] =                                //
+    "Create a Tensor filled with a given value.\n\n"   //
+    "Args:\n"                                          //
+    "  shape: Shape of the array.\n"                   //
+    "  fill_value: Value to fill the array with.\n"    //
+    "  dtype: Data type, defaulting to 'float32'.\n\n" //
+    "Returns:\n"                                       //
+    "  Tensor: Array filled with fill_value.\n\n"      //
+    "Signature:\n"                                     //
+    "  >>> def full(shape, fill_value, /, *, dtype='float32'): ...";
 
 PyObject *api_full(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -4332,16 +4332,16 @@ PyObject *api_full(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
     return (PyObject *)result;
 }
 
-char const doc_iota[] =                                             //
-    "Create a Tensor with incrementing values.\n\n"                 //
-    "Args:\n"                                                       //
-    "    shape: Shape of the array.\n"                              //
-    "    seed: Starting value, defaulting to 0.\n"                  //
-    "    dtype: Data type, defaulting to 'float32'.\n\n"            //
-    "Returns:\n"                                                    //
-    "    Tensor: Array with elements seed, seed+1, seed+2, ...\n\n" //
-    "Signature:\n"                                                  //
-    "    >>> def iota(shape, seed=0, /, *, dtype='float32'): ...";
+char const doc_iota[] =                                           //
+    "Create a Tensor with incrementing values.\n\n"               //
+    "Args:\n"                                                     //
+    "  shape: Shape of the array.\n"                              //
+    "  seed: Starting value, defaulting to 0.\n"                  //
+    "  dtype: Data type, defaulting to 'float32'.\n\n"            //
+    "Returns:\n"                                                  //
+    "  Tensor: Array with elements seed, seed+1, seed+2, ...\n\n" //
+    "Signature:\n"                                                //
+    "  >>> def iota(shape, seed=0, /, *, dtype='float32'): ...";
 
 PyObject *api_iota(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -4384,16 +4384,16 @@ PyObject *api_iota(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
     return (PyObject *)result;
 }
 
-char const doc_diagonal[] =                                            //
-    "Create an [n,n] Tensor with seed on the diagonal.\n\n"            //
-    "Args:\n"                                                          //
-    "    n: Size of the square matrix.\n"                              //
-    "    seed: Diagonal value, defaulting to 1.\n"                     //
-    "    dtype: Data type, defaulting to 'float32'.\n\n"               //
-    "Returns:\n"                                                       //
-    "    Tensor: [n,n] matrix with seed on diagonal, 0 elsewhere.\n\n" //
-    "Signature:\n"                                                     //
-    "    >>> def diagonal(n, seed=1, /, *, dtype='float32'): ...";
+char const doc_diagonal[] =                                          //
+    "Create an [n,n] Tensor with seed on the diagonal.\n\n"          //
+    "Args:\n"                                                        //
+    "  n: Size of the square matrix.\n"                              //
+    "  seed: Diagonal value, defaulting to 1.\n"                     //
+    "  dtype: Data type, defaulting to 'float32'.\n\n"               //
+    "Returns:\n"                                                     //
+    "  Tensor: [n,n] matrix with seed on diagonal, 0 elsewhere.\n\n" //
+    "Signature:\n"                                                   //
+    "  >>> def diagonal(n, seed=1, /, *, dtype='float32'): ...";
 
 PyObject *api_diagonal(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -4472,16 +4472,16 @@ static inline uint64_t splitmix64(uint64_t x) {
     return x;
 }
 
-char const doc_hash[] =                                                      //
-    "Create a Tensor filled with deterministic pseudo-random bits.\n\n"      //
-    "Args:\n"                                                                //
-    "    shape: Shape of the array.\n"                                       //
-    "    seed: Hash seed, defaulting to 0.\n"                                //
-    "    dtype: Data type, defaulting to 'float32'.\n\n"                     //
-    "Returns:\n"                                                             //
-    "    Tensor: Array with hashed bit patterns reinterpreted as dtype.\n\n" //
-    "Signature:\n"                                                           //
-    "    >>> def hash(shape, seed=0, /, *, dtype='float32'): ...";
+char const doc_hash[] =                                                    //
+    "Create a Tensor filled with deterministic pseudo-random bits.\n\n"    //
+    "Args:\n"                                                              //
+    "  shape: Shape of the array.\n"                                       //
+    "  seed: Hash seed, defaulting to 0.\n"                                //
+    "  dtype: Data type, defaulting to 'float32'.\n\n"                     //
+    "Returns:\n"                                                           //
+    "  Tensor: Array with hashed bit patterns reinterpreted as dtype.\n\n" //
+    "Signature:\n"                                                         //
+    "  >>> def hash(shape, seed=0, /, *, dtype='float32'): ...";
 
 PyObject *api_hash(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -4538,12 +4538,12 @@ PyObject *api_hash(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
 char const doc_reduce_moments[] =                                                       //
     "Compute the sum and sum-of-squares, the moments, of all elements in an array.\n\n" //
     "Args:\n"                                                                           //
-    "    a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"       //
-    "    dtype (str, optional): Override the presumed input element type.\n\n"          //
+    "  a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"         //
+    "  dtype (str, optional): Override the presumed input element type.\n\n"            //
     "Returns:\n"                                                                        //
-    "    tuple: (sum, sum_of_squares) for all elements.\n\n"                            //
+    "  tuple: (sum, sum_of_squares) for all elements.\n\n"                              //
     "Signature:\n"                                                                      //
-    "    >>> def moments(a, /, *, dtype=None): ...";
+    "  >>> def moments(a, /, *, dtype=None): ...";
 
 PyObject *api_moments(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -4583,15 +4583,15 @@ PyObject *api_moments(PyObject *self, PyObject *const *args, Py_ssize_t const na
     return result;
 }
 
-char const doc_reduce_minmax[] =                                                                //
-    "Find minimum and maximum elements with their indices in an array.\n\n"                     //
-    "Args:\n"                                                                                   //
-    "    a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"               //
-    "    dtype (str, optional): Override the presumed input element type.\n\n"                  //
-    "Returns:\n"                                                                                //
-    "    tuple: (min_val, min_index, max_val, max_index), or None if all elements are NaN.\n\n" //
-    "Signature:\n"                                                                              //
-    "    >>> def minmax(a, /, *, dtype=None): ...";
+char const doc_reduce_minmax[] =                                                              //
+    "Find minimum and maximum elements with their indices in an array.\n\n"                   //
+    "Args:\n"                                                                                 //
+    "  a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"               //
+    "  dtype (str, optional): Override the presumed input element type.\n\n"                  //
+    "Returns:\n"                                                                              //
+    "  tuple: (min_val, min_index, max_val, max_index), or None if all elements are NaN.\n\n" //
+    "Signature:\n"                                                                            //
+    "  >>> def minmax(a, /, *, dtype=None): ...";
 
 PyObject *api_minmax(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -4631,88 +4631,88 @@ PyObject *api_minmax(PyObject *self, PyObject *const *args, Py_ssize_t const nar
     return result;
 }
 
-char const doc_reduce_sum[] =                                                                        //
-    "Return the sum of all elements, or per-slice sums along one or more axes.\n\n"                  //
-    "Args:\n"                                                                                        //
-    "    a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                    //
-    "    axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
-    "        which reduces all elements.\n"                                                          //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n"                      //
-    "    dtype (str, optional): Override the presumed input element type.\n\n"                       //
-    "Returns:\n"                                                                                     //
-    "    Scalar sum when axis is None.\n"                                                            //
-    "    Tensor of per-slice sums when axis is given.\n\n"                                           //
-    "Signature:\n"                                                                                   //
-    "    >>> def sum(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
-char const doc_reduce_norm[] =                                                                       //
-    "Return the L2 norm, or per-slice norms along one or more axes.\n\n"                             //
-    "Args:\n"                                                                                        //
-    "    a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                    //
-    "    axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
-    "        which reduces all elements.\n"                                                          //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n"                      //
-    "    dtype (str, optional): Override the presumed input element type.\n\n"                       //
-    "Returns:\n"                                                                                     //
-    "    Scalar L2 norm when axis is None.\n"                                                        //
-    "    Tensor of per-slice norms when axis is given.\n\n"                                          //
-    "Signature:\n"                                                                                   //
-    "    >>> def norm(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
-char const doc_reduce_min[] =                                                                        //
-    "Return the minimum element, or per-slice minimums along one or more axes.\n\n"                  //
-    "Args:\n"                                                                                        //
-    "    a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                    //
-    "    axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
-    "        which reduces all elements.\n"                                                          //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n"                      //
-    "    dtype (str, optional): Override the presumed input element type.\n\n"                       //
-    "Returns:\n"                                                                                     //
-    "    Scalar minimum when axis is None; None if all elements are NaN.\n"                          //
-    "    Tensor of per-slice minimums when axis is given.\n\n"                                       //
-    "Signature:\n"                                                                                   //
-    "    >>> def min(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
-char const doc_reduce_max[] =                                                                        //
-    "Return the maximum element, or per-slice maximums along one or more axes.\n\n"                  //
-    "Args:\n"                                                                                        //
-    "    a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                    //
-    "    axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
-    "        which reduces all elements.\n"                                                          //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n"                      //
-    "    dtype (str, optional): Override the presumed input element type.\n\n"                       //
-    "Returns:\n"                                                                                     //
-    "    Scalar maximum when axis is None; None if all elements are NaN.\n"                          //
-    "    Tensor of per-slice maximums when axis is given.\n\n"                                       //
-    "Signature:\n"                                                                                   //
-    "    >>> def max(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
-char const doc_reduce_argmin[] =                                                                        //
-    "Return the index of the minimum element, or per-slice indices along an axis.\n\n"                  //
-    "Args:\n"                                                                                           //
-    "    a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                       //
-    "    axis (int, optional): Axis to reduce along, defaulting to None, which reduces all elements.\n" //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"      //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n"                         //
-    "    dtype (str, optional): Override the presumed input element type.\n\n"                          //
-    "Returns:\n"                                                                                        //
-    "    Integer index when axis is None.\n"                                                            //
-    "    Tensor of per-slice indices when axis is given.\n\n"                                           //
-    "Signature:\n"                                                                                      //
-    "    >>> def argmin(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
-char const doc_reduce_argmax[] =                                                                        //
-    "Return the index of the maximum element, or per-slice indices along an axis.\n\n"                  //
-    "Args:\n"                                                                                           //
-    "    a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                       //
-    "    axis (int, optional): Axis to reduce along, defaulting to None, which reduces all elements.\n" //
-    "    keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"      //
-    "    out (Tensor, optional): Pre-allocated output tensor for the result.\n"                         //
-    "    dtype (str, optional): Override the presumed input element type.\n\n"                          //
-    "Returns:\n"                                                                                        //
-    "    Integer index when axis is None.\n"                                                            //
-    "    Tensor of per-slice indices when axis is given.\n\n"                                           //
-    "Signature:\n"                                                                                      //
-    "    >>> def argmax(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
+char const doc_reduce_sum[] =                                                                      //
+    "Return the sum of all elements, or per-slice sums along one or more axes.\n\n"                //
+    "Args:\n"                                                                                      //
+    "  a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                    //
+    "  axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
+    "    which reduces all elements.\n"                                                            //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n"                      //
+    "  dtype (str, optional): Override the presumed input element type.\n\n"                       //
+    "Returns:\n"                                                                                   //
+    "  Scalar sum when axis is None.\n"                                                            //
+    "  Tensor of per-slice sums when axis is given.\n\n"                                           //
+    "Signature:\n"                                                                                 //
+    "  >>> def sum(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
+char const doc_reduce_norm[] =                                                                     //
+    "Return the L2 norm, or per-slice norms along one or more axes.\n\n"                           //
+    "Args:\n"                                                                                      //
+    "  a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                    //
+    "  axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
+    "    which reduces all elements.\n"                                                            //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n"                      //
+    "  dtype (str, optional): Override the presumed input element type.\n\n"                       //
+    "Returns:\n"                                                                                   //
+    "  Scalar L2 norm when axis is None.\n"                                                        //
+    "  Tensor of per-slice norms when axis is given.\n\n"                                          //
+    "Signature:\n"                                                                                 //
+    "  >>> def norm(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
+char const doc_reduce_min[] =                                                                      //
+    "Return the minimum element, or per-slice minimums along one or more axes.\n\n"                //
+    "Args:\n"                                                                                      //
+    "  a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                    //
+    "  axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
+    "    which reduces all elements.\n"                                                            //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n"                      //
+    "  dtype (str, optional): Override the presumed input element type.\n\n"                       //
+    "Returns:\n"                                                                                   //
+    "  Scalar minimum when axis is None; None if all elements are NaN.\n"                          //
+    "  Tensor of per-slice minimums when axis is given.\n\n"                                       //
+    "Signature:\n"                                                                                 //
+    "  >>> def min(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
+char const doc_reduce_max[] =                                                                      //
+    "Return the maximum element, or per-slice maximums along one or more axes.\n\n"                //
+    "Args:\n"                                                                                      //
+    "  a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                    //
+    "  axis (int or tuple of ints, optional): Axis or axes to reduce along, defaulting to None,\n" //
+    "    which reduces all elements.\n"                                                            //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"   //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n"                      //
+    "  dtype (str, optional): Override the presumed input element type.\n\n"                       //
+    "Returns:\n"                                                                                   //
+    "  Scalar maximum when axis is None; None if all elements are NaN.\n"                          //
+    "  Tensor of per-slice maximums when axis is given.\n\n"                                       //
+    "Signature:\n"                                                                                 //
+    "  >>> def max(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
+char const doc_reduce_argmin[] =                                                                      //
+    "Return the index of the minimum element, or per-slice indices along an axis.\n\n"                //
+    "Args:\n"                                                                                         //
+    "  a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                       //
+    "  axis (int, optional): Axis to reduce along, defaulting to None, which reduces all elements.\n" //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"      //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n"                         //
+    "  dtype (str, optional): Override the presumed input element type.\n\n"                          //
+    "Returns:\n"                                                                                      //
+    "  Integer index when axis is None.\n"                                                            //
+    "  Tensor of per-slice indices when axis is given.\n\n"                                           //
+    "Signature:\n"                                                                                    //
+    "  >>> def argmin(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
+char const doc_reduce_argmax[] =                                                                      //
+    "Return the index of the maximum element, or per-slice indices along an axis.\n\n"                //
+    "Args:\n"                                                                                         //
+    "  a: Input array, a Tensor, NumPy array, or any buffer-protocol object.\n"                       //
+    "  axis (int, optional): Axis to reduce along, defaulting to None, which reduces all elements.\n" //
+    "  keepdims (bool, optional): Keep the reduced axis as a size-1 dimension. Default False.\n"      //
+    "  out (Tensor, optional): Pre-allocated output tensor for the result.\n"                         //
+    "  dtype (str, optional): Override the presumed input element type.\n\n"                          //
+    "Returns:\n"                                                                                      //
+    "  Integer index when axis is None.\n"                                                            //
+    "  Tensor of per-slice indices when axis is given.\n\n"                                           //
+    "Signature:\n"                                                                                    //
+    "  >>> def argmax(a, /, axis=None, *, keepdims=False, out=None, dtype=None): ...";
 
 PyObject *api_sum(PyObject *self, PyObject *const *args, Py_ssize_t const nargs, PyObject *kwnames) {
     nk_unused_(self);

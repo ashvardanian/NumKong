@@ -1754,7 +1754,7 @@ NUMKONG_INLINE void nk_f64_to_f32_serial_(nk_f64_t const *src, nk_f32_t *dest) {
 /**
  *  @brief Reads a typed scalar from @p buf and writes the widened f64c into @p result.
  *
- *  Real types set `.imag = 0`. Safe when @p result aliases @p buf, for in-place conversion.
+ *  Real types set <tt>.imag = 0</tt>. Safe when @p result aliases @p buf, for in-place conversion.
  *
  *  @return 1 on success, 0 for unsupported types, such as sub-byte or unknown ones.
  */
@@ -1887,7 +1887,7 @@ NUMKONG_INLINE void nk_scalar_buffers_to_f64c_serial_(                 //
 /**
  *  @brief Narrows an f64c @p value into the appropriate typed member of @p buf.
  *
- *  Real types use only `.real`, complex types use both components. Safe when @p value aliases
+ *  Real types use only <tt>.real</tt>, complex types use both components. Safe when @p value aliases
  *  @p buf, for in-place conversion.
  *
  *  @note Integer targets, like i64 and i32, round through f64, losing precision beyond 2^53.
@@ -2027,7 +2027,7 @@ NUMKONG_INLINE void nk_scalar_buffers_from_f64c_serial_(    //
     }
 }
 
-/** Load 8 values from typed buffer into `buf[i].i64` (lossless widening for signed integers). */
+/** Load 8 values from typed buffer into <tt>buf[i].i64</tt> (lossless widening for signed integers). */
 NUMKONG_INLINE void nk_scalar_buffers_to_i64_serial_(                  //
     void const *from_ptr, nk_dtype_t from_dtype, nk_size_t from_count, //
     nk_scalar_buffer_t to_buffers[nk_at_least_(8)]) {                  //
@@ -2087,7 +2087,7 @@ NUMKONG_INLINE void nk_scalar_buffers_to_i64_serial_(                  //
 }
 
 /**
- *  @brief Export 8 `buf[i].i64` values to typed buffer with saturation on downcast.
+ *  @brief Export 8 <tt>buf[i].i64</tt> values to typed buffer with saturation on downcast.
  *  @note Only handles integer and sub-byte targets. Float/complex targets are silently skipped.
  */
 NUMKONG_INLINE void nk_scalar_buffers_from_i64_serial_(      //
@@ -2143,7 +2143,7 @@ NUMKONG_INLINE void nk_scalar_buffers_from_i64_serial_(      //
     }
 }
 
-/** Load 8 values from typed buffer into `buf[i].u64` (lossless widening for unsigned integers). */
+/** Load 8 values from typed buffer into <tt>buf[i].u64</tt> (lossless widening for unsigned integers). */
 NUMKONG_INLINE void nk_scalar_buffers_to_u64_serial_(                  //
     void const *from_ptr, nk_dtype_t from_dtype, nk_size_t from_count, //
     nk_scalar_buffer_t to_buffers[nk_at_least_(8)]) {                  //
@@ -2185,7 +2185,7 @@ NUMKONG_INLINE void nk_scalar_buffers_to_u64_serial_(                  //
 }
 
 /**
- *  @brief Export 8 `buf[i].u64` values to typed buffer with saturation on downcast.
+ *  @brief Export 8 <tt>buf[i].u64</tt> values to typed buffer with saturation on downcast.
  *  @note Only handles integer and sub-byte targets. Float/complex targets are silently skipped.
  */
 NUMKONG_INLINE void nk_scalar_buffers_from_u64_serial_(      //
@@ -2261,7 +2261,10 @@ NUMKONG_INLINE int nk_scalar_buffer_to_f64_serial_(nk_scalar_buffer_t const *buf
  *  @brief Narrows an f64 @p value into the appropriate typed member of @p buf.
  *
  *  Safe when @p value aliases @p buf, for in-place use like
- *  `buf->f64 = x; from_f64(&buf->f64, buf, dtype)`.
+ *
+ *  @code{.c}
+ *  buf->f64 = x; from_f64(&buf->f64, buf, dtype)
+ *  @endcode
  *
  *  @note Integer targets go through f64 rounding, so values beyond 2^53 may lose precision.
  */

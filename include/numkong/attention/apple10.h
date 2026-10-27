@@ -9,8 +9,8 @@
  *  @sa include/numkong/attention/apple10.metal, the kernels this embeds
  *
  *  The @c metal pack and launch contract over @c matmul2d tiles on the Neural Accelerators, I8
- *  among them, as integer products sum exactly there. The kernels travel as their own `.metal`
- *  source, embedded after `metal.metal`, whose online softmax and decode path they share, and
+ *  among them, as integer products sum exactly there. The kernels travel as their own <tt>.metal</tt>
+ *  source, embedded after <tt>metal.metal</tt>, whose online softmax and decode path they share, and
  *  compile on the device at first use under Metal 4.0, the first with tensor operations. BF16
  *  gradients run on the same tiles.
  */

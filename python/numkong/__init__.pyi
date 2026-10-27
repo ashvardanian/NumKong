@@ -1471,11 +1471,11 @@ def rmsnorm(
     `x.shape[-1] // groups`, normalized separately.
 
     Args:
-        x: Input of dtype float32, bfloat16, or e4m3, with a contiguous last axis.
-        gamma: Per-column float32 gain of length `columns`, defaulting to unit scale.
-        out: Output buffer, same shape and dtype as `x`, may alias `x`.
-        groups: Independent sub-vectors per row.
-        epsilon: Variance epsilon. For e4m3, pass it in code units and fold the output scale into `gamma`.
+      x: Input of dtype float32, bfloat16, or e4m3, with a contiguous last axis.
+      gamma: Per-column float32 gain of length `columns`, defaulting to unit scale.
+      out: Output buffer, same shape and dtype as `x`, may alias `x`.
+      groups: Independent sub-vectors per row.
+      epsilon: Variance epsilon. For e4m3, pass it in code units and fold the output scale into `gamma`.
     """
     ...
 
@@ -1496,13 +1496,13 @@ def rmscast(
     `x.shape[-1] // groups`, normalized separately.
 
     Args:
-        x: Dot products with a contiguous last axis: float32 for bfloat16, float16, e4m3, e5m2, e2m3
-            and e3m2 outputs, float64 for float32, int32 for int8 and uint32 for uint8.
-        gamma: Per-column float32 gain of length `columns`, defaulting to unit scale.
-        dtype: Output dtype, which names the dtype `x` must have.
-        out: Output buffer of the shape of `x` and of `dtype`.
-        groups: Independent sub-vectors per row.
-        epsilon: Variance epsilon, added to the mean square of the raw input.
+      x: Dot products with a contiguous last axis: float32 for bfloat16, float16, e4m3, e5m2, e2m3
+        and e3m2 outputs, float64 for float32, int32 for int8 and uint32 for uint8.
+      gamma: Per-column float32 gain of length `columns`, defaulting to unit scale.
+      dtype: Output dtype, which names the dtype `x` must have.
+      out: Output buffer of the shape of `x` and of `dtype`.
+      groups: Independent sub-vectors per row.
+      epsilon: Variance epsilon, added to the mean square of the raw input.
 
     Integer outputs round to nearest even and saturate, with `gamma` carrying the quantization
     scale; uint8 suits only non-negative activations.
@@ -1525,11 +1525,11 @@ def swiglu(
     With `up` omitted this reduces to plain SiLU.
 
     Args:
-        gate: Gate input of dtype float32, bfloat16, or e4m3, with a contiguous last axis.
-        up: Up input, same shape and dtype as `gate`, defaulting to plain SiLU.
-        out: Output buffer, same shape and dtype as `gate`, may alias `gate`.
-        gate_scale: Tensor scale of `gate`.
-        output_scale: Multiplier on the result.
+      gate: Gate input of dtype float32, bfloat16, or e4m3, with a contiguous last axis.
+      up: Up input, same shape and dtype as `gate`, defaulting to plain SiLU.
+      out: Output buffer, same shape and dtype as `gate`, may alias `gate`.
+      gate_scale: Tensor scale of `gate`.
+      output_scale: Multiplier on the result.
     """
     ...
 
@@ -1702,8 +1702,11 @@ def attention_pack(
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> AttentionPackedMatrix:
-    """Pack ragged K/V token matrices into a backend-opaque KV-cache blob, segment s keeping its
-    `key_lengths[s]` keys, by default the whole slot, from row `key_offsets[s]`."""
+    """Pack ragged K/V token matrices into a backend-opaque KV-cache blob.
+
+    Segment s keeps its `key_lengths[s]` keys, by default the whole slot, from row
+    `key_offsets[s]`.
+    """
     ...
 
 def attention_packed(
@@ -1719,8 +1722,11 @@ def attention_packed(
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
-    """Compute ragged attention, query row r of q queries over k keys seeing the keys from
-    `r + k - q - keys_before` through `r + k - q + keys_after`, each side unbounded at None."""
+    """Ragged scaled-dot-product attention against a pre-packed KV-cache, under a band of keys.
+
+    Query row r of q queries over k keys sees the keys from `r + k - q - keys_before` through
+    `r + k - q + keys_after`, each side unbounded at None.
+    """
     ...
 
 def attention_packed_gradients(
@@ -1756,12 +1762,12 @@ def attention_rope(
     """Rotate every channel pair of each head by the per-token angle grids, in place unless `out` is given.
 
     Args:
-        x: `[rows,head_count*depth]`, float32, bfloat16, or e4m3.
-        cos: `[rows,depth/2]` float32 angle grid, shared across heads.
-        sin: `[rows,depth/2]` float32 angle grid, shared across heads.
-        head_count: Number of heads per token.
-        depth: Even number of channels per head.
-        out: Output, same shape and dtype as `x`, may alias `x`, defaulting to `x`.
+      x: `[rows,head_count*depth]`, float32, bfloat16, or e4m3.
+      cos: `[rows,depth/2]` float32 angle grid, shared across heads.
+      sin: `[rows,depth/2]` float32 angle grid, shared across heads.
+      head_count: Number of heads per token.
+      depth: Even number of channels per head.
+      out: Output, same shape and dtype as `x`, may alias `x`, defaulting to `x`.
     """
     ...
 

@@ -68,6 +68,7 @@
 //!
 //! File: rust/tensor.rs
 //! Author: Ash Vardanian
+//! Date: December 30, 2025
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -97,8 +98,12 @@ pub const DEFAULT_MAX_RANK: usize = 8;
 /// `NUMKONG_DEFAULT_ALIGNMENT` for the same target.
 #[cfg(target_arch = "s390x")]
 pub const DEFAULT_ALIGNMENT: usize = 256;
+/// Byte boundary every owned allocation and pack starts on, the C library's
+/// `NUMKONG_DEFAULT_ALIGNMENT` for the same target.
 #[cfg(target_family = "wasm")]
 pub const DEFAULT_ALIGNMENT: usize = 64;
+/// Byte boundary every owned allocation and pack starts on, the C library's
+/// `NUMKONG_DEFAULT_ALIGNMENT` for the same target.
 #[cfg(not(any(target_arch = "s390x", target_family = "wasm")))]
 pub const DEFAULT_ALIGNMENT: usize = 128;
 
@@ -427,28 +432,59 @@ pub enum Error {
     /// Memory allocation failed.
     AllocationFailed,
     /// Shape mismatch: axis `axis` has size `expected` on one side and `got` on the other.
-    ShapeMismatch { axis: usize, expected: usize, got: usize },
+    ShapeMismatch {
+        /// Axis that differs.
+        axis: usize,
+        /// Size expected on that axis.
+        expected: usize,
+        /// Size found on that axis.
+        got: usize,
+    },
     /// Invalid shape specification.
     InvalidShape {
+        /// Offending axis.
         axis: usize,
+        /// Size given for that axis.
         size: usize,
+        /// Why the size is invalid.
         reason: &'static str,
     },
     /// Operation requires contiguous rows but array has non-contiguous rows.
     NonContiguousRows,
     /// Expected a specific number of dimensions.
-    DimensionMismatch { expected: usize, got: usize },
+    DimensionMismatch {
+        /// Number of dimensions expected.
+        expected: usize,
+        /// Number of dimensions found.
+        got: usize,
+    },
     /// Index out of bounds.
-    IndexOutOfBounds { index: usize, size: usize },
+    IndexOutOfBounds {
+        /// Index given.
+        index: usize,
+        /// Size of the indexed axis.
+        size: usize,
+    },
     /// Too many dimensions — exceeds MAX_RANK.
-    TooManyRanks { got: usize },
+    TooManyRanks {
+        /// Number of dimensions requested.
+        got: usize,
+    },
     /// A resize would exceed the fixed allocated capacity; grow the buffer via `reserve` first.
-    CapacityExceeded { requested: usize, capacity: usize },
+    CapacityExceeded {
+        /// Number of elements requested.
+        requested: usize,
+        /// Number of elements the buffer holds.
+        capacity: usize,
+    },
     /// Operation not supported for sub-byte types: i4x2, u4x2, u1x8.
     SubByteUnsupported,
     /// A kernel refused its operands with this [`Status`], like a matrix packed under other
     /// capabilities than the current [`crate::Capabilities::cpu_enabled`].
-    KernelFailed { status: Status },
+    KernelFailed {
+        /// Status the kernel returned.
+        status: Status,
+    },
 }
 
 #[cfg(feature = "std")]
@@ -508,9 +544,13 @@ pub(crate) fn check_len(expected: usize, got: usize) -> Result<(), Error> {
 /// both tensors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MinMaxResult<Value, AnyIndex = usize> {
+    /// Smallest value.
     pub min_value: Value,
+    /// Index of the smallest value.
     pub min_index: AnyIndex,
+    /// Largest value.
     pub max_value: Value,
+    /// Index of the largest value.
     pub max_index: AnyIndex,
 }
 
@@ -1188,9 +1228,21 @@ pub enum SliceRange {
     /// Single index; reduces the dimension
     Index(usize),
     /// Range from start to end exclusive, equivalent to `start..end`
-    Range { start: usize, end: usize },
+    Range {
+        /// First index, inclusive.
+        start: usize,
+        /// Last index, exclusive.
+        end: usize,
+    },
     /// Range from start to end with step, equivalent to `start..end;step`
-    RangeStep { start: usize, end: usize, step: isize },
+    RangeStep {
+        /// First index, inclusive.
+        start: usize,
+        /// Last index, exclusive.
+        end: usize,
+        /// Distance between consecutive indices, negative to walk backwards.
+        step: isize,
+    },
 }
 
 impl SliceRange {
@@ -1216,12 +1268,16 @@ impl SliceRange {
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct RangeStep {
+    /// First index, inclusive.
     pub start: usize,
+    /// Last index, exclusive.
     pub end: usize,
+    /// Distance between consecutive indices.
     pub step: isize,
 }
 
 impl RangeStep {
+    /// Builds a stepped range from its bounds and step.
     pub fn new(start: usize, end: usize, step: isize) -> Self { Self { start, end, step } }
 }
 
@@ -1261,6 +1317,8 @@ fn resolve_signed_(index: isize, dim_size: usize) -> Result<usize, Error> {
 ///
 /// Note: integer literals default to `i32`, so write `0_usize` not `0`.
 pub trait SliceArg {
+    /// Applies this argument to one dimension, appending its shape and stride and moving the
+    /// offset.
     fn apply(
         self,
         dim_size: usize,
@@ -5749,6 +5807,7 @@ impl<'a, Scalar: Clone + EachScale, const MAX_RANK: usize, Alloc: Allocator> Ten
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
+    /// Writes α × aᵢ + β into a new tensor.
     pub fn scale_tensor(
         &self,
         alpha: Scalar::Scalar,
@@ -5762,6 +5821,7 @@ where
         })
     }
 
+    /// Writes α × aᵢ + β into the output tensor.
     pub fn scale_tensor_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         alpha: Scalar::Scalar,
@@ -5782,6 +5842,7 @@ where
         })
     }
 
+    /// Element-wise add scalar into a new tensor.
     pub fn add_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Alloc, MAX_RANK>, Error>
     where
         Alloc: Clone,
@@ -5791,6 +5852,7 @@ where
         })
     }
 
+    /// Element-wise subtract scalar into a new tensor.
     pub fn sub_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Alloc, MAX_RANK>, Error>
     where
         Alloc: Clone,
@@ -5800,6 +5862,7 @@ where
         })
     }
 
+    /// Element-wise multiply scalar into a new tensor.
     pub fn mul_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Alloc, MAX_RANK>, Error>
     where
         Alloc: Clone,
@@ -5809,6 +5872,7 @@ where
         })
     }
 
+    /// Element-wise add scalar into the output tensor.
     pub fn add_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         scalar: Scalar::Scalar,
@@ -5817,6 +5881,7 @@ where
         self.affine_into(Scalar::Scalar::from(1.0f32), scalar, out)
     }
 
+    /// Element-wise subtract scalar into the output tensor.
     pub fn sub_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         scalar: Scalar::Scalar,
@@ -5829,6 +5894,7 @@ where
         )
     }
 
+    /// Element-wise multiply scalar into the output tensor.
     pub fn mul_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         scalar: Scalar::Scalar,
@@ -5839,6 +5905,7 @@ where
 }
 
 impl<'a, Scalar: Clone + EachSum, const MAX_RANK: usize, Alloc: Allocator> TensorView<'a, Scalar, MAX_RANK, Alloc> {
+    /// Element-wise sum of two tensors into a new tensor.
     pub fn add_tensor<OtherAlloc: Allocator>(
         &self,
         other: &TensorView<'_, Scalar, MAX_RANK, OtherAlloc>,
@@ -5851,6 +5918,7 @@ impl<'a, Scalar: Clone + EachSum, const MAX_RANK: usize, Alloc: Allocator> Tenso
         })
     }
 
+    /// Element-wise sum of two tensors into the output tensor.
     pub fn add_tensor_into<OtherAlloc: Allocator, OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         other: &TensorView<'_, Scalar, MAX_RANK, OtherAlloc>,
@@ -5866,6 +5934,7 @@ impl<'a, Scalar: Clone + EachBlend, const MAX_RANK: usize, Alloc: Allocator> Ten
 where
     Scalar::Scalar: From<f32> + Copy,
 {
+    /// Writes α × aᵢ + β × otherᵢ into a new tensor.
     pub fn blend_tensor<OtherAlloc: Allocator>(
         &self,
         other: &TensorView<'_, Scalar, MAX_RANK, OtherAlloc>,
@@ -5880,6 +5949,7 @@ where
         })
     }
 
+    /// Writes α × aᵢ + β × otherᵢ into the output tensor.
     pub fn blend_tensor_into<OtherAlloc: Allocator, OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         other: &TensorView<'_, Scalar, MAX_RANK, OtherAlloc>,
@@ -5892,6 +5962,7 @@ where
         })
     }
 
+    /// Element-wise difference of two tensors into a new tensor.
     pub fn sub_tensor<OtherAlloc: Allocator>(
         &self,
         other: &TensorView<'_, Scalar, MAX_RANK, OtherAlloc>,
@@ -5904,6 +5975,7 @@ where
         })
     }
 
+    /// Element-wise difference of two tensors into the output tensor.
     pub fn sub_tensor_into<OtherAlloc: Allocator, OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         other: &TensorView<'_, Scalar, MAX_RANK, OtherAlloc>,
@@ -5917,6 +5989,7 @@ impl<'a, Scalar: Clone + EachFma, const MAX_RANK: usize, Alloc: Allocator> Tenso
 where
     Scalar::Scalar: From<f32> + Copy,
 {
+    /// Writes α × aᵢ × bᵢ + β × cᵢ into a new tensor.
     pub fn fma_tensors<BAlloc: Allocator, CAlloc: Allocator>(
         &self,
         b: &TensorView<'_, Scalar, MAX_RANK, BAlloc>,
@@ -5932,6 +6005,7 @@ where
         })
     }
 
+    /// Writes α × aᵢ × bᵢ + β × cᵢ into the output tensor.
     pub fn fma_tensors_into<
         BAlloc: Allocator,
         CAlloc: Allocator,
@@ -5949,6 +6023,7 @@ where
         })
     }
 
+    /// Element-wise product of two tensors into a new tensor.
     pub fn mul_tensor<OtherAlloc: Allocator>(
         &self,
         other: &TensorView<'_, Scalar, MAX_RANK, OtherAlloc>,
@@ -5961,6 +6036,7 @@ where
         })
     }
 
+    /// Element-wise product of two tensors into the output tensor.
     pub fn mul_tensor_into<OtherAlloc: Allocator, OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         other: &TensorView<'_, Scalar, MAX_RANK, OtherAlloc>,
@@ -5977,6 +6053,7 @@ where
 }
 
 impl<'a, Source: Clone + CastDType, const MAX_RANK: usize, Alloc: Allocator> TensorView<'a, Source, MAX_RANK, Alloc> {
+    /// Casts every element to `Destination`, returning a new tensor of the same shape.
     pub fn cast<Destination: Clone + CastDType>(&self) -> Result<Tensor<Destination, Alloc, MAX_RANK>, Error>
     where
         Alloc: Clone,
@@ -5984,6 +6061,7 @@ impl<'a, Source: Clone + CastDType, const MAX_RANK: usize, Alloc: Allocator> Ten
         alloc_output_like(self.shape(), self.allocator.clone(), |span| self.cast_into(span))
     }
 
+    /// Casts every element to `Destination`, writing into the output tensor.
     pub fn cast_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), Error>
     where
         Destination: Clone + CastDType,
@@ -5998,6 +6076,7 @@ impl<'a, Source: Clone + CastDType, const MAX_RANK: usize, Alloc: Allocator> Ten
 // region: Tensor Trigonometry
 
 impl<'a, Scalar: Clone + TrigSin, const MAX_RANK: usize, Alloc: Allocator> TensorView<'a, Scalar, MAX_RANK, Alloc> {
+    /// Element-wise sine into a new tensor.
     pub fn sin(&self) -> Result<Tensor<Scalar, Alloc, MAX_RANK>, Error>
     where
         Alloc: Clone,
@@ -6005,6 +6084,7 @@ impl<'a, Scalar: Clone + TrigSin, const MAX_RANK: usize, Alloc: Allocator> Tenso
         alloc_output_like(self.shape(), self.allocator.clone(), |span| self.sin_into(span))
     }
 
+    /// Element-wise sine into the output tensor.
     pub fn sin_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
@@ -6014,6 +6094,7 @@ impl<'a, Scalar: Clone + TrigSin, const MAX_RANK: usize, Alloc: Allocator> Tenso
 }
 
 impl<'a, Scalar: Clone + TrigCos, const MAX_RANK: usize, Alloc: Allocator> TensorView<'a, Scalar, MAX_RANK, Alloc> {
+    /// Element-wise cosine into a new tensor.
     pub fn cos(&self) -> Result<Tensor<Scalar, Alloc, MAX_RANK>, Error>
     where
         Alloc: Clone,
@@ -6021,6 +6102,7 @@ impl<'a, Scalar: Clone + TrigCos, const MAX_RANK: usize, Alloc: Allocator> Tenso
         alloc_output_like(self.shape(), self.allocator.clone(), |span| self.cos_into(span))
     }
 
+    /// Element-wise cosine into the output tensor.
     pub fn cos_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
@@ -6030,6 +6112,7 @@ impl<'a, Scalar: Clone + TrigCos, const MAX_RANK: usize, Alloc: Allocator> Tenso
 }
 
 impl<'a, Scalar: Clone + TrigAtan, const MAX_RANK: usize, Alloc: Allocator> TensorView<'a, Scalar, MAX_RANK, Alloc> {
+    /// Element-wise arctangent into a new tensor.
     pub fn atan(&self) -> Result<Tensor<Scalar, Alloc, MAX_RANK>, Error>
     where
         Alloc: Clone,
@@ -6037,6 +6120,7 @@ impl<'a, Scalar: Clone + TrigAtan, const MAX_RANK: usize, Alloc: Allocator> Tens
         alloc_output_like(self.shape(), self.allocator.clone(), |span| self.atan_into(span))
     }
 
+    /// Element-wise arctangent into the output tensor.
     pub fn atan_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
@@ -6087,10 +6171,12 @@ where
     Scalar::SumOutput: Clone + Default + core::ops::AddAssign,
     Scalar::SumSqOutput: Clone + Default + core::ops::AddAssign + SumSqToF64,
 {
+    /// Sum and sum of squares over all elements.
     pub fn moments_all(&self) -> Result<(Scalar::SumOutput, Scalar::SumSqOutput), Error> {
         unsafe { reduce_moments_recursive::<Scalar>(self.data, self.shape(), &self.strides[..self.ndim]) }
     }
 
+    /// Sum and sum of squares along one axis, into new tensors.
     pub fn moments_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -6109,6 +6195,7 @@ where
         Ok((sums, sumsqs))
     }
 
+    /// Sum and sum of squares along one axis, into the output tensors.
     pub fn moments_axis_into<AnyIndex, SumTensor, SumSqTensor>(
         &self,
         axis: AnyIndex,
@@ -6161,8 +6248,10 @@ where
         outcome
     }
 
+    /// Sum over all elements.
     pub fn sum_all(&self) -> Result<Scalar::SumOutput, Error> { Ok(self.moments_all()?.0) }
 
+    /// Sum along one axis, into a new tensor.
     pub fn sum_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -6175,6 +6264,7 @@ where
         Ok(sums)
     }
 
+    /// Sum along one axis, into the output tensor.
     pub fn sum_axis_into<AnyIndex, SumTensor>(
         &self,
         axis: AnyIndex,
@@ -6195,11 +6285,13 @@ where
         self.moments_axis_into(axis, keep_dims, out, &mut scratch)
     }
 
+    /// Euclidean norm over all elements.
     pub fn norm_all(&self) -> Result<f64, Error> {
         let (_, sumsq) = self.moments_all()?;
         Ok(Roots::sqrt(sumsq.to_f64()))
     }
 
+    /// Euclidean norm along one axis, into a new tensor.
     pub fn norm_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -6216,6 +6308,7 @@ where
         Ok(norms)
     }
 
+    /// Euclidean norm along one axis, into the output tensor.
     pub fn norm_axis_into<AnyIndex, NormTensor>(
         &self,
         axis: AnyIndex,
@@ -6262,6 +6355,7 @@ impl<'a, Scalar: Clone + ReduceMinMax, const MAX_RANK: usize, Alloc: Allocator> 
 where
     Scalar::Output: Clone + Default + PartialOrd,
 {
+    /// Minimum and maximum with their indices over all elements.
     pub fn minmax_all(&self) -> Result<MinMaxResult<Scalar::Output>, Error> {
         unsafe { reduce_minmax_recursive::<Scalar>(self.data, self.shape(), &self.strides[..self.ndim], 0) }?.ok_or(
             Error::InvalidShape {
@@ -6272,6 +6366,7 @@ where
         )
     }
 
+    /// Minimum and maximum with their indices along one axis, into new tensors.
     pub fn minmax_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -6304,6 +6399,7 @@ where
         })
     }
 
+    /// Minimum and maximum with their indices along one axis, into the output tensors.
     pub fn minmax_axis_into<AnyIndex, ValueTensor, IndexTensor>(
         &self,
         axis: AnyIndex,
@@ -6387,14 +6483,19 @@ where
         outcome
     }
 
+    /// Minimum over all elements.
     pub fn min_all(&self) -> Result<Scalar::Output, Error> { Ok(self.minmax_all()?.min_value) }
 
+    /// Index of the minimum over all elements.
     pub fn argmin_all(&self) -> Result<usize, Error> { Ok(self.minmax_all()?.min_index) }
 
+    /// Maximum over all elements.
     pub fn max_all(&self) -> Result<Scalar::Output, Error> { Ok(self.minmax_all()?.max_value) }
 
+    /// Index of the maximum over all elements.
     pub fn argmax_all(&self) -> Result<usize, Error> { Ok(self.minmax_all()?.max_index) }
 
+    /// Minimum along one axis, into a new tensor.
     pub fn min_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -6406,6 +6507,7 @@ where
         Ok(self.minmax_axis(axis, keep_dims)?.min_value)
     }
 
+    /// Index of the minimum along one axis, into a new tensor.
     pub fn argmin_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -6417,6 +6519,7 @@ where
         Ok(self.minmax_axis(axis, keep_dims)?.min_index)
     }
 
+    /// Maximum along one axis, into a new tensor.
     pub fn max_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -6428,6 +6531,7 @@ where
         Ok(self.minmax_axis(axis, keep_dims)?.max_value)
     }
 
+    /// Index of the maximum along one axis, into a new tensor.
     pub fn argmax_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,

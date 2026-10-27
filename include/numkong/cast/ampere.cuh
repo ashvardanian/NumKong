@@ -8,10 +8,10 @@
  *  @sa include/numkong/cast/cuda.cuh
  *  @sa include/numkong/cast/ada.cuh
  *
- *  The lowest NVIDIA capability with `cvt.*x2.f32`, whose helpers the later capabilities reuse. Its
+ *  The lowest NVIDIA capability with <tt>cvt.*x2.f32</tt>, whose helpers the later capabilities reuse. Its
  *  F32 to BF16 narrowing takes one instruction, with NaNs keeping the serial cast's sign and top
  *  payload bits, and the @c ampere bulk cast runs it in 16-byte chunks; every other cast takes the
- *  portable code of `cast/simt.cuh`.
+ *  portable code of <tt>cast/simt.cuh</tt>.
  */
 #ifndef NUMKONG_CAST_AMPERE_CUH
 #define NUMKONG_CAST_AMPERE_CUH

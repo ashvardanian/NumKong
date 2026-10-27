@@ -23,7 +23,7 @@ namespace ashvardanian::numkong {
  *  @brief Computes sum and sum of squares in a single pass: sum = Σ dataᵢ, sumsq = Σ dataᵢ².
  *  @param[in] data Input array.
  *  @param[in] count Counts dimensions, a multiple of the values per byte.
- *  @param[in] stride Stride between elements in bytes, `sizeof(in_type_)` for contiguous.
+ *  @param[in] stride Stride between elements in bytes, <tt>sizeof(in_type_)</tt> for contiguous.
  *  @param[out] sum Output sum.
  *  @param[out] sumsq Output sum of squares.
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template.
@@ -259,7 +259,7 @@ struct uniform_stride_tail_result_t_ {
 };
 
 /**
- *  @brief Detects trailing dimensions where `stride[i] == stride[i+1] * extent[i+1]`.
+ *  @brief Detects trailing dimensions where <tt>stride[i] == stride[i+1] * extent[i+1]</tt>.
  *
  *  When this holds, the tail is a single strided sequence and can be passed to a SIMD kernel in one
  *  call with @c element_count and @c stride.
@@ -282,7 +282,7 @@ uniform_stride_tail_result_t_ uniform_stride_tail_(tensor_view<value_type_, max_
     return {tail, count, static_cast<std::size_t>(innermost_stride < 0 ? -innermost_stride : innermost_stride)};
 }
 
-/** Collapses trailing `tail.tail_dims` dimensions into one, preserving outer dims and strides. */
+/** Collapses trailing <tt>tail.tail_dims</tt> dimensions into one, preserving outer dims and strides. */
 template <typename value_type_, std::size_t max_rank_>
 tensor_view<value_type_, max_rank_> collapse_uniform_tail_(tensor_view<value_type_, max_rank_> input,
                                                            uniform_stride_tail_result_t_ const &tail) noexcept {
@@ -737,7 +737,7 @@ u64_t popcount(tensor_view<u1x8_t, max_rank_> input) noexcept {
 }
 
 /** True if any bit of the packed bit tensor is set. Suffixed @c _set to avoid colliding with the
- *  @c all_t and @c all slice marker in `vector.hpp`. */
+ *  @c all_t and @c all slice marker in <tt>vector.hpp</tt>. */
 template <std::size_t max_rank_ = 8>
 bool any_set(tensor_view<u1x8_t, max_rank_> input) noexcept {
     return popcount<max_rank_>(input).raw_ != 0;

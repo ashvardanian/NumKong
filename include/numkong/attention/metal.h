@@ -12,7 +12,7 @@
  *  Every signature matches the @c cuda capability's, with an @c id<MTLCommandQueue> as the stream,
  *  and block-scaled entries take their codes, block scales and NVFP4 tensor scale by reference, as
  *  the serial ones do. The pack, its shape reader and the launch core serve @c apple9 and
- *  @c apple10 too. The kernels travel as their own `.metal` source, compiled on the device at first
+ *  @c apple10 too. The kernels travel as their own <tt>.metal</tt> source, compiled on the device at first
  *  use under Metal 3.1, the first with @c bfloat. Only the shape reader reads device memory on the
  *  host, after waiting on the stream: the other entries trust the pack and the query offsets, and
  *  the kernels read the tensor scales. Attention checks that the @c query_token_count rows of the

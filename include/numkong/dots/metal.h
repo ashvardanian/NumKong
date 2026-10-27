@@ -9,7 +9,7 @@
  *  @sa include/numkong/dots/simt.cuh, the CUDA and ROCm sibling
  *
  *  Every signature matches the @c cuda capability's, with an @c id<MTLCommandQueue> as the stream.
- *  The kernels travel as their own `.metal` source, embedded here and compiled on the device at
+ *  The kernels travel as their own <tt>.metal</tt> source, embedded here and compiled on the device at
  *  first use under Metal 3.1, the first with @c bfloat, so every Apple GPU from family 7 runs them.
  *  The pack, its shape reader and the launch core serve @c apple9 and @c apple10 too.
  */

@@ -16,7 +16,7 @@
  *  Key improvements:
  *  - Parallel SIMD sqrt for normalization (computes both sqrts simultaneously)
  *  - Edge case handling (zero vectors, numerical stability)
- *  - Integer products widen to i16 and multiply-add adjacent pairs with `i32x4.dot_i16x8_s`
+ *  - Integer products widen to i16 and multiply-add adjacent pairs with <tt>i32x4.dot_i16x8_s</tt>
  */
 
 #ifndef NUMKONG_SPATIAL_V128_H

@@ -15,6 +15,7 @@
 //!
 //! File: rust/reduce.rs
 //! Author: Ash Vardanian
+//! Date: March 8, 2026
 
 use core::{ffi::c_void, ptr::null_mut};
 
@@ -420,7 +421,7 @@ extern "C" {
 /// # Errors
 ///
 /// [`Error::KernelFailed`] when no capability of the current
-/// [`Capabilities`](crate::Capabilities) has the kernel.
+/// [`Capabilities`] has the kernel.
 pub trait ReduceMoments: StorageElement {
     /// Type for the sum output.
     type SumOutput: StorageElement;
@@ -1118,8 +1119,10 @@ where
     Scalar::SumOutput: Clone + Default + core::ops::AddAssign,
     Scalar::SumSqOutput: Clone + Default + core::ops::AddAssign + SumSqToF64,
 {
+    /// Sum and sum of squares over all elements.
     fn moments_all(&self) -> Result<(Scalar::SumOutput, Scalar::SumSqOutput), Error> { self.view().moments_all() }
 
+    /// Sum and sum of squares along one axis, into new tensors.
     fn moments_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -1131,6 +1134,7 @@ where
         self.view().moments_axis(axis, keep_dims)
     }
 
+    /// Sum and sum of squares along one axis, into the output tensors.
     fn moments_axis_into<AnyIndex, SumTensor, SumSqTensor>(
         &self,
         axis: AnyIndex,
@@ -1146,8 +1150,10 @@ where
         self.view().moments_axis_into(axis, keep_dims, sum_out, sumsq_out)
     }
 
+    /// Sum over all elements.
     fn sum_all(&self) -> Result<Scalar::SumOutput, Error> { self.view().sum_all() }
 
+    /// Sum along one axis, into a new tensor.
     fn sum_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -1159,6 +1165,7 @@ where
         self.view().sum_axis(axis, keep_dims)
     }
 
+    /// Sum along one axis, into the output tensor.
     fn sum_axis_into<AnyIndex, SumTensor>(
         &self,
         axis: AnyIndex,
@@ -1172,8 +1179,10 @@ where
         self.view().sum_axis_into(axis, keep_dims, out)
     }
 
+    /// Euclidean norm over all elements.
     fn norm_all(&self) -> Result<f64, Error> { self.view().norm_all() }
 
+    /// Euclidean norm along one axis, into a new tensor.
     fn norm_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -1185,6 +1194,7 @@ where
         self.view().norm_axis(axis, keep_dims)
     }
 
+    /// Euclidean norm along one axis, into the output tensor.
     fn norm_axis_into<AnyIndex, NormTensor>(
         &self,
         axis: AnyIndex,
@@ -1211,8 +1221,10 @@ pub trait MinMaxOps<Scalar: Clone + ReduceMinMax, const MAX_RANK: usize>: Tensor
 where
     Scalar::Output: Clone + Default + PartialOrd,
 {
+    /// Minimum and maximum with their indices over all elements.
     fn minmax_all(&self) -> Result<MinMaxResult<Scalar::Output>, Error> { self.view().minmax_all() }
 
+    /// Minimum and maximum with their indices along one axis, into new tensors.
     fn minmax_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -1224,6 +1236,7 @@ where
         self.view().minmax_axis(axis, keep_dims)
     }
 
+    /// Minimum and maximum with their indices along one axis, into the output tensors.
     fn minmax_axis_into<AnyIndex, ValueTensor, IndexTensor>(
         &self,
         axis: AnyIndex,
@@ -1242,14 +1255,19 @@ where
             .minmax_axis_into(axis, keep_dims, min_out, argmin_out, max_out, argmax_out)
     }
 
+    /// Minimum over all elements.
     fn min_all(&self) -> Result<Scalar::Output, Error> { self.view().min_all() }
 
+    /// Index of the minimum over all elements.
     fn argmin_all(&self) -> Result<usize, Error> { self.view().argmin_all() }
 
+    /// Maximum over all elements.
     fn max_all(&self) -> Result<Scalar::Output, Error> { self.view().max_all() }
 
+    /// Index of the maximum over all elements.
     fn argmax_all(&self) -> Result<usize, Error> { self.view().argmax_all() }
 
+    /// Minimum along one axis, into a new tensor.
     fn min_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -1261,6 +1279,7 @@ where
         self.view().min_axis(axis, keep_dims)
     }
 
+    /// Index of the minimum along one axis, into a new tensor.
     fn argmin_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -1272,6 +1291,7 @@ where
         self.view().argmin_axis(axis, keep_dims)
     }
 
+    /// Maximum along one axis, into a new tensor.
     fn max_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
@@ -1283,6 +1303,7 @@ where
         self.view().max_axis(axis, keep_dims)
     }
 
+    /// Index of the maximum along one axis, into a new tensor.
     fn argmax_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,

@@ -8,6 +8,7 @@
 //!
 //! File: rust/probability.rs
 //! Author: Ash Vardanian
+//! Date: March 8, 2026
 
 use core::{ffi::c_void, ptr::null_mut};
 
@@ -97,7 +98,9 @@ extern "C" {
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`.
 pub trait KullbackLeibler: Sized {
+    /// Result type of the divergence.
     type Output;
+    /// Computes the Kullback-Leibler divergence of `a` from `b`.
     fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `kullbackleibler`.
@@ -197,7 +200,9 @@ impl KullbackLeibler for bf16 {
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`.
 pub trait JensenShannon: Sized {
+    /// Result type of the divergence.
     type Output;
+    /// Computes the Jensen-Shannon divergence between `a` and `b`.
     fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `jensenshannon`.

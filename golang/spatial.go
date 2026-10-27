@@ -2,6 +2,7 @@
 //
 // File: golang/spatial.go
 // Author: Ash Vardanian
+// Date: March 14, 2026
 
 package numkong
 

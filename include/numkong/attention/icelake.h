@@ -25,7 +25,7 @@
  *  DPBUSD advances sixteen KV positions by four channels; accumulating over the depth quads leaves
  *  sixteen exact biased scores with no transpose. Sixteen queries share each K load — hold sixteen
  *  accumulators and issue sixteen broadcast DPBUSDs per K vector — so the score cost scales flat
- *  with KV length. The 128 · Σk correction is one sixteen-wide `zmm ≪ 7` subtract per KV tile.
+ *  with KV length. The 128 · Σk correction is one sixteen-wide <tt>zmm ≪ 7</tt> subtract per KV tile.
  *  Zero-padded channels stay exact: a padded k=0 adds (q+128) · 0=0 to the product and 0 to Σk.
  *
  *  @section attention_icelake_pv P × V layout
@@ -87,7 +87,7 @@ enum {
 /** Register 16×16 transpose of 32-bit elements (hierarchical unpack + lane shuffle). Given 16
  *  rows (each 16 dwords), returns the 16 columns. Used at pack time to turn 16 position rows into
  *  the VNNI depth-quad tiles. The @c shuffle_i32x4 stages emit rows in the group order
- *  `groups[i]` holds group `{0,1,2,3,8,9,10,11,4,5,6,7,12,13,14,15}[i]`; the caller restores
+ *  <tt>groups[i]</tt> holds group <tt>{0,1,2,3,8,9,10,11,4,5,6,7,12,13,14,15}[i]</tt>; the caller restores
  *  natural order at store. */
 NUMKONG_INLINE void nk_attention_transpose_i32x16x16_icelake_(__m512i const rows_i32x16[16],
                                                               __m512i groups_i32x16[16]) {
@@ -168,7 +168,7 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_icelake_(nk_size_t key_value_hea
  *  lane-parallel accumulators (one score per KV position), broadcasts each query's four-channel
  *  dword and issues 16 DPBUSDs reusing one K load, then accumulates over the depth quads. No lane
  *  reduction and no transpose: Σq · k lands directly per lane. The 128 · Σk correction is one
- *  16-wide `zmm ≪ 7` subtract per tile. Writes a @b [16,panel_width] score block whose query rows
+ *  16-wide <tt>zmm ≪ 7</tt> subtract per tile. Writes a @b [16,panel_width] score block whose query rows
  *  sit @c panel_width apart. */
 NUMKONG_INLINE void nk_attention_score_block_icelake_(nk_u8_t const *queries_biased, nk_i8_t const *keys_plane,
                                                       nk_i32_t const *key_sums_plane, nk_size_t panel_start,
@@ -290,7 +290,7 @@ NUMKONG_INLINE nk_f32_t nk_attention_softmax_panel_icelake_(nk_i32_t const *scor
 }
 
 /** P × V over the quads covering the panel-relative range from @p range_begin inclusive to
- *  @p range_end exclusive: `dpbusd(weight_quad, v_quad)` over the quad-interleaved V plane, I32
+ *  @p range_end exclusive: <tt>dpbusd(weight_quad, v_quad)</tt> over the quad-interleaved V plane, I32
  *  accumulators drained to F32 and folded into O = O · correction + panel. */
 NUMKONG_INLINE void nk_attention_weighted_sum_panel_icelake_(nk_u8_t const *weights, nk_i8_t const *values_plane,
                                                              nk_size_t panel_start, nk_size_t range_begin,

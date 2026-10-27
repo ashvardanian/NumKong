@@ -140,7 +140,7 @@ The `int8` and `uint8` families widen their outputs.
 `AngularI8`, `AngularU8`, `EuclideanI8`, `EuclideanU8` return `float32`.
 `SqEuclideanI8` and `SqEuclideanU8` return `uint32`.
 
-## Binary Metrics
+## Set Similarity
 
 Hamming and Jaccard distances for binary and set-hash vectors.
 
@@ -226,7 +226,7 @@ func main() {
 The output slice is caller-owned.
 That keeps allocation behavior explicit and predictable.
 
-## Packed Matrix Kernels for GEMM-Like Workloads
+## Matrix Kernels
 
 Packed kernels are the main batch-throughput path.
 The `DotsPackedMatrix` struct wraps the packed buffer with its dimensions and dtype, providing type safety.
@@ -359,7 +359,7 @@ func main() {
 }
 ```
 
-## MaxSim and ColBERT-Style Late Interaction
+## MaxSim
 
 MaxSim is the late-interaction primitive used by systems such as [ColBERT](https://arxiv.org/abs/2004.12832).
 It computes the sum of per-query-token maximum cosine similarities across document tokens.
@@ -394,7 +394,7 @@ func main() {
 }
 ```
 
-## Parallel Batch Processing
+## Parallelism
 
 `WorkerPool` provides pre-pinned goroutines with pre-configured SIMD state.
 Create once, reuse across batch calls, close when done.
@@ -459,7 +459,7 @@ go func() {
 }()
 ```
 
-## Thread Configuration and Capabilities
+## Runtime Dispatch
 
 A `Device` is the host CPU, from `CPU()`, or a GPU by its runtime's own ordinal, from `NewDevice(DeviceCUDA, 0)` and its `DeviceROCm` and `DeviceMetal` twins, counted by `CountDevices`.
 `Device.ConfigureThread` pins the current goroutine to an OS thread via `runtime.LockOSThread`, enables the CPU-specific state the given capabilities need, such as Intel AMX tiles, then returns an unlock function.

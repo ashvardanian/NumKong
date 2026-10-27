@@ -7,12 +7,12 @@
  *  @sa include/numkong/attention.h
  *
  *  Portable 128-bit backend for WebAssembly engines with the Relaxed SIMD proposal. Storage follows
- *  the `attention/haswell.h` conventions exactly: BF16, E4M3, and I8 stay in their source encoding
+ *  the <tt>attention/haswell.h</tt> conventions exactly: BF16, E4M3, and I8 stay in their source encoding
  *  at rest — packing is a raw strided-row copy with channels zero-padded to a multiple of 8, done
- *  by `attention/v128.h` — and every value widens to F32 on the fly inside the compute loops
- *  through the `cast/v128.h` and `cast/v128relaxed.h` helpers. Per query row, KV is swept in
+ *  by <tt>attention/v128.h</tt> — and every value widens to F32 on the fly inside the compute loops
+ *  through the <tt>cast/v128.h</tt> and <tt>cast/v128relaxed.h</tt> helpers. Per query row, KV is swept in
  *  512-position panels with an exact online running-max correction; the F32 score row, 2 KB, stays
- *  L1-resident. `depth > 256` routes to the width-agnostic serial kernel.
+ *  L1-resident. <tt>depth > 256</tt> routes to the width-agnostic serial kernel.
  *
  *  The base-2 exponent is the family's shared degree-7 polynomial, evaluated 4-wide with
  *  @c wasm_f32x4_relaxed_madd after a @c wasm_f32x4_nearest range reduction and the same

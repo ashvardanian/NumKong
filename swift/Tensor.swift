@@ -1,12 +1,11 @@
-//
-//  swift/Tensor.swift
-//  Owning, row-major dense tensor that deallocates its memory on deinit.
-//
-//  - Author: Ash Vardanian
-//  - Date: March 14, 2026
-//
+/**
+ *  @file swift/Tensor.swift
+ *  @author Ash Vardanian
+ *  @date March 14, 2026
+ *  @brief Owning, row-major dense tensor that deallocates its memory on deinit.
+ */
 
-import CNumKong
+import NumKongC
 
 // MARK: - Owning Tensor
 
@@ -145,7 +144,7 @@ extension Tensor where Element: NumKongDotsMatrixElement {
     public func dotsPacked(_ packed: PackedMatrix<Element>) throws -> Tensor<Element.DotsOutput> {
         let result = try Tensor<Element.DotsOutput>._zeroInitialized(rows: rows, columns: packed.rows)
         var rSpan = result.span()
-        try dots_packed(view(), packed, &rSpan)
+        try NumKong.dotsPacked(view(), packed, &rSpan)
         return result
     }
 
@@ -153,7 +152,7 @@ extension Tensor where Element: NumKongDotsMatrixElement {
     public func dotsSymmetric(rowsBegin: Int = 0, rowsEnd: Int? = nil) throws -> Tensor<Element.DotsOutput> {
         let result = try Tensor<Element.DotsOutput>._zeroInitialized(rows: rows, columns: rows)
         var rSpan = result.span()
-        try dots_symmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
+        try NumKong.dotsSymmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
         return result
     }
 }
@@ -165,7 +164,7 @@ extension Tensor where Element: NumKongSpatialsMatrixElement {
     public func angularsPacked(_ packed: PackedMatrix<Element>) throws -> Tensor<Element.SpatialOutput> {
         let result = try Tensor<Element.SpatialOutput>._zeroInitialized(rows: rows, columns: packed.rows)
         var rSpan = result.span()
-        try angulars_packed(view(), packed, &rSpan)
+        try NumKong.angularsPacked(view(), packed, &rSpan)
         return result
     }
 
@@ -173,7 +172,7 @@ extension Tensor where Element: NumKongSpatialsMatrixElement {
     public func euclideansPacked(_ packed: PackedMatrix<Element>) throws -> Tensor<Element.SpatialOutput> {
         let result = try Tensor<Element.SpatialOutput>._zeroInitialized(rows: rows, columns: packed.rows)
         var rSpan = result.span()
-        try euclideans_packed(view(), packed, &rSpan)
+        try NumKong.euclideansPacked(view(), packed, &rSpan)
         return result
     }
 
@@ -181,7 +180,7 @@ extension Tensor where Element: NumKongSpatialsMatrixElement {
     public func angularsSymmetric(rowsBegin: Int = 0, rowsEnd: Int? = nil) throws -> Tensor<Element.SpatialOutput> {
         let result = try Tensor<Element.SpatialOutput>._zeroInitialized(rows: rows, columns: rows)
         var rSpan = result.span()
-        try angulars_symmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
+        try NumKong.angularsSymmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
         return result
     }
 
@@ -189,7 +188,7 @@ extension Tensor where Element: NumKongSpatialsMatrixElement {
     public func euclideansSymmetric(rowsBegin: Int = 0, rowsEnd: Int? = nil) throws -> Tensor<Element.SpatialOutput> {
         let result = try Tensor<Element.SpatialOutput>._zeroInitialized(rows: rows, columns: rows)
         var rSpan = result.span()
-        try euclideans_symmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
+        try NumKong.euclideansSymmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
         return result
     }
 }
@@ -201,7 +200,7 @@ extension Tensor where Element: NumKongSetsMatrixElement {
     public func hammingsPacked(_ packed: PackedMatrix<Element>) throws -> Tensor<Element.HammingOutput> {
         let result = try Tensor<Element.HammingOutput>._zeroInitialized(rows: rows, columns: packed.rows)
         var rSpan = result.span()
-        try NumKong.hammings_packed(view(), packed, &rSpan)
+        try NumKong.hammingsPacked(view(), packed, &rSpan)
         return result
     }
 
@@ -209,7 +208,7 @@ extension Tensor where Element: NumKongSetsMatrixElement {
     public func hammingsSymmetric(rowsBegin: Int = 0, rowsEnd: Int? = nil) throws -> Tensor<Element.HammingOutput> {
         let result = try Tensor<Element.HammingOutput>._zeroInitialized(rows: rows, columns: rows)
         var rSpan = result.span()
-        try NumKong.hammings_symmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
+        try NumKong.hammingsSymmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
         return result
     }
 
@@ -217,7 +216,7 @@ extension Tensor where Element: NumKongSetsMatrixElement {
     public func jaccardsPacked(_ packed: PackedMatrix<Element>) throws -> Tensor<Element.JaccardOutput> {
         let result = try Tensor<Element.JaccardOutput>._zeroInitialized(rows: rows, columns: packed.rows)
         var rSpan = result.span()
-        try NumKong.jaccards_packed(view(), packed, &rSpan)
+        try NumKong.jaccardsPacked(view(), packed, &rSpan)
         return result
     }
 
@@ -225,7 +224,7 @@ extension Tensor where Element: NumKongSetsMatrixElement {
     public func jaccardsSymmetric(rowsBegin: Int = 0, rowsEnd: Int? = nil) throws -> Tensor<Element.JaccardOutput> {
         let result = try Tensor<Element.JaccardOutput>._zeroInitialized(rows: rows, columns: rows)
         var rSpan = result.span()
-        try NumKong.jaccards_symmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
+        try NumKong.jaccardsSymmetric(view(), &rSpan, rowsBegin: rowsBegin, rowsEnd: rowsEnd)
         return result
     }
 }

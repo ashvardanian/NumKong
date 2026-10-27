@@ -167,19 +167,19 @@ PyTypeObject MaxSimPackedMatrixType = {
     .tp_repr = MaxSimPackedMatrix_repr,
 };
 
-char const doc_maxsim_pack[] =                                                  //
-    "maxsim_pack(b, /, dtype=None) -> MaxSimPackedMatrix\n\n"                   //
-    "Pack a 2D matrix for MaxSim late-interaction scoring.\n\n"                 //
-    "Args:\n"                                                                   //
-    "    b (array_like): Source matrix with shape [vectors,depth] and\n"        //
-    "        contiguous rows. Packing fuses no transposition: transpose a\n"    //
-    "        depth-major matrix into a contiguous copy first.\n"                //
-    "    dtype (str, optional): Packing dtype. Default: inferred from input.\n" //
-    "        Supported values: 'bf16', 'f16', 'f32'.\n\n"                       //
-    "Returns:\n"                                                                //
-    "    MaxSimPackedMatrix: Opaque packed matrix for maxsim_packed().\n\n"     //
-    "Signature:\n"                                                              //
-    "    >>> def maxsim_pack(b, /, dtype=None) -> MaxSimPackedMatrix: ...";
+char const doc_maxsim_pack[] =                                                //
+    "maxsim_pack(b, /, dtype=None) -> MaxSimPackedMatrix\n\n"                 //
+    "Pack a 2D matrix for MaxSim late-interaction scoring.\n\n"               //
+    "Args:\n"                                                                 //
+    "  b (array_like): Source matrix with shape [vectors,depth] and\n"        //
+    "    contiguous rows. Packing fuses no transposition: transpose a\n"      //
+    "    depth-major matrix into a contiguous copy first.\n"                  //
+    "  dtype (str, optional): Packing dtype. Default: inferred from input.\n" //
+    "    Supported values: 'bf16', 'f16', 'f32'.\n\n"                         //
+    "Returns:\n"                                                              //
+    "  MaxSimPackedMatrix: Opaque packed matrix for maxsim_packed().\n\n"     //
+    "Signature:\n"                                                            //
+    "  >>> def maxsim_pack(b, /, dtype=None) -> MaxSimPackedMatrix: ...";
 
 PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -328,12 +328,12 @@ char const doc_maxsim_packed[] =                                             //
     "maxsim_packed(queries, documents, /) -> float\n\n"                      //
     "Compute MaxSim late-interaction score between two packed matrices.\n\n" //
     "Args:\n"                                                                //
-    "    queries (MaxSimPackedMatrix): Packed query vectors.\n"              //
-    "    documents (MaxSimPackedMatrix): Packed document vectors.\n\n"       //
+    "  queries (MaxSimPackedMatrix): Packed query vectors.\n"                //
+    "  documents (MaxSimPackedMatrix): Packed document vectors.\n\n"         //
     "Returns:\n"                                                             //
-    "    float: Sum of per-query minimum angular distances.\n\n"             //
+    "  float: Sum of per-query minimum angular distances.\n\n"               //
     "Signature:\n"                                                           //
-    "    >>> def maxsim_packed(queries, documents, /) -> float: ...";
+    "  >>> def maxsim_packed(queries, documents, /) -> float: ...";
 
 static PyObject *maxsim_result_to_py_number(                                      //
     nk_maxsim_packed_punned_t kernel, nk_stream_t stream, nk_dtype_t input_dtype, //
@@ -405,18 +405,18 @@ PyObject *api_maxsim_packed(PyObject *self, PyObject *const *args, Py_ssize_t na
                                       queries->vectors, documents->vectors, queries->depth);
 }
 
-char const doc_maxsim[] =                                                              //
-    "maxsim(queries, documents, /, dtype=None) -> float\n\n"                           //
-    "Convenience MaxSim: pack both matrices and compute in one call.\n\n"              //
-    "Args:\n"                                                                          //
-    "    queries (array_like): Query matrix with shape [query_count,depth].\n"         //
-    "    documents (array_like): Document matrix with shape [document_count,depth].\n" //
-    "    dtype (str, optional): Packing dtype. Default: inferred from input.\n"        //
-    "        Supported values: 'bf16', 'f16', 'f32'.\n\n"                              //
-    "Returns:\n"                                                                       //
-    "    float: Sum of per-query minimum angular distances.\n\n"                       //
-    "Signature:\n"                                                                     //
-    "    >>> def maxsim(queries, documents, /, dtype=None) -> float: ...";
+char const doc_maxsim[] =                                                            //
+    "maxsim(queries, documents, /, dtype=None) -> float\n\n"                         //
+    "Convenience MaxSim: pack both matrices and compute in one call.\n\n"            //
+    "Args:\n"                                                                        //
+    "  queries (array_like): Query matrix with shape [query_count,depth].\n"         //
+    "  documents (array_like): Document matrix with shape [document_count,depth].\n" //
+    "  dtype (str, optional): Packing dtype. Default: inferred from input.\n"        //
+    "    Supported values: 'bf16', 'f16', 'f32'.\n\n"                                //
+    "Returns:\n"                                                                     //
+    "  float: Sum of per-query minimum angular distances.\n\n"                       //
+    "Signature:\n"                                                                   //
+    "  >>> def maxsim(queries, documents, /, dtype=None) -> float: ...";
 
 PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);

@@ -6,15 +6,15 @@
  *
  *  Provides owning and non-owning N-dimensional tensor types:
  *
- *  - `nk::tensor<T, A, max_rank>`: Owning, non-resizable
- *  - `nk::tensor_view<T, max_rank>`: Non-owning, const
- *  - `nk::tensor_span<T, max_rank>`: Non-owning, mutable
- *  - `nk::matrix<T, A>`, `nk::matrix_view<T>`, `nk::matrix_span<T>`: rank-2 aliases
+ *  - <tt>nk::tensor<T, A, max_rank></tt>: Owning, non-resizable
+ *  - <tt>nk::tensor_view<T, max_rank></tt>: Non-owning, const
+ *  - <tt>nk::tensor_span<T, max_rank></tt>: Non-owning, mutable
+ *  - <tt>nk::matrix<T, A></tt>, @c nk::matrix_view<T>, @c nk::matrix_span<T>: rank-2 aliases
  *
  *  Tensor-level free functions:
- *  - Non-allocating scalar results: `sum(view)`, `min(view)`, `max(view)`, etc.
- *  - Allocating ops, returning an @c expected tensor: `add(a, b)`, `sum(view, axis)`, etc.
- *  - In-place into pre-allocated output, returning a @c status_t: `add(a, b, out)`, etc.
+ *  - Non-allocating scalar results: <tt>sum(view)</tt>, <tt>min(view)</tt>, <tt>max(view)</tt>, etc.
+ *  - Allocating ops, returning an @c expected tensor: <tt>add(a, b)</tt>, <tt>sum(view, axis)</tt>, etc.
+ *  - In-place into pre-allocated output, returning a @c status_t: <tt>add(a, b, out)</tt>, etc.
  *
  *  Features:
  *  - Signed strides (ptrdiff_t) for reversed/transposed views
@@ -36,8 +36,8 @@
 
 #include "vector.hpp" // `aligned_allocator`
 
-/** True when the compiler supports C++23 P2128 multi-arg `operator[]`. Under this gate we expose
- *  `t[a, b, c]` as sugar that delegates to `operator()`. */
+/** True when the compiler supports C++23 P2128 multi-arg <tt>operator[]</tt>. Under this gate we expose
+ *  <tt>t[a, b, c]</tt> as sugar that delegates to <tt>operator()</tt>. */
 #if defined(__cpp_multidimensional_subscript) && __cpp_multidimensional_subscript >= 202110L
 #define NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_ 1
 #else
@@ -76,7 +76,7 @@ inline constexpr bool trailing_tensor_slice_args_v =
     trailing_tensor_slice_args_<std::remove_cvref_t<arg_types_>...>::value;
 
 /** The static rank a slice of a @p max_rank_ handle keeps: one less for every integral index
- *  among @p arg_types_, so `matrix[row, nk::slice]` is a rank-1 handle, and never below one. */
+ *  among @p arg_types_, so <tt>matrix[row, nk::slice]</tt> is a rank-1 handle, and never below one. */
 template <std::size_t max_rank_, typename... arg_types_>
 constexpr std::size_t sliced_max_rank_() noexcept {
     constexpr std::size_t indexed = (std::size_t {std::integral<std::remove_cvref_t<arg_types_>>} + ... + 0);
@@ -90,7 +90,7 @@ constexpr std::size_t sliced_max_rank_() noexcept {
  *  @tparam max_rank_ Maximum number of dimensions supported.
  *
  *  Stores extents and signed strides for up to @c max_rank_ dimensions, taking 40 bytes for a
- *  matrix, `max_rank_ = 2`, and 1032 bytes for `max_rank_ = 64`.
+ *  matrix, <tt>max_rank_ = 2</tt>, and 1032 bytes for <tt>max_rank_ = 64</tt>.
  */
 template <std::size_t max_rank_>
 struct shape_storage_ {
@@ -116,10 +116,10 @@ struct shape_storage_ {
     /**
      *  @brief Reset the spare slots [rank, max_rank_) to a harmless 1x0 layout.
      *
-     *  @c tensor_flat_lookup_ runs `flat % extents[d]; flat /= extents[d]` up to a runtime @c rank,
-     *  but under `-flto` the compiler unrolls/vectorises that loop to @c max_rank_ iterations and
-     *  speculatively evaluates `flat / extents[d]` for every @c d - including `d >= rank`. Leaving
-     *  those extents at the in-class `= {}` zero turns the unused speculative quotient into a
+     *  @c tensor_flat_lookup_ runs <tt>flat % extents[d]; flat /= extents[d]</tt> up to a runtime @c rank,
+     *  but under @c -flto the compiler unrolls/vectorises that loop to @c max_rank_ iterations and
+     *  speculatively evaluates <tt>flat / extents[d]</tt> for every @c d - including <tt>d >= rank</tt>. Leaving
+     *  those extents at the in-class <tt>= {}</tt> zero turns the unused speculative quotient into a
      *  hardware divide-by-zero trap. Any builder that produces a reduced-rank shape must call this.
      */
     constexpr void normalize_spare_() noexcept {
@@ -398,7 +398,7 @@ struct tensor_view {
 
 #if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
-    /** C++23 sugar: `t[i, j, k]` scalar lookup, delegates to `operator()`. */
+    /** C++23 sugar: <tt>t[i, j, k]</tt> scalar lookup, delegates to <tt>operator()</tt>. */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
     constexpr decltype(auto) operator[](index_types_... idxs) const noexcept {
@@ -420,7 +420,7 @@ struct tensor_view {
 
 #if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
-    /** C++23 sugar: `t[i, nk::slice]` slicing, delegates to `operator()`. */
+    /** C++23 sugar: <tt>t[i, nk::slice]</tt> slicing, delegates to <tt>operator()</tt>. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
     constexpr auto operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
@@ -717,7 +717,7 @@ struct tensor_span {
 
 #if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
-    /** C++23 sugar: multi-arg `[]` scalar lookup, delegates to `operator()`. */
+    /** C++23 sugar: multi-arg <tt>[]</tt> scalar lookup, delegates to <tt>operator()</tt>. */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
     constexpr decltype(auto) operator[](index_types_... idxs) const noexcept {
@@ -739,7 +739,7 @@ struct tensor_span {
 
 #if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
-    /** C++23 sugar: multi-arg `[]` slicing, delegates to `operator()`. */
+    /** C++23 sugar: multi-arg <tt>[]</tt> slicing, delegates to <tt>operator()</tt>. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
     constexpr auto operator[](first_type_ first, second_type_ second, rest_types_... rest) const noexcept {
@@ -1131,7 +1131,7 @@ constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range_t r, rest_
  *  @tparam view_type_ Either @c tensor_view or @c tensor_span.
  *
  *  For a rank-2 matrix, iterating yields rank-1 row views/spans.
- *  Dereference calls `parent_.slice_leading(index_)` to produce each sub-view.
+ *  Dereference calls <tt>parent_.slice_leading(index_)</tt> to produce each sub-view.
  */
 template <typename view_type_>
 class axis_iterator {
@@ -1366,11 +1366,11 @@ struct tensor_dims_view_ {
  *  @tparam allocator_type_ Allocator.
  *  @tparam max_rank_ Maximum number of dimensions.
  *
- *  `resize()` adjusts the *shape* within the allocated `capacity()` and fails beyond it, so
- *  `data()` is stable across resizes — the contract capture-replaying GPU code depends on.
- *  `reserve()` is the explicit opt-in that may reallocate to grow `capacity()`, and thus move
- *  `data()`. Allocate at the worst-case extents, or `reserve()` up front, then `resize()` to
- *  each step's live extents; `clear()` drops back to an empty shape while keeping the buffer.
+ *  <tt>resize()</tt> adjusts the *shape* within the allocated <tt>capacity()</tt> and fails beyond it, so
+ *  <tt>data()</tt> is stable across resizes — the contract capture-replaying GPU code depends on.
+ *  <tt>reserve()</tt> is the explicit opt-in that may reallocate to grow <tt>capacity()</tt>, and thus move
+ *  <tt>data()</tt>. Allocate at the worst-case extents, or <tt>reserve()</tt> up front, then <tt>resize()</tt> to
+ *  each step's live extents; <tt>clear()</tt> drops back to an empty shape while keeping the buffer.
  */
 template <typename value_type_, typename allocator_type_ = aligned_allocator<value_type_>, std::size_t max_rank_ = 8>
 struct tensor {
@@ -1418,15 +1418,17 @@ struct tensor {
     tensor(tensor const &) = delete;
     tensor &operator=(tensor const &) = delete;
 
-    /** Allocated values — the ceiling `resize()` honors; at least `numel()`. */
+    /** Allocated values — the ceiling <tt>resize()</tt> honors; at least <tt>numel()</tt>. */
     constexpr size_type capacity() const noexcept { return capacity_; }
 
     /**
      *  @brief Reshape in place to contiguous @p extents, without reallocating: succeeds iff the new
-     *      volume fits `capacity()`, the rank fits @c max_rank_ and the last extent is a whole
-     *      number of storage values, so `data()` never moves — resizing to a step's live extents is
+     *      volume fits <tt>capacity()</tt>, the rank fits @c max_rank_ and the last extent is a whole
+     *      number of storage values, so <tt>data()</tt> never moves — resizing to a step's live extents is
      *      safe under captured GPU graphs.
-     *  @return @c success_k, or @c unexpected_dimensions_k leaving the shape untouched.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k Leaving the shape untouched.
      */
     constexpr status_t resize(std::initializer_list<size_type> extents) noexcept {
         return resize(extents.begin(), extents.size());
@@ -1444,10 +1446,11 @@ struct tensor {
     }
 
     /**
-     *  @brief Grow the allocated `capacity()` to at least @p values elements. Unlike
-     *      `resize()`, this may reallocate and move `data()`; the live `numel()`-storage
-     *      elements are preserved. No-op when `capacity() >= values`.
-     *  @return @c success_k, or @c bad_alloc_k leaving the state unchanged.
+     *  @brief Grow the allocated <tt>capacity()</tt> to at least @p values elements. Unlike
+     *      <tt>resize()</tt>, this may reallocate and move <tt>data()</tt>; the live <tt>numel()</tt>-storage
+     *      elements are preserved. No-op when <tt>capacity() >= values</tt>.
+     *
+     *  A failed growth leaves the state unchanged.
      */
     status_t reserve(size_type values) noexcept {
         if (values <= capacity_) return status_t::success_k;
@@ -1464,8 +1467,8 @@ struct tensor {
         return status_t::success_k;
     }
 
-    /** Reset to a logically empty shape, `empty()` becomes true, while keeping `capacity()`, so the
-     *  buffer can be refilled via `resize()` without reallocating. Storage only frees when the
+    /** Reset to a logically empty shape, <tt>empty()</tt> becomes true, while keeping <tt>capacity()</tt>, so the
+     *  buffer can be refilled via <tt>resize()</tt> without reallocating. Storage only frees when the
      *  tensor is destroyed. */
     constexpr void clear() noexcept {
         size_type const zero = 0;
@@ -1483,10 +1486,12 @@ struct tensor {
 
     /**
      *  @brief Factory: allocate an uninitialized tensor from an @p extents array of @p rank dims.
-     *  @return The tensor, empty for a zero volume; @c unexpected_dimensions_k when @p rank exceeds
-     *      @c max_rank_ or the last extent is not a whole number of storage values, @c bad_alloc_k
-     *      when the allocation fails.
+     *  @return The tensor, empty for a zero volume.
      *  @warning Contents are uninitialized. Caller must fill before reading.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k @p rank exceeds @c max_rank_ or the last extent is not a whole
+     *    number of storage values.
      */
     static expected<tensor> uninitialized(size_type const *extents, size_type rank,
                                           allocator_type_ alloc = {}) noexcept {
@@ -1529,9 +1534,12 @@ struct tensor {
 
     /**
      *  @brief Factory: allocate a zero-initialized tensor with the given extents.
-     *  @param[in] extents Extents, one per dimension, e.g. `{3, 4}`.
+     *  @param[in] extents Extents, one per dimension, e.g. <tt>{3, 4}</tt>.
      *  @param[in] alloc Allocator instance.
-     *  @return The tensor, or the failure @c uninitialized reports.
+     *  @return The tensor.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k As @c uninitialized reports.
      */
     static expected<tensor> zeros(std::initializer_list<size_type> extents, allocator_type_ alloc = {}) noexcept {
         return zeros(extents.begin(), extents.size(), alloc);
@@ -1539,9 +1547,12 @@ struct tensor {
 
     /**
      *  @brief Factory: allocate a tensor filled with ones.
-     *  @param[in] extents Extents, one per dimension, e.g. `{3, 4}`.
+     *  @param[in] extents Extents, one per dimension, e.g. <tt>{3, 4}</tt>.
      *  @param[in] alloc Allocator instance.
-     *  @return The tensor, or the failure @c uninitialized reports.
+     *  @return The tensor.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k As @c uninitialized reports.
      */
     static expected<tensor> ones(std::initializer_list<size_type> extents, allocator_type_ alloc = {}) noexcept {
         return full(extents, value_type_ {1}, alloc);
@@ -1549,10 +1560,13 @@ struct tensor {
 
     /**
      *  @brief Factory: allocate a tensor filled with a given value.
-     *  @param[in] extents Extents, one per dimension, e.g. `{3, 4}`.
+     *  @param[in] extents Extents, one per dimension, e.g. <tt>{3, 4}</tt>.
      *  @param[in] val Fill value.
      *  @param[in] alloc Allocator instance.
-     *  @return The tensor, or the failure @c uninitialized reports.
+     *  @return The tensor.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k As @c uninitialized reports.
      */
     static expected<tensor> full(std::initializer_list<size_type> extents, value_type_ val,
                                  allocator_type_ alloc = {}) noexcept {
@@ -1561,9 +1575,12 @@ struct tensor {
 
     /**
      *  @brief Factory: allocate an uninitialized tensor.
-     *  @param[in] extents Extents, one per dimension, e.g. `{3, 4}`.
+     *  @param[in] extents Extents, one per dimension, e.g. <tt>{3, 4}</tt>.
      *  @param[in] alloc Allocator instance.
-     *  @return The tensor, or the failure the pointer overload reports.
+     *  @return The tensor.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k As the pointer overload reports.
      */
     static expected<tensor> uninitialized(std::initializer_list<size_type> extents,
                                           allocator_type_ alloc = {}) noexcept {
@@ -1574,7 +1591,10 @@ struct tensor {
      *  @brief Factory: create a rank-1 tensor from an initializer list of values.
      *  @param[in] values Values to fill the tensor with.
      *  @param[in] alloc Allocator instance.
-     *  @return The tensor, or the failure @c uninitialized reports.
+     *  @return The tensor.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k As @c uninitialized reports.
      */
     static expected<tensor> from(std::initializer_list<value_type_> values, allocator_type_ alloc = {}) noexcept {
         auto result = uninitialized({values.size()}, alloc);
@@ -1588,8 +1608,10 @@ struct tensor {
      *  @brief Factory: create a rank-2 tensor from a nested initializer list.
      *  @param[in] rows Each inner list is a row. All rows must have the same length.
      *  @param[in] alloc Allocator instance.
-     *  @return The tensor, empty for no rows; @c unexpected_dimensions_k for ragged rows, or the
-     *      failure @c uninitialized reports.
+     *  @return The tensor, empty for no rows.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k Ragged rows, or as @c uninitialized reports.
      */
     static expected<tensor> from(std::initializer_list<std::initializer_list<value_type_>> rows,
                                  allocator_type_ alloc = {}) noexcept
@@ -1634,7 +1656,7 @@ struct tensor {
     /** True if empty. */
     constexpr bool empty() const noexcept { return data_ == nullptr || numel() == 0; }
 
-    /** Contextual-bool: truthy when the tensor owns storage. Enables the `if(!t)` empty-check
+    /** Contextual-bool: truthy when the tensor owns storage. Enables the <tt>if(!t)</tt> empty-check
      *  idiom. */
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
@@ -1794,7 +1816,7 @@ struct tensor {
 
 #if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
-    /** C++23 sugar: multi-arg `[]` scalar lookup, delegates to `operator()`. */
+    /** C++23 sugar: multi-arg <tt>[]</tt> scalar lookup, delegates to <tt>operator()</tt>. */
     template <std::integral... index_types_>
         requires(sizeof...(index_types_) >= 2)
     constexpr decltype(auto) operator[](index_types_... idxs) noexcept {
@@ -1827,7 +1849,7 @@ struct tensor {
 
 #if NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_
 
-    /** C++23 sugar: multi-arg `[]` slicing, delegates to `operator()`. */
+    /** C++23 sugar: multi-arg <tt>[]</tt> slicing, delegates to <tt>operator()</tt>. */
     template <typename first_type_, typename second_type_, typename... rest_types_>
         requires(trailing_tensor_slice_args_v<first_type_, second_type_, rest_types_...>)
     constexpr auto operator[](first_type_ first, second_type_ second, rest_types_... rest) noexcept {
@@ -1922,15 +1944,15 @@ using matrix_span = tensor_span<value_type_, 2>;
  *
  *  Because the scales are a real reduced-shape tensor, slicing reuses the tensor machinery and
  *  slices both components in lockstep; a last-axis, column, range is divided by @c block_size.
- *  Encode / decode / transcode all go through `cast()` in `cast.hpp`; @c scaled_tensor itself is
+ *  Encode / decode / transcode all go through <tt>cast()</tt> in <tt>cast.hpp</tt>; @c scaled_tensor itself is
  *  pure storage and never calls a kernel. The struct-of-arrays layout is exactly the NVFP4/MXFP8
- *  GPU representation — `elements()` and `block_scales()` each export a DLPack / CUDA-array
+ *  GPU representation — <tt>elements()</tt> and <tt>block_scales()</tt> each export a DLPack / CUDA-array
  *  interface for zero-copy access.
  *
- *  Shape convention: `elements()` reports the @b logical shape @b [rows,columns] because its value
- *  type is the sub-byte-aware packed scalar, e.g. @c e2m1x2_t, so `extent(last)` is the element
+ *  Shape convention: <tt>elements()</tt> reports the @b logical shape @b [rows,columns] because its value
+ *  type is the sub-byte-aware packed scalar, e.g. @c e2m1x2_t, so <tt>extent(last)</tt> is the element
  *  count even though storage is packed. Array-protocol bindings without a sub-byte scalar — the
- *  Python `ScaledTensor.elements` ndarray, Rust's packed slice — instead expose the @b packed byte
+ *  Python <tt>ScaledTensor.elements</tt> ndarray, Rust's packed slice — instead expose the @b packed byte
  *  shape @b [rows,columns] with the column extent scaled by element_bits/8, same bytes, reported
  *  per their type system.
  *
@@ -1977,7 +1999,7 @@ struct scaled_tensor_view {
     /** True if empty. */
     constexpr bool empty() const noexcept { return elements_.empty(); }
 
-    /** Contextual-bool: truthy when the handle is non-empty. Enables the `if(!view)` empty-check
+    /** Contextual-bool: truthy when the handle is non-empty. Enables the <tt>if(!view)</tt> empty-check
      *  idiom. */
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
@@ -2011,7 +2033,7 @@ struct scaled_tensor_view {
      *
      *  @p start and @p stop must be multiples of @c block_size so both the element and the scale
      *  offsets stay integral and land on container boundaries, essential for packed sub-byte
-     *  elements. Returns an empty view otherwise; materialize sub-block ranges with `cast()` first.
+     *  elements. Returns an empty view otherwise; materialize sub-block ranges with <tt>cast()</tt> first.
      */
     constexpr scaled_tensor_view columns(size_type start, size_type stop) const noexcept {
         auto r = rank();
@@ -2057,7 +2079,7 @@ struct scaled_tensor_view {
     constexpr rows_views_t rows_views() const noexcept { return {*this}; }
 };
 
-/** Non-owning, mutable span of a block-scaled tensor, a write target for `cast()`. */
+/** Non-owning, mutable span of a block-scaled tensor, a write target for <tt>cast()</tt>. */
 template <typename format_, std::size_t max_rank_>
 struct scaled_tensor_span {
     using format_type = format_;
@@ -2086,7 +2108,7 @@ struct scaled_tensor_span {
     constexpr size_type numel() const noexcept { return elements_.numel(); }
     constexpr bool empty() const noexcept { return elements_.empty(); }
 
-    /** Contextual-bool: truthy when the handle is non-empty. Enables the `if(!span)` empty-check
+    /** Contextual-bool: truthy when the handle is non-empty. Enables the <tt>if(!span)</tt> empty-check
      *  idiom. */
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
@@ -2151,8 +2173,13 @@ struct scaled_tensor {
     /**
      *  @brief Factory: allocate an uninitialized block-scaled tensor with the given extents.
      *  @param[in] extents Logical extents; the last one must be a multiple of @c block_size.
-     *  @return The tensor; @c unexpected_dimensions_k for a bad rank or an unaligned last extent,
-     *      or the failure either component's allocation reports.
+     *  @param[in] rank Number of extents.
+     *  @param[in] element_alloc Allocator of the element tensor.
+     *  @param[in] scale_alloc Allocator of the block-scale tensor.
+     *  @return The tensor.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k A bad rank or an unaligned last extent.
      */
     static expected<scaled_tensor> uninitialized(size_type const *extents, size_type rank,
                                                  element_allocator_ element_alloc = {},
@@ -2180,8 +2207,11 @@ struct scaled_tensor {
 
     /**
      *  @brief Adopt already-built component tensors and a per-tensor scale.
-     *  @return The tensor, or @c unexpected_dimensions_k when @p block_scales isn't shaped like
-     *      @p elements with the last extent divided by @c block_size.
+     *  @return The tensor.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k @p block_scales isn't shaped like @p elements with the last
+     *    extent divided by @c block_size.
      */
     static expected<scaled_tensor> from_components(element_tensor_type elements, scale_tensor_type block_scales,
                                                    f32_t tensor_scale = 1.0f) noexcept {
@@ -2201,18 +2231,20 @@ struct scaled_tensor {
     constexpr size_type numel() const noexcept { return elements_.numel(); }
     constexpr bool empty() const noexcept { return elements_.empty(); }
 
-    /** Contextual-bool: truthy when the tensor owns storage. Enables the `if(!t)` empty-check
+    /** Contextual-bool: truthy when the tensor owns storage. Enables the <tt>if(!t)</tt> empty-check
      *  idiom. */
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
-    /** Allocated logical-element capacity — the ceiling coordinated `resize()` honors. */
+    /** Allocated logical-element capacity — the ceiling coordinated <tt>resize()</tt> honors. */
     constexpr size_type capacity() const noexcept { return elements_.capacity(); }
 
     /**
      *  @brief Reshape in place to @p extents whose last dimension is a multiple of @c block_size,
      *      resizing both tensors without reallocating.
-     *  @return @c success_k, or @c unexpected_dimensions_k leaving both untouched, if the rank is
-     *      bad, the last extent is not block-aligned, or either component's capacity is exceeded.
+     *
+     *  @par Statuses:
+     *  - @c unexpected_dimensions_k Leaving both untouched, if the rank is bad, the last extent is
+     *    not block-aligned, or either component's capacity is exceeded.
      */
     constexpr status_t resize(size_type const *extents, size_type rank) noexcept {
         if (rank == 0 || rank > max_rank_) return status_t::unexpected_dimensions_k;
@@ -2240,7 +2272,6 @@ struct scaled_tensor {
     /**
      *  @brief Grow capacity to at least @p values logical elements, plus the matching per-block
      *      scales; may reallocate/move the component buffers. No-op when already large enough.
-     *  @return @c success_k, or @c bad_alloc_k from whichever component failed to grow.
      */
     status_t reserve(size_type values) noexcept {
         if (status_t status = elements_.reserve(values); failed(status)) return status;
@@ -2265,8 +2296,8 @@ struct scaled_tensor {
     constexpr typename element_tensor_type::view_type elements() const noexcept { return elements_.view(); }
     constexpr typename scale_tensor_type::view_type block_scales() const noexcept { return block_scales_.view(); }
 
-    /** Per-tensor multiplier, NVFP4 only, absent for the MX family. `cast()` derives and writes it
-     *  on encode through `span().tensor_scale_slot()`. */
+    /** Per-tensor multiplier, NVFP4 only, absent for the MX family. <tt>cast()</tt> derives and writes it
+     *  on encode through <tt>span().tensor_scale_slot()</tt>. */
     f32_t tensor_scale() const noexcept
         requires(format_::has_tensor_scale())
     {
@@ -2670,7 +2701,7 @@ status_t elementwise_into_(tensor_view<value_type_, max_rank_> a, tensor_view<va
 }
 
 /** Output-only traversal: walks a span, collapses contiguous tail dims, and invokes
- *  `leaf(byte_data, byte_count)` on each maximal contiguous byte run. Strided rank-1 leaves invoke
+ *  <tt>leaf(byte_data, byte_count)</tt> on each maximal contiguous byte run. Strided rank-1 leaves invoke
  *  @p leaf once per element. Sub-byte dtypes require a fully contiguous span. */
 template <typename value_type_, std::size_t max_rank_, typename leaf_function_>
 status_t span_for_each_contiguous_run_(tensor_span<value_type_, max_rank_> output, leaf_function_ &&leaf) noexcept {

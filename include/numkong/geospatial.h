@@ -187,7 +187,9 @@ extern "C" {
  *  @param[in] results_stride The bytes between consecutive rows of @p results.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_sqeuclideans3d_i32_best(nk_i32_t const *a, nk_size_t rows, nk_i32_t const *b,
                                                    nk_size_t columns, nk_u64_t *results, nk_size_t results_stride,
@@ -202,7 +204,9 @@ NUMKONG_API nk_status_t nk_sqeuclideans3d_f64_best(nk_f64_t const *a, nk_size_t 
  *  @param[in] points The number of points.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The size of the pack.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_haversines_pack_size_f64_best(nk_size_t points, nk_capability_t capabilities,
                                                          nk_size_t *bytes);
@@ -218,7 +222,9 @@ NUMKONG_API nk_status_t nk_vincentys_pack_size_f64_best(nk_size_t points, nk_cap
  *  @param[out] packed The pack, on an @c nk_default_alignment_k boundary.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_haversines_pack_f64_best(nk_f64_t const *latitudes, nk_f64_t const *longitudes,
                                                     nk_size_t count, void *packed, nk_capability_t capabilities,
@@ -238,7 +244,9 @@ NUMKONG_API nk_status_t nk_vincentys_pack_f64_best(nk_f64_t const *latitudes, nk
  *  @param[in] results_stride The bytes between consecutive rows of @p results.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_haversines_packed_f64_best(void const *a_packed, void const *b_packed, nk_f64_t *results,
                                                       nk_size_t results_stride, nk_capability_t capabilities,
@@ -256,7 +264,9 @@ NUMKONG_API nk_status_t nk_vincentys_packed_f64_best(void const *a_packed, void 
  *  @param[in] columns The grid columns.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The size of the pack.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_terrain_pack_size_f32_best(nk_size_t rows, nk_size_t columns, nk_capability_t capabilities,
                                                       nk_size_t *bytes);
@@ -273,7 +283,9 @@ NUMKONG_API nk_status_t nk_terrain_pack_size_f32_best(nk_size_t rows, nk_size_t 
  *  @param[out] packed The pack, on an @c nk_default_alignment_k boundary.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_terrain_pack_f32_best(nk_f32_t const *heights, nk_size_t rows, nk_size_t columns,
                                                  nk_size_t heights_stride, nk_f64_t row_metres, nk_f64_t column_metres,
@@ -288,7 +300,9 @@ NUMKONG_API nk_status_t nk_terrain_pack_f32_best(nk_f32_t const *heights, nk_siz
  *  @param[out] results The @p count heights in metres, NaN off the grid or beside a missing cell.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_terrain_heights_packed_f32_best(nk_f32_t const *heights, void const *packed,
                                                            nk_f32_t const *points, nk_size_t count, nk_f32_t *results,
@@ -311,7 +325,9 @@ NUMKONG_API nk_status_t nk_terrain_heights_packed_f32_best(nk_f32_t const *heigh
  *  @param[in] results_stride The bytes between consecutive rows of @p results.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_clearances_packed_f32_best(nk_f32_t const *heights, void const *packed,
                                                       nk_f32_t const *viewpoints, nk_f32_t const *views, nk_size_t rows,
@@ -516,9 +532,15 @@ NUMKONG_INLINE nk_f64_t nk_vincentys_error_bound(nk_dtype_t dtype) {
 
 /**
  *  @brief Finds the geospatial kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_geospatial_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                                   nk_kernel_punned_t *kernel, nk_capability_t *capability);

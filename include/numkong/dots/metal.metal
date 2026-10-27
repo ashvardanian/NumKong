@@ -12,7 +12,7 @@
  *  16-deep slabs of A and B widened into threadgroup memory, accumulating in @c float, or exactly
  *  in @c int for integer codes, as the serial backends do; Apple GPUs have no F64. The pack and
  *  the launch records live here too, for the other sources to build on, while the dtype classes
- *  and block-scale helpers they read live in `types.metal`.
+ *  and block-scale helpers they read live in <tt>types.metal</tt>.
  *
  *  Block-scaled tiles multiply each block's sum by its two scales and add it into a compensated
  *  @c float pair carrying its own exponent, so blocks of any spread round once, and the tensor
@@ -144,7 +144,7 @@ float nk_cross_distance_metal_(float dot, float a_norm, float b_norm) {
 }
 
 /** A distance from an exact integer dot and squared norms, as @c nk_cross_integer_metric_simt_ in
- *  `dots/simt.cuh`: ab − d² and a + b − 2d stay exact in 64 bits, so equal rows are exactly 0 apart
+ *  <tt>dots/simt.cuh</tt>: ab − d² and a + b − 2d stay exact in 64 bits, so equal rows are exactly 0 apart
  *  and only the correctly rounded F32 tail rounds. */
 template <nk_cross_metric_metal_t metric_>
 float nk_cross_distance_metal_(long dot, uint a_norm, uint b_norm) {

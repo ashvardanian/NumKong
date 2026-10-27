@@ -7,11 +7,11 @@
  *
  *  The @c stream every dispatch point takes on Apple GPUs is an @c id<MTLCommandQueue>, or null for
  *  the library's own queue on the system default device. Each call encodes one command buffer,
- *  commits it and returns, and @ref nk_stream_synchronize_metal waits for those of one stream.
+ *  commits it and returns, and @c nk_stream_synchronize_metal waits for those of one stream.
  *
  *  A shared Metal buffer's host address is never its GPU address, so a kernel cannot be handed a
  *  host pointer the way a CUDA kernel is handed a managed one. Memory from
- *  @ref nk_memory_allocate_unified_metal is the device-reachable kind: the device's context records
+ *  @c nk_memory_allocate_unified_metal is the device-reachable kind: the device's context records
  *  every block it hands out, and a launch resolves each pointer to its block and an offset in it.
  *  Encoders live on each caller's stack and the context sits behind a lock, so any number of
  *  threads may encode into any queues.
@@ -44,7 +44,8 @@ typedef struct {
     nk_size_t width, height, depth;
 } nk_metal_size_t;
 
-/** @c MTLCreateSystemDefaultDevice, renamed so Objective-C units may include `<Metal/Metal.h>`. */
+/** @c MTLCreateSystemDefaultDevice, renamed so Objective-C units
+ *  may include <tt>\<Metal/Metal.h\></tt>. */
 typedef void *nk_metal_device_factory_t(void);
 nk_metal_device_factory_t nk_default_device_metal_ __asm__("_MTLCreateSystemDefaultDevice");
 #if TARGET_OS_OSX
@@ -245,7 +246,7 @@ NUMKONG_INLINE nk_status_t nk_abort_metal_(nk_metal_call_t *call, nk_status_t st
 
 /**
  *  @brief Kernel @p name's pipeline from the library built out of @p source, built on first use.
- *  @param[in] language_version An @c MTLLanguageVersion, like `(3 << 16) | 1` for Metal 3.1.
+ *  @param[in] language_version An @c MTLLanguageVersion, like <tt>(3 << 16) | 1</tt> for Metal 3.1.
  *  @return The pipeline, or null when it fails to build.
  */
 NUMKONG_INLINE void *nk_pipeline_metal_(nk_metal_context_t *context, char const *source, char const *name,

@@ -3,7 +3,7 @@
  *  @author Ash Vardanian
  *  @date October 3, 2026
  *  @brief ROCm host side of element-wise sums, RMSNorm and SwiGLU: the launches, the export
- *      generators and the @c rocm exports, over the kernels of `each/simt.cuh`.
+ *      generators and the @c rocm exports, over the kernels of <tt>each/simt.cuh</tt>.
  *
  *  @sa include/numkong/each/simt.cuh
  *  @sa include/numkong/each/cuda.cuh

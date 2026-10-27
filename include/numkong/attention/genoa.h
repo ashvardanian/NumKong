@@ -10,12 +10,12 @@
  *  BF16 planes, doubling the per-instruction throughput over the widened-F32 Skylake kernels while
  *  halving the packed-KV footprint. The panel structure, online correction, and the base-2 softmax
  *  polynomial are shared with the rest of the family; the softmax and weighted-sum stages reuse the
- *  Skylake helpers — Genoa always implies the Skylake feature set, matching `dots/genoa.h`.
+ *  Skylake helpers — Genoa always implies the Skylake feature set, matching <tt>dots/genoa.h</tt>.
  *
- *  Packed payload per segment: K planes then V planes, `[key_value_head][position][channel]` in
+ *  Packed payload per segment: K planes then V planes, <tt>[key_value_head][position][channel]</tt> in
  *  BF16 with channels zero-padded to a multiple of 32 — @c vdpbf16ps consumes value pairs, so
  *  full-width loops need no masks. E4M3 widens to BF16 during packing and Q staging via the Ice
- *  Lake converters, exactly like `dots/genoa.h`. Heads deeper than 256 channels narrow the query
+ *  Lake converters, exactly like <tt>dots/genoa.h</tt>. Heads deeper than 256 channels narrow the query
  *  and accumulate scores in 256-channel chunks; the output accumulates in place.
  */
 #ifndef NUMKONG_ATTENTION_GENOA_H

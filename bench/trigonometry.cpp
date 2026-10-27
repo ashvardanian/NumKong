@@ -34,7 +34,7 @@ nk_status_t elementwise_with_stl(scalar_type_ const *ins, nk_size_t n, scalar_ty
 
 /**
  *  @brief Measures trigonometric operations, sin, cos, atan.
- *  @param[inout] loop The timed loop, which takes the counters.
+ *  @param[in,out] loop The timed loop, which takes the counters.
  *  @param[in] kernel The kernel function to benchmark.
  *  @param[in] dimensions The number of dimensions in the vectors.
  */

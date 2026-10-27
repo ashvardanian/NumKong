@@ -1,4 +1,4 @@
-# cmake/nk_math_lib.cmake
+# cmake/numkong_math_library.cmake
 #
 # Detect whether C++ targets need explicit linkage against `libm`.
 # Some Unix toolchains require `-lm` for cmath symbols, while MSVC and

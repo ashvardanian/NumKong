@@ -15,7 +15,7 @@ using cast_kernel_t = nk_status_t (*)(void const *, nk_dtype_t, void *, nk_dtype
 
 /**
  *  @brief Measures the performance of type casting operations.
- *  @param[inout] loop The timed loop, which takes the counters.
+ *  @param[in,out] loop The timed loop, which takes the counters.
  *  @param[in] kernel The cast kernel function to benchmark.
  *  @param[in] count The number of elements to cast.
  */

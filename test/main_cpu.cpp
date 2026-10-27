@@ -33,14 +33,19 @@ char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 /*  Explicit instantiations verify that `random.hpp` compiles for every code path: f64_t for the
  *  scalar float path, i16_t for the scalar signed integer path, bf16c_t for the complex path, and
  *  i4x2_t for the packed sub-byte path. */
-template void nk::fill_uniform(std::mt19937 &, nk::f64_t *, std::size_t, nk::f64_t::component_t,
-                               nk::f64_t::component_t);
-template void nk::fill_uniform(std::mt19937 &, nk::i16_t *, std::size_t, nk::i16_t::component_t,
-                               nk::i16_t::component_t);
-template void nk::fill_uniform(std::mt19937 &, nk::bf16c_t *, std::size_t, nk::bf16c_t::component_t,
-                               nk::bf16c_t::component_t);
-template void nk::fill_uniform(std::mt19937 &, nk::i4x2_t *, std::size_t, nk::i4x2_t::component_t,
-                               nk::i4x2_t::component_t);
+
+/** Compiles the bounded @c fill_uniform overload for f64, i16, bf16c and i4x2 through implicit
+ *  instantiation. */
+inline void compile_bounded_fill_uniform_paths(std::mt19937 &generator) noexcept {
+    nk::fill_uniform(generator, static_cast<nk::f64_t *>(nullptr), 0, nk::f64_t::component_t {},
+                     nk::f64_t::component_t {});
+    nk::fill_uniform(generator, static_cast<nk::i16_t *>(nullptr), 0, nk::i16_t::component_t {},
+                     nk::i16_t::component_t {});
+    nk::fill_uniform(generator, static_cast<nk::bf16c_t *>(nullptr), 0, nk::bf16c_t::component_t {},
+                     nk::bf16c_t::component_t {});
+    nk::fill_uniform(generator, static_cast<nk::i4x2_t *>(nullptr), 0, nk::i4x2_t::component_t {},
+                     nk::i4x2_t::component_t {});
+}
 template void nk::fill_uniform(std::mt19937 &, nk::f64_t *, std::size_t);
 template void nk::fill_uniform(std::mt19937 &, nk::i16_t *, std::size_t);
 template void nk::fill_uniform(std::mt19937 &, nk::bf16c_t *, std::size_t);

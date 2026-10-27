@@ -1,12 +1,11 @@
-//
-//  swift/NumKong.swift
-//  Geospatial distance protocols, capability detection, and thread configuration.
-//
-//  - Author: Ash Vardanian
-//  - Date: March 14, 2026
-//
+/**
+ *  @file swift/NumKong.swift
+ *  @author Ash Vardanian
+ *  @date March 14, 2026
+ *  @brief Geospatial distance protocols, capability detection, and thread configuration.
+ */
 
-import CNumKong
+import NumKongC
 
 // MARK: - Geospatial Protocols
 

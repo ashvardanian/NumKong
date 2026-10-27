@@ -78,7 +78,7 @@ NUMKONG_INLINE void nk_add_bf16_neonbfdot_(nk_bf16_t const *a, nk_bf16_t const *
     }
 }
 
-/** Computes `alpha * a + beta` over @p n BF16 values, in F32. */
+/** Computes <tt>alpha * a + beta</tt> over @p n BF16 values, in F32. */
 NUMKONG_INLINE void nk_scale_bf16_neonbfdot_(nk_bf16_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
                                              nk_bf16_t *result) {
     float32x4_t alpha_f32x4 = vdupq_n_f32(alpha_val);

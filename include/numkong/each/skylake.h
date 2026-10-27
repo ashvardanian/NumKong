@@ -71,7 +71,7 @@ nk_each_sum_f64_skylake_cycle:
     if (n) goto nk_each_sum_f64_skylake_cycle;
 }
 
-/** Computes `alpha * a + beta` over @p n F64 values. */
+/** Computes <tt>alpha * a + beta</tt> over @p n F64 values. */
 NUMKONG_INLINE void nk_affine_f64_skylake_(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta,
                                            nk_f64_t *result) {
     nk_f64_t alpha_val = *alpha;
@@ -119,7 +119,7 @@ nk_each_sum_f32_skylake_cycle:
     if (n) goto nk_each_sum_f32_skylake_cycle;
 }
 
-/** Computes `alpha * a + beta` over @p n F32 values. */
+/** Computes <tt>alpha * a + beta</tt> over @p n F32 values. */
 NUMKONG_INLINE void nk_affine_f32_skylake_(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
                                            nk_f32_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -171,7 +171,7 @@ nk_each_sum_bf16_skylake_cycle:
     if (n) goto nk_each_sum_bf16_skylake_cycle;
 }
 
-/** Computes `alpha * a + beta` over @p n BF16 values, in F32. */
+/** Computes <tt>alpha * a + beta</tt> over @p n BF16 values, in F32. */
 NUMKONG_INLINE void nk_affine_bf16_skylake_(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                             nk_f32_t const *beta, nk_bf16_t *result) {
     nk_f32_t alpha_val = *alpha;
@@ -199,7 +199,7 @@ nk_each_scale_bf16_skylake_cycle:
     if (n) goto nk_each_scale_bf16_skylake_cycle;
 }
 
-/** Computes `alpha * a + beta` over @p n F16 values, in F32. */
+/** Computes <tt>alpha * a + beta</tt> over @p n F16 values, in F32. */
 NUMKONG_INLINE void nk_affine_f16_skylake_(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
                                            nk_f16_t *result) {
     __m512 alpha_f32x16 = _mm512_set1_ps(*alpha);
@@ -222,7 +222,7 @@ nk_each_scale_f16_skylake_cycle:
     if (n) goto nk_each_scale_f16_skylake_cycle;
 }
 
-/** Vectorized `2^x` (Skylake AVX-512); matches @c nk_f32_exp2_serial_ to polynomial precision. */
+/** Vectorized <tt>2^x</tt> (Skylake AVX-512); matches @c nk_f32_exp2_serial_ to polynomial precision. */
 NUMKONG_INLINE __m512 nk_exp2_f32x16_skylake_(__m512 x_f32x16) {
     x_f32x16 = _mm512_max_ps(_mm512_min_ps(x_f32x16, _mm512_set1_ps(127.0f)), _mm512_set1_ps(-125.0f));
     __m512 n_f32x16 = _mm512_roundscale_ps(x_f32x16, _MM_FROUND_TO_NEAREST_INT);

@@ -10,13 +10,13 @@
  *  Persistent blocks of ten warps own @b [128,128] output tiles. One thread streams 128-byte depth
  *  slabs of A and B through a six-stage ring with the Tensor Memory Accelerator, which swizzles
  *  them into the canonical 128-byte layout and zero-fills every edge, and one thread issues
- *  `tcgen05.mma` over shared-memory descriptors into one of two F32 accumulators in tensor memory,
+ *  <tt>tcgen05.mma</tt> over shared-memory descriptors into one of two F32 accumulators in tensor memory,
  *  so four epilogue warps drain one tile while the next accumulates, and four stage warps prepare
  *  the stages the products read next. Every dtype multiplies 32 bytes of depth per instruction:
  *  BF16 and F16 as @c kind::f16, Float8 as @c kind::f8f6f4, E2M1 as the block-scaled
  *  @c kind::mxf4 with every scale at 2⁰, and Float6 as the Float8 of the next exponent width,
  *  which is its own code with the sign moved up and a power of two the output undoes. The stage
- *  warps move A's signs in shared memory, and the pack moves B's. `tcgen05.mma.kind::i8` exists
+ *  warps move A's signs in shared memory, and the pack moves B's. <tt>tcgen05.mma.kind::i8</tt> exists
  *  only in sm_100a and sm_110a code, not in the family code shared with the 10.3 and 10.7 parts, so
  *  integers multiply as exact F16: they load as narrower slabs that the stage warps widen to exact
  *  F16 values for @c kind::f16, A's into the tensor memory the products read it from, in chunks of

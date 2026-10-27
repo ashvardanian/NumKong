@@ -18,7 +18,8 @@ namespace ashvardanian::numkong {
 
 /**
  *  @brief Kullback-Leibler divergence: Σ pᵢ × log(pᵢ / qᵢ)
- *  @param[in] p,q First and second probability distributions
+ *  @param[in] p First probability distribution
+ *  @param[in] q Second probability distribution
  *  @param[in] d Number of dimensions in input vectors
  *  @param[out] r Pointer to output divergence value
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
@@ -53,7 +54,8 @@ status_t kld(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *
 
 /**
  *  @brief Jensen-Shannon distance: √(½ × (KL(p‖m) + KL(q‖m))), where m = (p + q) / 2
- *  @param[in] p,q First and second probability distributions
+ *  @param[in] p First probability distribution
+ *  @param[in] q Second probability distribution
  *  @param[in] d Number of dimensions in input vectors
  *  @param[out] r Pointer to output distance value
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template

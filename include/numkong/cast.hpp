@@ -59,7 +59,7 @@ status_t cast(from_vector_type_ const &from, to_vector_type_ &&to,
  *
  *  @c elements and @c scales are the byte buffers, with @c scales NULL for a plain f32 side.
  *  @c tensor_scale is a value carrier: seed it from the source on decode or transcode, or leave it
- *  zero on a destination so the kernel derives it and writes it back. Both buffers stay `void *`
+ *  zero on a destination so the kernel derives it and writes it back. Both buffers stay <tt>void *</tt>
  *  even for a source — the kernel only reads a source side, so the builders' const_cast is safe.
  */
 struct block_scaled_operand_ {
@@ -126,7 +126,7 @@ void store_derived_tensor_scale_(scaled_tensor_span<format_> const &destination,
  *  Derives the per-tensor scale (NVFP4) over the whole tensor in one contiguous pass and writes it
  *  back through the destination's scale slot. The source must be contiguous (the scale is a
  *  whole-tensor reduction). Allocate the destination with
- *  `scaled_tensor<format_>::uninitialized(...)`, which reports the allocation's own status.
+ *  <tt>scaled_tensor<format_>::uninitialized(...)</tt>, which reports the allocation's own status.
  */
 template <typename format_, std::size_t max_rank_>
 status_t cast(tensor_view<f32_t, max_rank_> from, scaled_tensor_span<format_, max_rank_> to,

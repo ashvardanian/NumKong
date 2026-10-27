@@ -5,9 +5,9 @@
  *  @brief Float6 relabelling for NVIDIA Ada, compute capability 8.9, and every GPU since.
  *
  *  The Float6 relabelling into Float8 that the Hopper, Blackwell and BlackwellRTX capabilities
- *  reuse, next to the `cvt.*e4m3x2` helpers of `cast/ada.cuh`. Ada runs no matrix kernels of its
- *  own, as its FP8 `mma.sync` keeps only 13 fraction bits of each 16-deep step; its element-wise
- *  kernels and bulk casts live in `each/ada.cuh` and `cast/ada.cuh`.
+ *  reuse, next to the <tt>cvt.*e4m3x2</tt> helpers of <tt>cast/ada.cuh</tt>. Ada runs no matrix kernels of its
+ *  own, as its FP8 <tt>mma.sync</tt> keeps only 13 fraction bits of each 16-deep step; its element-wise
+ *  kernels and bulk casts live in <tt>each/ada.cuh</tt> and <tt>cast/ada.cuh</tt>.
  */
 #ifndef NUMKONG_DOTS_ADA_CUH
 #define NUMKONG_DOTS_ADA_CUH

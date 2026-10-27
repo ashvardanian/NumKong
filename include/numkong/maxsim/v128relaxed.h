@@ -9,7 +9,7 @@
  *  Uses wasm_i32x4_relaxed_dot_i8x16_i7x16_add for coarse i8 screening. Codes stay in [-63, 63],
  *  yet engines read a negative i7 operand differently, Wasmtime on x86 as unsigned, so documents
  *  are biased by 64 into [1, 127] and 64 times the query's code sum is subtracted, like the Haswell
- *  and Alder XOR-0x80 approach. Packing routines live in `maxsim/v128.h`.
+ *  and Alder XOR-0x80 approach. Packing routines live in <tt>maxsim/v128.h</tt>.
  *
  *  1Q × 1D tiling, simpler than x86 4x4. Depth steps at 16 bytes, the v128 width in bytes.
  */

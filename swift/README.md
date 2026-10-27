@@ -49,7 +49,7 @@ Packing handles internal layout itself.
 | Precision                    | BFloat16 through sub-byte — Float8, Float6, packed bits; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float32/Float64, limited Float16; no auto-widening; IEEE defaults | Float16/BFloat16/Float32; no Float8 or sub-byte; backend-dependent |
 | Runtime SIMD dispatch        | per call, the highest capability the CPU runs and the build holds, across x86, Arm, RISC-V                             | Apple-only, no runtime ISA selection                              | GPU dispatch only, no CPU ISA selection                            |
 | Packed matrix, GEMM-like     | `PackedMatrix` packs once, reused across query batches                                                                 | BLAS GEMM available                                               | GEMM via graph, implicit caching                                   |
-| Symmetric kernels, SYRK-like | `dots_symmetric`, `angulars_symmetric`, etc. skip duplicate pairs, up to 2x speedup                                    | `cblas_ssyrk` available for rank-k updates                        | no duplicate-pair skipping                                         |
+| Symmetric kernels, SYRK-like | `dotsSymmetric`, `angularsSymmetric`, etc. skip duplicate pairs, up to 2x speedup                                    | `cblas_ssyrk` available for rank-k updates                        | no duplicate-pair skipping                                         |
 | Collection-based API         | works with any `RandomAccessCollection` conforming type                                                                | pointer-based vDSP functions                                      | `MLXArray`-based                                                   |
 | Memory model                 | caller-owned buffers; `Tensor`/`PackedMatrix` own their storage                                                        | caller-managed via `UnsafePointer`                                | graph-managed; implicit allocation and caching                     |
 
@@ -76,12 +76,12 @@ Then add the product to your target:
 )
 ```
 
-The `NumKong` product carries the C layer too, which a target imports as `CNumKong`.
+The `NumKong` product carries the C layer too, which a target imports as `NumKongC`.
 SwiftPM downloads it prebuilt from the GitHub release: an XCFramework on Apple platforms, and an artifact bundle for Linux, Windows, Android and WASI.
 The WASI variant carries the strict `v128` SIMD capability, which every engine with SIMD128 validates.
 Xcode package integration uses the same URL.
 
-## Collection-Based Dot Products
+## Dot Products
 
 Dot products follow a collection-first shape.
 
@@ -100,7 +100,7 @@ For `Float16`, it widens to `Float32`.
 For `Int8`, it widens to `Int32`.
 For `UInt8`, it widens to `UInt32`.
 
-## Collection-Based Dense Distances
+## Dense Distances
 
 The collection extensions are the lightest entry point.
 They are a good fit for per-vector retrieval and ranking work.
@@ -121,7 +121,7 @@ print(sqeuclidean as Any, euclidean as Any, angular as Any)
 The widening is deliberate.
 That is the main difference from a naive same-storage implementation.
 
-## Binary Metrics
+## Set Similarity
 
 Binary metrics work on packed words instead of boolean slices.
 That is the right model once the workload is "semantic hash" or "binary embedding" rather than "array of booleans".
@@ -143,7 +143,7 @@ print(hamming as Any, jaccard as Any)
 `Hamming` returns `UInt32` — the count of differing bits across all packed words.
 `Jaccard` returns `Float32` — the set-theoretic distance computed on bit populations.
 
-## Owning Tensors and Memory Layout
+## Tensors and Views
 
 `Tensor<T>` is the owning two-dimensional type.
 It allocates its own buffer, handles deallocation on `deinit`, and produces non-owning views and spans without nesting `withUnsafeBufferPointer` closures.
@@ -206,7 +206,7 @@ try a.withUnsafeBufferPointer { aPtr in
             let bView = MatrixView(baseAddress: bPtr.baseAddress!, rows: 2, columns: 3)
             var cSpan = MatrixSpan(baseAddress: outPtr.baseAddress!, rows: 2, columns: 2)
             let packed = try PackedMatrix<Float32>(packing: bView)
-            try dots_packed(aView, packed, &cSpan)
+            try dotsPacked(aView, packed, &cSpan)
         }
     }
 }
@@ -218,7 +218,7 @@ let packed = try b.packForDots()
 let c = try a.dotsPacked(packed) // returns Tensor<Float64>
 ```
 
-## Matrix Views and Packed Kernels
+## Matrix Kernels
 
 Packed kernels are the GEMM-like throughput path.
 They are useful when the right-hand side is reused across many query batches.
@@ -237,7 +237,7 @@ let eucs   = try a.euclideansPacked(packed)// Tensor<Float64>, 2x2
 assert(dots.rows == 2 && dots.columns == 2)
 ```
 
-The free-function API (`dots_packed`, `angulars_packed`, etc.) accepts `MatrixView`, `PackedMatrix`, and `MatrixSpan` directly for cases where you need manual buffer management — see the verbosity comparison in the Tensors section above.
+The free-function API (`dotsPacked`, `angularsPacked`, etc.) accepts `MatrixView`, `PackedMatrix`, and `MatrixSpan` directly for cases where you need manual buffer management — see the verbosity comparison in the Tensors section above.
 
 ## Symmetric Matrix Kernels
 
@@ -260,7 +260,7 @@ let angs  = try vectors.angularsSymmetric()  // Tensor<Float64>, 3x3
 assert(gram.rows == 3 && gram.columns == 3)
 ```
 
-The free-function form (`dots_symmetric`, `angulars_symmetric`, etc.) exposes `rowsBegin` and `rowsEnd` parameters for external partitioning.
+The free-function form (`dotsSymmetric`, `angularsSymmetric`, etc.) exposes `rowsBegin` and `rowsEnd` parameters for external partitioning.
 
 ## Set Distance Kernels
 
@@ -295,13 +295,13 @@ assert(jaccards.rows == rows && jaccards.columns == rows)
 Free-function forms are also available:
 
 ```swift
-try hammings_packed(view, packed, &span)
-try jaccards_packed(view, packed, &span)
-try hammings_symmetric(view, &span, rowsBegin: 0, rowsEnd: rows)
-try jaccards_symmetric(view, &span, rowsBegin: 0, rowsEnd: rows)
+try hammingsPacked(view, packed, &span)
+try jaccardsPacked(view, packed, &span)
+try hammingsSymmetric(view, &span, rowsBegin: 0, rowsEnd: rows)
+try jaccardsSymmetric(view, &span, rowsBegin: 0, rowsEnd: rows)
 ```
 
-## MaxSim and ColBERT-Style Late Interaction
+## MaxSim
 
 MaxSim is the late-interaction primitive used by systems such as [ColBERT](https://arxiv.org/abs/2004.12832).
 Each query is a small matrix of token vectors.
@@ -376,7 +376,7 @@ These wrappers are exact-storage types first.
 They are there to preserve bits and make the native kernels callable from Swift.
 They are not pretending to be standard-library numeric types.
 
-## Scalar Types and Promotions
+## Scalar Types
 
 The output type is intentionally wider than the storage type for most operations.
 The table below documents the promotion for scalar collection extensions.
@@ -437,7 +437,7 @@ let spherical = haversines(
 
 The low-level `UnsafeBufferPointer` static methods on `Float64` remain available for zero-copy use cases.
 
-## Runtime Capabilities
+## Runtime Dispatch
 
 Capability detection is exposed directly for diagnostics and tests:
 

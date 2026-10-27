@@ -18,7 +18,8 @@ namespace ashvardanian::numkong {
 
 /**
  *  @brief L₂ (Euclidean) distance: √Σ(aᵢ − bᵢ)²
- *  @param[in] a,b First and second vectors
+ *  @param[in] a First vector
+ *  @param[in] b Second vector
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
@@ -66,7 +67,8 @@ status_t euclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result_t
 
 /**
  *  @brief Squared L₂ distance: Σ(aᵢ − bᵢ)²
- *  @param[in] a,b First and second vectors
+ *  @param[in] a First vector
+ *  @param[in] b Second vector
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
@@ -122,7 +124,8 @@ status_t sqeuclidean(in_type_ const *a, in_type_ const *b, std::size_t d, result
 
 /**
  *  @brief Angular similarity (cosine): ⟨a,b⟩ / (‖a‖ × ‖b‖)
- *  @param[in] a,b First and second vectors
+ *  @param[in] a First vector
+ *  @param[in] b Second vector
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[out] r Pointer to output distance value
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template

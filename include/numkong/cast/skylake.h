@@ -265,7 +265,7 @@ NUMKONG_INLINE __m256i nk_e4m3x16_to_f16x16_skylake_(__m128i e4m3_u8x16) {
 }
 
 /** Convert 16x e5m2 → 16x f32 via free-shift widen (AVX-512 + F16C). E5M2 shares F16's exponent
- *  bias (15): `(byte << 8)` is the matching F16 bit pattern for every E5M2 value but NaN, whose
+ *  bias (15): <tt>(byte << 8)</tt> is the matching F16 bit pattern for every E5M2 value but NaN, whose
  *  codes first become the canonical quiet 0x7E like the serial kernel. Then VCVTPH2PS to F32. */
 NUMKONG_INLINE __m512 nk_e5m2x16_to_f32x16_skylake_(__m128i e5m2_i8x16) {
     __m256i e5m2_u16x16 = _mm256_cvtepu8_epi16(e5m2_i8x16);
@@ -994,7 +994,7 @@ NUMKONG_INLINE void nk_cast_elementwise_skylake_(void const *from, nk_dtype_t fr
     nk_cast_elementwise_serial_(from, from_type, n, to, to_type);
 }
 
-/** Reduce a block of @p block_count f32s to `amax = max(|x|)`. @p block_count ≤ 32. */
+/** Reduce a block of @p block_count f32s to <tt>amax = max(|x|)</tt>. @p block_count ≤ 32. */
 NUMKONG_INLINE nk_f32_t nk_block_amax_f32_skylake_(nk_f32_t const *block, nk_size_t block_count) {
     __m512i abs_mask_i32x16 = _mm512_set1_epi32(0x7FFFFFFF);
     __mmask16 const full_mask_m16 = 0xFFFF;

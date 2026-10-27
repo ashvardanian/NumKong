@@ -2704,7 +2704,7 @@ NUMKONG_INLINE nk_f32_t nk_e4m3_sumsq_sapphireamx_(nk_e4m3_t const *values, nk_s
     return nk_dots_reduce_sumsq_e4m3_skylake_(values + row * stride, depth, sizeof(nk_e4m3_t));
 }
 
-/** Loads rows @p first_row to `first_row + 16` of @p values into a BF16 A tile, zeros past
+/** Loads rows @p first_row to <tt>first_row + 16</tt> of @p values into a BF16 A tile, zeros past
  *  @p valid_rows rows and @p valid_columns elements from @p depth_offset. */
 NUMKONG_INLINE void nk_dots_load_a_e4m3_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile, nk_e4m3_t const *values,
                                                      nk_size_t stride, nk_size_t first_row, nk_size_t depth_offset,
@@ -2883,7 +2883,7 @@ NUMKONG_INLINE nk_f32_t nk_e5m2_sumsq_sapphireamx_(nk_e5m2_t const *values, nk_s
     return nk_dots_reduce_sumsq_e5m2_skylake_(values + row * stride, depth, sizeof(nk_e5m2_t));
 }
 
-/** Loads rows @p first_row to `first_row + 16` of @p values into a BF16 A tile, zeros past
+/** Loads rows @p first_row to <tt>first_row + 16</tt> of @p values into a BF16 A tile, zeros past
  *  @p valid_rows rows and @p valid_columns elements from @p depth_offset. */
 NUMKONG_INLINE void nk_dots_load_a_e5m2_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile, nk_e5m2_t const *values,
                                                      nk_size_t stride, nk_size_t first_row, nk_size_t depth_offset,
@@ -3096,7 +3096,7 @@ NUMKONG_INLINE void nk_dots_bases_nvfp4_sapphireamx_(nk_ue4m3_t const *scales, n
                                  : 0;
 }
 
-/** Loads rows @p first_row to `first_row + 16` of @p values and @p scales, row r rebased by
+/** Loads rows @p first_row to <tt>first_row + 16</tt> of @p values and @p scales, row r rebased by
  *  @p bases[r], into a BF16 A tile, zeros past @p valid_rows rows and @p valid_columns elements
  *  from @p depth_offset. A tile past the depth stays zero without reading scales past the row. */
 NUMKONG_INLINE void nk_dots_load_a_nvfp4_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile,
@@ -3187,7 +3187,7 @@ NUMKONG_INLINE void nk_dots_widen_nvfp4_sapphireamx_(nk_dots_bf16_b32x16_sapphir
     }
 }
 
-/** Widens rows @p first_row to `first_row + 16` of NVFP4 @p values over the 32 elements of
+/** Widens rows @p first_row to <tt>first_row + 16</tt> of NVFP4 @p values over the 32 elements of
  *  @p depth_tile into a BF16 A tile, zeros past @p valid_rows rows and @p valid_depth elements. */
 NUMKONG_INLINE void nk_dots_widen_a_nvfp4_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile, nk_u8_t const *values,
                                                        nk_size_t stride, nk_u8_t const *scales, nk_size_t scales_stride,
@@ -3438,7 +3438,7 @@ NUMKONG_INLINE void nk_dots_bases_mxfp4_sapphireamx_(nk_ue8m0_t const *scales, n
                                  : 0;
 }
 
-/** Loads rows @p first_row to `first_row + 16` of @p values and @p scales, row r rebased by
+/** Loads rows @p first_row to <tt>first_row + 16</tt> of @p values and @p scales, row r rebased by
  *  @p bases[r], into a BF16 A tile, zeros past @p valid_rows rows and @p valid_columns elements
  *  from @p depth_offset. A tile past the depth stays zero without reading scales past the row. */
 NUMKONG_INLINE void nk_dots_load_a_mxfp4_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile,
@@ -3462,7 +3462,7 @@ NUMKONG_INLINE void nk_dots_load_a_mxfp4_sapphireamx_(nk_dots_bf16_a16x32_sapphi
  *  depths in lower nibbles, which is an I8 B-tile row once each nibble is a byte. BF16 tiles take
  *  two depths per column from such a row through one multishift per tile row. */
 
-/** Widens rows @p first_row to `first_row + 16` of MXFP4 @p values over the 32 elements of
+/** Widens rows @p first_row to <tt>first_row + 16</tt> of MXFP4 @p values over the 32 elements of
  *  @p depth_tile into a BF16 A tile, row r rebased by @p bases[r], zeros past @p valid_rows rows
  *  and @p valid_depth elements. */
 NUMKONG_INLINE void nk_dots_widen_a_mxfp4_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile, nk_u8_t const *values,
@@ -3556,7 +3556,7 @@ NUMKONG_INLINE void nk_dots_widen_i8_mxfp4_sapphireamx_(nk_dots_i8_b64x16_sapphi
     }
 }
 
-/** Widens rows @p first_row to `first_row + 16` of MXFP4 @p values over the 64 elements of
+/** Widens rows @p first_row to <tt>first_row + 16</tt> of MXFP4 @p values over the 64 elements of
  *  @p depth_tile into an I8 A tile, each block of row r shifted by its code less @p lowest[r]. */
 NUMKONG_INLINE void nk_dots_widen_a_i8_mxfp4_sapphireamx_(nk_dots_i8_a16x64_sapphireamx_t *a_tile,
                                                           nk_u8_t const *values, nk_size_t stride,
@@ -3913,7 +3913,7 @@ NUMKONG_INLINE void nk_dots_bases_mxfp8e4m3_sapphireamx_(nk_ue8m0_t const *scale
                          : 0;
 }
 
-/** Loads rows @p first_row to `first_row + 16` of @p values and @p scales, row r rebased by
+/** Loads rows @p first_row to <tt>first_row + 16</tt> of @p values and @p scales, row r rebased by
  *  @p bases[r], into a BF16 A tile, zeros past @p valid_rows rows and @p valid_columns elements
  *  from @p depth_offset. A tile past the depth stays zero without reading scales past the row. */
 NUMKONG_INLINE void nk_dots_load_a_mxfp8e4m3_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile,
@@ -3961,7 +3961,7 @@ NUMKONG_INLINE void nk_dots_widen_mxfp8e4m3_sapphireamx_(nk_dots_bf16_b32x16_sap
             _mm512_store_si512(b_tile->data[row], _mm512_or_si512(_mm512_load_si512(b_tile->data[row]), nan_i16x32));
 }
 
-/** Widens depth tile @p depth_tile of MXFP8E4M3 rows @p first_row to `first_row + 16` into a
+/** Widens depth tile @p depth_tile of MXFP8E4M3 rows @p first_row to <tt>first_row + 16</tt> into a
  *  BF16 A tile, row r rebased by @p bases[r], with zeros past @p valid_rows rows and past
  *  @p valid_depth elements. */
 NUMKONG_INLINE void nk_dots_widen_a_mxfp8e4m3_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile,
@@ -4210,7 +4210,7 @@ NUMKONG_INLINE void nk_dots_bases_mxfp8e5m2_sapphireamx_(nk_ue8m0_t const *scale
                          : 0;
 }
 
-/** Loads rows @p first_row to `first_row + 16` of @p values and @p scales, row r rebased by
+/** Loads rows @p first_row to <tt>first_row + 16</tt> of @p values and @p scales, row r rebased by
  *  @p bases[r], into a BF16 A tile, zeros past @p valid_rows rows and @p valid_columns elements
  *  from @p depth_offset. A tile past the depth stays zero without reading scales past the row. */
 NUMKONG_INLINE void nk_dots_load_a_mxfp8e5m2_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile,
@@ -4258,7 +4258,7 @@ NUMKONG_INLINE void nk_dots_widen_mxfp8e5m2_sapphireamx_(nk_dots_bf16_b32x16_sap
             _mm512_store_si512(b_tile->data[row], _mm512_or_si512(_mm512_load_si512(b_tile->data[row]), nan_i16x32));
 }
 
-/** Widens depth tile @p depth_tile of MXFP8E5M2 rows @p first_row to `first_row + 16` into a
+/** Widens depth tile @p depth_tile of MXFP8E5M2 rows @p first_row to <tt>first_row + 16</tt> into a
  *  BF16 A tile, row r rebased by @p bases[r], with zeros past @p valid_rows rows and past
  *  @p valid_depth elements. */
 NUMKONG_INLINE void nk_dots_widen_a_mxfp8e5m2_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile,

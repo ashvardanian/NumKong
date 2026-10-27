@@ -53,8 +53,8 @@
  *  - Four rotating widening @c FMOPA take 1.87 ns, 1.1 TMAC/s. Integer, @c TBL and @c LD1
  *    instructions overlap them at about one per cycle, two per @c FMOPA, while streaming @c FMUL
  *    and @c FMLA sustain ~1.07 G/s, so hot loops spend at most half an FP instruction per @c FMOPA.
- *  - A function owning ZA calls only @c always_inline or `__arm_inout("za")` helpers; any other
- *    call emits `smstart za` and @c __arm_tpidr2_restore around it.
+ *  - A function owning ZA calls only @c always_inline or <tt>__arm_inout("za")</tt> helpers; any other
+ *    call emits <tt>smstart za</tt> and @c __arm_tpidr2_restore around it.
  *  - Operands are decoded once per 16 rows and depth chunk, never once per column tile.
  *
  *  @section dots_sme_instructions ARM SME Instructions
@@ -176,12 +176,12 @@ NUMKONG_INLINE void nk_stop_sme_streaming_(void) {
 
 /**
  *  @brief SME runtime stubs — weak definitions for symbols the compiler may reference from
- *      @c __arm_streaming or `__arm_new("za")` functions.
+ *      @c __arm_streaming or <tt>__arm_new("za")</tt> functions.
  *
  *  Every TU that includes this header emits a weak copy; the linker deduplicates to one.
  *
  *  @c __arm_tpidr2_save and @c __arm_tpidr2_restore implement the lazy ZA save/restore protocol
- *  used in `__arm_new("za")` prologues. They are always no-ops in NumKong because no
+ *  used in <tt>__arm_new("za")</tt> prologues. They are always no-ops in NumKong because no
  *  @c NUMKONG_API function carries ZA state, so TPIDR2_EL0 is always null at entry. The
  *  @c used attribute is load-bearing under LTO: the prologue call is synthesized by the backend,
  *  long after IPA would drop these as unreferenced.
@@ -189,7 +189,7 @@ NUMKONG_INLINE void nk_stop_sme_streaming_(void) {
  *  @c __arm_sc_memset, @c __arm_sc_memcpy, and @c __arm_sc_memmove are streaming-compatible memory
  *  routines the compiler may emit inside @c __arm_streaming functions. Apple Clang provides these
  *  in its runtime; upstream LLVM does not. GCC needs no stub because it never emits calls to them —
- *  and must not get one, as its `arm_sme.h` declares them with C++ linkage.
+ *  and must not get one, as its <tt>arm_sme.h</tt> declares them with C++ linkage.
  */
 __attribute__((weak, used)) void __arm_tpidr2_save(void) {}
 __attribute__((weak, used)) void __arm_tpidr2_restore(void *blk) { nk_unused_(blk); }
@@ -474,7 +474,7 @@ NUMKONG_INLINE svint8_t nk_e2m3x_to_i8x_sme_streaming_(svbool_t predicate_b8x,
     return svsel_s8(negate_mask_b8x, negated_value_i8x, positive_value_i8x);
 }
 
-/** Widens up to `svcntb()` E2M1 dimensions into doubled signed i8 lanes, zeroing lanes past
+/** Widens up to <tt>svcntb()</tt> E2M1 dimensions into doubled signed i8 lanes, zeroing lanes past
  *  @p dimensions. Even dimensions live in high nibbles. */
 NUMKONG_INLINE svint8_t nk_e2m1x_to_i8x_sme_streaming_(nk_e2m1x2_t const *pairs,
                                                        nk_size_t dimensions) NUMKONG_STREAMING_ {

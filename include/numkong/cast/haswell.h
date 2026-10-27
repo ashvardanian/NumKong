@@ -289,7 +289,7 @@ NUMKONG_INLINE __m256 nk_e4m3x8_to_f32x8_haswell_(__m128i e4m3_i8x8) {
 }
 
 /** Convert 8x e5m2 → 8x f32 via free-shift widen (AVX2 + F16C). E5M2 shares F16's exponent bias
- *  (15): `(byte << 8)` is the matching F16 bit pattern for every E5M2 value but NaN, whose codes
+ *  (15): <tt>(byte << 8)</tt> is the matching F16 bit pattern for every E5M2 value but NaN, whose codes
  *  first become the canonical quiet 0x7E like the serial kernel. Then VCVTPH2PS to F32. */
 NUMKONG_INLINE __m256 nk_e5m2x8_to_f32x8_haswell_(__m128i e5m2_i8x8) {
     __m128i e5m2_u16x8 = _mm_cvtepu8_epi16(e5m2_i8x8);
@@ -674,7 +674,7 @@ NUMKONG_INLINE __m128i nk_f32x8_to_e2m1x8_haswell_(__m256 f32x8) {
     return _mm_packus_epi16(packed_i16x4, _mm_setzero_si128());
 }
 
-/** Reduce a block of @p block_count f32s to `amax = max(|x|)`. @p block_count ≤ 32. Propagates NaN
+/** Reduce a block of @p block_count f32s to <tt>amax = max(|x|)</tt>. @p block_count ≤ 32. Propagates NaN
  *  (returns a NaN when any lane is NaN) so the block scale becomes the NaN sentinel. */
 NUMKONG_INLINE nk_f32_t nk_block_amax_f32_haswell_(nk_f32_t const *block, nk_size_t block_count) {
     __m256 const abs_mask_f32x8 = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF));

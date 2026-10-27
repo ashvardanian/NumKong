@@ -59,7 +59,7 @@ NUMKONG_INLINE vfloat32m2_t nk_log2_f32m2_rvv_(vfloat32m2_t x, nk_size_t vector_
 }
 
 /**
- *  @brief Computes `log2(x)` for a vector of f64 values using the s-series approach.
+ *  @brief Computes <tt>log2(x)</tt> for a vector of f64 values using the s-series approach.
  *
  *  Uses s = (m-1)/(m+1), then evaluates ln(m) = 2 × s × P(s²) with 14-term Horner polynomial.
  *  Converts to log2 via multiplication by log2(e). Matches Skylake's f64 log2 algorithm.

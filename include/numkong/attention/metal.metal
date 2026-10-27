@@ -134,7 +134,7 @@ struct nk_attention_backward_arguments_metal_t {
 static_assert(sizeof(nk_attention_backward_arguments_metal_t) == 160, "mirrors the C record in attention/metal.h");
 
 /** The widest span of block exponents an MX plane or query row rebases across, a raw plane's
- *  entry, and the binades a rebase leaves above the largest block, all as `serial.h` sets them. */
+ *  entry, and the binades a rebase leaves above the largest block, all as <tt>serial.h</tt> sets them. */
 constant int nk_attention_plane_window_metal_k = 89, nk_attention_raw_plane_metal_k = -128,
              nk_attention_headroom_metal_k = 31;
 
@@ -248,7 +248,7 @@ kernel void nk_attention_pack_metal_kernel_(
 }
 
 /** The plane-exponent entry of UE8M0 codes whose finite ones span @p low to @p high: their largest
- *  exponent, 0 when none is finite, or the raw entry past the window, as `serial.h` writes it. */
+ *  exponent, 0 when none is finite, or the raw entry past the window, as <tt>serial.h</tt> writes it. */
 inline int nk_attention_plane_entry_metal_(uint low, uint high) {
     if (low > high) return 0;
     return int(high - low) > nk_attention_plane_window_metal_k ? nk_attention_raw_plane_metal_k : int(high) - 127;

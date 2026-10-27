@@ -5,7 +5,7 @@
  *  @brief C++ bindings for multi-target ragged scaled-dot-product attention kernels.
  *
  *  Three layers, like the dots and maxsim bindings: raw-pointer wrappers that keep the task windows
- *  for sharded launches, the owning @c packed_attention from `matrix.hpp` with @c attention_pack,
+ *  for sharded launches, the owning @c packed_attention from <tt>matrix.hpp</tt> with @c attention_pack,
  *  and view overloads that derive heads, depth and strides from @b [tokens,heads,depth] views.
  *
  *  @code{.cpp}
@@ -30,8 +30,11 @@ namespace ashvardanian::numkong {
 
 /**
  *  @brief Ragged scaled-dot-product attention against a pre-packed KV-cache, under a band of keys.
+ *  @param[in] head_count Query heads.
+ *  @param[in] key_value_head_count K/V heads, at most @p head_count.
+ *  @param[in] depth Head dimension.
  *  @param[in] query_offsets First query row of each segment, as segment count + 1 prefix sums.
- *  @param[in] query_token_count Query rows the call addresses, `query_offsets[segments]`; GPU
+ *  @param[in] query_token_count Query rows the call addresses, <tt>query_offsets[segments]</tt>; GPU
  *      kernels size tensor maps and workspaces from it without reading the offsets.
  *  @param[in] scale Score multiplier, typically 1 / √depth.
  *  @param[in] keys_before Keys visible before each query's position, all of them for @c max.
@@ -178,6 +181,12 @@ status_t attention_packed(std::size_t head_count, std::size_t key_value_head_cou
 
 /**
  *  @brief Returns the workspace bytes @c attention_packed takes for its fast path on these shapes.
+ *  @param[in] head_count Query heads.
+ *  @param[in] key_value_head_count K/V heads, at most @p head_count.
+ *  @param[in] depth Head dimension.
+ *  @param[in] query_token_count Query rows the call addresses.
+ *  @param[in] keys_before Keys visible before each query's position, all of them for @c max.
+ *  @param[in] keys_after Keys visible after each query's position, all of them for @c max.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
  */
 template <numeric_dtype in_type_>
@@ -224,8 +233,20 @@ expected<std::size_t> attention_packed_workspace_size(std::size_t head_count, st
 
 /**
  *  @brief Gradients of @c attention_packed with respect to its queries, keys and values.
+ *  @param[in] head_count Query heads.
+ *  @param[in] key_value_head_count K/V heads, at most @p head_count.
+ *  @param[in] depth Head dimension.
+ *  @param[in] query_offsets First query row of each segment, as in the forward pass.
+ *  @param[in] query_token_count Query rows the call addresses, as in the forward pass.
+ *  @param[in] scale Score multiplier of the forward pass.
+ *  @param[in] keys_before Keys before each query that it saw in the forward pass.
+ *  @param[in] keys_after Keys after each query that it saw in the forward pass.
+ *  @param[in] queries The forward's queries, token-major.
+ *  @param[in] queries_stride Row (token) stride of @p queries in bytes.
+ *  @param[in] key_value_packed The pack the forward pass read.
  *  @param[in] output The forward's output for these queries and pack.
  *  @param[in] output_gradient Gradient of the loss with respect to @p output, laid out like it.
+ *  @param[in] output_stride Row (token) stride of @p output and @p output_gradient in bytes.
  *  @param[in] log_sum_exp The forward's log-sum-exp for these queries and pack.
  *  @param[out] query_gradient Gradient with respect to @p queries, one row of
  *      @p head_count × @p depth per query token.
@@ -242,6 +263,8 @@ expected<std::size_t> attention_packed_workspace_size(std::size_t head_count, st
  *
  *  @param[in] workspace Scratch memory of @c attention_packed_gradients_workspace_size bytes on the
  *      device of @p stream, or empty for the two-pass path.
+ *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *
  *  Every other parameter follows @c attention_packed; the band must be the forward's.
  *
@@ -364,6 +387,12 @@ status_t attention_packed_gradients(
 /**
  *  @brief Returns the workspace bytes @c attention_packed_gradients takes for its single pass on
  *      these shapes, or 0 where it has none.
+ *  @param[in] head_count Query heads.
+ *  @param[in] key_value_head_count K/V heads, at most @p head_count.
+ *  @param[in] depth Head dimension.
+ *  @param[in] query_token_count Query rows the call addresses.
+ *  @param[in] keys_before Keys before each query that it saw in the forward pass.
+ *  @param[in] keys_after Keys after each query that it saw in the forward pass.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
  */
 template <numeric_dtype in_type_>
@@ -401,14 +430,15 @@ expected<std::size_t> attention_packed_gradients_workspace_size(
 /**
  *  @brief NeoX split-half RoPE: rotates channel pairs of every head by per-token angles.
  *
- *  Rotates each pair `(i, i + @p depth / 2)` of every head by the `[rows, @p depth / 2]` grids.
+ *  Rotates each pair <tt>(i, i + @p depth / 2)</tt> of every head by the <tt>[rows, @p depth / 2]</tt> grids.
  *
  *  @param[in] x Row-major matrix of shape @b [rows,channels]; channels = @p head_count · @p depth
- *  @param[in] cos,sin `[rows, @p depth / 2]` per-token angle grids, shared across heads
+ *  @param[in] cos <tt>[rows, @p depth / 2]</tt> per-token cosine grid, shared across heads
+ *  @param[in] sin <tt>[rows, @p depth / 2]</tt> per-token sine grid, shared across heads
  *  @param[out] y Output, same shape and dtype as x; may alias x for in-place rotation
  *  @param[in] rows Token count
  *  @param[in] head_count Heads per token
- *  @param[in] depth Even channel count per head; channel @c i pairs with `i + depth / 2`
+ *  @param[in] depth Even channel count per head; channel @c i pairs with <tt>i + depth / 2</tt>
  *  @param[in] x_stride Row (token) stride of x in bytes
  *  @param[in] y_stride Row (token) stride of y in bytes
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template

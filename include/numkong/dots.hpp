@@ -111,7 +111,7 @@ void dots_unpacked(operand_pointer<in_type_> a, operand_pointer<in_type_> b, res
  *
  *  Same as @c dots_unpacked, but conjugates elements of B before multiplication. For real types
  *  this is identical to @c dots_unpacked. For complex types this computes the standard Hermitian
- *  inner product matching `cblas_{c,z}gemm` with @c CblasConjTrans.
+ *  inner product matching <tt>cblas_{c,z}gemm</tt> with @c CblasConjTrans.
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
 void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_ *c, std::size_t rows,
@@ -351,7 +351,6 @@ status_t dots_packed(operand_pointer<in_type_> a, void const *b_packed, result_t
  *      or empty for the scratch-free path
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
- *  @param[in] a_scales Block scales of the vectors rows, ignored by plain dtypes
  *
  *  Block-scaled formats run only the C++ template, ignoring @p capabilities.
  *

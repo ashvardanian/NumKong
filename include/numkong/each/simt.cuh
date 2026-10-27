@@ -26,7 +26,7 @@
  *  F32, but F64 ones in F64.
  *
  *  The element-wise kernels live here, and each vendor launches and exports them from its own host
- *  side, in `cuda.cuh` and `rocm.cuh` beside this file, whose rounded products and shuffles the
+ *  side, in <tt>cuda.cuh</tt> and <tt>rocm.cuh</tt> beside this file, whose rounded products and shuffles the
  *  RMSNorm kernels call.
  *
  *  @sa include/numkong/each/cuda.cuh

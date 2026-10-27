@@ -3,7 +3,7 @@
  *  @author Ash Vardanian
  *  @date October 3, 2026
  *  @brief CUDA host side of bulk casts: the plain and block-scaled launches and the @c cuda export,
- *      over the conversions of `cast/simt.cuh`.
+ *      over the conversions of <tt>cast/simt.cuh</tt>.
  *
  *  The @c ampere and @c ada exports launch through the same functions, with vector kernels that
  *  use their conversion instructions.

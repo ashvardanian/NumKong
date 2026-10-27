@@ -4,7 +4,7 @@
  *  @date January 31, 2026
  *  @brief SIMD-accelerated dot products for WASM.
  *
- *  Requires Emscripten 3.1.27+ with `-msimd128 -mrelaxed-simd` flags.
+ *  Requires Emscripten 3.1.27+ with <tt>-msimd128 -mrelaxed-simd</tt> flags.
  *
  *  Key optimizations:
  *  - Uses relaxed FMA (f32x4.relaxed_madd, f64x2.relaxed_madd) for 2x throughput

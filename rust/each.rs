@@ -46,6 +46,7 @@
 //!
 //! File: rust/each.rs
 //! Author: Ash Vardanian
+//! Date: March 8, 2026
 
 use core::{ffi::c_void, ptr::null_mut};
 
@@ -1086,6 +1087,7 @@ where
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
 /// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
 pub trait EachScale: Sized + StorageElement {
+    /// Type of the scale and shift coefficients.
     type Scalar;
 
     /// Writes resultᵢ = α × aᵢ + β into the pre-sized output slice.
@@ -1795,6 +1797,7 @@ impl EachScale for bf16c {
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
 /// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
 pub trait EachSum: Sized + StorageElement {
+    /// Writes resultᵢ = aᵢ + bᵢ into the pre-sized output slice.
     fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error>;
 
     /// In-place sum: dataᵢ = dataᵢ + otherᵢ.
@@ -2469,7 +2472,9 @@ impl EachSum for bf16c {
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
 /// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
 pub trait EachBlend: Sized + StorageElement {
+    /// Type of the blend coefficients.
     type Scalar;
+    /// Writes resultᵢ = α × aᵢ + β × bᵢ into the pre-sized output slice.
     fn each_blend(
         a: &[Self],
         b: &[Self],
@@ -3291,7 +3296,9 @@ impl EachBlend for bf16c {
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
 /// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
 pub trait EachFma: Sized + StorageElement {
+    /// Type of the fused multiply-add coefficients.
     type Scalar;
+    /// Writes resultᵢ = α × aᵢ × bᵢ + β × cᵢ into the pre-sized output slice.
     fn each_fma(
         a: &[Self],
         b: &[Self],
@@ -4148,6 +4155,7 @@ pub trait AllCloseOps<Scalar: FloatConvertible, const MAX_RANK: usize>: TensorRe
 where
     Scalar::DimScalar: NumberLike,
 {
+    /// Returns `true` iff both tensors share a shape and every element pair is within tolerance.
     fn allclose(&self, other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized), atol: f64, rtol: f64) -> bool {
         let a = self.view();
         let b = other.view();
@@ -4176,6 +4184,7 @@ pub trait ScaleOps<Scalar: Clone + EachScale, const MAX_RANK: usize>: TensorRef<
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
+    /// Element-wise add scalar into a new tensor.
     fn add_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
@@ -4183,6 +4192,7 @@ where
         self.view().add_scalar(scalar)
     }
 
+    /// Element-wise subtract scalar into a new tensor.
     fn sub_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
@@ -4190,6 +4200,7 @@ where
         self.view().sub_scalar(scalar)
     }
 
+    /// Element-wise multiply scalar into a new tensor.
     fn mul_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
@@ -4197,6 +4208,7 @@ where
         self.view().mul_scalar(scalar)
     }
 
+    /// Writes α × aᵢ + β into the output tensor.
     fn scale_tensor_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         alpha: Scalar::Scalar,
@@ -4206,6 +4218,7 @@ where
         self.view().scale_tensor_into(alpha, beta, out)
     }
 
+    /// Element-wise add scalar into the output tensor.
     fn add_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         scalar: Scalar::Scalar,
@@ -4214,6 +4227,7 @@ where
         self.view().add_scalar_into(scalar, out)
     }
 
+    /// Element-wise subtract scalar into the output tensor.
     fn sub_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         scalar: Scalar::Scalar,
@@ -4222,6 +4236,7 @@ where
         self.view().sub_scalar_into(scalar, out)
     }
 
+    /// Element-wise multiply scalar into the output tensor.
     fn mul_scalar_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         scalar: Scalar::Scalar,
@@ -4258,6 +4273,7 @@ where
 
 /// Extension trait: element-wise addition for any [`TensorRef`] implementor.
 pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    /// Element-wise sum of two tensors into a new tensor.
     fn add_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
@@ -4268,6 +4284,7 @@ pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scal
         self.view().add_tensor(&other.view())
     }
 
+    /// Element-wise sum of two tensors into the output tensor.
     fn add_tensor_into<OtherTensor, OutputTensor>(
         &self,
         other: &OtherTensor,
@@ -4284,6 +4301,7 @@ pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scal
 impl<Scalar: Clone + EachSum, const R: usize, C: TensorRef<Scalar, R> + ?Sized> SumOps<Scalar, R> for C {}
 
 impl<Scalar: Clone + EachSum, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
+    /// Element-wise sum with another tensor, stored in `self`.
     pub fn add_tensor_inplace<OtherAlloc: Allocator>(
         &mut self,
         other: &Tensor<Scalar, OtherAlloc, MAX_RANK>,
@@ -4298,6 +4316,7 @@ pub trait BlendOps<Scalar: Clone + EachBlend, const MAX_RANK: usize>: TensorRef<
 where
     Scalar::Scalar: From<f32> + Copy,
 {
+    /// Element-wise difference of two tensors into a new tensor.
     fn sub_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
@@ -4308,6 +4327,7 @@ where
         self.view().sub_tensor(&other.view())
     }
 
+    /// Writes α × aᵢ + β × otherᵢ into the output tensor.
     fn blend_tensor_into<OtherTensor, OutputTensor>(
         &self,
         other: &OtherTensor,
@@ -4322,6 +4342,7 @@ where
         self.view().blend_tensor_into(&other.view(), alpha, beta, out)
     }
 
+    /// Element-wise difference of two tensors into the output tensor.
     fn sub_tensor_into<OtherTensor, OutputTensor>(
         &self,
         other: &OtherTensor,
@@ -4344,6 +4365,7 @@ impl<Scalar: Clone + EachBlend, Alloc: Allocator, const MAX_RANK: usize> Tensor<
 where
     Scalar::Scalar: From<f32> + Copy,
 {
+    /// Element-wise difference with another tensor, stored in `self`.
     pub fn sub_tensor_inplace<OtherAlloc: Allocator>(
         &mut self,
         other: &Tensor<Scalar, OtherAlloc, MAX_RANK>,
@@ -4358,6 +4380,7 @@ pub trait FmaOps<Scalar: Clone + EachFma, const MAX_RANK: usize>: TensorRef<Scal
 where
     Scalar::Scalar: From<f32> + Copy,
 {
+    /// Element-wise product of two tensors into a new tensor.
     fn mul_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
@@ -4368,6 +4391,7 @@ where
         self.view().mul_tensor(&other.view())
     }
 
+    /// Writes α × aᵢ × bᵢ + β × cᵢ into the output tensor.
     fn fma_tensors_into<BTensor, CTensor, OutputTensor>(
         &self,
         b: &BTensor,
@@ -4384,6 +4408,7 @@ where
         self.view().fma_tensors_into(&b.view(), &c.view(), alpha, beta, out)
     }
 
+    /// Element-wise product of two tensors into the output tensor.
     fn mul_tensor_into<OtherTensor, OutputTensor>(
         &self,
         other: &OtherTensor,
@@ -4406,6 +4431,7 @@ impl<Scalar: Clone + EachFma, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sc
 where
     Scalar::Scalar: From<f32> + Copy,
 {
+    /// Element-wise product with another tensor, stored in `self`.
     pub fn mul_tensor_inplace<OtherAlloc: Allocator>(
         &mut self,
         other: &Tensor<Scalar, OtherAlloc, MAX_RANK>,
@@ -4419,8 +4445,8 @@ where
 
 // region: Fused SwiGLU
 
-/// Fused SwiGLU of a row-major __[rows,columns]__ slice, where `up = None` reduces it to plain SiLU
-/// over `gate.len() / rows` columns: y = silu(gate_scale × gate) × up × output_scale.
+/// Fused SwiGLU of a row-major __\[rows,columns\]__ slice, where `up = None` reduces it to plain
+/// SiLU over `gate.len() / rows` columns: y = silu(gate_scale × gate) × up × output_scale.
 pub trait EachSwiGlu: Sized + StorageElement {
     /// Fused SwiGLU of 2D tensors: y = silu(gate_scale × gate) × up × output_scale.
     ///

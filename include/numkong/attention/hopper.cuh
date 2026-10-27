@@ -7,7 +7,7 @@
  *  @sa include/numkong/attention.h
  *  @sa include/numkong/dots/hopper.cuh
  *
- *  Warpgroup `wgmma.mma_async` over shared-memory descriptors, which only the "90a" code carries,
+ *  Warpgroup <tt>wgmma.mma_async</tt> over shared-memory descriptors, which only the "90a" code carries,
  *  so no other generation compiles these kernels. One warpgroup owns each work item of up to 64
  *  rows, the Ampere tile's rows split over a 64-position panel: S is @c m64n64 steps on Q and K
  *  both in shared memory, and P · V takes P from the registers the online softmax packed it into,

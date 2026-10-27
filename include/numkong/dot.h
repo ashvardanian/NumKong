@@ -58,13 +58,14 @@
  *
  *  For compile-time dispatch and vector-at-a-time accumulation, we provide streaming helpers that
  *  accept two @c nk_b512_vec_t blocks and update a running sum for non-complex dot products. The
- *  `<count>` suffix reflects how many scalars of that type fit in a 512-bit block. The helpers are
- *  exposed per scalar type as:
+ *  <tt>\<count\></tt> suffix reflects how many scalars of that type fit in a 512-bit block. The helpers
+ *  are exposed per scalar type as:
  *
- *  - nk_dot_<type>x<count>_state_<isa>_t
- *  - nk_dot_<type>x<count>_init_<isa>
- *  - nk_dot_<type>x<count>_update_<isa>
- *  - nk_dot_<type>x<count>_finalize_<isa>
+ *  - the state type, named by the scalar type, the count and the ISA suffix, like
+ *    @c nk_dot_f32x8_state_loongsonasx_t
+ *  - the init, like @c nk_dot_f32x8_init_loongsonasx
+ *  - the update, like @c nk_dot_f32x8_update_loongsonasx
+ *  - the finalize, like @c nk_dot_f32x8_finalize_loongsonasx
  *
  *  @section dot_x86_instructions Relevant x86 Instructions
  *
@@ -149,11 +150,14 @@ extern "C" {
  *  @param[out] result The output dot product value.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
  *  @note The output value can be negative.
+ *
  *  @note The output value is zero if and only if the two vectors are orthogonal.
  *  @note Defined for floating-point, integer, and binary data types.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_dot_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
                                         nk_capability_t capabilities, nk_stream_t stream);
@@ -178,7 +182,20 @@ NUMKONG_API nk_status_t nk_dot_i4_best(nk_i4x2_t const *a, nk_i4x2_t const *b, n
 /** @copydoc nk_dot_f32_best */
 NUMKONG_API nk_status_t nk_dot_u4_best(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
                                        nk_capability_t capabilities, nk_stream_t stream);
-/** @copydoc nk_dot_f32_best */
+
+/**
+ *  @brief Dot product of two binary vectors, the number of bit positions both set.
+ *
+ *  @param[in] a The first vector.
+ *  @param[in] b The second vector.
+ *  @param[in] n_bits Counts dimensions in bits, a multiple of the bits per byte.
+ *  @param[out] result The output dot product value.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
+ */
 NUMKONG_API nk_status_t nk_dot_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
                                        nk_capability_t capabilities, nk_stream_t stream);
 /** @copydoc nk_dot_f32_best */
@@ -207,7 +224,9 @@ NUMKONG_API nk_status_t nk_dot_e3m2_best(nk_e3m2_t const *a, nk_e3m2_t const *b,
  *  @param[out] result The output complex value as {real, imag}.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_dot_f32c_best(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
                                          nk_f64c_t *result, nk_capability_t capabilities, nk_stream_t stream);
@@ -230,7 +249,9 @@ NUMKONG_API nk_status_t nk_dot_bf16c_best(nk_bf16c_t const *a_pairs, nk_bf16c_t 
  *  @param[out] result The output complex value as {real, imag}.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k No capability in @p capabilities has it.
  */
 NUMKONG_API nk_status_t nk_vdot_f32c_best(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_size_t count_pairs,
                                           nk_f64c_t *result, nk_capability_t capabilities, nk_stream_t stream);
@@ -942,9 +963,15 @@ NUMKONG_INLINE nk_f64_t nk_dot_error_bound(nk_dtype_t dtype) {
 
 /**
  *  @brief Finds the dot product kernel of @p kind for @p dtype, from the best of @p capabilities.
+ *  @param[in] kind The verb whose kernel to find.
+ *  @param[in] dtype The input type the kernel reads.
+ *  @param[in] capabilities The mask to pick the best capability from.
  *  @param[out] kernel The kernel, or null when none of @p capabilities has it.
  *  @param[out] capability The capability the kernel belongs to, or zero.
- *  @return @c nk_success_k, @c nk_missing_kernel_k, or @c nk_missing_library_k when header-only.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_kernel_k
+ *  - @c nk_missing_library_k Header-only.
  */
 NUMKONG_API nk_status_t nk_dot_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                            nk_kernel_punned_t *kernel, nk_capability_t *capability);

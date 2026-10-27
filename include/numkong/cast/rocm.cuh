@@ -3,7 +3,7 @@
  *  @author Ash Vardanian
  *  @date October 12, 2026
  *  @brief ROCm host side of bulk casts: the block-scaled launches and the @c rocm export, over the
- *      conversions of `cast/simt.cuh`.
+ *      conversions of <tt>cast/simt.cuh</tt>.
  *
  *  @sa include/numkong/cast/simt.cuh
  *  @sa include/numkong/cast/cuda.cuh

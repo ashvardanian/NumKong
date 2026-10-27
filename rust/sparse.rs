@@ -21,6 +21,7 @@
 //!
 //! File: rust/sparse.rs
 //! Author: Ash Vardanian
+//! Date: March 8, 2026
 
 use core::{ffi::c_void, ptr::null_mut};
 
@@ -93,7 +94,7 @@ extern "C" {
 /// # Errors
 ///
 /// [`Error::KernelFailed`] when no capability of the current
-/// [`Capabilities`](crate::Capabilities) has the kernel.
+/// [`Capabilities`] has the kernel.
 pub trait SparseIntersect: Sized {
     /// Returns the intersection size between two sorted sparse vectors.
     fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, Error>;
@@ -252,7 +253,7 @@ impl SparseIntersect for u64 {
 /// # Errors
 ///
 /// [`Error::KernelFailed`] when no capability of the current
-/// [`Capabilities`](crate::Capabilities) has the kernel.
+/// [`Capabilities`] has the kernel.
 pub trait SparseDot: Sized {
     /// Weight type for this sparse dot product.
     type Weight;

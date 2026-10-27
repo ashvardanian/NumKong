@@ -9,8 +9,8 @@
  *  @section tail_nan_fill  Tail Handling via NaN Fill
  *
  *  In floating-point minmax contiguous kernels, f32 and f64, the tail block fills unloaded lanes
- *  with NaN via `_mm512_mask_loadu_ps(nan, mask, ptr)` instead of:
- *  `_mm512_maskz_loadu_ps(mask, ptr)`. This allows the subsequent @c _CMP_LT_OQ and @c _CMP_GT_OQ
+ *  with NaN via <tt>_mm512_mask_loadu_ps(nan, mask, ptr)</tt> instead of:
+ *  <tt>_mm512_maskz_loadu_ps(mask, ptr)</tt>. This allows the subsequent @c _CMP_LT_OQ and @c _CMP_GT_OQ
  *  comparisons to run without the tail-load mask predicate, because IEEE-754 ordered-quiet
  *  comparisons return false for NaN operands.
  *

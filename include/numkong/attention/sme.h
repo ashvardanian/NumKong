@@ -81,9 +81,9 @@ enum {
     nk_attention_max_tile_sme_k_ = 16,
 };
 
-/** Rounds two F32 weight vectors to BF16 and interleaves them pair-wise in one @c TRN2: lane `2i`
- *  gets `even[i]`, lane `2i + 1` gets `odd[i]` — the exact widening-BFMOPA operand layout, produced
- *  without any memory round-trip. */
+/** Rounds two F32 weight vectors to BF16 and interleaves them pair-wise in one @c TRN2: lane <tt>2i</tt>
+ *  gets <tt>even[i]</tt>, lane <tt>2i + 1</tt> gets <tt>odd[i]</tt> — the exact widening-BFMOPA operand layout,
+ *  produced without any memory round-trip. */
 NUMKONG_INLINE svuint16_t nk_attention_bf16_pair_sme_(svfloat32_t even_f32x, svfloat32_t odd_f32x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svuint32_t even_u32x = svreinterpret_u32_f32(even_f32x);
@@ -102,7 +102,7 @@ NUMKONG_INLINE svuint16_t nk_attention_f16_pair_sme_(svfloat32_t even_f32x, svfl
         svcvtnt_f16_f32_m(svcvt_f16_f32_x(predicate_all_b32x, even_f32x), predicate_all_b32x, odd_f32x));
 }
 
-/** Lanes whose visible key range `[key_begins, key_ends)` contains @p position. */
+/** Lanes whose visible key range <tt>[key_begins, key_ends)</tt> contains @p position. */
 NUMKONG_INLINE svbool_t nk_attention_visible_sme_(svuint32_t key_begins_u32x, svuint32_t key_ends_u32x,
                                                   nk_size_t position) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -143,9 +143,9 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_b16_sme_(nk_size_t key_value_hea
 /**
  *  @brief Streaming pack core for 16-bit K/V planes.
  *
- *  K becomes pair-interleaved MOPA operand vectors `[position_tile][depth_pair]` through the
+ *  K becomes pair-interleaved MOPA operand vectors <tt>[position_tile][depth_pair]</tt> through the
  *  ZA0 horizontal-write / vertical-read transpose (the @c dots packer idiom); V becomes
- *  transposed pair-interleaved vectors `[channel_tile][position_pair]` through one @c ZIP1 per
+ *  transposed pair-interleaved vectors <tt>[channel_tile][position_pair]</tt> through one @c ZIP1 per
  *  position pair, so P × V runs as outer products over positions. Rows beyond the segment and
  *  channels beyond the head are zero-filled by the predicated loads and the ZA0 pre-zeroing.
  */
@@ -1364,7 +1364,7 @@ NUMKONG_INLINE nk_f32_t nk_attention_block_scale2_sme_(nk_u8_t const *scales, nk
 
 /** Row @p position of an MX K plane at @p key_exponent, as the serial score helpers read it: raw
  *  rows in place, tile rows of @c nk_attention_pack_b16_sme_streaming_ widened into @p scratch as
- *  F32. Runs outside streaming mode, so @p tile_dimension stands in for `svcntw()`. */
+ *  F32. Runs outside streaming mode, so @p tile_dimension stands in for <tt>svcntw()</tt>. */
 NUMKONG_INLINE nk_u8_t const *nk_attention_key_row_sme_(char const *keys_plane, nk_i8_t key_exponent,
                                                         nk_size_t tile_dimension, nk_size_t depth, nk_size_t position,
                                                         nk_f32_t *scratch) {
@@ -3045,9 +3045,9 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_b8_sme_(nk_size_t key_value_head
 /**
  *  @brief Streaming pack core for I8 K/V planes.
  *
- *  K becomes quad-interleaved SMOPA operand vectors `[position_tile][depth_quad]` through the ZA0
+ *  K becomes quad-interleaved SMOPA operand vectors <tt>[position_tile][depth_quad]</tt> through the ZA0
  *  horizontal-write / vertical-read transpose; V becomes transposed quad-interleaved vectors
- *  `[channel_tile][position_quad]` through a two-level @c ZIP1, so P × V runs as USMOPA outer
+ *  <tt>[channel_tile][position_quad]</tt> through a two-level @c ZIP1, so P × V runs as USMOPA outer
  *  products over positions with the U8 probabilities.
  */
 __arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_i8_sme_streaming_(     //

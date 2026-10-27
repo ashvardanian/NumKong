@@ -39,6 +39,7 @@
 //!
 //! File: rust/shapes.rs
 //! Author: Ash Vardanian
+//! Date: March 8, 2026
 
 use core::{alloc::Layout, ffi::c_void, marker::PhantomData, ptr::null_mut};
 
@@ -847,7 +848,7 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
             .sum()
     }
 
-    /// Returns the shape __[clouds,points]__, the clouds and their total points.
+    /// Returns the shape __\[clouds,points\]__, the clouds and their total points.
     pub fn shape(&self) -> (usize, usize) { (self.clouds, self.points()) }
 
     /// Bytes one packed cloud of `points` points takes, to size a buffer without packing.
@@ -932,8 +933,8 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
     /// sign flips of the principal axes, zero between two empty clouds and infinite between an
     /// empty and a non-empty one.
     ///
-    /// Fills `results` with __[rows,columns]__ distances and, when given, `rotations` with as many
-    /// matrices taking each column cloud onto each row cloud.
+    /// Fills `results` with __\[rows,columns\]__ distances and, when given, `rotations` with
+    /// as many matrices taking each column cloud onto each row cloud.
     ///
     /// Returns `Err` if `results` or `rotations` does not hold __rows × columns__ entries.
     pub fn chamfers<OtherAlloc: Allocator>(

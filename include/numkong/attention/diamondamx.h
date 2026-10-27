@@ -8,7 +8,7 @@
  *
  *  Diamond Rapids AMX debuts ~2027. This backend provides only the E4M3 variant: Diamond's
  *  differentiator over Sapphire Rapids is native FP8, via @c _tile_dphf8ps, whereas its I8/BF16
- *  tile pipelines are near-clones of `attention/sapphireamx.h`, the same TDPBSSD/TDPBUSD/TDPBF16PS,
+ *  tile pipelines are near-clones of <tt>attention/sapphireamx.h</tt>, the same TDPBSSD/TDPBUSD/TDPBF16PS,
  *  and are served there. It keeps the Sapphire Rapids panel-flash structure — 2×2 register
  *  blocking, KV-reuse chunking, and the base-2 streaming softmax of the Skylake kernels — and
  *  layers on Diamond's two upgrades:

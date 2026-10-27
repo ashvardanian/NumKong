@@ -7,7 +7,7 @@
  *      rounding primitives every ROCm kernel shares.
  *
  *  Only hipcc sees past the guard, and nothing here is shared with CUDA, whose twins live in
- *  `cuda.cuh` under their own names, so a library holding both vendors links one body per name.
+ *  <tt>cuda.cuh</tt> under their own names, so a library holding both vendors links one body per name.
  *
  *  @sa include/numkong/cuda.cuh
  */
@@ -267,7 +267,7 @@ NUMKONG_INLINE nk_status_t nk_allocator_init_pinned_rocm_(nk_allocator_t *alloca
  *  learns per device pass. */
 NUMKONG_DEVICE unsigned nk_warp_lanes_rocm_(void) { return __builtin_amdgcn_wavefrontsize(); }
 
-/** Lane `lane ^ offset`'s @p value, from across the whole wavefront, where offsets below 32 stay
+/** Lane <tt>lane ^ offset</tt>'s @p value, from across the whole wavefront, where offsets below 32 stay
  *  inside each half of a 64-lane one. */
 NUMKONG_DEVICE nk_u32_t nk_shuffle_xor_u32_rocm_(nk_u32_t value, unsigned offset) { return __shfl_xor(value, offset); }
 NUMKONG_DEVICE nk_i32_t nk_shuffle_xor_i32_rocm_(nk_i32_t value, unsigned offset) { return __shfl_xor(value, offset); }
@@ -277,7 +277,7 @@ NUMKONG_DEVICE nk_u64_t nk_shuffle_xor_u64_rocm_(nk_u64_t value, unsigned offset
 NUMKONG_DEVICE nk_f32_t nk_shuffle_xor_f32_rocm_(nk_f32_t value, unsigned offset) { return __shfl_xor(value, offset); }
 NUMKONG_DEVICE nk_f64_t nk_shuffle_xor_f64_rocm_(nk_f64_t value, unsigned offset) { return __shfl_xor(value, offset); }
 
-/** Lane `lane - offset`'s @p value within each group of 32 lanes, a lane's own below @p offset. */
+/** Lane <tt>lane - offset</tt>'s @p value within each group of 32 lanes, a lane's own below @p offset. */
 NUMKONG_DEVICE nk_u64_t nk_shuffle_up_u64_rocm_(nk_u64_t value, unsigned offset) {
     return __shfl_up((unsigned long long)value, offset, 32);
 }

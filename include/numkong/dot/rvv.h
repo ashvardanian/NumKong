@@ -8,7 +8,7 @@
  *
  *  SpacemiT K1 and similar chips implement base RVV 1.0 without half-precision extensions.
  *  RVV uses vector length agnostic programming where:
- *  - `vsetvl_e*m*(n)` sets VL = min(n, VLMAX) and returns actual VL
+ *  - <tt>vsetvl_e*m*(n)</tt> sets VL = min(n, VLMAX) and returns actual VL
  *  - Loads/stores with VL automatically handle partial vectors (tail elements)
  *  - No explicit masking needed for simple reductions
  *

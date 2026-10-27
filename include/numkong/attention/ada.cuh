@@ -7,7 +7,7 @@
  *  @sa include/numkong/attention.h
  *  @sa include/numkong/cast/ada.cuh
  *
- *  The lowest NVIDIA capability with `cvt.*e4m3x2`, whose weight quantization the Hopper, Blackwell
+ *  The lowest NVIDIA capability with <tt>cvt.*e4m3x2</tt>, whose weight quantization the Hopper, Blackwell
  *  and BlackwellRTX capabilities share. Ada runs no attention kernels of its own.
  */
 #ifndef NUMKONG_ATTENTION_ADA_CUH

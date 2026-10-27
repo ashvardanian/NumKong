@@ -8,6 +8,7 @@
 //!
 //! File: rust/set.rs
 //! Author: Ash Vardanian
+//! Date: March 8, 2026
 
 use core::{ffi::c_void, ptr::null_mut};
 
@@ -72,7 +73,9 @@ extern "C" {
 ///
 /// Implemented for: `u1x8`, `u8`.
 pub trait Hamming: StorageElement {
+    /// Result type of the Hamming distance.
     type Output;
+    /// Computes the Hamming distance between two equally long slices.
     fn hamming(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 }
 
@@ -130,7 +133,9 @@ impl Hamming for u8 {
 ///
 /// Implemented for: `u1x8`, `u16`, `u32`.
 pub trait Jaccard: StorageElement {
+    /// Result type of the Jaccard distance.
     type Output;
+    /// Computes the Jaccard distance between two equally long slices.
     fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 }
 

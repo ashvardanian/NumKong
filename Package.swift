@@ -1,4 +1,4 @@
-// swift-tools-version:6.4
+// swift-tools-version:6.2
 
 import PackageDescription
 
@@ -13,16 +13,19 @@ let portableChecksum = "00000000000000000000000000000000000000000000000000000000
 let library: [Target]
 let libraryDependencies: [Target.Dependency]
 if let artifact = Context.environment["NUMKONG_SWIFT_ARTIFACT"] {
-    library = [.binaryTarget(name: "CNumKong", path: artifact)]
-    libraryDependencies = ["CNumKong"]
+    library = [.binaryTarget(name: "NumKongC", path: artifact)]
+    libraryDependencies = ["NumKongC"]
 } else {
     library = [
-        .binaryTarget(name: "CNumKongApple", url: "\(release)/CNumKong.xcframework.zip", checksum: appleChecksum),
-        .binaryTarget(name: "CNumKongPortable", url: "\(release)/CNumKong.artifactbundle.zip", checksum: portableChecksum),
+        .binaryTarget(name: "NumKongCApple", url: "\(release)/NumKongC.xcframework.zip", checksum: appleChecksum),
+        .binaryTarget(
+            name: "NumKongCPortable", url: "\(release)/NumKongC.artifactbundle.zip", checksum: portableChecksum),
     ]
     libraryDependencies = [
-        .target(name: "CNumKongApple", condition: .when(platforms: [.macOS, .macCatalyst, .iOS, .tvOS, .watchOS, .visionOS])),
-        .target(name: "CNumKongPortable", condition: .when(platforms: [.linux, .android, .windows, .wasi])),
+        .target(
+            name: "NumKongCApple",
+            condition: .when(platforms: [.macOS, .macCatalyst, .iOS, .tvOS, .watchOS, .visionOS])),
+        .target(name: "NumKongCPortable", condition: .when(platforms: [.linux, .android, .windows, .wasi])),
     ]
 }
 

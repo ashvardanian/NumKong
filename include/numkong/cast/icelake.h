@@ -634,7 +634,7 @@ NUMKONG_INLINE void nk_cast_elementwise_icelake_(void const *from, nk_dtype_t fr
     else nk_cast_elementwise_skylake_(from, from_type, n, to, to_type);
 }
 
-/** Reduce a block of @p block_count f32s to `amax = max(|x|)`. @p block_count ≤ 32. Reuses the
+/** Reduce a block of @p block_count f32s to <tt>amax = max(|x|)</tt>. @p block_count ≤ 32. Reuses the
  *  Skylake AVX-512 reduction (already 16-wide with NaN → sentinel propagation). */
 NUMKONG_INLINE nk_f32_t nk_block_amax_f32_icelake_(nk_f32_t const *block, nk_size_t block_count) {
     return nk_block_amax_f32_skylake_(block, block_count);

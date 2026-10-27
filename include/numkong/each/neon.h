@@ -71,7 +71,7 @@ NUMKONG_INLINE void nk_add_f32_neon_(nk_f32_t const *a, nk_f32_t const *b, nk_si
     for (; i < n; ++i) result[i] = a[i] + b[i];
 }
 
-/** Computes `alpha * a + beta` over @p n F32 values. */
+/** Computes <tt>alpha * a + beta</tt> over @p n F32 values. */
 NUMKONG_INLINE void nk_scale_f32_neon_(nk_f32_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
                                        nk_f32_t *result) {
     float32x4_t beta_f32x4 = vdupq_n_f32(beta_val);
@@ -103,7 +103,7 @@ NUMKONG_INLINE void nk_add_f64_neon_(nk_f64_t const *a, nk_f64_t const *b, nk_si
     for (; i < n; ++i) result[i] = a[i] + b[i];
 }
 
-/** Computes `alpha * a + beta` over @p n F64 values. */
+/** Computes <tt>alpha * a + beta</tt> over @p n F64 values. */
 NUMKONG_INLINE void nk_scale_f64_neon_(nk_f64_t const *a, nk_size_t n, nk_f64_t alpha_val, nk_f64_t beta_val,
                                        nk_f64_t *result) {
     float64x2_t alpha_f64x2 = vdupq_n_f64(alpha_val);
@@ -121,7 +121,7 @@ NUMKONG_INLINE void nk_scale_f64_neon_(nk_f64_t const *a, nk_size_t n, nk_f64_t 
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val;
 }
 
-/** Vectorized `2^x` (NEON), with a seventh-degree polynomial on [-0.5, 0.5]. */
+/** Vectorized <tt>2^x</tt> (NEON), with a seventh-degree polynomial on [-0.5, 0.5]. */
 NUMKONG_INLINE float32x4_t nk_exp2_f32x4_neon_(float32x4_t x_f32x4) {
     x_f32x4 = vmaxq_f32(vminq_f32(x_f32x4, vdupq_n_f32(127.0f)), vdupq_n_f32(-125.0f));
     float32x4_t const whole_f32x4 = vrndnq_f32(x_f32x4);

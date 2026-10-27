@@ -11,41 +11,41 @@
 #include "trigonometry.h"
 #include "tensor.h"
 
-char const doc_sin[] =                                                                                 //
-    "Element-wise trigonometric sine.\n\n"                                                             //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): Input tensor of any rank, angles in radians.\n"                                   //
-    "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
-    "    out (Tensor, optional): Vector for resulting values.\n\n"                                     //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The sine values if `out` is not provided.\n"                                          //
-    "    None: If `out` is provided.\n\n"                                                              //
-    "Signature:\n"                                                                                     //
-    "    >>> def sin(a, /, dtype, *, out) -> Optional[Tensor]: ...";
+char const doc_sin[] =                                                                               //
+    "Element-wise trigonometric sine.\n\n"                                                           //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): Input tensor of any rank, angles in radians.\n"                                   //
+    "  dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
+    "  out (Tensor, optional): Vector for resulting values.\n\n"                                     //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The sine values if `out` is not provided.\n"                                          //
+    "  None: If `out` is provided.\n\n"                                                              //
+    "Signature:\n"                                                                                   //
+    "  >>> def sin(a, /, dtype, *, out) -> Optional[Tensor]: ...";
 
-char const doc_cos[] =                                                                                 //
-    "Element-wise trigonometric cosine.\n\n"                                                           //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): Input tensor of any rank, angles in radians.\n"                                   //
-    "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
-    "    out (Tensor, optional): Vector for resulting values.\n\n"                                     //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The cosine values if `out` is not provided.\n"                                        //
-    "    None: If `out` is provided.\n\n"                                                              //
-    "Signature:\n"                                                                                     //
-    "    >>> def cos(a, /, dtype, *, out) -> Optional[Tensor]: ...";
+char const doc_cos[] =                                                                               //
+    "Element-wise trigonometric cosine.\n\n"                                                         //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): Input tensor of any rank, angles in radians.\n"                                   //
+    "  dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
+    "  out (Tensor, optional): Vector for resulting values.\n\n"                                     //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The cosine values if `out` is not provided.\n"                                        //
+    "  None: If `out` is provided.\n\n"                                                              //
+    "Signature:\n"                                                                                   //
+    "  >>> def cos(a, /, dtype, *, out) -> Optional[Tensor]: ...";
 
-char const doc_atan[] =                                                                                //
-    "Element-wise trigonometric arctangent.\n\n"                                                       //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): Input vector of values.\n"                                                        //
-    "    dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
-    "    out (Tensor, optional): Vector for resulting angles in radians.\n\n"                          //
-    "Returns:\n"                                                                                       //
-    "    Tensor: The arctangent values if `out` is not provided.\n"                                    //
-    "    None: If `out` is provided.\n\n"                                                              //
-    "Signature:\n"                                                                                     //
-    "    >>> def atan(a, /, dtype, *, out) -> Optional[Tensor]: ...";
+char const doc_atan[] =                                                                              //
+    "Element-wise trigonometric arctangent.\n\n"                                                     //
+    "Args:\n"                                                                                        //
+    "  a (Tensor): Input vector of values.\n"                                                        //
+    "  dtype (Union[IntegralType, FloatType], optional): Override the presumed numeric type name.\n" //
+    "  out (Tensor, optional): Vector for resulting angles in radians.\n\n"                          //
+    "Returns:\n"                                                                                     //
+    "  Tensor: The arctangent values if `out` is not provided.\n"                                    //
+    "  None: If `out` is provided.\n\n"                                                              //
+    "Signature:\n"                                                                                   //
+    "  >>> def atan(a, /, dtype, *, out) -> Optional[Tensor]: ...";
 
 static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *const *args,
                                         Py_ssize_t const positional_args_count, PyObject *args_names_tuple) {

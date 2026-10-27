@@ -13,8 +13,8 @@
  *  @c pack_size reads no segment arrays on the host, so the pack needs device or managed memory for
  *  the key offsets and lengths, and the kernels read the directory the pack stored.
  *
- *  Everything that scans or reduces across lanes lives in the vendor baselines, `cuda.cuh` and
- *  `rocm.cuh` beside this file: the scheduler's block scan, the directory kernel, the backward
+ *  Everything that scans or reduces across lanes lives in the vendor baselines, <tt>cuda.cuh</tt> and
+ *  <tt>rocm.cuh</tt> beside this file: the scheduler's block scan, the directory kernel, the backward
  *  loops, and the fallback kernel, a warp or wavefront per query row making the serial kernel's
  *  two sweeps over its keys, with products in F32 and I8 scores in exact I32 like the serial ones.
  */
@@ -72,7 +72,7 @@ typedef struct {
     /** First query row of each segment, with segments + 1 entries. */
     nk_u32_t const *query_offsets;
 
-    /** Query rows the call addresses, `query_offsets[segments]`. */
+    /** Query rows the call addresses, <tt>query_offsets[segments]</tt>. */
     nk_size_t query_token_count;
 
     /** Query heads. */
@@ -181,8 +181,8 @@ typedef struct {
 
 NUMKONG_DEVICE nk_f32_t nk_attention_negative_infinity_simt_(void) { return __int_as_float(0xFF800000); }
 
-/** Slot of @p position in a transposed V: within every 16, position `2t + 8h + e` sits at
- *  `4t + 2h + e`. */
+/** Slot of @p position in a transposed V: within every 16, position <tt>2t + 8h + e</tt> sits at
+ *  <tt>4t + 2h + e</tt>. */
 NUMKONG_DEVICE nk_size_t nk_attention_slot_simt_(nk_size_t position) {
     return (position & ~(nk_size_t)15) | ((position & 6) << 1) | ((position & 8) >> 2) | (position & 1);
 }
@@ -708,7 +708,7 @@ typedef struct {
     /** First query token of each segment. */
     nk_u32_t const *query_offsets;
 
-    /** Query rows the call addresses, `query_offsets[segments]`. */
+    /** Query rows the call addresses, <tt>query_offsets[segments]</tt>. */
     nk_size_t query_token_count;
 
     nk_size_t head_count;

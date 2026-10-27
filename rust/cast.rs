@@ -9,6 +9,7 @@
 //!
 //! File: rust/cast.rs
 //! Author: Ash Vardanian
+//! Date: March 8, 2026
 
 use core::{ffi::c_void, ptr::null_mut};
 
@@ -206,6 +207,7 @@ use crate::tensor::{check_len, Allocator, Error, Tensor, TensorMut, TensorRef, D
 
 /// Extension trait: type casting for any [`TensorRef`] implementor.
 pub trait CastOps<Source: Clone + CastDType, const MAX_RANK: usize>: TensorRef<Source, MAX_RANK> {
+    /// Casts every element to `Destination`, returning a new tensor of the same shape.
     fn cast<Destination: Clone + CastDType>(&self) -> Result<Tensor<Destination, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
@@ -243,9 +245,13 @@ use crate::{
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockScaledDescriptor {
+    /// Type of the packed elements.
     pub element_dtype: u32,
+    /// Type of the per-block scales.
     pub scale_dtype: u32,
+    /// Type of the per-tensor scale, `nk_dtype_unknown_k` when there is none.
     pub tensor_scale_dtype: u32,
+    /// Elements per scaled block, `0` for plain buffers.
     pub block_size: usize,
 }
 
@@ -747,7 +753,7 @@ fn block_scaled_cast_(
 
 /// Encode a dense `f32` matrix into a [`ScaledTensor`].
 ///
-/// The source must be a contiguous 2D __[rows,columns]__ view with `columns` divisible by
+/// The source must be a contiguous 2D __\[rows,columns\]__ view with `columns` divisible by
 /// `F::BLOCK_SIZE`. For formats with a per-tensor scale, such as NVFP4, the multiplier is derived
 /// from the tensor amax by the kernel — we seed the buffer with `0.0` and read it back. Extension
 /// trait: encode any dense `f32` tensor into a block-scaled [`ScaledTensor`].
@@ -755,6 +761,7 @@ fn block_scaled_cast_(
 /// Blanket-implemented for every [`TensorRef<f32, MAX_RANK>`], so `Tensor<f32>`, `TensorView<f32>`,
 /// and `TensorSpan<f32>` all expose `.cast_to_scaled::<F>()` without an intervening `.view()`.
 pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
+    /// Encodes the tensor into the block-scaled format `F`.
     fn cast_to_scaled<F: BlockScaledFormat>(&self) -> Result<ScaledTensor<F, Self::Alloc>, Error>
     where
         Self::Alloc: Clone,

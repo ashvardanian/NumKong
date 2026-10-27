@@ -17,7 +17,7 @@
  *  from nk_f32_exp2_serial_. Score and accumulation loops keep operands at LMUL m1/m2 to leave
  *  register-group headroom; the softmax elementwise passes over the score row run wider at e32m4.
  *
- *  Storage mirrors `dots/rvv.h` economics: BF16 stays BF16 at rest and widens to F32 with a
+ *  Storage mirrors <tt>dots/rvv.h</tt> economics: BF16 stays BF16 at rest and widens to F32 with a
  *  zero-extend + shift, through nk_bf16m1_to_f32m2_rvv_. E4M3 K/V converts once to BF16 at pack
  *  time — the conversion is lossless, 3 mantissa bits fit into 7, the packed plane stays 2 bytes
  *  per value, and the hot loops reuse the cheap BF16 shift loader instead of an in-loop gather.
@@ -139,7 +139,7 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_rvv_(nk_size_t key_value_head_co
                                            depth * packed_element_bytes);
 }
 
-/** BF16 packing core: repacks K and V rows into raw `[key_value_head][position][channel]` planes
+/** BF16 packing core: repacks K and V rows into raw <tt>[key_value_head][position][channel]</tt> planes
  *  per segment, with no padding in either axis. Each window derives its plane offsets from
  *  @p key_lengths, so windows run in any order. */
 NUMKONG_INLINE void nk_attention_pack_bf16_rvv_(nk_bf16_t const *keys, nk_bf16_t const *values,
@@ -182,7 +182,7 @@ NUMKONG_INLINE void nk_attention_pack_bf16_rvv_(nk_bf16_t const *keys, nk_bf16_t
     }
 }
 
-/** E4M3 packing core: repacks K and V rows into raw `[key_value_head][position][channel]` planes
+/** E4M3 packing core: repacks K and V rows into raw <tt>[key_value_head][position][channel]</tt> planes
  *  per segment, with no padding in either axis. Each window derives its plane offsets from
  *  @p key_lengths, so windows run in any order. */
 NUMKONG_INLINE void nk_attention_pack_e4m3_rvv_(nk_e4m3_t const *keys, nk_e4m3_t const *values,
@@ -225,7 +225,7 @@ NUMKONG_INLINE void nk_attention_pack_e4m3_rvv_(nk_e4m3_t const *keys, nk_e4m3_t
     }
 }
 
-/** I8 packing core: repacks K and V rows into raw `[key_value_head][position][channel]` planes per
+/** I8 packing core: repacks K and V rows into raw <tt>[key_value_head][position][channel]</tt> planes per
  *  segment, with no padding in either axis. Each window derives its plane offsets from
  *  @p key_lengths, so windows run in any order. */
 NUMKONG_INLINE void nk_attention_pack_i8_rvv_(nk_i8_t const *keys, nk_i8_t const *values,

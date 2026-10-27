@@ -4,13 +4,14 @@
 //!
 //! - [`Hammings`] / [`Jaccards`]: Low-level per-scalar batched metric traits — FFI-backed
 //! - [`HammingsPackedOps`] / [`JaccardsPackedOps`]: `C = metric(A, Bᵀ)` for any [`TensorRef`]
-//! - [`HammingsPackedParallelOps`] / [`JaccardsPackedParallelOps`]: the same over a thread pool
+//! - `HammingsPackedParallelOps` / `JaccardsPackedParallelOps`: the same over a thread pool
 //! - [`SymmetricHammingsOps`] / [`SymmetricJaccardsOps`]: self-metric upper triangle
 //!
 //! The right-hand operand is a [`DotsPackedMatrix`] from the [`crate::dots`] module.
 //!
 //! File: rust/sets.rs
 //! Author: Ash Vardanian
+//! Date: July 20, 2026
 use core::{ffi::c_void, ptr::null_mut};
 
 #[cfg(feature = "parallel")]
@@ -109,7 +110,7 @@ extern "C" {
 /// # Errors
 ///
 /// [`Error::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
-/// other [`Capabilities`](crate::Capabilities) than the current ones.
+/// other [`Capabilities`] than the current ones.
 pub trait Hammings: Dots {
     /// Computes Hamming distances between values matrix rows and packed query rows.
     ///
@@ -221,7 +222,7 @@ impl Hammings for u1x8 {
 /// # Errors
 ///
 /// [`Error::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
-/// other [`Capabilities`](crate::Capabilities) than the current ones.
+/// other [`Capabilities`] than the current ones.
 pub trait Jaccards: Dots {
     /// Result type for Jaccard distances.
     type JaccardResult: StorageElement;
@@ -355,8 +356,8 @@ impl<Scalar: Hammings, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
 pub trait HammingsPackedOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Hamming distances: C = self × packed_rightᵀ
     ///
-    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
-    /// Returns C __[m,n]__, allocated like `self`.
+    /// self must be 2D __\[m,k\]__ with contiguous rows. packed_right contains B __\[n,k\]__
+    /// packed. Returns C __\[m,n\]__, allocated like `self`.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -458,8 +459,8 @@ impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
 pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
     /// Jaccard distances: C = self × packed_rightᵀ
     ///
-    /// self must be 2D __[m,k]__ with contiguous rows. packed_right contains B __[n,k]__ packed.
-    /// Returns C __[m,n]__, allocated like `self`.
+    /// self must be 2D __\[m,k\]__ with contiguous rows. packed_right contains B __\[n,k\]__
+    /// packed. Returns C __\[m,n\]__, allocated like `self`.
     ///
     /// Returns `Err` if:
     /// - self is not 2D
@@ -947,6 +948,8 @@ impl<'queries, Scalar: Jaccards, const MAX_RANK: usize, Alloc: Allocator>
 /// Prefer this trait when writing generic code over `TensorRef`; use the inherent
 /// [`TensorView::hammings_symmetric`] when you already hold a view.
 pub trait SymmetricHammingsOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    /// Computes the upper triangle of the symmetric Hamming-distance matrix of the rows
+    /// with themselves.
     fn hammings_symmetric(&self) -> Result<Tensor<u32, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
@@ -979,6 +982,8 @@ impl<Scalar: Hammings, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symme
 /// Prefer this trait when writing generic code over `TensorRef`; use the inherent
 /// [`TensorView::jaccards_symmetric`] when you already hold a view.
 pub trait SymmetricJaccardsOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
+    /// Computes the upper triangle of the symmetric Jaccard-distance matrix of the rows
+    /// with themselves.
     fn jaccards_symmetric(&self) -> Result<Tensor<Scalar::JaccardResult, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,

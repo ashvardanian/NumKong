@@ -4,13 +4,14 @@
  *  @date March 13, 2024
  *  @brief The capability lists' shape and the kernel selection every dispatch unit shares.
  *
- *  @c NUMKONG_NATIVE_F16 and @c NUMKONG_NATIVE_BF16 are deliberately not pinned here. These are the
- *  only translation units that define @c nk_f16_sqrt_best and friends, so pinning them would make
- *  the library disagree with the bindings that call it — the sources under `python/` do not include
- *  this header and honour the build system instead. `types.h` defaults both to 0 for everyone.
+ *  @c NUMKONG_NATIVE_F16 and @c NUMKONG_NATIVE_BF16 are deliberately not pinned here. These are
+ *  the only translation units that define @c nk_f16_sqrt_best and friends, so pinning them
+ *  would make the library disagree with the bindings that call it — the sources under
+ *  @c python/ do not include this header and honour the build system instead. <tt>types.h</tt>
+ *  defaults both to 0 for everyone.
  *
- *  The @c NUMKONG_TARGET_* verdicts come from the probes in `CMakeLists.txt`, which every binding
- *  builds through or links the output of. Builds that pass none get them from `types.h`, which
+ *  The @c NUMKONG_TARGET_* verdicts come from the probes in <tt>CMakeLists.txt</tt>, which every binding
+ *  builds through or links the output of. Builds that pass none get them from <tt>types.h</tt>, which
  *  reads the compiler flags.
  */
 #ifndef NUMKONG_DISPATCH_H

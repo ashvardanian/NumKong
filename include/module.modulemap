@@ -1,5 +1,5 @@
 // One module over the library's public header, as the Swift artifacts and CMake installs ship it.
-module CNumKong {
+module NumKongC {
     header "numkong/numkong.h"
     export *
 }

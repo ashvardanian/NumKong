@@ -1,24 +1,23 @@
-//
-//  swift/MaxSim.swift
-//  Protocol and conformances for late-interaction MaxSim scoring over packed matrices.
-//
-//  - Author: Ash Vardanian
-//  - Date: March 14, 2026
-//
+/**
+ *  @file swift/MaxSim.swift
+ *  @author Ash Vardanian
+ *  @date March 14, 2026
+ *  @brief Protocol and conformances for late-interaction MaxSim scoring over packed matrices.
+ */
 
-import CNumKong
+import NumKongC
 
 // MARK: - MaxSim Protocol
 
 /// Element type that supports late-interaction MaxSim scoring with packed representations.
 public protocol NumKongMaxSimElement {
     associatedtype MaxSimOutput
-    static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) throws -> Int
-    static func _nk_maxsim_packed_shape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int) throws
-    static func _nk_maxsim_pack(
+    static func _nkMaxsimPackSize(_ vectors: Int, _ depth: Int) throws -> Int
+    static func _nkMaxsimPackedShape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int) throws
+    static func _nkMaxsimPack(
         _ vectorsData: UnsafePointer<Self>, _ vectorsCount: Int, _ depth: Int, _ stride: Int,
         _ packed: UnsafeMutableRawPointer) throws
-    static func _nk_maxsim_packed(
+    static func _nkMaxsimPacked(
         _ queryPacked: UnsafeRawPointer, _ docPacked: UnsafeRawPointer, _ queryCount: Int, _ docCount: Int,
         _ depth: Int, _ result: UnsafeMutablePointer<MaxSimOutput>) throws
 }
@@ -51,11 +50,11 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
         guard matrix.rows > 0 && matrix.columns > 0 else {
             throw fail(.unexpectedDimensions, "rows and columns must be positive")
         }
-        let bytes = try Element._nk_maxsim_pack_size(matrix.rows, matrix.columns)
+        let bytes = try Element._nkMaxsimPackSize(matrix.rows, matrix.columns)
         guard bytes > 0 else { throw fail(.missingKernel, "no capability sized a pack") }
         let ptr = UnsafeMutableRawPointer.allocate(byteCount: bytes, alignment: 64)
         self.init(vectors: matrix.rows, depth: matrix.columns, byteCount: bytes, rawPointer: ptr)
-        try Element._nk_maxsim_pack(matrix.baseAddress, matrix.rows, matrix.columns, matrix.rowStrideBytes, ptr)
+        try Element._nkMaxsimPack(matrix.baseAddress, matrix.rows, matrix.columns, matrix.rowStrideBytes, ptr)
     }
 
     /// Computes the MaxSim score between this query and a document's packed matrix.
@@ -64,7 +63,7 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
         let raw = UnsafeMutableRawPointer(ptr)
         raw.initializeMemory(as: UInt8.self, repeating: 0, count: MemoryLayout<Element.MaxSimOutput>.size)
         defer { ptr.deallocate() }
-        try Element._nk_maxsim_packed(
+        try Element._nkMaxsimPacked(
             UnsafeRawPointer(rawPointer),
             UnsafeRawPointer(document.rawPointer),
             vectors,
@@ -80,7 +79,7 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
         get throws {
             var v = 0
             var d = 0
-            try Element._nk_maxsim_packed_shape(UnsafeRawPointer(rawPointer), &v, &d)
+            try Element._nkMaxsimPackedShape(UnsafeRawPointer(rawPointer), &v, &d)
             return (v, d)
         }
     }
@@ -91,14 +90,14 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
 extension Float32: NumKongMaxSimElement {
     public typealias MaxSimOutput = Float64
 
-    public static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) throws -> Int {
+    public static func _nkMaxsimPackSize(_ vectors: Int, _ depth: Int) throws -> Int {
         var bytes: nk_size_t = 0
         try _nkCheck(
             nk_maxsim_pack_size_f32_best(nk_size_t(vectors), nk_size_t(depth), Capabilities.cpus.native, &bytes))
         return Int(bytes)
     }
 
-    public static func _nk_maxsim_packed_shape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int)
+    public static func _nkMaxsimPackedShape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int)
         throws
     {
         var v: nk_size_t = 0
@@ -108,7 +107,7 @@ extension Float32: NumKongMaxSimElement {
         depth = Int(d)
     }
 
-    public static func _nk_maxsim_pack(
+    public static func _nkMaxsimPack(
         _ vectorsData: UnsafePointer<Float32>, _ vectorsCount: Int, _ depth: Int, _ stride: Int,
         _ packed: UnsafeMutableRawPointer
     ) throws {
@@ -118,7 +117,7 @@ extension Float32: NumKongMaxSimElement {
                 Capabilities.cpus.native, nil))
     }
 
-    public static func _nk_maxsim_packed(
+    public static func _nkMaxsimPacked(
         _ queryPacked: UnsafeRawPointer, _ docPacked: UnsafeRawPointer, _ queryCount: Int, _ docCount: Int,
         _ depth: Int, _ result: UnsafeMutablePointer<Float64>
     ) throws {
@@ -134,14 +133,14 @@ extension Float32: NumKongMaxSimElement {
 extension BFloat16: NumKongMaxSimElement {
     public typealias MaxSimOutput = Float32
 
-    public static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) throws -> Int {
+    public static func _nkMaxsimPackSize(_ vectors: Int, _ depth: Int) throws -> Int {
         var bytes: nk_size_t = 0
         try _nkCheck(
             nk_maxsim_pack_size_bf16_best(nk_size_t(vectors), nk_size_t(depth), Capabilities.cpus.native, &bytes))
         return Int(bytes)
     }
 
-    public static func _nk_maxsim_packed_shape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int)
+    public static func _nkMaxsimPackedShape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int)
         throws
     {
         var v: nk_size_t = 0
@@ -151,7 +150,7 @@ extension BFloat16: NumKongMaxSimElement {
         depth = Int(d)
     }
 
-    public static func _nk_maxsim_pack(
+    public static func _nkMaxsimPack(
         _ vectorsData: UnsafePointer<BFloat16>, _ vectorsCount: Int, _ depth: Int, _ stride: Int,
         _ packed: UnsafeMutableRawPointer
     ) throws {
@@ -162,7 +161,7 @@ extension BFloat16: NumKongMaxSimElement {
                 Capabilities.cpus.native, nil))
     }
 
-    public static func _nk_maxsim_packed(
+    public static func _nkMaxsimPacked(
         _ queryPacked: UnsafeRawPointer, _ docPacked: UnsafeRawPointer, _ queryCount: Int, _ docCount: Int,
         _ depth: Int, _ result: UnsafeMutablePointer<Float32>
     ) throws {
@@ -179,14 +178,14 @@ extension BFloat16: NumKongMaxSimElement {
 extension Float16: NumKongMaxSimElement {
     public typealias MaxSimOutput = Float32
 
-    public static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) throws -> Int {
+    public static func _nkMaxsimPackSize(_ vectors: Int, _ depth: Int) throws -> Int {
         var bytes: nk_size_t = 0
         try _nkCheck(
             nk_maxsim_pack_size_f16_best(nk_size_t(vectors), nk_size_t(depth), Capabilities.cpus.native, &bytes))
         return Int(bytes)
     }
 
-    public static func _nk_maxsim_packed_shape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int)
+    public static func _nkMaxsimPackedShape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int)
         throws
     {
         var v: nk_size_t = 0
@@ -196,7 +195,7 @@ extension Float16: NumKongMaxSimElement {
         depth = Int(d)
     }
 
-    public static func _nk_maxsim_pack(
+    public static func _nkMaxsimPack(
         _ vectorsData: UnsafePointer<Float16>, _ vectorsCount: Int, _ depth: Int, _ stride: Int,
         _ packed: UnsafeMutableRawPointer
     ) throws {
@@ -207,7 +206,7 @@ extension Float16: NumKongMaxSimElement {
                 Capabilities.cpus.native, nil))
     }
 
-    public static func _nk_maxsim_packed(
+    public static func _nkMaxsimPacked(
         _ queryPacked: UnsafeRawPointer, _ docPacked: UnsafeRawPointer, _ queryCount: Int, _ docCount: Int,
         _ depth: Int, _ result: UnsafeMutablePointer<Float32>
     ) throws {

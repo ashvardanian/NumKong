@@ -1,12 +1,11 @@
-//
-//  swift/Scalar.swift
-//  Protocols for scalar dot, angular, and Euclidean distance operations.
-//
-//  - Author: Ash Vardanian
-//  - Date: March 14, 2026
-//
+/**
+ *  @file swift/Scalar.swift
+ *  @author Ash Vardanian
+ *  @date March 14, 2026
+ *  @brief Protocols for scalar dot, angular, and Euclidean distance operations.
+ */
 
-import CNumKong
+import NumKongC
 
 // MARK: - Spatial Protocols
 
