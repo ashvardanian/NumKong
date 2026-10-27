@@ -3505,7 +3505,7 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_pairs_blackwell_(void const *kernel, 
 /** Writes every output of an empty depth, which the tensor maps cannot describe: dots of nothing
  *  times both tensor scales, so an infinite one gives NaN, and zero distances between zero
  *  vectors, over the upper triangle alone for @p upper. Every Blackwell output takes 32 bits. */
-static __global__ void __launch_bounds__(nk_cross_threads_simt_k)
+static __global__ void __launch_bounds__(nk_cross_threads_simt_k, 1)
     nk_cross_empty_blackwell_kernel_(nk_cross_tile_arguments_t arguments, nk_cross_metric_t metric, int upper) {
     nk_f32_t const a_tensor_scale = arguments.a_tensor_scale ? *arguments.a_tensor_scale : 1;
     nk_f32_t const b_tensor_scale = arguments.b_tensor_scale ? *arguments.b_tensor_scale : 1;
@@ -3522,7 +3522,7 @@ static __global__ void __launch_bounds__(nk_cross_threads_simt_k)
 
 /** Adds the @p slices partial outputs a split depth left in @p partials, blocks of @p slice_rows
  *  rows each, slice after slice into the F32 output @p c, so every run sums them alike. */
-static __global__ void __launch_bounds__(nk_cross_threads_simt_k)
+static __global__ void __launch_bounds__(nk_cross_threads_simt_k, 1)
     nk_cross_fold_slices_blackwell_kernel_(unsigned char const *partials, nk_size_t partials_stride,
                                            nk_size_t slice_rows, nk_size_t slices, nk_f32_t *c, nk_size_t c_stride,
                                            nk_size_t rows, nk_size_t column_count) {
@@ -3848,7 +3848,7 @@ nk_define_cross_packed_shape_cuda_(i8, blackwell)
 
 /** Packs B rows of I8 as F16 rows of the same values, exact, which the products read as copied,
  *  so only A widens per stage; norms stay the integer ones of the codes. */
-static __global__ void __launch_bounds__(nk_cross_pack_threads_cuda_k)
+static __global__ void __launch_bounds__(nk_cross_pack_threads_cuda_k, 1)
     nk_dots_pack_i8_blackwell_kernel_(unsigned char const *b, nk_size_t column_count, nk_size_t depth,
                                       nk_size_t depth_bytes, nk_size_t b_stride, unsigned char *b_packed,
                                       nk_size_t columns_begin, nk_size_t columns_end, nk_size_t depth_values_padded,
@@ -3914,7 +3914,7 @@ nk_define_cross_packed_shape_cuda_(u8, blackwell)
 
 /** Packs B rows of U8 as F16 rows of the codes minus 128, exact, which A's row byte sums restore,
  *  so only A widens per stage; padding meets A's zero-filled tails, and norms stay the codes'. */
-static __global__ void __launch_bounds__(nk_cross_pack_threads_cuda_k)
+static __global__ void __launch_bounds__(nk_cross_pack_threads_cuda_k, 1)
     nk_dots_pack_u8_blackwell_kernel_(unsigned char const *b, nk_size_t column_count, nk_size_t depth,
                                       nk_size_t depth_bytes, nk_size_t b_stride, unsigned char *b_packed,
                                       nk_size_t columns_begin, nk_size_t columns_end, nk_size_t depth_values_padded,

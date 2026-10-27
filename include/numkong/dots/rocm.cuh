@@ -1002,7 +1002,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_rocm_(void const *kernel, nk_cro
         *columns = header.column_count, *depth = header.depth_dimensions;                                            \
         return nk_success_k;                                                                                         \
     }                                                                                                                \
-    static __global__ void __launch_bounds__(nk_cross_pack_threads_simt_k)                                           \
+    static __global__ void __launch_bounds__(nk_cross_pack_threads_simt_k, 1)                                        \
         nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_(                                                     \
             unsigned char const *b, nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes,                  \
             nk_size_t b_stride, unsigned char *b_packed, nk_size_t columns_begin, nk_size_t columns_end,             \
@@ -1071,7 +1071,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_rocm_(void const *kernel, nk_cro
  */
 #define nk_define_cross_rocm_(metric, input_type_name, isa_suffix, tile, input_value_type, packed_value_type,         \
                               result_value_type, depth_simd_dimensions, dimensions_per_value)                         \
-    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k)                                             \
+    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k, 1)                                          \
         nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_(nk_cross_tile_arguments_t arguments) {       \
         nk_diagonal_band_t const band = {NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX};                                         \
         nk_cross_tile_##input_type_name##_##isa_suffix##_(nk_cross_metric_##metric##_k, band, &arguments);            \
@@ -1103,7 +1103,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_rocm_(void const *kernel, nk_cro
             nk_block_scaled_format_of_dtype(nk_##input_type_name##_k).block_size,                                     \
             depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), a_stride, row_bytes, c_stride, stream); \
     }                                                                                                                 \
-    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k)                                             \
+    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k, 1)                                          \
         nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_(nk_cross_tile_arguments_t arguments) {    \
         nk_diagonal_band_t const band = {0, NUMKONG_SIZE_MAX};                                                        \
         nk_cross_tile_##input_type_name##_##isa_suffix##_(nk_cross_metric_##metric##_k, band, &arguments);            \

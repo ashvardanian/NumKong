@@ -365,7 +365,7 @@ NUMKONG_DEVICE void nk_shapes_classify_cuda_(nk_shapes_transport_schedule_cuda_t
     lists[class_index * schedule->pairs + position] = (nk_u32_t)slot_index;
 }
 
-static __global__ void __launch_bounds__(nk_shapes_classify_threads_cuda_k)
+static __global__ void __launch_bounds__(nk_shapes_classify_threads_cuda_k, 1)
     nk_shapes_classify_f32_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
     for (nk_size_t slot_index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; slot_index < schedule.pairs;
          slot_index += (nk_size_t)gridDim.x * blockDim.x) {
@@ -378,7 +378,7 @@ static __global__ void __launch_bounds__(nk_shapes_classify_threads_cuda_k)
     }
 }
 
-static __global__ void __launch_bounds__(nk_shapes_classify_threads_cuda_k)
+static __global__ void __launch_bounds__(nk_shapes_classify_threads_cuda_k, 1)
     nk_shapes_classify_f16_cuda_kernel_(nk_shapes_transport_schedule_cuda_t const schedule) {
     for (nk_size_t slot_index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; slot_index < schedule.pairs;
          slot_index += (nk_size_t)gridDim.x * blockDim.x) {

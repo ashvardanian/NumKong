@@ -1800,12 +1800,12 @@ nk_define_attention_packed_simt_(bf16, ampere, cuda)
 
 /** Both BF16 backward kernels: tensor cores when the launch gives them shared memory, the
  *  @c cuda kernels' loops when it does not. */
-static __global__ void __launch_bounds__(nk_attention_threads_k)
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
     nk_attention_backward_keys_bf16_ampere_kernel_(nk_attention_backward_arguments_t arguments) {
     if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_keys_ampere_(&arguments);
     else nk_attention_backward_keys_bf16_cuda_(&arguments);
 }
-static __global__ void __launch_bounds__(nk_attention_threads_k)
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
     nk_attention_backward_queries_bf16_ampere_kernel_(nk_attention_backward_arguments_t arguments) {
     if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_queries_ampere_(&arguments);
     else nk_attention_backward_queries_bf16_cuda_(&arguments);

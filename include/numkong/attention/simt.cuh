@@ -855,27 +855,27 @@ NUMKONG_INLINE nk_attention_arguments_t nk_attention_arguments_init_simt_(
  *      @c nk_attention_fallback_<type>_<vendor>_ runs the depths the tile does not take.
  */
 #define nk_define_attention_packed_simt_(input_type, isa_suffix, vendor)                                              \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+    static __global__ void __launch_bounds__(nk_attention_threads_k, 1)                                               \
         nk_attention_packed_##input_type##_narrow_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {        \
         nk_attention_tile_##input_type##_##isa_suffix##_(nk_attention_width_128_k, nk_attention_mask_none_k,          \
                                                          &arguments);                                                 \
     }                                                                                                                 \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+    static __global__ void __launch_bounds__(nk_attention_threads_k, 1)                                               \
         nk_attention_packed_##input_type##_wide_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {          \
         nk_attention_tile_##input_type##_##isa_suffix##_(nk_attention_width_256_k, nk_attention_mask_none_k,          \
                                                          &arguments);                                                 \
     }                                                                                                                 \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+    static __global__ void __launch_bounds__(nk_attention_threads_k, 1)                                               \
         nk_attention_packed_##input_type##_narrow_masked_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) { \
         nk_attention_tile_##input_type##_##isa_suffix##_(nk_attention_width_128_k, nk_attention_mask_diagonal_band_k, \
                                                          &arguments);                                                 \
     }                                                                                                                 \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+    static __global__ void __launch_bounds__(nk_attention_threads_k, 1)                                               \
         nk_attention_packed_##input_type##_wide_masked_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {   \
         nk_attention_tile_##input_type##_##isa_suffix##_(nk_attention_width_256_k, nk_attention_mask_diagonal_band_k, \
                                                          &arguments);                                                 \
     }                                                                                                                 \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+    static __global__ void __launch_bounds__(nk_attention_threads_k, 1)                                               \
         nk_attention_packed_##input_type##_fallback_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {      \
         nk_attention_fallback_##input_type##_##vendor##_(&arguments);                                                 \
     }                                                                                                                 \

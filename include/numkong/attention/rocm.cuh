@@ -363,7 +363,7 @@ NUMKONG_DEVICE void nk_attention_fallback_i8_rocm_(nk_attention_arguments_t cons
 
 /** Writes the header, recording the packing @p capability, and the directory, one block walking the
  *  segments 128 at a time. */
-static __global__ void __launch_bounds__(nk_attention_threads_k)
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
     nk_attention_pack_directory_rocm_kernel_(unsigned char *packed, nk_size_t key_value_head_count, nk_size_t depth,
                                              nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
                                              nk_size_t segment_count, nk_size_t row_bytes, nk_size_t directory_bytes,
@@ -636,7 +636,7 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_rocm_(void const *keys_k
  *  V keeps position rows for BF16 and takes σ-ordered depth rows for 1-byte dtypes.
  */
 #define nk_define_attention_pack_rocm_(input_type_name, isa_suffix, input_value_type)                                \
-    static __global__ void __launch_bounds__(nk_attention_pack_threads_k)                                            \
+    static __global__ void __launch_bounds__(nk_attention_pack_threads_k, 1)                                         \
         nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_(                                                \
             unsigned char const *keys, unsigned char const *values, nk_size_t key_value_head_count, nk_size_t depth, \
             nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride, \
@@ -668,7 +668,7 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_rocm_(void const *keys_k
     nk_define_attention_pack_size_simt_(input_type_name, isa_suffix, element_bytes)                                   \
     nk_define_attention_packed_shape_rocm_(input_type_name, isa_suffix)                                               \
     nk_define_attention_pack_rocm_(input_type_name, isa_suffix, input_value_type)                                     \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+    static __global__ void __launch_bounds__(nk_attention_threads_k, 1)                                               \
         nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {          \
         nk_attention_fallback_##input_value_type##_rocm_(&arguments);                                                 \
     }                                                                                                                 \
@@ -696,12 +696,12 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_rocm_(void const *keys_k
 /** Generates the two backward kernels of one dtype, keys and values first, which read any
  *  capability's pack of the shared device layout, and the gradients entry point over them. */
 #define nk_define_attention_backward_rocm_(input_type_name, isa_suffix, input_value_type)                              \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                   \
+    static __global__ void __launch_bounds__(nk_attention_threads_k, 1)                                                \
         nk_attention_backward_keys_##input_type_name##_##isa_suffix##_kernel_(                                         \
             nk_attention_backward_arguments_t arguments) {                                                             \
         nk_attention_backward_keys_##input_value_type##_rocm_(&arguments);                                             \
     }                                                                                                                  \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                   \
+    static __global__ void __launch_bounds__(nk_attention_threads_k, 1)                                                \
         nk_attention_backward_queries_##input_type_name##_##isa_suffix##_kernel_(                                      \
             nk_attention_backward_arguments_t arguments) {                                                             \
         nk_attention_backward_queries_##input_value_type##_rocm_(&arguments);                                          \

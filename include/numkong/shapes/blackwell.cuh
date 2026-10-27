@@ -476,7 +476,7 @@ NUMKONG_DEVICE void nk_rmsds_superpose_blackwell_(nk_rmsds_schedule_blackwell_t 
     __syncthreads();
 }
 
-static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k)
+static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k, 1)
     nk_rmsds_packed_f16_blackwell_kernel_(nk_rmsds_schedule_blackwell_t const schedule) {
     extern __shared__ unsigned char nk_rmsds_dynamic_shared_blackwell_[];
     nk_rmsds_shared_blackwell_t *shared = (nk_rmsds_shared_blackwell_t *)nk_shared_aligned_ampere_(
@@ -985,7 +985,7 @@ NUMKONG_DEVICE nk_f32_t nk_hausdorff_warp_packed_f16_blackwell_(void const *a_pa
     return __fsqrt_rn(least);
 }
 
-static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k)
+static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k, 1)
     nk_chamfers_packed_f16_blackwell_kernel_(nk_shapes_schedule_blackwell_t const schedule) {
     extern __shared__ unsigned char nk_shapes_dynamic_shared_blackwell_[];
     nk_shapes_shared_blackwell_t *shared = (nk_shapes_shared_blackwell_t *)nk_shared_aligned_ampere_(
@@ -1003,7 +1003,7 @@ static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k)
     if (threadIdx.x < 32) nk_tmem_dealloc_blackwell_(tensor_memory, nk_shapes_tensor_columns_blackwell_k);
 }
 
-static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k)
+static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k, 1)
     nk_hausdorffs_packed_f16_blackwell_kernel_(nk_shapes_schedule_blackwell_t const schedule) {
     extern __shared__ unsigned char nk_shapes_dynamic_shared_blackwell_[];
     nk_shapes_shared_blackwell_t *shared = (nk_shapes_shared_blackwell_t *)nk_shared_aligned_ampere_(

@@ -367,7 +367,7 @@ NUMKONG_DEVICE void nk_attention_fallback_i8_cuda_(nk_attention_arguments_t cons
 
 /** Writes the header, recording the packing @p capability, and the directory, one block walking the
  *  segments 128 at a time. */
-static __global__ void __launch_bounds__(nk_attention_threads_k)
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
     nk_attention_pack_directory_cuda_kernel_(unsigned char *packed, nk_size_t key_value_head_count, nk_size_t depth,
                                              nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
                                              nk_size_t segment_count, nk_size_t row_bytes, nk_size_t directory_bytes,
@@ -756,7 +756,7 @@ NUMKONG_INLINE nk_status_t nk_attention_rope_launch_cuda_(void const *kernel, nk
  *  V keeps position rows for BF16 and takes σ-ordered depth rows for 1-byte dtypes.
  */
 #define nk_define_attention_pack_cuda_(input_type_name, isa_suffix, input_value_type)                                \
-    static __global__ void __launch_bounds__(nk_attention_pack_threads_k)                                            \
+    static __global__ void __launch_bounds__(nk_attention_pack_threads_k, 1)                                         \
         nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_(                                                \
             unsigned char const *keys, unsigned char const *values, nk_size_t key_value_head_count, nk_size_t depth, \
             nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride, \
@@ -788,7 +788,7 @@ NUMKONG_INLINE nk_status_t nk_attention_rope_launch_cuda_(void const *kernel, nk
     nk_define_attention_pack_size_simt_(input_type_name, isa_suffix, element_bytes)                                   \
     nk_define_attention_packed_shape_cuda_(input_type_name, isa_suffix)                                               \
     nk_define_attention_pack_cuda_(input_type_name, isa_suffix, input_value_type)                                     \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+    static __global__ void __launch_bounds__(nk_attention_threads_k, 1)                                               \
         nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {          \
         nk_attention_fallback_##input_value_type##_cuda_(&arguments);                                                 \
     }                                                                                                                 \
@@ -847,7 +847,7 @@ NUMKONG_INLINE nk_status_t nk_attention_rope_launch_cuda_(void const *kernel, nk
  *  of the serial backend, and its entry point: each warp rotates one head of one row, so the row
  *  and head divisions happen once per head rather than once per pair. */
 #define nk_define_attention_rope_cuda_(input_type, isa_suffix, load_and_convert, convert_and_store)                   \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
+    static __global__ void __launch_bounds__(nk_attention_threads_k, 1)                                               \
         nk_attention_rope_##input_type##_##isa_suffix##_kernel_(nk_attention_rope_arguments_t arguments) {            \
         unsigned const lanes = nk_warp_lanes_cuda_(), lane = threadIdx.x % lanes;                                     \
         nk_size_t const groups = blockDim.x / lanes;                                                                  \
@@ -892,11 +892,11 @@ nk_define_attention_baseline_cuda_(e4m3, cuda, e4m3, 1)
 nk_define_attention_baseline_cuda_(i8, cuda, i8, 1)
 
 /** The two backward kernels of BF16 on the CUDA baseline, keys and values first. */
-static __global__ void __launch_bounds__(nk_attention_threads_k)
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
     nk_attention_backward_keys_bf16_cuda_kernel_(nk_attention_backward_arguments_t arguments) {
     nk_attention_backward_keys_bf16_cuda_(&arguments);
 }
-static __global__ void __launch_bounds__(nk_attention_threads_k)
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
     nk_attention_backward_queries_bf16_cuda_kernel_(nk_attention_backward_arguments_t arguments) {
     nk_attention_backward_queries_bf16_cuda_(&arguments);
 }

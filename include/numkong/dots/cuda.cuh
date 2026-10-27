@@ -1580,7 +1580,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
  */
 #define nk_define_cross_pack_rows_cuda_(input_type_name, isa_suffix, input_value_type, packed_value_type, load_fn,     \
                                         norm_value_type, compute_norm_fn, depth_simd_dimensions, dimensions_per_value) \
-    static __global__ void __launch_bounds__(nk_cross_pack_threads_cuda_k)                                             \
+    static __global__ void __launch_bounds__(nk_cross_pack_threads_cuda_k, 1)                                          \
         nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_(                                                       \
             unsigned char const *b, nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes,                    \
             nk_size_t b_stride, unsigned char *b_packed, nk_size_t columns_begin, nk_size_t columns_end,               \
@@ -1700,7 +1700,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
  */
 #define nk_define_cross_packed_cuda_(metric, input_type_name, isa_suffix, tile, input_value_type, packed_value_type,  \
                                      result_value_type, depth_simd_dimensions, dimensions_per_value)                  \
-    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k)                                             \
+    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k, 1)                                          \
         nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_(nk_cross_tile_arguments_t arguments) {       \
         nk_diagonal_band_t const band = {NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX};                                         \
         nk_cross_tile_##tile##_(nk_cross_metric_##metric##_k, band, &arguments);                                      \
@@ -1745,7 +1745,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
 #define nk_define_cross_symmetric_cuda_(metric, input_type_name, isa_suffix, tile, input_value_type,                  \
                                         packed_value_type, result_value_type, depth_simd_dimensions,                  \
                                         dimensions_per_value)                                                         \
-    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k)                                             \
+    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k, 1)                                          \
         nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_(nk_cross_tile_arguments_t arguments) {    \
         nk_diagonal_band_t const band = {0, NUMKONG_SIZE_MAX};                                                        \
         nk_cross_tile_##tile##_(nk_cross_metric_##metric##_k, band, &arguments);                                      \

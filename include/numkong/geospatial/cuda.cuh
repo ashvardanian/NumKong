@@ -665,7 +665,7 @@ NUMKONG_DEVICE nk_f32_t nk_clearance_f32_cuda_(nk_terrain_grid_cuda_t const *gri
 
 #if NUMKONG_TARGET_CUDA
 
-static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
+static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k, 1)
     nk_haversines_pack_f64_cuda_kernel_(nk_geodesics_pack_arguments_cuda_t arguments) {
     nk_size_t const count = arguments.count;
     nk_size_t const axis_stride = nk_size_round_up_to_multiple_(count, nk_default_alignment_k / sizeof(nk_f64_t));
@@ -685,7 +685,7 @@ static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
     }
 }
 
-static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
+static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k, 1)
     nk_vincentys_pack_f64_cuda_kernel_(nk_geodesics_pack_arguments_cuda_t arguments) {
     nk_f64_t const flattening = 1.0 / NUMKONG_EARTH_ELLIPSOID_INVERSE_FLATTENING;
     nk_size_t const count = arguments.count;
@@ -708,7 +708,7 @@ static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
     }
 }
 
-static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
+static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k, 1)
     nk_haversines_packed_f64_cuda_kernel_(nk_geodesics_arguments_cuda_t arguments) {
     nk_geospatial_packed_header_t const *a_header = (nk_geospatial_packed_header_t const *)arguments.a_packed;
     nk_geospatial_packed_header_t const *b_header = (nk_geospatial_packed_header_t const *)arguments.b_packed;
@@ -733,7 +733,7 @@ static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
     }
 }
 
-static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
+static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k, 1)
     nk_vincentys_packed_f64_cuda_kernel_(nk_geodesics_arguments_cuda_t arguments) {
     nk_geospatial_packed_header_t const *a_header = (nk_geospatial_packed_header_t const *)arguments.a_packed;
     nk_geospatial_packed_header_t const *b_header = (nk_geospatial_packed_header_t const *)arguments.b_packed;
@@ -760,7 +760,7 @@ static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
     }
 }
 
-static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
+static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k, 1)
     nk_terrain_pack_heights_f32_cuda_kernel_(nk_terrain_pack_arguments_cuda_t arguments) {
     if (blockIdx.x == 0 && threadIdx.x == 0) *(nk_terrain_packed_header_t *)arguments.packed = arguments.header;
     nk_size_t const rows = arguments.rows, columns = arguments.columns, block_columns = arguments.block_columns;
@@ -783,7 +783,7 @@ static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
     }
 }
 
-static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
+static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k, 1)
     nk_terrain_pack_maxima_f32_cuda_kernel_(nk_terrain_pack_arguments_cuda_t arguments) {
     nk_size_t const block_columns = arguments.block_columns, finer_columns = arguments.finer_columns;
     nk_size_t const blocks = arguments.block_rows * block_columns, stride = (nk_size_t)gridDim.x * blockDim.x;
@@ -802,7 +802,7 @@ static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
     }
 }
 
-static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k)
+static __global__ void __launch_bounds__(nk_geospatial_threads_cuda_k, 1)
     nk_terrain_heights_packed_f32_cuda_kernel_(nk_terrain_heights_arguments_cuda_t arguments) {
     nk_terrain_packed_header_t const *header = (nk_terrain_packed_header_t const *)arguments.packed;
     nk_size_t const rows = (nk_size_t)header->rows, columns = (nk_size_t)header->columns;

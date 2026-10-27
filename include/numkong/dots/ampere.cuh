@@ -2932,7 +2932,7 @@ NUMKONG_DEVICE void nk_cross_tile_mxfp8e5m2_ampere_(nk_cross_metric_t metric, nk
 
 #pragma region F64
 
-static __global__ void __launch_bounds__(nk_cross_threads_f64_ampere_k)
+static __global__ void __launch_bounds__(nk_cross_threads_f64_ampere_k, 1)
     nk_cross_prepare_f64_ampere_kernel_(__grid_constant__ nk_cross_residue_arguments_f64_ampere_t const arguments,
                                         unsigned char const *rows, nk_size_t stride, nk_size_t count,
                                         nk_size_t first_plane_row) {
@@ -2941,12 +2941,12 @@ static __global__ void __launch_bounds__(nk_cross_threads_f64_ampere_k)
         nk_cross_prepare_row_f64_ampere_(&arguments, (nk_f64_t const *)(rows + row * stride), first_plane_row + row);
 }
 
-static __global__ void __launch_bounds__(nk_cross_threads_ampere_k)
+static __global__ void __launch_bounds__(nk_cross_threads_ampere_k, 1)
     nk_cross_residues_f64_ampere_kernel_(__grid_constant__ nk_cross_residue_arguments_f64_ampere_t const arguments) {
     nk_cross_tile_residues_f64_ampere_(&arguments);
 }
 
-static __global__ void __launch_bounds__(nk_cross_threads_simt_k)
+static __global__ void __launch_bounds__(nk_cross_threads_simt_k, 1)
     nk_cross_fallback_f64_ampere_kernel_(__grid_constant__ nk_cross_residue_arguments_f64_ampere_t const arguments) {
     nk_cross_tile_fallback_f64_ampere_(arguments.metric, arguments.band, &arguments.tiles, arguments.flags);
 }

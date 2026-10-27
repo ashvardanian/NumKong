@@ -445,7 +445,7 @@ NUMKONG_DEVICE void nk_reduce_e2m1_moments_store_simt_(nk_reduce_e2m1_moments_t 
  *  block merges in shared memory before thread 0 adds it to the outputs. */
 #define nk_define_reduce_moments_simt_(input_type, input_value_type, dimensions_per_value, accumulator, sum_type, \
                                        sumsq_type, isa_suffix, vendor, load_and_convert)                          \
-    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                            \
+    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k, 1)                                         \
         nk_reduce_moments_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {                \
         __shared__ nk_reduce_##accumulator##_moments_t states[nk_reduce_threads_simt_k];                          \
         nk_reduce_##accumulator##_moments_t state = {0};                                                          \
@@ -495,11 +495,11 @@ NUMKONG_DEVICE void nk_reduce_e2m1_moments_store_simt_(nk_reduce_e2m1_moments_t 
  *  @p max_sentinel bits, launched through the helpers of @p vendor. */
 #define nk_define_reduce_minmax_simt_(input_type, input_value_type, output_type, min_sentinel, max_sentinel,        \
                                       isa_suffix, vendor)                                                           \
-    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                              \
+    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k, 1)                                           \
         nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {                   \
         nk_reduce_minmax_simt_(nk_##input_type##_k, &arguments);                                                    \
     }                                                                                                               \
-    static __global__ void __launch_bounds__(nk_reduce_finish_threads_simt_k)                                       \
+    static __global__ void __launch_bounds__(nk_reduce_finish_threads_simt_k, 1)                                    \
         nk_reduce_minmax_##input_type##_finish_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {            \
         nk_reduce_minmax_finish_simt_(nk_##input_type##_k, min_sentinel, max_sentinel, &arguments);                 \
     }                                                                                                               \

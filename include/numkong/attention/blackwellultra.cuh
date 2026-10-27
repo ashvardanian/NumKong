@@ -121,7 +121,7 @@ NUMKONG_API nk_status_t nk_attention_pack_size_i8_blackwellultra(nk_size_t key_v
     return nk_success_k;
 }
 
-static __global__ void __launch_bounds__(nk_attention_pack_threads_k)
+static __global__ void __launch_bounds__(nk_attention_pack_threads_k, 1)
     nk_attention_pack_i8_blackwellultra_kernel_(unsigned char const *keys, unsigned char const *values,
                                                 nk_size_t key_value_head_count, nk_size_t depth,
                                                 nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,

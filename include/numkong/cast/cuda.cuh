@@ -93,18 +93,19 @@ NUMKONG_INLINE nk_status_t nk_cast_launch_cuda_(void const *kernel, void const *
 
 #if NUMKONG_TARGET_CUDA
 
-static __global__ void __launch_bounds__(nk_cast_threads_simt_k) nk_cast_cuda_kernel_(nk_cast_arguments_t arguments) {
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k, 1)
+    nk_cast_cuda_kernel_(nk_cast_arguments_t arguments) {
     nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;
     for (nk_size_t unit = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; unit < arguments.plan.units; unit += stride)
         nk_cast_unit_simt_(&arguments, unit);
 }
 
-static __global__ void __launch_bounds__(nk_cast_threads_simt_k)
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k, 1)
     nk_cast_vectors_cuda_kernel_(nk_cast_arguments_t arguments) {
     nk_cast_vectors_simt_(&arguments);
 }
 
-static __global__ void __launch_bounds__(nk_cast_threads_simt_k)
+static __global__ void __launch_bounds__(nk_cast_threads_simt_k, 1)
     nk_cast_block_scaled_cuda_kernel_(nk_cast_block_scaled_arguments_t arguments) {
     __shared__ nk_u32_t partials[256];
     nk_cast_block_scaled_phase_simt_(&arguments, partials);
