@@ -322,10 +322,20 @@ std::uint64_t ulp_distance(scalar_type_ a, scalar_type_ b) noexcept {
     }
     if (a == b) return 0; // Also handles +0 == -0
 
+    // 16-bit floats have their own representable-value spacing. Widening to f32
+    // counts the extra f32 encodings between adjacent f16/bf16 values instead.
+    if constexpr (std::is_same_v<scalar_type_, f16_t> || std::is_same_v<scalar_type_, bf16_t>) {
+        auto ordered_bits = [](scalar_type_ value) noexcept -> std::uint32_t {
+            std::uint32_t bits = value.to_bits() & 0x7FFFu;
+            return (value.to_bits() & 0x8000u) ? 0x8000u - bits : 0x8000u + bits;
+        };
+        std::uint32_t ia = ordered_bits(a), ib = ordered_bits(b);
+        return ia >= ib ? ia - ib : ib - ia;
+    }
     // Use the XOR transformation from Bruce Dawson's "Comparing Floating Point Numbers"
     // This transforms float bit patterns to an ordered integer representation where
     // the integer difference equals the ULP distance.
-    if constexpr (sizeof(scalar_type_) == 4) {
+    else if constexpr (sizeof(scalar_type_) == 4) {
         std::int32_t ia, ib;
         std::memcpy(&ia, &a, sizeof(ia));
         std::memcpy(&ib, &b, sizeof(ib));
@@ -360,7 +370,6 @@ std::uint64_t ulp_distance(scalar_type_ a, scalar_type_ b) noexcept {
         return ia >= ib ? static_cast<std::uint64_t>(ia - ib) : static_cast<std::uint64_t>(ib - ia);
     }
     else {
-        // For f16/bf16, convert to f32 and compute there
         return ulp_distance(static_cast<float>(a), static_cast<float>(b));
     }
 }
