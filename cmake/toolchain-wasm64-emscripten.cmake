@@ -1,7 +1,7 @@
 # WASM64/Emscripten Memory64 toolchain for NumKong: 64-bit addressing, the only way one module passes 4 GB.
 # Usage: cmake --preset wasm64_emscripten, which builds into `build_wasm64_emscripten`
 #
-# Every engine with Memory64 also has Relaxed SIMD, so the capability defaults to `v128relaxed`; `-DNUMKONG_TARGET_ARCH=v128`
+# Every engine with Memory64 also has Relaxed SIMD, so the capability defaults to `v128relaxed`; `-DNUMKONG_MARCH=v128`
 # narrows it. This is the extended module, so it also takes `-pthread`, as `wasm32_emscripten` is the minimal one. The
 # module is named after the capability, so both can be built into one directory, one reconfigure apart.
 
@@ -16,9 +16,7 @@ if (NOT DEFINED ENV{EMSDK})
 endif ()
 
 # `CMakeLists.txt` turns the capability into `-msimd128` and `-mrelaxed-simd` for every unit.
-set(NUMKONG_TARGET_ARCH "v128relaxed" CACHE STRING
-                                            "WebAssembly SIMD capability of this module: serial, v128 or v128relaxed"
-)
+set(NUMKONG_MARCH "v128relaxed" CACHE STRING "WebAssembly SIMD capability of this module: serial, v128 or v128relaxed")
 
 # Emscripten's own toolchain file reads the width off these flags as it loads, so they precede the include.
 set(CMAKE_C_FLAGS "--target=wasm64 -pthread" CACHE STRING "Flags used by the C compiler during all build types.")
@@ -51,4 +49,4 @@ execute_process(
 )
 string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" EMCC_VERSION "${EMCC_VERSION_OUTPUT}")
 message(STATUS "NumKong WASM64: Emscripten ${EMCC_VERSION}")
-message(STATUS "NumKong WASM64: SIMD capability ${NUMKONG_TARGET_ARCH}, Memory64 enabled")
+message(STATUS "NumKong WASM64: SIMD capability ${NUMKONG_MARCH}, Memory64 enabled")

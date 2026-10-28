@@ -91,7 +91,6 @@ skip = ["*-musllinux_riscv64"]  # we also don't use any SIMD on: ["*s390x*", "*p
 test-command = """
     python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&
     python -m pip install ml_dtypes --only-binary=:all: || (echo "Failed to install ml_dtypes" && exit 0) &&
-    python -X faulthandler -c "import numkong; print(repr(numkong.cpu_capabilities_enabled()))" &&
     PYTHONMALLOC=debug python -X faulthandler -m pytest -x {project}/test
 """
 test-groups = ["test"]
@@ -143,7 +142,6 @@ select = "*win*"
 test-command = """
     cmd /c "python -m pip install scipy --only-binary=:all: & if errorlevel 1 echo Failed to install SciPy... Nothing can stop me, I'm all the way up! &
     python -m pip install ml_dtypes --only-binary=:all: & if errorlevel 1 echo Failed to install ml_dtypes... Nothing can stop me, I'm all the way up! &
-    python -X faulthandler -c "import numkong; print(repr(numkong.cpu_capabilities_enabled()))" &
     set PYTHONMALLOC=debug && python -X faulthandler -m pytest -x {project}/test"
 """
 
@@ -166,7 +164,6 @@ before-build = ["rm -rf {project}/build_python"]
 select = "*-pyodide*"
 test-command = """
     python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&
-    python -X faulthandler -c "import numkong; print(repr(numkong.cpu_capabilities_enabled()))" &&
     PYTHONMALLOC=debug python -X faulthandler -m pytest -x {project}/test
 """
 

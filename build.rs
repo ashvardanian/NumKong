@@ -9,11 +9,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// The Cargo features that switch a CMake option, each passed as ON or OFF, never left to the host.
-const FEATURE_OPTIONS: &[(&str, &str)] = &[("CUDA", "NUMKONG_BUILD_CUDA"), ("ROCM", "NUMKONG_BUILD_ROCM")];
-
-/// CMake cache variables read from the environment, like `NUMKONG_CUDA_ARCHITECTURES=120f-real`.
-const ENVIRONMENT_VARIABLES: &[&str] = &["NUMKONG_CUDA_ARCHITECTURES", "NUMKONG_ROCM_ARCHITECTURES"];
+/// The Cargo features that switch a GPU vendor on, each passed to CMake as `all` or as the code
+/// the environment names, like `NUMKONG_CUDA_ARCH=120f`, and as empty without it, never left to
+/// the host.
+const FEATURE_OPTIONS: &[(&str, &str)] = &[("CUDA", "NUMKONG_CUDA_ARCH"), ("ROCM", "NUMKONG_ROCM_ARCH")];
 
 fn main() {
     let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -87,18 +86,19 @@ fn build_library(manifest: &Path, enabled: impl Fn(&str) -> bool) -> PathBuf {
         .define("NUMKONG_INSTALL", "ON")
         .define("CMAKE_INSTALL_LIBDIR", "lib")
         .define("NUMKONG_BUILD_SHARED", "OFF");
-    for (feature, option) in FEATURE_OPTIONS {
-        library.define(option, if enabled(feature) { "ON" } else { "OFF" });
-    }
     // The crate reconfigures on every invocation by default, which reruns every ISA probe before a
     // build that has nothing to do, but a variable from the environment may have changed since.
     let mut from_environment = false;
-    for variable in ENVIRONMENT_VARIABLES {
+    for (feature, variable) in FEATURE_OPTIONS {
         println!("cargo:rerun-if-env-changed={variable}");
-        if let Ok(value) = env::var(variable) {
-            library.define(variable, value);
-            from_environment = true;
-        }
+        let codes = env::var(variable).ok();
+        from_environment |= codes.is_some();
+        let codes = if enabled(feature) {
+            codes.unwrap_or_else(|| "all".into())
+        } else {
+            String::new()
+        };
+        library.define(variable, codes);
     }
     library.always_configure(from_environment);
 
@@ -113,7 +113,7 @@ fn build_library(manifest: &Path, enabled: impl Fn(&str) -> bool) -> PathBuf {
             (false, true) => "v128",
             (false, false) => "serial",
         };
-        library.define("NUMKONG_TARGET_ARCH", capability);
+        library.define("NUMKONG_MARCH", capability);
         // The checked-in toolchains name the SDK and its sysroot, which `cmake-rs` cannot, while
         // `unknown` needs no libc at all, so it cross-compiles with the clang `cmake-rs` picks.
         println!("cargo:rerun-if-env-changed=WASI_SDK_PATH");

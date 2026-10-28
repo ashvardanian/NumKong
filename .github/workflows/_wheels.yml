@@ -363,7 +363,6 @@ jobs:
           CIBW_BUILD: cp${{ matrix.python-version }}-*
           CIBW_PLATFORM: linux
           CIBW_ARCHS: riscv64
-          QEMU_CPU: max
           NUMKONG_IN_QEMU: 1
           NUMKONG_REPETITIONS: 1
       - name: Upload Wheels

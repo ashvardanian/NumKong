@@ -2,7 +2,7 @@
 # Usage: cmake --preset wasm32_emscripten, which builds into `build_wasm32_emscripten`
 #
 # The SIMD capability is a whole-module choice, so it is fixed here rather than probed: `v128` by default, which also
-# loads where Relaxed SIMD is absent - Safari and WebKit on iOS - or `-DNUMKONG_TARGET_ARCH=v128relaxed`. The module is
+# loads where Relaxed SIMD is absent - Safari and WebKit on iOS - or `-DNUMKONG_MARCH=v128relaxed`. The module is
 # named after it, so both capabilities can be built into one directory, one reconfigure apart.
 
 # Verify the Emscripten SDK.
@@ -16,7 +16,7 @@ if (NOT DEFINED ENV{EMSDK})
 endif ()
 
 # `CMakeLists.txt` turns the capability into `-msimd128` and `-mrelaxed-simd` for every unit.
-set(NUMKONG_TARGET_ARCH "v128" CACHE STRING "WebAssembly SIMD capability of this module: serial, v128 or v128relaxed")
+set(NUMKONG_MARCH "v128" CACHE STRING "WebAssembly SIMD capability of this module: serial, v128 or v128relaxed")
 
 set(EMSCRIPTEN_SYSTEM_PROCESSOR wasm32)
 include("$ENV{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake")
@@ -44,4 +44,4 @@ execute_process(
 )
 string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" EMCC_VERSION "${EMCC_VERSION_OUTPUT}")
 message(STATUS "NumKong WASM32: Emscripten ${EMCC_VERSION}")
-message(STATUS "NumKong WASM32: SIMD capability ${NUMKONG_TARGET_ARCH}")
+message(STATUS "NumKong WASM32: SIMD capability ${NUMKONG_MARCH}")

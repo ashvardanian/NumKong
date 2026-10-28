@@ -12,8 +12,8 @@ static nk_capability_kernels_t const *nk_euclidean_f64_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_sve_k * NUMKONG_TARGET_SVE |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -68,8 +68,8 @@ static nk_capability_kernels_t const *nk_euclidean_f32_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_sve_k * NUMKONG_TARGET_SVE |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -125,8 +125,8 @@ static nk_capability_kernels_t const *nk_euclidean_f16_capabilities(void) {
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
                    nk_cap_rvvhalf_k * NUMKONG_TARGET_RVVHALF | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -190,8 +190,8 @@ static nk_capability_kernels_t const *nk_euclidean_bf16_capabilities(void) {
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_genoa_k * NUMKONG_TARGET_GENOA |
                    nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_rvvbf16_k * NUMKONG_TARGET_RVVBF16 |
                    nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -257,8 +257,8 @@ static nk_capability_kernels_t const *nk_euclidean_e4m3_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND |
-                   nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -313,8 +313,8 @@ static nk_capability_kernels_t const *nk_euclidean_e5m2_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
-                   nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -366,8 +366,8 @@ static nk_capability_kernels_t const *nk_euclidean_e2m3_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
                    nk_cap_sierra_k * NUMKONG_TARGET_SIERRA | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -422,8 +422,8 @@ static nk_capability_kernels_t const *nk_euclidean_e3m2_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
                    nk_cap_sierra_k * NUMKONG_TARGET_SIERRA | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -480,8 +480,8 @@ static nk_capability_kernels_t const *nk_euclidean_i8_capabilities(void) {
                    nk_cap_alder_k * NUMKONG_TARGET_ALDER | nk_cap_sierra_k * NUMKONG_TARGET_SIERRA |
                    nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
                    nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -549,8 +549,8 @@ static nk_capability_kernels_t const *nk_euclidean_u8_capabilities(void) {
                    nk_cap_alder_k * NUMKONG_TARGET_ALDER | nk_cap_sierra_k * NUMKONG_TARGET_SIERRA |
                    nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
                    nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -614,8 +614,8 @@ NUMKONG_API nk_status_t nk_euclidean_u8_best(nk_u8_t const *a, nk_u8_t const *b,
 static nk_capability_kernels_t const *nk_euclidean_i4_capabilities(void) {
     enum {
         above_k = (nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -651,8 +651,8 @@ NUMKONG_API nk_status_t nk_euclidean_i4_best(nk_i4x2_t const *a, nk_i4x2_t const
 static nk_capability_kernels_t const *nk_euclidean_u4_capabilities(void) {
     enum {
         above_k = (nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -690,8 +690,8 @@ static nk_capability_kernels_t const *nk_sqeuclidean_f64_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_sve_k * NUMKONG_TARGET_SVE |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -746,8 +746,8 @@ static nk_capability_kernels_t const *nk_sqeuclidean_f32_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_sve_k * NUMKONG_TARGET_SVE |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -803,8 +803,8 @@ static nk_capability_kernels_t const *nk_sqeuclidean_f16_capabilities(void) {
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
                    nk_cap_rvvhalf_k * NUMKONG_TARGET_RVVHALF | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -868,8 +868,8 @@ static nk_capability_kernels_t const *nk_sqeuclidean_bf16_capabilities(void) {
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_genoa_k * NUMKONG_TARGET_GENOA |
                    nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_rvvbf16_k * NUMKONG_TARGET_RVVBF16 |
                    nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -935,8 +935,8 @@ static nk_capability_kernels_t const *nk_sqeuclidean_e4m3_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND |
-                   nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -991,8 +991,8 @@ static nk_capability_kernels_t const *nk_sqeuclidean_e5m2_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
-                   nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1044,8 +1044,8 @@ static nk_capability_kernels_t const *nk_sqeuclidean_e2m3_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
                    nk_cap_sierra_k * NUMKONG_TARGET_SIERRA | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1100,8 +1100,8 @@ static nk_capability_kernels_t const *nk_sqeuclidean_e3m2_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
                    nk_cap_sierra_k * NUMKONG_TARGET_SIERRA | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1158,8 +1158,8 @@ static nk_capability_kernels_t const *nk_sqeuclidean_i8_capabilities(void) {
                    nk_cap_alder_k * NUMKONG_TARGET_ALDER | nk_cap_sierra_k * NUMKONG_TARGET_SIERRA |
                    nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
                    nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1227,8 +1227,8 @@ static nk_capability_kernels_t const *nk_sqeuclidean_u8_capabilities(void) {
                    nk_cap_alder_k * NUMKONG_TARGET_ALDER | nk_cap_sierra_k * NUMKONG_TARGET_SIERRA |
                    nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
                    nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1292,8 +1292,8 @@ NUMKONG_API nk_status_t nk_sqeuclidean_u8_best(nk_u8_t const *a, nk_u8_t const *
 static nk_capability_kernels_t const *nk_sqeuclidean_i4_capabilities(void) {
     enum {
         above_k = (nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1329,8 +1329,8 @@ NUMKONG_API nk_status_t nk_sqeuclidean_i4_best(nk_i4x2_t const *a, nk_i4x2_t con
 static nk_capability_kernels_t const *nk_sqeuclidean_u4_capabilities(void) {
     enum {
         above_k = (nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1368,8 +1368,8 @@ static nk_capability_kernels_t const *nk_angular_f64_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_sve_k * NUMKONG_TARGET_SVE |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1424,8 +1424,8 @@ static nk_capability_kernels_t const *nk_angular_f32_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_sve_k * NUMKONG_TARGET_SVE |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1481,8 +1481,8 @@ static nk_capability_kernels_t const *nk_angular_f16_capabilities(void) {
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
                    nk_cap_rvvhalf_k * NUMKONG_TARGET_RVVHALF | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1546,8 +1546,8 @@ static nk_capability_kernels_t const *nk_angular_bf16_capabilities(void) {
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_genoa_k * NUMKONG_TARGET_GENOA |
                    nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_rvvbf16_k * NUMKONG_TARGET_RVVBF16 |
                    nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1613,8 +1613,8 @@ static nk_capability_kernels_t const *nk_angular_e4m3_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND |
-                   nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1669,8 +1669,8 @@ static nk_capability_kernels_t const *nk_angular_e5m2_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
                    nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
-                   nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1722,8 +1722,8 @@ static nk_capability_kernels_t const *nk_angular_e2m3_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
                    nk_cap_sierra_k * NUMKONG_TARGET_SIERRA | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1778,8 +1778,8 @@ static nk_capability_kernels_t const *nk_angular_e3m2_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
                    nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
                    nk_cap_sierra_k * NUMKONG_TARGET_SIERRA | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1836,8 +1836,8 @@ static nk_capability_kernels_t const *nk_angular_i8_capabilities(void) {
                    nk_cap_alder_k * NUMKONG_TARGET_ALDER | nk_cap_sierra_k * NUMKONG_TARGET_SIERRA |
                    nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
                    nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1905,8 +1905,8 @@ static nk_capability_kernels_t const *nk_angular_u8_capabilities(void) {
                    nk_cap_alder_k * NUMKONG_TARGET_ALDER | nk_cap_sierra_k * NUMKONG_TARGET_SIERRA |
                    nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
                    nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
-                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -1970,8 +1970,8 @@ NUMKONG_API nk_status_t nk_angular_u8_best(nk_u8_t const *a, nk_u8_t const *b, n
 static nk_capability_kernels_t const *nk_angular_i4_capabilities(void) {
     enum {
         above_k = (nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -2007,8 +2007,8 @@ NUMKONG_API nk_status_t nk_angular_i4_best(nk_i4x2_t const *a, nk_i4x2_t const *
 static nk_capability_kernels_t const *nk_angular_u4_capabilities(void) {
     enum {
         above_k = (nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT |
-                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,

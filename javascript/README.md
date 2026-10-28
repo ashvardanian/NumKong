@@ -98,12 +98,12 @@ Or import the subpath from a bundler or Node.js (without the native addon):
 import { dot } from "numkong/wasm";
 ```
 
-To build the modules in a checkout, the `wasm32_emscripten` preset makes one per `NUMKONG_TARGET_ARCH`, both into `build_wasm32_emscripten/`, where `npm run build-browser` bundles the loader beside them:
+To build the modules in a checkout, the `wasm32_emscripten` preset makes one per `NUMKONG_MARCH`, both into `build_wasm32_emscripten/`, where `npm run build-browser` bundles the loader beside them:
 
 ```sh
 source ~/emsdk/emsdk_env.sh
 cmake --preset wasm32_emscripten && cmake --build --preset wasm32_emscripten
-cmake --preset wasm32_emscripten -D NUMKONG_TARGET_ARCH=v128relaxed && cmake --build --preset wasm32_emscripten
+cmake --preset wasm32_emscripten -D NUMKONG_MARCH=v128relaxed && cmake --build --preset wasm32_emscripten
 npm run build-js && npm run build-browser
 npm run test:wasm:emscripten
 ```

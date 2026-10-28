@@ -156,15 +156,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Print Machine Specs
-        shell: bash
-        run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || true
-          free -h 2>/dev/null || true
-          echo "::endgroup::"
-
       - name: Download Android NDK r29
         run: |
           wget -q https://dl.google.com/android/repository/android-ndk-r29-linux.zip
@@ -468,7 +459,7 @@ jobs:
   build_rocm:
     name: Build ROCm Backend
     runs-on: ubuntu-26.04
-    container: rocm/dev-ubuntu-26.04:latest
+    container: rocm/dev-ubuntu-26.04:10.0.0-full
     steps:
       - name: Install Dependencies
         run: |

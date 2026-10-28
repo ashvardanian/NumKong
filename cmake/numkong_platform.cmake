@@ -78,29 +78,26 @@ endif ()
 
 # Portable baseline policy (commits 43e8324d, 453ed5ff, 23f51955): each translation unit gets a per-arch
 # ABI floor, auto-vectorization is forbidden so serial fallbacks stay scalar, and SIMD kernels opt in via
-# per-function __attribute__((target(...))) or #pragma GCC target. NUMKONG_TARGET_ARCH opts out for a build tuned to
-# one CPU: `native` for this host, or a CPU name like `graniterapids`, also when cross-compiling. Only C and C++ units
-# take the flags, as nvcc would read them as its own.
-if (NUMKONG_TARGET_ARCH STREQUAL "native" AND CMAKE_CROSSCOMPILING)
-    message(FATAL_ERROR "NUMKONG_TARGET_ARCH=native needs the host as the target; name a CPU instead")
-elseif (NUMKONG_TARGET_ARCH AND NOT numkong_arch_wasm_)
-    message(
-        WARNING "NUMKONG_TARGET_ARCH=${NUMKONG_TARGET_ARCH}: baking specific instructions; result may not run elsewhere"
-    )
-    if (MSVC AND NUMKONG_TARGET_ARCH STREQUAL "native")
+# per-function __attribute__((target(...))) or #pragma GCC target. NUMKONG_MARCH raises the floor: an ISA level like
+# `x86-64-v3`, `native` for this host, or a CPU name like `graniterapids`, also when cross-compiling. Only C and C++
+# units take the flags, as nvcc would read them as its own.
+if (NUMKONG_MARCH STREQUAL "native" AND CMAKE_CROSSCOMPILING)
+    message(FATAL_ERROR "NUMKONG_MARCH=native needs the host as the target; name a CPU instead")
+elseif (NUMKONG_MARCH AND NOT numkong_arch_wasm_)
+    message(WARNING "NUMKONG_MARCH=${NUMKONG_MARCH}: baking specific instructions; result may not run elsewhere")
+    if (MSVC AND NUMKONG_MARCH STREQUAL "native")
         # MSVC has no `/arch:native`, so it takes its flags from the probes below.
     elseif (MSVC)
         message(
-            FATAL_ERROR
-                "MSVC takes NUMKONG_TARGET_ARCH=native only; pass an /arch: value such as AVX2, AVX512 or AVX10.2 "
-                "through CMAKE_C_FLAGS instead of `${NUMKONG_TARGET_ARCH}`"
+            FATAL_ERROR "MSVC takes NUMKONG_MARCH=native only; pass an /arch: value such as AVX2, AVX512 or AVX10.2 "
+                        "through CMAKE_C_FLAGS instead of `${NUMKONG_MARCH}`"
         )
     elseif (numkong_arch_arm64_)
         # AArch64 names CPUs through `-mcpu`, like `neoverse-v2`, as `-march` takes only architecture versions; Apple
         # Clang's `-march=native` also advertises just a subset of host features, without SME, SME2 or FP16_FML.
-        set(numkong_unit_arch_flags_ -mcpu=${NUMKONG_TARGET_ARCH})
+        set(numkong_unit_arch_flags_ -mcpu=${NUMKONG_MARCH})
     else ()
-        set(numkong_unit_arch_flags_ -march=${NUMKONG_TARGET_ARCH})
+        set(numkong_unit_arch_flags_ -march=${NUMKONG_MARCH})
     endif ()
     add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:${numkong_unit_arch_flags_}>")
 elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
@@ -123,7 +120,7 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
     elseif (numkong_arch_wasm_)
         # An engine validates a module whole, so every unit carries the module's one SIMD capability,
         # whatever `CMAKE_C_FLAGS` a binding passes; `types.h` reads it back from the flags. Empty is the portable floor.
-        set(numkong_wasm_simd_ ${NUMKONG_TARGET_ARCH})
+        set(numkong_wasm_simd_ ${NUMKONG_MARCH})
         if (NOT numkong_wasm_simd_)
             set(numkong_wasm_simd_ serial)
         endif ()
@@ -132,10 +129,7 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
         elseif (numkong_wasm_simd_ STREQUAL "v128")
             add_compile_options(-msimd128)
         elseif (NOT numkong_wasm_simd_ STREQUAL "serial")
-            message(
-                FATAL_ERROR
-                    "NUMKONG_TARGET_ARCH on WebAssembly: serial, v128 or v128relaxed, not `${NUMKONG_TARGET_ARCH}`"
-            )
+            message(FATAL_ERROR "NUMKONG_MARCH on WebAssembly: serial, v128 or v128relaxed, not `${NUMKONG_MARCH}`")
         endif ()
     endif ()
     add_compile_options(${numkong_unit_arch_flags_})

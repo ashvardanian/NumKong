@@ -291,7 +291,7 @@ async function runBrowserBenchmarks() {
         console.error(`   Expected: ${wasmPath}`);
         console.error('   Build it with:');
         console.error('     source ~/emsdk/emsdk_env.sh');
-        console.error('     cmake --preset wasm32_emscripten -D NUMKONG_TARGET_ARCH=v128relaxed');
+        console.error('     cmake --preset wasm32_emscripten -D NUMKONG_MARCH=v128relaxed');
         console.error('     cmake --build --preset wasm32_emscripten');
         process.exit(1);
     }

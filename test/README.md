@@ -28,7 +28,7 @@ The CUDA suite includes tensor transfers and exhaustive FP6/FP8 conversion check
 Building it needs `nvcc` on `PATH`:
 
 ```sh
-cmake -B build_cuda -D NUMKONG_BUILD_TEST=ON -D NUMKONG_BUILD_CUDA=ON
+cmake -B build_cuda -D NUMKONG_BUILD_TEST=ON -D NUMKONG_CUDA_ARCH=native
 cmake --build build_cuda
 ctest --test-dir build_cuda -R '^numkong_cpu(_shared)?_test$' --output-on-failure
 ```
@@ -124,7 +124,7 @@ The baseline type depends on the input dtype, selected by the `reference_for<inp
 
 ### WASM
 
-A WebAssembly module carries one SIMD capability, `serial`, `v128` or `v128relaxed`, which `NUMKONG_TARGET_ARCH` selects under every toolchain; Emscripten names each module after it.
+A WebAssembly module carries one SIMD capability, `serial`, `v128` or `v128relaxed`, which `NUMKONG_MARCH` selects under every toolchain; Emscripten names each module after it.
 
 __Emscripten__
 
@@ -137,7 +137,7 @@ cmake --build --preset wasm32_emscripten
 For the relaxed capability of the same 32-bit module, and for wasm64 — Memory64:
 
 ```sh
-cmake --preset wasm32_emscripten -D NUMKONG_BUILD_TEST=ON -D NUMKONG_TARGET_ARCH=v128relaxed
+cmake --preset wasm32_emscripten -D NUMKONG_BUILD_TEST=ON -D NUMKONG_MARCH=v128relaxed
 cmake --build --preset wasm32_emscripten
 cmake --preset wasm64_emscripten -D NUMKONG_BUILD_TEST=ON
 cmake --build --preset wasm64_emscripten

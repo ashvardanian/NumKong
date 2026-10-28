@@ -32,19 +32,18 @@ Compiler requirements vary by ISA target — see [CONTRIBUTING.md](../CONTRIBUTI
 
 ### GPUs
 
-`NUMKONG_BUILD_CUDA` adds CUDA rows to `numkong_bench`, beside cuBLASLt and cuBLAS baselines unless `NUMKONG_COMPARE_TO_CUBLAS=OFF`.
+`NUMKONG_CUDA_ARCH` adds CUDA rows to `numkong_bench`, beside cuBLASLt and cuBLAS baselines unless `NUMKONG_COMPARE_TO_CUBLAS=OFF`.
 Building only the cubin of the GPU at hand keeps the compile short:
 
 ```sh
-cmake -B build_cuda -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_BENCH=ON -D NUMKONG_BUILD_CUDA=ON \
-      -D NUMKONG_CUDA_ARCHITECTURES=120f-real
+cmake -B build_cuda -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_BENCH=ON -D NUMKONG_CUDA_ARCH=120f
 cmake --build build_cuda --target numkong_bench
 build_cuda/numkong_bench
 ```
 
 Adding `-D NUMKONG_COMPARE_TO_CUDNN=ON -D NUMKONG_CUDNN_ROOT=<dir>` also times cuDNN attention, from a cuDNN 9.26 or newer tree holding `include/cudnn.h` and `lib/libcudnn.so*`.
 Adding `-D NUMKONG_COMPARE_TO_CUVS=ON -D NUMKONG_CUVS_ROOTS=<dir;dir>` also times cuVS pairwise distances, from prefixes holding `libcuvs_c`, `librmm`, `librapids_logger`, and the `dlpack` headers.
-`NUMKONG_BUILD_METAL` adds the Metal rows the same way on Apple Silicon.
+`NUMKONG_METAL_ARCH` adds the Metal rows the same way on Apple Silicon.
 
 ### Running
 
@@ -155,7 +154,7 @@ cmake --preset wasm64_emscripten -D NUMKONG_BUILD_BENCH=ON
 cmake --build --preset wasm64_emscripten
 ```
 
-Each toolchain file picks one SIMD capability through `NUMKONG_TARGET_ARCH`, `v128` for wasm32 and `v128relaxed` for wasm64 by default; pass `-D NUMKONG_TARGET_ARCH=v128relaxed` to time the relaxed kernels on wasm32.
+Each toolchain file picks one SIMD capability through `NUMKONG_MARCH`, `v128` for wasm32 and `v128relaxed` for wasm64 by default; pass `-D NUMKONG_MARCH=v128relaxed` to time the relaxed kernels on wasm32.
 
 __WASI__
 

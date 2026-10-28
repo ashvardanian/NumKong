@@ -46,6 +46,12 @@ inline void compile_bounded_fill_uniform_paths(std::mt19937 &generator) noexcept
     nk::fill_uniform(generator, static_cast<nk::i4x2_t *>(nullptr), 0, nk::i4x2_t::component_t {},
                      nk::i4x2_t::component_t {});
 }
+template class nk::vector<int>;
+template class nk::vector<nk::i32_t>;
+template class nk::vector<nk::u1x8_t>;
+template class nk::vector<nk::i4x2_t>;
+template class nk::vector<nk::f64c_t>;
+template class nk::vector<std::complex<float>>;
 template void nk::fill_uniform(std::mt19937 &, nk::f64_t *, std::size_t);
 template void nk::fill_uniform(std::mt19937 &, nk::i16_t *, std::size_t);
 template void nk::fill_uniform(std::mt19937 &, nk::bf16c_t *, std::size_t);
@@ -686,6 +692,10 @@ int main(int, char **argv) {
 
     print(env.machine);
     print(env.settings);
+    // ctest hides passing output; the blank line keeps the next binary's header out of this list
+    if (char const *summary_path = std::getenv("GITHUB_STEP_SUMMARY"))
+        if (std::FILE *summary = std::fopen(summary_path, "a"))
+            std::fputc('\n', summary), print(env.machine, summary), std::fclose(summary);
 
     error_stats_section_t check(env.settings, env.machine.detected);
     test_vector_types(check);
@@ -710,7 +720,9 @@ int main(int, char **argv) {
 
     // Cross/batch tests (ISA-family files for parallel compilation); each prints its own section
     test_cross_serial(check);
+    test_cross_runtime(check);
     test_cross_x8664(check);
+    test_cross_x8664amx(check);
     test_cross_arm64(check);
     test_cross_blas(check);
     test_cross_riscv64(check);

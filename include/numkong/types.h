@@ -285,9 +285,9 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #define NUMKONG_ALLOW_ISA_REDIRECT 1
 #endif
 
-/** The machine profile's capabilities, folding each dispatch table to its best kernel, or 0. */
-#if !defined(NUMKONG_PROFILE_CAPABILITIES)
-#define NUMKONG_PROFILE_CAPABILITIES 0
+/** 0 folds each dispatch table to its best kernel; 1, the default, keeps every compiled one. */
+#if !defined(NUMKONG_MULTIVERSIONED)
+#define NUMKONG_MULTIVERSIONED 1
 #endif
 
 /*  Compiling for 64-bit Arm: NUMKONG_ARCH_ARM64_

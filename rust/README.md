@@ -95,13 +95,13 @@ ARM gets NEON, SVE, and SME, with SME available on Linux, FreeBSD, and macOS.
 x86-64 gets Haswell (AVX2), Skylake/Ice Lake/Sapphire Rapids AVX-512 variants, and AMX on Linux and Windows only.
 RISC-V gets RVV backends on Linux and FreeBSD.
 WebAssembly gets the one SIMD capability the Rust target declares, as the next section shows.
-A backend the compiler cannot build is left out, and `NUMKONG_TARGET_ARCH=native` tunes the scaffolding for the build host, as described in [CONTRIBUTING.md](../CONTRIBUTING.md#target-baseline-policy).
+A backend the compiler cannot build is left out, and `NUMKONG_MARCH=native` tunes the scaffolding for the build host, as described in [CONTRIBUTING.md](../CONTRIBUTING.md#target-baseline-policy).
 
 ### WebAssembly
 
 An engine validates a WebAssembly module whole, so the crate compiles one SIMD capability, the one the Rust target declares: `v128relaxed` under `-C target-feature=+relaxed-simd`, `v128` under `+simd128`, and the serial kernels alone without either, for engines that lack SIMD.
 A target declaring neither fails the build, rather than quietly falling back to the serial kernels.
-`build.rs` passes that capability to CMake as `NUMKONG_TARGET_ARCH`, beside the toolchain the target needs:
+`build.rs` passes that capability to CMake as `NUMKONG_MARCH`, beside the toolchain the target needs:
 
 | Rust target                                        | CMake toolchain                             | Needs                            |
 | :------------------------------------------------- | :------------------------------------------ | :------------------------------- |

@@ -827,7 +827,7 @@ For Python, the intended user-facing story is external partitioning around the G
 
 ## GPU Tensors through DLPack
 
-Builds configured with `-C cmake.define.NUMKONG_BUILD_CUDA=ON` or `-C cmake.define.NUMKONG_BUILD_ROCM=ON` also carry the CUDA or ROCm kernels.
+Builds configured with `-C cmake.define.NUMKONG_CUDA_ARCH=all` or `-C cmake.define.NUMKONG_ROCM_ARCH=all` also carry the CUDA or ROCm kernels.
 `nk.cuda_count_devices()` counts the devices this process sees, zero without the runtime or its kernels, and `nk.cuda_capabilities_enabled(0)` reports the mask device 0 dispatches with, raising `ValueError` past the last.
 `nk.cuda_capabilities_detected` and `nk.cuda_capabilities_compiled` answer as their CPU twins do, `nk.rocm_*` and `nk.metal_*` do the same for the other vendors, and `cpu_configure_thread` is CPU only.
 `nk.from_dlpack` imports a CUDA or ROCm tensor without a copy and records its device.

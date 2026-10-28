@@ -164,7 +164,7 @@ jobs:
   build_rocm:
     name: Build Rust with ROCm
     runs-on: ubuntu-26.04
-    container: rocm/dev-ubuntu-26.04:latest
+    container: rocm/dev-ubuntu-26.04:10.0.0-full
     steps:
       - name: Install Dependencies
         run: apt-get update && apt-get install -y cmake make git curl

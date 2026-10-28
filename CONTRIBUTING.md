@@ -46,24 +46,27 @@ Machine-specific settings, like a compiler path, belong in an untracked `CMakeUs
 | `NUMKONG_INSTALL`             | `ON`, if top-level              | Install headers, libraries, and the CMake package files                       |
 | `NUMKONG_BUILD_SANITIZERS`    | `off`                           | Instrument the build with `address`, plus UBSan, or `thread`                  |
 | `NUMKONG_WERROR`              | `OFF`                           | Treat warnings as errors, as the `check` preset does                          |
-| `NUMKONG_BUILD_CUDA`          | `OFF`                           | Add CUDA to the libraries and to whichever of the test and bench builds is on |
-| `NUMKONG_BUILD_ROCM`          | `OFF`                           | Add ROCm, compiled through HIP, to the libraries and to the test build        |
-| `NUMKONG_BUILD_METAL`         | `OFF`                           | Add Metal to the libraries and to the test and bench builds that are on       |
-| `NUMKONG_CUDA_ARCHITECTURES`  | Turing to Blackwell             | CUDA codes to compile, like `100f-real` for one family                        |
-| `NUMKONG_ROCM_ARCHITECTURES`  | `gfx942;gfx950;gfx1250;gfx1251` | AMD codes to compile, like `gfx942` for one                                   |
-| `NUMKONG_METAL_ARCHITECTURES` | `apple7;apple9;apple10`         | Apple GPU families whose capabilities to embed, like `apple7` without Apple10 |
+| `NUMKONG_CUDA_ARCH`           | empty, for no CUDA              | NVIDIA code: `all` for the release set, `native`, or one like `100f`          |
+| `NUMKONG_ROCM_ARCH`           | empty, for no ROCm              | AMD code: `all` for `gfx942;gfx950;gfx1250;gfx1251`, `native`, or one         |
+| `NUMKONG_METAL_ARCH`          | empty, for no Metal             | Apple GPU families to embed: `all` for `apple7;apple9;apple10`, or one        |
 | `NUMKONG_COMPARE_TO_BLAS`     | `AUTO`                          | Include OpenBLAS, or Apple's Accelerate on macOS, into test/bench comparisons |
 | `NUMKONG_COMPARE_TO_MKL`      | `AUTO`                          | Include Intel MKL into test/bench comparisons                                 |
 | `NUMKONG_COMPARE_TO_CUBLAS`   | `ON`                            | Include cuBLASLt and cuBLAS into CUDA benchmarks                              |
 | `NUMKONG_COMPARE_TO_CUDNN`    | `OFF`                           | Include cuDNN attention into CUDA benchmarks, from `NUMKONG_CUDNN_ROOT`       |
 | `NUMKONG_COMPARE_TO_CUVS`     | `OFF`                           | Include cuVS distances into CUDA benchmarks, from `NUMKONG_CUVS_ROOTS`        |
-| `NUMKONG_TARGET_ARCH`         | `$NUMKONG_TARGET_ARCH`          | Tune for a CPU, like the host with `native`, or pick a WASM `v128relaxed`     |
+| `NUMKONG_MARCH`               | `$NUMKONG_MARCH`                | The floor: `x86-64-v3`, a CPU, the host's `native`, or a WASM `v128relaxed`   |
+| `NUMKONG_MULTIVERSIONED`      | `ON`                            | `OFF` keeps one kernel per operation, the best the floor implies              |
 | `NUMKONG_TARGET_<CAPABILITY>` | its probe's verdict             | `0` drops a capability, and `1` keeps one only where its probe compiles       |
 
 Every binding builds the static library through this `CMakeLists.txt`, or links one it built, so CMake is the one place that probes which capabilities the toolchain builds.
 Each capability's probe, `probes/<capability>.c`, calls one of its kernels, compiled header-only at the baseline flags as the library compiles it.
 Capabilities are scoped per function by target pragmas on every platform; LASX and POWER9 need GCC 15 or newer for that, and other toolchains leave them off.
 The library compiles every capability the toolchain builds and dispatches between them by runtime detection, and `-D NUMKONG_TARGET_<CAPABILITY>=0` leaves a capability out.
+A monoversioned build, `-D NUMKONG_MULTIVERSIONED=OFF`, keeps only the capabilities whose predefined macros `NUMKONG_MARCH` implies, as `probes/implied.c` reads them through `types.h`, and folds each dispatch table to its best kernel.
+There `-D NUMKONG_TARGET_<CAPABILITY>=1` vouches for a capability no compiler macro reports, as MSVC reports none of the AVX-512 subsets.
+The `xeon4_hopper`, `xeon6_blackwell`, `venice_mi450`, `grace_hopper` and `vera_rubin` presets build that way for one machine and its one GPU code, spelling every capability as 1 or 0 rather than trusting the macros.
+A multiversioned `NUMKONG_CUDA_ARCH=all` compiles each GPU unit once, at the lowest code its capability needs: PTX for the CUDA baseline at `compute_75`, for Ampere at `compute_80` and for Ada at `compute_89`, and family SASS for `90a`, `100f`, `103f` and `120f`.
+A named or `native` code compiles as SASS alone.
 Units calling capability kernels link `numkong::cpu_capabilities_compiled`, the build-tree twin of `nk_cpu_capabilities_compiled()`: every CPU capability the toolchain compiles.
 `numkong::header` carries no verdict, so a header-only consumer enables what its own flags name, and the runtime mask picks the compiled capabilities the CPU runs.
 Each CPU capability's flags for a unit compiled whole for it are cached as `numkong_target_<capability>_flags`, and each GPU capability's architectures as `numkong_target_<capability>_architectures`.
@@ -71,12 +74,12 @@ Each binding hands CMake its options its own way:
 
 | Binding | Builds                                            | Passing another option                                                  |
 | :------ | :------------------------------------------------ | :---------------------------------------------------------------------- |
-| Python  | `NUMKONG_BUILD_PYTHON`, from `pyproject.toml`     | `pip install . -C cmake.define.NUMKONG_BUILD_CUDA=ON`                   |
-| Rust    | `numkong_static`, from `build.rs`                 | `cargo build --features cuda`, or `rocm` for `NUMKONG_BUILD_ROCM`       |
-| Node    | `NUMKONG_BUILD_NODE`, from `package.json`         | `npm run build-native -- --CDNUMKONG_TARGET_ARCH=native`                |
-| Go      | `numkong_static`, built by hand for `cgo`         | `cmake -D NUMKONG_TARGET_ARCH=native`, then `--target numkong_static`   |
-| Swift   | `NUMKONG_BUILD_SWIFT`, from the `swift` preset    | `cmake --preset swift -D NUMKONG_TARGET_ARCH=native`                    |
-| WASM    | the `wasm*_emscripten` and `wasm32_wasi*` presets | `cmake --preset wasm32_wasi -D NUMKONG_TARGET_ARCH=v128relaxed`         |
+| Python  | `NUMKONG_BUILD_PYTHON`, from `pyproject.toml`     | `pip install . -C cmake.define.NUMKONG_CUDA_ARCH=all`                   |
+| Rust    | `numkong_static`, from `build.rs`                 | `cargo build --features cuda`, or `rocm` for `NUMKONG_ROCM_ARCH`        |
+| Node    | `NUMKONG_BUILD_NODE`, from `package.json`         | `npm run build-native -- --CDNUMKONG_MARCH=native`                      |
+| Go      | `numkong_static`, built by hand for `cgo`         | `cmake -D NUMKONG_MARCH=native`, then `--target numkong_static`         |
+| Swift   | `NUMKONG_BUILD_SWIFT`, from the `swift` preset    | `cmake --preset swift -D NUMKONG_MARCH=native`                          |
+| WASM    | the `wasm*_emscripten` and `wasm32_wasi*` presets | `cmake --preset wasm32_wasi -D NUMKONG_MARCH=v128relaxed`               |
 
 Rust links an archive CMake already built when `NUMKONG_LIBRARY_DIR` names its directory, and Go always does.
 On WebAssembly, `build.rs` hands CMake the toolchain the Rust target needs and the SIMD capability its target features declare, as [rust/README.md](rust/README.md#webassembly) lists.
@@ -107,7 +110,7 @@ MSVC has no per-function target pragma and no command-line vectorizer toggle, so
 LASX and POWER9 scope per function only under GCC 15 or newer, whose target pragma defines `__loongarch_asx` and `__POWER9_VECTOR__` inside the region, so `types.h` opens `lasxintrin.h` and `altivec.h` there.
 Clang's headers stay closed without `-mlasx` or `-mcpu=power9`, so a Clang build leaves both capabilities off, and the cross toolchains drive GCC 15.
 
-For host-tuned local builds, set `NUMKONG_TARGET_ARCH=native`, either as the CMake option `-DNUMKONG_TARGET_ARCH=native` or as an environment variable.
+For host-tuned local builds, set `NUMKONG_MARCH=native`, either as the CMake option `-DNUMKONG_MARCH=native` or as an environment variable.
 `pip install` reads the variable on every build, while `cargo build` and `npm run build-native` read it when they first configure their build directory.
 The resulting artifact bakes host-specific instructions into scaffolding code and is __not__ portable.
 
@@ -155,7 +158,7 @@ Targets with a `qemu-*` emulator additionally require `qemu-user`.
 Each QEMU toolchain names its emulated core in `<ARCH>_QEMU_CPU`, the richest by default so the tests run every compiled capability.
 A baseline leg passes the baseline core instead, which runs the library without any capability: `-D AARCH64_QEMU_CPU=cortex-a53`, `-D RISCV_QEMU_CPU=rv64`, `-D PPC_QEMU_CPU=power8`, or `-D LOONGARCH_QEMU_CPU=la464,lsx=off,lasx=off`.
 
-A WebAssembly module carries one SIMD capability, `serial`, `v128` or `v128relaxed`, and `NUMKONG_TARGET_ARCH` selects it for every toolchain and binding.
+A WebAssembly module carries one SIMD capability, `serial`, `v128` or `v128relaxed`, and `NUMKONG_MARCH` selects it for every toolchain and binding.
 Each toolchain file sets its default, and `CMakeLists.txt` turns the choice into `-msimd128` and `-mrelaxed-simd` for every unit, whatever flags a binding passes.
 Emscripten names each module after its capability, so both wasm32 modules can share the preset's build directory.
 
@@ -218,9 +221,9 @@ cmake --build --preset wasm32_emscripten
 For the `v128relaxed` module beside it, and for wasm64 — Memory64:
 
 ```sh
-cmake --preset wasm32_emscripten -D NUMKONG_TARGET_ARCH=v128relaxed  # numkong-wasm32-v128relaxed
+cmake --preset wasm32_emscripten -D NUMKONG_MARCH=v128relaxed  # numkong-wasm32-v128relaxed
 cmake --build --preset wasm32_emscripten
-cmake --preset wasm64_emscripten                                     # numkong-wasm64-v128relaxed
+cmake --preset wasm64_emscripten                               # numkong-wasm64-v128relaxed
 cmake --build --preset wasm64_emscripten
 ```
 
@@ -349,7 +352,7 @@ CC=$(brew --prefix llvm)/bin/clang CXX=$(brew --prefix llvm)/bin/clang++ pip ins
 ```
 
 Wheels pin a portable per-arch baseline by default — see [Target Baseline Policy](#target-baseline-policy).
-For host-tuned local installs, set `NUMKONG_TARGET_ARCH=native pip install -e .` (the resulting build is not redistributable).
+For host-tuned local installs, set `NUMKONG_MARCH=native pip install -e .` (the resulting build is not redistributable).
 
 Before merging your changes you may want to test your changes against the entire matrix of Python versions NumKong supports.
 For that you need the `cibuildwheel`, which is tricky to use on macOS and Windows, as it would target just the local environment.
@@ -395,7 +398,7 @@ Bypass knowingly with `git commit --no-verify`.
 ```sh
 cargo test -p numkong
 cargo test -p numkong -- --nocapture      # to see the output
-NUMKONG_TARGET_ARCH=native cargo build --release   # for host-tuned local builds
+NUMKONG_MARCH=native cargo build --release   # for host-tuned local builds
 ```
 
 The crate pins a portable per-arch baseline by default — see [Target Baseline Policy](#target-baseline-policy).

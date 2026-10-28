@@ -40,8 +40,13 @@
     {
       "name": "check",
       "inherits": ["base", "clang"],
-      "displayName": "Clang with warnings as errors",
-      "cacheVariables": { "NUMKONG_WERROR": "ON" }
+      "displayName": "Clang with warnings as errors, fastest compile cycle",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_FLAGS_RELWITHDEBINFO": "-O0 -g0 -DNDEBUG",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-O0 -g0 -DNDEBUG",
+        "NUMKONG_WERROR": "ON"
+      }
     },
     {
       "name": "release",
@@ -87,9 +92,8 @@
       "cacheVariables": {
         "CMAKE_C_COMPILER": "cl",
         "CMAKE_CXX_COMPILER": "cl",
-        "NUMKONG_BUILD_CUDA": "ON",
-        "NUMKONG_BUILD_SHARED": "ON",
-        "NUMKONG_CUDA_ARCHITECTURES": "native"
+        "NUMKONG_CUDA_ARCH": "native",
+        "NUMKONG_BUILD_SHARED": "ON"
       }
     },
     {
@@ -178,7 +182,7 @@
       "description": "NVCC over Clang, and Clang for the C and C++ sources too, so host objects and bitcode come from one compiler. Each toolkit supports a range of Clang versions, so the version that fits belongs in CMakeUserPresets.json.",
       "cacheVariables": {
         "CMAKE_CUDA_HOST_COMPILER": "clang++",
-        "NUMKONG_BUILD_CUDA": "ON",
+        "NUMKONG_CUDA_ARCH": "all",
         "NUMKONG_BUILD_SHARED": "ON"
       }
     },
@@ -186,25 +190,24 @@
       "name": "rocm",
       "inherits": ["base", "linux"],
       "displayName": "ROCm - tests",
-      "cacheVariables": { "NUMKONG_BUILD_ROCM": "ON", "NUMKONG_BUILD_SHARED": "ON" }
+      "cacheVariables": { "NUMKONG_ROCM_ARCH": "all", "NUMKONG_BUILD_SHARED": "ON" }
     },
     {
       "name": "metal",
       "inherits": ["base", "darwin"],
       "displayName": "Metal - tests",
-      "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON", "NUMKONG_BUILD_METAL": "ON" }
+      "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON", "NUMKONG_METAL_ARCH": "all" }
     },
     {
       "name": "machine",
       "hidden": true,
       "inherits": ["base", "linux", "clang"],
-      "description": "Libraries for one machine: its CPU floor, only the capabilities it runs, and its one GPU code.",
+      "description": "Libraries for one machine: its CPU floor, every kernel-library capability spelled as 1 or 0, and its one GPU code.",
       "cacheVariables": {
         "CMAKE_CUDA_HOST_COMPILER": "clang++",
         "NUMKONG_BUILD_TEST": "OFF",
         "NUMKONG_BUILD_SHARED": "ON",
-        "NUMKONG_BUILD_CUDA": "ON",
-        "NUMKONG_PROFILE_CAPABILITIES": "ON"
+        "NUMKONG_MULTIVERSIONED": "OFF"
       }
     },
     {
@@ -212,13 +215,20 @@
       "inherits": "machine",
       "displayName": "Xeon 4 with Hopper - compile only",
       "cacheVariables": {
-        "NUMKONG_TARGET_ARCH": "sapphirerapids",
-        "NUMKONG_TARGET_SIERRA": "0",
-        "NUMKONG_TARGET_TURIN": "0",
-        "NUMKONG_TARGET_DIAMOND": "0",
+        "NUMKONG_MARCH": "sapphirerapids",
+        "NUMKONG_CUDA_ARCH": "90a",
+        "NUMKONG_TARGET_HASWELL": "1",
+        "NUMKONG_TARGET_SKYLAKE": "1",
+        "NUMKONG_TARGET_ICELAKE": "1",
+        "NUMKONG_TARGET_GENOA": "1",
+        "NUMKONG_TARGET_SAPPHIRE": "1",
+        "NUMKONG_TARGET_SAPPHIREAMX": "1",
         "NUMKONG_TARGET_GRANITEAMX": "0",
+        "NUMKONG_TARGET_DIAMOND": "0",
         "NUMKONG_TARGET_DIAMONDAMX": "0",
-        "NUMKONG_CUDA_ARCHITECTURES": "90a-real"
+        "NUMKONG_TARGET_TURIN": "0",
+        "NUMKONG_TARGET_ALDER": "1",
+        "NUMKONG_TARGET_SIERRA": "0"
       }
     },
     {
@@ -226,38 +236,90 @@
       "inherits": "machine",
       "displayName": "Xeon 6 with Blackwell - compile only",
       "cacheVariables": {
-        "NUMKONG_TARGET_ARCH": "graniterapids",
-        "NUMKONG_TARGET_SIERRA": "0",
-        "NUMKONG_TARGET_TURIN": "0",
+        "NUMKONG_MARCH": "graniterapids",
+        "NUMKONG_CUDA_ARCH": "100f",
+        "NUMKONG_TARGET_HASWELL": "1",
+        "NUMKONG_TARGET_SKYLAKE": "1",
+        "NUMKONG_TARGET_ICELAKE": "1",
+        "NUMKONG_TARGET_GENOA": "1",
+        "NUMKONG_TARGET_SAPPHIRE": "1",
+        "NUMKONG_TARGET_SAPPHIREAMX": "1",
+        "NUMKONG_TARGET_GRANITEAMX": "1",
         "NUMKONG_TARGET_DIAMOND": "0",
         "NUMKONG_TARGET_DIAMONDAMX": "0",
-        "NUMKONG_CUDA_ARCHITECTURES": "100f-real"
+        "NUMKONG_TARGET_TURIN": "0",
+        "NUMKONG_TARGET_ALDER": "1",
+        "NUMKONG_TARGET_SIERRA": "0"
       }
     },
     {
       "name": "grace_hopper",
       "inherits": "machine",
       "displayName": "Grace with Hopper - compile only",
+      "description": "Grace's 128-bit SVE gains nothing over NEON, so every SVE capability is off.",
       "cacheVariables": {
-        "NUMKONG_TARGET_ARCH": "neoverse-v2",
+        "NUMKONG_MARCH": "grace",
+        "NUMKONG_CUDA_ARCH": "90a",
+        "NUMKONG_TARGET_NEON": "1",
+        "NUMKONG_TARGET_NEONHALF": "1",
+        "NUMKONG_TARGET_NEONSDOT": "1",
+        "NUMKONG_TARGET_NEONBFDOT": "1",
+        "NUMKONG_TARGET_NEONFHM": "1",
+        "NUMKONG_TARGET_SVE": "0",
+        "NUMKONG_TARGET_SVEHALF": "0",
+        "NUMKONG_TARGET_SVEBFDOT": "0",
+        "NUMKONG_TARGET_SVESDOT": "0",
+        "NUMKONG_TARGET_SVE2": "0",
         "NUMKONG_TARGET_NEONFP8": "0",
         "NUMKONG_TARGET_SME": "0",
         "NUMKONG_TARGET_SMEF64": "0",
-        "NUMKONG_TARGET_SMEBI32": "0",
-        "NUMKONG_CUDA_ARCHITECTURES": "90a-real"
+        "NUMKONG_TARGET_SMEBI32": "0"
       }
     },
     {
       "name": "vera_rubin",
       "inherits": "machine",
       "displayName": "Vera with Rubin - compile only",
-      "description": "Olympus cores need Clang 22 or GCC 15, and CUDA 13.4 names no Rubin code, so it compiles 100f.",
+      "description": "Olympus cores need Clang 22 or GCC 15 and CUDA 13.4 names no Rubin code, so it compiles 100f; WFET is on, as no compiler macro reports it, and SVE off, as on Grace.",
       "cacheVariables": {
-        "NUMKONG_TARGET_ARCH": "olympus",
+        "NUMKONG_MARCH": "olympus",
+        "NUMKONG_CUDA_ARCH": "100f",
+        "NUMKONG_TARGET_NEON": "1",
+        "NUMKONG_TARGET_NEONHALF": "1",
+        "NUMKONG_TARGET_NEONSDOT": "1",
+        "NUMKONG_TARGET_NEONBFDOT": "1",
+        "NUMKONG_TARGET_NEONFHM": "1",
+        "NUMKONG_TARGET_SVE": "0",
+        "NUMKONG_TARGET_SVEHALF": "0",
+        "NUMKONG_TARGET_SVEBFDOT": "0",
+        "NUMKONG_TARGET_SVESDOT": "0",
+        "NUMKONG_TARGET_SVE2": "0",
+        "NUMKONG_TARGET_NEONFP8": "1",
         "NUMKONG_TARGET_SME": "0",
         "NUMKONG_TARGET_SMEF64": "0",
-        "NUMKONG_TARGET_SMEBI32": "0",
-        "NUMKONG_CUDA_ARCHITECTURES": "100f-real"
+        "NUMKONG_TARGET_SMEBI32": "0"
+      }
+    },
+    {
+      "name": "venice_mi450",
+      "inherits": "machine",
+      "displayName": "EPYC Venice with MI450 - compile only",
+      "description": "Clang 22 names no Zen 6 core, so it compiles at znver5 and spells the rows GCC 16's znver6 implies; gfx1250 covers MI450X and MI455X.",
+      "cacheVariables": {
+        "NUMKONG_MARCH": "znver5",
+        "NUMKONG_ROCM_ARCH": "gfx1250",
+        "NUMKONG_TARGET_HASWELL": "1",
+        "NUMKONG_TARGET_SKYLAKE": "1",
+        "NUMKONG_TARGET_ICELAKE": "1",
+        "NUMKONG_TARGET_GENOA": "1",
+        "NUMKONG_TARGET_SAPPHIRE": "1",
+        "NUMKONG_TARGET_SAPPHIREAMX": "0",
+        "NUMKONG_TARGET_GRANITEAMX": "0",
+        "NUMKONG_TARGET_DIAMOND": "0",
+        "NUMKONG_TARGET_DIAMONDAMX": "0",
+        "NUMKONG_TARGET_TURIN": "1",
+        "NUMKONG_TARGET_ALDER": "1",
+        "NUMKONG_TARGET_SIERRA": "1"
       }
     }
   ],
@@ -289,7 +351,8 @@
     { "name": "xeon4_hopper", "configurePreset": "xeon4_hopper" },
     { "name": "xeon6_blackwell", "configurePreset": "xeon6_blackwell" },
     { "name": "grace_hopper", "configurePreset": "grace_hopper" },
-    { "name": "vera_rubin", "configurePreset": "vera_rubin" }
+    { "name": "vera_rubin", "configurePreset": "vera_rubin" },
+    { "name": "venice_mi450", "configurePreset": "venice_mi450" }
   ],
   "testPresets": [
     {

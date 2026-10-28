@@ -3,7 +3,7 @@
 # Usage: cmake --preset wasm32_wasi, which builds into `build_wasm32_wasi`, or `build.rs` for `wasm32-wasip1`
 #
 # The SIMD capability is a whole-module choice, so it is fixed here rather than probed: `v128` by default, or
-# `-DNUMKONG_TARGET_ARCH=v128relaxed`. Threads live in `toolchain-wasm32-wasi-threads.cmake`.
+# `-DNUMKONG_MARCH=v128relaxed`. Threads live in `toolchain-wasm32-wasi-threads.cmake`.
 
 set(CMAKE_SYSTEM_NAME WASI)
 set(CMAKE_SYSTEM_VERSION 1)
@@ -49,7 +49,7 @@ set(CMAKE_FIND_ROOT_PATH "${WASI_SDK_PATH}")
 set(NUMKONG_BUILD_SHARED OFF CACHE BOOL "Compile a dynamic library")
 
 # `CMakeLists.txt` turns the capability into `-msimd128` and `-mrelaxed-simd` for every unit.
-set(NUMKONG_TARGET_ARCH "v128" CACHE STRING "WebAssembly SIMD capability of this module: serial, v128 or v128relaxed")
+set(NUMKONG_MARCH "v128" CACHE STRING "WebAssembly SIMD capability of this module: serial, v128 or v128relaxed")
 
 set(CMAKE_C_FLAGS_INIT "--target=wasm32-wasip1")
 set(CMAKE_CXX_FLAGS_INIT "--target=wasm32-wasip1 -fno-exceptions")
@@ -75,7 +75,7 @@ else ()
     message(STATUS "NumKong WASI: WASI-SDK version unknown")
 endif ()
 
-message(STATUS "NumKong WASI: SIMD capability ${NUMKONG_TARGET_ARCH}, single-threaded")
+message(STATUS "NumKong WASI: SIMD capability ${NUMKONG_MARCH}, single-threaded")
 message(STATUS "NumKong WASI: Toolchain at ${WASI_SDK_PATH}")
 
 # The engine CTest runs each test binary through, wasmtime unless the build names another, like

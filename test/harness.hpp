@@ -115,13 +115,6 @@
 
 namespace nk = ashvardanian::numkong;
 
-template class nk::vector<int>;
-template class nk::vector<nk::i32_t>;
-template class nk::vector<nk::u1x8_t>;
-template class nk::vector<nk::i4x2_t>;
-template class nk::vector<nk::f64c_t>;
-template class nk::vector<std::complex<float>>;
-
 namespace ashvardanian::numkong::test {
 
 using nk::bf16_t;
@@ -660,13 +653,13 @@ inline machine_t probe_machine() noexcept {
 }
 
 /** Prints the version line, then the capabilities as "- Compiled for:" and "- This machine:". */
-inline void print(machine_t const &machine) {
+inline void print(machine_t const &machine, std::FILE *stream = stdout) {
     char compiled[NUMKONG_CAPABILITIES_NAME_CAPACITY], detected[NUMKONG_CAPABILITIES_NAME_CAPACITY];
     nk_capabilities_name(machine.compiled, compiled, sizeof(compiled));
     nk_capabilities_name(machine.detected, detected, sizeof(detected));
-    fmt::println("NumKong {}.{}.{}", machine.version[0], machine.version[1], machine.version[2]);
-    fmt::println("- Compiled for: {}", compiled);
-    fmt::println("- This machine: {}", detected);
+    fmt::println(stream, "NumKong {}.{}.{}", machine.version[0], machine.version[1], machine.version[2]);
+    fmt::println(stream, "- Compiled for: {}", compiled);
+    fmt::println(stream, "- This machine: {}", detected);
 }
 
 /** A mask of no capability, so the C++ wrappers run their templates: the references every
@@ -1418,7 +1411,9 @@ void test_tensor_cuda(error_stats_section_t &check);
 
 /** Forward declarations for cross/batch tests, ISA-family files. */
 void test_cross_serial(error_stats_section_t &check);
+void test_cross_runtime(error_stats_section_t &check);
 void test_cross_x8664(error_stats_section_t &check);
+void test_cross_x8664amx(error_stats_section_t &check);
 void test_cross_arm64(error_stats_section_t &check);
 void test_cross_blas(error_stats_section_t &check);
 void test_cross_riscv64(error_stats_section_t &check);

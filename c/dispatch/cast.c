@@ -11,8 +11,8 @@ static nk_capability_kernels_t const *nk_cast_capabilities(void) {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
                    nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
                    nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
-                   nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -44,8 +44,8 @@ static nk_capability_kernels_t const *nk_cast_capabilities(void) {
     };
     enum {
         cuda_above_k = ((nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
-                         nk_cap_ada_k * NUMKONG_TARGET_ADA) &
-                        NUMKONG_PROFILE_CAPABILITIES) >>
+                         nk_cap_ada_k * NUMKONG_TARGET_ADA) *
+                        !NUMKONG_MULTIVERSIONED) >>
                        48
     };
     static nk_kernel_punned_t const cuda[] = {
@@ -60,14 +60,14 @@ static nk_capability_kernels_t const *nk_cast_capabilities(void) {
         cuda_above_k & ~((nk_cap_ada_k >> 48) * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_cast_ada,
 #endif
     };
-    enum { rocm_above_k = ((nk_cap_rocm_k * NUMKONG_TARGET_ROCM) & NUMKONG_PROFILE_CAPABILITIES) >> 48 };
+    enum { rocm_above_k = ((nk_cap_rocm_k * NUMKONG_TARGET_ROCM) * !NUMKONG_MULTIVERSIONED) >> 48 };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
 #if NUMKONG_TARGET_ROCM
         rocm_above_k & ~((nk_cap_rocm_k >> 48) * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_cast_rocm,
 #endif
     };
-    enum { metal_above_k = ((nk_cap_metal_k * NUMKONG_TARGET_METAL) & NUMKONG_PROFILE_CAPABILITIES) >> 48 };
+    enum { metal_above_k = ((nk_cap_metal_k * NUMKONG_TARGET_METAL) * !NUMKONG_MULTIVERSIONED) >> 48 };
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
 #if NUMKONG_TARGET_METAL
@@ -92,8 +92,8 @@ static nk_capability_kernels_t const *nk_cast_capabilities(void) {
 static nk_capability_kernels_t const *nk_f16_to_f32_capabilities(void) {
     enum {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
-                   nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -128,7 +128,7 @@ NUMKONG_API void nk_f16_to_f32_best(nk_f16_t const *source, nk_f32_t *destinatio
 }
 
 static nk_capability_kernels_t const *nk_bf16_to_f32_capabilities(void) {
-    enum { above_k = nk_cap_serial_k & NUMKONG_PROFILE_CAPABILITIES };
+    enum { above_k = nk_cap_serial_k * !NUMKONG_MULTIVERSIONED };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bf16_to_f32_serial,
@@ -148,7 +148,7 @@ NUMKONG_API void nk_bf16_to_f32_best(nk_bf16_t const *source, nk_f32_t *destinat
 }
 
 static nk_capability_kernels_t const *nk_e4m3_to_f32_capabilities(void) {
-    enum { above_k = nk_cap_serial_k & NUMKONG_PROFILE_CAPABILITIES };
+    enum { above_k = nk_cap_serial_k * !NUMKONG_MULTIVERSIONED };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_e4m3_to_f32_serial,
@@ -168,7 +168,7 @@ NUMKONG_API void nk_e4m3_to_f32_best(nk_e4m3_t const *source, nk_f32_t *destinat
 }
 
 static nk_capability_kernels_t const *nk_e5m2_to_f32_capabilities(void) {
-    enum { above_k = nk_cap_serial_k & NUMKONG_PROFILE_CAPABILITIES };
+    enum { above_k = nk_cap_serial_k * !NUMKONG_MULTIVERSIONED };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_e5m2_to_f32_serial,
@@ -188,7 +188,7 @@ NUMKONG_API void nk_e5m2_to_f32_best(nk_e5m2_t const *source, nk_f32_t *destinat
 }
 
 static nk_capability_kernels_t const *nk_e2m3_to_f32_capabilities(void) {
-    enum { above_k = nk_cap_serial_k & NUMKONG_PROFILE_CAPABILITIES };
+    enum { above_k = nk_cap_serial_k * !NUMKONG_MULTIVERSIONED };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_e2m3_to_f32_serial,
@@ -208,7 +208,7 @@ NUMKONG_API void nk_e2m3_to_f32_best(nk_e2m3_t const *source, nk_f32_t *destinat
 }
 
 static nk_capability_kernels_t const *nk_e3m2_to_f32_capabilities(void) {
-    enum { above_k = nk_cap_serial_k & NUMKONG_PROFILE_CAPABILITIES };
+    enum { above_k = nk_cap_serial_k * !NUMKONG_MULTIVERSIONED };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_e3m2_to_f32_serial,
@@ -230,8 +230,8 @@ NUMKONG_API void nk_e3m2_to_f32_best(nk_e3m2_t const *source, nk_f32_t *destinat
 static nk_capability_kernels_t const *nk_f32_to_f16_capabilities(void) {
     enum {
         above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
-                   nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX) &
-                  NUMKONG_PROFILE_CAPABILITIES
+                   nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX) *
+                  !NUMKONG_MULTIVERSIONED
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
@@ -266,7 +266,7 @@ NUMKONG_API void nk_f32_to_f16_best(nk_f32_t const *source, nk_f16_t *destinatio
 }
 
 static nk_capability_kernels_t const *nk_f32_to_bf16_capabilities(void) {
-    enum { above_k = nk_cap_serial_k & NUMKONG_PROFILE_CAPABILITIES };
+    enum { above_k = nk_cap_serial_k * !NUMKONG_MULTIVERSIONED };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_f32_to_bf16_serial,
@@ -286,7 +286,7 @@ NUMKONG_API void nk_f32_to_bf16_best(nk_f32_t const *source, nk_bf16_t *destinat
 }
 
 static nk_capability_kernels_t const *nk_f32_to_e4m3_capabilities(void) {
-    enum { above_k = nk_cap_serial_k & NUMKONG_PROFILE_CAPABILITIES };
+    enum { above_k = nk_cap_serial_k * !NUMKONG_MULTIVERSIONED };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_f32_to_e4m3_serial,
@@ -306,7 +306,7 @@ NUMKONG_API void nk_f32_to_e4m3_best(nk_f32_t const *source, nk_e4m3_t *destinat
 }
 
 static nk_capability_kernels_t const *nk_f32_to_e5m2_capabilities(void) {
-    enum { above_k = nk_cap_serial_k & NUMKONG_PROFILE_CAPABILITIES };
+    enum { above_k = nk_cap_serial_k * !NUMKONG_MULTIVERSIONED };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_f32_to_e5m2_serial,
@@ -326,7 +326,7 @@ NUMKONG_API void nk_f32_to_e5m2_best(nk_f32_t const *source, nk_e5m2_t *destinat
 }
 
 static nk_capability_kernels_t const *nk_f32_to_e2m3_capabilities(void) {
-    enum { above_k = nk_cap_serial_k & NUMKONG_PROFILE_CAPABILITIES };
+    enum { above_k = nk_cap_serial_k * !NUMKONG_MULTIVERSIONED };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_f32_to_e2m3_serial,
@@ -346,7 +346,7 @@ NUMKONG_API void nk_f32_to_e2m3_best(nk_f32_t const *source, nk_e2m3_t *destinat
 }
 
 static nk_capability_kernels_t const *nk_f32_to_e3m2_capabilities(void) {
-    enum { above_k = nk_cap_serial_k & NUMKONG_PROFILE_CAPABILITIES };
+    enum { above_k = nk_cap_serial_k * !NUMKONG_MULTIVERSIONED };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_f32_to_e3m2_serial,
