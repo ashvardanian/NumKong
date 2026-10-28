@@ -160,6 +160,20 @@ static void crash_handler(int sig) {
 }
 #endif // NK_HAS_SIGNAL_
 
+static void verify_ulp_distance() {
+    bool const valid =
+        ulp_distance(f16_t::from_bits(0x3C00), f16_t::from_bits(0x3C01)) == 1 &&
+        ulp_distance(f16_t::from_bits(0xBC00), f16_t::from_bits(0xBC01)) == 1 &&
+        ulp_distance(f16_t::from_bits(0x0000), f16_t::from_bits(0x8000)) == 0 &&
+        ulp_distance(f16_t::from_bits(0x8001), f16_t::from_bits(0x0001)) == 2 &&
+        ulp_distance(bf16_t::from_bits(0x3F80), bf16_t::from_bits(0x3F81)) == 1 &&
+        ulp_distance(bf16_t::from_bits(0xBF80), bf16_t::from_bits(0xBF81)) == 1;
+    if (!valid) {
+        std::fprintf(stderr, "ULP distance self-check failed\n");
+        std::abort();
+    }
+}
+
 int main(int argc, char **argv) {
 
 #if NK_HAS_SIGNAL_
@@ -310,6 +324,8 @@ int main(int argc, char **argv) {
         global_config.matrix_depth = std::max<std::size_t>(1, global_config.matrix_depth / 4);
         global_config.mesh_points = std::max<std::size_t>(1, global_config.mesh_points / 4);
     }
+
+    verify_ulp_distance();
 
     // Breadcrumbs for crash_handler: if SIGILL fires here, the log shows which call faulted.
     nk_test_current_kernel_ = "nk_capabilities()";
