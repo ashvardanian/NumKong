@@ -2209,15 +2209,17 @@ NUMKONG_INLINE nk_f32_t nk_rmsds_folded_f32_serial_(nk_f32_t const *cross_covari
         for (int candidate = 1; candidate != 4; ++candidate)
             if (nk_f32_abs_(adjugate[candidate][candidate]) > nk_f32_abs_(adjugate[column][column])) column = candidate;
         if (!(nk_f32_abs_(adjugate[column][column]) > noise)) break;
-        nk_f32_t const *vector = adjugate[column];
-        nk_f32_t const image[4] = {k00 * vector[0] + k01 * vector[1] + k02 * vector[2] + k03 * vector[3],
-                                   k01 * vector[0] + k11 * vector[1] + k12 * vector[2] + k13 * vector[3],
-                                   k02 * vector[0] + k12 * vector[1] + k22 * vector[2] + k23 * vector[3],
-                                   k03 * vector[0] + k13 * vector[1] + k23 * vector[2] + k33 * vector[3]};
-        nk_f32_t const length = vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2] +
-                                vector[3] * vector[3];
-        nk_f32_t const quotient =
-            (vector[0] * image[0] + vector[1] * image[1] + vector[2] * image[2] + vector[3] * image[3]) / length;
+        nk_f32_t const *eigenvector = adjugate[column];
+        nk_f32_t const image[4] = {
+            k00 * eigenvector[0] + k01 * eigenvector[1] + k02 * eigenvector[2] + k03 * eigenvector[3],
+            k01 * eigenvector[0] + k11 * eigenvector[1] + k12 * eigenvector[2] + k13 * eigenvector[3],
+            k02 * eigenvector[0] + k12 * eigenvector[1] + k22 * eigenvector[2] + k23 * eigenvector[3],
+            k03 * eigenvector[0] + k13 * eigenvector[1] + k23 * eigenvector[2] + k33 * eigenvector[3]};
+        nk_f32_t const length = eigenvector[0] * eigenvector[0] + eigenvector[1] * eigenvector[1] +
+                                eigenvector[2] * eigenvector[2] + eigenvector[3] * eigenvector[3];
+        nk_f32_t const quotient = (eigenvector[0] * image[0] + eigenvector[1] * image[1] + eigenvector[2] * image[2] +
+                                   eigenvector[3] * image[3]) /
+                                  length;
         // λ lies between the diagonal bound and the iterate, so a quotient outside is noise
         if (!(quotient >= floor && quotient <= eigenvalue)) break;
         eigenvalue = quotient, refined = 1;

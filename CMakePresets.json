@@ -33,7 +33,7 @@
     },
     {
       "name": "debug",
-      "inherits": "base",
+      "inherits": ["base", "clang"],
       "displayName": "Debug",
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "NUMKONG_BUILD_SANITIZERS": "address" }
     },
@@ -45,7 +45,7 @@
     },
     {
       "name": "release",
-      "inherits": "base",
+      "inherits": ["base", "clang"],
       "displayName": "Release",
       "cacheVariables": { "NUMKONG_BUILD_BENCH": "ON", "NUMKONG_BUILD_SHARED": "ON" }
     },
@@ -173,9 +173,14 @@
     },
     {
       "name": "cuda",
-      "inherits": ["base", "linux"],
+      "inherits": ["base", "linux", "clang"],
       "displayName": "CUDA - tests",
-      "cacheVariables": { "NUMKONG_BUILD_CUDA": "ON", "NUMKONG_BUILD_SHARED": "ON" }
+      "description": "NVCC over Clang, and Clang for the C and C++ sources too, so host objects and bitcode come from one compiler. Each toolkit supports a range of Clang versions, so the version that fits belongs in CMakeUserPresets.json.",
+      "cacheVariables": {
+        "CMAKE_CUDA_HOST_COMPILER": "clang++",
+        "NUMKONG_BUILD_CUDA": "ON",
+        "NUMKONG_BUILD_SHARED": "ON"
+      }
     },
     {
       "name": "rocm",
@@ -188,6 +193,72 @@
       "inherits": ["base", "darwin"],
       "displayName": "Metal - tests",
       "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON", "NUMKONG_BUILD_METAL": "ON" }
+    },
+    {
+      "name": "machine",
+      "hidden": true,
+      "inherits": ["base", "linux", "clang"],
+      "description": "Libraries for one machine: its CPU floor, only the capabilities it runs, and its one GPU code.",
+      "cacheVariables": {
+        "CMAKE_CUDA_HOST_COMPILER": "clang++",
+        "NUMKONG_BUILD_TEST": "OFF",
+        "NUMKONG_BUILD_SHARED": "ON",
+        "NUMKONG_BUILD_CUDA": "ON",
+        "NUMKONG_PROFILE_CAPABILITIES": "ON"
+      }
+    },
+    {
+      "name": "xeon4_hopper",
+      "inherits": "machine",
+      "displayName": "Xeon 4 with Hopper - compile only",
+      "cacheVariables": {
+        "NUMKONG_TARGET_ARCH": "sapphirerapids",
+        "NUMKONG_TARGET_SIERRA": "0",
+        "NUMKONG_TARGET_TURIN": "0",
+        "NUMKONG_TARGET_DIAMOND": "0",
+        "NUMKONG_TARGET_GRANITEAMX": "0",
+        "NUMKONG_TARGET_DIAMONDAMX": "0",
+        "NUMKONG_CUDA_ARCHITECTURES": "90a-real"
+      }
+    },
+    {
+      "name": "xeon6_blackwell",
+      "inherits": "machine",
+      "displayName": "Xeon 6 with Blackwell - compile only",
+      "cacheVariables": {
+        "NUMKONG_TARGET_ARCH": "graniterapids",
+        "NUMKONG_TARGET_SIERRA": "0",
+        "NUMKONG_TARGET_TURIN": "0",
+        "NUMKONG_TARGET_DIAMOND": "0",
+        "NUMKONG_TARGET_DIAMONDAMX": "0",
+        "NUMKONG_CUDA_ARCHITECTURES": "100f-real"
+      }
+    },
+    {
+      "name": "grace_hopper",
+      "inherits": "machine",
+      "displayName": "Grace with Hopper - compile only",
+      "cacheVariables": {
+        "NUMKONG_TARGET_ARCH": "neoverse-v2",
+        "NUMKONG_TARGET_NEONFP8": "0",
+        "NUMKONG_TARGET_SME": "0",
+        "NUMKONG_TARGET_SMEF64": "0",
+        "NUMKONG_TARGET_SMEBI32": "0",
+        "NUMKONG_CUDA_ARCHITECTURES": "90a-real"
+      }
+    },
+    {
+      "name": "vera_rubin",
+      "inherits": "machine",
+      "displayName": "Vera with Rubin - compile only",
+      "description": "Olympus cores need Clang 22 or GCC 15, and CUDA 13.4 names no Rubin code, so it compiles 100f.",
+      "cacheVariables": {
+        "NUMKONG_TARGET_ARCH": "olympus",
+        "NUMKONG_TARGET_SME": "0",
+        "NUMKONG_TARGET_SMEF64": "0",
+        "NUMKONG_TARGET_SMEBI32": "0",
+        "NUMKONG_CUDA_ARCHITECTURES": "100f-real"
+      }
     }
   ],
   "buildPresets": [
@@ -214,7 +285,11 @@
     { "name": "wasm32_wasi_threads", "configurePreset": "wasm32_wasi_threads" },
     { "name": "cuda", "configurePreset": "cuda" },
     { "name": "rocm", "configurePreset": "rocm" },
-    { "name": "metal", "configurePreset": "metal", "targets": ["numkong_cpu_test", "numkong_cpu_shared_test"] }
+    { "name": "metal", "configurePreset": "metal", "targets": ["numkong_cpu_test", "numkong_cpu_shared_test"] },
+    { "name": "xeon4_hopper", "configurePreset": "xeon4_hopper" },
+    { "name": "xeon6_blackwell", "configurePreset": "xeon6_blackwell" },
+    { "name": "grace_hopper", "configurePreset": "grace_hopper" },
+    { "name": "vera_rubin", "configurePreset": "vera_rubin" }
   ],
   "testPresets": [
     {

@@ -30,7 +30,7 @@ import time
 from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Literal, NewType, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, NewType
 
 import numkong as nk
 
@@ -39,8 +39,6 @@ if TYPE_CHECKING:
     import numpy as np  # static-analysis-only; the runtime try/except below is authoritative
 
 faulthandler.enable()
-
-T = TypeVar("T")
 
 Seed = NewType("Seed", int)  # 32-bit; derive streams from it with `stream_key`, never add to it
 StreamKey = NewType("StreamKey", int)  # 64-bit, from `stream_key`; seeds one test's generators
@@ -61,7 +59,7 @@ def env_text(name: str) -> str | None:
     return os.environ.get(name) or None
 
 
-def env_parsed(name: str, fallback: T, parse: Callable[[str], T | None], expected: str) -> T:
+def env_parsed[T](name: str, fallback: T, parse: Callable[[str], T | None], expected: str) -> T:
     """Reads `name` through `parse`, or `fallback` when unset or empty; exits with status 1 on bad text."""
     text = env_text(name)
     if text is None:
@@ -296,7 +294,7 @@ def precise_decimal(
             yield decimal.Decimal.from_float, decimal.Decimal.sqrt, decimal.Decimal.ln
 
 
-def timed_call(function: Callable[..., T] | None, *args: Any, **kwargs: Any) -> tuple[Nanoseconds, T | None]:
+def timed_call[T](function: Callable[..., T] | None, *args: Any, **kwargs: Any) -> tuple[Nanoseconds, T | None]:
     """Calls `function` once, returning its duration and result, or `(0, None)` without one."""
     if function is None:
         return Nanoseconds(0), None

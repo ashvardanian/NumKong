@@ -58,7 +58,7 @@ python -c "import numkong as nk; print(repr(nk.cpu_capabilities_enabled()))"
 ## Wheel Compatibility and Building from Source
 
 Pre-built wheels are available on PyPI for Linux (x86_64, aarch64, riscv64, plus i686, ppc64le, s390x), macOS (x86_64, arm64), and Windows (AMD64, ARM64).
-Python 3.10 through 3.14 is supported, including free-threading variants (3.13t, 3.14t).
+Python 3.12 through 3.15 is supported, including the free-threaded 3.14t and 3.15t.
 Every wheel compiles each capability the toolchain supports and picks among them at runtime, so a single wheel covers all CPU generations on a given architecture.
 
 When building from source, the compiler requirements depend on the platform.

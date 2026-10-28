@@ -67,9 +67,9 @@
 #ifndef NUMKONG_TYPES_H
 #define NUMKONG_TYPES_H
 
-#define NUMKONG_VERSION_MAJOR 7
-#define NUMKONG_VERSION_MINOR 8
-#define NUMKONG_VERSION_PATCH 2
+#define NUMKONG_VERSION_MAJOR 8
+#define NUMKONG_VERSION_MINOR 0
+#define NUMKONG_VERSION_PATCH 0
 
 #include <stdint.h> // Clang modules on glibc would otherwise credit `uint64_t` to ACLE
 
@@ -87,7 +87,7 @@
 #define nk_unpoison_(ptr, size) (void)(ptr), (void)(size)
 #endif
 
-/* Inferring target OS: Windows, macOS, Linux, or FreeBSD */
+/** Inferring target OS: Windows, macOS, Linux, FreeBSD, WASI, or Emscripten. */
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 #define NUMKONG_OS_WINDOWS_ 1
 #else
@@ -107,6 +107,16 @@
 #define NUMKONG_OS_FREEBSD_ 1
 #else
 #define NUMKONG_OS_FREEBSD_ 0
+#endif
+#if defined(__wasi__)
+#define NUMKONG_OS_WASI_ 1
+#else
+#define NUMKONG_OS_WASI_ 0
+#endif
+#if defined(__EMSCRIPTEN__)
+#define NUMKONG_OS_EMSCRIPTEN_ 1
+#else
+#define NUMKONG_OS_EMSCRIPTEN_ 0
 #endif
 
 /** Base of function annotations:
@@ -275,6 +285,11 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #define NUMKONG_ALLOW_ISA_REDIRECT 1
 #endif
 
+/** The machine profile's capabilities, folding each dispatch table to its best kernel, or 0. */
+#if !defined(NUMKONG_PROFILE_CAPABILITIES)
+#define NUMKONG_PROFILE_CAPABILITIES 0
+#endif
+
 /*  Compiling for 64-bit Arm: NUMKONG_ARCH_ARM64_
  *  @see Arm C Language Extensions: https://arm-software.github.io/acle/main/acle.html
  *
@@ -333,7 +348,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /* Compiling for WASM: NUMKONG_ARCH_WASM_ */
 #if !defined(NUMKONG_ARCH_WASM_)
-#if defined(__wasm__) || defined(__EMSCRIPTEN__)
+#if defined(__wasm__) || NUMKONG_OS_EMSCRIPTEN_
 #define NUMKONG_ARCH_WASM_ 1
 #else
 #define NUMKONG_ARCH_WASM_ 0
@@ -891,7 +906,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
      NUMKONG_TARGET_NEONSDOT || NUMKONG_TARGET_NEONFP8 || NUMKONG_ARCH_ARM64_SVE_)
 #define NUMKONG_ARCH_RISCV64_RVV_ \
     (NUMKONG_TARGET_RVV || NUMKONG_TARGET_RVVHALF || NUMKONG_TARGET_RVVBF16 || NUMKONG_TARGET_RVVBB)
-#define NUMKONG_ARCH_WASM_V128_ (NUMKONG_TARGET_V128 || NUMKONG_TARGET_V128RELAXED)
+#define NUMKONG_ARCH_WASM_V128_      (NUMKONG_TARGET_V128 || NUMKONG_TARGET_V128RELAXED)
 #define NUMKONG_ARCH_CUDA_BLACKWELL_ (NUMKONG_TARGET_BLACKWELL || NUMKONG_TARGET_BLACKWELLULTRA)
 #define NUMKONG_ARCH_CUDA_AMPERE_                                                                            \
     (NUMKONG_TARGET_AMPERE || NUMKONG_TARGET_ADA || NUMKONG_TARGET_HOPPER || NUMKONG_ARCH_CUDA_BLACKWELL_ || \
@@ -1179,9 +1194,10 @@ typedef float nk_f32_t;
 /** Double-precision (64-bit) IEEE 754 float. sign(1) + exponent(11) + mantissa(52), bias=1023. */
 typedef double nk_f64_t;
 
-#if NUMKONG_ARCH_X8664_ || NUMKONG_ARCH_ARM64_ || NUMKONG_ARCH_RISCV64_ || NUMKONG_ARCH_PPC64_ ||          \
-    NUMKONG_ARCH_LOONGARCH64_ || NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_ || defined(__METAL_VERSION__) || \
-    defined(__wasm64__)
+/** Pointer width from compiler and OS macros, not the CPU family that wasm64 shares with wasm32. */
+#if defined(__SIZEOF_POINTER__)
+#define NUMKONG_ARCH_64BIT_ (__SIZEOF_POINTER__ == 8)
+#elif defined(__LP64__) || defined(_LP64) || defined(_WIN64)
 #define NUMKONG_ARCH_64BIT_ 1
 #else
 #define NUMKONG_ARCH_64BIT_ 0

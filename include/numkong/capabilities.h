@@ -1408,7 +1408,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
 
 #if NUMKONG_ARCH_WASM_
 
-#if defined(__wasi__) && NUMKONG_WITH_HOST_PROBES
+#if NUMKONG_OS_WASI_ && NUMKONG_WITH_HOST_PROBES
 
 /** With @c NUMKONG_WITH_HOST_PROBES, the WASI host supplies the capability probes as imports. */
 __attribute__((__import_module__("env"), __import_name__("nk_has_v128"))) extern int nk_has_v128(void);
@@ -1419,7 +1419,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
     /*  A hosted module asks its engine to validate one probe module per capability, so
      *  @c detected describes the engine; any other module was validated whole, so it reports
      *  its own flags. */
-#if defined(__wasi__) && NUMKONG_WITH_HOST_PROBES
+#if NUMKONG_OS_WASI_ && NUMKONG_WITH_HOST_PROBES
     nk_capability_t caps = nk_cap_serial_k;
     if (nk_has_v128()) caps |= nk_cap_v128_k;
     if (nk_has_relaxed()) caps |= nk_cap_v128_k | nk_cap_v128relaxed_k;

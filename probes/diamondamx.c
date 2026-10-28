@@ -6,11 +6,15 @@
  */
 #define NUMKONG_HEADER_ONLY       1
 #define NUMKONG_TARGET_DIAMONDAMX 1
-#include <numkong/types.h>
+#include "numkong/types.h"
+#include "numkong/capabilities.h" // `syscall`, `SYS_arch_prctl`
 
 #include "numkong/attention/diamondamx.h" // `nk_attention_packed_e4m3_diamondamx`
 
 int main(void) {
+#if NUMKONG_OS_LINUX_
+    syscall(SYS_arch_prctl, 0x1023, 18); // ARCH_REQ_XCOMP_PERM for XTILEDATA, as `nk_cpu_configure_thread` asks
+#endif
     static nk_e4m3_t tokens[16 * 64];
     static nk_b512_vec_t packed[1024];
     static nk_f32_t output[16 * 64];

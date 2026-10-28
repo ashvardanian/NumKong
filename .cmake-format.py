@@ -34,9 +34,9 @@ with section("markup"):
 
 # Commands defined here, so their keywords group like those of built-in commands.
 additional_commands = {
-    "numkong_add_cpu_capability": {"pargs": 2, "kwargs": {"GCC_FLAGS": "+", "MSVC_FLAGS": "+"}},
+    "numkong_add_cpu_capability": {"pargs": 2, "kwargs": {"BIT": 1, "GCC_FLAGS": "+", "MSVC_FLAGS": "+"}},
     "numkong_add_gpu_capability": {
         "pargs": 2,
-        "kwargs": {"CUDA_ARCHITECTURES": "+", "ROCM_ARCHITECTURES": "+", "METAL_ARCHITECTURES": "+"},
+        "kwargs": {"BIT": 1, "CUDA_ARCHITECTURES": "+", "ROCM_ARCHITECTURES": "+", "METAL_ARCHITECTURES": "+"},
     },
 }

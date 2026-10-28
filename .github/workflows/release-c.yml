@@ -82,14 +82,14 @@ jobs:
         run: gh release upload ${{ github.event.release.tag_name }} *.so *.deb --clobber
 
   create_windows_dll_library:
-    name: Create Library for Windows, ${{ matrix.arch }}
+    name: Create Library for Windows, ${{ matrix.arch }} with ${{ matrix.preset }}
     runs-on: windows-2025
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: x64
-          - arch: arm64
+          - { arch: x64, preset: msvc2026_x64 }
+          - { arch: arm64, preset: msvc2022_arm64 }
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
@@ -106,16 +106,16 @@ jobs:
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
       - name: Build Shared Library
         run: |
-          cmake --preset msvc_${{ matrix.arch }} -D NUMKONG_BUILD_TEST=OFF
-          cmake --build --preset msvc_${{ matrix.arch }}
+          cmake --preset ${{ matrix.preset }} -D NUMKONG_BUILD_TEST=OFF
+          cmake --build --preset ${{ matrix.preset }}
       # MSVC links a DLL through its import library, so the archive carries both.
       - name: Package Archive
         shell: bash
         run: |
           tar -czf "numkong_windows_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.tar.gz" \
-            build_msvc_${{ matrix.arch }}/Release/numkong_shared.dll \
-            build_msvc_${{ matrix.arch }}/Release/numkong_shared.lib \
-            build_msvc_${{ matrix.arch }}/Release/numkong_static.lib \
+            build_${{ matrix.preset }}/Release/numkong_shared.dll \
+            build_${{ matrix.preset }}/Release/numkong_shared.lib \
+            build_${{ matrix.preset }}/Release/numkong_static.lib \
             include/numkong/ \
             LICENSE
       - name: Upload to GitHub Release

@@ -5,7 +5,7 @@
 # - `macos` wheels for x86_64, arm64;
 # - `windows` wheels for AMD64, ARM64;
 # - `pyodide` wheels for wasm32.
-# * for Python 3.10 to 3.14, plus free-threading 3.14.
+# * for Python 3.12 to 3.15, plus free-threading 3.14 and 3.15.
 # * running thousands of fuzzy tests on each wheel.
 
 [build-system]
@@ -24,12 +24,10 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Programming Language :: C",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python :: Free Threading :: 3 - Stable",
     "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -42,7 +40,7 @@ description = "Portable mixed-precision math, linear-algebra, & retrieval librar
 dynamic = ["readme", "version"]
 license = { text = "Apache-2.0" }
 name = "numkong"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 
 [project.urls]
 Homepage = "https://github.com/ashvardanian/NumKong"
@@ -212,7 +210,7 @@ test-oracles = ["ml_dtypes", "scipy"]
 [tool.ruff]
 extend-exclude = [".cmake-format.py"]  # cmake-format DSL config, not Python source
 line-length = 120
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 ignore = [

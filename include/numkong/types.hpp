@@ -1610,6 +1610,7 @@ struct f16_t {
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return true; }
     static constexpr bool has_nan() noexcept { return true; }
+    static constexpr bool is_iec559() noexcept { return true; }
 
     raw_t raw_;
 
@@ -1657,6 +1658,7 @@ struct f16_t {
     static constexpr f16_t positive_min() noexcept { return from_bits(0x0400); }  // Smallest positive normal
     static constexpr f16_t subnormal_min() noexcept { return from_bits(0x0001); } // Smallest positive subnormal
     static constexpr f16_t epsilon() noexcept { return from_bits(0x1400); }       // 2⁻¹⁰ ≈ 0.00097656
+    static constexpr f16_t round_error() noexcept { return from_bits(0x3800); }   // 0.5
     static constexpr f16_t positive_infinity() noexcept { return from_bits(0x7C00); }
     static constexpr f16_t negative_infinity() noexcept { return from_bits(0xFC00); }
     static constexpr f16_t quiet_nan() noexcept { return from_bits(0x7E00); }
@@ -1897,6 +1899,7 @@ struct bf16_t {
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return true; }
     static constexpr bool has_nan() noexcept { return true; }
+    static constexpr bool is_iec559() noexcept { return false; }
 
     raw_t raw_;
 
@@ -1944,6 +1947,7 @@ struct bf16_t {
     static constexpr bf16_t positive_min() noexcept { return from_bits(0x0080); }  // Smallest positive normal
     static constexpr bf16_t subnormal_min() noexcept { return from_bits(0x0001); } // Smallest positive subnormal
     static constexpr bf16_t epsilon() noexcept { return from_bits(0x3C00); }       // 2⁻⁷ ≈ 0.0078125
+    static constexpr bf16_t round_error() noexcept { return from_bits(0x3F00); }   // 0.5
     static constexpr bf16_t positive_infinity() noexcept { return from_bits(0x7F80); }
     static constexpr bf16_t negative_infinity() noexcept { return from_bits(0xFF80); }
     static constexpr bf16_t quiet_nan() noexcept { return from_bits(0x7FC0); }
@@ -2358,12 +2362,15 @@ struct e4m3_t {
     static constexpr unsigned bits_per_value() noexcept { return 8; }
     static constexpr unsigned mantissa_bits() noexcept { return 3; }
     static constexpr unsigned exponent_bits() noexcept { return 4; }
+    static constexpr int min_exponent() noexcept { return -5; }
+    static constexpr int max_exponent() noexcept { return 9; }
     static constexpr bool is_integer() noexcept { return false; }
     static constexpr bool is_signed() noexcept { return true; }
     static constexpr bool is_complex() noexcept { return false; }
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return false; } // E4M3 has no infinity
     static constexpr bool has_nan() noexcept { return true; }
+    static constexpr bool is_iec559() noexcept { return false; }
 
     raw_t raw_;
 
@@ -2411,6 +2418,8 @@ struct e4m3_t {
     static constexpr e4m3_t finite_min() noexcept { return from_bits(0xFE); }    // -448.0
     static constexpr e4m3_t positive_min() noexcept { return from_bits(0x08); }  // Smallest positive normal (2⁻⁶)
     static constexpr e4m3_t subnormal_min() noexcept { return from_bits(0x01); } // Smallest positive subnormal
+    static constexpr e4m3_t epsilon() noexcept { return from_bits(0x20); }       // 2⁻³ = 0.125
+    static constexpr e4m3_t round_error() noexcept { return from_bits(0x30); }   // 0.5
     static constexpr e4m3_t quiet_nan() noexcept { return from_bits(0x7F); }     // +NaN
 
     // Mathematical constants
@@ -2597,12 +2606,15 @@ struct e5m2_t {
     static constexpr unsigned bits_per_value() noexcept { return 8; }
     static constexpr unsigned mantissa_bits() noexcept { return 2; }
     static constexpr unsigned exponent_bits() noexcept { return 5; }
+    static constexpr int min_exponent() noexcept { return -13; }
+    static constexpr int max_exponent() noexcept { return 16; }
     static constexpr bool is_integer() noexcept { return false; }
     static constexpr bool is_signed() noexcept { return true; }
     static constexpr bool is_complex() noexcept { return false; }
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return true; } // E5M2 has infinity
     static constexpr bool has_nan() noexcept { return true; }
+    static constexpr bool is_iec559() noexcept { return false; }
 
     raw_t raw_;
 
@@ -2649,6 +2661,8 @@ struct e5m2_t {
     static constexpr e5m2_t finite_min() noexcept { return from_bits(0xFB); }    // -57344.0
     static constexpr e5m2_t positive_min() noexcept { return from_bits(0x04); }  // Smallest positive normal
     static constexpr e5m2_t subnormal_min() noexcept { return from_bits(0x01); } // Smallest positive subnormal
+    static constexpr e5m2_t epsilon() noexcept { return from_bits(0x34); }       // 2⁻² = 0.25
+    static constexpr e5m2_t round_error() noexcept { return from_bits(0x38); }   // 0.5
     static constexpr e5m2_t positive_infinity() noexcept { return from_bits(0x7C); }
     static constexpr e5m2_t negative_infinity() noexcept { return from_bits(0xFC); }
     static constexpr e5m2_t quiet_nan() noexcept { return from_bits(0x7E); }
@@ -2841,12 +2855,15 @@ struct e2m3_t {
     static constexpr unsigned bits_per_value() noexcept { return 8; }
     static constexpr unsigned mantissa_bits() noexcept { return 3; }
     static constexpr unsigned exponent_bits() noexcept { return 2; }
+    static constexpr int min_exponent() noexcept { return 1; }
+    static constexpr int max_exponent() noexcept { return 3; }
     static constexpr bool is_integer() noexcept { return false; }
     static constexpr bool is_signed() noexcept { return true; }
     static constexpr bool is_complex() noexcept { return false; }
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return false; }
     static constexpr bool has_nan() noexcept { return false; }
+    static constexpr bool is_iec559() noexcept { return false; }
 
     raw_t raw_;
 
@@ -2894,6 +2911,8 @@ struct e2m3_t {
     static constexpr e2m3_t finite_min() noexcept { return from_bits(0x3F); }    // -7.5
     static constexpr e2m3_t positive_min() noexcept { return from_bits(0x08); }  // Smallest positive normal (2⁰ = 1.0)
     static constexpr e2m3_t subnormal_min() noexcept { return from_bits(0x01); } // Smallest positive subnormal
+    static constexpr e2m3_t epsilon() noexcept { return from_bits(0x01); }       // 2⁻³ = 0.125
+    static constexpr e2m3_t round_error() noexcept { return from_bits(0x04); }   // 0.5
 
     // Mathematical constants
     static constexpr e2m3_t pi_k() noexcept { return from_bits(0x15); }        // 3.25 (closest to π)
@@ -3044,12 +3063,15 @@ struct e3m2_t {
     static constexpr unsigned bits_per_value() noexcept { return 8; }
     static constexpr unsigned mantissa_bits() noexcept { return 2; }
     static constexpr unsigned exponent_bits() noexcept { return 3; }
+    static constexpr int min_exponent() noexcept { return -1; }
+    static constexpr int max_exponent() noexcept { return 5; }
     static constexpr bool is_integer() noexcept { return false; }
     static constexpr bool is_signed() noexcept { return true; }
     static constexpr bool is_complex() noexcept { return false; }
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return false; }
     static constexpr bool has_nan() noexcept { return false; }
+    static constexpr bool is_iec559() noexcept { return false; }
 
     raw_t raw_;
 
@@ -3095,8 +3117,10 @@ struct e3m2_t {
     // E3M2FN range: [-28, +28], no Inf/NaN
     static constexpr e3m2_t finite_max() noexcept { return from_bits(0x1F); }    // +28.0
     static constexpr e3m2_t finite_min() noexcept { return from_bits(0x3F); }    // -28.0
-    static constexpr e3m2_t positive_min() noexcept { return from_bits(0x0C); }  // Smallest positive normal (2⁰ = 1.0)
+    static constexpr e3m2_t positive_min() noexcept { return from_bits(0x04); }  // Smallest positive normal (2⁻²)
     static constexpr e3m2_t subnormal_min() noexcept { return from_bits(0x01); } // Smallest positive subnormal
+    static constexpr e3m2_t epsilon() noexcept { return from_bits(0x04); }       // 2⁻² = 0.25
+    static constexpr e3m2_t round_error() noexcept { return from_bits(0x08); }   // 0.5
 
     // Mathematical constants
     static constexpr e3m2_t pi_k() noexcept { return from_bits(0x12); }        // 3.0 (closest to π)
@@ -3198,12 +3222,15 @@ struct ue8m0_t {
     static constexpr unsigned bits_per_value() noexcept { return 8; }
     static constexpr unsigned mantissa_bits() noexcept { return 0; }
     static constexpr unsigned exponent_bits() noexcept { return 8; }
+    static constexpr int min_exponent() noexcept { return -125; }
+    static constexpr int max_exponent() noexcept { return 128; }
     static constexpr bool is_integer() noexcept { return false; }
     static constexpr bool is_signed() noexcept { return false; }
     static constexpr bool is_complex() noexcept { return false; }
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return false; }
     static constexpr bool has_nan() noexcept { return true; }
+    static constexpr bool is_iec559() noexcept { return false; }
 
     raw_t raw_;
 
@@ -3237,8 +3264,12 @@ struct ue8m0_t {
         return v;
     }
     static constexpr ue8m0_t zero() noexcept { return from_raw(0x00); }
-    static constexpr ue8m0_t finite_max() noexcept { return from_raw(0xFE); } // 2^127
-    static constexpr ue8m0_t finite_min() noexcept { return from_raw(0x00); } // 0
+    static constexpr ue8m0_t finite_max() noexcept { return from_raw(0xFE); }   // 2^127
+    static constexpr ue8m0_t finite_min() noexcept { return from_raw(0x00); }   // 0
+    static constexpr ue8m0_t positive_min() noexcept { return from_raw(0x01); } // 2⁻¹²⁶, no subnormals
+    static constexpr ue8m0_t epsilon() noexcept { return from_raw(0x7F); }      // 1, the step from 1 to 2
+    static constexpr ue8m0_t round_error() noexcept { return from_raw(0x7E); }  // 0.5
+    static constexpr ue8m0_t quiet_nan() noexcept { return from_raw(0xFF); }
 };
 
 /**
@@ -3258,12 +3289,15 @@ struct ue4m3_t {
     static constexpr unsigned bits_per_value() noexcept { return 8; }
     static constexpr unsigned mantissa_bits() noexcept { return 3; }
     static constexpr unsigned exponent_bits() noexcept { return 4; }
+    static constexpr int min_exponent() noexcept { return -5; }
+    static constexpr int max_exponent() noexcept { return 9; }
     static constexpr bool is_integer() noexcept { return false; }
     static constexpr bool is_signed() noexcept { return false; }
     static constexpr bool is_complex() noexcept { return false; }
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return false; }
     static constexpr bool has_nan() noexcept { return true; }
+    static constexpr bool is_iec559() noexcept { return false; }
 
     raw_t raw_;
 
@@ -3297,8 +3331,13 @@ struct ue4m3_t {
         return v;
     }
     static constexpr ue4m3_t zero() noexcept { return from_raw(0x00); }
-    static constexpr ue4m3_t finite_max() noexcept { return from_raw(0x7E); } // +448
-    static constexpr ue4m3_t finite_min() noexcept { return from_raw(0x00); } // 0
+    static constexpr ue4m3_t finite_max() noexcept { return from_raw(0x7E); }    // +448
+    static constexpr ue4m3_t finite_min() noexcept { return from_raw(0x00); }    // 0
+    static constexpr ue4m3_t positive_min() noexcept { return from_raw(0x08); }  // Smallest positive normal (2⁻⁶)
+    static constexpr ue4m3_t subnormal_min() noexcept { return from_raw(0x01); } // Smallest positive subnormal
+    static constexpr ue4m3_t epsilon() noexcept { return from_raw(0x20); }       // 2⁻³ = 0.125
+    static constexpr ue4m3_t round_error() noexcept { return from_raw(0x30); }   // 0.5
+    static constexpr ue4m3_t quiet_nan() noexcept { return from_raw(0x7F); }
 };
 
 /**
@@ -3353,18 +3392,25 @@ struct f118_t {
     static constexpr unsigned bits_per_dimension() noexcept { return 128; }
     static constexpr unsigned bits_per_value() noexcept { return 128; }
     static constexpr unsigned mantissa_bits() noexcept { return 103; } // ~103 bits mantissa precision
+    static constexpr int min_exponent() noexcept { return -1021; }
+    static constexpr int max_exponent() noexcept { return 1024; }
     static constexpr bool is_integer() noexcept { return false; }
     static constexpr bool is_signed() noexcept { return true; }
     static constexpr bool is_complex() noexcept { return false; }
     static constexpr bool is_exact() noexcept { return false; }
     static constexpr bool has_infinity() noexcept { return true; }
     static constexpr bool has_nan() noexcept { return true; }
+    static constexpr bool is_iec559() noexcept { return false; }
 
     static constexpr f118_t finite_max() noexcept { return f118_t(1.7976931348623157e+308, 9.9792015476736e+291); }
     static constexpr f118_t finite_min() noexcept { return f118_t(-1.7976931348623157e+308, -9.9792015476736e+291); }
     static constexpr f118_t positive_min() noexcept { return f118_t(2.2250738585072014e-308); } // Smallest positive
+    static constexpr f118_t subnormal_min() noexcept { return f118_t(4.9406564584124654e-324); }
+    static constexpr f118_t epsilon() noexcept { return f118_t(0x1p-103); }
+    static constexpr f118_t round_error() noexcept { return f118_t(0.5); }
     static constexpr f118_t positive_infinity() noexcept { return f118_t(f64_t::positive_infinity().raw_, 0.0); }
     static constexpr f118_t negative_infinity() noexcept { return f118_t(f64_t::negative_infinity().raw_, 0.0); }
+    static constexpr f118_t quiet_nan() noexcept { return f118_t(f64_t::quiet_nan().raw_, 0.0); }
     static constexpr f118_t zero() noexcept { return f118_t(); }
     static constexpr f118_t one() noexcept { return f118_t(1.0); }
 
@@ -6665,6 +6711,97 @@ constexpr scalar_type_ finite_min() noexcept {
     return std::numeric_limits<scalar_type_>::lowest();
 }
 
+/** What @c std::numeric_limits reports for a real NumKong scalar: every member of the primary
+ *  template, read off the scalar's own traits. Complex and packed scalars get none. The decimal
+ *  bounds take 30103 / 100000 for log10(2), truncating toward zero as the standard rounds them. */
+template <typename scalar_type_>
+struct numeric_limits_of {
+    static constexpr bool is_specialized = true;
+    static constexpr bool is_signed = scalar_type_::is_signed();
+    static constexpr bool is_integer = scalar_type_::is_integer();
+    static constexpr bool is_exact = scalar_type_::is_exact();
+    static constexpr bool has_infinity = scalar_type_::has_infinity();
+    static constexpr bool has_quiet_NaN = scalar_type_::has_nan();
+    static constexpr bool has_signaling_NaN = requires { scalar_type_::signaling_nan(); };
+    static constexpr std::float_round_style round_style = std::round_to_nearest;
+    static constexpr bool is_iec559 = scalar_type_::is_iec559();
+    static constexpr bool is_bounded = true;
+    static constexpr bool is_modulo = false;
+    static constexpr int digits = static_cast<int>(scalar_type_::mantissa_bits()) + 1;
+    static constexpr int digits10 = (digits - 1) * 30103 / 100000;
+    static constexpr int max_digits10 = 2 + digits * 30103 / 100000;
+    static constexpr int radix = 2;
+    static constexpr int min_exponent = scalar_type_::min_exponent();
+    static constexpr int min_exponent10 = (min_exponent - 1) * 30103 / 100000;
+    static constexpr int max_exponent = scalar_type_::max_exponent();
+    static constexpr int max_exponent10 = max_exponent * 30103 / 100000;
+    static constexpr bool traps = false;
+    static constexpr bool tinyness_before = false;
+
+    static constexpr scalar_type_ min() noexcept { return scalar_type_::positive_min(); }
+    static constexpr scalar_type_ max() noexcept { return scalar_type_::finite_max(); }
+    static constexpr scalar_type_ lowest() noexcept { return scalar_type_::finite_min(); }
+    static constexpr scalar_type_ epsilon() noexcept { return scalar_type_::epsilon(); }
+    static constexpr scalar_type_ round_error() noexcept { return scalar_type_::round_error(); }
+    static constexpr scalar_type_ infinity() noexcept {
+        if constexpr (has_infinity) return scalar_type_::positive_infinity();
+        else return scalar_type_ {};
+    }
+    static constexpr scalar_type_ quiet_NaN() noexcept {
+        if constexpr (has_quiet_NaN) return scalar_type_::quiet_nan();
+        else return scalar_type_ {};
+    }
+    static constexpr scalar_type_ signaling_NaN() noexcept {
+        if constexpr (has_signaling_NaN) return scalar_type_::signaling_nan();
+        else return scalar_type_ {};
+    }
+    static constexpr scalar_type_ denorm_min() noexcept {
+        if constexpr (requires { scalar_type_::subnormal_min(); }) return scalar_type_::subnormal_min();
+        else return min();
+    }
+};
+
+/** Integers, @c f32_t and @c f64_t report what their raw type reports, wrapped. */
+template <typename scalar_type_>
+    requires(scalar_type_::is_integer() || std::same_as<typename scalar_type_::raw_t, float> ||
+             std::same_as<typename scalar_type_::raw_t, double>)
+struct numeric_limits_of<scalar_type_> {
+    using raw_limits_t = std::numeric_limits<typename scalar_type_::raw_t>;
+    static constexpr bool is_specialized = true;
+    static constexpr bool is_signed = raw_limits_t::is_signed;
+    static constexpr bool is_integer = raw_limits_t::is_integer;
+    static constexpr bool is_exact = raw_limits_t::is_exact;
+    static constexpr bool has_infinity = raw_limits_t::has_infinity;
+    static constexpr bool has_quiet_NaN = raw_limits_t::has_quiet_NaN;
+    static constexpr bool has_signaling_NaN = raw_limits_t::has_signaling_NaN;
+    static constexpr std::float_round_style round_style = raw_limits_t::round_style;
+    static constexpr bool is_iec559 = raw_limits_t::is_iec559;
+    static constexpr bool is_bounded = raw_limits_t::is_bounded;
+    static constexpr bool is_modulo = raw_limits_t::is_modulo;
+    static constexpr int digits = raw_limits_t::digits;
+    static constexpr int digits10 = raw_limits_t::digits10;
+    static constexpr int max_digits10 = raw_limits_t::max_digits10;
+    static constexpr int radix = raw_limits_t::radix;
+    static constexpr int min_exponent = raw_limits_t::min_exponent;
+    static constexpr int min_exponent10 = raw_limits_t::min_exponent10;
+    static constexpr int max_exponent = raw_limits_t::max_exponent;
+    static constexpr int max_exponent10 = raw_limits_t::max_exponent10;
+    static constexpr bool traps = raw_limits_t::traps;
+    static constexpr bool tinyness_before = raw_limits_t::tinyness_before;
+
+    static constexpr scalar_type_ min() noexcept { return scalar_type_::from_raw(raw_limits_t::min()); }
+    static constexpr scalar_type_ max() noexcept { return scalar_type_::from_raw(raw_limits_t::max()); }
+    static constexpr scalar_type_ lowest() noexcept { return scalar_type_::from_raw(raw_limits_t::lowest()); }
+    static constexpr scalar_type_ epsilon() noexcept { return scalar_type_::from_raw(raw_limits_t::epsilon()); }
+    static constexpr scalar_type_ round_error() noexcept { return scalar_type_::from_raw(raw_limits_t::round_error()); }
+    static constexpr scalar_type_ infinity() noexcept { return scalar_type_::from_raw(raw_limits_t::infinity()); }
+    static constexpr scalar_type_ quiet_NaN() noexcept { return scalar_type_::from_raw(raw_limits_t::quiet_NaN()); }
+    static constexpr scalar_type_ signaling_NaN() noexcept {
+        return scalar_type_::from_raw(raw_limits_t::signaling_NaN());
+    }
+    static constexpr scalar_type_ denorm_min() noexcept { return scalar_type_::from_raw(raw_limits_t::denorm_min()); }
+};
+
 /** Whether a value is NaN, never true for a type without one. */
 template <numeric_dtype scalar_type_>
 constexpr bool is_nan(scalar_type_ value) noexcept {
@@ -7071,6 +7208,64 @@ concept packed_matrix_like = requires(packed_type_ const &p) {
 #pragma endregion Concepts
 
 } // namespace ashvardanian::numkong
+
+template <>
+struct std::numeric_limits<ashvardanian::numkong::f118_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::f118_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::f64_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::f64_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::f32_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::f32_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::bf16_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::bf16_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::f16_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::f16_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::e5m2_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::e5m2_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::e4m3_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::e4m3_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::e3m2_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::e3m2_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::e2m3_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::e2m3_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::ue8m0_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::ue8m0_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::ue4m3_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::ue4m3_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::i64_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::i64_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::i32_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::i32_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::i16_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::i16_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::i8_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::i8_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::u64_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::u64_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::u32_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::u32_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::u16_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::u16_t> {};
+template <>
+struct std::numeric_limits<ashvardanian::numkong::u8_t>
+    : ashvardanian::numkong::numeric_limits_of<ashvardanian::numkong::u8_t> {};
 
 #if __has_include(<format>)
 #include <format>

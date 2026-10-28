@@ -6,14 +6,14 @@ Date: August 3, 2024
 """
 
 from enum import IntFlag
-from typing import Any, Literal, TypeAlias, TypedDict, Unpack
+from typing import Any, Literal, TypedDict, Unpack
 
 # Many annotation features depend on the Python version:
 # - `typing.TypeAlias` type aliases are supported in Python 3.10-3.11.
 # - `type` statements are supported from Python 3.12, replacing `typing.TypeAlias`.
 # - `typing.Literal` literal types are supported from Python 3.8.
 #
-# We cannot maintain a separate `.pyi` file for every Python version, so assume Python 3.11 with
+# We cannot maintain a separate `.pyi` file for every Python version, so assume Python 3.12 with
 # NumPy available.
 from numpy.typing import NDArray
 
@@ -210,11 +210,11 @@ class float6_e3m2:
     def __neg__(self) -> float6_e3m2: ...
     def __abs__(self) -> float6_e3m2: ...
 
-_MiniFloatType: TypeAlias = (
+type _MiniFloatType = (
     type[bfloat16] | type[float16] | type[float8_e4m3] | type[float8_e5m2] | type[float6_e2m3] | type[float6_e3m2]
 )
 
-_BufferType: TypeAlias = NDArray[Any] | memoryview
+type _BufferType = NDArray[Any] | memoryview
 """Buffer-compatible tensor inputs accepted by most functions."""
 
 class Tensor(memoryview):
@@ -1175,7 +1175,7 @@ def sparse_dot(
 # endregion Sparse Similarity
 
 # region Tensor Constructors
-_DTypeLike: TypeAlias = _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType
+type _DTypeLike = _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType
 
 def from_pointer(
     address: int,

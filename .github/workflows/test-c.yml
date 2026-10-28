@@ -396,9 +396,16 @@ jobs:
         with:
           sdeVersion: 10.8.0
 
+      - name: Install Clang 22
+        run: |
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/resolute/ llvm-toolchain-resolute-22 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
+          sudo apt-get update && sudo apt-get install -y clang-22
+
       - name: Build with All x86 ISAs
         run: |
-          cmake --preset release
+          cmake --preset release -D CMAKE_C_COMPILER=clang-22 -D CMAKE_CXX_COMPILER=clang++-22
           cmake --build --preset release --target numkong_cpu_test
 
       - name: Test Under Granite Rapids Emulation
@@ -410,15 +417,53 @@ jobs:
   build_cuda:
     name: Build CUDA Backend
     runs-on: ubuntu-26.04
-    # NVIDIA publishes no Ubuntu 26.04 CUDA image yet, so the toolkit comes in a 24.04 container.
-    container: nvidia/cuda:13.0.1-devel-ubuntu24.04
+    container: nvidia/cuda:13.4.3-devel-ubuntu26.04
     steps:
+      # The family codes like `100f` need CMake 3.31, and Ubuntu 24.04 ships 3.28.
+      # The `cuda` workflow preset takes no -D, so the bare `clang` and `clang++` it names point at Clang 22.
       - name: Install Dependencies
-        run: apt-get update && apt-get install -y cmake ninja-build g++ git
+        run: |
+          apt-get update && apt-get install -y ninja-build g++ git python3-pip curl gnupg
+          pip install --break-system-packages "cmake>=3.31"
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm.gpg
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/resolute/ llvm-toolchain-resolute-22 main" \
+            > /etc/apt/sources.list.d/llvm.list
+          apt-get update && apt-get install -y clang-22
+          ln -s /usr/bin/clang-22 /usr/local/bin/clang && ln -s /usr/bin/clang++-22 /usr/local/bin/clang++
       - name: Checkout
         uses: actions/checkout@v7
       - name: Build and Test
         run: cmake --workflow --preset cuda
+
+  # Each machine profile builds its libraries for one CPU and one GPU code; the Arm ones build natively on Arm runners,
+  # where the CUDA image also exists. Clang 22 compiles the C units and hosts NVCC, as Ubuntu 24.04's GCC predates Olympus.
+  build_machine_profile:
+    name: Build Machine Profile ${{ matrix.preset }}
+    runs-on: ${{ contains(fromJSON('["grace_hopper", "vera_rubin"]'), matrix.preset) && 'ubuntu-24.04-arm' || 'ubuntu-26.04' }}
+    container: nvidia/cuda:13.4.3-devel-ubuntu26.04
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [xeon4_hopper, xeon6_blackwell, grace_hopper, vera_rubin]
+    env:
+      CC: clang-22
+      CXX: clang++-22
+    steps:
+      - name: Install Dependencies
+        run: |
+          apt-get update && apt-get install -y ninja-build g++ git python3-pip curl gnupg
+          pip install --break-system-packages "cmake>=3.31"
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm.gpg
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/resolute/ llvm-toolchain-resolute-22 main" \
+            > /etc/apt/sources.list.d/llvm.list
+          apt-get update && apt-get install -y clang-22
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Build
+        run: |
+          cmake --preset ${{ matrix.preset }} \
+            -D CMAKE_C_COMPILER="$CC" -D CMAKE_CXX_COMPILER="$CXX" -D CMAKE_CUDA_HOST_COMPILER="$CXX"
+          cmake --build --preset ${{ matrix.preset }}
 
   build_rocm:
     name: Build ROCm Backend

@@ -150,8 +150,7 @@ jobs:
   build_cuda:
     name: Build Rust with CUDA
     runs-on: ubuntu-26.04
-    # NVIDIA publishes no Ubuntu 26.04 CUDA image yet, so the toolkit comes in a 24.04 container.
-    container: nvidia/cuda:13.0.1-devel-ubuntu24.04
+    container: nvidia/cuda:13.4.3-devel-ubuntu26.04
     steps:
       - name: Install Dependencies
         run: apt-get update && apt-get install -y cmake make g++ git curl

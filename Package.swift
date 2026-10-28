@@ -6,7 +6,7 @@ import PackageDescription
 // produced: an XCFramework on Apple platforms and an artifact bundle elsewhere. A checkout points
 // `NUMKONG_SWIFT_ARTIFACT` at the one `cmake --build --preset swift` wrote, relative to this
 // directory; everyone else downloads the release's, whose checksums the release workflow writes.
-let release = "https://github.com/ashvardanian/NumKong/releases/download/v7.8.2"
+let release = "https://github.com/ashvardanian/NumKong/releases/download/v8.0.0-rc.1"
 let appleChecksum = "0000000000000000000000000000000000000000000000000000000000000000"
 let portableChecksum = "0000000000000000000000000000000000000000000000000000000000000000"
 
