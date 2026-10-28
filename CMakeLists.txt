@@ -199,96 +199,7 @@ endif ()
 # Generate compile_commands.json for clang-tidy and other tooling
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# MSVC does not set `CMAKE_SYSTEM_PROCESSOR` correctly
-# Use `CMAKE_C_COMPILER_ARCHITECTURE_ID` instead
-if (MSVC)
-    if (CMAKE_C_COMPILER_ARCHITECTURE_ID MATCHES "x64")
-        set(CMAKE_SYSTEM_PROCESSOR "AMD64")
-    elseif (CMAKE_C_COMPILER_ARCHITECTURE_ID MATCHES "X86")
-        set(CMAKE_SYSTEM_PROCESSOR "X86")
-    elseif (CMAKE_C_COMPILER_ARCHITECTURE_ID MATCHES "ARM64")
-        set(CMAKE_SYSTEM_PROCESSOR "ARM64")
-    else ()
-        message(WARNING "Unknown CMAKE_C_COMPILER_ARCHITECTURE_ID=${CMAKE_C_COMPILER_ARCHITECTURE_ID}")
-    endif ()
-endif ()
-
-# On macOS, CMAKE_SYSTEM_PROCESSOR reflects the host, not CMAKE_OSX_ARCHITECTURES (the target slice
-# Apple Clang compiles via `-arch`). Patch it here so the detection below matches the target. We do
-# not build universal2, so CMAKE_OSX_ARCHITECTURES is always single-valued when set.
-if (APPLE AND CMAKE_OSX_ARCHITECTURES)
-    list(LENGTH CMAKE_OSX_ARCHITECTURES numkong_osx_architectures_count_)
-    if (numkong_osx_architectures_count_ EQUAL 1)
-        set(CMAKE_SYSTEM_PROCESSOR "${CMAKE_OSX_ARCHITECTURES}")
-    else ()
-        message(
-            FATAL_ERROR "Multi-arch CMAKE_OSX_ARCHITECTURES='${CMAKE_OSX_ARCHITECTURES}' not supported; build per-arch"
-        )
-    endif ()
-    unset(numkong_osx_architectures_count_)
-endif ()
-
-# Detect target architecture from CMAKE_SYSTEM_PROCESSOR (safe for cross-compilation)
-if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|X86_64|AMD64|amd64")
-    set(numkong_arch_x8664_ TRUE)
-    message(STATUS "NumKong Platform: x86_64 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
-elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64|arm64|ARM64")
-    set(numkong_arch_arm64_ TRUE)
-    message(STATUS "NumKong Platform: ARM64 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
-elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "riscv64|RISCV64")
-    set(numkong_arch_riscv64_ TRUE)
-    message(STATUS "NumKong Platform: RISC-V 64 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
-elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "loongarch64|LOONGARCH64")
-    set(numkong_arch_loongarch64_ TRUE)
-    message(STATUS "NumKong Platform: LoongArch 64 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
-elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le|ppc64|powerpc64le|powerpc64")
-    set(numkong_arch_ppc64_ TRUE)
-    message(STATUS "NumKong Platform: Power 64 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
-elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "^arm|^ARM|armv7")
-    set(numkong_arch_arm32_ TRUE)
-    message(STATUS "NumKong Platform: ARM32 (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
-elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "^wasm(32|64)$")
-    set(numkong_arch_wasm_ TRUE)
-    message(STATUS "NumKong Platform: WebAssembly (CMAKE_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR})")
-else ()
-    message(WARNING "Unknown CMAKE_SYSTEM_PROCESSOR: ${CMAKE_SYSTEM_PROCESSOR}")
-endif ()
-
-# Detect target OS for platform-specific optimizations
-if (CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-    set(numkong_os_freebsd_ TRUE)
-    message(STATUS "NumKong OS: FreeBSD")
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set(numkong_os_linux_ TRUE)
-    message(STATUS "NumKong OS: Linux")
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Android")
-    set(numkong_os_android_ TRUE)
-    message(STATUS "NumKong OS: Android (API level ${ANDROID_NATIVE_API_LEVEL})")
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    set(numkong_os_macos_ TRUE)
-    message(STATUS "NumKong OS: macOS")
-elseif (CMAKE_SYSTEM_NAME STREQUAL "iOS")
-    set(numkong_os_ios_ TRUE)
-    message(STATUS "NumKong OS: iOS")
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Windows" OR WIN32)
-    set(numkong_os_windows_ TRUE)
-    message(STATUS "NumKong OS: Windows")
-endif ()
-
-# Sanitizers instrument every target this directory builds, the fetched {fmt} included, but never the probes.
-if (NUMKONG_BUILD_SANITIZERS STREQUAL "address" AND MSVC)
-    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/fsanitize=address>")
-elseif (NUMKONG_BUILD_SANITIZERS STREQUAL "address")
-    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:-fsanitize=address,undefined>")
-    add_link_options("$<$<LINK_LANGUAGE:C,CXX>:-fsanitize=address,undefined>")
-elseif (NUMKONG_BUILD_SANITIZERS STREQUAL "thread" AND NOT MSVC)
-    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:-fsanitize=thread>")
-    add_link_options("$<$<LINK_LANGUAGE:C,CXX>:-fsanitize=thread>")
-elseif (NOT NUMKONG_BUILD_SANITIZERS STREQUAL "off")
-    message(FATAL_ERROR "NUMKONG_BUILD_SANITIZERS is off, address or thread, the last with Clang or GCC, "
-                        "not '${NUMKONG_BUILD_SANITIZERS}'"
-    )
-endif ()
+include(cmake/numkong_flags.cmake)
 
 if (MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Gw /DNDEBUG")
@@ -314,28 +225,6 @@ set(CMAKE_TRY_COMPILE_CONFIGURATION "${numkong_ipo_configuration_}")
 unset(numkong_ipo_configuration_)
 if (NOT numkong_ipo_supported_)
     message(STATUS "Link-time optimization not available: ${numkong_ipo_support_output_}")
-endif ()
-
-# Warnings apply to NumKong's own targets only, so fetched dependencies build with their own flags. Not for CUDA:
-# nvcc hands the host compiler line markers that `-pedantic` flags on every line.
-add_library(numkong_warnings INTERFACE)
-if (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
-    target_compile_options(
-        numkong_warnings
-        INTERFACE "$<$<COMPILE_LANGUAGE:C,CXX>:-pedantic>"
-                  "$<$<AND:$<COMPILE_LANGUAGE:C,CXX>,$<CXX_COMPILER_ID:Clang,AppleClang>>:-Wdocumentation>"
-    )
-    if (NUMKONG_WERROR)
-        target_compile_options(numkong_warnings INTERFACE "$<$<COMPILE_LANGUAGE:C,CXX>:-Werror>")
-    endif ()
-elseif (MSVC AND NUMKONG_WERROR)
-    target_compile_options(numkong_warnings INTERFACE "$<$<COMPILE_LANGUAGE:C,CXX>:/WX>")
-endif ()
-
-if (CMAKE_CXX_COMPILER_ID MATCHES "^(Clang|AppleClang|IntelLLVM)$")
-    add_compile_options(-ferror-limit=1 -Wno-tautological-constant-compare)
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    add_compile_options(-fmax-errors=1 -Wno-tautological-constant-compare -Wno-psabi)
 endif ()
 
 # Define the header-only library. The include path & sources wear `BUILD_INTERFACE` genexes, so the
@@ -394,159 +283,14 @@ if (CMAKE_C_COMPILER_ID MATCHES "Clang")
     message(STATUS "Clang C modules enabled: cache at ${CMAKE_BINARY_DIR}/module-cache")
 endif ()
 
-# Portable baseline policy (commits 43e8324d, 453ed5ff, 23f51955): each translation unit gets a per-arch
-# ABI floor, auto-vectorization is forbidden so serial fallbacks stay scalar, and SIMD kernels opt in via
-# per-function __attribute__((target(...))) or #pragma GCC target. NUMKONG_TARGET_ARCH opts out for a build tuned to
-# one CPU: `native` for this host, or a CPU name like `graniterapids`, also when cross-compiling. Only C and C++ units
-# take the flags, as nvcc would read them as its own.
-if (NUMKONG_TARGET_ARCH STREQUAL "native" AND CMAKE_CROSSCOMPILING)
-    message(FATAL_ERROR "NUMKONG_TARGET_ARCH=native needs the host as the target; name a CPU instead")
-elseif (NUMKONG_TARGET_ARCH AND NOT numkong_arch_wasm_)
-    message(
-        WARNING "NUMKONG_TARGET_ARCH=${NUMKONG_TARGET_ARCH}: baking specific instructions; result may not run elsewhere"
-    )
-    if (MSVC AND NUMKONG_TARGET_ARCH STREQUAL "native")
-        # MSVC has no `/arch:native`, so it takes its flags from the probes below.
-    elseif (MSVC)
-        message(
-            FATAL_ERROR
-                "MSVC takes NUMKONG_TARGET_ARCH=native only; pass an /arch: value such as AVX2, AVX512 or AVX10.2 "
-                "through CMAKE_C_FLAGS instead of `${NUMKONG_TARGET_ARCH}`"
-        )
-    elseif (numkong_arch_arm64_)
-        # AArch64 names CPUs through `-mcpu`, like `neoverse-v2`, as `-march` takes only architecture versions; Apple
-        # Clang's `-march=native` also advertises just a subset of host features, without SME, SME2 or FP16_FML.
-        set(numkong_unit_arch_flags_ -mcpu=${NUMKONG_TARGET_ARCH})
-    else ()
-        set(numkong_unit_arch_flags_ -march=${NUMKONG_TARGET_ARCH})
-    endif ()
-    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:${numkong_unit_arch_flags_}>")
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
-    # Clang and IntelLLVM accept the GCC spellings as aliases, so one pair covers all three compilers.
-    add_compile_options(-fno-tree-vectorize -fno-tree-slp-vectorize)
-    if (APPLE)
-        # `-arch` already pins the ABI floor per slice, and a universal build passes both
-        # to one clang invocation, where a per-arch `-march=` conflicts with the other slice.
-        # `CMAKE_SYSTEM_PROCESSOR` names the host, so it cannot pick the flag here.
-    elseif (numkong_arch_arm64_)
-        set(numkong_unit_arch_flags_ -march=armv8-a)
-    elseif (numkong_arch_x8664_)
-        set(numkong_unit_arch_flags_ -march=x86-64)
-    elseif (numkong_arch_riscv64_)
-        set(numkong_unit_arch_flags_ -march=rv64gc)
-    elseif (numkong_arch_ppc64_)
-        set(numkong_unit_arch_flags_ -mcpu=power8)
-    elseif (numkong_arch_loongarch64_)
-        set(numkong_unit_arch_flags_ -march=loongarch64)
-    elseif (numkong_arch_wasm_)
-        # An engine validates a module whole, so every unit carries the module's one SIMD capability,
-        # whatever `CMAKE_C_FLAGS` a binding passes; `types.h` reads it back from the flags. Empty is the portable floor.
-        set(numkong_wasm_simd_ ${NUMKONG_TARGET_ARCH})
-        if (NOT numkong_wasm_simd_)
-            set(numkong_wasm_simd_ serial)
-        endif ()
-        if (numkong_wasm_simd_ STREQUAL "v128relaxed")
-            add_compile_options(-msimd128 -mrelaxed-simd)
-        elseif (numkong_wasm_simd_ STREQUAL "v128")
-            add_compile_options(-msimd128)
-        elseif (NOT numkong_wasm_simd_ STREQUAL "serial")
-            message(
-                FATAL_ERROR
-                    "NUMKONG_TARGET_ARCH on WebAssembly: serial, v128 or v128relaxed, not `${NUMKONG_TARGET_ARCH}`"
-            )
-        endif ()
-    endif ()
-    add_compile_options(${numkong_unit_arch_flags_})
-elseif (MSVC)
-    # MSVC: no per-function target pragma; these match defaults. NVCC would read them as input files.
-    if (numkong_arch_x8664_)
-        add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/arch:SSE2>)
-    elseif (numkong_arch_arm64_)
-        add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/arch:armv8.0>)
-    endif ()
-endif ()
+include(cmake/numkong_platform.cmake)
 
 # One compile probe per capability under `probes/`, defining `NUMKONG_TARGET_<CAPABILITY>` as the toolchain compiles
 # it through `numkong::cpu_capabilities_compiled`, and as 0 through `numkong_cpu_capabilities_disabled_`. Each probe
 # compiles at the units' `numkong_unit_arch_flags_`, which `try_compile` would not take from `add_compile_options`.
 include(cmake/numkong_probes.cmake)
 
-if (MSVC AND NUMKONG_TARGET_ARCH STREQUAL "native")
-    # MSVC has no `/arch:native`, so it takes the `/arch:` of the widest capability this host runs.
-    if (numkong_target_diamond_runs)
-        set(numkong_native_msvc_flags_ ${numkong_target_diamond_flags})
-    elseif (numkong_target_skylake_runs)
-        set(numkong_native_msvc_flags_ ${numkong_target_skylake_flags})
-    elseif (numkong_target_haswell_runs)
-        set(numkong_native_msvc_flags_ ${numkong_target_haswell_flags})
-    elseif (numkong_target_neonbfdot_runs)
-        set(numkong_native_msvc_flags_ ${numkong_target_neonbfdot_flags})
-    elseif (numkong_target_neonsdot_runs)
-        set(numkong_native_msvc_flags_ ${numkong_target_neonsdot_flags})
-    elseif (numkong_target_neonhalf_runs)
-        set(numkong_native_msvc_flags_ ${numkong_target_neonhalf_flags})
-    endif ()
-    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:${numkong_native_msvc_flags_}>")
-endif ()
-
-# CUDA and HIP come on before any target: `numkong_static` carries their units, so every target linking it, the
-# bindings, tests and benchmarks included, needs the architecture list. One cubin per device family plus a PTX tail,
-# needing CUDA 13 or newer and a driver from 580 on; Turing, CUDA 13's floor, runs the CUDA baseline only. Every
-# code lands in one fat binary, and each kernel checks its own architecture in device code.
-if (NUMKONG_BUILD_CUDA)
-    enable_language(CUDA)
-    if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 13)
-        message(FATAL_ERROR "NumKong needs CUDA 13 or newer, found ${CMAKE_CUDA_COMPILER_VERSION}")
-    endif ()
-    set(NUMKONG_CUDA_ARCHITECTURES "75-real;80-real;89-real;90a-real;100f-real;120f-real;80-virtual"
-        CACHE STRING "GPU architectures baked into the CUDA targets"
-    )
-    # "native" maps each visible GPU to the code its capability rows need, family suffix included, where CMake's own
-    # resolution would drop it; "all" and "all-major" stand for the lists CMake resolved them to.
-    set(numkong_cuda_native_codes_
-        75-real=75-real 80-real=80-real 86-real=86-real 89-real=89-real 90-real=90a-real 100-real=100f-real
-        103-real=103f-real 110-real=110f-real 120-real=120f-real 121-real=121f-real
-    )
-    set(numkong_cuda_resolved_architectures_)
-    foreach (entry_ IN LISTS NUMKONG_CUDA_ARCHITECTURES)
-        if (entry_ STREQUAL "native")
-            foreach (visible_ IN LISTS CMAKE_CUDA_ARCHITECTURES_NATIVE)
-                set(native_code_)
-                foreach (pair_ IN LISTS numkong_cuda_native_codes_)
-                    if (pair_ MATCHES "^${visible_}=(.+)$")
-                        set(native_code_ ${CMAKE_MATCH_1})
-                    endif ()
-                endforeach ()
-                if (NOT native_code_)
-                    message(
-                        FATAL_ERROR "NUMKONG_CUDA_ARCHITECTURES=native has no code for the visible ${visible_} GPU; "
-                                    "name its code instead"
-                    )
-                endif ()
-                list(APPEND numkong_cuda_resolved_architectures_ ${native_code_})
-            endforeach ()
-        elseif (entry_ STREQUAL "all")
-            list(APPEND numkong_cuda_resolved_architectures_ ${CMAKE_CUDA_ARCHITECTURES_ALL})
-        elseif (entry_ STREQUAL "all-major")
-            list(APPEND numkong_cuda_resolved_architectures_ ${CMAKE_CUDA_ARCHITECTURES_ALL_MAJOR})
-        else ()
-            list(APPEND numkong_cuda_resolved_architectures_ ${entry_})
-        endif ()
-    endforeach ()
-    if (CMAKE_VERSION VERSION_LESS 3.31 AND numkong_cuda_resolved_architectures_ MATCHES "1[0-9][0-9][af]")
-        message(FATAL_ERROR "Three-digit \"a\" and \"f\" CUDA codes need CMake 3.31, found ${CMAKE_VERSION}")
-    endif ()
-    set(CMAKE_CUDA_ARCHITECTURES "${numkong_cuda_resolved_architectures_}")
-    # NVCC's default leaves Turing and Ampere cubins uncompressed, ten times their compressed size.
-    add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--compress-mode=size>)
-endif ()
-if (NUMKONG_BUILD_ROCM)
-    enable_language(HIP)
-    set(NUMKONG_ROCM_ARCHITECTURES "gfx942;gfx950;gfx1250;gfx1251"
-        CACHE STRING "AMD GPU architectures baked into the ROCm targets"
-    )
-    set(CMAKE_HIP_ARCHITECTURES "${NUMKONG_ROCM_ARCHITECTURES}")
-endif ()
+include(cmake/numkong_gpu.cmake)
 
 # BLAS/MKL detection (shared by tests and benchmarks)
 # Options can be: ON (require), OFF (disable), AUTO (detect if available)
@@ -988,22 +732,6 @@ else ()
     endforeach ()
 endif ()
 
-if (NUMKONG_INSTALL)
-    install(
-        TARGETS ${numkong_libraries_}
-        EXPORT numkongTargets
-        ARCHIVE
-        BUNDLE
-        FRAMEWORK
-        LIBRARY
-        OBJECTS
-        PRIVATE_HEADER
-        PUBLIC_HEADER
-        RESOURCE
-        RUNTIME
-    )
-endif ()
-
 # The `numkong._numkong` extension, which scikit-build-core builds and packages from `pyproject.toml`.
 if (NUMKONG_BUILD_PYTHON)
     find_package(Python 3.12 REQUIRED COMPONENTS Interpreter Development.Module)
@@ -1049,72 +777,6 @@ if (NUMKONG_BUILD_NODE)
     )
 endif ()
 
-# The static library as SwiftPM links it, beside the headers and their module map: an XCFramework on Apple platforms,
-# and elsewhere an SE-0482 artifact bundle. Each build adds its target to the one in NUMKONG_SWIFT_DIRECTORY, so a
-# release fills one artifact from a build per target.
-if (NUMKONG_BUILD_SWIFT)
-    set(NUMKONG_SWIFT_DIRECTORY "${PROJECT_BINARY_DIR}" CACHE PATH "Where the Swift artifact lands")
-    if (APPLE)
-        # The SDK names the XCFramework library an archive joins, and Mac Catalyst builds with the macOS one.
-        get_filename_component(numkong_swift_sysroot_name_ "${CMAKE_OSX_SYSROOT}" NAME)
-        string(TOLOWER "${numkong_swift_sysroot_name_}" numkong_swift_sysroot_lowercase_)
-        string(REGEX REPLACE "[0-9.]*\\.sdk$" "" numkong_swift_sdk_ "${numkong_swift_sysroot_lowercase_}")
-        if (CMAKE_C_FLAGS MATCHES "-macabi")
-            set(numkong_swift_sdk_ maccatalyst)
-        elseif (NOT numkong_swift_sdk_)
-            set(numkong_swift_sdk_ macosx)
-        endif ()
-        if (CMAKE_OSX_ARCHITECTURES)
-            set(numkong_swift_architecture_ "${CMAKE_OSX_ARCHITECTURES}")
-        else ()
-            set(numkong_swift_architecture_ "${CMAKE_SYSTEM_PROCESSOR}")
-        endif ()
-        set(numkong_swift_target_ -D "NUMKONG_SWIFT_SDK=${numkong_swift_sdk_}" -D
-                                  "NUMKONG_SWIFT_ARCHITECTURE=${numkong_swift_architecture_}"
-        )
-    else ()
-        # SwiftPM matches a variant by the exact triple it builds for, spelled as Swift spells it.
-        if (numkong_arch_x8664_)
-            set(numkong_swift_arch_ x86_64)
-        elseif (numkong_arch_arm64_)
-            set(numkong_swift_arch_ aarch64)
-        elseif (numkong_arch_arm32_)
-            set(numkong_swift_arch_ armv7)
-        else ()
-            set(numkong_swift_arch_ "${CMAKE_SYSTEM_PROCESSOR}")
-        endif ()
-        set(numkong_swift_triple_)
-        if (numkong_os_linux_)
-            set(numkong_swift_triple_ "${numkong_swift_arch_}-unknown-linux-gnu")
-        elseif (numkong_os_android_)
-            set(numkong_swift_triple_ "${numkong_swift_arch_}-unknown-linux-android${ANDROID_NATIVE_API_LEVEL}")
-        elseif (numkong_os_windows_)
-            set(numkong_swift_triple_ "${numkong_swift_arch_}-unknown-windows-msvc")
-        elseif (numkong_os_wasi_)
-            set(numkong_swift_triple_ "wasm32-unknown-wasip1")
-        endif ()
-        set(NUMKONG_SWIFT_TRIPLES "${numkong_swift_triple_}" CACHE STRING
-                                                                   "Swift target triples the artifact bundle serves"
-        )
-        if (NOT NUMKONG_SWIFT_TRIPLES)
-            message(FATAL_ERROR "NUMKONG_BUILD_SWIFT needs NUMKONG_SWIFT_TRIPLES on ${CMAKE_SYSTEM_NAME}")
-        endif ()
-        set(numkong_swift_target_ -D "NUMKONG_SWIFT_TRIPLES=$<JOIN:${NUMKONG_SWIFT_TRIPLES},,>" -D
-                                  "NUMKONG_SWIFT_VERSION=${PROJECT_VERSION}"
-        )
-    endif ()
-    add_custom_target(
-        numkong_swift ALL
-        COMMAND
-            "${CMAKE_COMMAND}" -D NUMKONG_SWIFT_MODULE=NumKongC -D "NUMKONG_SWIFT_ARCHIVE=$<TARGET_FILE:numkong_static>"
-            -D "NUMKONG_SWIFT_HEADERS=${PROJECT_SOURCE_DIR}/include" -D
-            "NUMKONG_SWIFT_DIRECTORY=${NUMKONG_SWIFT_DIRECTORY}" ${numkong_swift_target_} -P
-            "${PROJECT_SOURCE_DIR}/cmake/numkong_swift_artifact.cmake"
-        DEPENDS numkong_static
-        VERBATIM
-    )
-endif ()
-
 # Shared-library test (tests runtime dispatch path)
 if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_SHARED)
     add_executable(numkong_cpu_shared_test ${numkong_test_sources_})
@@ -1136,46 +798,6 @@ if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_SHARED)
     add_test(NAME numkong_cpu_shared_test COMMAND numkong_cpu_shared_test)
 endif ()
 
-if (NUMKONG_BUILD_METAL AND NOT APPLE)
-    message(FATAL_ERROR "NUMKONG_BUILD_METAL needs an Apple platform")
-elseif (NUMKONG_BUILD_METAL)
-    # Metal compiles on the device, so the families only choose the capabilities embedded: the Metal baseline always,
-    # Apple9 from M3, Apple10 from M5.
-    set(NUMKONG_METAL_ARCHITECTURES "apple7;apple9;apple10"
-        CACHE STRING "Apple GPU families whose capabilities the Metal targets embed"
-    )
-endif ()
-
-# One `numkong_add_gpu_capability` row per GPU capability. Past Ampere, the tensor-core capabilities need family- or
-# architecture-specific code, like "120f" rather than "120".
-# `mma.sync`: A100, A30, A40, RTX 30, Jetson Orin, L40, RTX 40, and every GPU since.
-numkong_add_gpu_capability(
-    ampere NUMKONG_TARGET_AMPERE BIT 49 CUDA_ARCHITECTURES 80 86 87 88 89 90 90a 100 100a 100f 103 103a 103f 110 110a
-                                                           110f 120 120a 120f 121 121a 121f
-)
-# FP8 `mma.sync`: L4, L40S, RTX 40, and every GPU since.
-numkong_add_gpu_capability(
-    ada NUMKONG_TARGET_ADA BIT 50 CUDA_ARCHITECTURES 89 90 90a 100 100a 100f 103 103a 103f 110 110a 110f 120 120a 120f
-                                                     121 121a 121f
-)
-# `wgmma`: H100, H200, GH200.
-numkong_add_gpu_capability(hopper NUMKONG_TARGET_HOPPER BIT 51 CUDA_ARCHITECTURES 90a)
-# `tcgen05`: B200, GB200, B300, GB300.
-numkong_add_gpu_capability(blackwell NUMKONG_TARGET_BLACKWELL BIT 52 CUDA_ARCHITECTURES 100a 100f 103a 103f)
-# FP6/FP4 `mma.sync`: RTX 50, RTX PRO 6000, DGX Spark.
-numkong_add_gpu_capability(blackwellrtx NUMKONG_TARGET_BLACKWELLRTX BIT 53 CUDA_ARCHITECTURES 120a 120f 121a 121f)
-# `tcgen05.ld.red`: B300, GB300.
-numkong_add_gpu_capability(blackwellultra NUMKONG_TARGET_BLACKWELLULTRA BIT 54 CUDA_ARCHITECTURES 103a 103f)
-# MFMA over BF16, F16 and I8: MI300X, MI300A, MI325X.
-numkong_add_gpu_capability(cdna3 NUMKONG_TARGET_CDNA3 BIT 57 ROCM_ARCHITECTURES gfx942)
-# MFMA over FP8, FP6 and FP4: MI350X, MI355X.
-numkong_add_gpu_capability(cdna4 NUMKONG_TARGET_CDNA4 BIT 58 ROCM_ARCHITECTURES gfx950)
-# WMMA over FP8, FP6 and FP4: MI450X and MI455X on gfx1250, MI430X on gfx1251.
-numkong_add_gpu_capability(cdna5 NUMKONG_TARGET_CDNA5 BIT 59 ROCM_ARCHITECTURES gfx1250 gfx1251)
-# Apple9 from M3, Apple10 from M5.
-numkong_add_gpu_capability(apple9 NUMKONG_TARGET_APPLE9 BIT 61 METAL_ARCHITECTURES apple9 apple10)
-numkong_add_gpu_capability(apple10 NUMKONG_TARGET_APPLE10 BIT 62 METAL_ARCHITECTURES apple10)
-
 # A machine profile hands the dispatch units every capability it enables, each GPU vendor's baseline included, so each
 # table keeps only the kernel of the best capability implementing its operation.
 if (NUMKONG_PROFILE_CAPABILITIES)
@@ -1193,75 +815,6 @@ if (NUMKONG_PROFILE_CAPABILITIES)
         target_compile_definitions(${library_} PRIVATE NUMKONG_PROFILE_CAPABILITIES=${profile_})
     endforeach ()
 endif ()
-
-# Sets `output_` to the entries of `codes_` that `capability_codes_` names, keeping CMake's "-real" and "-virtual"
-# suffixes.
-function (numkong_select_gpu_codes output_ codes_ capability_codes_)
-    set(kept_)
-    foreach (code_ IN LISTS codes_)
-        string(REGEX REPLACE "-(real|virtual)$" "" architecture_ "${code_}")
-        if (architecture_ IN_LIST capability_codes_)
-            list(APPEND kept_ "${code_}")
-        endif ()
-    endforeach ()
-    set(${output_} "${kept_}" PARENT_SCOPE)
-endfunction ()
-
-# Adds one GPU generation's unit, like c/target/hopper.cu, to both libraries: compiled for `codes_` alone, in the
-# language its extension names, without the CPU capabilities and with its vendor's `capabilities_` target. A unit
-# without codes to compile is skipped. The rest are the runtime libraries its calls need.
-function (numkong_add_gpu_unit source_ codes_ capabilities_)
-    if (NOT codes_)
-        return()
-    endif ()
-    get_filename_component(unit_ "${source_}" NAME_WE)
-    add_library(numkong_${unit_}_ OBJECT ${source_})
-    target_include_directories(numkong_${unit_}_ PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/c")
-    # C++20 makes `NUMKONG_CONSTEXPR` constexpr, which kernels reach through relaxed constexpr.
-    set_target_properties(
-        numkong_${unit_}_
-        PROPERTIES POSITION_INDEPENDENT_CODE ON
-                   CUDA_STANDARD 20
-                   CUDA_STANDARD_REQUIRED YES
-                   CUDA_ARCHITECTURES "${codes_}"
-                   HIP_STANDARD 20
-                   HIP_STANDARD_REQUIRED YES
-                   HIP_ARCHITECTURES "${codes_}"
-    )
-    # Every CPU capability off, as NVCC's front end cannot parse GCC's `arm_neon.h` and its kin, and every GPU
-    # capability the listed architectures run on, as the dispatch units see them; the unit turns off the ones its
-    # headers include.
-    target_link_libraries(
-        numkong_${unit_}_ PRIVATE numkong_cpu_capabilities_disabled_ numkong_warnings ${capabilities_}
-    )
-    if (MSVC AND numkong_arch_arm64_)
-        target_compile_definitions(numkong_${unit_}_ PRIVATE _ARM64_)
-    endif ()
-    # NVCC compiles a unit's codes one after another unless told to spread them over threads.
-    target_compile_options(
-        numkong_${unit_}_ PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;--threads=0>"
-                                  "$<$<COMPILE_LANGUAGE:HIP>:-fvisibility=hidden>"
-    )
-    if (NOT MSVC)
-        target_compile_options(numkong_${unit_}_ PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fvisibility=hidden>")
-    endif ()
-    # A machine profile links the host side as bitcode too, but only bitcode the C units' compiler can read back.
-    set(host_compiler_ "${CMAKE_CUDA_HOST_COMPILER_ID} ${CMAKE_CUDA_HOST_COMPILER_VERSION}")
-    if (NUMKONG_PROFILE_CAPABILITIES AND numkong_ipo_supported_
-        AND host_compiler_ STREQUAL "${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION}"
-    )
-        if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-            target_compile_options(numkong_${unit_}_ PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-flto=thin>")
-        elseif (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-            target_compile_options(numkong_${unit_}_ PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-flto>")
-        endif ()
-    endif ()
-    target_link_libraries(numkong_${unit_}_ PRIVATE ${ARGN})
-    foreach (library_ ${numkong_libraries_})
-        target_sources(${library_} PRIVATE $<TARGET_OBJECTS:numkong_${unit_}_>)
-        target_link_libraries(${library_} PUBLIC ${ARGN})
-    endforeach ()
-endfunction ()
 
 # One unit per GPU generation, as USearch builds them, so no cubin or code object carries another generation's
 # kernels and the units compile in parallel. The dispatch units see every capability some listed code runs.
@@ -1523,28 +1076,4 @@ if (NUMKONG_BUILD_BENCH AND NUMKONG_BUILD_METAL)
     target_link_libraries(numkong_bench "-framework Metal" "-framework Foundation")
 endif ()
 
-# Install & export — gated, so a parent project's `make install` ships NumKong only on request, and
-# `find_package(numkong)` works after installation, mirroring ForkUnion's packaging.
-if (NUMKONG_INSTALL)
-    include(CMakePackageConfigHelpers)
-
-    install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-    install(DIRECTORY c/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${PROJECT_NAME}/src)
-    install(TARGETS numkong_header EXPORT numkongTargets)
-    install(EXPORT numkongTargets FILE numkongTargets.cmake NAMESPACE numkong::
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/numkong
-    )
-
-    write_basic_package_version_file(
-        "${CMAKE_CURRENT_BINARY_DIR}/numkongConfigVersion.cmake" VERSION ${PROJECT_VERSION}
-        COMPATIBILITY AnyNewerVersion
-    )
-    configure_package_config_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/numkongConfig.cmake.in" "${CMAKE_CURRENT_BINARY_DIR}/numkongConfig.cmake"
-        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/numkong
-    )
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/numkongConfig.cmake"
-                  "${CMAKE_CURRENT_BINARY_DIR}/numkongConfigVersion.cmake"
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/numkong
-    )
-endif ()
+include(cmake/numkong_install.cmake)

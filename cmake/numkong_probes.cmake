@@ -10,7 +10,8 @@
 # A compiled capability is not one the unit's own flags enable, nor one the CPU runs. `numkong_header` carries no
 # macro, so its consumers enable what their flags name, and the runtime mask picks among the compiled ones.
 #
-# One `numkong_add_gpu_capability` row per GPU capability, run by `CMakeLists.txt` once the GPU architectures resolve.
+# One `numkong_add_gpu_capability` row per GPU capability, run by `cmake/numkong_gpu.cmake` once the GPU architectures
+# resolve.
 
 include_guard(GLOBAL)
 
@@ -232,3 +233,21 @@ function (numkong_add_gpu_capability capability_name_ capability_macro_)
     endif ()
     target_compile_definitions(${capabilities_target_} INTERFACE "${capability_macro_}=$<BOOL:${capability_enabled_}>")
 endfunction ()
+
+if (MSVC AND NUMKONG_TARGET_ARCH STREQUAL "native")
+    # MSVC has no `/arch:native`, so it takes the `/arch:` of the widest capability this host runs.
+    if (numkong_target_diamond_runs)
+        set(numkong_native_msvc_flags_ ${numkong_target_diamond_flags})
+    elseif (numkong_target_skylake_runs)
+        set(numkong_native_msvc_flags_ ${numkong_target_skylake_flags})
+    elseif (numkong_target_haswell_runs)
+        set(numkong_native_msvc_flags_ ${numkong_target_haswell_flags})
+    elseif (numkong_target_neonbfdot_runs)
+        set(numkong_native_msvc_flags_ ${numkong_target_neonbfdot_flags})
+    elseif (numkong_target_neonsdot_runs)
+        set(numkong_native_msvc_flags_ ${numkong_target_neonsdot_flags})
+    elseif (numkong_target_neonhalf_runs)
+        set(numkong_native_msvc_flags_ ${numkong_target_neonhalf_flags})
+    endif ()
+    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:${numkong_native_msvc_flags_}>")
+endif ()
