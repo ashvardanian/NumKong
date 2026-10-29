@@ -45,6 +45,7 @@ void nk_dispatch_cast_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_pun
         }
 #endif
     if (v & nk_cap_serial_k) switch (k) {
+        case nk_kernel_cast_truncate_k: *m = (m_t)&nk_cast_truncate_serial, *c = nk_cap_serial_k; return;
         case nk_kernel_cast_k: *m = (m_t)&nk_cast_serial, *c = nk_cap_serial_k; return;
         default: break;
         }
@@ -59,6 +60,8 @@ void nk_dispatch_cast_init_(nk_capability_t caps) {
 
     // Type casting (buffer-to-buffer)
     nk_dispatch_cast_find_(caps, nk_kernel_cast_k, (nk_kernel_punned_t *)&t->cast, &used);
+
+    nk_dispatch_cast_find_(caps, nk_kernel_cast_truncate_k, (nk_kernel_punned_t *)&t->cast_truncate, &used);
 
     // Scalar conversions: bf16 ↔ f32
     t->bf16_to_f32 = &nk_bf16_to_f32_serial;
