@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for the stateful NumKong random generator."""
 
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
@@ -94,6 +95,11 @@ def test_out_requires_matching_c_contiguous_buffer():
 
 
 @pytest.mark.parametrize("method", ["random", "uniform", "normal", "standard_normal", "integers"])
+@pytest.mark.skipif(
+    sys.platform == "emscripten"
+    and not getattr(getattr(sys, "_emscripten_info", None), "pthreads", False),
+    reason="Emscripten build has no pthread support",
+)
 def test_shared_generator_serializes_complete_fills(method):
     generator = nk.Generator(137)
     reference = nk.Generator(137)
