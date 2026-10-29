@@ -4,7 +4,7 @@
  *  @date August 29, 2024
  *  @brief SIMD-accelerated curved-space similarity for NEON.
  *
- *  @sa include/numkong/curved.h
+ *  @sa c/numkong/curved.h
  *
  *  Implements f32 bilinear forms and Mahalanobis distance using ARM NEON SIMD.
  *  Accumulates f32 inputs in f64 precision to avoid catastrophic cancellation.

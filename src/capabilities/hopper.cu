@@ -1,5 +1,5 @@
 /**
- *  @file c/target/hopper.cu
+ *  @file src/capabilities/hopper.cu
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c hopper kernels, defined once for the NumKong library.

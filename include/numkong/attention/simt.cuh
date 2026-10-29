@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief Ragged attention and rotary embeddings on the SIMT cores of every CUDA and ROCm device.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *  @sa include/numkong/attention/serial.h
  *
  *  The portable parts of the pack and the work scheduler, which every kernel of both vendors

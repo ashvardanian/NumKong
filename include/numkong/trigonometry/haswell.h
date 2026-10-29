@@ -4,7 +4,7 @@
  *  @date November 20, 2024
  *  @brief SIMD-accelerated trigonometric functions for Haswell.
  *
- *  @sa include/numkong/trigonometry.h
+ *  @sa c/numkong/trigonometry.h
  *  @see https://sleef.org
  *
  *  @section haswell_trig_instructions Key AVX2 Trigonometry Instructions

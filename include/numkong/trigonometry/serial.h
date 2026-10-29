@@ -4,7 +4,7 @@
  *  @date November 20, 2024
  *  @brief SWAR-accelerated trigonometric functions for SIMD-free CPUs.
  *
- *  @sa include/numkong/trigonometry.h
+ *  @sa c/numkong/trigonometry.h
  *  @see https://sleef.org
  */
 #ifndef NUMKONG_TRIGONOMETRY_SERIAL_H

@@ -1,5 +1,5 @@
 /**
- *  @file c/target/neonhalf.c
+ *  @file src/capabilities/neonhalf.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c neonhalf kernels, defined once for the NumKong library.

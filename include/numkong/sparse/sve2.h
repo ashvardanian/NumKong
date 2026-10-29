@@ -4,7 +4,7 @@
  *  @date September 11, 2024
  *  @brief SVE2-accelerated sparse vector operations.
  *
- *  @sa include/numkong/sparse.h
+ *  @sa c/numkong/sparse.h
  */
 #ifndef NUMKONG_SPARSE_SVE2_H
 #define NUMKONG_SPARSE_SVE2_H

@@ -4,7 +4,7 @@
  *  @date October 5, 2026
  *  @brief Batched spatial distances on Metal, launched from C.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_METAL_H
 #define NUMKONG_SPATIALS_METAL_H

@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/maxsim.h
+ *  @file c/numkong/maxsim.h
  *  @author Ash Vardanian
  *  @date February 17, 2026
  *  @brief SIMD-accelerated MaxSim, ColBERT late interaction.

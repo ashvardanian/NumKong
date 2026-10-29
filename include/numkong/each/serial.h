@@ -4,7 +4,7 @@
  *  @date October 18, 2024
  *  @brief SWAR-accelerated elementwise arithmetic for SIMD-free CPUs.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  */
 #ifndef NUMKONG_EACH_SERIAL_H
 #define NUMKONG_EACH_SERIAL_H

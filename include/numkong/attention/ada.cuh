@@ -4,7 +4,7 @@
  *  @date September 27, 2026
  *  @brief E4M3 attention weights for NVIDIA Ada, compute capability 8.9, and every GPU since.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *  @sa include/numkong/cast/ada.cuh
  *
  *  The lowest NVIDIA capability with <tt>cvt.*e4m3x2</tt>, whose weight quantization the Hopper, Blackwell

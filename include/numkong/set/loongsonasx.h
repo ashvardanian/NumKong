@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated set similarity measures for LoongArch LASX, 256-bit.
  *
- *  @sa include/numkong/set.h
+ *  @sa c/numkong/set.h
  *
  *  @section set_loongsonasx_instructions Key LASX Set Instructions
  *

@@ -4,7 +4,7 @@
  *  @date March 4, 2026
  *  @brief SIMD-accelerated dot products for Alder Lake.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_alder_instructions AVX-VNNI Instructions Performance
  *

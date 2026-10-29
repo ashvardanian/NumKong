@@ -4,7 +4,7 @@
  *  @date January 5, 2026
  *  @brief SIMD-accelerated dot products for RISC-V.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  SpacemiT K1 and similar chips implement base RVV 1.0 without half-precision extensions.
  *  RVV uses vector length agnostic programming where:

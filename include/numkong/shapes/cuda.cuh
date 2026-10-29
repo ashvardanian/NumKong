@@ -5,7 +5,7 @@
  *  @brief Many-to-many optimal transport between 3D point clouds on the SIMT cores of every CUDA
  *      device, the @c cuda exports.
  *
- *  @sa include/numkong/shapes.h
+ *  @sa c/numkong/shapes.h
  *  @sa include/numkong/shapes/simt.cuh
  *
  *  Every block is one team solving one flip of one pair, with its transport state in dynamic shared

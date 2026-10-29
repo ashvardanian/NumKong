@@ -5,7 +5,7 @@
  *  @brief SwiGLU, grouped RMSNorm and its downcasting form on the SIMT cores of every Apple GPU,
  *      launched from C.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  *  @sa include/numkong/each/metal.metal, the kernels this embeds
  *  @sa include/numkong/each/cuda.cuh, the CUDA sibling
  *

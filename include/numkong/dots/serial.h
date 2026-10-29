@@ -4,7 +4,7 @@
  *  @date September 14, 2024
  *  @brief SWAR-accelerated Batched Dot Products for SIMD-free CPUs.
  *
- *  @sa include/numkong/dots.h for API overview and use cases
+ *  @sa c/numkong/dots.h for API overview and use cases
  *
  *  This file provides two macro families for generating GEMM kernels:
  *

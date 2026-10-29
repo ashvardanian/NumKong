@@ -4,7 +4,7 @@
  *  @date October 19, 2024
  *  @brief SIMD-accelerated elementwise arithmetic for Sapphire Rapids.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  *
  *  @section sapphire_elementwise_instructions Relevant Instructions
  *

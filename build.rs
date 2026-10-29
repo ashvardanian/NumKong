@@ -43,7 +43,9 @@ fn main() {
     println!("cargo:rustc-link-search=native={}", library.display());
     // `rust/*.rs` link `numkong`, which names the archive CMake calls `numkong_static`.
     println!("cargo:rustc-link-lib=static=numkong:numkong_static");
-    println!("cargo:include={}", manifest.join("include").display());
+    // The header roots, joined like `PATH`, for a dependent to split with `env::split_paths`.
+    let roots = env::join_paths(["c", "include", "cpp"].map(|root| manifest.join(root))).unwrap();
+    println!("cargo:include={}", roots.to_string_lossy());
     // The whole tree, so a dependent's CMake adds the checkout Cargo resolved as a subdirectory.
     println!("cargo:source={}", manifest.display());
 
@@ -76,7 +78,16 @@ fn main() {
 
 /// Builds and installs `numkong_static` through CMake and returns the installation prefix.
 fn build_library(manifest: &Path, enabled: impl Fn(&str) -> bool) -> PathBuf {
-    for source in ["CMakeLists.txt", "VERSION", "cmake", "c", "include", "probes"] {
+    for source in [
+        "CMakeLists.txt",
+        "VERSION",
+        "cmake",
+        "c",
+        "cpp",
+        "include",
+        "probes",
+        "src",
+    ] {
         println!("cargo:rerun-if-changed={}", manifest.join(source).display());
     }
 

@@ -1,5 +1,5 @@
 /**
- *  @file c/target/blackwellultra.cu
+ *  @file src/capabilities/blackwellultra.cu
  *  @author Ash Vardanian
  *  @date October 7, 2026
  *  @brief Every family's @c blackwellultra kernels, defined once for the NumKong library.

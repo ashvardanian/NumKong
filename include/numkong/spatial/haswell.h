@@ -4,7 +4,7 @@
  *  @date March 14, 2023
  *  @brief SIMD-accelerated spatial similarity measures for Haswell.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  @section spatial_haswell_instructions Key AVX2 Spatial Instructions
  *

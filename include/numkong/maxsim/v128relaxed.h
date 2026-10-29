@@ -4,7 +4,7 @@
  *  @date March 5, 2026
  *  @brief SIMD-accelerated MaxSim, angular distance late-interaction, for WASM Relaxed SIMD.
  *
- *  @sa include/numkong/maxsim.h
+ *  @sa c/numkong/maxsim.h
  *
  *  Uses wasm_i32x4_relaxed_dot_i8x16_i7x16_add for coarse i8 screening. Codes stay in [-63, 63],
  *  yet engines read a negative i7 operand differently, Wasmtime on x86 as unsigned, so documents

@@ -4,7 +4,7 @@
  *  @date April 15, 2026
  *  @brief Many-to-many shape distances between 3D point clouds for NEON FHM, with widening FMA.
  *
- *  @sa include/numkong/shapes.h
+ *  @sa c/numkong/shapes.h
  *
  *  @section shapes_neonfhm_instructions ARM NEON FP16 FHM Shape Instructions (ARMv8.4-FHM)
  *

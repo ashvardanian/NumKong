@@ -4,7 +4,7 @@
  *  @date January 3, 2026
  *  @brief Software-emulated scalar math helpers for SIMD-free CPUs.
  *
- *  @sa include/numkong/scalar.h
+ *  @sa c/numkong/scalar.h
  *
  *  Uses the Quake 3 fast inverse square root trick with Newton-Raphson refinement: three iterations
  *  for f32, ~34.9 correct bits, and four for f64, ~69.3 correct bits.

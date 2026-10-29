@@ -347,7 +347,8 @@ NUMKONG_DEVICE nk_f32_t nk_f32_exp2_cuda_(nk_f32_t exponent) {
 
 #pragma endregion Device Primitives
 
-/*  The library defines these once, in `c/target/cuda.cu`; header-only builds define them here. */
+/*  The library defines these once, in `src/capabilities/cuda.cu`; header-only builds define them
+ *  here. */
 #if NUMKONG_HEADER_ONLY
 
 NUMKONG_API nk_status_t nk_allocator_init_unified_cuda(nk_allocator_t *allocator) {

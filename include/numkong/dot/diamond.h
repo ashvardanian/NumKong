@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated dot products for Diamond Rapids.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_diamond_instructions Key AVX10.2 FP8 + FP16 VNNI Instructions
  *

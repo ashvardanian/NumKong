@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/sets.h
+ *  @file c/numkong/sets.h
  *  @author Ash Vardanian
  *  @date January 22, 2026
  *  @brief SIMD-accelerated batched set distances.

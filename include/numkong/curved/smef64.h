@@ -4,7 +4,7 @@
  *  @date January 14, 2026
  *  @brief SIMD-accelerated curved-space similarity for SME F64.
  *
- *  @sa include/numkong/curved.h
+ *  @sa c/numkong/curved.h
  *
  *  Implements bilinear forms and Mahalanobis distance using ARM SME:
  *  - f32 inputs: GEMV via f64 FMOPA (widening load f32 → f64, exact accumulation)

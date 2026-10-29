@@ -1,5 +1,5 @@
 /**
- *  @file c/target/svebfdot.c
+ *  @file src/capabilities/svebfdot.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c svebfdot kernels, defined once for the NumKong library.

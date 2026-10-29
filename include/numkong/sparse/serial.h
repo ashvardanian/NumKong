@@ -4,7 +4,7 @@
  *  @date August 19, 2024
  *  @brief Serial sparse vector operations.
  *
- *  @sa include/numkong/sparse.h
+ *  @sa c/numkong/sparse.h
  */
 #ifndef NUMKONG_SPARSE_SERIAL_H
 #define NUMKONG_SPARSE_SERIAL_H

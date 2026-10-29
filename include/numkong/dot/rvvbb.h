@@ -4,7 +4,7 @@
  *  @date February 22, 2026
  *  @brief SIMD-accelerated dot products for RISC-V with Zvbb.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  Zvbb, the Vector Basic Bit-manipulation extension, adds a per-element popcount, <tt>vcpop.v</tt>, which
  *  replaces the 11-instruction SWAR sequence with one instruction. Only @c nk_dot_u1_rvvbb

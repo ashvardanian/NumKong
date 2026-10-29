@@ -4,7 +4,7 @@
  *  @date March 14, 2023
  *  @brief SIMD-accelerated spatial similarity measures for SVE.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  @section spatial_sve_instructions ARM SVE Instructions
  *

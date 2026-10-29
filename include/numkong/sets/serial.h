@@ -4,7 +4,7 @@
  *  @date February 23, 2026
  *  @brief Batched set operations for serial, non-SIMD backends.
  *
- *  @sa include/numkong/sets.h
+ *  @sa c/numkong/sets.h
  */
 #ifndef NUMKONG_SETS_SERIAL_H
 #define NUMKONG_SETS_SERIAL_H

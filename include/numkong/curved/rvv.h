@@ -4,7 +4,7 @@
  *  @date February 6, 2026
  *  @brief SIMD-accelerated curved-space distances for RISC-V.
  *
- *  @sa include/numkong/curved.h
+ *  @sa c/numkong/curved.h
  *
  *  Implements bilinear forms and Mahalanobis distance using RVV 1.0:
  *  - f32 inputs use f32 SIMD accumulation with vfredusum ordered reduction

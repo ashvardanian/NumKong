@@ -1,5 +1,5 @@
 /**
- *  @file c/target/smef64.c
+ *  @file src/capabilities/smef64.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c smef64 kernels, defined once for the NumKong library.

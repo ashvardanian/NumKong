@@ -4,7 +4,7 @@
  *  @date September 14, 2024
  *  @brief SIMD-accelerated Batched Dot Products for Haswell.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  @section haswell_dots_instructions Key AVX2/FMA GEMM Instructions
  *

@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief SIMD-accelerated Batched Dot Products for AMD Instinct MI350, gfx950.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *  @sa include/numkong/dots/rocm.cuh
  *
  *  The CDNA3 tile, its staging and its epilogue, with the dtypes differing only in how a lane's 32

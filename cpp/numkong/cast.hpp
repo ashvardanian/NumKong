@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/cast.hpp
+ *  @file cpp/numkong/cast.hpp
  *  @author Ash Vardanian
  *  @date March 20, 2026
  *  @brief C++ wrappers for SIMD-accelerated type casting.

@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief Ragged attention for AMD Instinct MI400, gfx1250 and gfx1251.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *  @sa include/numkong/attention/cdna3.cuh
  *  @sa include/numkong/attention/cdna4.cuh
  *

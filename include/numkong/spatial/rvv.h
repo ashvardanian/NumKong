@@ -4,7 +4,7 @@
  *  @date January 5, 2026
  *  @brief SIMD-accelerated spatial similarity measures for RISC-V.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  RVV uses vector length agnostic programming where:
  *  - <tt>vsetvl_e*m*(n)</tt> sets VL = min(n, VLMAX) and returns actual VL

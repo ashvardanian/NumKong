@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/maxsim.c
+ *  @file src/dispatch/maxsim.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief The MaxSim capability lists, @c _best dispatch points and @c nk_maxsim_find_kernel.

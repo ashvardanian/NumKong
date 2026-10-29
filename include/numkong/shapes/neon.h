@@ -4,7 +4,7 @@
  *  @date December 27, 2025
  *  @brief Many-to-many shape distances between 3D point clouds for NEON.
  *
- *  @sa include/numkong/shapes.h
+ *  @sa c/numkong/shapes.h
  *
  *  @section shapes_neon_instructions Key NEON Shape Instructions
  *

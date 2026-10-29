@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/each.c
+ *  @file src/dispatch/each.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Dispatch points of the element-wise operations: scale, sum, blend, FMA and SwiGLU.

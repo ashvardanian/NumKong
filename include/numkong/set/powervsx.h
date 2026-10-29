@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated set similarity measures for Power ISA VSX.
  *
- *  @sa include/numkong/set.h
+ *  @sa c/numkong/set.h
  *
  *  @section set_powervsx_instructions Power9 VSX Set Instructions
  *

@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief SIMD-accelerated batched spatial distances for AMD Instinct MI350, gfx950.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  *  @sa include/numkong/dots/cdna4.cuh
  *
  *  The CDNA3 dots tile with a metric in its epilogue: squared norms of A, and for @c symmetric of

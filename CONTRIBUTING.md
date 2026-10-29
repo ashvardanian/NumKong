@@ -5,9 +5,11 @@ To keep the quality of the code high, we follow the [coding style and convention
 ## Directory Tree
 
 ```
-include/numkong/          C and C++ headers — one .h per kernel family with its dispatch points, one .hpp per C++ API
+c/numkong/                The C interface: one .h per kernel family with its dispatch points, types and capabilities
+include/numkong/          Core C++ templates, like tensors, vectors and matrices, and the GPU runtimes
 include/numkong/*/        Kernels, one file per CPU or GPU capability — serial, haswell, neon, sme, rvv, ampere, etc.
-c/                        Library units — per-capability kernels, per-family dispatch points, binding thread pools
+cpp/numkong/              The C++ interface over the C one: one .hpp per kernel family
+src/                      Library units: per-family dispatch points, per-capability kernels, binding thread pools
 probes/                   One compile probe per capability, `<capability>.c`, which CMake runs for every binding
 test/                     C++ precision tests — see test/README.md
 bench/                    C++ benchmark suite and JS bench runner — see bench/README.md
@@ -83,7 +85,7 @@ Each binding hands CMake its options its own way:
 
 Rust links an archive CMake already built when `NUMKONG_LIBRARY_DIR` names its directory, and Go always does.
 On WebAssembly, `build.rs` hands CMake the toolchain the Rust target needs and the SIMD capability its target features declare, as [rust/README.md](rust/README.md#webassembly) lists.
-`numkong_static` needs nothing beyond the C library, so its consumers add only what their own sources need: `libm` for Python's, and OpenMP where `c/parallel.c` joins the Python extension or the Node addon.
+`numkong_static` needs nothing beyond the C library, so its consumers add only what their own sources need: `libm` for Python's, and OpenMP where `src/parallel.c` joins the Python extension or the Node addon.
 A GPU build adds the runtime it compiled against, `cudart` or `amdhip64`, which the CMake targets carry and `build.rs` names.
 
 The test suites seed from 42, or from a fresh draw under `NUMKONG_SEED=random`, and print the seed they use.
@@ -106,7 +108,7 @@ SIMD kernels live inside `#pragma GCC target(...)` regions and run only when the
 
 GCC/Clang builds also pass `-fno-tree-vectorize -fno-tree-slp-vectorize` so the auto-vectorizer cannot promote serial fallbacks to baseline SIMD (NEON, SSE2, VSX, …).
 That keeps the capability dispatch design intact: "serial" kernels stay actually serial, and the per-pragma SIMD kernels — which use explicit intrinsics, not vectorized scalar code — are the sole source of SIMD emission.
-MSVC has no per-function target pragma and no command-line vectorizer toggle, so the explicit `/arch:` flags above match defaults and document intent only; NumKong's MSVC strategy is compile-time gating via `_MSC_VER` version checks (see `include/numkong/types.h`).
+MSVC has no per-function target pragma and no command-line vectorizer toggle, so the explicit `/arch:` flags above match defaults and document intent only; NumKong's MSVC strategy is compile-time gating via `_MSC_VER` version checks (see `c/numkong/types.h`).
 LASX and POWER9 scope per function only under GCC 15 or newer, whose target pragma defines `__loongarch_asx` and `__POWER9_VECTOR__` inside the region, so `types.h` opens `lasxintrin.h` and `altivec.h` there.
 Clang's headers stay closed without `-mlasx` or `-mcpu=power9`, so a Clang build leaves both capabilities off, and the cross toolchains drive GCC 15.
 
@@ -448,7 +450,7 @@ cmake --build build_swift_iossim
 ```
 
 The simulators lack the `__sme_memset` routine streaming SME code calls, hence the SME verdicts turned off.
-`.github/workflows/_swift.yml` builds every slice and triple the release ships, and `release.yml` writes their checksums into `Package.swift` before tagging.
+`.github/workflows/build-swift.yml` builds every slice and triple the release ships, and `release.yml` writes their checksums into `Package.swift` before tagging.
 On Linux, `swift package experimental-audit-binary-artifact build_swift/NumKongC.artifactbundle` checks that the archive needs nothing beyond the C library.
 
 `Package.swift` declares `swift-tools-version:6.4`, so the package needs Swift 6.4 or newer.
@@ -496,7 +498,7 @@ go test -run=^$ -bench=. -benchmem ./bench/golang/ # To benchmark
 
 To add a new operation family, for example `foo`:
 
-1. __C header__: create `include/numkong/foo.h`.
+1. __C header__: create `c/numkong/foo.h`.
    It declares, with `NUMKONG_API`, the dispatch points like `nk_foo_f32_best`, every capability's kernel under its `NUMKONG_TARGET_*` guard, and the finder `nk_foo_find_kernel`.
    It ends with the header-only tail: the capability headers, then a stub per dispatch point and for the finder, each returning `nk_missing_library_k`.
 2. __Kernels per capability__: add `include/numkong/foo/serial.h`, `foo/neon.h`, `foo/haswell.h`, etc.
@@ -511,9 +513,9 @@ To add a new operation family, for example `foo`:
    Its element-wise steps run at their input's working precision, and family headers state the reduction type in a `nk_<family>_*_dtype` helper.
    SME kernels finish in predicated streaming SVE, never NEON, which faults in streaming mode.
    A new `nk_define_*` macro needs approval: add it to `approved_codegen_macros` in the same commit.
-3. __Library__: create `c/dispatch/foo.c` with a `static` capability list per dispatch point, like `nk_foo_f32_capabilities`, the `_best` body that picks from it, and `nk_foo_find_kernel`.
-   Include each capability header from its unit, like `c/target/haswell.c`, and route the family's kernel kinds to `nk_foo_find_kernel` in `c/numkong.c`.
-4. __C++ wrapper__: create `include/numkong/foo.hpp` with the typed C++ API, ending in the dispatch point's mask and stream.
+3. __Library__: create `src/dispatch/foo.c` with a `static` capability list per dispatch point, like `nk_foo_f32_capabilities`, the `_best` body that picks from it, and `nk_foo_find_kernel`.
+   Include each capability header from its unit, like `src/capabilities/haswell.c`, and route the family's kernel kinds to `nk_foo_find_kernel` in `src/numkong.c`.
+4. __C++ wrapper__: create `cpp/numkong/foo.hpp` with the typed C++ API, ending in the dispatch point's mask and stream.
 5. __Test__: create `test/foo.cpp` with precision validation against `f118_t` references.
 6. __Benchmark__: create `bench/foo.cpp` over the `bench/harness.hpp` timing loop.
 7. __Cross-platform tests__: add a scenario to `test/cross.hpp`, then register it in the relevant `test/cross_*` files, `test/cross_cuda.cu` and `test/cross_rocm.hip` included.
@@ -525,9 +527,9 @@ To add a new operation family, for example `foo`:
 A capability's kernel shares its dispatch point's signature short of the mask: it returns an `nk_status_t` and takes a trailing `nk_stream_t stream`, which a CPU kernel asserts is null.
 Every such kernel is wired in four places beyond its capability's header:
 
-1. __Declaration__: add the `NUMKONG_API` declaration with the matching `@copydoc` under its `NUMKONG_TARGET_*` guard in the first half of `include/numkong/<family>.h`.
-2. __Capability kernels__: add the kernel under its `NUMKONG_TARGET_*` guard to its capability group's array in `nk_<operation>_<dtype>_capabilities` in `c/dispatch/<family>.c`, in the order of the capability bits, and its bit to that group's mask.
-   Its unit, like `c/target/haswell.c` or `c/target/hopper.cu`, defines it; a new capability gets a new unit.
+1. __Declaration__: add the `NUMKONG_API` declaration with the matching `@copydoc` under its `NUMKONG_TARGET_*` guard in the first half of `c/numkong/<family>.h`.
+2. __Capability kernels__: add the kernel under its `NUMKONG_TARGET_*` guard to its capability group's array in `nk_<operation>_<dtype>_capabilities` in `src/dispatch/<family>.c`, in the order of the capability bits, and its bit to that group's mask.
+   Its unit, like `src/capabilities/haswell.c` or `src/capabilities/hopper.cu`, defines it; a new capability gets a new unit.
 3. __Precision tests__: register the kernel in `numkong_cpu_test`, usually in the existing `test/<family>.cpp` suite.
 4. __Benchmarks__: register the kernel in `numkong_bench`, usually in the existing `bench/<family>.cpp` suite.
 
@@ -536,8 +538,8 @@ The rule is about coverage and reachability, not about creating a brand new sour
 
 There are two intentional exceptions:
 
-- `cast`: the family-level `nk_cast_*` kernels follow the same header, list, test, and bench rule, and the scalar conversions are dispatched in `c/dispatch/cast.c` and covered through `test/cast.cpp` and `bench/cast.cpp`.
-- `scalar`: scalar helpers are centrally declared in `include/numkong/scalar.h`, dispatched in `c/dispatch/scalar.c`, and currently do not follow the per-helper `numkong_cpu_test` and `numkong_bench` registration pattern.
+- `cast`: the family-level `nk_cast_*` kernels follow the same header, list, test, and bench rule, and the scalar conversions are dispatched in `src/dispatch/cast.c` and covered through `test/cast.cpp` and `bench/cast.cpp`.
+- `scalar`: scalar helpers are centrally declared in `c/numkong/scalar.h`, dispatched in `src/dispatch/scalar.c`, and currently do not follow the per-helper `numkong_cpu_test` and `numkong_bench` registration pattern.
 
 ## Wording & Styling
 
@@ -632,7 +634,7 @@ A constant identical across the GPU layers is defined once in `serial.h` with th
 ### GPU Naming
 
 The GPU capability groups are `cuda`, `rocm` and `metal`, beside the CPU's `cpu`.
-Each word names its group's baseline bit, like `nk_cap_cuda_k`, its functions and its library units, like `c/target/hopper.cu`, and no symbol or source path names a vendor, like `nvidia`, `amd` or `apple`.
+Each word names its group's baseline bit, like `nk_cap_cuda_k`, its functions and its library units, like `src/capabilities/hopper.cu`, and no symbol or source path names a vendor, like `nvidia`, `amd` or `apple`.
 A function that touches a device is either a producer or a consumer:
 
 - A __producer__ reports a device's capabilities or opens a stream on it.
@@ -676,8 +678,8 @@ A name without it is a public contract, either a switch you may set or a value y
 Architectures are spelled as one token each, `X8664`, `X8632`, `ARM64`, `RISCV64`, `PPC64`, `LOONGARCH64`, `S390X` and `WASM`, and GPU architectures `CUDA` and `ROCM`.
 A GPU architecture holds beside the host's architecture in both compiler passes, so it never follows a CPU architecture in an `#elif` chain.
 Metal has no compiler macro on the host side, so its host API is a switch the build sets where it links Metal and Foundation.
-The library also sets `NUMKONG_ARCH_CUDA_` or `NUMKONG_ARCH_ROCM_` for its host-only units, so `c/dispatch/*.c` list the kernels that the `c/target/*.cu` and `c/target/*.hip` units compile.
-The build passes every unit the same `NUMKONG_TARGET_*` verdicts, so a unit turns off each capability its headers include besides its own, like `c/target/genoa.c` turning off Haswell, Skylake and Icelake, and each kernel is defined in exactly one unit.
+The library also sets `NUMKONG_ARCH_CUDA_` or `NUMKONG_ARCH_ROCM_` for its host-only units, so `src/dispatch/*.c` list the kernels that the `src/capabilities/*.cu` and `src/capabilities/*.hip` units compile.
+The build passes every unit the same `NUMKONG_TARGET_*` verdicts, so a unit turns off each capability its headers include besides its own, like `src/capabilities/genoa.c` turning off Haswell, Skylake and Icelake, and each kernel is defined in exactly one unit.
 A new cross-capability include needs the same line in the unit, or the link reports the kernels defined twice.
 Each GPU unit compiles only the codes its generation runs.
 Every name in these families is always defined, as 0 or 1, and tested with `#if`, never with `defined(...)`.
@@ -689,7 +691,7 @@ Three families guard platform code, each with its own job:
   Runtime services are the allocators, memory, streams, events, device counts and enabled masks.
 - `NUMKONG_ARCH_<ARCH>_<NAME>_` holds where a base capability's helpers compile.
   That is wherever the capability, or one built on it, is enabled.
-  Only `include/numkong/types.h` defines these closures, one per base capability.
+  Only `c/numkong/types.h` defines these closures, one per base capability.
 - `NUMKONG_TARGET_<NAME>` holds where a capability's kernels compile.
   It gates kernel definitions and declarations, dispatch-table entries and compiled masks.
 
@@ -711,5 +713,5 @@ A capability header opens its guards right after its include guard, in one of fi
 
 Every `#endif` names its guard, and no other condition in a capability header tests a platform.
 The one exception is a compiler workaround in `serial.h`, like `defined(__GNUC__)` on `ARM64`.
-The top-level headers and `c/` guard runtime services by `NUMKONG_ARCH_<VENDOR>_`.
+The top-level headers and `src/` guard runtime services by `NUMKONG_ARCH_<VENDOR>_`.
 They guard kernel declarations and dispatch entries by `NUMKONG_TARGET_<NAME>`.

@@ -4,7 +4,7 @@
  *  @date October 7, 2023
  *  @brief SIMD-accelerated spatial similarity measures for Skylake.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  @section spatial_skylake_instructions Key AVX-512 Spatial Instructions
  *

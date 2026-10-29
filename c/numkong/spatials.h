@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/spatials.h
+ *  @file c/numkong/spatials.h
  *  @author Ash Vardanian
  *  @date February 22, 2026
  *  @brief SIMD-accelerated batched spatial distances, angular and euclidean.

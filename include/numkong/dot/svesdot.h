@@ -4,7 +4,7 @@
  *  @date April 3, 2026
  *  @brief SIMD-accelerated dot products for SVE SDOT.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_svesdot_instructions ARM SVE+DotProd Instructions
  *

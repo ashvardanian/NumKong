@@ -4,7 +4,7 @@
  *  @date December 21, 2025
  *  @brief SIMD-accelerated geospatial distances for Haswell.
  *
- *  @sa include/numkong/geospatial.h
+ *  @sa c/numkong/geospatial.h
  *
  *  Every kernel broadcasts one row and sweeps the columns four or eight at a time. The 3D squares
  *  load three registers of @b [x,y,z] rows and de-interleave them in place, the @c f64 ones with

@@ -4,7 +4,7 @@
  *  @date February 23, 2026
  *  @brief Batched spatial distances for Ice Lake, AVX-512 VNNI/VBMI.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_ICELAKE_H
 #define NUMKONG_SPATIALS_ICELAKE_H

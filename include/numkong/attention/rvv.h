@@ -4,7 +4,7 @@
  *  @date July 6, 2026
  *  @brief Ragged attention for RISC-V CPUs with the RVV 1.0 vector extension.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  Vector-length-agnostic backend: every loop strip-mines with @c __riscv_vsetvl, so there are no
  *  masks, no scalar tails, and no channel padding anywhere in the file. That is a deliberate

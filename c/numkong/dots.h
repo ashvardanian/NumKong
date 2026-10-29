@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/dots.h
+ *  @file c/numkong/dots.h
  *  @author Ash Vardanian
  *  @date September 14, 2024
  *  @brief SIMD-accelerated Batched Dot Products.

@@ -4,7 +4,7 @@
  *  @date October 12, 2026
  *  @brief Bulk and block-scaled casts on the SIMT cores of every Apple GPU, launched from C.
  *
- *  @sa include/numkong/cast.h
+ *  @sa c/numkong/cast.h
  *  @sa include/numkong/cast/metal.metal, the kernels this embeds
  *  @sa include/numkong/cast/cuda.cuh, the CUDA sibling
  *

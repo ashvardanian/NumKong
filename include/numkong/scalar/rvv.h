@@ -4,7 +4,7 @@
  *  @date March 1, 2026
  *  @brief SIMD-accelerated scalar math helpers for RISC-V.
  *
- *  @sa include/numkong/scalar.h
+ *  @sa c/numkong/scalar.h
  *
  *  RVV scalar helpers use vector instructions with VL=1 for hardware sqrt/rsqrt.
  *  @c vfrsqrt7 provides 7-bit mantissa precision; Newton-Raphson refines to full precision.

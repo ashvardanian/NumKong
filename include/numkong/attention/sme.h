@@ -4,7 +4,7 @@
  *  @date July 8, 2026
  *  @brief Arm SME ragged attention backend.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  FlashAttention-style panel sweep on the SME outer-product engine, mirroring the @c sapphireamx
  *  skeleton with the shared packed header, segment directory, base-2 streaming softmax, and

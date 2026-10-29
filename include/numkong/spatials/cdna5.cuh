@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief SIMD-accelerated batched spatial distances for AMD Instinct MI400, gfx1250 and gfx1251.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  *  @sa include/numkong/dots/cdna5.cuh
  *
  *  The CDNA5 dots tile with the CDNA4 norm updates and metric epilogue, its own for I8 and I4:

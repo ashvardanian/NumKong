@@ -4,7 +4,7 @@
  *  @date March 1, 2026
  *  @brief SIMD-accelerated scalar math helpers for Sapphire Rapids.
  *
- *  @sa include/numkong/scalar.h
+ *  @sa c/numkong/scalar.h
  *
  *  Provides native AVX-512 FP16 scalar ordering via @c VCOMISH.
  */

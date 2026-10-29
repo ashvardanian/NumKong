@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief SIMD-accelerated Batched Dot Products for the NVIDIA compute capability 10.x family.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *  @sa include/numkong/dots/ampere.cuh
  *
  *  Persistent blocks of ten warps own @b [128,128] output tiles. One thread streams 128-byte depth

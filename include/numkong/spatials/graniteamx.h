@@ -4,7 +4,7 @@
  *  @date April 9, 2026
  *  @brief Batched spatial distances for Granite Rapids, AMX-FP16, with AVX-512 finalization.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_GRANITEAMX_H
 #define NUMKONG_SPATIALS_GRANITEAMX_H

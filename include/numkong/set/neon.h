@@ -4,7 +4,7 @@
  *  @date March 23, 2023
  *  @brief SIMD-accelerated set similarity measures for NEON.
  *
- *  @sa include/numkong/set.h
+ *  @sa c/numkong/set.h
  *
  *  @section set_neon_instructions NEON Set Instructions
  *

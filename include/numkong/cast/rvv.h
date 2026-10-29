@@ -4,7 +4,7 @@
  *  @date January 13, 2026
  *  @brief SIMD-accelerated Type Conversions for RISC-V.
  *
- *  @sa include/numkong/cast.h
+ *  @sa c/numkong/cast.h
  *
  *  SpacemiT K1 and similar chips implement RVA22 profile with base RVV 1.0.
  *  This file provides vectorized type conversions for:

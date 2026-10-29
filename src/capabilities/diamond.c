@@ -1,5 +1,5 @@
 /**
- *  @file c/target/diamond.c
+ *  @file src/capabilities/diamond.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c diamond kernels, defined once for the NumKong library.

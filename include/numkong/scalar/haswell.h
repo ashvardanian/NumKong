@@ -4,7 +4,7 @@
  *  @date March 1, 2026
  *  @brief SIMD-accelerated scalar math helpers for Haswell.
  *
- *  @sa include/numkong/scalar.h
+ *  @sa c/numkong/scalar.h
  *
  *  @section scalars_haswell_instructions Key AVX2/FMA Scalar Instructions
  *

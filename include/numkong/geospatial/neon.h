@@ -4,7 +4,7 @@
  *  @date December 21, 2025
  *  @brief SIMD-accelerated geospatial distances for NEON.
  *
- *  @sa include/numkong/geospatial.h
+ *  @sa c/numkong/geospatial.h
  *
  *  Every kernel broadcasts one row and sweeps the columns two or four at a time. The 3D squares
  *  de-interleave @b [x,y,z] rows with @c LD3, and their tails with the single-structure form or

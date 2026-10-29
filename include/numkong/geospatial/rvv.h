@@ -4,7 +4,7 @@
  *  @date February 6, 2026
  *  @brief SIMD-accelerated geospatial distances for RISC-V.
  *
- *  @sa include/numkong/geospatial.h
+ *  @sa c/numkong/geospatial.h
  *
  *  Every kernel broadcasts one row and sweeps the columns as many at a time as @c vsetvl grants, so
  *  no tail needs a path of its own. The 3D squares de-interleave @b [x,y,z] rows with the segment

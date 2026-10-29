@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/attention.hpp
+ *  @file cpp/numkong/attention.hpp
  *  @author Ash Vardanian
  *  @date July 7, 2026
  *  @brief C++ bindings for multi-target ragged scaled-dot-product attention kernels.

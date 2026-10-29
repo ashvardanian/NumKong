@@ -176,7 +176,7 @@ jobs:
         if: matrix.sdk == 'emscripten'
         run: |
           source ~/emsdk/emsdk_env.sh
-          cmake --preset ${{ matrix.preset }} -D NUMKONG_TARGET_ARCH=${{ matrix.simd }}
+          cmake --preset ${{ matrix.preset }} -D NUMKONG_MARCH=${{ matrix.simd }}
           cmake --build --preset ${{ matrix.preset }}
 
       - name: Upload Emscripten Module
@@ -193,7 +193,7 @@ jobs:
       - name: Build WASI Module
         if: matrix.sdk == 'wasi'
         run: |
-          cmake --preset ${{ matrix.preset }} -D NUMKONG_TARGET_ARCH=${{ matrix.simd }} \
+          cmake --preset ${{ matrix.preset }} -D NUMKONG_MARCH=${{ matrix.simd }} \
             -D NUMKONG_WITH_HOST_PROBES=${{ matrix.runtime == 'wasi-node' && 'ON' || 'OFF' }}
           cmake --build --preset ${{ matrix.preset }}
 

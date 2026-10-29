@@ -1,5 +1,5 @@
 /**
- *  @file c/target/apple9.c
+ *  @file src/capabilities/apple9.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief The @c apple9 kernels, defined once for the NumKong library.

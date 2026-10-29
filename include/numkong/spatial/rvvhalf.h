@@ -4,7 +4,7 @@
  *  @date January 5, 2026
  *  @brief SIMD-accelerated spatial similarity measures for RISC-V FP16.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  Zvfh provides native f16 vector operations, and the kernels keep their precision by widening
  *  every f16 → f32 accumulation.

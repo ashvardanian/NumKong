@@ -4,7 +4,7 @@
  *  @date March 1, 2026
  *  @brief SIMD-accelerated scalar math helpers for NEON FP16, FEAT_FP16.
  *
- *  @sa include/numkong/scalar.h
+ *  @sa c/numkong/scalar.h
  *
  *  ARMv8.2-A FEAT_FP16 provides native scalar f16 sqrt, rsqrt estimate, and fma.
  *  @c vrsqrte_f16 gives ~4-bit estimate; 2 Newton-Raphson steps refine to ~16 bits, exceeding f16's

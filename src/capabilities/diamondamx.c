@@ -1,5 +1,5 @@
 /**
- *  @file c/target/diamondamx.c
+ *  @file src/capabilities/diamondamx.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c diamondamx kernels, defined once for the NumKong library.

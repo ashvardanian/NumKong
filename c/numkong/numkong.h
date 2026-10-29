@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/numkong.h
+ *  @file c/numkong/numkong.h
  *  @author Ash Vardanian
  *  @date March 14, 2023
  *  @brief SIMD-accelerated Similarity Measures and Distance Functions.

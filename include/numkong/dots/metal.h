@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief Batched Dot Products on the SIMT cores of every Apple GPU, launched from C.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *  @sa include/numkong/dots/metal.metal, the kernels this embeds
  *  @sa include/numkong/dots/simt.cuh, the CUDA and ROCm sibling
  *

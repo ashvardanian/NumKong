@@ -4,7 +4,7 @@
  *  @date February 12, 2026
  *  @brief AVX-512 VNNI implementations for the redesigned reduction API, moments.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  *
  *  @section vnni_advantage VNNI Advantage
  *

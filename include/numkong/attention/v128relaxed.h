@@ -4,7 +4,7 @@
  *  @date July 7, 2026
  *  @brief Ragged attention for WASM with Relaxed SIMD.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  Portable 128-bit backend for WebAssembly engines with the Relaxed SIMD proposal. Storage follows
  *  the <tt>attention/haswell.h</tt> conventions exactly: BF16, E4M3, and I8 stay in their source encoding

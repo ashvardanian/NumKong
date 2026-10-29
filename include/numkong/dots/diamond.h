@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated Batched Dot Products for Diamond Rapids.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Uses VCVTHF82PH/VCVTBF82PH for native FP8 → FP16 conversion, then VDPPHPS for FP16-pair dot
  *  products accumulating into FP32. Processes 32 FP8 elements per iteration.

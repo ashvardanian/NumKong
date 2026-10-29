@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/set.h
+ *  @file c/numkong/set.h
  *  @author Ash Vardanian
  *  @date March 23, 2023
  *  @brief SIMD-accelerated set similarity measures.

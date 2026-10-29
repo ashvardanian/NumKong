@@ -4,7 +4,7 @@
  *  @date February 17, 2026
  *  @brief SIMD-accelerated MaxSim, ColBERT late-interaction, for Genoa — bf16 only.
  *
- *  @sa include/numkong/maxsim.h
+ *  @sa c/numkong/maxsim.h
  *
  *  Uses AVX-512 VNNI, VPDPBUSD, for coarse i8 screening via icelake.h, and VDPBF16PS for bf16
  *  refinement. f32/f16 MaxSim variants live in icelake.h — this file only handles bf16 packing and

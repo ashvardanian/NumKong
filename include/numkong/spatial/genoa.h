@@ -4,7 +4,7 @@
  *  @date June 4, 2024
  *  @brief SIMD-accelerated spatial similarity measures for Genoa.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  */
 #ifndef NUMKONG_SPATIAL_GENOA_H
 #define NUMKONG_SPATIAL_GENOA_H

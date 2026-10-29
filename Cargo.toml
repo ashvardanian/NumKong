@@ -18,7 +18,9 @@ include = [
   "/CMakeLists.txt",
   "/cmake/*",
   "/c/**",
+  "/cpp/**",
   "/include/**",
+  "/src/**",
   "/probes/*.c",
   "/VERSION",
 ]

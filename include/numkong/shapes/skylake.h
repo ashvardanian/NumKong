@@ -4,7 +4,7 @@
  *  @date December 27, 2025
  *  @brief Many-to-many shape distances between 3D point clouds for Skylake, AVX-512.
  *
- *  @sa include/numkong/shapes.h
+ *  @sa c/numkong/shapes.h
  *
  *  @section shapes_skylake_instructions Key AVX-512 Shapes Instructions
  *

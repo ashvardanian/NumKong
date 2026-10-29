@@ -4,7 +4,7 @@
  *  @date May 30, 2026
  *  @brief SIMD-accelerated sparse vector dot products for Haswell.
  *
- *  @sa include/numkong/sparse.h
+ *  @sa c/numkong/sparse.h
  */
 #ifndef NUMKONG_SPARSE_HASWELL_H
 #define NUMKONG_SPARSE_HASWELL_H

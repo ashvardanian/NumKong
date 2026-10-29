@@ -4,7 +4,7 @@
  *  @date July 8, 2026
  *  @brief Arm NEON ragged attention backend for BF16 and the MX formats, using @c BFDOT.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  Mirrors the @c v128relaxed panel-flash shape with the family-shared packed header, segment
  *  directory, base-2 streaming softmax, and [tasks_begin, tasks_end) windows. Scores run four KV

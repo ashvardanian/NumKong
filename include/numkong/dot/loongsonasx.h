@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated dot products for LoongArch LASX, 256-bit.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_loongsonasx_instructions Key LASX Dot Product Instructions
  *

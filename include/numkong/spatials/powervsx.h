@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief Batched spatial distances for Power VSX.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_POWERVSX_H
 #define NUMKONG_SPATIALS_POWERVSX_H

@@ -1,5 +1,5 @@
 /**
- *  @file c/target/metal.c
+ *  @file src/capabilities/metal.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief The @c metal kernels and the Metal runtime helpers, defined once for the NumKong library.

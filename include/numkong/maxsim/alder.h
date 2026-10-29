@@ -4,7 +4,7 @@
  *  @date March 5, 2026
  *  @brief SIMD-accelerated MaxSim, angular distance late-interaction, for Alder Lake, AVX-VNNI.
  *
- *  @sa include/numkong/maxsim.h
+ *  @sa c/numkong/maxsim.h
  *
  *  Uses AVX-VNNI VPDPBUSD, u8 × i8 → i32 with accumulate, for coarse i8 screening. Unlike Haswell's
  *  VPMADDUBSW+VPMADDWD, DPBUSD has no i16 intermediate, so no saturation concern. Quantization

@@ -4,7 +4,7 @@
  *  @date September 12, 2026
  *  @brief SIMD-accelerated square roots and reciprocal square roots for WASM.
  *
- *  @sa include/numkong/scalar.h
+ *  @sa c/numkong/scalar.h
  */
 #ifndef NUMKONG_SCALAR_V128_H
 #define NUMKONG_SCALAR_V128_H

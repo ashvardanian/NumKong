@@ -4,7 +4,7 @@
  *  @date August 29, 2024
  *  @brief SWAR-accelerated curved-space similarity for SIMD-free CPUs.
  *
- *  @sa include/numkong/curved.h
+ *  @sa c/numkong/curved.h
  *
  *  Implements bilinear forms and Mahalanobis distance with precision-appropriate strategies:
  *  - f64 inputs use Dot2 (Ogita-Rump-Oishi 2005) for error-free transformations

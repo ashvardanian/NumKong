@@ -4,7 +4,7 @@
  *  @date November 8, 2024
  *  @brief SIMD-accelerated elementwise arithmetic for Ice Lake.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  *
  *  @section ice_elementwise_instructions Relevant Instructions
  *

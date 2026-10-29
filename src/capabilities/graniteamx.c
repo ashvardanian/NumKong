@@ -1,5 +1,5 @@
 /**
- *  @file c/target/graniteamx.c
+ *  @file src/capabilities/graniteamx.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c graniteamx kernels, defined once for the NumKong library.

@@ -4,7 +4,7 @@
  *  @date June 3, 2024
  *  @brief SIMD-accelerated dot products for NEON BF16.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_neonbfdot_instructions ARM NEON BF16 Instructions (ARMv8.6-BF16)
  *

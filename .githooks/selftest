@@ -344,10 +344,10 @@ FIXTURE
 run_precommit
 expect_acceptance "quoted header beside the including file"
 
-stage_fixture_with_header include/$project_directory/probe.h <<'FIXTURE'
+stage_fixture_with_header c/$project_directory/probe.h <<'FIXTURE'
 #include "probe_internal.h"
 FIXTURE
-stage_sibling_with_header include/$project_directory/probe_internal.h <<'FIXTURE'
+stage_sibling_with_header c/$project_directory/probe_internal.h <<'FIXTURE'
 int probe_internal(void);
 FIXTURE
 run_precommit
@@ -2866,19 +2866,19 @@ static int nk_probe_arm64_(int value) { return value; }
 #endif
 FIXTURE
 
-assert_rejects "runtime service under a vendor target" "guards a declaration by the wrong family" include/numkong/probe.h <<'FIXTURE'
+assert_rejects "runtime service under a vendor target" "guards a declaration by the wrong family" c/numkong/probe.h <<'FIXTURE'
 #if NUMKONG_TARGET_CUDA
 NUMKONG_API int nk_probe_stream_init_cuda(void **stream);
 #endif
 FIXTURE
 
-assert_rejects "kernel declaration under a vendor architecture" "guards a declaration by the wrong family" include/numkong/probe.h <<'FIXTURE'
+assert_rejects "kernel declaration under a vendor architecture" "guards a declaration by the wrong family" c/numkong/probe.h <<'FIXTURE'
 #if NUMKONG_ARCH_CUDA_
 NUMKONG_API int nk_probe_f32_hopper(int value);
 #endif
 FIXTURE
 
-assert_accepts "runtime services and kernels under their own families" include/numkong/probe.h <<'FIXTURE'
+assert_accepts "runtime services and kernels under their own families" c/numkong/probe.h <<'FIXTURE'
 #if NUMKONG_ARCH_CUDA_
 NUMKONG_API int nk_probe_stream_init_cuda(void **stream);
 #endif
@@ -2935,11 +2935,11 @@ __launch_bounds__(nk_probe_threads_cuda_k,
                   nk_probe_blocks_cuda_k) void nk_probe_wrapped_cuda_kernel_(nk_size_t count) {}
 FIXTURE
 
-assert_rejects "chevron launch in a library unit" "launches with <<< >>>" c/target/probe.cu <<'FIXTURE'
+assert_rejects "chevron launch in a library unit" "launches with <<< >>>" src/capabilities/probe.cu <<'FIXTURE'
 void probe(void) { nk_probe_simt_kernel_<<<1, 32>>>(); }
 FIXTURE
 
-assert_accepts "launch API in a library unit, and prose naming chevrons" c/target/probe.cu <<'FIXTURE'
+assert_accepts "launch API in a library unit, and prose naming chevrons" src/capabilities/probe.cu <<'FIXTURE'
 /* Never <<< >>>, which drops the status. */
 void probe(void) { cudaLaunchKernel(kernel, grid, block, arguments, 0, stream); }
 FIXTURE

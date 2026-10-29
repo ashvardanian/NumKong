@@ -1,5 +1,5 @@
 /**
- *  @file c/target/smebi32.c
+ *  @file src/capabilities/smebi32.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c smebi32 kernels, defined once for the NumKong library.

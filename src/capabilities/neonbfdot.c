@@ -1,5 +1,5 @@
 /**
- *  @file c/target/neonbfdot.c
+ *  @file src/capabilities/neonbfdot.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c neonbfdot kernels, defined once for the NumKong library.

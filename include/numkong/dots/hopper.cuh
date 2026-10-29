@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief SIMD-accelerated Batched Dot Products for NVIDIA Hopper, compute capability 9.0.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *  @sa include/numkong/dots/ampere.cuh
  *
  *  Warpgroup <tt>wgmma.mma_async</tt> over shared-memory descriptors, which only the "90a" code carries,

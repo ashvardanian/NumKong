@@ -4,7 +4,7 @@
  *  @date October 7, 2023
  *  @brief SIMD-accelerated dot products for Skylake.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_skylake_instructions Key AVX-512 Instructions
  *

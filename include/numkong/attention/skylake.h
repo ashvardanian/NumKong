@@ -4,7 +4,7 @@
  *  @date July 6, 2026
  *  @brief Ragged attention for AVX-512 Skylake-X generation CPUs.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  Compatibility backend for AVX-512F machines without BF16 or AMX ISA extensions. Storage follows
  *  the <tt>dots/skylake.h</tt> conventions exactly: BF16 inputs stay BF16 at rest and widen to F32 inside

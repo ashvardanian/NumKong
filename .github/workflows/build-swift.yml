@@ -30,11 +30,11 @@ jobs:
         with:
           version-file: "VERSION"
           update-major-version-in: |
-            include/numkong/types.h:^#define NUMKONG_VERSION_MAJOR (\d+)
+            c/numkong/types.h:^#define NUMKONG_VERSION_MAJOR (\d+)
           update-minor-version-in: |
-            include/numkong/types.h:^#define NUMKONG_VERSION_MINOR (\d+)
+            c/numkong/types.h:^#define NUMKONG_VERSION_MINOR (\d+)
           update-patch-version-in: |
-            include/numkong/types.h:^#define NUMKONG_VERSION_PATCH (\d+)
+            c/numkong/types.h:^#define NUMKONG_VERSION_PATCH (\d+)
           dry-run: "false"
       - name: Upload Bumped Files
         uses: actions/upload-artifact@v7
@@ -42,7 +42,7 @@ jobs:
           name: swift-version
           path: |
             VERSION
-            include/numkong/types.h
+            c/numkong/types.h
           if-no-files-found: error
           retention-days: 1
 
@@ -238,7 +238,7 @@ jobs:
         run: |
           export WASI_SDK_PATH=~/wasi-sdk
           # Strict SIMD128, which every SIMD engine validates, as one archive serves every Swift WASI module.
-          cmake --preset swift -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -D NUMKONG_TARGET_ARCH=v128
+          cmake --preset swift -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-wasm32-wasi.cmake -D NUMKONG_MARCH=v128
           cmake --build --preset swift
       - name: Upload Artifact Bundle
         uses: actions/upload-artifact@v7

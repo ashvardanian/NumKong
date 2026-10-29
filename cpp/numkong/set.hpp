@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/set.hpp
+ *  @file cpp/numkong/set.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief C++ bindings for set-intersection kernels.

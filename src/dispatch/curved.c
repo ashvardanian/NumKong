@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/curved.c
+ *  @file src/dispatch/curved.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Dispatch points of the curved-space metrics: bilinear forms and Mahalanobis distances.

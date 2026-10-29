@@ -4,7 +4,7 @@
  *  @date July 6, 2026
  *  @brief Serial (SIMD-free) ragged attention baseline.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  Width-agnostic reference implementation of the ragged scaled-dot-product attention family: any
  *  <tt>depth ≥ 1</tt>, any segment lengths, GQA/MQA, the same base-2 softmax formulation and the same

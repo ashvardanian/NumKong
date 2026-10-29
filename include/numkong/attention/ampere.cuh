@@ -4,7 +4,7 @@
  *  @date September 22, 2026
  *  @brief Ragged attention for NVIDIA Ampere and newer.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *  @sa include/numkong/dots/ampere.cuh
  *
  *  FlashAttention-2 on warp-level <tt>mma.sync</tt>: four warps own 64 rows folding the GQA group, stream

@@ -4,7 +4,7 @@
  *  @date February 11, 2026
  *  @brief Serial fallbacks for the redesigned reduction API, moments and minmax.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  *
  *  Provides serial (non-SIMD) implementations of:
  *  - @c nk_reduce_moments_*_serial — sum + sum-of-squares in one pass

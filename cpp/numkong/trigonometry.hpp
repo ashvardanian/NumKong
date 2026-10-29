@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/trigonometry.hpp
+ *  @file cpp/numkong/trigonometry.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief C++ bindings for trigonometric kernels.

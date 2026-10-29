@@ -5,7 +5,7 @@
  *  @brief Many-to-many geodesics and terrain clearances on the SIMT cores of every CUDA device, the
  *      @c cuda exports.
  *
- *  @sa include/numkong/geospatial.h
+ *  @sa c/numkong/geospatial.h
  *  @sa include/numkong/geospatial/serial.h
  *
  *  Every pack keeps the serial layout and the serial arithmetic: the sines, cosines and arctangents

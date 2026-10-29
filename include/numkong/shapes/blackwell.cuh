@@ -4,7 +4,7 @@
  *  @date October 14, 2026
  *  @brief Many-to-many shape distances for the NVIDIA compute capability 10.x family.
  *
- *  @sa include/numkong/shapes.h
+ *  @sa c/numkong/shapes.h
  *  @sa include/numkong/dots/blackwell.cuh
  *
  *  Superposed RMSD multiplies frames as one product, C = A × Bᵀ, over their points. A holds the x,

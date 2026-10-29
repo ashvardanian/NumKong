@@ -5,7 +5,7 @@
  *  @brief Conversions on the SIMT cores of every CUDA and ROCm device.
  *
  *  @sa include/numkong/cast/serial.h
- *  @sa include/numkong/cast.h
+ *  @sa c/numkong/cast.h
  *
  *  Device twins of the serial casts, with their signatures, that the GPU families load and store
  *  through. Most forward to the serial helpers, which C++20 makes constexpr and so callable from

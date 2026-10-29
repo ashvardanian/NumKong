@@ -4,7 +4,7 @@
  *  @date September 29, 2026
  *  @brief SIMD-accelerated trigonometric functions for Sapphire Rapids.
  *
- *  @sa include/numkong/trigonometry.h
+ *  @sa c/numkong/trigonometry.h
  *
  *  @section trigonometry_sapphire_instructions AVX-512 FP16 Instructions
  *

@@ -4,7 +4,7 @@
  *  @date September 12, 2026
  *  @brief SIMD-accelerated reductions for WASM.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  */
 #ifndef NUMKONG_REDUCE_V128_H
 #define NUMKONG_REDUCE_V128_H

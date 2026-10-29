@@ -4,7 +4,7 @@
  *  @date September 22, 2026
  *  @brief Ragged attention for the NVIDIA compute capability 12.x family.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *  @sa include/numkong/attention/ampere.cuh
  *
  *  The Ampere tile with E4M3 going to the tensor cores as it is: S takes one

@@ -4,7 +4,7 @@
  *  @date September 14, 2024
  *  @brief SIMD-accelerated Batched Dot Products for NEON SDOT.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  */
 #ifndef NUMKONG_DOTS_NEONSDOT_H
 #define NUMKONG_DOTS_NEONSDOT_H

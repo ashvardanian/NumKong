@@ -4,7 +4,7 @@
  *  @date March 23, 2023
  *  @brief SIMD-accelerated set similarity measures for SVE.
  *
- *  @sa include/numkong/set.h
+ *  @sa c/numkong/set.h
  *
  *  @section set_sve_instructions ARM SVE Instructions
  *

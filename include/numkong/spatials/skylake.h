@@ -4,7 +4,7 @@
  *  @date February 23, 2026
  *  @brief Batched spatial distances for Skylake, AVX-512.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_SKYLAKE_H
 #define NUMKONG_SPATIALS_SKYLAKE_H

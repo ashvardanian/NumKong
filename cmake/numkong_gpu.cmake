@@ -118,7 +118,7 @@ function (numkong_select_gpu_codes output_ codes_ capability_codes_)
     set(${output_} "${kept_}" PARENT_SCOPE)
 endfunction ()
 
-# Adds one GPU generation's unit, like c/target/hopper.cu, to both libraries: compiled for `codes_` alone, in the
+# Adds one GPU generation's unit, like src/capabilities/hopper.cu, to both libraries: compiled for `codes_` alone, in the
 # language its extension names, without the CPU capabilities and with its vendor's `capabilities_` target. A unit
 # without codes to compile is skipped. The rest are the runtime libraries its calls need.
 function (numkong_add_gpu_unit source_ codes_ capabilities_)
@@ -127,7 +127,10 @@ function (numkong_add_gpu_unit source_ codes_ capabilities_)
     endif ()
     get_filename_component(unit_ "${source_}" NAME_WE)
     add_library(numkong_${unit_}_ OBJECT ${source_})
-    target_include_directories(numkong_${unit_}_ PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/c")
+    target_include_directories(
+        numkong_${unit_}_ PRIVATE "${PROJECT_SOURCE_DIR}/c" "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/cpp"
+                                  "${PROJECT_SOURCE_DIR}/src"
+    )
     # C++20 makes `NUMKONG_CONSTEXPR` constexpr, which kernels reach through relaxed constexpr.
     set_target_properties(
         numkong_${unit_}_

@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief Batched set operations for Power VSX.
  *
- *  @sa include/numkong/sets.h
+ *  @sa c/numkong/sets.h
  */
 #ifndef NUMKONG_SETS_POWERVSX_H
 #define NUMKONG_SETS_POWERVSX_H

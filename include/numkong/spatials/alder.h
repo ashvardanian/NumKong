@@ -4,7 +4,7 @@
  *  @date March 4, 2026
  *  @brief Batched spatial distances for Alder Lake, AVX-VNNI.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_ALDER_H
 #define NUMKONG_SPATIALS_ALDER_H

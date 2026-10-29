@@ -4,7 +4,7 @@
  *  @date February 6, 2026
  *  @brief Many-to-many shape distances between 3D point clouds for RISC-V Vector, RVV.
  *
- *  @sa include/numkong/shapes.h
+ *  @sa c/numkong/shapes.h
  *
  *  Chamfer and Hausdorff run the serial pair driver around a nearest-partner pass over a register
  *  group of inner points: each outer point keeps 8 running minima, one per axis flip, in the serial

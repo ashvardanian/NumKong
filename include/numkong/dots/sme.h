@@ -4,7 +4,7 @@
  *  @date January 2, 2026
  *  @brief SIMD-accelerated Batched Dot Products for SME.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Uses ARM Scalable Matrix Extension, SME, with @c ZA32 tiles for every narrow input type:
  *

@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/each.hpp
+ *  @file cpp/numkong/each.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief C++ wrappers for SIMD-accelerated elementwise arithmetic.

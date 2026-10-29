@@ -4,7 +4,7 @@
  *  @date August 29, 2024
  *  @brief SIMD-accelerated curved-space similarity for Haswell.
  *
- *  @sa include/numkong/curved.h
+ *  @sa c/numkong/curved.h
  *
  *  Implements f16 and bf16 bilinear forms using AVX2 with F16C conversion.
  */

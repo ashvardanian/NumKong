@@ -4,7 +4,7 @@
  *  @date December 21, 2025
  *  @brief Serial geospatial distances, terrain visibility and the packs every capability reads.
  *
- *  @sa include/numkong/geospatial.h
+ *  @sa c/numkong/geospatial.h
  */
 #ifndef NUMKONG_GEOSPATIAL_SERIAL_H
 #define NUMKONG_GEOSPATIAL_SERIAL_H

@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/spatials.hpp
+ *  @file cpp/numkong/spatials.hpp
  *  @author Ash Vardanian
  *  @date March 6, 2026
  *  @brief C++ wrappers for SIMD-accelerated batched spatial distance matrices.

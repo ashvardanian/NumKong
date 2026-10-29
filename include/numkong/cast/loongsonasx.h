@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated type conversions and load/store helpers for LoongArch LASX, 256-bit.
  *
- *  @sa include/numkong/cast.h
+ *  @sa c/numkong/cast.h
  *
  *  @section loongsonasx_cast_instructions Key LASX Load/Store Instructions
  *

@@ -4,7 +4,7 @@
  *  @date March 14, 2023
  *  @brief SIMD-accelerated spatial similarity measures for NEON.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  @section spatial_neon_instructions Key NEON Spatial Instructions
  *

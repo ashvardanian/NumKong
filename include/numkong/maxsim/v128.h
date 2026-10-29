@@ -4,7 +4,7 @@
  *  @date September 12, 2026
  *  @brief SIMD-accelerated MaxSim, angular distance late-interaction, packing for WASM SIMD128.
  *
- *  @sa include/numkong/maxsim.h
+ *  @sa c/numkong/maxsim.h
  *
  *  Packs vectors into the i8 coarse-screening layout of <tt>maxsim/v128relaxed.h</tt>, the only capability
  *  that runs these helpers, as only it multiplies: quantization keeps both operands within the i7

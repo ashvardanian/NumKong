@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/reduce.c
+ *  @file src/dispatch/reduce.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Dispatch points of the reductions: moments, min/max with indices, and RMS normalization.

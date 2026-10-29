@@ -4,7 +4,7 @@
  *  @date July 6, 2026
  *  @brief Panel-based FlashAttention kernels for Intel Sapphire Rapids AMX.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  Implements band-masked scaled dot-product attention over a @b ragged batch of independent
  *  segments, O[s] = softmax(Q[s] × K[s]ᵀ · scale) × V[s] for each segment s.

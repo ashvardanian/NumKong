@@ -4,7 +4,7 @@
  *  @date August 29, 2024
  *  @brief SIMD-accelerated curved-space similarity for Skylake.
  *
- *  @sa include/numkong/curved.h
+ *  @sa c/numkong/curved.h
  *
  *  Implements f32 and f64 bilinear forms and Mahalanobis distance using AVX-512:
  *  - f32 inputs accumulate in f64 to avoid catastrophic cancellation

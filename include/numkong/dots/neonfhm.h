@@ -4,7 +4,7 @@
  *  @date December 28, 2025
  *  @brief SIMD-accelerated Batched Dot Products for NEON FHM.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Uses FMLAL, FEAT_FHM, for widening fp16 → f32 multiply-accumulate, which is 20-48% faster than
  *  the convert-then-FMA approach used in neonhalf.h.

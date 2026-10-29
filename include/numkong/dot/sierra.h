@@ -4,7 +4,7 @@
  *  @date October 14, 2024
  *  @brief SIMD-accelerated dot products for Sierra Forest.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_sierra_instructions AVX-VNNI-INT8 Instructions
  *

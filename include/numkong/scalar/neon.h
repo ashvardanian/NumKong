@@ -4,7 +4,7 @@
  *  @date January 3, 2026
  *  @brief SIMD-accelerated scalar math helpers for NEON.
  *
- *  @sa include/numkong/scalar.h
+ *  @sa c/numkong/scalar.h
  *
  *  @section scalars_neon_instructions Key NEON Scalar Instructions
  *

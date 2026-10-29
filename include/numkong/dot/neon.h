@@ -4,7 +4,7 @@
  *  @date March 14, 2023
  *  @brief SIMD-accelerated dot products for NEON.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_neon_instructions NEON Dot Product Instructions
  *

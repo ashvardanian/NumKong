@@ -4,7 +4,7 @@
  *  @date March 16, 2026
  *  @brief SIMD-accelerated dot products for SVE BF16.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_svebfdot_instructions ARM SVE+BF16 Instructions
  *

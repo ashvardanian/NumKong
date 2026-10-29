@@ -4,7 +4,7 @@
  *  @date December 21, 2025
  *  @brief SIMD-accelerated geospatial distances for Skylake.
  *
- *  @sa include/numkong/geospatial.h
+ *  @sa c/numkong/geospatial.h
  *
  *  Every kernel broadcasts one row and sweeps the columns eight or sixteen at a time, with masked
  *  loads and stores for the last partial step. The 3D squares load three registers of @b [x,y,z]

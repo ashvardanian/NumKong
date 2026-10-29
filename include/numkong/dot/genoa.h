@@ -4,7 +4,7 @@
  *  @date June 4, 2024
  *  @brief SIMD-accelerated dot products for Genoa.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_genoa_instructions Key AVX-512 BF16 Instructions
  *

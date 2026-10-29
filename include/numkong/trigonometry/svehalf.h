@@ -4,7 +4,7 @@
  *  @date September 29, 2026
  *  @brief SIMD-accelerated trigonometric functions for SVE FP16.
  *
- *  @sa include/numkong/trigonometry.h
+ *  @sa c/numkong/trigonometry.h
  *
  *  @section trigonometry_svehalf_instructions ARM SVE+FP16 Instructions
  *

@@ -550,7 +550,7 @@ check_scaled_kernels_avoid_f64() {
 # Rejects an added `#define nk_define_<name>(` missing from .clang-format's `StatementMacros`, because every new
 # code-generation macro family goes through review, and the list in the same commit is what shows it.
 check_codegen_macros_are_approved() {
-    case "$staged_path" in include/*) ;; *) return 0 ;; esac
+    case "$staged_path" in c/* | cpp/* | include/*) ;; *) return 0 ;; esac
     local macro_name unapproved=""
     for macro_name in $(printf '%s\n' "$staged_added_text" |
         grep -oE '^\+[[:space:]]*#[[:space:]]*define[[:space:]]+nk_define_[A-Za-z0-9_]+\(' | grep -oE 'nk_define_[A-Za-z0-9_]+'); do
@@ -1314,7 +1314,7 @@ check_include_comment_above() {
 # Includes form groups in a fixed order with a blank line between them: the C library, the platform's own
 # headers, the C++ standard library, external libraries, sibling projects, then this project's own headers.
 # Only headers in this repository are quoted, found beside the including file or anywhere in the index, and
-# public ones under `include/` always with the `project_include_prefix`. Includes under an `#if` keep their
+# public ones under `c/`, `cpp/` and `include/` always with the `project_include_prefix`. Includes under an `#if` keep their
 # quoting but sit outside the grouping; an include guard is not such an `#if`.
 check_include_groups() {
     local misgrouped
@@ -1357,8 +1357,8 @@ check_include_groups() {
                     else if (touched) { search | getline found; close(search) }
                     if (touched && found == "")
                         printf "line %d: \"%s\" is not in this repository - write <%s>\n", FNR, header, header
-                    if (index(found, "include/" project "/") == 1)
-                        printf "line %d: \"%s\" is a public header - write \"%s\"\n", FNR, header, substr(found, 9)
+                    if (match(found, "^(c|cpp|include)/" project "/"))
+                        printf "line %d: \"%s\" is a public header - write \"%s\"\n", FNR, header, substr(found, RLENGTH - length(project))
                     rank = 6
                 }
                 if (touched && quoted && rank != 6)
@@ -2990,7 +2990,7 @@ run_shared_checks() {
     *.hpp | *.cpp | *.cc) check_memcpy_qualified ;;
     esac
     case "$staged_path" in
-    include/* | c/* | python/* | javascript/* | swift/* | golang/*)
+    c/* | cpp/* | include/* | src/* | python/* | javascript/* | swift/* | golang/*)
         case "$staged_path" in
         *.c | *.h | *.cpp | *.hpp | *.cu | *.cuh | *.hip | *.cc | *.cxx | *.mm)
             check_filesystem_in_harnesses_only
@@ -3104,10 +3104,10 @@ run_tree_checks() {
 
 # region NumKong Rules
 
-# Every capability include/numkong/types.h detects, as `<capability> <ARCH> [<closure>]` lines: its
+# Every capability c/numkong/types.h detects, as `<capability> <ARCH> [<closure>]` lines: its
 # detection clause names the architecture, and a `NUMKONG_ARCH_<ARCH>_<CAPABILITY>_` closure marks a
 # base capability. Read from the staged copy, else the one beside this hook, as fixtures have none.
-capability_architectures=$({ git show :include/numkong/types.h 2>/dev/null || cat "$(dirname "$0")/../include/numkong/types.h"; } |
+capability_architectures=$({ git show :c/numkong/types.h 2>/dev/null || cat "$(dirname "$0")/../c/numkong/types.h"; } |
     awk '
         match($0, /NUMKONG_TARGET_[A-Z0-9]+ && !\(?NUMKONG_ARCH_[A-Z0-9]+_/) {
             split(substr($0, RSTART + 15, RLENGTH - 16), names, / && !\(?NUMKONG_ARCH_/)
@@ -3123,7 +3123,7 @@ capability_architectures=$({ git show :include/numkong/types.h 2>/dev/null || ca
 # The code-generation macros whose stamps define public kernels: a `#define nk_define_*(` body that
 # emits `NUMKONG_API` or `NUMKONG_PUBLIC`, or stamps a macro that does. Read once from the staged tree.
 kernel_codegen_macros=$(git grep --cached -n -A1 -E -e '^#[[:space:]]*define[[:space:]]+nk_define_[A-Za-z0-9_]*\(' \
-    -e '\\[[:space:]]*$' -- include/numkong 2> /dev/null | awk '
+    -e '\\[[:space:]]*$' -- c/numkong include/numkong 2> /dev/null | awk '
     match($0, /[:-][0-9]+[:-]/) {
         path = substr($0, 1, RSTART - 1); number = substr($0, RSTART + 1, RLENGTH - 2) + 0; text = substr($0, RSTART + RLENGTH)
         if (match(text, /^#[[:space:]]*define[[:space:]]+nk_define_[A-Za-z0-9_]*\(/)) {
@@ -3148,7 +3148,7 @@ kernel_codegen_macros=$(git grep --cached -n -A1 -E -e '^#[[:space:]]*define[[:s
     }')
 
 # Rejects a docblock directly above a `NUMKONG_API` definition in include/numkong/<family>/ headers,
-# because a kernel is documented once, at its declaration in include/numkong/<family>.h.
+# because a kernel is documented once, at its declaration in c/numkong/<family>.h.
 check_kernel_documented_at_declaration() {
     local documented_definitions
     documented_definitions=$(scan_staged_file_marking_added_lines '
@@ -3158,7 +3158,7 @@ check_kernel_documented_at_declaration() {
         { previous = $0 }')
     [ -z "$documented_definitions" ] || reject_with_reason "$documented_definitions" \
         "$staged_path documents a public kernel definition;" \
-        "            move the docblock to its declaration in include/numkong/<family>.h and @copydoc it:"
+        "            move the docblock to its declaration in c/numkong/<family>.h and @copydoc it:"
 }
 
 # Rejects a SIMD register variable whose name omits its element type and width in ISA headers, because the
@@ -3282,7 +3282,7 @@ check_capability_guards_shaped() {
         read -r architecture closure <<< "$(printf '%s\n' "$capability_architectures" |
             awk -v name="$capability" '$1 == name { print $2, $3 }')"
         if [ -z "$architecture" ]; then
-            reject_with_reason "$staged_path" "$staged_path is named after no capability include/numkong/types.h detects:"
+            reject_with_reason "$staged_path" "$staged_path is named after no capability c/numkong/types.h detects:"
             return
         elif [ "$architecture" = "$upper" ]; then
             shape=floor opening=NUMKONG_ARCH_${upper}_ inner=NUMKONG_TARGET_$upper
@@ -3399,7 +3399,7 @@ check_cuda_headers_stay_c() {
         "            write C, and launch with cudaLaunchKernel and an explicit dim3 instead of <<< >>>:"
 }
 
-# Rejects a `<<< >>>` launch in a c/ unit, because it drops the launch status that every library launch reports.
+# Rejects a `<<< >>>` launch in a src/ unit, because it drops the launch status that every library launch reports.
 check_launches_report_status() {
     local launches
     launches=$(grep -F '<<<' "$staged_added_code_path" || true)
@@ -3589,7 +3589,7 @@ run_project_checks() {
         check_sme_kernels_avoid_neon
         check_capability_guards_shaped
         ;;
-    include/numkong/*.h | include/numkong/*.cuh | c/*.c | c/dispatch/*.c) check_runtime_guards_match_declarations ;;
+    c/numkong/*.h | include/numkong/*.h | include/numkong/*.cuh | src/*.c | src/dispatch/*.c) check_runtime_guards_match_declarations ;;
     esac
     case "$staged_path" in
     include/numkong/*/serial.h) ;;
@@ -3600,16 +3600,17 @@ run_project_checks() {
         check_cuda_headers_stay_c
         check_kernels_bounded_by_named_widths
         ;;
-    c/*.cu | c/*.hip)
+    src/*.cu | src/*.hip)
         check_launches_report_status
         check_kernels_bounded_by_named_widths
         ;;
     python/*.c | python/*.h) check_cpython_format_shortcuts_absent ;;
     esac
     case "$staged_path" in
-    include/numkong/types.h | include/numkong/*/simt.cuh) ;;
-    include/numkong/*.h | include/numkong/*/*.h | include/numkong/cuda.cuh | include/numkong/rocm.cuh | \
-        include/numkong/*/cuda.cuh | include/numkong/*/rocm.cuh | c/*.c | c/*.h | c/*.cu | c/*.hip)
+    c/numkong/types.h | include/numkong/*/simt.cuh) ;;
+    c/numkong/*.h | include/numkong/*.h | include/numkong/*/*.h | include/numkong/cuda.cuh | \
+        include/numkong/rocm.cuh | include/numkong/*/cuda.cuh | include/numkong/*/rocm.cuh | \
+        src/*.c | src/*.h | src/*.cu | src/*.hip)
         check_vendor_tested_only_in_kernels
         ;;
     esac

@@ -4,7 +4,7 @@
  *  @date February 6, 2026
  *  @brief SIMD-accelerated elementwise arithmetic for RISC-V.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  */
 #ifndef NUMKONG_EACH_RVV_H
 #define NUMKONG_EACH_RVV_H

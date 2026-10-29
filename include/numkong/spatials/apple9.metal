@@ -4,7 +4,7 @@
  *  @date October 5, 2026
  *  @brief Batched spatial distances using Apple family 9 SIMD-group matrices.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 kernel void nk_angulars_f16_apple9_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
                                            device float *c [[buffer(2)]],

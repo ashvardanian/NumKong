@@ -1,5 +1,5 @@
 /**
- *  @file c/target/loongsonasx.c
+ *  @file src/capabilities/loongsonasx.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c loongsonasx kernels, defined once for the NumKong library.

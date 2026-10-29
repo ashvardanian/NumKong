@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief Batched spatial distances on the SIMT cores of every CUDA device, the @c cuda exports.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  *  @sa include/numkong/dots/cuda.cuh
  *
  *  The baseline dots tiles with a metric in their epilogue: squared norms of A, and for

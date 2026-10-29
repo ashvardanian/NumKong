@@ -1,5 +1,5 @@
 /**
- *  @file c/target/skylake.c
+ *  @file src/capabilities/skylake.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c skylake kernels, defined once for the NumKong library.

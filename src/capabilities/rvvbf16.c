@@ -1,5 +1,5 @@
 /**
- *  @file c/target/rvvbf16.c
+ *  @file src/capabilities/rvvbf16.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c rvvbf16 kernels, defined once for the NumKong library.

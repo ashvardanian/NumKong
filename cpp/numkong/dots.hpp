@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/dots.hpp
+ *  @file cpp/numkong/dots.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief C++ bindings for multi-target dot-product kernels.

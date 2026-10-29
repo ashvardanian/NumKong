@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/shapes.hpp
+ *  @file cpp/numkong/shapes.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief C++ bindings for many-to-many shape distances.

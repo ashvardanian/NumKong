@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/numkong.hpp
+ *  @file cpp/numkong/numkong.hpp
  *  @author Ash Vardanian
  *  @date January 7, 2026
  *  @brief NumKong SDK for C++23 and newer.

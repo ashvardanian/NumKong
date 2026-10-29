@@ -1,5 +1,5 @@
 /**
- *  @file c/target/turin.c
+ *  @file src/capabilities/turin.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c turin kernels, defined once for the NumKong library.

@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated spatial similarity measures for LoongArch LASX, 256-bit.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  @section spatial_loongsonasx_instructions Key LASX Spatial Instructions
  *

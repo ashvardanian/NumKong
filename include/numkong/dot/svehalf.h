@@ -4,7 +4,7 @@
  *  @date April 3, 2023
  *  @brief SIMD-accelerated dot products for SVE FP16.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_svehalf_instructions ARM SVE+FP16 Instructions
  *

@@ -4,7 +4,7 @@
  *  @date February 6, 2026
  *  @brief SIMD-accelerated probability distribution similarity measures for RISC-V.
  *
- *  @sa include/numkong/probability.h
+ *  @sa c/numkong/probability.h
  *
  *  Implements KLD and JSD with RVV 1.0 vector intrinsics for f32, f64, f16, and bf16, porting the
  *  log2 polynomial of the Haswell implementation to RVV's vector fused-multiply-add instructions.

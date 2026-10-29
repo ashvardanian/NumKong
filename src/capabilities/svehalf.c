@@ -1,5 +1,5 @@
 /**
- *  @file c/target/svehalf.c
+ *  @file src/capabilities/svehalf.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c svehalf kernels, defined once for the NumKong library.

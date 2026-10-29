@@ -4,7 +4,7 @@
  *  @date October 3, 2023
  *  @brief SIMD-accelerated spatial similarity measures for Ice Lake.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  @section spatial_icelake_instructions Key AVX-512 VNNI Spatial Instructions
  *

@@ -1,5 +1,5 @@
 /**
- *  @file c/target/sme.c
+ *  @file src/capabilities/sme.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c sme kernels, defined once for the NumKong library.

@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/probability.c
+ *  @file src/dispatch/probability.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Dispatch points of the probability divergences: Kullback-Leibler and Jensen-Shannon.

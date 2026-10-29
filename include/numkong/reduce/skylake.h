@@ -4,7 +4,7 @@
  *  @date February 11, 2026
  *  @brief AVX-512 implementations for the redesigned reduction API, moments and minmax.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  *
  *  @section tail_nan_fill  Tail Handling via NaN Fill
  *

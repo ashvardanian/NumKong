@@ -4,7 +4,7 @@
  *  @date October 5, 2026
  *  @brief Arm NEON ragged attention backend and rotary position embeddings.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  Baseline backend for Armv8 cores without the dot-product extensions, in the @c haswell shape:
  *  BF16 and F16 planes keep their source encoding, E4M3 widens exactly to F16 at pack, and every

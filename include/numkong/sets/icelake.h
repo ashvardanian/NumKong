@@ -4,7 +4,7 @@
  *  @date February 23, 2026
  *  @brief AVX-512 VNNI/VBMI batched set operations for Ice Lake.
  *
- *  @sa include/numkong/sets.h
+ *  @sa c/numkong/sets.h
  */
 #ifndef NUMKONG_SETS_ICELAKE_H
 #define NUMKONG_SETS_ICELAKE_H

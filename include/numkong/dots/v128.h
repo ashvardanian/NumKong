@@ -4,7 +4,7 @@
  *  @date September 12, 2026
  *  @brief SIMD-accelerated Batched Dot Products for WASM.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Widens i8 and u8 to 16-bit lanes and multiplies adjacent pairs with <tt>i32x4.dot_i16x8_s</tt>, so
  *  every integer GEMM is exact without a correction pass; bf16 shifts even and odd halves straight

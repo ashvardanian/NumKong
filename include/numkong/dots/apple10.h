@@ -4,7 +4,7 @@
  *  @date September 24, 2026
  *  @brief Batched Dot Products for Apple GPUs of Metal family 10, launched from C.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *  @sa include/numkong/dots/apple10.metal, the kernels this embeds
  *  @sa include/numkong/dots/ampere.cuh, the CUDA sibling
  *

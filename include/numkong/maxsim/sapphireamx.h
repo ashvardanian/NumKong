@@ -4,7 +4,7 @@
  *  @date March 7, 2026
  *  @brief SIMD-accelerated MaxSim, ColBERT late-interaction, for Sapphire Rapids AMX.
  *
- *  @sa include/numkong/maxsim.h
+ *  @sa c/numkong/maxsim.h
  *
  *  bf16: fused AMX approach using TDPBF16PS for direct bf16 dot products, with per-tile column
  *  extraction for a running max of dot / ‖d‖ and angular distance finalization. Uses 4 accumulator

@@ -1,5 +1,5 @@
 /**
- *  @file c/target/cdna3.hip
+ *  @file src/capabilities/cdna3.hip
  *  @author Ash Vardanian
  *  @date October 7, 2026
  *  @brief Every family's @c cdna3 kernels, defined once for the NumKong library.

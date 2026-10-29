@@ -4,7 +4,7 @@
  *  @date February 12, 2026
  *  @brief AVX-512 BF16 implementations for the redesigned reduction API, moments.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  *
  *  @section bf16_moments BF16 Moments
  *

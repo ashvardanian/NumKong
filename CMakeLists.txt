@@ -228,14 +228,15 @@ endif ()
 # Define the header-only library. The include path & sources wear `BUILD_INTERFACE` genexes, so the
 # target stays exportable: the installed package resolves headers under the install prefix instead.
 include(GNUInstallDirs)
-file(GLOB numkong_header_sources_ include/numkong/*.h include/numkong/*.hpp)
+file(GLOB numkong_header_sources_ c/numkong/*.h include/numkong/*.h include/numkong/*.hpp cpp/numkong/*.hpp)
 add_library(numkong_header INTERFACE)
 add_library(numkong::header ALIAS numkong_header)
 set_target_properties(numkong_header PROPERTIES EXPORT_NAME header)
 target_sources(numkong_header INTERFACE "$<BUILD_INTERFACE:${numkong_header_sources_}>")
 target_include_directories(
-    numkong_header INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-                             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    numkong_header
+    INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/c> $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+              $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/cpp> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_compile_features(numkong_header INTERFACE c_std_99)
 # Consumers of the header target compile every kernel themselves, and link no dispatch points.
@@ -275,7 +276,7 @@ if (CMAKE_C_COMPILER_ID MATCHES "Clang")
 
     # Install module map
     if (NUMKONG_INSTALL)
-        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/module.modulemap DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/c/module.modulemap DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
     endif ()
 
     message(STATUS "Clang C modules enabled: cache at ${CMAKE_BINARY_DIR}/module-cache")
@@ -488,59 +489,59 @@ endif ()
 # capability, so every file compiles with the same flags and the units build in parallel. WebAssembly enables its
 # capabilities through NUMKONG_MARCH, so its units follow the platform.
 set(numkong_library_units_
-    c/dispatch/dot.c
-    c/dispatch/dots.c
-    c/dispatch/spatial.c
-    c/dispatch/spatials.c
-    c/dispatch/set.c
-    c/dispatch/sets.c
-    c/dispatch/maxsim.c
-    c/dispatch/attention.c
-    c/dispatch/sparse.c
-    c/dispatch/reduce.c
-    c/dispatch/each.c
-    c/dispatch/cast.c
-    c/dispatch/scalar.c
-    c/dispatch/trigonometry.c
-    c/dispatch/curved.c
-    c/dispatch/probability.c
-    c/dispatch/geospatial.c
-    c/dispatch/shapes.c
-    c/target/serial.c
-    $<$<BOOL:${numkong_target_haswell_enabled}>:c/target/haswell.c>
-    $<$<BOOL:${numkong_target_alder_enabled}>:c/target/alder.c>
-    $<$<BOOL:${numkong_target_sierra_enabled}>:c/target/sierra.c>
-    $<$<BOOL:${numkong_target_skylake_enabled}>:c/target/skylake.c>
-    $<$<BOOL:${numkong_target_icelake_enabled}>:c/target/icelake.c>
-    $<$<BOOL:${numkong_target_genoa_enabled}>:c/target/genoa.c>
-    $<$<BOOL:${numkong_target_turin_enabled}>:c/target/turin.c>
-    $<$<BOOL:${numkong_target_sapphire_enabled}>:c/target/sapphire.c>
-    $<$<BOOL:${numkong_target_diamond_enabled}>:c/target/diamond.c>
-    $<$<BOOL:${numkong_target_sapphireamx_enabled}>:c/target/sapphireamx.c>
-    $<$<BOOL:${numkong_target_graniteamx_enabled}>:c/target/graniteamx.c>
-    $<$<BOOL:${numkong_target_diamondamx_enabled}>:c/target/diamondamx.c>
-    $<$<BOOL:${numkong_target_neon_enabled}>:c/target/neon.c>
-    $<$<BOOL:${numkong_target_neonhalf_enabled}>:c/target/neonhalf.c>
-    $<$<BOOL:${numkong_target_neonbfdot_enabled}>:c/target/neonbfdot.c>
-    $<$<BOOL:${numkong_target_neonfhm_enabled}>:c/target/neonfhm.c>
-    $<$<BOOL:${numkong_target_neonsdot_enabled}>:c/target/neonsdot.c>
-    $<$<BOOL:${numkong_target_neonfp8_enabled}>:c/target/neonfp8.c>
-    $<$<BOOL:${numkong_target_sve_enabled}>:c/target/sve.c>
-    $<$<BOOL:${numkong_target_svehalf_enabled}>:c/target/svehalf.c>
-    $<$<BOOL:${numkong_target_svesdot_enabled}>:c/target/svesdot.c>
-    $<$<BOOL:${numkong_target_svebfdot_enabled}>:c/target/svebfdot.c>
-    $<$<BOOL:${numkong_target_sve2_enabled}>:c/target/sve2.c>
-    $<$<BOOL:${numkong_target_sme_enabled}>:c/target/sme.c>
-    $<$<BOOL:${numkong_target_smef64_enabled}>:c/target/smef64.c>
-    $<$<BOOL:${numkong_target_smebi32_enabled}>:c/target/smebi32.c>
-    $<$<BOOL:${numkong_target_rvv_enabled}>:c/target/rvv.c>
-    $<$<BOOL:${numkong_target_rvvhalf_enabled}>:c/target/rvvhalf.c>
-    $<$<BOOL:${numkong_target_rvvbf16_enabled}>:c/target/rvvbf16.c>
-    $<$<BOOL:${numkong_target_rvvbb_enabled}>:c/target/rvvbb.c>
-    $<$<BOOL:${numkong_arch_wasm_}>:c/target/v128.c>
-    $<$<BOOL:${numkong_arch_wasm_}>:c/target/v128relaxed.c>
-    $<$<BOOL:${numkong_target_powervsx_enabled}>:c/target/powervsx.c>
-    $<$<BOOL:${numkong_target_loongsonasx_enabled}>:c/target/loongsonasx.c>
+    src/dispatch/dot.c
+    src/dispatch/dots.c
+    src/dispatch/spatial.c
+    src/dispatch/spatials.c
+    src/dispatch/set.c
+    src/dispatch/sets.c
+    src/dispatch/maxsim.c
+    src/dispatch/attention.c
+    src/dispatch/sparse.c
+    src/dispatch/reduce.c
+    src/dispatch/each.c
+    src/dispatch/cast.c
+    src/dispatch/scalar.c
+    src/dispatch/trigonometry.c
+    src/dispatch/curved.c
+    src/dispatch/probability.c
+    src/dispatch/geospatial.c
+    src/dispatch/shapes.c
+    src/capabilities/serial.c
+    $<$<BOOL:${numkong_target_haswell_enabled}>:src/capabilities/haswell.c>
+    $<$<BOOL:${numkong_target_alder_enabled}>:src/capabilities/alder.c>
+    $<$<BOOL:${numkong_target_sierra_enabled}>:src/capabilities/sierra.c>
+    $<$<BOOL:${numkong_target_skylake_enabled}>:src/capabilities/skylake.c>
+    $<$<BOOL:${numkong_target_icelake_enabled}>:src/capabilities/icelake.c>
+    $<$<BOOL:${numkong_target_genoa_enabled}>:src/capabilities/genoa.c>
+    $<$<BOOL:${numkong_target_turin_enabled}>:src/capabilities/turin.c>
+    $<$<BOOL:${numkong_target_sapphire_enabled}>:src/capabilities/sapphire.c>
+    $<$<BOOL:${numkong_target_diamond_enabled}>:src/capabilities/diamond.c>
+    $<$<BOOL:${numkong_target_sapphireamx_enabled}>:src/capabilities/sapphireamx.c>
+    $<$<BOOL:${numkong_target_graniteamx_enabled}>:src/capabilities/graniteamx.c>
+    $<$<BOOL:${numkong_target_diamondamx_enabled}>:src/capabilities/diamondamx.c>
+    $<$<BOOL:${numkong_target_neon_enabled}>:src/capabilities/neon.c>
+    $<$<BOOL:${numkong_target_neonhalf_enabled}>:src/capabilities/neonhalf.c>
+    $<$<BOOL:${numkong_target_neonbfdot_enabled}>:src/capabilities/neonbfdot.c>
+    $<$<BOOL:${numkong_target_neonfhm_enabled}>:src/capabilities/neonfhm.c>
+    $<$<BOOL:${numkong_target_neonsdot_enabled}>:src/capabilities/neonsdot.c>
+    $<$<BOOL:${numkong_target_neonfp8_enabled}>:src/capabilities/neonfp8.c>
+    $<$<BOOL:${numkong_target_sve_enabled}>:src/capabilities/sve.c>
+    $<$<BOOL:${numkong_target_svehalf_enabled}>:src/capabilities/svehalf.c>
+    $<$<BOOL:${numkong_target_svesdot_enabled}>:src/capabilities/svesdot.c>
+    $<$<BOOL:${numkong_target_svebfdot_enabled}>:src/capabilities/svebfdot.c>
+    $<$<BOOL:${numkong_target_sve2_enabled}>:src/capabilities/sve2.c>
+    $<$<BOOL:${numkong_target_sme_enabled}>:src/capabilities/sme.c>
+    $<$<BOOL:${numkong_target_smef64_enabled}>:src/capabilities/smef64.c>
+    $<$<BOOL:${numkong_target_smebi32_enabled}>:src/capabilities/smebi32.c>
+    $<$<BOOL:${numkong_target_rvv_enabled}>:src/capabilities/rvv.c>
+    $<$<BOOL:${numkong_target_rvvhalf_enabled}>:src/capabilities/rvvhalf.c>
+    $<$<BOOL:${numkong_target_rvvbf16_enabled}>:src/capabilities/rvvbf16.c>
+    $<$<BOOL:${numkong_target_rvvbb_enabled}>:src/capabilities/rvvbb.c>
+    $<$<BOOL:${numkong_arch_wasm_}>:src/capabilities/v128.c>
+    $<$<BOOL:${numkong_arch_wasm_}>:src/capabilities/v128relaxed.c>
+    $<$<BOOL:${numkong_target_powervsx_enabled}>:src/capabilities/powervsx.c>
+    $<$<BOOL:${numkong_target_loongsonasx_enabled}>:src/capabilities/loongsonasx.c>
 )
 
 # Build tests
@@ -610,7 +611,7 @@ endif ()
 
 # The static library, which every binding but Swift links and a parent project reaches as `numkong::static`, and the
 # shared library, or the Emscripten JS module
-set(numkong_library_sources_ ${numkong_header_sources_} c/numkong.c ${numkong_library_units_})
+set(numkong_library_sources_ ${numkong_header_sources_} src/numkong.c ${numkong_library_units_})
 
 # Emscripten requires building as executable to generate JS bindings
 if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
@@ -647,15 +648,16 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
     # `types.h` leaves every non-WebAssembly capability off, and `v128` and `v128relaxed` follow `-msimd128` and
     # `-mrelaxed-simd`.
     foreach (library_ ${numkong_libraries_})
-        # The library, unlike the headers, may use C11: `c/numkong.c` caches detection in <stdatomic.h> atomics.
+        # The library, unlike the headers, may use C11: `src/numkong.c` caches detection in <stdatomic.h> atomics.
         target_compile_features(${library_} PRIVATE c_std_11)
         target_link_libraries(${library_} PRIVATE $<BUILD_INTERFACE:numkong_warnings>)
         target_include_directories(
-            ${library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-                               $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+            ${library_}
+            PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/c> $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/cpp> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         )
         # The library's units reach their private `dispatch.h` by name.
-        target_include_directories(${library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
+        target_include_directories(${library_} PRIVATE "${PROJECT_SOURCE_DIR}/src")
     endforeach ()
 
     target_link_options(
@@ -702,17 +704,18 @@ else ()
         set_target_properties(numkong_shared PROPERTIES EXPORT_NAME shared WINDOWS_EXPORT_ALL_SYMBOLS ON)
     endif ()
     foreach (library_ ${numkong_libraries_})
-        # The library, unlike the headers, may use C11: `c/numkong.c` caches detection in <stdatomic.h> atomics,
+        # The library, unlike the headers, may use C11: `src/numkong.c` caches detection in <stdatomic.h> atomics,
         # which MSVC gates behind a flag.
         target_compile_features(${library_} PRIVATE c_std_11)
         target_link_libraries(${library_} PRIVATE $<BUILD_INTERFACE:numkong_warnings>)
         target_compile_options(${library_} PRIVATE $<$<C_COMPILER_ID:MSVC>:/experimental:c11atomics>)
         target_include_directories(
-            ${library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-                               $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+            ${library_}
+            PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/c> $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/cpp> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         )
         # The library's units reach their private `dispatch.h` by name.
-        target_include_directories(${library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
+        target_include_directories(${library_} PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
         # Hide all symbols by default; only NUMKONG_API-annotated API functions are exported.
         # Strip unwind tables from this pure-C library (saves ~78 KB).
@@ -741,6 +744,8 @@ else ()
             set_target_properties(${library_} PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
         elseif (numkong_ipo_supported_ AND NOT MSVC AND NOT NUMKONG_MULTIVERSIONED)
             set_target_properties(${library_} PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+            # Its objects are bitcode, so every link that takes them must optimize at link time too.
+            target_link_options(${library_} INTERFACE ${CMAKE_C_COMPILE_OPTIONS_IPO} ${CMAKE_C_LINK_OPTIONS_IPO})
         endif ()
 
         # Every capability the toolchain builds; `nk_cpu_capabilities_enabled()` picks among them at load.
@@ -755,11 +760,11 @@ if (NUMKONG_BUILD_PYTHON)
     python_add_library(
         numkong_python MODULE WITH_SOABI python/numkong.c python/tensor.c python/matrix.c python/types.c
         python/distance.c python/each.c python/trigonometry.c python/geospatial.c python/shapes.c python/attention.c
-        python/maxsim.c python/numpy_interop.c python/dlpack_interop.c c/parallel.c
+        python/maxsim.c python/numpy_interop.c python/dlpack_interop.c src/parallel.c
     )
     set_target_properties(numkong_python PROPERTIES OUTPUT_NAME "_numkong")
     target_compile_features(numkong_python PRIVATE c_std_11)
-    target_include_directories(numkong_python PRIVATE python c)
+    target_include_directories(numkong_python PRIVATE python src)
     target_link_libraries(
         numkong_python PRIVATE numkong_static numkong_warnings $<$<PLATFORM_ID:Linux,FreeBSD>:m>
                                $<$<AND:$<BOOL:${OpenMP_C_FOUND}>,$<PLATFORM_ID:Linux,FreeBSD>>:OpenMP::OpenMP_C>
@@ -781,10 +786,10 @@ if (NUMKONG_BUILD_NODE)
     endif ()
     find_package(OpenMP COMPONENTS C)
     # `CMAKE_JS_SRC` is the Windows delay-load hook and empty everywhere else.
-    add_library(numkong_node SHARED javascript/numkong.c c/parallel.c ${CMAKE_JS_SRC})
+    add_library(numkong_node SHARED javascript/numkong.c src/parallel.c ${CMAKE_JS_SRC})
     set_target_properties(numkong_node PROPERTIES PREFIX "" SUFFIX ".node" OUTPUT_NAME "numkong")
     target_compile_features(numkong_node PRIVATE c_std_11)
-    target_include_directories(numkong_node PRIVATE ${CMAKE_JS_INC} c)
+    target_include_directories(numkong_node PRIVATE ${CMAKE_JS_INC} src)
     target_compile_definitions(numkong_node PRIVATE NAPI_VERSION=8)
     target_compile_options(numkong_node PRIVATE $<$<C_COMPILER_ID:MSVC>:/Zc:preprocessor>)
     target_link_libraries(
@@ -796,7 +801,10 @@ endif ()
 # Shared-library test (tests runtime dispatch path)
 if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_SHARED)
     add_executable(numkong_cpu_shared_test ${numkong_test_sources_})
-    target_include_directories(numkong_cpu_shared_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
+    target_include_directories(
+        numkong_cpu_shared_test PRIVATE "${PROJECT_SOURCE_DIR}/c" "${PROJECT_SOURCE_DIR}/include"
+                                        "${PROJECT_SOURCE_DIR}/cpp"
+    )
     target_link_libraries(numkong_cpu_shared_test numkong_shared numkong_warnings fmt::fmt ${numkong_cxx_math_library_})
     target_compile_features(numkong_cpu_shared_test PRIVATE cxx_std_20)
     target_precompile_headers(numkong_cpu_shared_test PRIVATE ${numkong_test_precompiled_})
@@ -853,23 +861,27 @@ if (NUMKONG_CUDA_ARCH)
         "${numkong_target_blackwellultra_architectures}"
     )
     numkong_add_gpu_unit(
-        c/target/cuda.cu "${numkong_cuda_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
+        src/capabilities/cuda.cu "${numkong_cuda_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
     )
     numkong_add_gpu_unit(
-        c/target/ampere.cu "${numkong_ampere_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
-    )
-    numkong_add_gpu_unit(c/target/ada.cu "${numkong_ada_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart)
-    numkong_add_gpu_unit(
-        c/target/hopper.cu "${numkong_hopper_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
+        src/capabilities/ampere.cu "${numkong_ampere_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
     )
     numkong_add_gpu_unit(
-        c/target/blackwell.cu "${numkong_blackwell_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
+        src/capabilities/ada.cu "${numkong_ada_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
     )
     numkong_add_gpu_unit(
-        c/target/blackwellrtx.cu "${numkong_blackwellrtx_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
+        src/capabilities/hopper.cu "${numkong_hopper_unit_codes_}" numkong_cuda_capabilities_compiled_ CUDA::cudart
     )
     numkong_add_gpu_unit(
-        c/target/blackwellultra.cu "${numkong_blackwellultra_unit_codes_}" numkong_cuda_capabilities_compiled_
+        src/capabilities/blackwell.cu "${numkong_blackwell_unit_codes_}" numkong_cuda_capabilities_compiled_
+        CUDA::cudart
+    )
+    numkong_add_gpu_unit(
+        src/capabilities/blackwellrtx.cu "${numkong_blackwellrtx_unit_codes_}" numkong_cuda_capabilities_compiled_
+        CUDA::cudart
+    )
+    numkong_add_gpu_unit(
+        src/capabilities/blackwellultra.cu "${numkong_blackwellultra_unit_codes_}" numkong_cuda_capabilities_compiled_
         CUDA::cudart
     )
     foreach (library_ ${numkong_libraries_})
@@ -892,16 +904,17 @@ if (NUMKONG_ROCM_ARCH)
         numkong_cdna5_unit_codes_ "${numkong_rocm_resolved_architectures_}" "${numkong_target_cdna5_architectures}"
     )
     numkong_add_gpu_unit(
-        c/target/rocm.hip "${numkong_rocm_resolved_architectures_}" numkong_rocm_capabilities_compiled_ hip::host
+        src/capabilities/rocm.hip "${numkong_rocm_resolved_architectures_}" numkong_rocm_capabilities_compiled_
+        hip::host
     )
     numkong_add_gpu_unit(
-        c/target/cdna3.hip "${numkong_cdna3_unit_codes_}" numkong_rocm_capabilities_compiled_ hip::host
+        src/capabilities/cdna3.hip "${numkong_cdna3_unit_codes_}" numkong_rocm_capabilities_compiled_ hip::host
     )
     numkong_add_gpu_unit(
-        c/target/cdna4.hip "${numkong_cdna4_unit_codes_}" numkong_rocm_capabilities_compiled_ hip::host
+        src/capabilities/cdna4.hip "${numkong_cdna4_unit_codes_}" numkong_rocm_capabilities_compiled_ hip::host
     )
     numkong_add_gpu_unit(
-        c/target/cdna5.hip "${numkong_cdna5_unit_codes_}" numkong_rocm_capabilities_compiled_ hip::host
+        src/capabilities/cdna5.hip "${numkong_cdna5_unit_codes_}" numkong_rocm_capabilities_compiled_ hip::host
     )
     foreach (library_ ${numkong_libraries_})
         target_compile_definitions(${library_} PRIVATE NUMKONG_ARCH_ROCM_=1)
@@ -914,8 +927,11 @@ endif ()
 
 if (NUMKONG_METAL_ARCH)
     # Metal compiles its kernels on the device, so the C units hold only the host side of each Apple capability.
-    add_library(numkong_metal_ OBJECT c/target/metal.c c/target/apple9.c c/target/apple10.c)
-    target_include_directories(numkong_metal_ PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/c")
+    add_library(numkong_metal_ OBJECT src/capabilities/metal.c src/capabilities/apple9.c src/capabilities/apple10.c)
+    target_include_directories(
+        numkong_metal_ PRIVATE "${PROJECT_SOURCE_DIR}/c" "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/cpp"
+                               "${PROJECT_SOURCE_DIR}/src"
+    )
     set_target_properties(numkong_metal_ PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_link_libraries(
         numkong_metal_ PRIVATE numkong_cpu_capabilities_disabled_ numkong_metal_capabilities_compiled_ numkong_warnings
@@ -936,7 +952,9 @@ endif ()
 # Configures CUDA suites for `architectures_`: C++20, `constexpr` host helpers
 # callable from device code so the tensor views stay GPU-friendly, and the host baseline forwarded to NVCC.
 function (numkong_configure_cuda_suite target_ architectures_)
-    target_include_directories(${target_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
+    target_include_directories(
+        ${target_} PRIVATE "${PROJECT_SOURCE_DIR}/c" "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/cpp"
+    )
     set_target_properties(
         ${target_} PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO CUDA_ARCHITECTURES
                                                                                              "${architectures_}"
@@ -968,7 +986,9 @@ endfunction ()
 
 # Compiles a ROCm test target for `architectures_` the way every ROCm test expects: C++20 over the public headers.
 function (numkong_configure_rocm_test target_ architectures_)
-    target_include_directories(${target_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
+    target_include_directories(
+        ${target_} PRIVATE "${PROJECT_SOURCE_DIR}/c" "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/cpp"
+    )
     set_target_properties(
         ${target_} PROPERTIES HIP_ARCHITECTURES "${architectures_}" HIP_STANDARD 20 HIP_STANDARD_REQUIRED YES
                               HIP_EXTENSIONS NO
@@ -992,7 +1012,9 @@ if (NUMKONG_BUILD_TEST)
         endif ()
         set(leaf_ numkong_test_${vendor_})
         add_library(${leaf_} OBJECT ${vendor_sources_})
-        target_include_directories(${leaf_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
+        target_include_directories(
+            ${leaf_} PRIVATE "${PROJECT_SOURCE_DIR}/c" "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/cpp"
+        )
         target_link_libraries(${leaf_} PRIVATE fmt::fmt)
         target_link_libraries(${leaf_} PRIVATE numkong_cpu_capabilities_disabled_ numkong_warnings)
         target_compile_features(${leaf_} PRIVATE cxx_std_20)
@@ -1026,7 +1048,9 @@ if (NUMKONG_BUILD_BENCH)
     )
     add_library(numkong_bench_rocm OBJECT bench/cross_rocm.hip bench/each_rocm.hip)
     foreach (leaf_ numkong_bench_cuda numkong_bench_rocm)
-        target_include_directories(${leaf_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
+        target_include_directories(
+            ${leaf_} PRIVATE "${PROJECT_SOURCE_DIR}/c" "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/cpp"
+        )
         target_link_libraries(${leaf_} PRIVATE fmt::fmt)
         target_link_libraries(${leaf_} PRIVATE numkong_cpu_capabilities_disabled_ numkong_warnings)
         target_compile_features(${leaf_} PRIVATE cxx_std_20)

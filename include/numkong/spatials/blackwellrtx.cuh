@@ -4,7 +4,7 @@
  *  @date September 22, 2026
  *  @brief SIMD-accelerated batched spatial distances for the NVIDIA compute capability 12.x family.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  *  @sa include/numkong/dots/blackwellrtx.cuh
  *
  *  The native Float8, Float6 and Float4 products with the Ampere norm updates, whose widenings read

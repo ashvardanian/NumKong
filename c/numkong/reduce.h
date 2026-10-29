@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/reduce.h
+ *  @file c/numkong/reduce.h
  *  @author Ash Vardanian
  *  @date December 27, 2024
  *  @brief SIMD-accelerated vector reductions.

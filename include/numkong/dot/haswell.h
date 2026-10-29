@@ -4,7 +4,7 @@
  *  @date March 14, 2023
  *  @brief SIMD-accelerated dot products for Haswell.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_haswell_instructions Key AVX2/FMA Dot Product Instructions
  *

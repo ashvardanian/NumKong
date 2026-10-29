@@ -4,7 +4,7 @@
  *  @date February 6, 2026
  *  @brief SIMD-accelerated trigonometric functions for WASM.
  *
- *  @sa include/numkong/trigonometry.h
+ *  @sa c/numkong/trigonometry.h
  *  @see https://sleef.org
  *
  *  Implements sin, cos, atan, atan2 for f32x4 and f64x2 using minimax polynomial approximations.

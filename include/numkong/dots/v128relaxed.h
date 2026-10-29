@@ -4,7 +4,7 @@
  *  @date March 5, 2026
  *  @brief SIMD-accelerated Batched Dot Products for WASM Relaxed SIMD.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Uses relaxed SIMD dot products for integer GEMM. I8 uses 2 × relaxed_dot with bit-split,
  *  b_low + (-128) · b_high. U8 uses 2 × relaxed_dot with signed reinterpretation and b_sums

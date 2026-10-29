@@ -4,7 +4,7 @@
  *  @date March 4, 2026
  *  @brief SIMD-accelerated Batched Dot Products for Alder Lake.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Uses AVX-VNNI, 256-bit, for integer GEMM via DPBUSD with algebraic sign transformations for
  *  signed*signed and unsigned*unsigned cases.

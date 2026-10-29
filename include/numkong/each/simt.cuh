@@ -5,7 +5,7 @@
  *  @brief Element-wise scales, sums, blends, FMAs, RMSNorm and SwiGLU on the SIMT cores of every
  *      CUDA and ROCm device.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  *  @sa include/numkong/cast/simt.cuh
  *
  *  Every kernel moves whole 16-byte chunks when its operands start on 16-byte boundaries, and the

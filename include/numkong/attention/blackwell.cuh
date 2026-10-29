@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief Ragged attention for the NVIDIA compute capability 10.x family.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *  @sa include/numkong/attention/ampere.cuh
  *  @sa include/numkong/dots/blackwell.cuh
  *

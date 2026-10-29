@@ -13,7 +13,7 @@
  *  on the already-reduced scalar, so it lives in a target-agnostic @c NUMKONG_INLINE helper called
  *  from the macro.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  */
 #ifndef NUMKONG_REDUCE_SVE_H
 #define NUMKONG_REDUCE_SVE_H

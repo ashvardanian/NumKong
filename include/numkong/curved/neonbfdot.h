@@ -4,7 +4,7 @@
  *  @date August 29, 2024
  *  @brief SIMD-accelerated curved-space similarity for NEON BF16.
  *
- *  @sa include/numkong/curved.h
+ *  @sa c/numkong/curved.h
  *
  *  Implements bf16 bilinear forms and Mahalanobis distance using ARM NEON with BF16 extensions.
  *

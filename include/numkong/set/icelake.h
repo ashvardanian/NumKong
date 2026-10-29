@@ -4,7 +4,7 @@
  *  @date March 23, 2023
  *  @brief SIMD-accelerated set similarity measures for Ice Lake.
  *
- *  @sa include/numkong/set.h
+ *  @sa c/numkong/set.h
  *
  *  @section set_icelake_instructions Key AVX-512 Set Instructions
  *

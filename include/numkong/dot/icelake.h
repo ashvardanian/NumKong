@@ -4,7 +4,7 @@
  *  @date October 3, 2023
  *  @brief SIMD-accelerated dot products for Ice Lake.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_icelake_instructions VNNI Instructions Performance
  *

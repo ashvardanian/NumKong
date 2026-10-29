@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/trigonometry.c
+ *  @file src/dispatch/trigonometry.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Dispatch points of the trigonometric functions and rotary embeddings.

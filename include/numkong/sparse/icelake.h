@@ -4,7 +4,7 @@
  *  @date August 24, 2024
  *  @brief Ice Lake-accelerated sparse vector operations.
  *
- *  @sa include/numkong/sparse.h
+ *  @sa c/numkong/sparse.h
  *
  *  The AVX-512 implementations are inspired by the "Faster-Than-Native Alternatives for x86
  *  VP2INTERSECT Instructions" paper by Guille Diez-Canas, 2022.

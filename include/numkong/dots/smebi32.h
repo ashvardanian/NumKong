@@ -4,7 +4,7 @@
  *  @date February 24, 2026
  *  @brief SIMD-accelerated Batched Dot Products for SME, u1 binary vectors.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Uses ARM SME BMOPA instruction for binary dot products.
  *

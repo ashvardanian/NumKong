@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/scalar.h
+ *  @file c/numkong/scalar.h
  *  @author Ash Vardanian
  *  @date November 20, 2024
  *  @brief SIMD-accelerated scalar math helpers.

@@ -4,7 +4,7 @@
  *  @date January 5, 2026
  *  @brief SIMD-accelerated dot products for RISC-V BF16.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  Alibaba XuanTie C930 and similar chips implement RVV 1.0 with Zvfbfwma, whose @c vfwmaccbf16
  *  fuses a widening bf16 × bf16 → f32 multiply-accumulate. Every mini-float type first gathers

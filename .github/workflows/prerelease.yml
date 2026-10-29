@@ -48,16 +48,16 @@ jobs:
             package.json:@numkong/win32-arm64": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
             package.json:@numkong/win32-x64": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
           update-major-version-in: |
-            include/numkong/types.h:^#define NUMKONG_VERSION_MAJOR (\d+)
+            c/numkong/types.h:^#define NUMKONG_VERSION_MAJOR (\d+)
           update-minor-version-in: |
-            include/numkong/types.h:^#define NUMKONG_VERSION_MINOR (\d+)
+            c/numkong/types.h:^#define NUMKONG_VERSION_MINOR (\d+)
           update-patch-version-in: |
-            include/numkong/types.h:^#define NUMKONG_VERSION_PATCH (\d+)
+            c/numkong/types.h:^#define NUMKONG_VERSION_PATCH (\d+)
           dry-run: "true"
 
   wheels:
     name: Build Python Wheels
-    uses: ./.github/workflows/_wheels.yml
+    uses: ./.github/workflows/build-wheels.yml
     secrets: inherit
 
   build_docs:

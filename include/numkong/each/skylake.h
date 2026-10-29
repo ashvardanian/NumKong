@@ -4,7 +4,7 @@
  *  @date October 19, 2024
  *  @brief SIMD-accelerated elementwise arithmetic for Skylake.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  *
  *  @section skylake_elementwise_instructions Relevant Instructions
  *

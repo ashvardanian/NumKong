@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/capabilities.h
+ *  @file c/numkong/capabilities.h
  *  @author Ash Vardanian
  *  @date October 3, 2023
  *  @brief Capabilities and their groups, kernel kinds and signatures, the pick of a kernel, and CPU

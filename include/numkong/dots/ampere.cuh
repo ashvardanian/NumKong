@@ -4,7 +4,7 @@
  *  @date September 22, 2026
  *  @brief SIMD-accelerated Batched Dot Products for NVIDIA Ampere and newer.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Four warps own a @b [128,128] output tile, streaming 64-byte depth slabs through a three-stage
  *  <tt>cp.async</tt> pipeline into swizzled shared memory, so dtypes differ only in how each 32-byte

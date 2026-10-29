@@ -4,7 +4,7 @@
  *  @date April 9, 2026
  *  @brief SIMD-accelerated Batched Dot Products for Granite Rapids.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Native FP16 × FP16 → FP32 GEMM kernels using Intel AMX-FP16 via TDPFP16PS on Granite Rapids
  *  CPUs. Same tile geometry as BF16 — 16 rows × 32 FP16 = 1KB per tile — same 2×2 output blocking,

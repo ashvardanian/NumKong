@@ -4,7 +4,7 @@
  *  @date September 12, 2026
  *  @brief Ragged attention packing for WASM with SIMD128.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  Portable 128-bit packing side of the WebAssembly backend: the packed-KV layout, its size, and
  *  the raw strided-row repack. Storage follows the <tt>attention/haswell.h</tt> conventions exactly: BF16,

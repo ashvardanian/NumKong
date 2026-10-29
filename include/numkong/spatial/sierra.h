@@ -4,7 +4,7 @@
  *  @date October 14, 2024
  *  @brief SIMD-accelerated spatial similarity measures for Sierra Forest.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  @section spatial_sierra_instructions AVXVNNIINT8 Instructions Performance
  *

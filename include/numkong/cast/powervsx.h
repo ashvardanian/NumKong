@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated Type Conversions for Power VSX.
  *
- *  @sa include/numkong/cast.h
+ *  @sa c/numkong/cast.h
  *
  *  @section powervsx_cast_instructions Power VSX Conversion Instructions (POWER9+)
  *

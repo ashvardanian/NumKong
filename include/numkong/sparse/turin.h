@@ -4,7 +4,7 @@
  *  @date October 7, 2024
  *  @brief Turin-accelerated sparse vector operations.
  *
- *  @sa include/numkong/sparse.h
+ *  @sa c/numkong/sparse.h
  */
 #ifndef NUMKONG_SPARSE_TURIN_H
 #define NUMKONG_SPARSE_TURIN_H

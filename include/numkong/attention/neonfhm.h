@@ -4,7 +4,7 @@
  *  @date July 8, 2026
  *  @brief Arm NEON ragged attention for F16, E4M3 and NVFP4, using @c FMLAL over F16 planes.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  Mirrors the @c v128relaxed panel-flash shape with the family-shared packed header, segment
  *  directory, base-2 streaming softmax, and [tasks_begin, tasks_end) windows. F16 planes keep the

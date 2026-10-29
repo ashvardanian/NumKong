@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/shapes.h
+ *  @file c/numkong/shapes.h
  *  @author Ash Vardanian
  *  @date June 19, 2024
  *  @brief Many-to-many shape distances between 3D point clouds of any size.

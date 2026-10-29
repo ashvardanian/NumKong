@@ -58,7 +58,7 @@ bun add numkong
 Installing picks the `@numkong/<platform>-<arch>` package with the prebuilt addon.
 Where none matches or loads, the install compiles the addon through `cmake-js`, which needs CMake and a C compiler, and `node-gyp-build` loads it.
 To build it by hand in a checkout, run `npm install --omit=optional`, so the published addon does not shadow yours, then `npm run prebuild` and `npm run build-js`.
-Other native addons that link NumKong use CMake too: `add_subdirectory` or `FetchContent`, then `numkong::static`, as the [C README](../include/README.md) shows.
+Other native addons that link NumKong use CMake too: `add_subdirectory` or `FetchContent`, then `numkong::static`, as the [C README](../c/README.md) shows.
 
 ## Browser and WASM
 

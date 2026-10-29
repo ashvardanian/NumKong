@@ -1,5 +1,5 @@
 /**
- *  @file c/target/rvvhalf.c
+ *  @file src/capabilities/rvvhalf.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c rvvhalf kernels, defined once for the NumKong library.

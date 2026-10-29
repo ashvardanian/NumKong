@@ -5,7 +5,7 @@
  *  @brief Ragged attention and rotary position embeddings on the SIMT cores of every Apple GPU,
  *      launched from C.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *  @sa include/numkong/attention/metal.metal, the kernels this embeds
  *  @sa include/numkong/attention/cuda.cuh, the CUDA sibling
  *

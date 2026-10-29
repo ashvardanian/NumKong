@@ -4,7 +4,7 @@
  *  @date April 3, 2026
  *  @brief SIMD-accelerated spatial similarity measures for SVE SDOT.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  @section spatial_svesdot_instructions ARM SVE+DotProd Instructions
  *

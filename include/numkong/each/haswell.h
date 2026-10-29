@@ -4,7 +4,7 @@
  *  @date October 18, 2024
  *  @brief SIMD-accelerated elementwise arithmetic for Haswell.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  *
  *  @section haswell_elementwise_instructions Key AVX2 Elementwise Instructions
  *

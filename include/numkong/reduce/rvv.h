@@ -4,7 +4,7 @@
  *  @date February 13, 2026
  *  @brief SIMD-accelerated reductions for RISC-V.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  */
 #ifndef NUMKONG_REDUCE_RVV_H
 #define NUMKONG_REDUCE_RVV_H

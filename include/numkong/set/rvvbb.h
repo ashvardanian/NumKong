@@ -4,7 +4,7 @@
  *  @date February 9, 2026
  *  @brief SIMD-accelerated set similarity measures for RISC-V with Zvbb.
  *
- *  @sa include/numkong/set.h
+ *  @sa c/numkong/set.h
  *
  *  Zvbb, the Vector Basic Bit-manipulation extension, adds a per-element popcount, <tt>vcpop.v</tt>, which
  *  replaces the 11-instruction SWAR sequence of set/rvv.h with one instruction.

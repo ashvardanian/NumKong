@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/sparse.h
+ *  @file c/numkong/sparse.h
  *  @author Ash Vardanian
  *  @date March 21, 2024
  *  @brief SIMD-accelerated sparse vector dot products.

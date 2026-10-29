@@ -4,7 +4,7 @@
  *  @date February 6, 2026
  *  @brief SIMD-accelerated geospatial distances for WASM.
  *
- *  @sa include/numkong/geospatial.h
+ *  @sa c/numkong/geospatial.h
  *
  *  Every kernel broadcasts one row and sweeps the columns two or four at a time. The 3D squares
  *  load three registers of @b [x,y,z] rows and gather each axis with two @c i32x4.shuffle steps for

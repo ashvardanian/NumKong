@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/dot.hpp
+ *  @file cpp/numkong/dot.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief C++ bindings for dot-product kernels: ⟨a,b⟩ = Σ aᵢ × bᵢ

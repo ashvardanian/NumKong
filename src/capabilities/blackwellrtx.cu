@@ -1,5 +1,5 @@
 /**
- *  @file c/target/blackwellrtx.cu
+ *  @file src/capabilities/blackwellrtx.cu
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c blackwellrtx kernels, defined once for the NumKong library.

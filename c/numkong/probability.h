@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/probability.h
+ *  @file c/numkong/probability.h
  *  @author Ash Vardanian
  *  @date October 20, 2023
  *  @brief SIMD-accelerated similarity measures for probability distributions.

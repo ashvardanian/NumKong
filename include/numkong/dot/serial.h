@@ -4,7 +4,7 @@
  *  @date March 14, 2023
  *  @brief SWAR-accelerated dot products for SIMD-free CPUs.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_serial_instructions Serial Fallback Implementation
  *

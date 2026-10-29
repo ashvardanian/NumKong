@@ -4,7 +4,7 @@
  *  @date January 2, 2026
  *  @brief SIMD-accelerated Batched Dot Products for SME F64.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Uses ARM SME with @c FEAT_SME_F64F64 for high-precision GEMM.
  *  Requires Apple M4 or equivalent with @c f64 outer product support.

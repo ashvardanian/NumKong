@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/attention.h
+ *  @file c/numkong/attention.h
  *  @author Ash Vardanian
  *  @date January 11, 2026
  *  @brief SIMD-accelerated ragged Transformer attention.

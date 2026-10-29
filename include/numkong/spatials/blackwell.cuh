@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief SIMD-accelerated batched spatial distances for the NVIDIA compute capability 10.x family.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  *  @sa include/numkong/dots/blackwell.cuh
  *
  *  The @c tcgen05 dots tile with a metric in its epilogue. While the tensor cores multiply a stage,

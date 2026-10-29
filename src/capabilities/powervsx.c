@@ -1,5 +1,5 @@
 /**
- *  @file c/target/powervsx.c
+ *  @file src/capabilities/powervsx.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c powervsx kernels, defined once for the NumKong library.

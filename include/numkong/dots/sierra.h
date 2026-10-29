@@ -4,7 +4,7 @@
  *  @date December 27, 2025
  *  @brief SIMD-accelerated Batched Dot Products for Sierra Forest.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Uses AVX-VNNI (256-bit) for integer GEMM:
  *  - _mm256_dpbssds_epi32: i8 × i8 → i32 with saturation

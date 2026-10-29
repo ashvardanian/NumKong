@@ -4,7 +4,7 @@
  *  @date September 22, 2026
  *  @brief SIMD-accelerated batched spatial distances for NVIDIA Ampere and newer.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  *  @sa include/numkong/dots/ampere.cuh
  *
  *  The dots tile with a metric in its epilogue: squared norms of A, and for @c symmetric of the

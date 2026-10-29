@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/spatial.h
+ *  @file c/numkong/spatial.h
  *  @author Ash Vardanian
  *  @date March 14, 2023
  *  @brief SIMD-accelerated spatial similarity measures.

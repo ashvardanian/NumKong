@@ -4,7 +4,7 @@
  *  @date December 27, 2025
  *  @brief SIMD-accelerated Type Conversions for Skylake.
  *
- *  @sa include/numkong/cast.h
+ *  @sa c/numkong/cast.h
  *
  *  @section skylake_cast_instructions AVX-512 Conversion Instructions
  *

@@ -4,7 +4,7 @@
  *  @date July 6, 2026
  *  @brief Ragged attention for AVX2 Haswell generation CPUs.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  Compatibility backend for AVX2/FMA machines. Storage follows the <tt>dots/haswell.h</tt> conventions
  *  exactly: both BF16 and E4M3 stay in their source encoding at rest — packing is a raw strided-row

@@ -3,7 +3,7 @@
  *  @author Ash Vardanian
  *  @date February 6, 2026
  *  @brief SIMD-accelerated batched set distances for SME.
- *  @sa include/numkong/sets.h
+ *  @sa c/numkong/sets.h
  *
  *  Runs binary set operations on the Arm Scalable Matrix Extension, whose streaming mode offers
  *  512-bit vectors on Apple M4 for fast XOR and POPCNT over binary vectors.

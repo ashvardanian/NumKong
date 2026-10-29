@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated dot products for NEON FP8DOT4.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_neonfp8_instructions ARM NEON FP8DOT4 Instructions (FEAT_FP8DOT4)
  *

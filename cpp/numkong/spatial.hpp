@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/spatial.hpp
+ *  @file cpp/numkong/spatial.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief C++ wrappers for SIMD-accelerated spatial similarity measures.

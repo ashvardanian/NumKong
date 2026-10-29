@@ -1,5 +1,5 @@
 /**
- *  @file c/target/cuda.cu
+ *  @file src/capabilities/cuda.cu
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c cuda kernels and the CUDA runtime calls, defined once for the library.

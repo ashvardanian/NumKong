@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/dot.h
+ *  @file c/numkong/dot.h
  *  @author Ash Vardanian
  *  @date March 14, 2023
  *  @brief SIMD-accelerated dot products for real and complex numbers.

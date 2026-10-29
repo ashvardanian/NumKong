@@ -4,7 +4,7 @@
  *  @date October 18, 2024
  *  @brief SIMD-accelerated elementwise arithmetic for NEON FP16.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  *
  *  @section elementwise_neonhalf_instructions ARM NEON FP16 Instructions (ARMv8.2-FP16)
  *

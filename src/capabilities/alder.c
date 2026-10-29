@@ -1,5 +1,5 @@
 /**
- *  @file c/target/alder.c
+ *  @file src/capabilities/alder.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c alder kernels, defined once for the NumKong library.

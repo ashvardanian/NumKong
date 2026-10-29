@@ -4,7 +4,7 @@
  *  @date February 13, 2026
  *  @brief ARMv8.4-DotProd implementations for the redesigned reduction API, moments.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  */
 #ifndef NUMKONG_REDUCE_NEONSDOT_H
 #define NUMKONG_REDUCE_NEONSDOT_H

@@ -4,7 +4,7 @@
  *  @date October 2, 2023
  *  @brief SIMD-accelerated dot products for NEON SDOT.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_neonsdot_instructions ARM NEON SDOT/UDOT Instructions (ARMv8.4-DotProd)
  *

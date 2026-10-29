@@ -4,7 +4,7 @@
  *  @date February 12, 2026
  *  @brief AVX2 implementations for the redesigned reduction API, moments and minmax.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  *
  *  @section reduce_haswell_block_caps Block-Cap Overflow Thresholds
  *

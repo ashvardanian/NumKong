@@ -1,5 +1,5 @@
 /**
- *  @file c/target/apple10.c
+ *  @file src/capabilities/apple10.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief The @c apple10 kernels, defined once for the NumKong library.

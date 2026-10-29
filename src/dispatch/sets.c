@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/sets.c
+ *  @file src/dispatch/sets.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Batched set distances: capability lists, @c _best points and @c nk_sets_find_kernel.

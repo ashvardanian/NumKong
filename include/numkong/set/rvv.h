@@ -4,7 +4,7 @@
  *  @date January 13, 2026
  *  @brief SIMD-accelerated set similarity measures for RISC-V.
  *
- *  @sa include/numkong/set.h
+ *  @sa c/numkong/set.h
  *
  *  SpacemiT K1 and similar chips implement RVA22 profile with base RVV 1.0.
  *  This does not include the Zvbb extension, so we lack native element-wise popcount (<tt>vcpop.v</tt>).

@@ -1,5 +1,5 @@
 /**
- *  @file c/target/sapphire.c
+ *  @file src/capabilities/sapphire.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c sapphire kernels, defined once for the NumKong library.

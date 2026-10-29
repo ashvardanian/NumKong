@@ -4,7 +4,7 @@
  *  @date September 12, 2026
  *  @brief Batched spatial distances for WASM.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_V128_H
 #define NUMKONG_SPATIALS_V128_H

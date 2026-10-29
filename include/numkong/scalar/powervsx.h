@@ -4,7 +4,7 @@
  *  @date March 24, 2026
  *  @brief SIMD-accelerated scalar math helpers for Power VSX.
  *
- *  @sa include/numkong/scalar.h
+ *  @sa c/numkong/scalar.h
  *
  *  @section scalars_powervsx_instructions Key Power VSX Scalar Instructions
  *

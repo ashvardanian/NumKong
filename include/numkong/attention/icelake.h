@@ -4,7 +4,7 @@
  *  @date July 7, 2026
  *  @brief Ragged attention for AVX-512 VNNI Ice Lake generation CPUs.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  VNNI backend for the INT8 attention triple. Q, K and V arrive caller-quantized to I8, the Q · K
  *  descale already folded into @c scale. Scores are exact I32 integer dot products, the base-2

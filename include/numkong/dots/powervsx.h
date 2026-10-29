@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated Batched Dot Products for Power ISA VSX.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  @section powervsx_dots_instructions Key Power9 VSX GEMM Instructions
  *

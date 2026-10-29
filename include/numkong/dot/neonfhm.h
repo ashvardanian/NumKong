@@ -4,7 +4,7 @@
  *  @date December 28, 2025
  *  @brief SIMD-accelerated dot products for NEON FHM.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  @section dot_neonfhm_instructions ARM NEON FP16 Matrix Instructions (ARMv8.4-FHM)
  *

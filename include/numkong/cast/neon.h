@@ -4,7 +4,7 @@
  *  @date December 27, 2025
  *  @brief SIMD-accelerated Type Conversions for NEON.
  *
- *  @sa include/numkong/cast.h
+ *  @sa c/numkong/cast.h
  *
  *  @section neon_cast_instructions ARM NEON Conversion Instructions
  *

@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/curved.hpp
+ *  @file cpp/numkong/curved.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief Curved-space kernels: bilinear, mahalanobis.

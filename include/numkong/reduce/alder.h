@@ -4,7 +4,7 @@
  *  @date March 4, 2026
  *  @brief Alder Lake, AVX2+VNNI, implementations for the redesigned reduction API, moments.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  *
  *  Uses AVX-VNNI (256-bit) for efficient widening dot-products:
  *  - @c _mm256_dpwssd_epi32: i16 × i16 → i32 accumulation from AVXVNNI, used for i16 and e3m2

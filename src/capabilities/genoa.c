@@ -1,5 +1,5 @@
 /**
- *  @file c/target/genoa.c
+ *  @file src/capabilities/genoa.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c genoa kernels, defined once for the NumKong library.

@@ -4,7 +4,7 @@
  *  @date October 20, 2023
  *  @brief Skylake-accelerated probability distribution similarity measures.
  *
- *  @sa include/numkong/probability.h
+ *  @sa c/numkong/probability.h
  */
 #ifndef NUMKONG_PROBABILITY_SKYLAKE_H
 #define NUMKONG_PROBABILITY_SKYLAKE_H

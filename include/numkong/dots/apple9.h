@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief Batched Dot Products for Apple GPUs of Metal family 9, launched from C.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *  @sa include/numkong/dots/metal.h
  *  @sa include/numkong/dots/apple9.metal, the kernels this embeds
  *

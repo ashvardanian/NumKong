@@ -4,7 +4,7 @@
  *  @date March 14, 2023
  *  @brief SWAR-accelerated spatial similarity measures for SIMD-free CPUs.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  */
 #ifndef NUMKONG_SPATIAL_SERIAL_H
 #define NUMKONG_SPATIAL_SERIAL_H

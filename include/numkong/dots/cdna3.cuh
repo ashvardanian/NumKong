@@ -4,7 +4,7 @@
  *  @date October 7, 2026
  *  @brief SIMD-accelerated Batched Dot Products for AMD Instinct MI300, gfx942.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *  @sa include/numkong/dots/rocm.cuh
  *
  *  Four wavefronts own a @b [128,128] output tile, 64 × 64 each, streaming 128-byte depth slabs

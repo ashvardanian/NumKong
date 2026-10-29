@@ -4,7 +4,7 @@
  *  @date February 13, 2026
  *  @brief Base NEON, ARMv8-A, implementations for the redesigned reduction API, moments and minmax.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  */
 #ifndef NUMKONG_REDUCE_NEON_H
 #define NUMKONG_REDUCE_NEON_H

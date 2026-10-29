@@ -1065,7 +1065,7 @@ where
 ///
 /// Blanket-impl'd on every [`TensorRef<u1x8, R>`], so `Tensor<u1x8>`, `TensorView<u1x8>`, and
 /// `TensorSpan<u1x8>` all expose `.popcount()` / `.any_set()` / `.none_set()` / `.all_set()` with
-/// identical spellings. Mirrors `numkong::popcount(tensor_view)` in `include/numkong/reduce.hpp`.
+/// identical spellings. Mirrors `numkong::popcount(tensor_view)` in `cpp/numkong/reduce.hpp`.
 ///
 /// Method names use the `_set` suffix to leave room for a future generic `any` / `none` / `all`
 /// over arbitrary scalar predicates and to avoid colliding with the `all` slice marker exported

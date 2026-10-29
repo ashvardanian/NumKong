@@ -768,7 +768,7 @@ Header-only units enable the capabilities their own flags name.
 The C library creates no threads, uses no OpenMP, and keeps no hidden thread pool.
 Its shared and static builds link pthreads only for `pthread_once`, which runs capability detection once per process.
 Parallelism is host-controlled: partition work across row ranges and dispatch through ForkUnion, `std::thread`, or any external scheduler.
-The Python and Node bindings parallelize their batched calls through `c/parallel.c`, which the C library never links: OpenMP on Linux and FreeBSD, Grand Central Dispatch on macOS, and the system thread pool on Windows.
+The Python and Node bindings parallelize their batched calls through `src/parallel.c`, which the C library never links: OpenMP on Linux and FreeBSD, Grand Central Dispatch on macOS, and the system thread pool on Windows.
 
 ## External Memory
 

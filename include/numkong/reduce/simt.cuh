@@ -4,7 +4,7 @@
  *  @date October 1, 2026
  *  @brief Moments and min/max with indices on the SIMT cores of every CUDA and ROCm device.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  *  @sa include/numkong/reduce/serial.h
  *
  *  Each call launches as many 1024-thread blocks as stay resident: every thread walks values a grid

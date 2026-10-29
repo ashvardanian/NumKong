@@ -4,7 +4,7 @@
  *  @date September 12, 2026
  *  @brief Batched set operations for WASM.
  *
- *  @sa include/numkong/sets.h
+ *  @sa c/numkong/sets.h
  */
 #ifndef NUMKONG_SETS_V128_H
 #define NUMKONG_SETS_V128_H

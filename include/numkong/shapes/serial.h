@@ -4,7 +4,7 @@
  *  @date December 27, 2025
  *  @brief Many-to-many shape distances between 3D point clouds for SIMD-free CPUs.
  *
- *  @sa include/numkong/shapes.h
+ *  @sa c/numkong/shapes.h
  *
  *  Every capability packs through the serial routine here and solves exact transport through its
  *  own network simplex: a northwest-corner tree rooted at the first row point, block pricing, and

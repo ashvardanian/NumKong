@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/shapes.c
+ *  @file src/dispatch/shapes.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief The shape capability lists, @c _best dispatch points and @c nk_shapes_find_kernel.

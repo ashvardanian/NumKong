@@ -4,7 +4,7 @@
  *  @date September 14, 2024
  *  @brief SIMD-accelerated Batched Dot Products for Skylake.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  @section skylake_dots_instructions Relevant Instructions
  *

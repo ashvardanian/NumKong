@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/memory.h
+ *  @file c/numkong/memory.h
  *  @author Ash Vardanian
  *  @date October 3, 2026
  *  @brief Host and device memory allocation.

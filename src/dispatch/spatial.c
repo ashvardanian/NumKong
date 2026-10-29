@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/spatial.c
+ *  @file src/dispatch/spatial.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Spatial distances: capability lists, @c _best dispatch points, @c nk_spatial_find_kernel.

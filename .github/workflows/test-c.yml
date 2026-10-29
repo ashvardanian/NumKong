@@ -428,14 +428,15 @@ jobs:
 
   # Each machine profile builds its libraries for one CPU and one GPU code; the Arm ones build natively on Arm runners,
   # where the CUDA image also exists. Clang 22 compiles the C units and hosts NVCC, as Ubuntu 24.04's GCC predates Olympus.
+  # Venice builds in AMD's image instead, as its preset compiles `gfx1250`.
   build_machine_profile:
     name: Build Machine Profile ${{ matrix.preset }}
     runs-on: ${{ contains(fromJSON('["grace_hopper", "vera_rubin"]'), matrix.preset) && 'ubuntu-24.04-arm' || 'ubuntu-26.04' }}
-    container: nvidia/cuda:13.4.3-devel-ubuntu26.04
+    container: ${{ matrix.preset == 'venice_mi450' && 'rocm/dev-ubuntu-26.04:10.0.0-full' || 'nvidia/cuda:13.4.3-devel-ubuntu26.04' }}
     strategy:
       fail-fast: false
       matrix:
-        preset: [xeon4_hopper, xeon6_blackwell, grace_hopper, vera_rubin]
+        preset: [xeon4_hopper, xeon6_blackwell, venice_mi450, grace_hopper, vera_rubin]
     env:
       CC: clang-22
       CXX: clang++-22

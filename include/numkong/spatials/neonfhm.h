@@ -4,7 +4,7 @@
  *  @date February 23, 2026
  *  @brief Batched spatial distances for NEON FHMA.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_NEONFHM_H
 #define NUMKONG_SPATIALS_NEONFHM_H

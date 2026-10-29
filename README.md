@@ -64,7 +64,7 @@ A broader throughput comparison is maintained in [NumWars](https://github.com/as
 
 | Language | Install                    | Compatible with                | Guide                                        |
 | :------- | :------------------------- | :----------------------------- | :------------------------------------------- |
-| C / C++  | CMake, headers, & prebuilt | Linux, macOS, Windows, Android | [include/README.md](include/README.md)       |
+| C / C++  | CMake, headers, & prebuilt | Linux, macOS, Windows, Android | [c/README.md](c/README.md)                   |
 | Python   | `pip install`              | Linux, macOS, Windows          | [python/README.md](python/README.md)         |
 | Rust     | `cargo add`                | Linux, macOS, Windows          | [rust/README.md](rust/README.md)             |
 | JS       | `npm install` & `import`   | Node.js, Bun, Deno & browsers  | [javascript/README.md](javascript/README.md) |
@@ -117,7 +117,7 @@ NumKong covers 18 numeric types — from 4-bit floats to 128-bit complex numbers
 [Probability]: include/numkong/probability/README.md
 [Curved]: include/numkong/curved/README.md
 [Geo]: include/numkong/geospatial/README.md
-[c]: include/README.md
+[c]: c/README.md
 [py]: python/README.md
 [js]: javascript/README.md
 [rs]: rust/README.md

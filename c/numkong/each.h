@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/each.h
+ *  @file c/numkong/each.h
  *  @author Ash Vardanian
  *  @date October 16, 2024
  *  @brief SIMD-accelerated elementwise arithmetic.

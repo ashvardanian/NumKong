@@ -4,7 +4,7 @@
  *  @date February 6, 2026
  *  @brief SIMD-accelerated Batched Dot Products for RISC-V.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  Custom RVV-native register-tiled GEMM implementation, analogous to how AMX in dots/sapphireamx.h
  *  and SME in dots/sme.h each have their own unique implementations independent of the

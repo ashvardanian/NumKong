@@ -4,7 +4,7 @@
  *  @date February 17, 2026
  *  @brief SWAR-accelerated MaxSim, ColBERT late-interaction, for SIMD-free CPUs.
  *
- *  @sa include/numkong/maxsim.h
+ *  @sa c/numkong/maxsim.h
  *
  *  Defines the packed buffer header and per-vector metadata structures used by all MaxSim ISA
  *  backends, plus scalar reference implementations for correctness validation.

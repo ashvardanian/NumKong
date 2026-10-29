@@ -4,7 +4,7 @@
  *  @date November 20, 2024
  *  @brief SIMD-accelerated trigonometric functions for NEON.
  *
- *  @sa include/numkong/trigonometry.h
+ *  @sa c/numkong/trigonometry.h
  *  @see https://sleef.org
  *
  *  @section trigonometry_neon_instructions ARM NEON Instructions

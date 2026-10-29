@@ -1,5 +1,5 @@
 /**
- *  @file c/target/ada.cu
+ *  @file src/capabilities/ada.cu
  *  @author Ash Vardanian
  *  @date October 6, 2026
  *  @brief Every family's @c ada kernels, defined once for the NumKong library.

@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/sparse.c
+ *  @file src/dispatch/sparse.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief The sparse capability lists, @c _best dispatch points and @c nk_sparse_find_kernel.

@@ -4,7 +4,7 @@
  *  @date October 7, 2026
  *  @brief Ragged attention for AMD Instinct MI300, gfx942.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *  @sa include/numkong/dots/cdna3.cuh
  *
  *  FlashAttention-2 on 16 × 16 MFMAs: two wavefronts own the 64 rows of a work item, 32 each as two

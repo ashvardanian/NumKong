@@ -4,7 +4,7 @@
  *  @date January 5, 2026
  *  @brief SIMD-accelerated dot products for RISC-V FP16.
  *
- *  @sa include/numkong/dot.h
+ *  @sa c/numkong/dot.h
  *
  *  SiFive P670, X280 and similar chips implement RVV 1.0 with Zvfh, which provides native f16
  *  vector operations; a widening f16 × f16 → f32 multiply keeps precision before reducing in f32.

@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated spatial similarity measures for NEON FP8DOT4.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  For L2 distance, we use (a − b)² = a² + b² − 2 × a × b, computing all three terms via FP8DOT4
  *  without FP8 subtraction; angular distance keeps a · b, ‖a‖² and ‖b‖² in three parallel sums.

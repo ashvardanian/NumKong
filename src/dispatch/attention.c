@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/attention.c
+ *  @file src/dispatch/attention.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief The attention capability lists, @c _best dispatch points and @c nk_attention_find_kernel.

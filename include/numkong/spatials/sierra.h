@@ -4,7 +4,7 @@
  *  @date February 23, 2026
  *  @brief Batched spatial distances for Sierra Forest, AVX-VNNI-INT8.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_SIERRA_H
 #define NUMKONG_SPATIALS_SIERRA_H

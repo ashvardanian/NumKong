@@ -4,7 +4,7 @@
  *  @date February 13, 2026
  *  @brief ARMv8.6-BF16 implementations for the redesigned reduction API.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  */
 #ifndef NUMKONG_REDUCE_NEONBFDOT_H
 #define NUMKONG_REDUCE_NEONBFDOT_H

@@ -4,7 +4,7 @@
  *  @date February 23, 2026
  *  @brief AVX2 batched set operations for Haswell.
  *
- *  @sa include/numkong/sets.h
+ *  @sa c/numkong/sets.h
  */
 #ifndef NUMKONG_SETS_HASWELL_H
 #define NUMKONG_SETS_HASWELL_H

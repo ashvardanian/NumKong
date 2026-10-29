@@ -4,7 +4,7 @@
  *  @date October 5, 2026
  *  @brief Batched spatial distances on Apple family 9 GPUs, launched from C.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_APPLE9_H
 #define NUMKONG_SPATIALS_APPLE9_H

@@ -4,7 +4,7 @@
  *  @date October 14, 2026
  *  @brief Exact optimal transport between 3D point clouds on the SIMT cores of CUDA and ROCm.
  *
- *  @sa include/numkong/shapes.h
+ *  @sa c/numkong/shapes.h
  *  @sa include/numkong/shapes/serial.h
  *
  *  The serial network simplex solves the transport between uniform weights as integer masses, each

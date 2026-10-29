@@ -21,7 +21,7 @@ Checks: >
 
 WarningsAsErrors: ''
 
-HeaderFilterRegex: 'include/numkong/.*'
+HeaderFilterRegex: '(c|cpp|include)/numkong/.*'
 
 FormatStyle: file
 

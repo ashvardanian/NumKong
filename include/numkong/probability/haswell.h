@@ -4,7 +4,7 @@
  *  @date October 20, 2023
  *  @brief Haswell-accelerated probability distribution similarity measures.
  *
- *  @sa include/numkong/probability.h
+ *  @sa c/numkong/probability.h
  */
 #ifndef NUMKONG_PROBABILITY_HASWELL_H
 #define NUMKONG_PROBABILITY_HASWELL_H

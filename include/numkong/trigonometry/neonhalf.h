@@ -4,7 +4,7 @@
  *  @date September 29, 2026
  *  @brief SIMD-accelerated trigonometric functions for NEON FP16.
  *
- *  @sa include/numkong/trigonometry.h
+ *  @sa c/numkong/trigonometry.h
  *
  *  @section trigonometry_neonhalf_instructions ARM NEON FP16 Instructions (ARMv8.2-FP16)
  *

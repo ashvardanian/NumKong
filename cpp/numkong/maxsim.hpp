@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/maxsim.hpp
+ *  @file cpp/numkong/maxsim.hpp
  *  @author Ash Vardanian
  *  @date February 28, 2026
  *  @brief C++ bindings for multi-target MaxSim, ColBERT late-interaction kernels.

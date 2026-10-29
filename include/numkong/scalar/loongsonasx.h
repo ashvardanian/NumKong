@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief SIMD-accelerated scalar math helpers for LoongArch LASX.
  *
- *  @sa include/numkong/scalar.h
+ *  @sa c/numkong/scalar.h
  *
  *  LASX provides @c xvfrsqrt, a full-precision reciprocal sqrt, and @c xvfsqrt, a full-precision
  *  sqrt, so no Newton-Raphson refinement is needed. Broadcast goes via @c xvreplgr2vr and

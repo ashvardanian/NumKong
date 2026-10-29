@@ -57,6 +57,6 @@
 // Date: October 19, 2023
 package numkong
 
-// #cgo CFLAGS: -O3 -I${SRCDIR}/../include
+// #cgo CFLAGS: -O3 -I${SRCDIR}/../c -I${SRCDIR}/../include
 // #cgo LDFLAGS: -L${SRCDIR} -lnumkong_static
 import "C"

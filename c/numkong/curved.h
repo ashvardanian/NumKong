@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/curved.h
+ *  @file c/numkong/curved.h
  *  @author Ash Vardanian
  *  @date August 27, 2024
  *  @brief SIMD-accelerated similarity measures for curved spaces.

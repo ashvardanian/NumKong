@@ -1,5 +1,5 @@
 /**
- *  @file c/numkong.c
+ *  @file src/numkong.c
  *  @author Ash Vardanian
  *  @date March 13, 2024
  *  @brief The NumKong library's capability queries, its unified memory and stream dispatch, and the
@@ -151,8 +151,8 @@ NUMKONG_API nk_size_t nk_capabilities_name(nk_capability_t capabilities, char *b
 
 NUMKONG_API char const *nk_status_name(nk_status_t status) { return nk_status_name_(status); }
 
-/*  With CUDA kernels in the library, `c/target/cuda.cu` counts, probes and opens streams on the
- *  devices instead. */
+/*  With CUDA kernels in the library, `src/capabilities/cuda.cu` counts, probes and opens streams on
+ *  the devices instead. */
 #if !NUMKONG_ARCH_CUDA_
 NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
     *count = 0;
@@ -185,8 +185,8 @@ NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t ordinal, nk_capab
     return status;
 }
 
-/*  With ROCm kernels in the library, `c/target/rocm.hip` counts, probes and opens streams on the
- *  devices instead. */
+/*  With ROCm kernels in the library, `src/capabilities/rocm.hip` counts, probes and opens streams
+ *  on the devices instead. */
 #if !NUMKONG_ARCH_ROCM_
 NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
     *count = 0;
@@ -219,8 +219,8 @@ NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t ordinal, nk_capab
     return status;
 }
 
-/*  With Metal kernels in the library, `c/target/metal.c` counts, probes and opens streams on the
- *  devices instead. */
+/*  With Metal kernels in the library, `src/capabilities/metal.c` counts, probes and opens streams
+ *  on the devices instead. */
 #if !NUMKONG_ARCH_METAL_
 NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
     *count = 0;

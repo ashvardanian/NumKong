@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/trigonometry.h
+ *  @file c/numkong/trigonometry.h
  *  @author Ash Vardanian
  *  @date July 1, 2023
  *  @brief SIMD-accelerated trigonometric functions.

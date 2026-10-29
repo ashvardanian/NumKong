@@ -1,5 +1,5 @@
 /**
- *  @file c/parallel.h
+ *  @file src/parallel.h
  *  @author Ash Vardanian
  *  @date August 6, 2026
  *  @brief Tile-parallel execution for NumKong language bindings.

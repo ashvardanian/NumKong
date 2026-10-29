@@ -17,7 +17,7 @@ permissions:
 jobs:
   build_swift_artifacts:
     name: Build Swift Artifacts
-    uses: ./.github/workflows/_swift.yml
+    uses: ./.github/workflows/build-swift.yml
 
   test_linux:
     name: Test Swift on Linux ${{ matrix.arch }}

@@ -4,7 +4,7 @@
  *  @date March 4, 2026
  *  @brief SIMD-accelerated spatial similarity measures for Alder Lake.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  @section spatial_alder_instructions AVX-VNNI Instructions Performance
  *

@@ -4,7 +4,7 @@
  *  @date March 25, 2026
  *  @brief 256-bit LASX batched set operations for LoongArch.
  *
- *  @sa include/numkong/sets.h
+ *  @sa c/numkong/sets.h
  */
 #ifndef NUMKONG_SETS_LOONGSONASX_H
 #define NUMKONG_SETS_LOONGSONASX_H

@@ -4,7 +4,7 @@
  *  @date September 30, 2026
  *  @brief AVX-512 BF16 implementations of the row-wise RMSNorm for Genoa.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  *
  *  The mean square of every group comes from the VDPBF16PS moments in @c reduce/genoa.h, which
  *  fold 32 BF16 values into 16 F32 accumulators per instruction. E4M3 inputs widen to BF16 first.

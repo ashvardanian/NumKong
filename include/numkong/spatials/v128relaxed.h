@@ -4,7 +4,7 @@
  *  @date March 5, 2026
  *  @brief Batched spatial distances for WASM Relaxed SIMD.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_V128RELAXED_H
 #define NUMKONG_SPATIALS_V128RELAXED_H

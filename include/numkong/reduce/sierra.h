@@ -4,7 +4,7 @@
  *  @date February 13, 2026
  *  @brief Sierra Forest, AVX-VNNI-INT8, implementations for the redesigned reduction API, moments.
  *
- *  @sa include/numkong/reduce.h
+ *  @sa c/numkong/reduce.h
  *
  *  Uses AVX-VNNI-INT8 (256-bit) for efficient widening dot-products on i8, u8, and e2m3:
  *  - @c _mm256_dpbssd_epi32: i8 × i8 → i32 signed dot product (AVXVNNIINT8)

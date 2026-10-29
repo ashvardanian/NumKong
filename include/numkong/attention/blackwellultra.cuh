@@ -4,7 +4,7 @@
  *  @date October 7, 2026
  *  @brief Ragged attention for the NVIDIA compute capability 10.3 parts, B300 and GB300.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *  @sa include/numkong/attention/blackwell.cuh
  *
  *  The Blackwell kernels, whose softmax warps find each row's maximum as they load S from tensor

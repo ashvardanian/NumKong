@@ -4,7 +4,7 @@
  *  @date July 6, 2026
  *  @brief Ragged attention for AVX-512 BF16-capable Genoa generation CPUs.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *
  *  Backend for AVX512_BF16 machines without AMX: scores accumulate with @c vdpbf16ps straight from
  *  BF16 planes, doubling the per-instruction throughput over the widened-F32 Skylake kernels while

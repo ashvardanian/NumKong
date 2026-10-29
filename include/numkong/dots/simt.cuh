@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief Batched Dot Products on the SIMT cores of every CUDA and ROCm device.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *
  *  The portable half of the baseline every other GPU capability stands on, as serial is on the CPU:
  *  no matrix unit and no vendor instruction. F64 inputs sum in Dot2 and F32 inputs in F64 on the

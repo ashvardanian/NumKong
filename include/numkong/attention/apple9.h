@@ -4,7 +4,7 @@
  *  @date October 5, 2026
  *  @brief Ragged attention on Apple family 9 GPUs, launched from C.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *  @sa include/numkong/attention/metal.h
  *  @sa include/numkong/attention/apple9.metal, the kernels this embeds
  *

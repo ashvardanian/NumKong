@@ -4,7 +4,7 @@
  *  @date June 15, 2023
  *  @brief SIMD-accelerated spatial similarity measures for NEON SDOT.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  @section spatial_neonsdot_instructions ARM NEON SDOT/UDOT Instructions (ARMv8.4-DotProd)
  *

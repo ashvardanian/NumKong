@@ -4,7 +4,7 @@
  *  @date March 23, 2026
  *  @brief Batched spatial distances for LoongArch LASX, 256-bit.
  *
- *  @sa include/numkong/spatials.h
+ *  @sa c/numkong/spatials.h
  */
 #ifndef NUMKONG_SPATIALS_LOONGSONASX_H
 #define NUMKONG_SPATIALS_LOONGSONASX_H

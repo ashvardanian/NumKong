@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/sparse.hpp
+ *  @file cpp/numkong/sparse.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief C++ bindings for sparse-vector kernels.

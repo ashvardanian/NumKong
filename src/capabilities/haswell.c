@@ -1,5 +1,5 @@
 /**
- *  @file c/target/haswell.c
+ *  @file src/capabilities/haswell.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c haswell kernels, defined once for the NumKong library.

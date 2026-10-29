@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief Ragged attention for AMD Instinct MI350, gfx950.
  *
- *  @sa include/numkong/attention.h
+ *  @sa c/numkong/attention.h
  *  @sa include/numkong/attention/cdna3.cuh
  *  @sa include/numkong/dots/cdna4.cuh
  *

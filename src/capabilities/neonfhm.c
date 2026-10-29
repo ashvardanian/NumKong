@@ -1,5 +1,5 @@
 /**
- *  @file c/target/neonfhm.c
+ *  @file src/capabilities/neonfhm.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c neonfhm kernels, defined once for the NumKong library.

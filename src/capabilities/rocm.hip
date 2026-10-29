@@ -1,5 +1,5 @@
 /**
- *  @file c/target/rocm.hip
+ *  @file src/capabilities/rocm.hip
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c rocm kernels and the HIP runtime calls, defined once for the library.

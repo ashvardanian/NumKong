@@ -1,6 +1,6 @@
 PROJECT_NAME           = NumKong
 OUTPUT_DIRECTORY       = ../build/
-INPUT                  = ../include/numkong
+INPUT                  = ../c/numkong ../include/numkong ../cpp/numkong
 RECURSIVE              = YES
 FILE_PATTERNS          = *.h *.hpp
 EXTENSION_MAPPING      = cuh=C++

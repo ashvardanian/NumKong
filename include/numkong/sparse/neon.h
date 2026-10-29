@@ -4,7 +4,7 @@
  *  @date August 19, 2024
  *  @brief NEON-accelerated sparse vector operations.
  *
- *  @sa include/numkong/sparse.h
+ *  @sa c/numkong/sparse.h
  */
 #ifndef NUMKONG_SPARSE_NEON_H
 #define NUMKONG_SPARSE_NEON_H

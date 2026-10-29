@@ -1,5 +1,5 @@
 /**
- *  @file c/target/neonsdot.c
+ *  @file src/capabilities/neonsdot.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c neonsdot kernels, defined once for the NumKong library.

@@ -4,7 +4,7 @@
  *  @date February 6, 2026
  *  @brief SIMD-accelerated trigonometric functions for RISC-V.
  *
- *  @sa include/numkong/trigonometry.h
+ *  @sa c/numkong/trigonometry.h
  *  @see https://sleef.org
  *
  *  Implements sin, cos, atan, atan2 for f32 (m4), f64 (m4), and f16 (via f32 m2) using minimax

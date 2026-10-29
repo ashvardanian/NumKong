@@ -4,7 +4,7 @@
  *  @date February 28, 2026
  *  @brief SIMD-accelerated MaxSim, ColBERT late-interaction, for Ice Lake.
  *
- *  @sa include/numkong/maxsim.h
+ *  @sa c/numkong/maxsim.h
  *
  *  Uses AVX-512 VNNI (VPDPBUSD) for coarse i8 screening. The coarse dots kernel and reduce helper
  *  are shared with genoa.h — genoa.h imports them from this file for its bf16 compute path.

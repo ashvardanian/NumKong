@@ -4,7 +4,7 @@
  *  @date June 6, 2024
  *  @brief SIMD-accelerated spatial similarity measures for NEON BF16.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  @section spatial_neonbfdot_instructions ARM NEON BF16 Instructions (ARMv8.6-BF16)
  *

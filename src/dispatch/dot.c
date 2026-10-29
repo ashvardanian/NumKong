@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/dot.c
+ *  @file src/dispatch/dot.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief The dot product capability lists, @c _best dispatch points and @c nk_dot_find_kernel.

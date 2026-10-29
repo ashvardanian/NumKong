@@ -4,7 +4,7 @@
  *  @date March 3, 2024
  *  @brief SIMD-accelerated set similarity measures for Haswell.
  *
- *  @sa include/numkong/set.h
+ *  @sa c/numkong/set.h
  *
  *  @section set_haswell_instructions Key POPCNT/AVX2 Set Instructions
  *

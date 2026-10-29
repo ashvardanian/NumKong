@@ -4,7 +4,7 @@
  *  @date October 18, 2024
  *  @brief SIMD-accelerated elementwise arithmetic for NEON.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  *
  *  @section elementwise_neon_instructions ARM NEON Instructions
  *

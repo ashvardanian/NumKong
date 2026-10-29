@@ -70,13 +70,17 @@ if (NUMKONG_BUILD_SWIFT)
                                   "NUMKONG_SWIFT_VERSION=${PROJECT_VERSION}"
         )
     endif ()
+    # The C headers reach the kernels' inline helpers, so the artifact ships both header roots as one.
+    set(numkong_swift_headers_ "${PROJECT_BINARY_DIR}/numkong_swift_headers")
     add_custom_target(
         numkong_swift ALL
+        COMMAND "${CMAKE_COMMAND}" -E rm -rf "${numkong_swift_headers_}"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${PROJECT_SOURCE_DIR}/c" "${PROJECT_SOURCE_DIR}/include"
+                "${numkong_swift_headers_}"
         COMMAND
             "${CMAKE_COMMAND}" -D NUMKONG_SWIFT_MODULE=NumKongC -D "NUMKONG_SWIFT_ARCHIVE=$<TARGET_FILE:numkong_static>"
-            -D "NUMKONG_SWIFT_HEADERS=${PROJECT_SOURCE_DIR}/include" -D
-            "NUMKONG_SWIFT_DIRECTORY=${NUMKONG_SWIFT_DIRECTORY}" ${numkong_swift_target_} -P
-            "${PROJECT_SOURCE_DIR}/cmake/numkong_swift_artifact.cmake"
+            -D "NUMKONG_SWIFT_HEADERS=${numkong_swift_headers_}" -D "NUMKONG_SWIFT_DIRECTORY=${NUMKONG_SWIFT_DIRECTORY}"
+            ${numkong_swift_target_} -P "${PROJECT_SOURCE_DIR}/cmake/numkong_swift_artifact.cmake"
         DEPENDS numkong_static
         VERBATIM
     )
@@ -87,8 +91,8 @@ endif ()
 if (NUMKONG_INSTALL)
     include(CMakePackageConfigHelpers)
 
-    install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-    install(DIRECTORY c/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${PROJECT_NAME}/src)
+    install(DIRECTORY c/numkong include/numkong cpp/numkong DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(DIRECTORY src/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/${PROJECT_NAME}/src)
     install(TARGETS numkong_header EXPORT numkongTargets)
     install(EXPORT numkongTargets FILE numkongTargets.cmake NAMESPACE numkong::
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/numkong

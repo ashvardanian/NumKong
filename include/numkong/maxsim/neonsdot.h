@@ -4,7 +4,7 @@
  *  @date February 28, 2026
  *  @brief SIMD-accelerated MaxSim, angular distance late-interaction, for ARM NEONSDOT.
  *
- *  @sa include/numkong/maxsim.h
+ *  @sa c/numkong/maxsim.h
  *
  *  Uses ARM SDOT, vdotq_s32, for coarse i8 screening — signed × signed natively, no bias
  *  correction. 4x4 register tiling: 4 queries × 4 documents = 16 int32x4_t accumulators per depth

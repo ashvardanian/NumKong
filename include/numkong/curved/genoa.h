@@ -4,7 +4,7 @@
  *  @date August 29, 2024
  *  @brief SIMD-accelerated curved-space similarity for Genoa.
  *
- *  @sa include/numkong/curved.h
+ *  @sa c/numkong/curved.h
  *
  *  Implements bf16 bilinear forms using AVX-512 with BF16 extensions.
  */

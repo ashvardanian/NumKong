@@ -4,7 +4,7 @@
  *  @date September 12, 2026
  *  @brief SIMD-accelerated elementwise arithmetic for WASM.
  *
- *  @sa include/numkong/each.h
+ *  @sa c/numkong/each.h
  *
  *  Provides WASM SIMD128 implementations of elementwise operations:
  *  - Sum: result[i] = a[i] + b[i]

@@ -1,5 +1,5 @@
 /**
- *  @file c/target/ampere.cu
+ *  @file src/capabilities/ampere.cu
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c ampere kernels, defined once for the NumKong library.

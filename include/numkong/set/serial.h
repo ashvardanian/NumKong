@@ -4,7 +4,7 @@
  *  @date March 23, 2023
  *  @brief SWAR-accelerated set similarity measures for SIMD-free CPUs.
  *
- *  @sa include/numkong/set.h
+ *  @sa c/numkong/set.h
  *
  *  @section set_serial_instructions Key SWAR Set Instructions
  *

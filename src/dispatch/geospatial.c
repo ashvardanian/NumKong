@@ -1,5 +1,5 @@
 /**
- *  @file c/dispatch/geospatial.c
+ *  @file src/dispatch/geospatial.c
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Dispatch points of the geospatial kernels: 3D squares, Haversine, Vincenty and terrain.

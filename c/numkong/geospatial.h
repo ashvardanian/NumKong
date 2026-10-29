@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/geospatial.h
+ *  @file c/numkong/geospatial.h
  *  @author Ash Vardanian
  *  @date July 1, 2023
  *  @brief SIMD-accelerated many-to-many geospatial distances and terrain visibility.

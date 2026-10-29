@@ -65,7 +65,7 @@ jobs:
           mkdir -p "${DEB_DIR}/usr/local/include/numkong"
           mkdir -p "${DEB_DIR}/usr/local/share/doc/numkong"
           cp build_release_shared/libnumkong_shared.so build_release_shared/libnumkong_static.a "${DEB_DIR}/usr/local/lib/"
-          cp -r include/numkong/* "${DEB_DIR}/usr/local/include/numkong/"
+          cp -r c/numkong/* include/numkong/* cpp/numkong/* "${DEB_DIR}/usr/local/include/numkong/"
           cp LICENSE "${DEB_DIR}/usr/local/share/doc/numkong/"
           cat > "${DEB_DIR}/DEBIAN/control" <<CTRL
           Package: numkong
@@ -116,7 +116,7 @@ jobs:
             build_${{ matrix.preset }}/Release/numkong_shared.dll \
             build_${{ matrix.preset }}/Release/numkong_shared.lib \
             build_${{ matrix.preset }}/Release/numkong_static.lib \
-            include/numkong/ \
+            c/numkong/ include/numkong/ cpp/numkong/ \
             LICENSE
       - name: Upload to GitHub Release
         shell: bash
@@ -146,7 +146,7 @@ jobs:
           cp build_release_shared/libnumkong_shared.dylib \
             "numkong_macos_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.dylib"
           zip -r "numkong_macos_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.zip" \
-            build_release_shared/libnumkong_shared.dylib build_release_shared/libnumkong_static.a include/numkong/ LICENSE
+            build_release_shared/libnumkong_shared.dylib build_release_shared/libnumkong_static.a c/numkong/ include/numkong/ cpp/numkong/ LICENSE
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -180,7 +180,7 @@ jobs:
       - name: Package Archive
         run: |
           zip -r "numkong_android_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.zip" \
-            build_${{ matrix.preset }}/libnumkong_shared.so include/numkong/ LICENSE
+            build_${{ matrix.preset }}/libnumkong_shared.so c/numkong/ include/numkong/ cpp/numkong/ LICENSE
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -222,7 +222,7 @@ jobs:
       - name: Build WASM
         run: |
           source ~/emsdk/emsdk_env.sh
-          cmake --preset ${{ matrix.width }}_emscripten -B build_wasm -D NUMKONG_TARGET_ARCH=${{ matrix.simd }}
+          cmake --preset ${{ matrix.width }}_emscripten -B build_wasm -D NUMKONG_MARCH=${{ matrix.simd }}
           cmake --build build_wasm
       # The wasm64 linker flags can produce a module that links but fails to instantiate.
       - name: Smoke Test WASM64 Module

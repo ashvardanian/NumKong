@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/types.h
+ *  @file c/numkong/types.h
  *  @author Ash Vardanian
  *  @date October 2, 2023
  *  @brief Shared definitions for the NumKong library.

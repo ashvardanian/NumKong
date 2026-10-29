@@ -1,5 +1,5 @@
 /**
- *  @file include/numkong/reduce.hpp
+ *  @file cpp/numkong/reduce.hpp
  *  @author Ash Vardanian
  *  @date February 5, 2026
  *  @brief Reduction kernels: reduce_moments (sum, sum-of-squares), reduce_minmax (min/max/indices).

@@ -4,7 +4,7 @@
  *  @date February 28, 2026
  *  @brief SIMD-accelerated MaxSim, angular distance late-interaction, for Haswell, AVX2.
  *
- *  @sa include/numkong/maxsim.h
+ *  @sa c/numkong/maxsim.h
  *
  *  Uses AVX2 VPMADDUBSW, u8 × i8 → i16, plus VPMADDWD, i16 → i32, for coarse i8 screening.
  *  Quantization range [-79, 79] ensures no i16 saturation, as the worst pair sum is 2 × 207 × 79 =

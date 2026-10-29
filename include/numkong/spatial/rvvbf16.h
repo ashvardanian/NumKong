@@ -4,7 +4,7 @@
  *  @date January 5, 2026
  *  @brief SIMD-accelerated spatial similarity measures for RISC-V BF16.
  *
- *  @sa include/numkong/spatial.h
+ *  @sa c/numkong/spatial.h
  *
  *  Zvfbfwma adds @c vfwmaccbf16, a widening fused multiply-accumulate of bf16 × bf16 into f32, and
  *  L2 distances expand (a − b)² = a² + b² − 2 × a × b so that every accumulation goes through it.

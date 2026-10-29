@@ -4,7 +4,7 @@
  *  @date September 25, 2026
  *  @brief SIMD-accelerated Batched Dot Products for AMD Instinct MI400, gfx1250 and gfx1251.
  *
- *  @sa include/numkong/dots.h
+ *  @sa c/numkong/dots.h
  *  @sa include/numkong/dots/cdna3.cuh
  *  @sa include/numkong/dots/cdna4.cuh
  *
