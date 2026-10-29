@@ -867,7 +867,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     }
 
     nk_scalar_buffer_t alpha_buf, beta_buf;
-    beta_buf.f64 = 0.0;
+    beta_buf.f64 = -0.0; // Preserve negative-zero products under round-to-nearest.
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
     if (!py_number_to_nk_scalar_buffer(scalar_obj, &alpha_buf, scalar_dtype)) goto cleanup;
     nk_scalar_buffer_from_f64(&beta_buf.f64, &beta_buf, scalar_dtype);

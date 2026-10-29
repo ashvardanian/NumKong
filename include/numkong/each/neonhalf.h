@@ -148,17 +148,18 @@ NK_PUBLIC void nk_each_fma_f16_neonhalf(                     //
     for (; i + 8 <= n; i += 8) {
         float16x8_t a_f16x8 = vld1q_f16((float16_t const *)a + i);
         float16x8_t b_f16x8 = vld1q_f16((float16_t const *)b + i);
-        float16x8_t c_f16x8 = vld1q_f16((float16_t const *)c + i);
+        float16x8_t c_f16x8 = beta_val == 0 ? vdupq_n_f16(0) : vld1q_f16((float16_t const *)c + i);
         float16x8_t ab_f16x8 = vmulq_f16(a_f16x8, b_f16x8);
         float16x8_t ab_scaled_f16x8 = vmulq_n_f16(ab_f16x8, alpha_f16);
-        float16x8_t result_f16x8 = vfmaq_n_f16(ab_scaled_f16x8, c_f16x8, beta_f16);
+        float16x8_t result_f16x8 = beta_val == 0 ? ab_scaled_f16x8 : vfmaq_n_f16(ab_scaled_f16x8, c_f16x8, beta_f16);
         vst1q_f16((float16_t *)result + i, result_f16x8);
     }
 
     // The tail:
     for (; i < n; ++i)
-        ((float16_t *)result)[i] = alpha_f16 * ((float16_t const *)a)[i] * ((float16_t const *)b)[i] +
-                                   beta_f16 * ((float16_t const *)c)[i];
+        ((float16_t *)result)[i] = beta_val == 0 ? alpha_f16 * ((float16_t const *)a)[i] * ((float16_t const *)b)[i]
+                                                 : alpha_f16 * ((float16_t const *)a)[i] * ((float16_t const *)b)[i] +
+                                                       beta_f16 * ((float16_t const *)c)[i];
 }
 
 NK_PUBLIC void nk_each_scale_u8_neonhalf(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
