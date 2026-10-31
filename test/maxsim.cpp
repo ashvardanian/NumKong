@@ -35,8 +35,8 @@ error_stats_t test_maxsim_packed(settings_t const &settings,
     nk_size_t query_pack_size = 0, document_pack_size = 0;
     stats.expect(packed_size_fn(query_count, depth, &query_pack_size));
     stats.expect(packed_size_fn(document_count, depth, &document_pack_size));
-    auto query_packed = make_vector<char>(query_pack_size);
-    auto document_packed = make_vector<char>(document_pack_size);
+    auto query_packed = make_vector<std::byte>(query_pack_size);
+    auto document_packed = make_vector<std::byte>(document_pack_size);
 
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, queries);

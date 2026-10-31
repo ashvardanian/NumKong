@@ -448,18 +448,18 @@ inline attention_key_range_t attention_visible_keys(std::size_t row, std::size_t
 /** K and V of the @p count segments of @p lengths keys from the rows at @p key_offsets, packed into
  *  host memory by the serial `nk::` wrappers for @p format_type_. */
 template <typename format_type_, typename scalar_type_, typename allocator_type_, typename scales_type_>
-nk::vector<char> serial_attention_pack(error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &keys,
-                                       nk::vector<scalar_type_, allocator_type_> const &values,
-                                       scales_type_ const &key_scales, scales_type_ const &value_scales,
-                                       attention_layout_t const &layout, nk_u32_t const *key_offsets,
-                                       nk_u32_t const *lengths, std::size_t count) {
+nk::vector<std::byte> serial_attention_pack(error_stats_t &stats, nk::vector<scalar_type_, allocator_type_> const &keys,
+                                            nk::vector<scalar_type_, allocator_type_> const &values,
+                                            scales_type_ const &key_scales, scales_type_ const &value_scales,
+                                            attention_layout_t const &layout, nk_u32_t const *key_offsets,
+                                            nk_u32_t const *lengths, std::size_t count) {
     std::size_t const stride = attention_row_bytes<scalar_type_>(layout.key_value_width());
     std::size_t key_tokens = 0;
     for (std::size_t segment = 0; segment < count; segment++) key_tokens += lengths[segment];
     auto const size = nk::attention_pack_size<format_type_>(layout.key_value_head_count, layout.depth, key_tokens,
                                                             count, 0);
     stats.expect(size.status);
-    auto packed = make_vector<char>(size.value);
+    auto packed = make_vector<std::byte>(size.value);
     stats.expect(nk::attention_pack<format_type_>(layout.key_value_head_count, layout.depth, key_offsets, lengths,
                                                   count, key_scales.operand(keys.values_data()), stride,
                                                   value_scales.operand(values.values_data()), stride,
@@ -857,7 +857,7 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
         auto tensor = make_vector<f32_t>(backend, 1);
         tensor[0] = f32_t(std::numeric_limits<float>::infinity());
         nk_nvfp4_cref_t const operand {codes.raw_values_data(), nullptr, tensor.raw_values_data()};
-        auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 65, 0));
+        auto packed = make_vector<std::byte>(backend, pack_size_bytes(stats, packed_size_fn, 65, 0));
         auto result = make_vector<result_t>(backend, 33 * 65);
         backend.call(pack_fn, &operand, 65, 0, 0, packed.raw_values_data(), 0, 65);
         backend.call(kernel_of(dots_fn), &operand, packed.raw_values_data(), result.raw_values_data(), 33, 65, 0, 0,
@@ -873,7 +873,7 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
         reinterpret_cast<nk_u8_t *>(scales.raw_values_data())[1] = 253;
         nk_mxfp4_cref_t const a {codes.raw_values_data(), scales.raw_values_data()};
         nk_mxfp4_cref_t const b {codes.raw_values_data(), scales.raw_values_data() + 1};
-        auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 1, format.block_size));
+        auto packed = make_vector<std::byte>(backend, pack_size_bytes(stats, packed_size_fn, 1, format.block_size));
         auto result = make_vector<result_t>(backend, 1);
         backend.call(pack_fn, &b, 1, format.block_size, format.block_bytes, packed.raw_values_data(), 0, 1);
         backend.call(kernel_of(dots_fn), &a, packed.raw_values_data(), result.raw_values_data(), 1, 1,
@@ -902,7 +902,7 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
         b.scales = reinterpret_cast<decltype(b.scales)>(raw_scales + 2);
         if constexpr (format.tensor_scale_dtype == nk_f32_k)
             a.tensor_scale = tensor.raw_values_data(), b.tensor_scale = tensor.raw_values_data();
-        auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
+        auto packed = make_vector<std::byte>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
         auto result = make_vector<result_t>(backend, columns);
         backend.call(pack_fn, &b, columns, depth, row_bytes, packed.raw_values_data(), 0, columns);
         backend.call(kernel_of(dots_fn), &a, packed.raw_values_data(), result.raw_values_data(), 1, columns, depth,
@@ -932,9 +932,9 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
             auto a = make_vector<scalar_t>(backend, rows * a_stride_values * dimensions_per_value),
                  b = make_vector<scalar_t>(backend, columns * b_stride_values * dimensions_per_value);
             auto c = make_vector<result_t>(backend, rows * c_stride / sizeof(result_t));
-            auto b_packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
+            auto b_packed = make_vector<std::byte>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
             std::size_t const scratch_size = workspace_size_bytes(stats, dots_fn, rows, columns, depth);
-            auto scratch = make_vector<char>(backend, scratch_size);
+            auto scratch = make_vector<std::byte>(backend, scratch_size);
 
             fill_random(settings, generator, a), fill_random(settings, generator, b);
             if constexpr (std::is_same_v<scalar_t, f64_t>)
@@ -972,7 +972,7 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
             if (!stats.expect(backend.synchronize())) return stats;
 
             std::vector<reference_t> c_reference(rows * columns);
-            auto b_packed_reference = make_vector<char>(
+            auto b_packed_reference = make_vector<std::byte>(
                 nk::dots_pack_size<scalar_type_>(columns, depth, no_tiers_k).value);
             stats.expect(nk::dots_pack<scalar_type_>(b_scales.operand(b.values_data()), columns, depth, b_stride,
                                                      b_packed_reference.raw_values_data(), no_tiers_k, nullptr));
@@ -1040,7 +1040,8 @@ error_stats_t test_dots_pack_layout(settings_t const &settings, backend_type_ ba
             std::size_t const row_bytes = depth / dimensions_per_value * sizeof(scalar_t);
             std::size_t const packed_size = pack_size_bytes(stats, packed_size_fn_, columns, depth);
             auto b = make_vector<scalar_t>(backend, columns * depth);
-            auto whole = make_vector<char>(backend, packed_size), windows = make_vector<char>(backend, packed_size);
+            auto whole = make_vector<std::byte>(backend, packed_size),
+                 windows = make_vector<std::byte>(backend, packed_size);
             fill_random(settings, generator, b);
             fill_canary(whole), fill_canary(windows);
             auto const b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, row_bytes, 0.75f);
@@ -1141,7 +1142,7 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
 
             std::size_t const scratch_size = workspace_size_bytes(stats, symmetric_fn, count, depth, rows_begin,
                                                                   test_case.rows_end);
-            auto scratch = make_vector<char>(backend, scratch_size);
+            auto scratch = make_vector<std::byte>(backend, scratch_size);
             if (scratch_size != 0) {
                 backend.call(kernel_of(symmetric_fn), scales.operand(a.raw_values_data()), count, depth, stride,
                              c.raw_values_data(), c_stride, rows_begin, test_case.rows_end, scratch.raw_values_data(),
@@ -1222,8 +1223,8 @@ error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type
     std::size_t const aligned_stride = backend.row_stride(row_bytes), output_stride = count * sizeof(result_t);
     std::size_t const odd_stride = row_bytes % 16 == 15 ? row_bytes + 2 : row_bytes + 1;
     auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, aligned_stride, 1.5f);
-    auto rows = make_vector<char>(backend, count * (aligned_stride + odd_stride) + 16);
-    auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn_, count, depth));
+    auto rows = make_vector<std::byte>(backend, count * (aligned_stride + odd_stride) + 16);
+    auto packed = make_vector<std::byte>(backend, pack_size_bytes(stats, packed_size_fn_, count, depth));
     auto output = make_vector<result_t>(backend, count * 2 * count);
     fill_canary(output);
 
@@ -1319,8 +1320,9 @@ error_stats_t test_sets_packed(settings_t const &settings, pack_size_kernel_type
             auto a = make_vector<scalar_t>(rows * stride_dimensions),
                  b = make_vector<scalar_t>(columns * stride_dimensions);
             auto c = make_vector<result_t>(rows * columns), c_reference = make_vector<result_t>(rows * columns);
-            auto b_packed = make_vector<char>(pack_size_bytes(stats, packed_size_fn, columns, depth)),
-                 b_packed_reference = make_vector<char>(nk::dots_pack_size<scalar_t>(columns, depth, no_tiers_k).value);
+            auto b_packed = make_vector<std::byte>(pack_size_bytes(stats, packed_size_fn, columns, depth)),
+                 b_packed_reference = make_vector<std::byte>(
+                     nk::dots_pack_size<scalar_t>(columns, depth, no_tiers_k).value);
             fill_random(settings, generator, a);
             fill_random(settings, generator, b);
             if constexpr (jaccard)
@@ -1546,7 +1548,7 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
         scale_codes[0] = 253, scale_codes[1] = 1;
         nk_mxfp8e5m2_cref_t const a {codes.raw_values_data(), scales.raw_values_data()};
         nk_mxfp8e5m2_cref_t const b {codes.raw_values_data() + 32, scales.raw_values_data() + 1};
-        auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 1, 32));
+        auto packed = make_vector<std::byte>(backend, pack_size_bytes(stats, packed_size_fn, 1, 32));
         auto result = make_vector<result_t>(backend, 1);
         backend.call(pack_fn, &b, 1, 32, 32, packed.raw_values_data(), 0, 1);
         backend.call(kernel_of(spatials_fn), &a, packed.raw_values_data(), result.raw_values_data(), 1, 1, 32, 32,
@@ -1559,7 +1561,7 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
     constexpr nk_kernel_kind_t packed_kind = angular ? nk_kernel_angulars_packed_k : nk_kernel_euclideans_packed_k;
     auto const launch = [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c,
                             std::size_t c_stride) {
-        auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, rows, depth));
+        auto packed = make_vector<std::byte>(backend, pack_size_bytes(stats, packed_size_fn, rows, depth));
         backend.call(pack_fn, operand, rows, depth, stride, packed.raw_values_data(), 0, rows);
         backend.call(kernel_of(spatials_fn), operand, packed.raw_values_data(), c, rows, rows, depth, stride, c_stride,
                      nullptr, 0);
@@ -1582,7 +1584,7 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
             auto a = make_vector<scalar_t>(backend, rows * stride_values * dimensions_per_value),
                  b = make_vector<scalar_t>(backend, columns * stride_values * dimensions_per_value);
             auto c = make_vector<result_t>(backend, rows * columns);
-            auto b_packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
+            auto b_packed = make_vector<std::byte>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
             fill_random(settings, generator, a);
             fill_random(settings, generator, b);
             if constexpr (!angular) std::memset(a.raw_values_data(), 0, stride);
@@ -1595,7 +1597,7 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
             backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, stride,
                          b_packed.raw_values_data(), columns / 2, columns);
             std::size_t const scratch_size = workspace_size_bytes(stats, spatials_fn, rows, columns, depth);
-            auto scratch = make_vector<char>(backend, scratch_size);
+            auto scratch = make_vector<std::byte>(backend, scratch_size);
             if (scratch_size != 0) {
                 backend.call(kernel_of(spatials_fn), a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
                              c.raw_values_data(), rows, columns, depth, stride, columns * sizeof(result_t),
@@ -1607,7 +1609,7 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
                          scratch.raw_values_data(), scratch_size);
             if (!stats.expect(backend.synchronize())) return stats;
 
-            auto b_packed_reference = make_vector<char>(
+            auto b_packed_reference = make_vector<std::byte>(
                 nk::dots_pack_size<scalar_type_>(columns, depth, no_tiers_k).value);
             auto dots_reference = make_vector<reference_t>(rows * columns);
             auto a_squared_norms = make_vector<reference_t>(rows), b_squared_norms = make_vector<reference_t>(columns);
@@ -1680,7 +1682,7 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
             auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 1.5f);
 
             std::size_t const scratch_size = workspace_size_bytes(stats, symmetric_fn, count, depth, 0, count);
-            auto scratch = make_vector<char>(backend, scratch_size);
+            auto scratch = make_vector<std::byte>(backend, scratch_size);
             if (scratch_size != 0) {
                 backend.call(kernel_of(symmetric_fn), scales.operand(a.raw_values_data()), count, depth, stride,
                              c.raw_values_data(), c_stride, 0, count, scratch.raw_values_data(), scratch_size - 1);
@@ -1836,7 +1838,7 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
                             std::fill_n(blocks, scales->scale_stride, ue8m0_t::from_raw(127 + 8));
                             blocks[high] = ue8m0_t::from_raw(127 + 97);
                         }
-            auto key_value_packed = make_vector<char>(
+            auto key_value_packed = make_vector<std::byte>(
                 backend, pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth, key_tokens,
                                          segments.count()));
             // Allocated before any launch: Windows faults on host writes to managed memory then
@@ -1852,7 +1854,7 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
                 stats.expect(queried.status);
                 workspace_bytes = queried.value;
             }
-            auto workspace = make_vector<char>(backend, workspace_bytes);
+            auto workspace = make_vector<std::byte>(backend, workspace_bytes);
 
             pack_attention_in_two_windows(backend, pack_fn, keys, values, key_scales, value_scales, segments, layout,
                                           key_value_packed);
@@ -1989,7 +1991,7 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
             auto key_gradient = make_vector<f32_t>(backend, key_tokens * layout.key_value_width()),
                  value_gradient = make_vector<f32_t>(backend, key_tokens * layout.key_value_width());
             fill_canary(query_gradient), fill_canary(key_gradient), fill_canary(value_gradient);
-            auto key_value_packed = make_vector<char>(
+            auto key_value_packed = make_vector<std::byte>(
                 backend, pack_size_bytes(stats, packed_size_fn, layout.key_value_head_count, layout.depth, key_tokens,
                                          segments.count()));
             std::size_t workspace_bytes = 0;
@@ -2000,7 +2002,7 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                 stats.expect(queried.status);
                 workspace_bytes = queried.value;
             }
-            auto workspace = make_vector<char>(backend, workspace_bytes);
+            auto workspace = make_vector<std::byte>(backend, workspace_bytes);
 
             pack_attention_in_two_windows(backend, pack_fn, keys, values, key_scales, value_scales, segments, layout,
                                           key_value_packed);

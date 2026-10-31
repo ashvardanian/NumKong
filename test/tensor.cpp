@@ -1615,7 +1615,7 @@ error_stats_t test_tensor_attention_for_type(settings_t const &settings) {
     auto packed_bytes = nk::attention_pack_size<value_type_>(key_value_heads, depth, tokens, 2);
     stats.expect(packed_bytes.status);
     if (!packed_bytes) return stats;
-    auto raw_packed = make_vector<char>(packed_bytes.value);
+    auto raw_packed = make_vector<std::byte>(packed_bytes.value);
     std::size_t const key_value_stride = key_value_heads * depth * sizeof(value_type_),
                       query_stride = heads * depth * sizeof(value_type_),
                       output_stride = heads * depth * sizeof(result_t);

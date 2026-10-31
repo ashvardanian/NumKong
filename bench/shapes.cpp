@@ -33,20 +33,20 @@ void measure_shapes(loop_t &loop, environment_t const &env,
     std::size_t const clouds = rows + columns;
     std::size_t const pack_stride = nk_size_round_up_to_multiple_(pack_bytes, nk_default_alignment_k);
     std::size_t const sets_count = input_sets_count(bytes_t {clouds * pack_stride});
-    std::vector<nk::vector<char>> sets(sets_count);
+    auto [sets, sets_status] = nk::tensor<std::byte>::zeros({sets_count, clouds, pack_stride});
+    if (nk::failed(sets_status)) return loop.skip("set allocation failed");
     std::vector<void const *> pointers(sets_count * clouds);
     std::mt19937 generator(env.settings.seed.value);
     auto cloud = make_vector<input_t>(points * 3);
     for (std::size_t set = 0; set != sets_count; ++set) {
-        sets[set] = make_vector<char>(clouds * pack_stride);
         for (std::size_t index = 0; index != clouds; ++index) {
             nk::fill_uniform(generator, cloud.values_data(), cloud.size_values());
-            char *packed = sets[set].raw_values_data() + index * pack_stride;
+            std::byte *packed = sets(set, index, nk::slice).data();
             if (!succeeded(loop, pack(cloud.raw_values_data(), points, packed, nullptr))) return;
             pointers[set * clouds + index] = packed;
         }
     }
-    auto workspace = make_vector<char>(std::max<nk_size_t>(workspace_bytes, 1));
+    auto workspace = make_vector<std::byte>(std::max<nk_size_t>(workspace_bytes, 1));
     auto results = make_vector<distance_t>(rows * columns);
     std::size_t const results_stride = columns * sizeof(typename distance_t::raw_t);
 
@@ -98,15 +98,15 @@ void measure_rmsds(loop_t &loop, environment_t const &env, nk_status_t (*pack_si
     std::size_t const frames = rows + columns;
     std::size_t const pack_stride = nk_size_round_up_to_multiple_(pack_bytes, nk_default_alignment_k);
     std::size_t const sets_count = input_sets_count(bytes_t {frames * pack_stride});
-    std::vector<nk::vector<char>> sets(sets_count);
+    auto [sets, sets_status] = nk::tensor<std::byte>::zeros({sets_count, frames, pack_stride});
+    if (nk::failed(sets_status)) return loop.skip("set allocation failed");
     std::vector<void const *> pointers(sets_count * frames);
     std::mt19937 generator(env.settings.seed.value);
     auto frame = make_vector<input_t>(points * 3);
     for (std::size_t set = 0; set != sets_count; ++set) {
-        sets[set] = make_vector<char>(frames * pack_stride);
         for (std::size_t index = 0; index != frames; ++index) {
             nk::fill_uniform(generator, frame.values_data(), frame.size_values());
-            char *packed = sets[set].raw_values_data() + index * pack_stride;
+            std::byte *packed = sets(set, index, nk::slice).data();
             if (!succeeded(loop, pack(frame.raw_values_data(), points, packed, nullptr))) return;
             pointers[set * frames + index] = packed;
         }

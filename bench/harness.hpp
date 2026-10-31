@@ -35,6 +35,7 @@
 #define NUMKONG_BENCH_HARNESS_HPP
 
 #include <cctype>  // `std::tolower`
+#include <cstddef> // `std::byte`
 #include <cstdint> // `std::uint32_t`
 #include <cstdlib> // `std::abort`, `std::exit`, `std::getenv`, `std::strtod`
 

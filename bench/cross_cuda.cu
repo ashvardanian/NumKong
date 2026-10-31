@@ -73,14 +73,15 @@ void measure_transport_cuda(loop_t &loop, environment_t const &env, cuda_backend
     std::size_t const column_stride = nk_size_round_up_to_multiple_(column_bytes, nk_default_alignment_k);
     std::size_t const table_offset = rows * row_stride + columns * column_stride;
     std::size_t const bytes = table_offset + (rows + columns) * sizeof(void const *);
-    auto packs = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(bytes, allocator_of<char>(backend));
-    auto workspace = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(workspace_bytes,
-                                                                                      allocator_of<char>(backend));
+    auto packs = nk::vector<std::byte, cuda_backend_t::allocator<std::byte>>::uninitialized(
+        bytes, allocator_of<std::byte>(backend));
+    auto workspace = nk::vector<std::byte, cuda_backend_t::allocator<std::byte>>::uninitialized(
+        workspace_bytes, allocator_of<std::byte>(backend));
     auto results = nk::vector<distance_t, cuda_backend_t::allocator<distance_t>>::uninitialized(
         rows * columns, allocator_of<distance_t>(backend));
     if (nk::failed(packs.status) || nk::failed(workspace.status) || nk::failed(results.status))
         return loop.skip("allocation failed");
-    auto staged = make_vector<char>(bytes);
+    auto staged = make_vector<std::byte>(bytes);
     auto cloud = make_vector<scalar_type_>(std::max(row_points, column_points) * 3);
     std::mt19937 generator(env.settings.seed.value);
     void const **table = reinterpret_cast<void const **>(staged.raw_values_data() + table_offset);
@@ -140,10 +141,10 @@ void measure_geodesics_cuda(loop_t &loop, environment_t const &env, cuda_backend
     if (!succeeded(loop, pack_size(rows, &a_bytes)) || !succeeded(loop, pack_size(columns, &b_bytes))) return;
     auto coordinates = nk::vector<nk::f64_t, cuda_backend_t::allocator<nk::f64_t>>::uninitialized(
         2 * points, allocator_of<nk::f64_t>(backend));
-    auto a_packed = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(a_bytes,
-                                                                                     allocator_of<char>(backend));
-    auto b_packed = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(b_bytes,
-                                                                                     allocator_of<char>(backend));
+    auto a_packed = nk::vector<std::byte, cuda_backend_t::allocator<std::byte>>::uninitialized(
+        a_bytes, allocator_of<std::byte>(backend));
+    auto b_packed = nk::vector<std::byte, cuda_backend_t::allocator<std::byte>>::uninitialized(
+        b_bytes, allocator_of<std::byte>(backend));
     auto results = nk::vector<nk::f64_t, cuda_backend_t::allocator<nk::f64_t>>::uninitialized(
         rows * columns, allocator_of<nk::f64_t>(backend));
     if (nk::failed(coordinates.status) || nk::failed(a_packed.status) || nk::failed(b_packed.status) ||
@@ -191,7 +192,8 @@ void measure_clearances_cuda(loop_t &loop, environment_t const &env, cuda_backen
     if (!succeeded(loop, nk_terrain_pack_size_f32_cuda(cells, cells, &bytes))) return;
     auto values = nk::vector<nk::f32_t, cuda_backend_t::allocator<nk::f32_t>>::uninitialized(
         heights.size() + points.size(), allocator_of<nk::f32_t>(backend));
-    auto packed = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(bytes, allocator_of<char>(backend));
+    auto packed = nk::vector<std::byte, cuda_backend_t::allocator<std::byte>>::uninitialized(
+        bytes, allocator_of<std::byte>(backend));
     auto results = nk::vector<nk::f32_t, cuda_backend_t::allocator<nk::f32_t>>::uninitialized(
         rows * columns, allocator_of<nk::f32_t>(backend));
     if (nk::failed(values.status) || nk::failed(packed.status) || nk::failed(results.status))
@@ -591,11 +593,12 @@ void measure_shapes_blackwell(loop_t &loop, environment_t const &env, cuda_backe
     std::size_t const clouds = rows + columns;
     std::size_t const stride = nk_size_round_up_to_multiple_(pack_bytes, nk_default_alignment_k);
     std::size_t const table_offset = clouds * stride, bytes = table_offset + clouds * sizeof(void const *);
-    auto packs = nk::vector<char, cuda_backend_t::allocator<char>>::uninitialized(bytes, allocator_of<char>(backend));
+    auto packs = nk::vector<std::byte, cuda_backend_t::allocator<std::byte>>::uninitialized(
+        bytes, allocator_of<std::byte>(backend));
     auto results = nk::vector<nk::f32_t, cuda_backend_t::allocator<nk::f32_t>>::uninitialized(
         rows * columns, allocator_of<nk::f32_t>(backend));
     if (nk::failed(packs.status) || nk::failed(results.status)) return loop.skip("allocation failed");
-    auto staged = make_vector<char>(bytes);
+    auto staged = make_vector<std::byte>(bytes);
     auto cloud = make_vector<nk::f16_t>(points * 3);
     std::mt19937 generator(env.settings.seed.value);
     void const **table = reinterpret_cast<void const **>(staged.raw_values_data() + table_offset);
@@ -1073,7 +1076,7 @@ struct cublaslt_plan_t {
             scales = cuda_device_vector<char>::uninitialized(
                          nk::divide_round_up(std::max(rows, columns), std::size_t(128)) * 128 *
                              nk::divide_round_up(depth, block * 4) * 4,
-                         allocator_of<char>(backend))
+                         allocator_of<std::byte>(backend))
                          .value;
             if (scales.empty()) return CUBLAS_STATUS_ALLOC_FAILED;
             cudaMemset(scales.raw_values_data(), block == 32 ? 127 : 0x38, scales.size_bytes());
@@ -1099,7 +1102,7 @@ struct cublaslt_plan_t {
         cublasLtMatmulPreferenceDestroy(preference);
         if (status || !found) return status ? status : CUBLAS_STATUS_NOT_SUPPORTED;
         workspace = cuda_device_vector<char>::uninitialized(std::max<std::size_t>(heuristic.workspaceSize, 1),
-                                                            allocator_of<char>(backend))
+                                                            allocator_of<std::byte>(backend))
                         .value;
         return workspace.empty() ? CUBLAS_STATUS_ALLOC_FAILED : CUBLAS_STATUS_SUCCESS;
     }
@@ -1455,7 +1458,7 @@ struct cudnn_attention_plan_t {
             status = cudnnBackendGetAttribute(plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1,
                                               nullptr, &workspace_bytes);
         workspace = cuda_device_vector<char>::uninitialized(std::size_t(std::max<std::int64_t>(workspace_bytes, 1)),
-                                                            allocator_of<char>(backend))
+                                                            allocator_of<std::byte>(backend))
                         .value;
         if (!status && workspace.empty()) status = CUDNN_STATUS_ALLOC_FAILED;
         return status;

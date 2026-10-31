@@ -6,7 +6,6 @@
  */
 
 #include "numkong/reduce.h"
-#include "numkong/reduce/serial.h"
 
 #include "harness.hpp"
 
@@ -20,17 +19,16 @@ void measure_reduce_moments(loop_t &loop, environment_t const &env, kernel_type_
     using sumsq_t = typename input_t::reduce_moments_sumsq_t;
 
     std::size_t const vector_count = input_sets_count(dtype_bytes(input_dtype_, dimensions));
-    std::vector<nk::vector<input_t>> vectors(vector_count);
+    auto [vectors, vectors_status] = nk::tensor<input_t>::zeros({vector_count, dimensions});
+    if (nk::failed(vectors_status)) return loop.skip("vector allocation failed");
     std::mt19937 generator(env.settings.seed.value);
-    for (auto &v : vectors) {
-        v = make_vector<input_t>(dimensions);
-        nk::fill_uniform(generator, v.values_data(), v.size_values());
-    }
+    std::span<input_t> const values = vectors.span().values().value;
+    nk::fill_uniform(generator, values.data(), values.size());
 
     for (std::size_t call : loop) {
         typename output_t::raw_t sum;
         typename sumsq_t::raw_t sumsq;
-        auto const &v = vectors[call & (vector_count - 1)];
+        auto const v = vectors(call & (vector_count - 1), nk::slice);
         if (!succeeded(loop,
                        kernel(v.raw_values_data(), dimensions, sizeof(typename input_t::raw_t), &sum, &sumsq, nullptr)))
             break;
@@ -38,7 +36,7 @@ void measure_reduce_moments(loop_t &loop, environment_t const &env, kernel_type_
         do_not_optimize(sumsq);
     }
 
-    loop.byte_rate(vectors[0].size_bytes());
+    loop.byte_rate(dtype_bytes(input_dtype_, dimensions).value);
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
@@ -55,17 +53,16 @@ void measure_reduce_minmax(loop_t &loop, environment_t const &env, kernel_type_ 
     using output_t = typename input_t::reduce_minmax_value_t;
 
     std::size_t const vector_count = input_sets_count(dtype_bytes(input_dtype_, dimensions));
-    std::vector<nk::vector<input_t>> vectors(vector_count);
+    auto [vectors, vectors_status] = nk::tensor<input_t>::zeros({vector_count, dimensions});
+    if (nk::failed(vectors_status)) return loop.skip("vector allocation failed");
     std::mt19937 generator(env.settings.seed.value);
-    for (auto &v : vectors) {
-        v = make_vector<input_t>(dimensions);
-        nk::fill_uniform(generator, v.values_data(), v.size_values());
-    }
+    std::span<input_t> const values = vectors.span().values().value;
+    nk::fill_uniform(generator, values.data(), values.size());
 
     for (std::size_t call : loop) {
         typename output_t::raw_t min_val, max_val;
         nk_size_t min_idx, max_idx;
-        auto const &v = vectors[call & (vector_count - 1)];
+        auto const v = vectors(call & (vector_count - 1), nk::slice);
         if (!succeeded(loop, kernel(v.raw_values_data(), dimensions, sizeof(typename input_t::raw_t), &min_val,
                                     &min_idx, &max_val, &max_idx, nullptr)))
             break;
@@ -73,7 +70,7 @@ void measure_reduce_minmax(loop_t &loop, environment_t const &env, kernel_type_ 
         do_not_optimize(max_val);
     }
 
-    loop.byte_rate(vectors[0].size_bytes());
+    loop.byte_rate(dtype_bytes(input_dtype_, dimensions).value);
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>

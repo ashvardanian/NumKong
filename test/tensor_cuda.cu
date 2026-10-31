@@ -223,8 +223,8 @@ static bool test_device_tensor_view_ops_() {
 
     nk_allocator_t policy;
     if (nk_allocator_init_unified_cuda(&policy) != nk_success_k) return false;
-    nk::allocator<char> const allocator(policy);
-    using bytes_t = nk::vector<char, nk::allocator<char>>;
+    nk::allocator<std::byte> const allocator(policy);
+    using bytes_t = nk::vector<std::byte, nk::allocator<std::byte>>;
     auto [device_data, data_status] = bytes_t::uninitialized(count * sizeof(float), allocator);
     auto [device_out, out_status] = bytes_t::uninitialized(sizeof(float), allocator);
     if (nk::failed(data_status) || nk::failed(out_status)) return false;

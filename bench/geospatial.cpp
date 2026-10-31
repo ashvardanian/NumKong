@@ -53,7 +53,7 @@ void measure_geodesics(loop_t &loop, environment_t const &env, geodesics_pack_si
     nk::fill_coordinates(generator, b_latitudes.data(), b_longitudes.data(), columns);
     nk_size_t a_bytes = 0, b_bytes = 0;
     if (!succeeded(loop, pack_size(rows, &a_bytes)) || !succeeded(loop, pack_size(columns, &b_bytes))) return;
-    auto a_packed = make_vector<char>(a_bytes), b_packed = make_vector<char>(b_bytes);
+    auto a_packed = make_vector<std::byte>(a_bytes), b_packed = make_vector<std::byte>(b_bytes);
     if (!succeeded(loop, pack(a_latitudes.data(), a_longitudes.data(), rows, a_packed.raw_values_data(), nullptr)) ||
         !succeeded(loop, pack(b_latitudes.data(), b_longitudes.data(), columns, b_packed.raw_values_data(), nullptr)))
         return;
@@ -84,7 +84,7 @@ void measure_clearances(loop_t &loop, environment_t const &env, clearances_packe
         }
     nk_size_t bytes = 0;
     if (!succeeded(loop, nk_terrain_pack_size_f32_serial(cells, cells, &bytes))) return;
-    auto packed = make_vector<char>(bytes);
+    auto packed = make_vector<std::byte>(bytes);
     if (!succeeded(loop, nk_terrain_pack_f32_serial(heights.data(), cells, cells, cells * sizeof(nk_f32_t), 30.0, 30.0,
                                                     packed.raw_values_data(), nullptr)))
         return;

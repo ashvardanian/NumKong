@@ -52,7 +52,7 @@ error_stats_t test_scale(settings_t const &settings, typename scalar_type_::scal
     std::mt19937 generator(settings.seed.value);
     std::size_t const count = settings.dense_dimensions;
     auto input = make_vector<scalar_t>(backend, count), result = make_vector<scalar_t>(backend, count);
-    auto coefficients = make_vector<char>(backend, 2 * sizeof(scale_t));
+    auto coefficients = make_vector<std::byte>(backend, 2 * sizeof(scale_t));
     scale_t *alpha = reinterpret_cast<scale_t *>(coefficients.raw_values_data()), *beta = alpha + 1;
 
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
@@ -86,7 +86,7 @@ error_stats_t test_blend(settings_t const &settings, typename scalar_type_::blen
     std::size_t const count = settings.dense_dimensions;
     auto a = make_vector<scalar_t>(backend, count), b = make_vector<scalar_t>(backend, count);
     auto result = make_vector<scalar_t>(backend, count);
-    auto coefficients = make_vector<char>(backend, 2 * sizeof(scale_t));
+    auto coefficients = make_vector<std::byte>(backend, 2 * sizeof(scale_t));
     scale_t *alpha = reinterpret_cast<scale_t *>(coefficients.raw_values_data()), *beta = alpha + 1;
 
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
@@ -122,7 +122,7 @@ error_stats_t test_fma(settings_t const &settings, typename scalar_type_::fma_ke
     std::size_t const count = settings.dense_dimensions;
     auto a = make_vector<scalar_t>(backend, count), b = make_vector<scalar_t>(backend, count);
     auto c = make_vector<scalar_t>(backend, count), result = make_vector<scalar_t>(backend, count);
-    auto coefficients = make_vector<char>(backend, 2 * sizeof(scale_t));
+    auto coefficients = make_vector<std::byte>(backend, 2 * sizeof(scale_t));
     scale_t *alpha = reinterpret_cast<scale_t *>(coefficients.raw_values_data()), *beta = alpha + 1;
 
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {

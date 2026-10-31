@@ -273,7 +273,7 @@ template <typename backend_type_, typename output_type_>
 struct matrix_set {
 
     /** Bytes in backend memory. */
-    using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
+    using bytes_t = nk::vector<std::byte, typename backend_type_::template allocator<std::byte>>;
 
     /** Outputs in backend memory. */
     using outputs_t = nk::vector<output_type_, typename backend_type_::template allocator<output_type_>>;
@@ -352,15 +352,15 @@ void measure_packed(loop_t &loop, environment_t const &env, backend_type_ backen
     auto const [b_uploaded, b_uploaded_status] = upload(backend, b.data(), b.numel());
     if (!nk::succeeded(b_uploaded_status)) return loop.skip(nk::status_name(b_uploaded_status));
     if (b_uploaded.empty()) return loop.skip("B allocation failed");
-    auto scratch = set_t::bytes_t::uninitialized(scratch_bytes, allocator_of<char>(backend)).value;
+    auto scratch = set_t::bytes_t::uninitialized(scratch_bytes, allocator_of<std::byte>(backend)).value;
     if (scratch_bytes != 0 && scratch.empty()) return loop.skip("workspace allocation failed");
 
     // One B upload, packed into every set, since the sets differ only in where they live.
     std::vector<set_t> sets(
         backend.input_sets(bytes_t {a_bytes + packed_bytes + rows * columns * sizeof(output_type_)}));
     for (set_t &set : sets) {
-        set = {set_t::bytes_t::uninitialized(a_bytes, allocator_of<char>(backend)).value,
-               set_t::bytes_t::uninitialized(packed_bytes, allocator_of<char>(backend)).value,
+        set = {set_t::bytes_t::uninitialized(a_bytes, allocator_of<std::byte>(backend)).value,
+               set_t::bytes_t::uninitialized(packed_bytes, allocator_of<std::byte>(backend)).value,
                set_t::outputs_t::uninitialized(rows * columns, allocator_of<output_type_>(backend)).value};
         if (set.a.empty() || set.b.empty() || set.c.empty()) return loop.skip("set allocation failed");
         if (!succeeded(loop, backend.copy(set.a.raw_values_data(), a.data(), a_bytes))) return;
@@ -404,11 +404,11 @@ void measure_symmetric(loop_t &loop, environment_t const &env, backend_type_ bac
     if (!succeeded(loop, scales.initialize(backend, rows, a_stride))) return;
     nk_size_t scratch_bytes = 0;
     if (!workspace_size_bytes(loop, scratch_bytes, kernel, rows, depth, std::size_t(0), rows)) return;
-    auto scratch = set_t::bytes_t::uninitialized(scratch_bytes, allocator_of<char>(backend)).value;
+    auto scratch = set_t::bytes_t::uninitialized(scratch_bytes, allocator_of<std::byte>(backend)).value;
     if (scratch_bytes != 0 && scratch.empty()) return loop.skip("workspace allocation failed");
     std::vector<set_t> sets(backend.input_sets(bytes_t {a_bytes + rows * rows * sizeof(output_type_)}));
     for (set_t &set : sets) {
-        set.a = set_t::bytes_t::uninitialized(a_bytes, allocator_of<char>(backend)).value;
+        set.a = set_t::bytes_t::uninitialized(a_bytes, allocator_of<std::byte>(backend)).value;
         set.c = set_t::outputs_t::uninitialized(rows * rows, allocator_of<output_type_>(backend)).value;
         if (set.a.empty() || set.c.empty()) return loop.skip("set allocation failed");
         if (!succeeded(loop, backend.copy(set.a.raw_values_data(), a.data(), a_bytes))) return;
@@ -617,7 +617,7 @@ struct attention_set {
     using queries_t = nk::vector<input_type_, typename backend_type_::template allocator<input_type_>>;
 
     /** Bytes in backend memory. */
-    using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
+    using bytes_t = nk::vector<std::byte, typename backend_type_::template allocator<std::byte>>;
 
     /** Outputs in backend memory. */
     using outputs_t = nk::vector<nk::f32_t, typename backend_type_::template allocator<nk::f32_t>>;
@@ -665,7 +665,7 @@ void measure_attention(loop_t &loop, environment_t const &env, backend_type_ bac
         workspace_bytes = queried.value;
     }
     // One workspace serves every set, as the calls run in the order of one stream
-    auto workspace = set_t::bytes_t::uninitialized(workspace_bytes, allocator_of<char>(backend)).value;
+    auto workspace = set_t::bytes_t::uninitialized(workspace_bytes, allocator_of<std::byte>(backend)).value;
     if (workspace_bytes && workspace.empty()) return loop.skip("workspace allocation failed");
     std::size_t const output_count = shape.queries * shape.head_count * shape.depth;
     std::vector<set_t> sets(
@@ -673,7 +673,7 @@ void measure_attention(loop_t &loop, environment_t const &env, backend_type_ bac
     for (set_t &set : sets) {
         auto [uploaded, upload_status] = upload(backend, queries.values_data(), queries.size());
         if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
-        set = {std::move(uploaded), set_t::bytes_t::uninitialized(packed_bytes, allocator_of<char>(backend)).value,
+        set = {std::move(uploaded), set_t::bytes_t::uninitialized(packed_bytes, allocator_of<std::byte>(backend)).value,
                set_t::outputs_t::uninitialized(output_count, allocator_of<nk::f32_t>(backend)).value};
         if (set.queries.empty() || set.packed.empty() || set.output.empty()) return loop.skip("set allocation failed");
         if (!succeeded(loop, backend.zero(set.packed.raw_values_data(), packed_bytes))) return;
@@ -729,7 +729,7 @@ void run_attention(environment_t const &env, std::string const &name, pack_size_
 template <typename backend_type_, typename input_type_>
 struct attention_gradients_set {
     using queries_t = nk::vector<input_type_, typename backend_type_::template allocator<input_type_>>;
-    using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
+    using bytes_t = nk::vector<std::byte, typename backend_type_::template allocator<std::byte>>;
     using floats_t = nk::vector<nk::f32_t, typename backend_type_::template allocator<nk::f32_t>>;
 
     queries_t queries;
@@ -778,7 +778,7 @@ void measure_attention_gradients(loop_t &loop, environment_t const &env, backend
         workspace_bytes = queried.value;
     }
     // One workspace serves every set, as the calls run in the order of one stream
-    auto workspace = set_t::bytes_t::uninitialized(workspace_bytes, allocator_of<char>(backend)).value;
+    auto workspace = set_t::bytes_t::uninitialized(workspace_bytes, allocator_of<std::byte>(backend)).value;
     if (workspace_bytes && workspace.empty()) return loop.skip("workspace allocation failed");
     std::size_t const output_count = shape.queries * shape.head_count * shape.depth;
     std::size_t const key_value_count = shape.keys * shape.key_value_head_count * shape.depth;
@@ -794,7 +794,7 @@ void measure_attention_gradients(loop_t &loop, environment_t const &env, backend
         auto [output_gradient, gradient_status] = random_upload<nk_f32_k>(backend, output_count, env.settings.seed);
         if (!nk::succeeded(gradient_status)) return loop.skip(nk::status_name(gradient_status));
         set = {std::move(uploaded),
-               set_t::bytes_t::uninitialized(packed_bytes, allocator_of<char>(backend)).value,
+               set_t::bytes_t::uninitialized(packed_bytes, allocator_of<std::byte>(backend)).value,
                floats(output_count),
                std::move(output_gradient),
                floats(shape.queries * shape.head_count),
@@ -1085,7 +1085,7 @@ template <block_scaled_direction_t direction_, nk_dtype_t dtype_, typename backe
 void measure_block_scaled_rows(loop_t &loop, environment_t const &env, backend_type_ backend, kernel_type_ kernel,
                                std::size_t count) {
     using values_t = nk::vector<nk::f32_t, typename backend_type_::template allocator<nk::f32_t>>;
-    using codes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
+    using codes_t = nk::vector<std::byte, typename backend_type_::template allocator<std::byte>>;
     using block_t = typename nk::type_for<dtype_>::type;
     using cref_t = typename block_t::cref_t;
     using ref_t = typename block_t::ref_t;
@@ -1110,8 +1110,8 @@ void measure_block_scaled_rows(loop_t &loop, environment_t const &env, backend_t
             if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
             values[set] = std::move(uploaded);
         }
-        elements[set] = codes_t::uninitialized(elements_bytes, allocator_of<char>(backend)).value;
-        scales[set] = codes_t::uninitialized(scales_bytes, allocator_of<char>(backend)).value;
+        elements[set] = codes_t::uninitialized(elements_bytes, allocator_of<std::byte>(backend)).value;
+        scales[set] = codes_t::uninitialized(scales_bytes, allocator_of<std::byte>(backend)).value;
         if (values[set].empty() || elements[set].empty() || scales[set].empty())
             return loop.skip("set allocation failed");
         refs[set].elements = reinterpret_cast<decltype(ref_t::elements)>(elements[set].raw_values_data());

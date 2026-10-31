@@ -199,8 +199,8 @@ static bool run_kernel_batch_(source_type_ const *host_source, destination_type_
                               kernel_type_ kernel) {
     nk_allocator_t policy;
     if (nk_allocator_init_unified_cuda(&policy) != nk_success_k) return false;
-    nk::allocator<char> const allocator(policy);
-    using bytes_t = nk::vector<char, nk::allocator<char>>;
+    nk::allocator<std::byte> const allocator(policy);
+    using bytes_t = nk::vector<std::byte, nk::allocator<std::byte>>;
     auto [device_source, source_status] = bytes_t::uninitialized(count * sizeof(source_type_), allocator);
     auto [device_destination, destination_status] = bytes_t::uninitialized(count * sizeof(destination_type_),
                                                                            allocator);
