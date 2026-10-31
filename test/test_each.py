@@ -668,29 +668,32 @@ def test_multiply_numpy_buffer_protocol(dtype: str):
     assert_allclose(result_np, expected)
 
 
-@pytest.mark.skipif(not numpy_available or not nk.get_capabilities().get("neonhalf"), reason="NEON half is unavailable")
-def test_multiply_float16_preserves_signed_zero():
-    """Multiplication preserves negative zero for scalar and array operands, including out buffers."""
-    keep_one_capability("neonhalf")
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype, bits", [("float16", "uint16"), ("float32", "uint32"), ("float64", "uint64")])
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_multiply_ignores_output_contents(dtype: str, bits: str, capability: str):
+    """Products keep signed zeros and infinities for scalar and array operands, whatever `out` held."""
+    keep_one_capability(capability)
 
-    image = np.resize(np.array([-0.0, 0.0, -0.0, 0.0], dtype=np.float16), 9)
+    image = np.resize(np.array([-0.0, 0.0, np.inf, 2.0], dtype=dtype), 9)
     operands = (
         0.875,
-        np.resize(np.array([0.875, 0.875, -0.875, -0.875], dtype=np.float16), image.shape),
+        np.resize(np.array([0.875, 0.875, -0.875, -0.875], dtype=dtype), image.shape),
     )
 
     for value in operands:
-        expected = np.multiply(image, value).astype(np.float16, copy=False)
+        expected = np.multiply(image, value).astype(dtype, copy=False)
         result = np.asarray(nk.multiply(image, value))
-        np.testing.assert_array_equal(result.view(np.uint16), expected.view(np.uint16))
+        np.testing.assert_array_equal(result.view(bits), expected.view(bits))
 
-        out = np.full_like(image, np.inf)
-        assert nk.multiply(image, value, out=out) is None
-        np.testing.assert_array_equal(out.view(np.uint16), expected.view(np.uint16))
+        for filler in (np.inf, np.nan, -5.0):
+            out = np.full_like(image, filler)
+            assert nk.multiply(image, value, out=out) is None
+            np.testing.assert_array_equal(out.view(bits), expected.view(bits))
 
         aliased = image.copy()
         assert nk.multiply(aliased, value, out=aliased) is None
-        np.testing.assert_array_equal(aliased.view(np.uint16), expected.view(np.uint16))
+        np.testing.assert_array_equal(aliased.view(bits), expected.view(bits))
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
