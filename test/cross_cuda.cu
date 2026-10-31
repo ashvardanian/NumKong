@@ -17,104 +17,6 @@ namespace ashvardanian::numkong::test {
 
 #if NUMKONG_ARCH_CUDA_
 
-#if NUMKONG_TARGET_BLACKWELL
-
-/** Packs @p count random clouds of @p points each with @p pack into device memory, back to back,
- *  and the table of their addresses after them. */
-template <typename pack_size_type_, typename pack_type_>
-auto device_shape_packs(settings_t const &settings, cuda_backend_t &backend, std::mt19937 &generator, std::size_t count,
-                        std::size_t points, pack_size_type_ pack_size, pack_type_ pack, void const ***pointers) {
-    nk_size_t bytes = 0;
-    pack_size(points, &bytes);
-    std::size_t const stride = nk_size_round_up_to_multiple_(bytes, nk_default_alignment_k);
-    auto packs = make_vector<char>(backend, count * stride + count * sizeof(void const *));
-    auto cloud = make_vector<f16_t>(points * 3);
-    *pointers = reinterpret_cast<void const **>(packs.raw_values_data() + count * stride);
-    for (std::size_t index = 0; index != count; ++index) {
-        fill_random(settings, generator, cloud);
-        pack(cloud.raw_values_data(), points, packs.raw_values_data() + index * stride, nullptr);
-        (*pointers)[index] = packs.raw_values_data() + index * stride;
-    }
-    return packs;
-}
-
-/** Superposed RMSD of F16 frames on the device against the serial kernel, whose fold it repeats
- *  over products the tensor cores sum in another order, within the bound of the one-to-one F16
- *  kernels: n roundings of the F32 moments, n × ε × spread², through the square root. */
-error_stats_t test_rmsds_packed_f16_blackwell(settings_t const &settings) {
-    error_stats_t stats(comparison_family_t::bounded_k);
-    auto backend = make_backend<cuda_backend_t>(settings);
-    std::mt19937 generator(settings.seed.value);
-    std::size_t const points = settings.shape_points, rows = 37, columns = 45;
-    void const **row_pointers, **column_pointers;
-    auto row_packs = device_shape_packs(settings, backend, generator, rows, points, nk_shapes_pack_size_f16_serial,
-                                        nk_shapes_pack_f16_serial, &row_pointers);
-    auto column_packs = device_shape_packs(settings, backend, generator, columns, points,
-                                           nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, &column_pointers);
-    auto results = make_vector<f32_t>(backend, rows * columns);
-    backend.call(nk_rmsds_packed_f16_blackwell, row_pointers, rows, column_pointers, columns, results.raw_values_data(),
-                 columns * sizeof(nk_f32_t));
-    if (!stats.expect(backend.synchronize())) return stats;
-    std::vector<nk_f32_t> expected(rows * columns);
-    stats.expect(nk_rmsds_packed_f16_serial(row_pointers, rows, column_pointers, columns, expected.data(),
-                                            columns * sizeof(nk_f32_t), nullptr));
-    for (std::size_t row = 0; row != rows; ++row)
-        for (std::size_t column = 0; column != columns; ++column) {
-            auto const radius = [](void const *packed) {
-                nk_f32_t const *spreads = ((nk_shapes_packed_header_f32_t const *)packed)->spreads;
-                return std::sqrt(static_cast<nk_f64_t>(spreads[0]) + spreads[1] + spreads[2]);
-            };
-            nk_f64_t const spread = radius(row_pointers[row]) + radius(column_pointers[column]);
-            nk_f64_t const reference = expected[row * columns + column];
-            nk_f64_t const squares = points * nk_accumulation_error_bound(nk_f32_k) * spread * spread;
-            nk_f64_t const bound = reference > 0 ? std::min(std::sqrt(squares), squares / reference)
-                                                 : std::sqrt(squares);
-            stats.accumulate_bounded(f32_t::from_raw(results.raw_values_data()[row * columns + column]),
-                                     f64_t(reference), bound);
-        }
-    return stats;
-}
-
-/** Chamfer or Hausdorff of F16 clouds on the device against the serial kernel. The products expand
- *  ‖a − b‖² into ‖a‖² + ‖b‖² − 2 × a · b, each norm split into two F16 halves, which costs F32
- *  roundings of the norms rather than of the distance, so a nearest distance moves by the root of
- *  a few of them. */
-template <nk_kernel_kind_t kind_>
-error_stats_t test_shapes_flips_f16_blackwell(settings_t const &settings) {
-    error_stats_t stats(comparison_family_t::bounded_k);
-    auto backend = make_backend<cuda_backend_t>(settings);
-    std::mt19937 generator(settings.seed.value);
-    std::size_t const points = settings.shape_points, rows = 7, columns = 9;
-    void const **row_pointers, **column_pointers;
-    auto row_packs = device_shape_packs(settings, backend, generator, rows, points, nk_shapes_pack_size_f16_serial,
-                                        nk_shapes_pack_f16_serial, &row_pointers);
-    auto column_packs = device_shape_packs(settings, backend, generator, columns, points + 3,
-                                           nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, &column_pointers);
-    auto results = make_vector<f32_t>(backend, rows * columns);
-    auto const kernel = kind_ == nk_kernel_chamfers_packed_k ? nk_chamfers_packed_f16_blackwell
-                                                             : nk_hausdorffs_packed_f16_blackwell;
-    auto const serial = kind_ == nk_kernel_chamfers_packed_k ? nk_chamfers_packed_f16_serial
-                                                             : nk_hausdorffs_packed_f16_serial;
-    backend.call(kernel, row_pointers, rows, column_pointers, columns, results.raw_values_data(),
-                 columns * sizeof(nk_f32_t), nullptr);
-    if (!stats.expect(backend.synchronize())) return stats;
-    std::vector<nk_f32_t> expected(rows * columns);
-    stats.expect(serial(row_pointers, rows, column_pointers, columns, expected.data(), columns * sizeof(nk_f32_t),
-                        nullptr, nullptr));
-    for (std::size_t row = 0; row != rows; ++row)
-        for (std::size_t column = 0; column != columns; ++column) {
-            auto const radius = [](void const *packed) {
-                return static_cast<nk_f64_t>(((nk_shapes_packed_header_f32_t const *)packed)->max_radius);
-            };
-            nk_f64_t const reach = radius(row_pointers[row]) + radius(column_pointers[column]);
-            nk_f64_t const squares = 8 * nk_accumulation_error_bound(nk_f32_k) * reach * reach;
-            stats.accumulate_bounded(f32_t::from_raw(results.raw_values_data()[row * columns + column]),
-                                     f64_t(expected[row * columns + column]), std::sqrt(squares));
-        }
-    return stats;
-}
-#endif // NUMKONG_TARGET_BLACKWELL
-
 /** Transport clouds: random, or exact ties of a lattice with power-of-two steps, points repeated
  *  4 times, or a regular polygon around a column of points. */
 enum class transport_layout_t { random_k, lattice_k, repeated_k, ring_k };
@@ -124,17 +26,13 @@ enum class transport_layout_t { random_k, lattice_k, repeated_k, ring_k };
 template <typename scalar_type_, typename pack_size_type_, typename pack_type_>
 auto device_transport_packs(settings_t const &settings, cuda_backend_t &backend, std::mt19937 &generator,
                             transport_layout_t layout, std::size_t count, std::size_t points, pack_size_type_ pack_size,
-                            pack_type_ pack, void const ***pointers) {
-    nk_size_t bytes = 0;
-    nk_unused_(pack_size(points, &bytes));
-    std::size_t const stride = nk_size_round_up_to_multiple_(bytes, nk_default_alignment_k);
-    auto packs = make_vector<char>(backend, count * stride + count * sizeof(void const *));
-    auto cloud = make_vector<scalar_type_>(points * 3);
-    scalar_type_ *values = cloud.values_data();
+                            pack_type_ pack, error_stats_t &stats) {
+    auto coordinates = make_vector<scalar_type_>(count * points * 3);
+    fill_random(settings, generator, coordinates);
+    std::vector<std::span<scalar_type_ const>> clouds(count);
     std::size_t const corners = points > 8 ? points - points / 8 : points;
-    *pointers = reinterpret_cast<void const **>(packs.raw_values_data() + count * stride);
     for (std::size_t index = 0; index != count; ++index) {
-        fill_random(settings, generator, cloud);
+        scalar_type_ *values = coordinates.values_data() + index * points * 3;
         for (std::size_t point = 0; point != points; ++point) {
             float const shift = float(index % 3);
             if (layout == transport_layout_t::lattice_k)
@@ -151,10 +49,12 @@ auto device_transport_packs(settings_t const &settings, cuda_backend_t &backend,
                 values[point * 3 + 2] = corner ? 0.0f : 0.5f * float(point - corners);
             }
         }
-        nk_unused_(pack(cloud.raw_values_data(), points, packs.raw_values_data() + index * stride, nullptr));
-        (*pointers)[index] = packs.raw_values_data() + index * stride;
+        clouds[index] = {values, points * 3};
     }
-    return packs;
+    using packs_t = nk::shapes_packed<scalar_type_, cuda_backend_t::allocator<char>>;
+    auto packs = packs_t::make(clouds, allocator_of<char>(backend), pack_size, pack);
+    stats.expect(packs.status);
+    return std::move(packs.value);
 }
 
 /** The CUDA transport kernels against the serial ones on random and tied clouds of unequal sizes,
@@ -174,8 +74,8 @@ error_stats_t test_transport_packed_cuda(settings_t const &settings, pack_size_t
     nk_size_t bytes = 0, serial_bytes = 0;
     nk_unused_(workspace_size(largest, largest, &bytes));
     nk_unused_(serial_workspace_size(largest, largest, &serial_bytes));
-    auto workspace = make_vector<char>(backend, bytes);
-    auto serial_workspace = make_vector<char>(backend, serial_bytes);
+    auto workspace = make_vector<std::byte>(backend, bytes);
+    auto serial_workspace = make_vector<std::byte>(backend, serial_bytes);
     auto results = make_vector<distance_t>(backend, rows * columns);
     auto rotations = make_vector<f32_t>(backend, rows * columns * 9);
     std::vector<raw_distance_t> expected(rows * columns);
@@ -183,15 +83,14 @@ error_stats_t test_transport_packed_cuda(settings_t const &settings, pack_size_t
     nk_f64_t const roundoff = half_ulp<distance_t>(1.0), terms = static_cast<nk_f64_t>(points + largest);
     for (transport_layout_t const layout : {transport_layout_t::random_k, transport_layout_t::lattice_k,
                                             transport_layout_t::repeated_k, transport_layout_t::ring_k}) {
-        void const **row_pointers, **column_pointers;
-        auto row_packs = device_transport_packs<scalar_type_>(settings, backend, generator, layout, rows, points,
-                                                              pack_size, pack, &row_pointers);
-        auto column_packs = device_transport_packs<scalar_type_>(settings, backend, generator, layout, columns, largest,
-                                                                 pack_size, pack, &column_pointers);
-        backend.call(kernel, row_pointers, rows, column_pointers, columns, results.raw_values_data(),
+        auto const row_packs = device_transport_packs<scalar_type_>(settings, backend, generator, layout, rows, points,
+                                                                    pack_size, pack, stats);
+        auto const column_packs = device_transport_packs<scalar_type_>(settings, backend, generator, layout, columns,
+                                                                       largest, pack_size, pack, stats);
+        backend.call(kernel, row_packs.data(), rows, column_packs.data(), columns, results.raw_values_data(),
                      columns * sizeof(raw_distance_t), rotations.raw_values_data(), workspace.raw_values_data(), bytes);
         if (!stats.expect(backend.synchronize())) return stats;
-        stats.expect(serial(row_pointers, rows, column_pointers, columns, expected.data(),
+        stats.expect(serial(row_packs.data(), rows, column_packs.data(), columns, expected.data(),
                             columns * sizeof(raw_distance_t), expected_rotations.data(),
                             serial_workspace.raw_values_data(), serial_bytes, nullptr));
         for (std::size_t row = 0; row != rows; ++row)
@@ -201,7 +100,7 @@ error_stats_t test_transport_packed_cuda(settings_t const &settings, pack_size_t
                         return static_cast<nk_f64_t>(((nk_shapes_packed_header_f64_t const *)packed)->max_radius);
                     else return static_cast<nk_f64_t>(((nk_shapes_packed_header_f32_t const *)packed)->max_radius);
                 };
-                nk_f64_t const reach = radius(row_pointers[row]) + radius(column_pointers[column]);
+                nk_f64_t const reach = radius(row_packs[row]) + radius(column_packs[column]);
                 nk_f64_t const scale = reach * reach, tolerance = nk::shapes_transport_epsilon_k * scale;
                 nk_f64_t const reference = expected[row * columns + column];
                 nk_f64_t bound;
@@ -317,7 +216,8 @@ error_stats_t test_geodesics_cuda(settings_t const &settings) {
                                 columns);
             nk_size_t a_bytes = 0, b_bytes = 0;
             stats.expect(pack_size(rows, &a_bytes)), stats.expect(pack_size(columns, &b_bytes));
-            auto a_packed = make_vector<char>(backend, a_bytes), b_packed = make_vector<char>(backend, b_bytes);
+            auto a_packed = make_vector<std::byte>(backend, a_bytes),
+                 b_packed = make_vector<std::byte>(backend, b_bytes);
             auto results = make_vector<f64_t>(backend, rows * columns);
             backend.call(pack, a_latitudes.raw_values_data(), a_longitudes.raw_values_data(), rows,
                          static_cast<void *>(a_packed.raw_values_data()));
@@ -327,7 +227,7 @@ error_stats_t test_geodesics_cuda(settings_t const &settings) {
                          static_cast<void const *>(b_packed.raw_values_data()), results.raw_values_data(),
                          columns * sizeof(nk_f64_t));
             if (!stats.expect(backend.synchronize())) return stats;
-            auto a_expected = make_vector<char>(a_bytes), b_expected = make_vector<char>(b_bytes);
+            auto a_expected = make_vector<std::byte>(a_bytes), b_expected = make_vector<std::byte>(b_bytes);
             stats.expect(serial_pack(a_latitudes.raw_values_data(), a_longitudes.raw_values_data(), rows,
                                      a_expected.raw_values_data(), nullptr));
             stats.expect(serial_pack(b_latitudes.raw_values_data(), b_longitudes.raw_values_data(), columns,
@@ -430,7 +330,7 @@ error_stats_t test_terrain_cuda(settings_t const &settings) {
 
         nk_size_t bytes = 0;
         stats.expect(nk_terrain_pack_size_f32_cuda(rows, columns, &bytes));
-        auto packed = make_vector<char>(backend, bytes);
+        auto packed = make_vector<std::byte>(backend, bytes);
         auto point_heights = make_vector<f32_t>(backend, points_count);
         auto clearances = make_vector<f32_t>(backend, passes * cells);
         void const *pack = packed.raw_values_data();
@@ -446,7 +346,7 @@ error_stats_t test_terrain_cuda(settings_t const &settings) {
                          clearances.raw_values_data() + pass * cells, targets_count * sizeof(nk_f32_t));
         if (!stats.expect(backend.synchronize())) return stats;
 
-        auto expected_packed = make_vector<char>(bytes);
+        auto expected_packed = make_vector<std::byte>(bytes);
         stats.expect(nk_terrain_pack_f32_serial(terrain, rows, columns, padded * sizeof(nk_f32_t), 30.0, 21.0,
                                                 expected_packed.raw_values_data(), nullptr));
         stats.expect(!std::memcmp(packed.raw_values_data(), expected_packed.raw_values_data(),
@@ -1507,9 +1407,11 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("attention_packed_gradients_bf16_blackwell", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
           nk_attention_pack_size_bf16_blackwell, nk_attention_pack_bf16_blackwell,
           nk_attention_packed_gradients_bf16_blackwell);
-    check("rmsds_packed_f16_blackwell", test_rmsds_packed_f16_blackwell);
-    check("chamfers_packed_f16_blackwell", test_shapes_flips_f16_blackwell<nk_kernel_chamfers_packed_k>);
-    check("hausdorffs_packed_f16_blackwell", test_shapes_flips_f16_blackwell<nk_kernel_hausdorffs_packed_k>);
+    check("rmsds_packed_f16_blackwell", test_rmsds_packed_f16<cuda_backend_t>, nk_rmsds_packed_f16_blackwell);
+    check("chamfers_packed_f16_blackwell", test_shapes_flips_f16<cuda_backend_t, nk_kernel_chamfers_packed_k>,
+          nk_chamfers_packed_f16_blackwell);
+    check("hausdorffs_packed_f16_blackwell", test_shapes_flips_f16<cuda_backend_t, nk_kernel_hausdorffs_packed_k>,
+          nk_hausdorffs_packed_f16_blackwell);
 #endif // NUMKONG_TARGET_BLACKWELL
 
 #if NUMKONG_TARGET_BLACKWELLRTX

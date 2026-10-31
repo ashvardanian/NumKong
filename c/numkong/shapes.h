@@ -863,6 +863,40 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_blackwell(void const *const *a_packe
                                                       nk_size_t results_stride, nk_stream_t stream);
 #endif // NUMKONG_TARGET_BLACKWELL
 
+/*  Apple GPUs of every Metal family, on the SIMT cores. Packs keep the serial layout, and the pack
+ *  tables, packs and outputs are unified memory, with the packs of one call spanning at most 64 of
+ *  the allocations it hands out. */
+#if NUMKONG_TARGET_METAL
+/** @copydoc nk_chamfers_packed_f64_best */
+NUMKONG_API nk_status_t nk_chamfers_packed_f16_metal(void const *const *a_packed, nk_size_t rows,
+                                                     void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
+                                                     nk_size_t results_stride, nk_f32_t *rotations, nk_stream_t stream);
+/** @copydoc nk_hausdorffs_packed_f64_best */
+NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_metal(void const *const *a_packed, nk_size_t rows,
+                                                       void const *const *b_packed, nk_size_t columns,
+                                                       nk_f32_t *results, nk_size_t results_stride, nk_f32_t *rotations,
+                                                       nk_stream_t stream);
+#endif // NUMKONG_TARGET_METAL
+
+/*  Apple GPUs of Metal family 10, with F16 products on the Neural Accelerators, under the memory
+ *  contract of the @c metal capability. */
+#if NUMKONG_TARGET_APPLE10
+/** @copydoc nk_chamfers_packed_f64_best */
+NUMKONG_API nk_status_t nk_chamfers_packed_f16_apple10(void const *const *a_packed, nk_size_t rows,
+                                                       void const *const *b_packed, nk_size_t columns,
+                                                       nk_f32_t *results, nk_size_t results_stride, nk_f32_t *rotations,
+                                                       nk_stream_t stream);
+/** @copydoc nk_hausdorffs_packed_f64_best */
+NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_apple10(void const *const *a_packed, nk_size_t rows,
+                                                         void const *const *b_packed, nk_size_t columns,
+                                                         nk_f32_t *results, nk_size_t results_stride,
+                                                         nk_f32_t *rotations, nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f16_apple10(void const *const *a_packed, nk_size_t rows,
+                                                    void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
+                                                    nk_size_t results_stride, nk_stream_t stream);
+#endif // NUMKONG_TARGET_APPLE10
+
 /*  CUDA baseline on every NVIDIA device: exact transport by successive shortest paths, one block
  *  per flip of each pair, with the serial math types. Packs keep the serial layout, and the pack
  *  tables, packs, outputs and workspace are device memory. */

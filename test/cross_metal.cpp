@@ -17,7 +17,7 @@ static error_stats_t test_metal_bound_lifetime(settings_t const &settings) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto origin = make_backend<metal_backend_t>(settings);
     auto consumer = make_backend<metal_backend_t>(settings);
-    auto packed = make_vector<char>(consumer, pack_size_bytes(stats, nk_dots_pack_size_i8_metal, 1, 16));
+    auto packed = make_vector<std::byte>(consumer, pack_size_bytes(stats, nk_dots_pack_size_i8_metal, 1, 16));
     {
         auto input = make_vector<i8_t>(origin, 16);
         std::fill_n(input.data(), 16, i8_t(1));
@@ -27,7 +27,7 @@ static error_stats_t test_metal_bound_lifetime(settings_t const &settings) {
     auto result = make_vector<i32_t>(consumer, 1);
     std::fill_n(query.data(), 16, i8_t(1));
     consumer.call(nk_dots_packed_i8_metal, query.raw_values_data(), packed.raw_values_data(), result.raw_values_data(),
-                  1, 1, 16, 16, sizeof(nk_i32_t));
+                  1, 1, 16, 16, sizeof(nk_i32_t), nullptr, 0);
     if (!stats.expect(consumer.synchronize())) return stats;
     stats.expect(result[0] == i32_t(16), "queued work lost an allocation released on another stream");
     return stats;
@@ -355,6 +355,10 @@ static void test_cross_metal_baseline(error_stats_section_t &check) {
     check("attention_rope_f32_metal", test_attention_rope<f32_t, metal_backend_t>, nk_attention_rope_f32_metal);
     check("attention_rope_bf16_metal", test_attention_rope<bf16_t, metal_backend_t>, nk_attention_rope_bf16_metal);
     check("attention_rope_e4m3_metal", test_attention_rope<e4m3_t, metal_backend_t>, nk_attention_rope_e4m3_metal);
+    check("chamfers_packed_f16_metal", test_shapes_flips_f16<metal_backend_t, nk_kernel_chamfers_packed_k>,
+          nk_chamfers_packed_f16_metal);
+    check("hausdorffs_packed_f16_metal", test_shapes_flips_f16<metal_backend_t, nk_kernel_hausdorffs_packed_k>,
+          nk_hausdorffs_packed_f16_metal);
 }
 
 /** Every Apple9 entry point, on devices whose families include it. */
@@ -940,6 +944,11 @@ static void test_cross_apple10([[maybe_unused]] error_stats_section_t &check) {
     check("attention_packed_gradients_bf16_apple10", test_attention_packed_gradients<bf16_t, metal_backend_t>,
           nk_attention_pack_size_bf16_apple10, nk_attention_pack_bf16_apple10,
           nk_attention_packed_gradients_bf16_apple10);
+    check("rmsds_packed_f16_apple10", test_rmsds_packed_f16<metal_backend_t>, nk_rmsds_packed_f16_apple10);
+    check("chamfers_packed_f16_apple10", test_shapes_flips_f16<metal_backend_t, nk_kernel_chamfers_packed_k>,
+          nk_chamfers_packed_f16_apple10);
+    check("hausdorffs_packed_f16_apple10", test_shapes_flips_f16<metal_backend_t, nk_kernel_hausdorffs_packed_k>,
+          nk_hausdorffs_packed_f16_apple10);
 #endif // NUMKONG_TARGET_APPLE10
 }
 

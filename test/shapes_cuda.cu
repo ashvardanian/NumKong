@@ -9,7 +9,7 @@
  */
 #undef NUMKONG_TARGET_CUDA
 #define NUMKONG_TARGET_CUDA 0
-#include "harness.hpp"
+#include "cross_device.hpp" // `device_shapes_packed`
 
 #if NUMKONG_ARCH_CUDA_
 #include "numkong/shapes/cuda.cuh" // `nk_chamfer_warp_packed_f32_cuda_`, `nk_chamfer_packed_f32_simt_`
@@ -45,56 +45,15 @@ __global__ void shapes_pairs_kernel_(void const *const *a_packed, void const *co
                                     : nk_hausdorff_packed_f16_simt_(a, b, limits[pair]);
 }
 
-/** Clouds over every branch of the device bodies: no points, one, fewer and more than a warp of
- *  them, each random, coincident, collinear, coplanar or with every point doubled, plus a mirrored
- *  copy of every random cloud, which lies a rounding away from it under one flip. Coordinates
- *  follow the settings' distribution, clamped to a quarter of the range for finite packs. */
-template <typename scalar_type_>
-std::vector<nk::vector<scalar_type_>> device_shapes_clouds(settings_t const &settings, std::mt19937 &generator) {
-    std::size_t const warp = 32, points = settings.shape_points;
-    std::size_t const sizes[] = {0, 1, 2, 3, warp - 1, warp, warp + 1, points, 2 * points + 3};
-    nk_f64_t const limit = static_cast<nk_f64_t>(scalar_type_::finite_max()) / 4;
-    std::vector<nk::vector<scalar_type_>> clouds;
-    for (std::size_t size : sizes)
-        for (int shape = 0; shape != 5; ++shape) {
-            auto cloud = make_vector<scalar_type_>(size * 3);
-            fill_random(settings, generator, cloud);
-            scalar_type_ *values = cloud.values_data();
-            for (std::size_t index = 0; index != size * 3; ++index)
-                values[index] = scalar_type_(std::clamp(static_cast<nk_f64_t>(values[index]), -limit, limit));
-            for (std::size_t point = 0; point != size; ++point) {
-                scalar_type_ *coordinates = values + point * 3;
-                if (shape == 1) coordinates[0] = values[0], coordinates[1] = values[1], coordinates[2] = values[2];
-                if (shape == 2)
-                    coordinates[1] = scalar_type_(static_cast<nk_f64_t>(coordinates[0]) / 2),
-                    coordinates[2] = scalar_type_(static_cast<nk_f64_t>(coordinates[0]) / -4);
-                if (shape == 3) coordinates[2] = scalar_type_(0.0);
-                if (shape == 4 && point % 2)
-                    coordinates[0] = coordinates[-3], coordinates[1] = coordinates[-2],
-                    coordinates[2] = coordinates[-1];
-            }
-            if (shape == 0) {
-                auto mirrored = make_vector<scalar_type_>(size * 3);
-                for (std::size_t point = 0; point != size; ++point) {
-                    scalar_type_ const *coordinates = values + point * 3;
-                    scalar_type_ *image = mirrored.values_data() + point * 3;
-                    image[0] = coordinates[1], image[1] = coordinates[0], image[2] = coordinates[2];
-                }
-                clouds.push_back(std::move(mirrored));
-            }
-            clouds.push_back(std::move(cloud));
-        }
-    return clouds;
-}
-
 /**
  *  @brief Every pair of the clouds above on the device against the serial kernel.
  *
  *  Unbounded calls must match within the CPU capabilities' bounds: n + m + 8 roundings of a Chamfer
  *  distance, whose sums the warp reduces in another order, and 8 of a Hausdorff distance, which
  *  differs only by the hardware square root. Bounded calls draw each pair's limit up to twice its
- *  distance, and a result past the limit must still be a lower bound of the distance. Every lane of
- *  a warp must return the same value.
+ *  distance, and a result past the limit must still be a lower bound of the distance, up to the 3
+ *  roundings of each pack radius the Hausdorff header bound subtracts. Every lane of a warp must
+ *  return the same value.
  */
 template <typename scalar_type_, nk_kernel_kind_t kind_, bool warp_>
 error_stats_t test_shapes_device(settings_t const &settings) {
@@ -104,35 +63,19 @@ error_stats_t test_shapes_device(settings_t const &settings) {
     error_stats_t stats(comparison_family_t::bounded_k);
     auto backend = make_backend<cuda_backend_t>(settings);
     std::mt19937 generator(settings.seed.value);
-    auto const clouds = device_shapes_clouds<scalar_type_>(settings, generator);
-    std::size_t const count = clouds.size(), pairs = count * count, lanes = warp_ ? 32 : 1;
+    auto const packs = device_shapes_packed<scalar_type_>(settings, backend, generator, stats);
+    std::size_t const count = packs.size(), pairs = count * count, lanes = warp_ ? 32 : 1;
 
-    std::vector<std::size_t> offsets(count + 1);
-    for (std::size_t cloud = 0; cloud != count; ++cloud) {
-        nk_size_t bytes = 0;
-        if constexpr (is_f32) stats.expect(nk_shapes_pack_size_f32_serial(clouds[cloud].size_values() / 3, &bytes));
-        else stats.expect(nk_shapes_pack_size_f16_serial(clouds[cloud].size_values() / 3, &bytes));
-        offsets[cloud + 1] = offsets[cloud] + nk_size_round_up_to_multiple_(bytes, nk_default_alignment_k);
-    }
-    auto packs = make_vector<char>(backend, offsets[count] + 2 * pairs * sizeof(void const *));
-    void const **a_packed = reinterpret_cast<void const **>(packs.raw_values_data() + offsets[count]);
+    auto pair_packs = make_vector<void const *>(backend, 2 * pairs);
+    void const **a_packed = pair_packs.values_data();
     void const **b_packed = a_packed + pairs;
-    std::vector<void const *> pointers(count);
-    for (std::size_t cloud = 0; cloud != count; ++cloud) {
-        void *pack = packs.raw_values_data() + offsets[cloud];
-        std::size_t const points = clouds[cloud].size_values() / 3;
-        if constexpr (is_f32)
-            stats.expect(nk_shapes_pack_f32_serial(clouds[cloud].raw_values_data(), points, pack, nullptr));
-        else stats.expect(nk_shapes_pack_f16_serial(clouds[cloud].raw_values_data(), points, pack, nullptr));
-        pointers[cloud] = pack;
-    }
     for (std::size_t pair = 0; pair != pairs; ++pair)
-        a_packed[pair] = pointers[pair / count], b_packed[pair] = pointers[pair % count];
+        a_packed[pair] = packs[pair / count], b_packed[pair] = packs[pair % count];
 
     std::vector<raw_distance_t> references(pairs);
     auto const serial = [&](auto chamfers, auto hausdorffs) {
         return (kind_ == nk_kernel_chamfers_packed_k ? chamfers : hausdorffs)(
-            pointers.data(), count, pointers.data(), count, references.data(), count * sizeof(raw_distance_t), nullptr,
+            packs.data(), count, packs.data(), count, references.data(), count * sizeof(raw_distance_t), nullptr,
             nullptr);
     };
     if constexpr (is_f32) stats.expect(serial(nk_chamfers_packed_f32_serial, nk_hausdorffs_packed_f32_serial));
@@ -142,6 +85,10 @@ error_stats_t test_shapes_device(settings_t const &settings) {
     auto results = make_vector<distance_t>(backend, pairs * lanes);
     std::uniform_real_distribution<nk_f64_t> fraction(0.0, 2.0);
     nk_f64_t const roundoff = half_ulp<distance_t>(1.0);
+    auto const radius = [](void const *packed) {
+        if constexpr (is_f32) return static_cast<nk_f64_t>(((nk_shapes_packed_header_f64_t const *)packed)->max_radius);
+        else return static_cast<nk_f64_t>(((nk_shapes_packed_header_f32_t const *)packed)->max_radius);
+    };
     for (int bounded = 0; bounded != 2; ++bounded) {
         for (std::size_t pair = 0; pair != pairs; ++pair)
             limits.raw_values_data()[pair] = bounded
@@ -159,15 +106,16 @@ error_stats_t test_shapes_device(settings_t const &settings) {
             for (std::size_t lane = 1; lane != lanes; ++lane)
                 stats.expect(std::memcmp(lane_results + lane, lane_results, sizeof(raw_distance_t)) == 0,
                              "the lanes of a warp disagree");
-            std::size_t const a_points = clouds[pair / count].size_values() / 3;
-            std::size_t const b_points = clouds[pair % count].size_values() / 3;
+            std::size_t const a_points = packs.points(pair / count);
+            std::size_t const b_points = packs.points(pair % count);
             nk_f64_t const reference = references[pair], result = lane_results[0];
             nk_f64_t const roundings = kind_ == nk_kernel_chamfers_packed_k ? a_points + b_points + 8 : 8;
             nk_f64_t const bound = roundings * roundoff * reference;
             if (result <= limits.raw_values_data()[pair] || !std::isfinite(reference))
                 stats.accumulate_bounded(distance_t::from_raw(lane_results[0]), f64_t(reference), bound);
             else
-                stats.expect(result <= reference + bound + half_ulp<distance_t>(reference),
+                stats.expect(result <= reference + bound + half_ulp<distance_t>(reference) +
+                                           3 * roundoff * (radius(a_packed[pair]) + radius(b_packed[pair])),
                              "a result past its limit exceeds the distance");
         }
     }

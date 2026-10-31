@@ -223,7 +223,8 @@ static error_stats_t test_best_dots_packed_bf16(settings_t const &settings) {
         stats.expect(pack_size(columns, depth, &expected_bytes));
         stats.expect(nk_dots_pack_size_bf16_best(columns, depth, capability, &dispatched_bytes));
         stats.expect(dispatched_bytes == expected_bytes, "the dispatch point sized another capability's pack");
-        auto expected_pack = make_vector<char>(expected_bytes), dispatched_pack = make_vector<char>(expected_bytes);
+        auto expected_pack = make_vector<std::byte>(expected_bytes),
+             dispatched_pack = make_vector<std::byte>(expected_bytes);
         stats.expect(
             pack(b.raw_values_data(), columns, depth, row_bytes, expected_pack.raw_values_data(), 0, columns, nullptr));
         stats.expect(nk_dots_pack_bf16_best(b.raw_values_data(), columns, depth, row_bytes,
@@ -663,6 +664,7 @@ static nk::status_t test_device(error_stats_section_t &check, nk::device_t devic
         case nk::device_kind_t::metal_k:
             test_cast_metal(check);
             test_each_metal(check);
+            test_shapes_metal(check);
             test_cross_metal(check);
             break;
         default: return nk::status_t::missing_gpu_k;

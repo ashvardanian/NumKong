@@ -12,6 +12,7 @@
 #include "numkong/each/metal.h"
 #include "numkong/cast/metal.h"
 #include "numkong/spatials/metal.h"
+#include "numkong/shapes/metal.h"
 
 NUMKONG_API nk_metal_context_t *nk_contexts_metal_(os_unfair_lock_t *contexts_lock) {
     static nk_metal_context_t contexts[nk_metal_contexts_max_k];

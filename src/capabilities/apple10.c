@@ -11,3 +11,4 @@
 #include "numkong/attention/apple10.h"
 #include "numkong/dots/apple10.h"
 #include "numkong/spatials/apple10.h"
+#include "numkong/shapes/apple10.h"
