@@ -742,6 +742,27 @@ def test_scale_identity(ndim: int, dtype: str, capability: str):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_multiply_out_ignores_previous_contents():
+    """nk.multiply() never reads what `out` held, whether contiguous, strided or aliased."""
+    a = np.array([2.0, np.inf, -3.0, 0.5] * 3, dtype="float32")
+    b = np.full_like(a, 3.0)
+    expected = a * b
+
+    out = np.full_like(a, np.nan)
+    assert nk.multiply(a, b, out=out) is None
+    np.testing.assert_array_equal(out, expected)
+
+    strided = np.full(a.size * 2, np.inf, dtype=a.dtype)
+    assert nk.multiply(a, b, out=strided[::2]) is None
+    np.testing.assert_array_equal(strided[::2], expected)
+    assert np.isinf(strided[1::2]).all()
+
+    aliased = a.copy()
+    assert nk.multiply(aliased, b, out=aliased) is None
+    np.testing.assert_array_equal(aliased, expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["float16", "float32"])
 def test_scale_rejects_mismatched_output_dtype(dtype: str) -> None:
     values = np.array([0.0, 0.5, 1.0, 1.5], dtype=dtype)

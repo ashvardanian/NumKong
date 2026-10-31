@@ -931,6 +931,13 @@ cleanup:
 }
 
 /** @brief Handle array * array multiplication using fma kernel with dtype promotion. */
+/** @brief Whether zeroing `out` is safe: it is contiguous and overlaps neither contiguous operand. */
+static int out_zeroes_apart(Py_buffer const *out_buffer, char const *a, char const *b, size_t bytes) {
+    char const *out = out_buffer->buf;
+    return PyBuffer_IsContiguous(out_buffer, 'C') && (a + bytes <= out || out + bytes <= a) &&
+           (b + bytes <= out || out + bytes <= b);
+}
+
 static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, PyObject *out_dtype_obj) {
     PyObject *return_obj = NULL;
     char *a_promoted = NULL;
@@ -1025,7 +1032,8 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     // nk.multiply(np.int16([1,2,3]), np.uint16([4,5,6]), out=np.zeros(3, dtype=np.float64))
     // → kernel computes int32, then casts int32→float64 into output buffer
     else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
-             out_buf_dtype != dtype) {
+             (out_buf_dtype != dtype ||
+              !out_zeroes_apart(&out_buffer, a_promoted, b_promoted, total_elements * element_size))) {
         if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
         cast_staging = PyMem_Malloc(total_elements * element_size + NK_TENSOR_PADDING_);
         if (!cast_staging) {
@@ -1042,6 +1050,8 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     // → kernel writes float32 directly into output buffer; output may be non-contiguous
     else {
         result_data = out_buffer.buf;
+        if (out_buf_dtype != nk_dtype_unknown_k)
+            memset(result_data, 0, total_elements * element_size); // prevent 0*NaN=NaN
         for (int dim = 0; dim < num_dims; dim++) result_strides[dim] = out_buffer.strides[dim];
         Py_buffer const *out_bufs[] = {&out_buffer};
         contiguous_tail = shared_contiguous_tail_dimensions(out_bufs, 1, num_dims);
