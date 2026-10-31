@@ -170,8 +170,10 @@ NK_PUBLIC void nk_each_fma_bf16_neonbfdot(                      //
         float32x4_t b_f32x4 = vcvt_f32_bf16(b_bf16x4);
         float32x4_t c_f32x4 = vcvt_f32_bf16(c_bf16x4);
         float32x4_t ab_f32x4 = vmulq_f32(a_f32x4, b_f32x4);
+        // Unfused, like the serial kernel, so the two agree bit for bit
         float32x4_t ab_scaled_f32x4 = vmulq_n_f32(ab_f32x4, alpha_val);
-        float32x4_t result_f32x4 = vfmaq_n_f32(ab_scaled_f32x4, c_f32x4, beta_val);
+        float32x4_t c_scaled_f32x4 = vmulq_n_f32(c_f32x4, beta_val);
+        float32x4_t result_f32x4 = vaddq_f32(ab_scaled_f32x4, c_scaled_f32x4);
         bfloat16x4_t result_bf16x4 = vcvt_bf16_f32(result_f32x4);
         vst1_bf16((bfloat16_t *)result + i, result_bf16x4);
     }
@@ -188,7 +190,8 @@ NK_PUBLIC void nk_each_fma_bf16_neonbfdot(                      //
         float32x4_t c_f32x4 = vcvt_f32_bf16(c_bf16x4);
         float32x4_t ab_f32x4 = vmulq_f32(a_f32x4, b_f32x4);
         float32x4_t ab_scaled_f32x4 = vmulq_n_f32(ab_f32x4, alpha_val);
-        float32x4_t result_f32x4 = vfmaq_n_f32(ab_scaled_f32x4, c_f32x4, beta_val);
+        float32x4_t c_scaled_f32x4 = vmulq_n_f32(c_f32x4, beta_val);
+        float32x4_t result_f32x4 = vaddq_f32(ab_scaled_f32x4, c_scaled_f32x4);
         bfloat16x4_t result_bf16x4 = vcvt_bf16_f32(result_f32x4);
         nk_b64_vec_t result_vec;
         result_vec.u16x4 = vreinterpret_u16_bf16(result_bf16x4);

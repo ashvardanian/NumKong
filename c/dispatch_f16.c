@@ -78,6 +78,7 @@ void nk_dispatch_f16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
 #if NK_TARGET_NEONFHM
     if (v & nk_cap_neonfhm_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_f16_neonfhm, *c = nk_cap_neonfhm_k; return;
+        case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_f16_neonfhm, *c = nk_cap_neonfhm_k; return;
         case nk_kernel_dots_packed_size_k: *m = (m_t)&nk_dots_packed_size_f16_neonfhm, *c = nk_cap_neonfhm_k; return;
         case nk_kernel_dots_pack_k: *m = (m_t)&nk_dots_pack_f16_neonfhm, *c = nk_cap_neonfhm_k; return;
         case nk_kernel_dots_packed_k: *m = (m_t)&nk_dots_packed_f16_neonfhm, *c = nk_cap_neonfhm_k; return;
@@ -95,9 +96,6 @@ void nk_dispatch_f16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
 #endif
 #if NK_TARGET_NEONHALF
     if (v & nk_cap_neonhalf_k) switch (k) {
-        case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_f16_neonhalf, *c = nk_cap_neonhalf_k; return;
-        case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_f16_neonhalf, *c = nk_cap_neonhalf_k; return;
-        case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_f16_neonhalf, *c = nk_cap_neonhalf_k; return;
         case nk_kernel_each_sum_k: *m = (m_t)&nk_each_sum_f16_neonhalf, *c = nk_cap_neonhalf_k; return;
         default: break;
         }
@@ -105,6 +103,9 @@ void nk_dispatch_f16_find_(nk_capability_t v, nk_kernel_kind_t k, nk_kernel_punn
 #if NK_TARGET_NEON
     if (v & nk_cap_neon_k) switch (k) {
         case nk_kernel_dot_k: *m = (m_t)&nk_dot_f16_neon, *c = nk_cap_neon_k; return;
+        case nk_kernel_each_fma_k: *m = (m_t)&nk_each_fma_f16_neon, *c = nk_cap_neon_k; return;
+        case nk_kernel_each_blend_k: *m = (m_t)&nk_each_blend_f16_neon, *c = nk_cap_neon_k; return;
+        case nk_kernel_each_scale_k: *m = (m_t)&nk_each_scale_f16_neon, *c = nk_cap_neon_k; return;
         case nk_kernel_angular_k: *m = (m_t)&nk_angular_f16_neon, *c = nk_cap_neon_k; return;
         case nk_kernel_sqeuclidean_k: *m = (m_t)&nk_sqeuclidean_f16_neon, *c = nk_cap_neon_k; return;
         case nk_kernel_euclidean_k: *m = (m_t)&nk_euclidean_f16_neon, *c = nk_cap_neon_k; return;

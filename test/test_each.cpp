@@ -69,16 +69,35 @@ error_stats_t test_scale(typename scalar_type_::scale_kernel_t kernel) {
     auto result = make_vector<scalar_t>(global_config.dense_dimensions),
          reference = make_vector<scalar_t>(global_config.dense_dimensions);
 
+    if constexpr (std::is_same_v<scalar_t, f16_t> ||
+                  (nk::is_integral_dtype<scalar_t>() && scalar_t::bits_per_dimension() == 8)) {
+        std::array<scalar_t, 9> values, outputs;
+        values.fill(scalar_t(std::is_same_v<scalar_t, f16_t> ? 1.0 / 1024 : 1));
+        scale_t alpha = std::is_same_v<scalar_t, f16_t> ? 65536.0f : 0.5001f;
+        scale_t beta = 0;
+        kernel(&values[0].raw_, values.size(), &alpha, &beta, &outputs[0].raw_);
+        for (auto output : outputs) stats.accumulate(output, scalar_t(std::is_same_v<scalar_t, f16_t> ? 64 : 1));
+        if constexpr (std::is_same_v<scalar_t, f16_t>) {
+            values.fill(scalar_t(2));
+            alpha = 65504, beta = -65504;
+            kernel(&values[0].raw_, values.size(), &alpha, &beta, &outputs[0].raw_);
+            for (auto output : outputs) stats.accumulate(output, scalar_t::finite_max());
+        }
+    }
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, input);
         scale_t alpha = random_coef<scalar_t>(generator);
         scale_t beta = random_coef<scalar_t>(generator);
 
-        kernel(input.raw_values_data(), global_config.dense_dimensions, &alpha, &beta, result.raw_values_data());
-        nk::scale<scalar_t, reference_t, nk::no_simd_k>(input.values_data(), global_config.dense_dimensions, &alpha,
-                                                        &beta, reference.values_data());
-
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(result[i], reference[i]);
+        auto const score = [&](std::size_t length) {
+            kernel(input.raw_values_data(), length, &alpha, &beta, result.raw_values_data());
+            nk::scale<scalar_t, reference_t, nk::no_simd_k>(input.values_data(), length, &alpha, &beta,
+                                                            reference.values_data());
+            for (std::size_t i = 0; i < length; i++) stats.accumulate(result[i], reference[i]);
+        };
+        score(global_config.dense_dimensions);
+        // A short prefix too, so the partial loads and stores run
+        score(std::min<std::size_t>(1 + generator() % 31, global_config.dense_dimensions));
     }
     return stats;
 }
@@ -100,18 +119,30 @@ error_stats_t test_blend(typename scalar_type_::blend_kernel_t kernel) {
     auto result = make_vector<scalar_t>(global_config.dense_dimensions),
          reference = make_vector<scalar_t>(global_config.dense_dimensions);
 
+    if constexpr (std::is_same_v<scalar_t, f16_t> ||
+                  (nk::is_integral_dtype<scalar_t>() && scalar_t::bits_per_dimension() == 8)) {
+        std::array<scalar_t, 9> values, zeros {}, outputs;
+        values.fill(scalar_t(std::is_same_v<scalar_t, f16_t> ? 1.0 / 1024 : 1));
+        scale_t alpha = std::is_same_v<scalar_t, f16_t> ? 65536.0f : 0.5001f;
+        scale_t beta = 1;
+        kernel(&values[0].raw_, &zeros[0].raw_, values.size(), &alpha, &beta, &outputs[0].raw_);
+        for (auto output : outputs) stats.accumulate(output, scalar_t(std::is_same_v<scalar_t, f16_t> ? 64 : 1));
+    }
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);
         fill_random(generator, b);
         scale_t alpha = random_coef<scalar_t>(generator);
         scale_t beta = random_coef<scalar_t>(generator);
 
-        kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &alpha, &beta,
-               result.raw_values_data());
-        nk::blend<scalar_t, reference_t, nk::no_simd_k>(
-            a.values_data(), b.values_data(), global_config.dense_dimensions, &alpha, &beta, reference.values_data());
-
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(result[i], reference[i]);
+        auto const score = [&](std::size_t length) {
+            kernel(a.raw_values_data(), b.raw_values_data(), length, &alpha, &beta, result.raw_values_data());
+            nk::blend<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), length, &alpha, &beta,
+                                                            reference.values_data());
+            for (std::size_t i = 0; i < length; i++) stats.accumulate(result[i], reference[i]);
+        };
+        score(global_config.dense_dimensions);
+        // A short prefix too, so the partial loads and stores run
+        score(std::min<std::size_t>(1 + generator() % 31, global_config.dense_dimensions));
     }
     return stats;
 }
@@ -134,6 +165,13 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
     auto result = make_vector<scalar_t>(global_config.dense_dimensions),
          reference = make_vector<scalar_t>(global_config.dense_dimensions);
 
+    if constexpr (std::is_same_v<scalar_t, f16_t>) {
+        std::array<scalar_t, 9> values, zeros {}, outputs;
+        values.fill(scalar_t(256));
+        scale_t alpha = 1.0f / 1024, beta = 0;
+        kernel(&values[0].raw_, &values[0].raw_, &zeros[0].raw_, values.size(), &alpha, &beta, &outputs[0].raw_);
+        for (auto output : outputs) stats.accumulate(output, scalar_t(64));
+    }
     for (auto start = test_start_time(); within_time_budget(start);) {
         fill_random(generator, a);
         fill_random(generator, b);
@@ -141,12 +179,16 @@ error_stats_t test_fma(typename scalar_type_::fma_kernel_t kernel) {
         scale_t alpha = random_coef<scalar_t>(generator);
         scale_t beta = random_coef<scalar_t>(generator);
 
-        kernel(a.raw_values_data(), b.raw_values_data(), c.raw_values_data(), global_config.dense_dimensions, &alpha,
-               &beta, result.raw_values_data());
-        nk::fma<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), global_config.dense_dimensions,
-                                                      c.values_data(), &alpha, &beta, reference.values_data());
-
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(result[i], reference[i]);
+        auto const score = [&](std::size_t length) {
+            kernel(a.raw_values_data(), b.raw_values_data(), c.raw_values_data(), length, &alpha, &beta,
+                   result.raw_values_data());
+            nk::fma<scalar_t, reference_t, nk::no_simd_k>(a.values_data(), b.values_data(), length, c.values_data(),
+                                                          &alpha, &beta, reference.values_data());
+            for (std::size_t i = 0; i < length; i++) stats.accumulate(result[i], reference[i]);
+        };
+        score(global_config.dense_dimensions);
+        // A short prefix too, so the partial loads and stores run
+        score(std::min<std::size_t>(1 + generator() % 31, global_config.dense_dimensions));
     }
     return stats;
 }
@@ -204,6 +246,13 @@ void test_each() {
     check("each_sum_f32", test_sum<f32_t>, nk_each_sum_f32);
     check("each_blend_f32", test_blend<f32_t>, nk_each_blend_f32);
     check("each_fma_f32", test_fma<f32_t>, nk_each_fma_f32);
+    check("each_scale_f16", test_scale<f16_t>, nk_each_scale_f16);
+    check("each_blend_f16", test_blend<f16_t>, nk_each_blend_f16);
+    check("each_fma_f16", test_fma<f16_t>, nk_each_fma_f16);
+    check("each_scale_i8", test_scale<i8_t>, nk_each_scale_i8);
+    check("each_scale_u8", test_scale<u8_t>, nk_each_scale_u8);
+    check("each_blend_i8", test_blend<i8_t>, nk_each_blend_i8);
+    check("each_blend_u8", test_blend<u8_t>, nk_each_blend_u8);
     check("each_scale_e4m3", test_scale<e4m3_t>, nk_each_scale_e4m3);
     check("each_scale_e5m2", test_scale<e5m2_t>, nk_each_scale_e5m2);
     check("each_sum_e4m3", test_sum<e4m3_t>, nk_each_sum_e4m3);
@@ -247,7 +296,16 @@ void test_each() {
     check("each_fma_e5m2_neon", test_fma<e5m2_t>, nk_each_fma_e5m2_neon);
     // u8, i8
     check("each_sum_u8_neon", test_sum<u8_t>, nk_each_sum_u8_neon);
+    check("each_scale_u8_neon", test_scale<u8_t>, nk_each_scale_u8_neon);
+    check("each_blend_u8_neon", test_blend<u8_t>, nk_each_blend_u8_neon);
+    check("each_fma_u8_neon", test_fma<u8_t>, nk_each_fma_u8_neon);
     check("each_sum_i8_neon", test_sum<i8_t>, nk_each_sum_i8_neon);
+    check("each_scale_i8_neon", test_scale<i8_t>, nk_each_scale_i8_neon);
+    check("each_blend_i8_neon", test_blend<i8_t>, nk_each_blend_i8_neon);
+    check("each_fma_i8_neon", test_fma<i8_t>, nk_each_fma_i8_neon);
+    check("each_scale_f16_neon", test_scale<f16_t>, nk_each_scale_f16_neon);
+    check("each_blend_f16_neon", test_blend<f16_t>, nk_each_blend_f16_neon);
+    check("each_fma_f16_neon", test_fma<f16_t>, nk_each_fma_f16_neon);
     // i16, u16
     check("each_sum_i16_neon", test_sum<i16_t>, nk_each_sum_i16_neon);
     check("each_scale_i16_neon", test_scale<i16_t>, nk_each_scale_i16_neon);
@@ -280,15 +338,13 @@ void test_each() {
 
 #if NK_TARGET_NEONHALF
     check.section("Elementwise Operations NEON HALF", nk_cap_neonhalf_k);
-    check("each_scale_f16_neonhalf", test_scale<f16_t>, nk_each_scale_f16_neonhalf);
     check("each_sum_f16_neonhalf", test_sum<f16_t>, nk_each_sum_f16_neonhalf);
-    check("each_blend_f16_neonhalf", test_blend<f16_t>, nk_each_blend_f16_neonhalf);
-    check("each_fma_f16_neonhalf", test_fma<f16_t>, nk_each_fma_f16_neonhalf);
-    check("each_scale_u8_neonhalf", test_scale<u8_t>, nk_each_scale_u8_neonhalf);
-    check("each_blend_u8_neonhalf", test_blend<u8_t>, nk_each_blend_u8_neonhalf);
-    check("each_scale_i8_neonhalf", test_scale<i8_t>, nk_each_scale_i8_neonhalf);
-    check("each_blend_i8_neonhalf", test_blend<i8_t>, nk_each_blend_i8_neonhalf);
 #endif // NK_TARGET_NEONHALF
+
+#if NK_TARGET_NEONFHM
+    check.section("Elementwise Operations NEON FHM", nk_cap_neonfhm_k);
+    check("each_fma_f16_neonfhm", test_fma<f16_t>, nk_each_fma_f16_neonfhm);
+#endif // NK_TARGET_NEONFHM
 
 #if NK_TARGET_NEONBFDOT
     check.section("Elementwise Operations NEON BF16", nk_cap_neonbfdot_k);
@@ -337,6 +393,8 @@ void test_each() {
     check("each_scale_i8_haswell", test_scale<i8_t>, nk_each_scale_i8_haswell);
     check("each_scale_u16_haswell", test_scale<u16_t>, nk_each_scale_u16_haswell);
     check("each_scale_u8_haswell", test_scale<u8_t>, nk_each_scale_u8_haswell);
+    check("each_sum_i8_haswell", test_sum<i8_t>, nk_each_sum_i8_haswell);
+    check("each_sum_u8_haswell", test_sum<u8_t>, nk_each_sum_u8_haswell);
 #endif // NK_TARGET_HASWELL
 
 #if NK_TARGET_SKYLAKE
@@ -366,6 +424,12 @@ void test_each() {
     check("each_blend_f64_skylake", test_blend<f64_t>, nk_each_blend_f64_skylake);
     check("each_fma_bf16_skylake", test_fma<bf16_t>, nk_each_fma_bf16_skylake);
     check("each_fma_f64_skylake", test_fma<f64_t>, nk_each_fma_f64_skylake);
+    check("each_scale_i8_skylake", test_scale<i8_t>, nk_each_scale_i8_skylake);
+    check("each_blend_i8_skylake", test_blend<i8_t>, nk_each_blend_i8_skylake);
+    check("each_fma_i8_skylake", test_fma<i8_t>, nk_each_fma_i8_skylake);
+    check("each_scale_u8_skylake", test_scale<u8_t>, nk_each_scale_u8_skylake);
+    check("each_blend_u8_skylake", test_blend<u8_t>, nk_each_blend_u8_skylake);
+    check("each_fma_u8_skylake", test_fma<u8_t>, nk_each_fma_u8_skylake);
 #endif // NK_TARGET_SKYLAKE
 
 #if NK_TARGET_ICELAKE
@@ -383,10 +447,6 @@ void test_each() {
 #if NK_TARGET_SAPPHIRE
     check.section("Elementwise Operations Sapphire", nk_cap_sapphire_k);
     check("each_sum_f16_sapphire", test_sum<f16_t>, nk_each_sum_f16_sapphire);
-    check("each_scale_u8_sapphire", test_scale<u8_t>, nk_each_scale_u8_sapphire);
-    check("each_blend_u8_sapphire", test_blend<u8_t>, nk_each_blend_u8_sapphire);
-    check("each_scale_i8_sapphire", test_scale<i8_t>, nk_each_scale_i8_sapphire);
-    check("each_blend_i8_sapphire", test_blend<i8_t>, nk_each_blend_i8_sapphire);
     check("each_sum_e4m3_sapphire", test_sum<e4m3_t>, nk_each_sum_e4m3_sapphire);
 #endif // NK_TARGET_SAPPHIRE
 
