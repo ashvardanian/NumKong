@@ -655,17 +655,27 @@ def test_add_numpy_buffer_protocol(dtype: str):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
+@pytest.mark.parametrize(
+    "dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32"), pytest.param("float16", id="f16")]
+)
 def test_multiply_numpy_buffer_protocol(dtype: str):
-    """nk.multiply() accepts NumPy arrays directly via buffer protocol."""
+    """nk.multiply() accepts NumPy arrays directly via buffer protocol and keeps negative zeros."""
     a = np.random.randn(50).astype(dtype)
     b = np.random.randn(50).astype(dtype)
+    a[:2], b[:2] = [-0.0, 0.0], [0.875, -0.875]
 
     expected = a * b
     result = nk.multiply(a, b)
     result_np = np.asarray(result)
 
     assert_allclose(result_np, expected)
+    for actual, reference in (
+        (result, expected),
+        (nk.multiply(a, 0.875), a * 0.875),
+        (nk.Tensor(a) * nk.Tensor(b), expected),
+        (nk.Tensor(a) * 0.875, a * 0.875),
+    ):
+        np.testing.assert_array_equal(np.signbit(np.asarray(actual)), np.signbit(reference))
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
