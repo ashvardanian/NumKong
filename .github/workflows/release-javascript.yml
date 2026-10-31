@@ -9,29 +9,40 @@ permissions:
   id-token: write
 
 jobs:
+  hooks:
+    name: Check Release Commit
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Check the Release Commit
+        run: .github/scripts/check-release.sh "$GITHUB_REF_NAME"
+
   build_native:
     name: Build Native Package, ${{ matrix.platform }}
+    needs: hooks
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: linux-x64
-            os: ubuntu-24.04
+            os: ubuntu-26.04
             cc: gcc-14
             cxx: g++-14
             node-gyp-args: ""
           - platform: linux-arm64
-            os: ubuntu-24.04
+            os: ubuntu-26.04
             cc: aarch64-linux-gnu-gcc-14
             cxx: aarch64-linux-gnu-g++-14
             node-gyp-args: "--arch=arm64"
           - platform: darwin-arm64
-            os: macos-15
+            os: macos-26
             cc: clang
             cxx: clang++
             node-gyp-args: ""
           - platform: darwin-x64
-            os: macos-15
+            os: macos-26
             cc: clang
             cxx: clang++
             node-gyp-args: "--arch=x64"
@@ -53,11 +64,9 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -111,12 +120,11 @@ jobs:
 
   build_wasm:
     name: Build WASM Bundle
-    runs-on: ubuntu-24.04
+    needs: hooks
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Install Emscripten
         uses: nick-fields/retry@v4
         with:
@@ -128,7 +136,7 @@ jobs:
             git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
             (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Build WASM
@@ -160,9 +168,9 @@ jobs:
 
   publish_platform_packages:
     name: Publish Platform Package, ${{ matrix.platform }}
-    needs: [build_native]
-    if: always()
-    runs-on: ubuntu-24.04
+    needs: [hooks, build_native]
+    if: ${{ always() && needs.hooks.result == 'success' }}
+    runs-on: ubuntu-26.04
     environment:
       name: npm-numkong
     permissions:
@@ -175,11 +183,9 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
@@ -195,13 +201,13 @@ jobs:
       - name: Publish @numkong/${{ matrix.platform }}
         if: steps.download.outcome == 'success'
         working-directory: javascript/@numkong-${{ matrix.platform }}
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag ${{ github.event.release.prerelease && 'next' || 'latest' }}
 
   publish_main:
     name: Publish Main Package to NPM
-    needs: [publish_platform_packages, build_wasm]
-    if: always()
-    runs-on: ubuntu-24.04
+    needs: [hooks, publish_platform_packages, build_wasm]
+    if: ${{ always() && needs.hooks.result == 'success' }}
+    runs-on: ubuntu-26.04
     environment:
       name: npm-numkong
       url: https://www.npmjs.com/package/numkong
@@ -219,11 +225,9 @@ jobs:
 
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
 
       - name: Set Up Node.js Environment
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
@@ -255,4 +259,4 @@ jobs:
         run: npm run test
 
       - name: Publish to NPM
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag ${{ github.event.release.prerelease && 'next' || 'latest' }}

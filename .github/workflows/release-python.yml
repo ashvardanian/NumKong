@@ -12,21 +12,31 @@ env:
   PYTHONUTF8: 1
 
 jobs:
+  hooks:
+    name: Check Release Commit
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Check the Release Commit
+        run: .github/scripts/check-release.sh "$GITHUB_REF_NAME"
+
   wheels:
     name: Build Python Wheels
+    needs: hooks
     uses: ./.github/workflows/_wheels.yml
-    with:
-      ref: "main"
     secrets: inherit
 
   publish_python:
     name: Publish Python Package to PyPI
     needs:
+      - hooks
       - wheels
     # Run even if some build jobs fail (e.g., due to transient network issues)
     # This ensures successfully built wheels still get published
-    if: always()
-    runs-on: ubuntu-24.04
+    if: ${{ always() && needs.hooks.result == 'success' }}
+    runs-on: ubuntu-26.04
     environment:
       name: pypi
       url: https://pypi.org/p/numkong

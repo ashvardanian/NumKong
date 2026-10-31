@@ -4,16 +4,35 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 jobs:
+  hooks:
+    name: Check Release Commit
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Check the Release Commit
+        run: .github/scripts/check-release.sh "$GITHUB_REF_NAME"
+
   publish_rust:
     name: Publish Rust Crate
-    runs-on: ubuntu-24.04
+    needs: hooks
+    runs-on: ubuntu-26.04
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Set Up Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Authenticate with crates.io
+        id: crates_io
+        uses: rust-lang/crates-io-auth-action@v1
       - name: Publish Rust Crate to Registry
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --token ${{ steps.crates_io.outputs.token }}

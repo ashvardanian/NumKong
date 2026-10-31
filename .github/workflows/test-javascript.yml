@@ -2,7 +2,7 @@ name: Test JavaScript
 
 on:
   pull_request:
-    branches: ["main", "main-*"]
+    branches: ["main", "main-dev"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,7 +17,7 @@ env:
 jobs:
   test_nodejs:
     name: Test Node.js
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       CC: gcc-14
       CXX: g++-14
@@ -46,7 +46,7 @@ jobs:
             sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -60,7 +60,7 @@ jobs:
 
   test_wasm_emscripten:
     name: Test WASM via Emscripten
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -93,7 +93,7 @@ jobs:
           cmake --build build-wasm
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -107,7 +107,7 @@ jobs:
 
   test_wasm_emscripten64:
     name: Test WASM64 via Emscripten with memory64
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -140,7 +140,7 @@ jobs:
           cmake --build build-wasm64
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -154,7 +154,7 @@ jobs:
 
   test_wasm_wasi:
     name: Test WASM under WASI Node.js
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -187,7 +187,7 @@ jobs:
           cmake --build build-wasi
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -196,7 +196,7 @@ jobs:
 
   test_wasm_browser:
     name: Test WASM under Browser
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -229,7 +229,7 @@ jobs:
           cmake --build build-wasm
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -266,7 +266,7 @@ jobs:
 
   test_wasm_wasmer:
     name: Test WASM under Wasmer
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -318,7 +318,7 @@ jobs:
 
   test_wasm_wasmtime:
     name: Test WASM under Wasmtime
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -360,7 +360,7 @@ jobs:
 
   test_deno:
     name: Test Deno
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       CC: gcc-14
       CXX: g++-14
@@ -389,7 +389,7 @@ jobs:
             sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -411,7 +411,7 @@ jobs:
 
   test_bun:
     name: Test Bun
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       CC: gcc-14
       CXX: g++-14
@@ -440,7 +440,7 @@ jobs:
             sudo apt install -y cmake build-essential libjemalloc-dev libomp-dev
 
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 

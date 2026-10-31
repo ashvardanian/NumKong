@@ -13,12 +13,10 @@ permissions:
 jobs:
   validate_macos:
     name: Validate Swift Package on macOS
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Build
         run: swift build
       - name: Test
@@ -26,13 +24,11 @@ jobs:
 
   validate_linux:
     name: Validate Swift Package on Linux
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container: swift:6.2
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Build
         run: swift build
       - name: Test

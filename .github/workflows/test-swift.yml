@@ -2,7 +2,7 @@ name: Test Swift
 
 on:
   pull_request:
-    branches: ["main", "main-*"]
+    branches: ["main", "main-dev"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,7 +16,7 @@ jobs:
   # Based on: https://github.com/swift-actions/setup-swift/issues/591#issuecomment-1685710678
   test_ubuntu_swift:
     name: Test Swift on Linux
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container: swift:6.2
     steps:
       - name: Checkout
@@ -34,7 +34,7 @@ jobs:
 
   test_macos_swift:
     name: Test Swift on macOS
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v7

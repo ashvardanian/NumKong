@@ -2,10 +2,6 @@ name: Build Python Wheels
 
 on:
   workflow_call:
-    inputs:
-      ref:
-        type: string
-        default: ""
 
 env:
   PYTHONUTF8: 1
@@ -14,7 +10,7 @@ env:
 jobs:
   build_wheels_linux_x86:
     name: Build Python Wheels for Linux x86, cp${{ matrix.python-version }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -22,8 +18,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.sha }}
       - name: Install Python
         uses: actions/setup-python@v7
         with:
@@ -56,7 +50,7 @@ jobs:
 
   build_wheels_linux_arm:
     name: Build Python Wheels for Linux ARM, cp${{ matrix.python-version }}
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     strategy:
       fail-fast: false
       matrix:
@@ -64,8 +58,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.sha }}
       - name: Install Python
         uses: actions/setup-python@v7
         with:
@@ -106,8 +98,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.sha }}
       - name: Print Machine Specs
         run: sysctl hw.optional.arm hw.optional machdep.cpu || true
       - name: Install Python
@@ -150,8 +140,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.sha }}
       - name: Print Machine Specs
         run: sysctl hw.optional.arm hw.optional machdep.cpu || true
       - name: Install Python
@@ -195,8 +183,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.sha }}
       - name: Print Machine Specs
         shell: pwsh
         run: |
@@ -237,7 +223,7 @@ jobs:
 
   build_wheels_other:
     name: Build Python Wheels for Linux, ${{ matrix.architecture }}, cp${{ matrix.python-version }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -246,8 +232,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.sha }}
       - name: Install Python
         uses: actions/setup-python@v7
         with:
@@ -283,7 +267,7 @@ jobs:
 
   build_wheels_pyodide:
     name: Build Python Wheels for Pyodide, cp${{ matrix.python-version }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -292,8 +276,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.sha }}
       - name: Install Python
         uses: actions/setup-python@v7
         with:
@@ -325,7 +307,7 @@ jobs:
 
   build_wheels_linux_riscv:
     name: Build Python Wheels for Linux RISC-V, cp${{ matrix.python-version }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -333,8 +315,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.sha }}
       - name: Install Python
         uses: actions/setup-python@v7
         with:
@@ -371,12 +351,10 @@ jobs:
 
   build_sdist:
     name: Build Python Source Distribution
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.sha }}
       - name: Set Up Python
         uses: actions/setup-python@v7
         with:

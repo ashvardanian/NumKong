@@ -2,7 +2,7 @@ name: Test Rust
 
 on:
   pull_request:
-    branches: ["main", "main-*"]
+    branches: ["main", "main-dev"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,7 +14,7 @@ permissions:
 jobs:
   test_rust:
     name: Test Rust
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout

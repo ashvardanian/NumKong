@@ -5,15 +5,28 @@ on:
     types: [published]
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   BUILD_TYPE: Release
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  hooks:
+    name: Check Release Commit
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Check the Release Commit
+        run: .github/scripts/check-release.sh "$GITHUB_REF_NAME"
+
   create_linux_deb_package:
     name: Create Debian Package
+    needs: hooks
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
     env:
       CC: clang-20
@@ -32,8 +45,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -81,11 +92,14 @@ jobs:
           dpkg-deb --build "${DEB_DIR}"
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.so *.deb --clobber
 
   create_windows_dll_library:
     name: Create Library for Windows
+    needs: hooks
+    permissions:
+      contents: write
     runs-on: windows-2025
     strategy:
       fail-fast: false
@@ -98,8 +112,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Set Up MSVC
         uses: microsoft/setup-msbuild@v3
       # Newest CMake, so it knows whichever Visual Studio the image ships.
@@ -129,12 +141,15 @@ jobs:
       - name: Upload to GitHub Release
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} "numkong_windows_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.tar.gz" --clobber
 
   create_macos_dylib_library:
     name: Create Library for macOS, ${{ matrix.arch }}
-    runs-on: macos-15
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: macos-26
     strategy:
       fail-fast: false
       matrix:
@@ -142,8 +157,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -162,12 +175,15 @@ jobs:
             build_release/libnumkong.dylib include/numkong/ LICENSE
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.dylib *.zip --clobber
 
   create_android_library:
     name: Create Android Library
-    runs-on: ubuntu-24.04
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -179,8 +195,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -202,17 +216,18 @@ jobs:
             build_android/libnumkong.so include/numkong/ LICENSE
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.zip --clobber
 
   create_wasm_library:
     name: Create WASM Library
-    runs-on: ubuntu-24.04
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -227,7 +242,7 @@ jobs:
             git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
             (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Build WASM
@@ -258,18 +273,19 @@ jobs:
             numkong.js numkong-emscripten.js numkong.wasm numkong.d.ts LICENSE
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm_*.tar.gz numkong_wasm_*.zip --clobber
 
   # Separate job so a wasm64 failure cannot stop the wasm32 bundle.
   create_wasm64_library:
     name: Create WASM64 Library
-    runs-on: ubuntu-24.04
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -284,7 +300,7 @@ jobs:
             git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
             (cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest)
       - name: Set Up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
       - name: Build WASM64 Library
@@ -316,12 +332,15 @@ jobs:
             numkong64.js numkong64.wasm LICENSE
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm64_*.tar.gz numkong_wasm64_*.zip --clobber
 
   create_freebsd_library:
     name: Create Library for FreeBSD
-    runs-on: ubuntu-24.04
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: ubuntu-26.04
     env:
       CC: clang-20
       CXX: clang++-20
@@ -343,8 +362,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -379,12 +396,15 @@ jobs:
             "numkong_freebsd_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber
 
   create_linux_exotic_library:
     name: Create Library for Linux, ${{ matrix.name }}
-    runs-on: ubuntu-24.04
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -416,8 +436,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -442,17 +460,18 @@ jobs:
             "numkong_linux_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber
 
   create_linux_riscv_library:
     name: Create Library for Linux RISC-V
-    runs-on: ubuntu-24.04
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -480,5 +499,5 @@ jobs:
             "numkong_linux_riscv64_${{ steps.set_version.outputs.version }}.so"
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber

@@ -2,7 +2,7 @@ name: Test Python
 
 on:
   pull_request:
-    branches: ["main", "main-*"]
+    branches: ["main", "main-dev"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         # Architecture comes from the runner label, not a matrix axis.
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
+        os: [ubuntu-26.04, ubuntu-26.04-arm, macos-26, windows-2025]
         python-version: ["3.14", "3.10"]
 
     steps:
