@@ -118,13 +118,24 @@ void bench_each(environment_t const &env) {
         run_each<e5m2_k, scale_k, f32_k>(env, "each_scale_e5m2_neon", nk_each_scale_e5m2_neon);
         run_each<e5m2_k, blend_k, f32_k>(env, "each_blend_e5m2_neon", nk_each_blend_e5m2_neon);
         run_each<e5m2_k, fma_k, f32_k>(env, "each_fma_e5m2_neon", nk_each_fma_e5m2_neon);
+        // e2m3, e3m2
+        run_each<e2m3_k, sum_k, f32_k>(env, "each_sum_e2m3_neon", nk_each_sum_e2m3_neon);
+        run_each<e2m3_k, scale_k, f32_k>(env, "each_scale_e2m3_neon", nk_each_scale_e2m3_neon);
+        run_each<e2m3_k, blend_k, f32_k>(env, "each_blend_e2m3_neon", nk_each_blend_e2m3_neon);
+        run_each<e2m3_k, fma_k, f32_k>(env, "each_fma_e2m3_neon", nk_each_fma_e2m3_neon);
+        run_each<e3m2_k, sum_k, f32_k>(env, "each_sum_e3m2_neon", nk_each_sum_e3m2_neon);
+        run_each<e3m2_k, scale_k, f32_k>(env, "each_scale_e3m2_neon", nk_each_scale_e3m2_neon);
+        run_each<e3m2_k, blend_k, f32_k>(env, "each_blend_e3m2_neon", nk_each_blend_e3m2_neon);
+        run_each<e3m2_k, fma_k, f32_k>(env, "each_fma_e3m2_neon", nk_each_fma_e3m2_neon);
         // u8, i8
         run_each<u8_k, sum_k, f32_k>(env, "each_sum_u8_neon", nk_each_sum_u8_neon);
         run_each<u8_k, scale_k, f32_k>(env, "each_scale_u8_neon", nk_each_scale_u8_neon);
         run_each<u8_k, blend_k, f32_k>(env, "each_blend_u8_neon", nk_each_blend_u8_neon);
+        run_each<u8_k, fma_k, f32_k>(env, "each_fma_u8_neon", nk_each_fma_u8_neon);
         run_each<i8_k, sum_k, f32_k>(env, "each_sum_i8_neon", nk_each_sum_i8_neon);
         run_each<i8_k, scale_k, f32_k>(env, "each_scale_i8_neon", nk_each_scale_i8_neon);
         run_each<i8_k, blend_k, f32_k>(env, "each_blend_i8_neon", nk_each_blend_i8_neon);
+        run_each<i8_k, fma_k, f32_k>(env, "each_fma_i8_neon", nk_each_fma_i8_neon);
         // i16, u16
         run_each<i16_k, sum_k, f32_k>(env, "each_sum_i16_neon", nk_each_sum_i16_neon);
         run_each<i16_k, scale_k, f32_k>(env, "each_scale_i16_neon", nk_each_scale_i16_neon);
@@ -161,6 +172,16 @@ void bench_each(environment_t const &env) {
         run_each<f16_k, sum_k, f32_k>(env, "each_sum_f16_neonhalf", nk_each_sum_f16_neonhalf);
     }
 #endif // NUMKONG_TARGET_NEONHALF
+
+#if NUMKONG_TARGET_NEONFHM
+    if (section(env, "Elementwise Operations NEON FHM", nk_cap_neonfhm_k)) {
+        run_each<f16_k, fma_k, f32_k>(env, "each_fma_f16_neonfhm", nk_each_fma_f16_neonfhm);
+        run_each<e4m3_k, sum_k, f32_k>(env, "each_sum_e4m3_neonfhm", nk_each_sum_e4m3_neonfhm);
+        run_each<e4m3_k, fma_k, f32_k>(env, "each_fma_e4m3_neonfhm", nk_each_fma_e4m3_neonfhm);
+        run_each<e5m2_k, sum_k, f32_k>(env, "each_sum_e5m2_neonfhm", nk_each_sum_e5m2_neonfhm);
+        run_each<e5m2_k, fma_k, f32_k>(env, "each_fma_e5m2_neonfhm", nk_each_fma_e5m2_neonfhm);
+    }
+#endif // NUMKONG_TARGET_NEONFHM
 
 #if NUMKONG_TARGET_NEONBFDOT
     if (section(env, "Elementwise Operations NEON BF16", nk_cap_neonbfdot_k)) {

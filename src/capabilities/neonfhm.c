@@ -9,6 +9,7 @@
 #include "numkong/numkong.h"
 
 #include "numkong/reduce/neonfhm.h"
+#include "numkong/each/neonfhm.h"
 #include "numkong/dot/neonfhm.h"
 #include "numkong/shapes/neonfhm.h"
 #include "numkong/dots/neonfhm.h"

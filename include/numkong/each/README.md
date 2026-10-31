@@ -92,6 +92,7 @@ Metal has every kernel but the F32 RMSNorm, which reduces in F64.
 `nk_each_fma_f16_haswell`, `nk_each_blend_bf16_neonbfdot`, `nk_each_scale_e4m3_haswell` widen inputs to Float32 before arithmetic, then narrow the result back to the original type.
 The widen-compute-narrow pipeline costs 2 extra conversion instructions per element but guarantees Float32-precision intermediate results — critical for FMA where naive Float16 multiplication would lose 5+ bits of mantissa.
 Haswell processes 8 Float16 elements per cycle: `VCVTPH2PS` (widen) → `VFMADD231PS` (FMA) → `VCVTPS2PH` (narrow), fully pipelined across 3 execution ports.
+`nk_each_fma_f16_neonfhm` multiplies `a` by `b` with FMLAL, whose product is exact in Float32, in place of two FCVTLs and an FMUL, and returns the same bits as `nk_each_fma_f16_neon`.
 
 ### Saturating Integer Arithmetic
 
@@ -110,6 +111,7 @@ Scales, blends and FMAs multiply complex pairs, $(a + bi)(c + di) = (ac - bd) + 
 The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by the `NUMWARS_BATCH_PER_CORE` environment variable and set to 256, 1024, and 4096 elements.
 The throughput is measured in GB/s as the number of input bytes read per second.
+On the Apple M5, the `neonfhm` rows and the rows measured beside them ran for 5 seconds each rather than 20.
 
 ### Intel Xeon 6 with B300
 
@@ -587,35 +589,48 @@ Measured with wasmtime 49.0.2, Cranelift.
 | `nk_each_blend_f16_serial`     |       35.7 gb/s, 2.0 ulp |       33.3 gb/s, 2.0 ulp |       36.4 gb/s, 2.3 ulp |
 | `nk_each_blend_f16_neon`       |       42.3 gb/s, 2.0 ulp |       40.0 gb/s, 2.0 ulp |       36.9 gb/s, 2.3 ulp |
 | `nk_each_fma_f16_serial`       |       40.5 gb/s, 2.1 ulp |       34.6 gb/s, 1.8 ulp |       40.4 gb/s, 2.2 ulp |
-| `nk_each_fma_f16_neon`         |       47.3 gb/s, 2.1 ulp |       43.3 gb/s, 1.8 ulp |       45.0 gb/s, 2.2 ulp |
+| `nk_each_fma_f16_neon`         |       46.3 gb/s, 2.1 ulp |       44.3 gb/s, 1.8 ulp |       42.8 gb/s, 2.2 ulp |
+| `nk_each_fma_f16_neonfhm`      |       50.7 gb/s, 2.1 ulp |       49.3 gb/s, 1.8 ulp |       44.7 gb/s, 2.2 ulp |
 | __e4m3__                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_each_sum_e4m3_serial`      |        0.333 gb/s, 0 ulp |        0.309 gb/s, 0 ulp |        0.344 gb/s, 0 ulp |
-| `nk_each_sum_e4m3_neon`        |         1.48 gb/s, 0 ulp |         1.63 gb/s, 0 ulp |         1.60 gb/s, 0 ulp |
+| `nk_each_sum_e4m3_neon`        |         2.52 gb/s, 0 ulp |         2.56 gb/s, 0 ulp |         2.61 gb/s, 0 ulp |
+| `nk_each_sum_e4m3_neonfhm`     |         2.59 gb/s, 0 ulp |         2.65 gb/s, 0 ulp |         2.63 gb/s, 0 ulp |
 | `nk_each_scale_e4m3_serial`    |        0.138 gb/s, 0 ulp |        0.128 gb/s, 0 ulp |        0.142 gb/s, 0 ulp |
 | `nk_each_scale_e4m3_neon`      |        0.888 gb/s, 0 ulp |        0.997 gb/s, 0 ulp |        0.959 gb/s, 0 ulp |
 | `nk_each_blend_e4m3_serial`    |      0.236 gb/s, 0.4 ulp |      0.223 gb/s, 1.1 ulp |      0.241 gb/s, 2.8 ulp |
-| `nk_each_blend_e4m3_neon`      |       1.45 gb/s, 0.1 ulp |         1.62 gb/s, 0 ulp |         1.56 gb/s, 0 ulp |
+| `nk_each_blend_e4m3_neon`      |       2.38 gb/s, 0.1 ulp |         2.43 gb/s, 0 ulp |         2.48 gb/s, 0 ulp |
 | `nk_each_fma_e4m3_serial`      |      0.311 gb/s, 0.7 ulp |      0.295 gb/s, 0.6 ulp |      0.319 gb/s, 2.2 ulp |
-| `nk_each_fma_e4m3_neon`        |       1.79 gb/s, 0.1 ulp |       2.05 gb/s, 0.6 ulp |       1.94 gb/s, 1.0 ulp |
+| `nk_each_fma_e4m3_neon`        |       2.83 gb/s, 0.1 ulp |       2.90 gb/s, 0.6 ulp |       2.94 gb/s, 1.0 ulp |
+| `nk_each_fma_e4m3_neonfhm`     |       2.90 gb/s, 0.1 ulp |       2.99 gb/s, 0.6 ulp |       2.95 gb/s, 1.0 ulp |
 | __e5m2__                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_each_sum_e5m2_serial`      |        0.407 gb/s, 0 ulp |        0.385 gb/s, 0 ulp |        0.414 gb/s, 0 ulp |
-| `nk_each_sum_e5m2_neon`        |         2.90 gb/s, 0 ulp |         3.24 gb/s, 0 ulp |         3.13 gb/s, 0 ulp |
+| `nk_each_sum_e5m2_neon`        |         2.60 gb/s, 0 ulp |         2.64 gb/s, 0 ulp |         2.71 gb/s, 0 ulp |
+| `nk_each_sum_e5m2_neonfhm`     |         2.64 gb/s, 0 ulp |         2.71 gb/s, 0 ulp |         2.69 gb/s, 0 ulp |
 | `nk_each_scale_e5m2_serial`    |        0.168 gb/s, 0 ulp |        0.161 gb/s, 0 ulp |        0.166 gb/s, 0 ulp |
 | `nk_each_scale_e5m2_neon`      |         1.53 gb/s, 0 ulp |         1.70 gb/s, 0 ulp |         1.63 gb/s, 0 ulp |
 | `nk_each_blend_e5m2_serial`    |        0.295 gb/s, 0 ulp |        0.300 gb/s, 0 ulp |      0.294 gb/s, 4.9 ulp |
-| `nk_each_blend_e5m2_neon`      |       2.81 gb/s, 0.7 ulp |         3.06 gb/s, 0 ulp |         2.98 gb/s, 0 ulp |
+| `nk_each_blend_e5m2_neon`      |       2.44 gb/s, 0.7 ulp |         2.48 gb/s, 0 ulp |         2.53 gb/s, 0 ulp |
 | `nk_each_fma_e5m2_serial`      |      0.443 gb/s, 1.9 ulp |      0.424 gb/s, 0.9 ulp |      0.422 gb/s, 4.0 ulp |
-| `nk_each_fma_e5m2_neon`        |         3.86 gb/s, 0 ulp |       4.12 gb/s, 1.3 ulp |         4.01 gb/s, 0 ulp |
+| `nk_each_fma_e5m2_neon`        |         3.30 gb/s, 0 ulp |       3.41 gb/s, 1.3 ulp |         3.46 gb/s, 0 ulp |
+| `nk_each_fma_e5m2_neonfhm`     |         3.42 gb/s, 0 ulp |       3.55 gb/s, 1.3 ulp |         3.51 gb/s, 0 ulp |
 | __e2m3__                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_each_sum_e2m3_serial`      |        0.314 gb/s, ? ulp |        0.277 gb/s, ? ulp |        0.270 gb/s, ? ulp |
-| `nk_each_scale_e2m3_serial`    |       0.0950 gb/s, ? ulp |       0.0861 gb/s, ? ulp |       0.0875 gb/s, ? ulp |
-| `nk_each_blend_e2m3_serial`    |        0.210 gb/s, ? ulp |        0.187 gb/s, ? ulp |        0.187 gb/s, ? ulp |
-| `nk_each_fma_e2m3_serial`      |        0.343 gb/s, ? ulp |        0.308 gb/s, ? ulp |        0.308 gb/s, ? ulp |
+| `nk_each_sum_e2m3_serial`      |        0.640 gb/s, ? ulp |        0.521 gb/s, ? ulp |        0.447 gb/s, ? ulp |
+| `nk_each_sum_e2m3_neon`        |         2.00 gb/s, ? ulp |         2.06 gb/s, ? ulp |         2.09 gb/s, ? ulp |
+| `nk_each_scale_e2m3_serial`    |        0.359 gb/s, ? ulp |        0.366 gb/s, ? ulp |        0.353 gb/s, ? ulp |
+| `nk_each_scale_e2m3_neon`      |         1.19 gb/s, ? ulp |         1.24 gb/s, ? ulp |         1.25 gb/s, ? ulp |
+| `nk_each_blend_e2m3_serial`    |        0.577 gb/s, ? ulp |        0.516 gb/s, ? ulp |        0.462 gb/s, ? ulp |
+| `nk_each_blend_e2m3_neon`      |         1.89 gb/s, ? ulp |         1.98 gb/s, ? ulp |         2.00 gb/s, ? ulp |
+| `nk_each_fma_e2m3_serial`      |        0.859 gb/s, ? ulp |        0.811 gb/s, ? ulp |        0.531 gb/s, ? ulp |
+| `nk_each_fma_e2m3_neon`        |         2.41 gb/s, ? ulp |         2.50 gb/s, ? ulp |         2.52 gb/s, ? ulp |
 | __e3m2__                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_each_sum_e3m2_serial`      |        0.507 gb/s, ? ulp |        0.440 gb/s, ? ulp |        0.427 gb/s, ? ulp |
-| `nk_each_scale_e3m2_serial`    |        0.164 gb/s, ? ulp |        0.141 gb/s, ? ulp |        0.133 gb/s, ? ulp |
-| `nk_each_blend_e3m2_serial`    |        0.331 gb/s, ? ulp |        0.281 gb/s, ? ulp |        0.272 gb/s, ? ulp |
-| `nk_each_fma_e3m2_serial`      |        0.471 gb/s, ? ulp |        0.403 gb/s, ? ulp |        0.406 gb/s, ? ulp |
+| `nk_each_sum_e3m2_serial`      |        0.685 gb/s, ? ulp |        0.727 gb/s, ? ulp |        0.716 gb/s, ? ulp |
+| `nk_each_sum_e3m2_neon`        |         1.99 gb/s, ? ulp |         2.08 gb/s, ? ulp |         2.08 gb/s, ? ulp |
+| `nk_each_scale_e3m2_serial`    |        0.407 gb/s, ? ulp |        0.387 gb/s, ? ulp |        0.305 gb/s, ? ulp |
+| `nk_each_scale_e3m2_neon`      |         1.19 gb/s, ? ulp |         1.24 gb/s, ? ulp |         1.25 gb/s, ? ulp |
+| `nk_each_blend_e3m2_serial`    |        0.703 gb/s, ? ulp |        0.687 gb/s, ? ulp |        0.673 gb/s, ? ulp |
+| `nk_each_blend_e3m2_neon`      |         1.91 gb/s, ? ulp |         2.00 gb/s, ? ulp |         1.99 gb/s, ? ulp |
+| `nk_each_fma_e3m2_serial`      |        0.748 gb/s, ? ulp |        0.614 gb/s, ? ulp |        0.520 gb/s, ? ulp |
+| `nk_each_fma_e3m2_neon`        |         2.41 gb/s, ? ulp |         2.51 gb/s, ? ulp |         2.49 gb/s, ? ulp |
 | __i8__                         | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_each_sum_i8_serial`        |                88.1 gb/s |                51.7 gb/s |                39.8 gb/s |
 | `nk_each_sum_i8_neon`          |                79.6 gb/s |                56.3 gb/s |                36.9 gb/s |
@@ -623,7 +638,8 @@ Measured with wasmtime 49.0.2, Cranelift.
 | `nk_each_scale_i8_neon`        |                10.2 gb/s |                10.3 gb/s |                9.78 gb/s |
 | `nk_each_blend_i8_serial`      |               0.281 gb/s |               0.237 gb/s |               0.253 gb/s |
 | `nk_each_blend_i8_neon`        |                11.9 gb/s |                11.9 gb/s |                11.8 gb/s |
-| `nk_each_fma_i8_serial`        |               0.406 gb/s |               0.334 gb/s |               0.350 gb/s |
+| `nk_each_fma_i8_serial`        |                1.13 gb/s |                1.02 gb/s |               0.879 gb/s |
+| `nk_each_fma_i8_neon`          |                17.8 gb/s |                18.0 gb/s |                18.0 gb/s |
 | __u8__                         | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_each_sum_u8_serial`        |                12.3 gb/s |                11.5 gb/s |                11.5 gb/s |
 | `nk_each_sum_u8_neon`          |                79.4 gb/s |                79.0 gb/s |                62.7 gb/s |
@@ -631,7 +647,8 @@ Measured with wasmtime 49.0.2, Cranelift.
 | `nk_each_scale_u8_neon`        |                10.1 gb/s |                10.2 gb/s |                10.6 gb/s |
 | `nk_each_blend_u8_serial`      |               0.238 gb/s |               0.203 gb/s |               0.205 gb/s |
 | `nk_each_blend_u8_neon`        |                11.1 gb/s |                12.0 gb/s |                11.3 gb/s |
-| `nk_each_fma_u8_serial`        |               0.332 gb/s |               0.310 gb/s |               0.301 gb/s |
+| `nk_each_fma_u8_serial`        |                1.19 gb/s |                1.13 gb/s |                1.02 gb/s |
+| `nk_each_fma_u8_neon`          |                17.9 gb/s |                18.1 gb/s |                18.0 gb/s |
 | __i16__                        | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_each_sum_i16_serial`       |                93.1 gb/s |                64.8 gb/s |                73.8 gb/s |
 | `nk_each_sum_i16_neon`         |                70.1 gb/s |                61.1 gb/s |                62.3 gb/s |

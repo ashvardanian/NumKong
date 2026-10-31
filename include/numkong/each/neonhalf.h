@@ -27,7 +27,7 @@
 #if NUMKONG_TARGET_NEONHALF
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h" // `nk_f16_to_f32_serial_`, `nk_f32_to_f16_serial_`
+#include "numkong/cast/serial.h" // `nk_partial_load_b16x8_serial_`, `nk_partial_store_b16x8_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -53,12 +53,13 @@ NUMKONG_API nk_status_t nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t con
     }
 
     // The tail:
-    for (; i < n; ++i) {
-        nk_f32_t ai, bi;
-        nk_f16_to_f32_serial_(a + i, &ai);
-        nk_f16_to_f32_serial_(b + i, &bi);
-        nk_f32_t const sum = ai + bi;
-        nk_f32_to_f16_serial_(&sum, result + i);
+    if (i < n) {
+        nk_b128_vec_t a_vec, b_vec, result_vec;
+        nk_partial_load_b16x8_serial_(a + i, &a_vec, n - i);
+        nk_partial_load_b16x8_serial_(b + i, &b_vec, n - i);
+        float16x8_t sum_vec = vaddq_f16(vreinterpretq_f16_u16(a_vec.u16x8), vreinterpretq_f16_u16(b_vec.u16x8));
+        result_vec.u16x8 = vreinterpretq_u16_f16(sum_vec);
+        nk_partial_store_b16x8_serial_(&result_vec, result + i, n - i);
     }
     return nk_success_k;
 }

@@ -59,10 +59,15 @@ error_stats_t test_scale(settings_t const &settings, typename scalar_type_::scal
         fill_random(settings, generator, input);
         *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
 
-        backend.call(kernel, input.raw_values_data(), count, alpha, beta, result.raw_values_data());
-        if (!stats.expect(backend.synchronize())) return stats;
-        for (std::size_t i = 0; i < count; i++)
-            stats.accumulate(result[i], value_t(input[i]) * value_t(*alpha) + value_t(*beta));
+        auto const score = [&](std::size_t length) {
+            backend.call(kernel, input.raw_values_data(), length, alpha, beta, result.raw_values_data());
+            if (!stats.expect(backend.synchronize())) return;
+            for (std::size_t i = 0; i < length; i++)
+                stats.accumulate(result[i], value_t(input[i]) * value_t(*alpha) + value_t(*beta));
+        };
+        score(count);
+        // A short prefix too, so the partial loads and stores run
+        score(std::min<std::size_t>(1 + generator() % 31, count));
     }
     return stats;
 }
@@ -89,10 +94,16 @@ error_stats_t test_blend(settings_t const &settings, typename scalar_type_::blen
         fill_random(settings, generator, b);
         *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
 
-        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), count, alpha, beta, result.raw_values_data());
-        if (!stats.expect(backend.synchronize())) return stats;
-        for (std::size_t i = 0; i < count; i++)
-            stats.accumulate(result[i], value_t(a[i]) * value_t(*alpha) + value_t(b[i]) * value_t(*beta));
+        auto const score = [&](std::size_t length) {
+            backend.call(kernel, a.raw_values_data(), b.raw_values_data(), length, alpha, beta,
+                         result.raw_values_data());
+            if (!stats.expect(backend.synchronize())) return;
+            for (std::size_t i = 0; i < length; i++)
+                stats.accumulate(result[i], value_t(a[i]) * value_t(*alpha) + value_t(b[i]) * value_t(*beta));
+        };
+        score(count);
+        // A short prefix too, so the partial loads and stores run
+        score(std::min<std::size_t>(1 + generator() % 31, count));
     }
     return stats;
 }
@@ -120,12 +131,17 @@ error_stats_t test_fma(settings_t const &settings, typename scalar_type_::fma_ke
         fill_random(settings, generator, c);
         *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
 
-        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), c.raw_values_data(), count, alpha, beta,
-                     result.raw_values_data());
-        if (!stats.expect(backend.synchronize())) return stats;
-        for (std::size_t i = 0; i < count; i++)
-            stats.accumulate(result[i],
-                             value_t(a[i]) * value_t(b[i]) * value_t(*alpha) + value_t(c[i]) * value_t(*beta));
+        auto const score = [&](std::size_t length) {
+            backend.call(kernel, a.raw_values_data(), b.raw_values_data(), c.raw_values_data(), length, alpha, beta,
+                         result.raw_values_data());
+            if (!stats.expect(backend.synchronize())) return;
+            for (std::size_t i = 0; i < length; i++)
+                stats.accumulate(result[i],
+                                 value_t(a[i]) * value_t(b[i]) * value_t(*alpha) + value_t(c[i]) * value_t(*beta));
+        };
+        score(count);
+        // A short prefix too, so the partial loads and stores run
+        score(std::min<std::size_t>(1 + generator() % 31, count));
     }
     return stats;
 }
@@ -148,11 +164,16 @@ error_stats_t test_sum(settings_t const &settings, typename scalar_type_::sum_ke
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
 
-        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), count, result.raw_values_data());
-        if (!stats.expect(backend.synchronize())) return stats;
-        stats.expect(nk::add<scalar_t>(a.values_data(), b.values_data(), count, reference.values_data(), no_tiers_k));
-
-        for (std::size_t i = 0; i < count; i++) stats.accumulate(result[i], reference[i]);
+        auto const score = [&](std::size_t length) {
+            backend.call(kernel, a.raw_values_data(), b.raw_values_data(), length, result.raw_values_data());
+            if (!stats.expect(backend.synchronize())) return;
+            stats.expect(
+                nk::add<scalar_t>(a.values_data(), b.values_data(), length, reference.values_data(), no_tiers_k));
+            for (std::size_t i = 0; i < length; i++) stats.accumulate(result[i], reference[i]);
+        };
+        score(count);
+        // A short prefix too, so the partial loads and stores run
+        score(std::min<std::size_t>(1 + generator() % 31, count));
     }
     return stats;
 }

@@ -1079,7 +1079,64 @@ NUMKONG_API nk_status_t nk_each_rmscast_f32_neon(nk_f64_t const *x, nk_f32_t con
                                                  nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
                                                  nk_size_t y_stride, nk_f32_t epsilon, nk_stream_t stream);
 
+/** @copydoc nk_each_fma_i8_best */
+NUMKONG_API nk_status_t nk_each_fma_i8_neon(nk_i8_t const *a, nk_i8_t const *b, nk_i8_t const *c, nk_size_t n,
+                                            nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result,
+                                            nk_stream_t stream);
+/** @copydoc nk_each_fma_u8_best */
+NUMKONG_API nk_status_t nk_each_fma_u8_neon(nk_u8_t const *a, nk_u8_t const *b, nk_u8_t const *c, nk_size_t n,
+                                            nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result,
+                                            nk_stream_t stream);
+/** @copydoc nk_each_sum_e2m3_best */
+NUMKONG_API nk_status_t nk_each_sum_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_e2m3_t *result,
+                                              nk_stream_t stream);
+/** @copydoc nk_each_scale_e2m3_best */
+NUMKONG_API nk_status_t nk_each_scale_e2m3_neon(nk_e2m3_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                nk_f32_t const *beta, nk_e2m3_t *result, nk_stream_t stream);
+/** @copydoc nk_each_blend_e2m3_best */
+NUMKONG_API nk_status_t nk_each_blend_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_e2m3_t *result,
+                                                nk_stream_t stream);
+/** @copydoc nk_each_fma_e2m3_best */
+NUMKONG_API nk_status_t nk_each_fma_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_e2m3_t const *c, nk_size_t n,
+                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_e2m3_t *result,
+                                              nk_stream_t stream);
+/** @copydoc nk_each_sum_e3m2_best */
+NUMKONG_API nk_status_t nk_each_sum_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_e3m2_t *result,
+                                              nk_stream_t stream);
+/** @copydoc nk_each_scale_e3m2_best */
+NUMKONG_API nk_status_t nk_each_scale_e3m2_neon(nk_e3m2_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                nk_f32_t const *beta, nk_e3m2_t *result, nk_stream_t stream);
+/** @copydoc nk_each_blend_e3m2_best */
+NUMKONG_API nk_status_t nk_each_blend_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_e3m2_t *result,
+                                                nk_stream_t stream);
+/** @copydoc nk_each_fma_e3m2_best */
+NUMKONG_API nk_status_t nk_each_fma_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_e3m2_t const *c, nk_size_t n,
+                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_e3m2_t *result,
+                                              nk_stream_t stream);
 #endif // NUMKONG_TARGET_NEON
+
+#if NUMKONG_TARGET_NEONFHM
+/** @copydoc nk_each_fma_f16_best */
+NUMKONG_API nk_status_t nk_each_fma_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result,
+                                                nk_stream_t stream);
+/** @copydoc nk_each_sum_e4m3_best */
+NUMKONG_API nk_status_t nk_each_sum_e4m3_neonfhm(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_e4m3_t *result,
+                                                 nk_stream_t stream);
+/** @copydoc nk_each_fma_e4m3_best */
+NUMKONG_API nk_status_t nk_each_fma_e4m3_neonfhm(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_e4m3_t const *c,
+                                                 nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                 nk_e4m3_t *result, nk_stream_t stream);
+/** @copydoc nk_each_sum_e5m2_best */
+NUMKONG_API nk_status_t nk_each_sum_e5m2_neonfhm(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_e5m2_t *result,
+                                                 nk_stream_t stream);
+/** @copydoc nk_each_fma_e5m2_best */
+NUMKONG_API nk_status_t nk_each_fma_e5m2_neonfhm(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_e5m2_t const *c,
+                                                 nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                                 nk_e5m2_t *result, nk_stream_t stream);
+#endif // NUMKONG_TARGET_NEONFHM
 
 #if NUMKONG_TARGET_NEONBFDOT
 /** @copydoc nk_each_sum_bf16_best */
@@ -2576,6 +2633,7 @@ NUMKONG_API nk_status_t nk_each_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
 #include "numkong/each/neon.h"
 #include "numkong/each/neonhalf.h"
 #include "numkong/each/neonbfdot.h"
+#include "numkong/each/neonfhm.h"
 #include "numkong/each/sme.h"
 #include "numkong/each/haswell.h"
 #include "numkong/each/skylake.h"

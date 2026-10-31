@@ -138,13 +138,24 @@ void test_each(error_stats_section_t &check) {
     check("each_scale_e5m2_neon", test_scale<e5m2_t>, nk_each_scale_e5m2_neon);
     check("each_blend_e5m2_neon", test_blend<e5m2_t>, nk_each_blend_e5m2_neon);
     check("each_fma_e5m2_neon", test_fma<e5m2_t>, nk_each_fma_e5m2_neon);
+    // e2m3, e3m2
+    check("each_sum_e2m3_neon", test_sum<e2m3_t>, nk_each_sum_e2m3_neon);
+    check("each_scale_e2m3_neon", test_scale<e2m3_t>, nk_each_scale_e2m3_neon);
+    check("each_blend_e2m3_neon", test_blend<e2m3_t>, nk_each_blend_e2m3_neon);
+    check("each_fma_e2m3_neon", test_fma<e2m3_t>, nk_each_fma_e2m3_neon);
+    check("each_sum_e3m2_neon", test_sum<e3m2_t>, nk_each_sum_e3m2_neon);
+    check("each_scale_e3m2_neon", test_scale<e3m2_t>, nk_each_scale_e3m2_neon);
+    check("each_blend_e3m2_neon", test_blend<e3m2_t>, nk_each_blend_e3m2_neon);
+    check("each_fma_e3m2_neon", test_fma<e3m2_t>, nk_each_fma_e3m2_neon);
     // u8, i8
     check("each_sum_u8_neon", test_sum<u8_t>, nk_each_sum_u8_neon);
     check("each_scale_u8_neon", test_scale<u8_t>, nk_each_scale_u8_neon);
     check("each_blend_u8_neon", test_blend<u8_t>, nk_each_blend_u8_neon);
+    check("each_fma_u8_neon", test_fma<u8_t>, nk_each_fma_u8_neon);
     check("each_sum_i8_neon", test_sum<i8_t>, nk_each_sum_i8_neon);
     check("each_scale_i8_neon", test_scale<i8_t>, nk_each_scale_i8_neon);
     check("each_blend_i8_neon", test_blend<i8_t>, nk_each_blend_i8_neon);
+    check("each_fma_i8_neon", test_fma<i8_t>, nk_each_fma_i8_neon);
     // i16, u16
     check("each_sum_i16_neon", test_sum<i16_t>, nk_each_sum_i16_neon);
     check("each_scale_i16_neon", test_scale<i16_t>, nk_each_scale_i16_neon);
@@ -179,6 +190,15 @@ void test_each(error_stats_section_t &check) {
     check.section("Elementwise Operations NEON HALF", nk_cap_neonhalf_k);
     check("each_sum_f16_neonhalf", test_sum<f16_t>, nk_each_sum_f16_neonhalf);
 #endif // NUMKONG_TARGET_NEONHALF
+
+#if NUMKONG_TARGET_NEONFHM
+    check.section("Elementwise Operations NEON FHM", nk_cap_neonfhm_k);
+    check("each_fma_f16_neonfhm", test_fma<f16_t>, nk_each_fma_f16_neonfhm);
+    check("each_sum_e4m3_neonfhm", test_sum<e4m3_t>, nk_each_sum_e4m3_neonfhm);
+    check("each_fma_e4m3_neonfhm", test_fma<e4m3_t>, nk_each_fma_e4m3_neonfhm);
+    check("each_sum_e5m2_neonfhm", test_sum<e5m2_t>, nk_each_sum_e5m2_neonfhm);
+    check("each_fma_e5m2_neonfhm", test_fma<e5m2_t>, nk_each_fma_e5m2_neonfhm);
+#endif // NUMKONG_TARGET_NEONFHM
 
 #if NUMKONG_TARGET_NEONBFDOT
     check.section("Elementwise Operations NEON BF16", nk_cap_neonbfdot_k);
