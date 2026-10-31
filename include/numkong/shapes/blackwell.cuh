@@ -16,15 +16,11 @@
  *  four solve Theobald's quaternion polynomial in F32 per pair, folding into Ga + Gb − 2λ as the
  *  CPU capabilities do.
  *
- *  Chamfer and Hausdorff fold the norms into the depth, so the products are squared distances, [a,
- *  ‖a‖²_high, ‖a‖²_low, 1, 1] · [−2b, 1, 1, ‖b‖²_high, ‖b‖²_low] over 7 of 16 depth values, and the
- *  8 axis flips into the columns as 8 flipped copies of B: one product compares 128 outer points
- *  with 32 inner points under every flip. The expansion only searches: per flip, each thread keeps
- *  its outer point's least expanded value, the group of 8 inner points holding it and the least of
- *  all other groups, then recomputes that group in the difference form of the CPU capabilities, and
- *  rescans every inner point when another group comes within the expansion's rounding. The reverse
- *  direction runs as its own pass with the clouds swapped, as ‖S × b − a‖ = ‖b − S × a‖, and both
- *  clouds scale by one power of two that keeps the norms within F16.
+ *  Chamfer and Hausdorff score one pair per warp, each lane walking its outer points through the
+ *  inner points two per step in packed F32 arithmetic, bit-identical to the CPU capabilities before
+ *  the square root. They stay off the tensor cores: a product keeps about 25 bits of its largest
+ *  term, which cannot rank near-coincident points, and a round trip costs more than the scan it
+ *  would save at conformer sizes.
  */
 #ifndef NUMKONG_SHAPES_BLACKWELL_CUH
 #define NUMKONG_SHAPES_BLACKWELL_CUH
@@ -56,16 +52,9 @@ enum {
     nk_rmsds_thread_chunks_blackwell_k = nk_rmsds_staged_chunks_blackwell_k / 128,
     nk_rmsds_accumulator_column_blackwell_k = 0,
     nk_rmsds_tensor_columns_blackwell_k = 128,
-    // Chamfer and Hausdorff products: 128 outer points by 8 flips of 32 inner points, 32-byte rows.
-    nk_shapes_outer_points_blackwell_k = 128,
-    nk_shapes_inner_points_blackwell_k = 32,
+    // Chamfer and Hausdorff score one pair on the lanes of one warp, under every flip.
+    nk_shapes_lanes_blackwell_k = 32,
     nk_shapes_flips_blackwell_k = 8,
-    nk_shapes_group_points_blackwell_k = 8,
-    nk_shapes_row_bytes_blackwell_k = 32,
-    nk_shapes_accumulator_column_blackwell_k = 0,
-    nk_shapes_tensor_columns_blackwell_k = 256,
-    // The 32-byte swizzle's code in shared-memory descriptors.
-    nk_smem_swizzle_32_blackwell_k = 6,
 };
 
 /** RMSD shared memory: two slabs of both operands, each 1024-byte aligned for the swizzle, the
@@ -92,19 +81,7 @@ typedef struct {
     nk_size_t column_tiles, tiles;
 } nk_rmsds_schedule_blackwell_t;
 
-/** Chamfer and Hausdorff shared memory: one outer and one inner operand in the 32-byte swizzle, and
- *  each warp's per-flip sums and maxima. */
-typedef struct {
-    unsigned char outer_operand[nk_shapes_outer_points_blackwell_k * nk_shapes_row_bytes_blackwell_k];
-    unsigned char inner_operand[nk_shapes_flips_blackwell_k * nk_shapes_inner_points_blackwell_k *
-                                nk_shapes_row_bytes_blackwell_k];
-    nk_f32_t warp_sums[4][nk_shapes_flips_blackwell_k];
-    nk_f32_t warp_maxima[4][nk_shapes_flips_blackwell_k];
-    nk_u64_t multiplied;
-    nk_u32_t tensor_memory;
-} nk_shapes_shared_blackwell_t;
-
-/** One Chamfer or Hausdorff launch: the packs, the outputs, and the pairs every block walks. */
+/** One Chamfer or Hausdorff launch: the packs, the outputs, and the pairs every warp walks. */
 typedef struct {
     void const *const *a_packed;
     void const *const *b_packed;
@@ -516,140 +493,6 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_blackwell(void const *const *a_packe
 
 #pragma region Chamfer and Hausdorff
 
-/** Zeroes both operands, sets up the barrier and allocates the accumulator's tensor memory. */
-NUMKONG_DEVICE nk_u32_t nk_shapes_initialize_blackwell_(nk_shapes_shared_blackwell_t *shared) {
-    uint4 const zeros = {0, 0, 0, 0};
-    for (unsigned index = threadIdx.x; index < sizeof(shared->outer_operand) / 16;
-         index += nk_shapes_threads_blackwell_k)
-        *(uint4 *)(shared->outer_operand + index * 16) = zeros;
-    for (unsigned index = threadIdx.x; index < sizeof(shared->inner_operand) / 16;
-         index += nk_shapes_threads_blackwell_k)
-        *(uint4 *)(shared->inner_operand + index * 16) = zeros;
-    if (threadIdx.x == 0) {
-        nk_mbarrier_init_blackwell_(nk_shared_address_ampere_(&shared->multiplied), 1);
-        nk_mbarrier_init_fence_blackwell_();
-    }
-    if (threadIdx.x < 32)
-        nk_tmem_alloc_blackwell_(nk_shared_address_ampere_(&shared->tensor_memory),
-                                 nk_shapes_tensor_columns_blackwell_k);
-    nk_tmem_fence_before_blackwell_();
-    __syncthreads();
-    nk_tmem_fence_after_blackwell_();
-    return shared->tensor_memory;
-}
-
-/** The power of two both clouds of a pair divide by, so that every squared norm stays below 2¹⁴
- *  and every doubled coordinate below 2⁸ in F16: 2^−k for k = max(0, ⌊log₂ r⌋ − 6). */
-NUMKONG_DEVICE nk_f32_t nk_shapes_scale_blackwell_(nk_f32_t largest_radius) {
-    int const exponent = (int)((__float_as_uint(largest_radius) >> 23) & 0xFF) - 127 - 6;
-    return exponent > 0 ? __uint_as_float((nk_u32_t)(127 - exponent) << 23) : 1.0f;
-}
-
-/** Reads one packed point scaled by @p scale and rounded into F16, with its squared norm summed in
- *  F32 from the rounded coordinates, or zeros past the cloud. */
-NUMKONG_DEVICE void nk_shapes_point_f16_blackwell_(nk_f16_t const *axes, nk_size_t axis_stride, nk_size_t point,
-                                                   nk_size_t count, nk_f32_t scale, nk_u32_t *coordinates,
-                                                   nk_f32_t *norm) {
-    nk_u16_t const *axes_bits = (nk_u16_t const *)axes;
-    *norm = 0;
-    for (unsigned axis = 0; axis != 3; ++axis) {
-        nk_u16_t const bits = point < count ? axes_bits[axis * axis_stride + point] : 0;
-        coordinates[axis] = nk_f32_to_f16_bits_ampere_(nk_f16_bits_to_f32_blackwell_(bits) * scale);
-        nk_f32_t const rounded = nk_f16_bits_to_f32_blackwell_((nk_u16_t)coordinates[axis]);
-        *norm += rounded * rounded;
-    }
-}
-
-/** Writes the first 16-byte chunk of a 32-byte operand row in the 32-byte swizzle; the second
- *  chunk stays zero from initialization. */
-NUMKONG_DEVICE void nk_shapes_store_row_blackwell_(unsigned char *operand, unsigned row, uint4 chunk) {
-    *(uint4 *)(operand + row * nk_shapes_row_bytes_blackwell_k + (((row >> 2) & 1) << 4)) = chunk;
-}
-
-/** Stages 128 outer points as [x, y, z, ‖x‖²_high, ‖x‖²_low, 1, 1, 0], returning this thread's
- *  ‖x‖². */
-NUMKONG_DEVICE nk_f32_t nk_shapes_stage_outer_f16_blackwell_(nk_shapes_shared_blackwell_t *shared, nk_f16_t const *axes,
-                                                             nk_size_t axis_stride, nk_size_t first, nk_size_t count,
-                                                             nk_f32_t scale) {
-    nk_u32_t coordinates[3];
-    nk_f32_t norm;
-    nk_shapes_point_f16_blackwell_(axes, axis_stride, first + threadIdx.x, count, scale, coordinates, &norm);
-    nk_u32_t const high = nk_f32_to_f16_bits_ampere_(norm);
-    nk_u32_t const low = nk_f32_to_f16_bits_ampere_(norm - nk_f16_bits_to_f32_blackwell_((nk_u16_t)high));
-    nk_u32_t const one = 0x3C00u;
-    uint4 chunk;
-    chunk.x = coordinates[0] | (coordinates[1] << 16), chunk.y = coordinates[2] | (high << 16);
-    chunk.z = low | (one << 16), chunk.w = one;
-    nk_shapes_store_row_blackwell_(shared->outer_operand, threadIdx.x, chunk);
-    return norm;
-}
-
-/** Stages 32 inner points under all 8 flips, flip s at rows 32s to 32s + 31, as
- *  [−2 × S × y, 1, 1, ‖y‖²_high, ‖y‖²_low, 0]. */
-NUMKONG_DEVICE void nk_shapes_stage_inner_f16_blackwell_(nk_shapes_shared_blackwell_t *shared, nk_f16_t const *axes,
-                                                         nk_size_t axis_stride, nk_size_t first, nk_size_t count,
-                                                         nk_f32_t scale) {
-    unsigned const point = threadIdx.x & 31, flip_group = threadIdx.x >> 5;
-    nk_u32_t coordinates[3];
-    nk_f32_t norm;
-    nk_shapes_point_f16_blackwell_(axes, axis_stride, first + point, count, scale, coordinates, &norm);
-    nk_u32_t const high = nk_f32_to_f16_bits_ampere_(norm);
-    nk_u32_t const low = nk_f32_to_f16_bits_ampere_(norm - nk_f16_bits_to_f32_blackwell_((nk_u16_t)high));
-    nk_u32_t const one = 0x3C00u;
-    nk_u32_t doubled[3];
-    // Doubling adds one to the exponent of every nonzero half, exactly, and the sign bit flips it
-    for (unsigned axis = 0; axis != 3; ++axis)
-        doubled[axis] = coordinates[axis] & 0x7FFFu ? (coordinates[axis] + 0x0400u) ^ 0x8000u : 0;
-    for (unsigned flip = flip_group; flip < nk_shapes_flips_blackwell_k; flip += 4) {
-        nk_u32_t flipped[3];
-        for (unsigned axis = 0; axis != 3; ++axis) flipped[axis] = doubled[axis] ^ ((flip >> axis) & 1 ? 0x8000u : 0);
-        uint4 chunk;
-        chunk.x = flipped[0] | (flipped[1] << 16), chunk.y = flipped[2] | (one << 16);
-        chunk.z = one | (high << 16), chunk.w = low;
-        nk_shapes_store_row_blackwell_(shared->inner_operand, flip * nk_shapes_inner_points_blackwell_k + point, chunk);
-    }
-}
-
-/** One product of the staged operands into tensor memory, waited for by every thread. */
-NUMKONG_DEVICE void nk_shapes_multiply_f16_blackwell_(nk_shapes_shared_blackwell_t *shared, nk_u32_t tensor_memory,
-                                                      nk_u32_t *phase) {
-    nk_u32_t const barrier = nk_shared_address_ampere_(&shared->multiplied);
-    nk_fence_async_shared_blackwell_();
-    __syncthreads();
-    if (threadIdx.x == 0) {
-        nk_tmem_fence_after_blackwell_();
-        nk_u64_t const a = nk_smem_descriptor_blackwell_(nk_shared_address_ampere_(shared->outer_operand),
-                                                         nk_smem_swizzle_32_blackwell_k, 16, 256);
-        nk_u64_t const b = nk_smem_descriptor_blackwell_(nk_shared_address_ampere_(shared->inner_operand),
-                                                         nk_smem_swizzle_32_blackwell_k, 16, 256);
-        nk_mma_f16_blackwell_(
-            tensor_memory + nk_shapes_accumulator_column_blackwell_k, a, b,
-            nk_mma_instruction_blackwell_(0, 0, nk_shapes_outer_points_blackwell_k,
-                                          nk_shapes_tensor_columns_blackwell_k, nk_major_k_k, nk_major_k_k),
-            0);
-        nk_mma_commit_blackwell_(barrier);
-    }
-    nk_mbarrier_wait_blackwell_(barrier, *phase);
-    *phase ^= 1;
-    nk_tmem_fence_after_blackwell_();
-}
-
-/** ‖a − S × b‖² between @p outer_point and two packed inner points under @p flip, their coordinates
- *  paired per axis in @p axis_pairs , unfused in the serial order, so each matches the CPU
- *  capabilities bit for bit. */
-NUMKONG_DEVICE float2 nk_shapes_squared_distances_f16x2_blackwell_(nk_f32_t const *outer_point,
-                                                                   nk_u32_t const *axis_pairs, unsigned flip) {
-    float2 squares[3];
-    for (unsigned axis = 0; axis != 3; ++axis) {
-        // A flip negates an inner axis, turning its difference into a sum; b − a squares as a − b
-        float2 const difference = (flip >> axis) & 1
-                                      ? nk_f16x2_add_to_f32x2_blackwell_(axis_pairs[axis], outer_point[axis])
-                                      : nk_f16x2_sub_to_f32x2_blackwell_(axis_pairs[axis], outer_point[axis]);
-        squares[axis] = nk_f32x2_mul_blackwell_(difference, difference);
-    }
-    return nk_f32x2_add_blackwell_(nk_f32x2_add_blackwell_(squares[0], squares[1]), squares[2]);
-}
-
 /** Lowers the least squared distance under each of the 8 flips by two inner points, their
  *  coordinates paired per axis in @p axis_pairs , rounded as @c nk_shapes_nearest_squares_f16_simt_
  *  rounds them, and their minimum taken with the old one in one instruction. */
@@ -694,145 +537,34 @@ NUMKONG_DEVICE void nk_shapes_nearest_squares_f16_blackwell_(nk_f32_t const *out
     nk_shapes_nearest_pair_f16_blackwell_(outer_point, axis_pairs, nearest);
 }
 
-/** The least squared distance under @p flip from @p outer_point to the packed inner points of
- *  @p group , two per step, with a cloud's odd last point paired with itself. */
-NUMKONG_DEVICE nk_f32_t nk_shapes_group_nearest_f16_blackwell_(nk_f32_t const *outer_point, nk_f16_t const *inner_axes,
-                                                               nk_size_t inner_stride, nk_size_t inner_count,
-                                                               nk_u32_t group, unsigned flip) {
-    nk_u32_t const *inner_pairs = (nk_u32_t const *)inner_axes;
-    nk_size_t const pair_stride = inner_stride / 2;
-    nk_f32_t least = NUMKONG_F32_INF;
-#pragma unroll
-    for (unsigned member = 0; member != nk_shapes_group_points_blackwell_k; member += 2) {
-        nk_size_t const index = (nk_size_t)group * nk_shapes_group_points_blackwell_k + member;
-        if (index >= inner_count) break;
-        nk_u32_t const selector = index + 1 < inner_count ? 0x3210 : 0x1010;
-        nk_u32_t const axis_pairs[3] = {__byte_perm(inner_pairs[index / 2], 0, selector),
-                                        __byte_perm(inner_pairs[pair_stride + index / 2], 0, selector),
-                                        __byte_perm(inner_pairs[2 * pair_stride + index / 2], 0, selector)};
-        float2 const squares = nk_shapes_squared_distances_f16x2_blackwell_(outer_point, axis_pairs, flip);
-        least = fminf(fminf(squares.x, squares.y), least);
-    }
-    return least;
-}
-
-/** Lowers each flip's least expanded value of this thread's outer point over groups of the first @p
- *  valid inner points of the product, keeping the group that holds it and the least value of every
- *  other group, then lets the next product overwrite it. Non-negative F32 bits order like their
- *  values and negative ones clamp to zero, so a single integer minimum takes each point. */
-NUMKONG_DEVICE void nk_shapes_drain_nearest_f16_blackwell_(nk_u32_t tensor_memory, nk_u32_t first_group, unsigned valid,
-                                                           nk_u32_t *least, nk_u32_t *groups, nk_u32_t *others) {
-    unsigned const warp = threadIdx.x >> 5;
-    nk_i32_t values[32];
-#pragma unroll
-    for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) {
-        nk_tmem_load_x32_blackwell_(nk_tmem_offset_blackwell_(tensor_memory, warp * 32,
-                                                              nk_shapes_accumulator_column_blackwell_k +
-                                                                  flip * nk_shapes_inner_points_blackwell_k),
-                                    (nk_u32_t *)values);
-        if (valid != 32)
-#pragma unroll
-            for (unsigned point = 0; point != 32; ++point) values[point] = point < valid ? values[point] : 0x7FFFFFFF;
-#pragma unroll
-        for (unsigned group = 0; group != 32 / nk_shapes_group_points_blackwell_k; ++group) {
-            nk_i32_t group_least = 0x7FFFFFFF;
-#pragma unroll
-            for (unsigned point = 0; point != nk_shapes_group_points_blackwell_k; ++point) {
-                nk_i32_t const value = values[group * nk_shapes_group_points_blackwell_k + point];
-                group_least = value < group_least ? value : group_least;
-            }
-            nk_u32_t const clamped = group_least > 0 ? (nk_u32_t)group_least : 0u;
-            int const below = clamped < least[flip];
-            nk_u32_t const displaced = below ? least[flip] : clamped;
-            others[flip] = displaced < others[flip] ? displaced : others[flip];
-            groups[flip] = below ? first_group + group : groups[flip];
-            least[flip] = below ? clamped : least[flip];
-        }
-    }
-    nk_tmem_fence_before_blackwell_();
-    __syncthreads();
-}
-
-/** Sums and maxima over every outer point of its distance to the nearest inner point, per flip.
- *  Expanded values lie within a tolerance of the exact squares, so the nearest point sits in the
- *  group of the least one unless another group's least falls within twice that: then the thread
- *  rescans every inner point. Distances are recomputed from the packed coordinates in the
- *  difference form of the CPU capabilities. */
-NUMKONG_DEVICE void nk_shapes_direction_f16_blackwell_(nk_shapes_shared_blackwell_t *shared, nk_u32_t tensor_memory,
-                                                       nk_u32_t *phase, void const *outer_packed,
-                                                       void const *inner_packed, nk_f32_t scale,
-                                                       nk_shapes_direction_blackwell_t *direction) {
+/** Sums and maxima over every outer point of its distance to the nearest inner point, per flip, on
+ *  a whole warp, in every lane. Distances follow the difference form of the CPU capabilities. */
+NUMKONG_DEVICE void nk_shapes_direction_warp_f16_blackwell_(void const *outer_packed, void const *inner_packed,
+                                                            unsigned lane, nk_shapes_direction_blackwell_t *direction) {
     nk_size_t const outer_count = ((nk_shapes_packed_header_f32_t const *)outer_packed)->points;
     nk_size_t const inner_count = ((nk_shapes_packed_header_f32_t const *)inner_packed)->points;
     nk_size_t outer_stride, inner_stride;
     nk_f16_t const *outer_axes = nk_shapes_packed_axes_f16_blackwell_(outer_packed, &outer_stride);
     nk_f16_t const *inner_axes = nk_shapes_packed_axes_f16_blackwell_(inner_packed, &inner_stride);
-    nk_f32_t const inner_reach = ((nk_shapes_packed_header_f32_t const *)inner_packed)->max_radius * scale;
-    nk_f32_t sums[nk_shapes_flips_blackwell_k], maxima[nk_shapes_flips_blackwell_k];
+    nk_f32_t *sums = direction->sums, *maxima = direction->maxima;
     for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) sums[flip] = 0, maxima[flip] = 0;
-    for (nk_size_t outer = 0; outer < outer_count; outer += nk_shapes_outer_points_blackwell_k) {
-        nk_f32_t const norm = nk_shapes_stage_outer_f16_blackwell_(shared, outer_axes, outer_stride, outer, outer_count,
-                                                                   scale);
-        // Rounding of the 7-term expansion and the split norms, with room for the tensor cores
-        nk_f32_t const tolerance = 0x1p-19f * (norm + inner_reach * inner_reach);
-        nk_u32_t least[nk_shapes_flips_blackwell_k], groups[nk_shapes_flips_blackwell_k],
-            others[nk_shapes_flips_blackwell_k];
-#pragma unroll
-        for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip)
-            least[flip] = ~0u, groups[flip] = 0, others[flip] = ~0u;
-        for (nk_size_t inner = 0; inner < inner_count; inner += nk_shapes_inner_points_blackwell_k) {
-            nk_shapes_stage_inner_f16_blackwell_(shared, inner_axes, inner_stride, inner, inner_count, scale);
-            nk_shapes_multiply_f16_blackwell_(shared, tensor_memory, phase);
-            nk_size_t const remaining = inner_count - inner;
-            nk_shapes_drain_nearest_f16_blackwell_(tensor_memory,
-                                                   (nk_u32_t)(inner / nk_shapes_group_points_blackwell_k),
-                                                   remaining < 32 ? (unsigned)remaining : 32u, least, groups, others);
-        }
-        nk_size_t const point = outer + threadIdx.x;
-        if (point >= outer_count) continue;
-        nk_u16_t const *outer_bits = (nk_u16_t const *)outer_axes;
-        nk_f32_t outer_point[3];
-        for (unsigned axis = 0; axis != 3; ++axis)
-            outer_point[axis] = nk_f16_bits_to_f32_blackwell_(outer_bits[axis * outer_stride + point]);
-        // Flips with another group within twice the tolerance rescan every inner point together
-        unsigned rescans = 0;
-#pragma unroll
-        for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) {
-            nk_f32_t const threshold = __fadd_ru(__uint_as_float(least[flip]), 2 * tolerance);
-            rescans |= (unsigned)(others[flip] <= __float_as_uint(threshold)) << flip;
-        }
+    for (nk_size_t point = lane; point < outer_count; point += nk_shapes_lanes_blackwell_k) {
+        nk_f32_t const outer_point[3] = {nk_shapes_coordinate_f16_simt_(outer_axes + point),
+                                         nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
+                                         nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point)};
         nk_f32_t nearest[nk_shapes_flips_blackwell_k];
-        if (rescans)
-            nk_shapes_nearest_squares_f16_blackwell_(outer_point, inner_axes, inner_stride, inner_count, nearest);
-#pragma unroll
+        nk_shapes_nearest_squares_f16_blackwell_(outer_point, inner_axes, inner_stride, inner_count, nearest);
         for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) {
-            nk_f32_t const exact = (rescans >> flip) & 1
-                                       ? nearest[flip]
-                                       : nk_shapes_group_nearest_f16_blackwell_(outer_point, inner_axes, inner_stride,
-                                                                                inner_count, groups[flip], flip);
-            nk_f32_t const distance = __fsqrt_rn(exact);
+            nk_f32_t const distance = __fsqrt_rn(nearest[flip]);
             sums[flip] += distance, maxima[flip] = distance > maxima[flip] ? distance : maxima[flip];
         }
     }
-    unsigned const warp = threadIdx.x >> 5, lane = threadIdx.x & 31;
-    for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) {
-        for (unsigned offset = 16; offset; offset >>= 1) {
-            nk_f32_t const other_maximum = __shfl_xor_sync(0xFFFFFFFFu, maxima[flip], offset);
-            sums[flip] += __shfl_xor_sync(0xFFFFFFFFu, sums[flip], offset);
+    for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip)
+        for (unsigned offset = nk_shapes_lanes_blackwell_k / 2; offset; offset >>= 1) {
+            nk_f32_t const other_maximum = nk_shuffle_xor_f32_cuda_(maxima[flip], offset);
+            sums[flip] += nk_shuffle_xor_f32_cuda_(sums[flip], offset);
             maxima[flip] = other_maximum > maxima[flip] ? other_maximum : maxima[flip];
         }
-        if (lane == 0) shared->warp_sums[warp][flip] = sums[flip], shared->warp_maxima[warp][flip] = maxima[flip];
-    }
-    __syncthreads();
-    for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) {
-        direction->sums[flip] = shared->warp_sums[0][flip] + shared->warp_sums[1][flip] + shared->warp_sums[2][flip] +
-                                shared->warp_sums[3][flip];
-        nk_f32_t maximum = shared->warp_maxima[0][flip];
-        for (unsigned other = 1; other != 4; ++other)
-            maximum = shared->warp_maxima[other][flip] > maximum ? shared->warp_maxima[other][flip] : maximum;
-        direction->maxima[flip] = maximum;
-    }
-    __syncthreads();
 }
 
 /** Writes the best flip's distance and, when asked, its rotation 𝑄ₐᵀ × S × 𝑄ᵦ, or the identity for
@@ -860,11 +592,10 @@ NUMKONG_DEVICE void nk_shapes_write_best_flip_blackwell_(nk_shapes_schedule_blac
         }
 }
 
-/** Both directions of one pair, or the empty-cloud convention, into per-flip Chamfer and Hausdorff
- *  distances; every thread returns them. Returns whether both clouds hold points. */
-NUMKONG_DEVICE int nk_shapes_flips_f16_blackwell_(nk_shapes_shared_blackwell_t *shared, nk_u32_t tensor_memory,
-                                                  nk_u32_t *phase, void const *row_packed, void const *column_packed,
-                                                  nk_f32_t *chamfers, nk_f32_t *hausdorffs) {
+/** Both directions of one pair on a whole warp, or the empty-cloud convention, into per-flip
+ *  Chamfer and Hausdorff distances in every lane. Returns whether both clouds hold points. */
+NUMKONG_DEVICE int nk_shapes_flips_warp_f16_blackwell_(void const *row_packed, void const *column_packed, unsigned lane,
+                                                       nk_f32_t *chamfers, nk_f32_t *hausdorffs) {
     nk_shapes_packed_header_f32_t const *row_header = (nk_shapes_packed_header_f32_t const *)row_packed;
     nk_shapes_packed_header_f32_t const *column_header = (nk_shapes_packed_header_f32_t const *)column_packed;
     nk_size_t const rows = row_header->points, columns = column_header->points;
@@ -874,11 +605,9 @@ NUMKONG_DEVICE int nk_shapes_flips_f16_blackwell_(nk_shapes_shared_blackwell_t *
             chamfers[flip] = distance, hausdorffs[flip] = distance;
         return 0;
     }
-    nk_f32_t const scale = nk_shapes_scale_blackwell_(
-        row_header->max_radius > column_header->max_radius ? row_header->max_radius : column_header->max_radius);
     nk_shapes_direction_blackwell_t forward, backward;
-    nk_shapes_direction_f16_blackwell_(shared, tensor_memory, phase, row_packed, column_packed, scale, &forward);
-    nk_shapes_direction_f16_blackwell_(shared, tensor_memory, phase, column_packed, row_packed, scale, &backward);
+    nk_shapes_direction_warp_f16_blackwell_(row_packed, column_packed, lane, &forward);
+    nk_shapes_direction_warp_f16_blackwell_(column_packed, row_packed, lane, &backward);
     for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) {
         chamfers[flip] = (forward.sums[flip] / (nk_f32_t)rows + backward.sums[flip] / (nk_f32_t)columns) / 2;
         hausdorffs[flip] = forward.maxima[flip] > backward.maxima[flip] ? forward.maxima[flip] : backward.maxima[flip];
@@ -985,40 +714,26 @@ NUMKONG_DEVICE nk_f32_t nk_hausdorff_warp_packed_f16_blackwell_(void const *a_pa
     return __fsqrt_rn(least);
 }
 
-static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k, 1)
+static __global__ void __launch_bounds__(nk_shapes_lanes_blackwell_k, 1)
     nk_chamfers_packed_f16_blackwell_kernel_(nk_shapes_schedule_blackwell_t const schedule) {
-    extern __shared__ unsigned char nk_shapes_dynamic_shared_blackwell_[];
-    nk_shapes_shared_blackwell_t *shared = (nk_shapes_shared_blackwell_t *)nk_shared_aligned_ampere_(
-        nk_shapes_dynamic_shared_blackwell_, 1024);
-    nk_u32_t const tensor_memory = nk_shapes_initialize_blackwell_(shared);
-    nk_u32_t phase = 0;
     nk_f32_t chamfers[nk_shapes_flips_blackwell_k], hausdorffs[nk_shapes_flips_blackwell_k];
     for (nk_size_t pair = blockIdx.x; pair < schedule.rows * schedule.columns; pair += gridDim.x) {
         nk_size_t const row = pair / schedule.columns, column = pair % schedule.columns;
-        int const clouds = nk_shapes_flips_f16_blackwell_(shared, tensor_memory, &phase, schedule.a_packed[row],
-                                                          schedule.b_packed[column], chamfers, hausdorffs);
+        int const clouds = nk_shapes_flips_warp_f16_blackwell_(schedule.a_packed[row], schedule.b_packed[column],
+                                                               threadIdx.x, chamfers, hausdorffs);
         if (threadIdx.x == 0) nk_shapes_write_best_flip_blackwell_(&schedule, row, column, chamfers, clouds);
     }
-    __syncthreads();
-    if (threadIdx.x < 32) nk_tmem_dealloc_blackwell_(tensor_memory, nk_shapes_tensor_columns_blackwell_k);
 }
 
-static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k, 1)
+static __global__ void __launch_bounds__(nk_shapes_lanes_blackwell_k, 1)
     nk_hausdorffs_packed_f16_blackwell_kernel_(nk_shapes_schedule_blackwell_t const schedule) {
-    extern __shared__ unsigned char nk_shapes_dynamic_shared_blackwell_[];
-    nk_shapes_shared_blackwell_t *shared = (nk_shapes_shared_blackwell_t *)nk_shared_aligned_ampere_(
-        nk_shapes_dynamic_shared_blackwell_, 1024);
-    nk_u32_t const tensor_memory = nk_shapes_initialize_blackwell_(shared);
-    nk_u32_t phase = 0;
     nk_f32_t chamfers[nk_shapes_flips_blackwell_k], hausdorffs[nk_shapes_flips_blackwell_k];
     for (nk_size_t pair = blockIdx.x; pair < schedule.rows * schedule.columns; pair += gridDim.x) {
         nk_size_t const row = pair / schedule.columns, column = pair % schedule.columns;
-        int const clouds = nk_shapes_flips_f16_blackwell_(shared, tensor_memory, &phase, schedule.a_packed[row],
-                                                          schedule.b_packed[column], chamfers, hausdorffs);
+        int const clouds = nk_shapes_flips_warp_f16_blackwell_(schedule.a_packed[row], schedule.b_packed[column],
+                                                               threadIdx.x, chamfers, hausdorffs);
         if (threadIdx.x == 0) nk_shapes_write_best_flip_blackwell_(&schedule, row, column, hausdorffs, clouds);
     }
-    __syncthreads();
-    if (threadIdx.x < 32) nk_tmem_dealloc_blackwell_(tensor_memory, nk_shapes_tensor_columns_blackwell_k);
 }
 
 NUMKONG_API nk_status_t nk_chamfers_packed_f16_blackwell(void const *const *a_packed, nk_size_t rows,
@@ -1031,10 +746,8 @@ NUMKONG_API nk_status_t nk_chamfers_packed_f16_blackwell(void const *const *a_pa
     schedule.a_packed = a_packed, schedule.b_packed = b_packed, schedule.results = results;
     schedule.rotations = rotations, schedule.rows = rows, schedule.columns = columns;
     schedule.results_stride = results_stride;
-    nk_size_t const shared_bytes = sizeof(nk_shapes_shared_blackwell_t) + 1024;
-    return nk_launch_resident_cuda_((void const *)nk_chamfers_packed_f16_blackwell_kernel_,
-                                    nk_shapes_threads_blackwell_k, shared_bytes, shared_bytes, rows * columns,
-                                    &schedule, stream);
+    return nk_launch_resident_cuda_((void const *)nk_chamfers_packed_f16_blackwell_kernel_, nk_shapes_lanes_blackwell_k,
+                                    0, 0, rows * columns, &schedule, stream);
 }
 
 NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_blackwell(void const *const *a_packed, nk_size_t rows,
@@ -1047,10 +760,8 @@ NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_blackwell(void const *const *a_
     schedule.a_packed = a_packed, schedule.b_packed = b_packed, schedule.results = results;
     schedule.rotations = rotations, schedule.rows = rows, schedule.columns = columns;
     schedule.results_stride = results_stride;
-    nk_size_t const shared_bytes = sizeof(nk_shapes_shared_blackwell_t) + 1024;
     return nk_launch_resident_cuda_((void const *)nk_hausdorffs_packed_f16_blackwell_kernel_,
-                                    nk_shapes_threads_blackwell_k, shared_bytes, shared_bytes, rows * columns,
-                                    &schedule, stream);
+                                    nk_shapes_lanes_blackwell_k, 0, 0, rows * columns, &schedule, stream);
 }
 
 #pragma endregion Chamfer and Hausdorff
