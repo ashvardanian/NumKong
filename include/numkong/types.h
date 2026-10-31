@@ -1631,42 +1631,36 @@ NK_INTERNAL int nk_bf16_is_nan_(nk_bf16_t x) {
     return (x_fui.u & 0x7FFF) > 0x7F80;
 }
 
-/*  Safe SVE vector-length queries usable from non-streaming context.
- *  On Apple M4 (and other SME-only-SVE cores), SVE instructions like CNTW/CNTH/CNTB
- *  trap with SIGILL outside streaming mode. These helpers bracket the query with
- *  SMSTART SM / SMSTOP SM so the calling function's ABI is unchanged.
- *  Inside `__arm_locally_streaming` functions the plain `svcntXX()` intrinsics are fine.
- */
 #if NK_TARGET_ARM64_ && NK_TARGET_SME
-/** @brief Streaming SVL byte-element count (SVL/8) via SMSTART SM bracket. */
+/** @brief Streaming vector length in bytes, without changing streaming mode. */
 NK_INTERNAL nk_size_t nk_sme_cntb_(void) {
     nk_u64_t r;
-    __asm__ __volatile__("smstart sm\n\t" "cntb %0\n\t" "smstop sm" : "=r"(r));
+    __asm__ __volatile__("rdsvl %0, #1" : "=r"(r));
     return (nk_size_t)r;
 }
-/** @brief Streaming SVL half-element count (SVL/16) via SMSTART SM bracket. */
-NK_INTERNAL nk_size_t nk_sme_cnth_(void) {
-    nk_u64_t r;
-    __asm__ __volatile__("smstart sm\n\t" "cnth %0\n\t" "smstop sm" : "=r"(r));
-    return (nk_size_t)r;
-}
-/** @brief Streaming SVL word-element count (SVL/32) via SMSTART SM bracket. */
-NK_INTERNAL nk_size_t nk_sme_cntw_(void) {
-    nk_u64_t r;
-    __asm__ __volatile__("smstart sm\n\t" "cntw %0\n\t" "smstop sm" : "=r"(r));
-    return (nk_size_t)r;
-}
-/** @brief Streaming SVL double-element count (SVL/64) via SMSTART SM bracket. */
-NK_INTERNAL nk_size_t nk_sme_cntd_(void) {
-    nk_u64_t r;
-    __asm__ __volatile__("smstart sm\n\t" "cntd %0\n\t" "smstop sm" : "=r"(r));
-    return (nk_size_t)r;
-}
+/** @brief Streaming vector length in halfwords. */
+NK_INTERNAL nk_size_t nk_sme_cnth_(void) { return nk_sme_cntb_() / 2; }
+/** @brief Streaming vector length in words. */
+NK_INTERNAL nk_size_t nk_sme_cntw_(void) { return nk_sme_cntb_() / 4; }
+/** @brief Streaming vector length in doublewords. */
+NK_INTERNAL nk_size_t nk_sme_cntd_(void) { return nk_sme_cntb_() / 8; }
 
 /** @brief Enter streaming SVE mode (PSTATE.SM = 1). Caller is responsible for smstop. */
-NK_INTERNAL void nk_sme_start_streaming_(void) { __asm__ __volatile__("smstart sm" ::: "memory"); }
+NK_INTERNAL void nk_sme_start_streaming_(void) {
+    __asm__ __volatile__("smstart sm" ::
+                             : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
+                               "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25",
+                               "v26", "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7",
+                               "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15", "memory");
+}
 /** @brief Exit streaming SVE mode (PSTATE.SM = 0). Must pair with nk_sme_start_streaming_. */
-NK_INTERNAL void nk_sme_stop_streaming_(void) { __asm__ __volatile__("smstop sm" ::: "memory"); }
+NK_INTERNAL void nk_sme_stop_streaming_(void) {
+    __asm__ __volatile__("smstop sm" ::
+                             : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13",
+                               "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25",
+                               "v26", "v27", "v28", "v29", "v30", "v31", "p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7",
+                               "p8", "p9", "p10", "p11", "p12", "p13", "p14", "p15", "memory");
+}
 
 /**
  *  SME runtime stubs — weak definitions for symbols the compiler may reference

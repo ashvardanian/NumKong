@@ -571,7 +571,7 @@ if (NK_BUILD_TEST)
     # C++ precision test (ULP-based error analysis)
     add_executable(
         nk_test
-        test/test.cpp test/test_dot.cpp test/test_spatial.cpp test/test_set.cpp test/test_curved.cpp
+        test/test.cpp test/test_scalar.cpp test/test_dot.cpp test/test_spatial.cpp test/test_set.cpp test/test_curved.cpp
         test/test_probability.cpp test/test_each.cpp test/test_trigonometry.cpp test/test_geospatial.cpp
         test/test_mesh.cpp test/test_cast.cpp test/test_reduce.cpp test/test_sparse.cpp
         # ISA-family cross/batch files for parallel compilation
@@ -787,7 +787,7 @@ if (NK_BUILD_SHARED_TEST)
 
     add_executable(
         nk_shared_test
-        test/test.cpp test/test_dot.cpp test/test_spatial.cpp test/test_set.cpp test/test_curved.cpp
+        test/test.cpp test/test_scalar.cpp test/test_dot.cpp test/test_spatial.cpp test/test_set.cpp test/test_curved.cpp
         test/test_probability.cpp test/test_each.cpp test/test_trigonometry.cpp test/test_geospatial.cpp
         test/test_mesh.cpp test/test_cast.cpp test/test_reduce.cpp test/test_sparse.cpp test/test_cross_serial.cpp
         test/test_cross_x86.cpp test/test_cross_amx.cpp test/test_cross_arm.cpp test/test_cross_sme.cpp

@@ -398,6 +398,7 @@ int main(int argc, char **argv) {
                 global_config.assert_on_failure ? "on" : "off", global_config.running_in_qemu ? "yes" : "no");
     std::printf("\n");
 
+    test_scalar();
     test_vector_types();
     test_tensor_ops();
 

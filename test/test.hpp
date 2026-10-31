@@ -325,7 +325,15 @@ std::uint64_t ulp_distance(scalar_type_ a, scalar_type_ b) noexcept {
     // Use the XOR transformation from Bruce Dawson's "Comparing Floating Point Numbers"
     // This transforms float bit patterns to an ordered integer representation where
     // the integer difference equals the ULP distance.
-    if constexpr (sizeof(scalar_type_) == 4) {
+    if constexpr (std::is_same_v<scalar_type_, nk::f16_t> || std::is_same_v<scalar_type_, nk::bf16_t>) {
+        auto ordered = [](std::uint16_t bits) noexcept -> std::int32_t {
+            std::int32_t magnitude = bits & 0x7FFF;
+            return bits & 0x8000 ? -magnitude : magnitude;
+        };
+        std::int32_t difference = ordered(a.to_bits()) - ordered(b.to_bits());
+        return static_cast<std::uint64_t>(difference < 0 ? -difference : difference);
+    }
+    else if constexpr (sizeof(scalar_type_) == 4) {
         std::int32_t ia, ib;
         std::memcpy(&ia, &a, sizeof(ia));
         std::memcpy(&ib, &b, sizeof(ib));
@@ -360,7 +368,7 @@ std::uint64_t ulp_distance(scalar_type_ a, scalar_type_ b) noexcept {
         return ia >= ib ? static_cast<std::uint64_t>(ia - ib) : static_cast<std::uint64_t>(ib - ia);
     }
     else {
-        // For f16/bf16, convert to f32 and compute there
+        // Compare other small types after conversion to f32.
         return ulp_distance(static_cast<float>(a), static_cast<float>(b));
     }
 }
@@ -564,6 +572,7 @@ void fill_random(generator_type_ &generator, nk::vector<scalar_type_> &vector) {
 }
 
 // Forward declarations for test modules
+void test_scalar();
 void test_casts();
 void test_reduce();
 void test_dot();
