@@ -40,17 +40,17 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd+fp16+fp16fml")
 #endif
 
-/** Computes `a * b * alpha + c * beta` over 8 F16 values in F32, unfused, as the serial kernel does. */
+/** Computes `a * b * alpha + c * beta` over 8 F16 values in F32. */
 NK_INTERNAL float16x8_t nk_fma_f16x8_neonfhm_(float16x8_t a_f16x8, float16x8_t b_f16x8, float16x8_t c_f16x8,
                                               float32x4_t alpha_f32x4, float32x4_t beta_f32x4) {
     // Adding an exact product to −0 keeps the sign of a zero, as FMUL does
     float32x4_t const negative_zero_f32x4 = vdupq_n_f32(-0.0f);
     float32x4_t ab_low_f32x4 = vfmlalq_low_f16(negative_zero_f32x4, a_f16x8, b_f16x8);
     float32x4_t ab_high_f32x4 = vfmlalq_high_f16(negative_zero_f32x4, a_f16x8, b_f16x8);
-    float32x4_t c_scaled_low_f32x4 = vmulq_f32(vcvt_f32_f16(vget_low_f16(c_f16x8)), beta_f32x4);
-    float32x4_t c_scaled_high_f32x4 = vmulq_f32(vcvt_high_f32_f16(c_f16x8), beta_f32x4);
-    float32x4_t result_low_f32x4 = vaddq_f32(vmulq_f32(ab_low_f32x4, alpha_f32x4), c_scaled_low_f32x4);
-    float32x4_t result_high_f32x4 = vaddq_f32(vmulq_f32(ab_high_f32x4, alpha_f32x4), c_scaled_high_f32x4);
+    float32x4_t result_low_f32x4 = vfmaq_f32(vmulq_f32(ab_low_f32x4, alpha_f32x4), vcvt_f32_f16(vget_low_f16(c_f16x8)),
+                                             beta_f32x4);
+    float32x4_t result_high_f32x4 = vfmaq_f32(vmulq_f32(ab_high_f32x4, alpha_f32x4), vcvt_high_f32_f16(c_f16x8),
+                                              beta_f32x4);
     return vcvt_high_f16_f32(vcvt_f16_f32(result_low_f32x4), result_high_f32x4);
 }
 

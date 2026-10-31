@@ -468,7 +468,7 @@ NK_PUBLIC void nk_each_blend_i8_skylake(nk_i8_t const *a, nk_i8_t const *b, nk_s
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
     __m512 beta_f32x16 = _mm512_set1_ps(beta_val);
     __m128i a_i8x16, b_i8x16, result_i8x16;
-    __m512 a_scaled_f32x16, b_scaled_f32x16, result_f32x16;
+    __m512 a_scaled_f32x16, result_f32x16;
     __mmask16 mask = 0xFFFF, ordered_m16;
     __m512i result_i32x16;
     __m512 min_f32x16 = _mm512_set1_ps(-128.0f);
@@ -486,10 +486,8 @@ nk_each_blend_i8_skylake_cycle:
         b_i8x16 = _mm_loadu_si128((__m128i *)b);
         a += 16, b += 16, n -= 16;
     }
-    // Unfused, like the serial kernel, so the two agree bit for bit
     a_scaled_f32x16 = _mm512_mul_ps(_mm512_cvtepi32_ps(_mm512_cvtepi8_epi32(a_i8x16)), alpha_f32x16);
-    b_scaled_f32x16 = _mm512_mul_ps(_mm512_cvtepi32_ps(_mm512_cvtepi8_epi32(b_i8x16)), beta_f32x16);
-    result_f32x16 = _mm512_add_ps(a_scaled_f32x16, b_scaled_f32x16);
+    result_f32x16 = _mm512_fmadd_ps(_mm512_cvtepi32_ps(_mm512_cvtepi8_epi32(b_i8x16)), beta_f32x16, a_scaled_f32x16);
     ordered_m16 = _mm512_cmp_ps_mask(result_f32x16, result_f32x16, _CMP_ORD_Q);
     result_f32x16 = _mm512_max_ps(result_f32x16, min_f32x16);
     result_f32x16 = _mm512_min_ps(result_f32x16, max_f32x16);
@@ -585,7 +583,7 @@ NK_PUBLIC void nk_each_blend_u8_skylake(nk_u8_t const *a, nk_u8_t const *b, nk_s
     __m512 alpha_f32x16 = _mm512_set1_ps(alpha_val);
     __m512 beta_f32x16 = _mm512_set1_ps(beta_val);
     __m128i a_u8x16, b_u8x16, result_u8x16;
-    __m512 a_scaled_f32x16, b_scaled_f32x16, result_f32x16;
+    __m512 a_scaled_f32x16, result_f32x16;
     __mmask16 mask = 0xFFFF;
     __m512i result_u32x16;
     __m512 min_f32x16 = _mm512_setzero_ps();
@@ -603,10 +601,8 @@ nk_each_blend_u8_skylake_cycle:
         b_u8x16 = _mm_loadu_si128((__m128i *)b);
         a += 16, b += 16, n -= 16;
     }
-    // Unfused, like the serial kernel, so the two agree bit for bit
     a_scaled_f32x16 = _mm512_mul_ps(_mm512_cvtepi32_ps(_mm512_cvtepu8_epi32(a_u8x16)), alpha_f32x16);
-    b_scaled_f32x16 = _mm512_mul_ps(_mm512_cvtepi32_ps(_mm512_cvtepu8_epi32(b_u8x16)), beta_f32x16);
-    result_f32x16 = _mm512_add_ps(a_scaled_f32x16, b_scaled_f32x16);
+    result_f32x16 = _mm512_fmadd_ps(_mm512_cvtepi32_ps(_mm512_cvtepu8_epi32(b_u8x16)), beta_f32x16, a_scaled_f32x16);
     result_f32x16 = _mm512_max_ps(result_f32x16, min_f32x16);
     result_f32x16 = _mm512_min_ps(result_f32x16, max_f32x16);
     result_u32x16 = _mm512_cvtps_epu32(result_f32x16);

@@ -563,7 +563,7 @@ static PyObject *tensor_elementwise_scalar(Tensor *a, double alpha_value, double
     return (PyObject *)r;
 }
 
-static PyObject *Tensor_negative(PyObject *self) { return tensor_elementwise_scalar((Tensor *)self, -1.0, 0.0); }
+static PyObject *Tensor_negative(PyObject *self) { return tensor_elementwise_scalar((Tensor *)self, -1.0, -0.0); }
 
 static PyObject *Tensor_add(PyObject *self, PyObject *other) {
     if (!PyObject_TypeCheck(self, &TensorType)) { Py_RETURN_NOTIMPLEMENTED; }

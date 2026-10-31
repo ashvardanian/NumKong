@@ -471,7 +471,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     nk_scalar_buffer_t alpha_buf, beta_buf;
     {
         nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
-        alpha_buf.f64 = 1.0, beta_buf.f64 = 0.0;
+        alpha_buf.f64 = 1.0, beta_buf.f64 = -0.0; // Preserve negative zeros unless the caller asks for a `beta`.
         if (alpha_obj) {
             if (!py_number_to_nk_scalar_buffer(alpha_obj, &alpha_buf, scalar_dtype)) goto cleanup;
         }
@@ -930,14 +930,14 @@ cleanup:
     return return_obj;
 }
 
-/** @brief Handle array * array multiplication using fma kernel with dtype promotion. */
-/** @brief Whether zeroing `out` is safe: it is contiguous and overlaps neither contiguous operand. */
+/** Whether @p out_buffer can be zeroed: it is contiguous and overlaps neither operand. */
 static int out_zeroes_apart(Py_buffer const *out_buffer, char const *a, char const *b, size_t bytes) {
     char const *out = out_buffer->buf;
     return PyBuffer_IsContiguous(out_buffer, 'C') && (a + bytes <= out || out + bytes <= a) &&
            (b + bytes <= out || out + bytes <= b);
 }
 
+/** @brief Handle array * array multiplication using fma kernel with dtype promotion. */
 static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, PyObject *out_dtype_obj) {
     PyObject *return_obj = NULL;
     char *a_promoted = NULL;

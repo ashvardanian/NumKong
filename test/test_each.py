@@ -674,6 +674,8 @@ def test_multiply_numpy_buffer_protocol(dtype: str):
         (nk.multiply(a, 0.875), a * 0.875),
         (nk.Tensor(a) * nk.Tensor(b), expected),
         (nk.Tensor(a) * 0.875, a * 0.875),
+        (nk.scale(a), a),
+        (-nk.Tensor(a), -a),
     ):
         np.testing.assert_array_equal(np.signbit(np.asarray(actual)), np.signbit(reference))
 
