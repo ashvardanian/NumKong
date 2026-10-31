@@ -764,17 +764,50 @@ def test_add_numpy_buffer_protocol(dtype: str, np_rng: np.random.Generator):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
+@pytest.mark.parametrize(
+    "dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32"), pytest.param("float16", id="f16")]
+)
 def test_multiply_numpy_buffer_protocol(dtype: str, np_rng: np.random.Generator):
-    """nk.multiply() accepts NumPy arrays directly via buffer protocol."""
+    """nk.multiply() accepts NumPy arrays directly via buffer protocol and keeps negative zeros."""
     a = np_rng.standard_normal(50).astype(dtype)
     b = np_rng.standard_normal(50).astype(dtype)
+    a[:2], b[:2] = [-0.0, 0.0], [0.875, -0.875]
 
     expected = a * b
     result = nk.multiply(a, b)
     result_np = np.asarray(result)
 
     assert_allclose(result_np, expected)
+    for actual, reference in (
+        (result, expected),
+        (nk.multiply(a, 0.875), a * 0.875),
+        (nk.Tensor(a) * nk.Tensor(b), expected),
+        (nk.Tensor(a) * 0.875, a * 0.875),
+        (nk.scale(a), a),
+        (-nk.Tensor(a), -a),
+    ):
+        np.testing.assert_array_equal(np.signbit(np.asarray(actual)), np.signbit(reference))
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+def test_multiply_out_ignores_previous_contents():
+    """nk.multiply() never reads what `out` held, whether contiguous, strided or aliased."""
+    a = np.array([2.0, np.inf, -3.0, 0.5] * 3, dtype="float32")
+    b = np.full_like(a, 3.0)
+    expected = a * b
+
+    out = np.full_like(a, np.nan)
+    assert nk.multiply(a, b, out=out) is None
+    np.testing.assert_array_equal(out, expected)
+
+    strided = np.full(a.size * 2, np.inf, dtype=a.dtype)
+    assert nk.multiply(a, b, out=strided[::2]) is None
+    np.testing.assert_array_equal(strided[::2], expected)
+    assert np.isinf(strided[1::2]).all()
+
+    aliased = a.copy()
+    assert nk.multiply(aliased, b, out=aliased) is None
+    np.testing.assert_array_equal(aliased, expected)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")

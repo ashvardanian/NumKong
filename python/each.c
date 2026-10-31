@@ -439,7 +439,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     nk_scalar_buffer_t alpha_buf, beta_buf;
     {
         nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
-        alpha_buf.f64 = 1.0, beta_buf.f64 = 0.0;
+        alpha_buf.f64 = 1.0, beta_buf.f64 = -0.0; // Preserve negative zeros unless the caller asks for a `beta`.
         if (alpha_obj) {
             if (!py_number_to_nk_scalar_buffer(alpha_obj, &alpha_buf, scalar_dtype)) goto cleanup;
         }
@@ -1306,7 +1306,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     }
 
     nk_scalar_buffer_t alpha_buf, beta_buf;
-    beta_buf.f64 = 0.0;
+    beta_buf.f64 = -0.0; // Preserve negative-zero products under round-to-nearest.
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
     if (!py_number_to_nk_scalar_buffer(scalar_obj, &alpha_buf, scalar_dtype)) goto cleanup;
     nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
@@ -1374,6 +1374,13 @@ cleanup:
     return return_obj;
 }
 
+/** Whether @p out_buffer can be zeroed: it is contiguous and overlaps neither operand. */
+static int out_zeroes_apart(Py_buffer const *out_buffer, char const *a, char const *b, size_t bytes) {
+    char const *out = out_buffer->buf;
+    return PyBuffer_IsContiguous(out_buffer, 'C') && (a + bytes <= out || out + bytes <= a) &&
+           (b + bytes <= out || out + bytes <= b);
+}
+
 /** Handle array * array multiplication using fma kernel with dtype promotion. */
 static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out_obj, PyObject *out_dtype_obj,
                                       nk_capability_t capabilities, nk_stream_t stream) {
@@ -1435,7 +1442,7 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     }
 
     nk_scalar_buffer_t alpha_buf, beta_buf;
-    alpha_buf.f64 = 1.0, beta_buf.f64 = 0.0;
+    alpha_buf.f64 = 1.0, beta_buf.f64 = -0.0; // Preserve negative-zero products under round-to-nearest.
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
     nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
     nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
@@ -1477,7 +1484,8 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     // nk.multiply(np.int16([1,2,3]), np.uint16([4,5,6]), out=np.zeros(3, dtype=np.float64))
     // → kernel computes int32, then casts int32→float64 into output buffer
     else if ((out_buffer_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
-             out_buffer_dtype != dtype) {
+             (out_buffer_dtype != dtype ||
+              !out_zeroes_apart(&out_buffer, a_promoted, b_promoted, total_elements * element_size))) {
         if (!validate_cast_writeback_target(&out_buffer, out_buffer_dtype)) goto cleanup;
         cast_staging = PyMem_Malloc(total_elements * element_size + NUMKONG_TENSOR_PADDING_);
         if (!cast_staging) {
@@ -1494,6 +1502,8 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     // → kernel writes float32 directly into output buffer; output may be non-contiguous
     else {
         result_data = out_buffer.buf;
+        if (out_buffer_dtype != nk_dtype_unknown_k)
+            memset(result_data, 0, total_elements * element_size); // prevent 0*NaN=NaN
         for (int dim = 0; dim < rank; dim++) result_strides[dim] = out_buffer.strides[dim];
         Py_buffer const *out_buffers[] = {&out_buffer};
         contiguous_tail = shared_contiguous_tail_dimensions(out_buffers, 1, rank);

@@ -748,7 +748,7 @@ static PyObject *tensor_elementwise_scalar(Tensor *a, double alpha_value, double
     return (PyObject *)r;
 }
 
-static PyObject *Tensor_negative(PyObject *self) { return tensor_elementwise_scalar((Tensor *)self, -1.0, 0.0); }
+static PyObject *Tensor_negative(PyObject *self) { return tensor_elementwise_scalar((Tensor *)self, -1.0, -0.0); }
 
 static PyObject *Tensor_add(PyObject *self, PyObject *other) {
     if (!PyObject_TypeCheck(self, &TensorType)) { Py_RETURN_NOTIMPLEMENTED; }
@@ -941,7 +941,7 @@ static PyObject *Tensor_multiply(PyObject *self, PyObject *other) {
 
         // fma(a, b, dummy, n, α=1, β=0) → 1 · a · b + 0 · dummy
         nk_scalar_buffer_t alpha_buf, beta_buf;
-        alpha_buf.f64 = 1.0, beta_buf.f64 = 0.0;
+        alpha_buf.f64 = 1.0, beta_buf.f64 = -0.0;
         nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(a->dtype);
         nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
         nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
@@ -960,7 +960,7 @@ static PyObject *Tensor_multiply(PyObject *self, PyObject *other) {
     // Tensor([1,2,3]) × 5.0 → broadcast scalar multiply via scale kernel (α=scalar, β=0)
     if (PyFloat_Check(other) || PyLong_Check(other)) {
         double sc = PyFloat_Check(other) ? PyFloat_AsDouble(other) : (double)PyLong_AsLong(other);
-        return tensor_elementwise_scalar(a, sc, 0.0);
+        return tensor_elementwise_scalar(a, sc, -0.0);
     }
 
     Py_RETURN_NOTIMPLEMENTED;
