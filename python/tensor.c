@@ -433,6 +433,10 @@ static void cast_strided_recursive(                                            /
         return;
     }
 
+    if (remaining_dims == 1 && nk_cast_strided_(src_data, src_dtype, src_strides[0], (nk_size_t)shape[0], dest_data,
+                                                dest_dtype, dest_strides[0], nk_cast))
+        return;
+
     // Recursive case: iterate the outermost dimension that is not jointly packed
     size_t const dim_extent = (size_t)shape[0];
     for (size_t position = 0; position < dim_extent; ++position) {

@@ -7,6 +7,7 @@
 
 #include "test.hpp"
 #include "numkong/cast.h"
+#include "numkong/cast.hpp"
 
 using cast_t = void (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t);
 
@@ -37,10 +38,31 @@ error_stats_t test_cast(cast_t kernel) {
     return stats;
 }
 
+error_stats_t test_cast_strided_views() {
+    error_stats_t stats(comparison_family_t::exact_k);
+    constexpr std::size_t count = 513;
+    auto input = make_vector<f32_t>(count * 2);
+    auto output = make_vector<f16_t>(count * 2);
+    for (std::size_t i = 0; i != count * 2; ++i) {
+        input[i] = f32_t(static_cast<float>(i));
+        output[i] = f16_t(-1.0f);
+    }
+    nk::vector_view<f32_t> from(reinterpret_cast<char const *>(input.values_data()), count, 2 * sizeof(f32_t));
+    nk::vector_span<f16_t> to(reinterpret_cast<char *>(output.values_data() + 2 * (count - 1)), count,
+                              -static_cast<std::ptrdiff_t>(2 * sizeof(f16_t)));
+    nk::cast(from, to);
+    for (std::size_t i = 0; i != count; ++i) {
+        stats.expect(output[2 * (count - 1 - i)].to_f32() == input[2 * i].raw_, "strided cast honors both layouts");
+        stats.expect(output[2 * i + 1].to_f32() == -1.0f, "strided cast preserves output gaps");
+    }
+    return stats;
+}
+
 void test_casts() {
     error_stats_section_t check;
 
     check.section("Type Casts Serial", nk_cap_serial_k);
+    check("cast_strided_views", test_cast_strided_views);
     check("cast_bf16_to_f32_serial", test_cast<bf16_t, f32_t>, nk_cast_serial);
     check("cast_f32_to_bf16_serial", test_cast<f32_t, bf16_t>, nk_cast_serial);
     check("cast_e4m3_to_f32_serial", test_cast<e4m3_t, f32_t>, nk_cast_serial);

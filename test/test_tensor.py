@@ -147,6 +147,29 @@ def test_astype_linearizes_strided_input():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize(
+    "source_dtype,target_dtype", [("float16", "float32"), ("float32", "float16"), ("int16", "float64")]
+)
+@pytest.mark.parametrize("length,stride", [(0, 2), (1, -1), (255, 2), (256, -1), (257, 0), (513, 2)])
+def test_astype_strided_batches(source_dtype, target_dtype, length, stride):
+    source = np.arange(2 * length, dtype=source_dtype).reshape(2, length)
+    source = np.broadcast_to(source[:, :1], source.shape) if stride == 0 else source[:, ::stride]
+    reference = source.astype(target_dtype)
+    if stride < 0:
+        unaligned = np.ndarray(source.shape, dtype=source_dtype, buffer=bytearray(source.nbytes + 1), offset=1)
+        unaligned[...] = source[:, ::-1]
+        unaligned = unaligned[:, ::-1]
+        source = nk.from_pointer(
+            unaligned.ctypes.data, unaligned.shape, source_dtype, strides=unaligned.strides, owner=unaligned
+        )
+    for output in (None, np.empty(source.shape, dtype=target_dtype)):
+        result = nk.astype(source, target_dtype, out=output)
+        if output is not None:
+            assert result is output
+        np.testing.assert_array_equal(np.asarray(result), reference)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_astype_float_to_integer_policy():
     """Float-to-integer casts round ties to even, saturate, and map NaN to zero."""
     source = np.array([-np.inf, -127.5, -0.5, 0.5, 1.5, 126.5, np.inf, np.nan], dtype=np.float64)
