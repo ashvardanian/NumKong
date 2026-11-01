@@ -1079,13 +1079,13 @@ impl<Scalar: Shapes + Sync, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> 
         let packs = fu::SyncConstPtr::new(packed.packs().as_ptr());
         let failure = WorkerStatus::default();
         let failure = &failure;
-        fu::for_n_dynamic(pool, clouds.len(), move |cloud, _thread| {
+        failure.record_dispatch(fu::for_n_dynamic(pool, clouds.len(), move |cloud, _thread| {
             if let Err(error) = crate::capabilities::configure_cpu_thread() {
                 failure.record(Err(error));
                 return;
             }
             failure.record(unsafe { pack_cloud(clouds[cloud], packs.get(cloud).cast_mut()) });
-        });
+        }));
         failure.check()?;
         Ok(packed)
     }
@@ -1227,7 +1227,7 @@ impl<Scalar: Shapes + Sync, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> 
             let kernel = &kernel;
             let failure = WorkerStatus::default();
             let failure = &failure;
-            fu::for_n_dynamic(pool, rows, move |row, thread| {
+            failure.record_dispatch(fu::for_n_dynamic(pool, rows, move |row, thread| {
                 if let Err(error) = crate::capabilities::configure_cpu_thread() {
                     failure.record(Err(error));
                     return;
@@ -1247,7 +1247,7 @@ impl<Scalar: Shapes + Sync, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> 
                         workspace.get(thread.thread * workspace_stride),
                     )
                 });
-            });
+            }));
             failure.check()
         })
     }

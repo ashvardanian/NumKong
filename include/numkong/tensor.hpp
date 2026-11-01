@@ -912,7 +912,7 @@ constexpr decltype(auto) tensor_lookup_resolved_(tensor_view<value_type_, max_ra
     nk_assert_(input.byte_data() != nullptr);
     nk_assert_(coords.size() == input.rank());
     if constexpr (dimensions_per_value<value_type_>() > 1) {
-        nk_assert_(packed_tensor_layout_supported_<value_type_>(input.shape()));
+        nk_assert_(input.rank() > 0); // every axis is reached through its stride, so row slices look up exactly
         auto offset = std::ptrdiff_t {};
         for (std::size_t i = 0; i + 1 < input.rank(); ++i)
             offset += static_cast<std::ptrdiff_t>(coords[i]) * input.stride_bytes(i);
@@ -933,7 +933,7 @@ constexpr decltype(auto) tensor_lookup_resolved_(tensor_span<value_type_, max_ra
     nk_assert_(input.byte_data() != nullptr);
     nk_assert_(coords.size() == input.rank());
     if constexpr (dimensions_per_value<value_type_>() > 1) {
-        nk_assert_(packed_tensor_layout_supported_<value_type_>(input.shape()));
+        nk_assert_(input.rank() > 0); // every axis is reached through its stride, so row slices look up exactly
         auto offset = std::ptrdiff_t {};
         for (std::size_t i = 0; i + 1 < input.rank(); ++i)
             offset += static_cast<std::ptrdiff_t>(coords[i]) * input.stride_bytes(i);

@@ -414,7 +414,7 @@ NUMKONG_INLINE int nk_maxsim_packed_by_serial_(void const *packed, nk_capability
 
 /** Whether the shape read back from @p packed holds the @p columns and @p depth a packed kernel is
  *  about to trust. */
-NUMKONG_CONSTEXPR int nk_packed_shape_matches_serial_(void const *packed, nk_size_t columns, nk_size_t depth) {
+NUMKONG_INLINE int nk_packed_shape_matches_serial_(void const *packed, nk_size_t columns, nk_size_t depth) {
     nk_size_t packed_width = 0, packed_depth = 0;
     nk_maxsim_packed_shape_serial_(packed, &packed_width, &packed_depth);
     return packed_width == columns && packed_depth == depth;

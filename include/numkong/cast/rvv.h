@@ -165,12 +165,11 @@ NUMKONG_INLINE vuint16m1_t nk_f32m2_to_f16m1_rvv_(vfloat32m2_t f32_f32m2, nk_siz
     vbool16_t over_b16 = __riscv_vmsgtu_vx_u32m2_b16(exponent_u32m2, 142, vector_length);
     vbool16_t infnan_b16 = __riscv_vmseq_vx_u32m2_b16(exponent_u32m2, 255, vector_length);
 
-    // Inf/NaN: 0x7C00 | (mant>>13), bumping a truncated-to-zero NaN payload back to 1.
+    // Inf/NaN: 0x7C00 | (mant>>13), a NaN quieted keeping its top payload bits, as serial does.
     vuint32m2_t payload_u32m2 = __riscv_vsrl_vx_u32m2(mantissa_u32m2, 13, vector_length);
-    vbool16_t need_qnan_b16 = __riscv_vmand_mm_b16(__riscv_vmsne_vx_u32m2_b16(mantissa_u32m2, 0, vector_length),
-                                                   __riscv_vmseq_vx_u32m2_b16(payload_u32m2, 0, vector_length),
-                                                   vector_length);
-    payload_u32m2 = __riscv_vmerge_vxm_u32m2(payload_u32m2, 1, need_qnan_b16, vector_length);
+    vbool16_t nan_b16 = __riscv_vmsne_vx_u32m2_b16(mantissa_u32m2, 0, vector_length);
+    payload_u32m2 = __riscv_vmerge_vvm_u32m2(payload_u32m2, __riscv_vor_vx_u32m2(payload_u32m2, 0x200, vector_length),
+                                             nan_b16, vector_length);
     vuint32m2_t res_infnan_u32m2 = __riscv_vor_vx_u32m2(payload_u32m2, 0x7C00, vector_length);
 
     // Underflow: smallest denormal (1) only at exp==102 with nonzero mantissa, else zero.

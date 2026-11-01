@@ -729,7 +729,7 @@ NUMKONG_INLINE void nk_bf16_to_f32_serial_(nk_bf16_t const *src, nk_f32_t *dest)
     unsigned short x;
     nk_copy_bytes_(&x, src, 2);
     nk_fui32_t conv;
-    conv.u = x << 16; // Zero extends the mantissa
+    conv.u = (nk_u32_t)x << 16; // Zero extends the mantissa
     *dest = conv.f;
 #endif
 }

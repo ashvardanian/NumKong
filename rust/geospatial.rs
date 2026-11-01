@@ -163,7 +163,7 @@ pub trait SqEuclideans3D: Sized {
         let results = fu::SyncMutPtr::new(results.as_mut_ptr());
         let failure = WorkerStatus::default();
         let failure = &failure;
-        fu::for_slices(pool, a.len(), move |tasks, _thread| {
+        failure.record_dispatch(fu::for_slices(pool, a.len(), move |tasks, _thread| {
             if let Err(error) = crate::capabilities::configure_cpu_thread() {
                 failure.record(Err(error));
                 return;
@@ -171,7 +171,7 @@ pub trait SqEuclideans3D: Sized {
             let rows =
                 unsafe { core::slice::from_raw_parts_mut(results.get(tasks.first * b.len()), tasks.count * b.len()) };
             failure.record(Self::sqeuclideans3d(&a[tasks.range()], b, rows));
-        });
+        }));
         failure.check()
     }
 }

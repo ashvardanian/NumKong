@@ -2368,7 +2368,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         let destination_ptr = fu::SyncMutPtr::new(destination);
         let failure = WorkerStatus::default();
         let failure = &failure;
-        fu::for_slices(pool, columns, move |tasks, _thread| {
+        failure.record_dispatch(fu::for_slices(pool, columns, move |tasks, _thread| {
             // Idle threads get empty ranges, which may start at column 0 and race on the header.
             if tasks.is_empty() {
                 return;
@@ -2388,7 +2388,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
                     tasks.end(),
                 )
             });
-        });
+        }));
         failure.check()
     }
 

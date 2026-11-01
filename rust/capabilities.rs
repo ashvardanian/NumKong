@@ -181,6 +181,14 @@ impl WorkerStatus {
         }
     }
 
+    /// Keeps a dispatch the pool refused, never spawned or running another one, so nothing ran.
+    pub(crate) fn record_dispatch(&self, dispatched: forkunion::Result<()>) {
+        if dispatched.is_err() {
+            self.0
+                .store(Status::BadAlloc as nk_status_t, core::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
     /// `Ok(())` unless a worker recorded a failure.
     pub(crate) fn check(&self) -> Result<(), Error> { self.0.load(core::sync::atomic::Ordering::Relaxed).check() }
 }

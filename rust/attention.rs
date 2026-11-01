@@ -1636,7 +1636,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let window_bounds = &window_bounds;
         let failure = WorkerStatus::default();
         let failure = &failure;
-        fu::for_n_dynamic(pool, window_count, move |window, _thread| {
+        failure.record_dispatch(fu::for_n_dynamic(pool, window_count, move |window, _thread| {
             // Configure the worker for AMX and other thread-local SIMD state — idempotent.
             if let Err(error) = crate::capabilities::configure_cpu_thread() {
                 failure.record(Err(error));
@@ -1662,7 +1662,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                     window_bounds[window + 1],
                 ));
             }
-        });
+        }));
         failure.check()
     }
 
@@ -1732,7 +1732,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let packed_ptr = fu::SyncMutPtr::new(destination);
         let failure = WorkerStatus::default();
         let failure = &failure;
-        fu::for_n_dynamic(pool, segment_count * heads, move |task, _thread| {
+        failure.record_dispatch(fu::for_n_dynamic(pool, segment_count * heads, move |task, _thread| {
             if let Err(error) = crate::capabilities::configure_cpu_thread() {
                 failure.record(Err(error));
                 return;
@@ -1753,7 +1753,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                     task + 1,
                 ));
             }
-        });
+        }));
         failure.check()
     }
 }

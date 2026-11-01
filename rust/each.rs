@@ -5697,12 +5697,12 @@ mod tests {
 
     #[test]
     fn rmscast_i8_rounds_and_saturates() {
-        // Values of ±8 make the inverse RMS exactly 1/8, so outputs are ±γ rounded to nearest even
+        // Values of ±8 give an inverse RMS within an ULP of 1/8, so the gains stay off the ties
         let x: Vec<i32> = (0..8).map(|i| if i % 2 == 0 { 8 } else { -8 }).collect();
-        let gamma = [0.5f32, 1.5, 2.5, -2.5, 126.5, 127.5, 300.0, -300.0];
+        let gamma = [0.25f32, 1.75, 2.75, -2.25, 126.25, 127.75, 300.0, 300.0];
         let x_t = Tensor::<i32>::from_slice(&x, &[1, 8]).unwrap();
         let mut y_t = Tensor::<i8>::full(&[1, 8], 0).unwrap();
         i8::rmscast_into(&x_t, Some(&gamma), &mut y_t, 1, 1e-6).unwrap();
-        assert_eq!(y_t.as_slice(), &[0, -2, 2, 2, 126, -128, 127, 127]);
+        assert_eq!(y_t.as_slice(), &[0, -2, 3, 2, 126, -128, 127, -128]);
     }
 }
