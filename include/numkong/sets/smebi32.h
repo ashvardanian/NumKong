@@ -784,7 +784,8 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_jaccards_symmetric_u1_smebi32_streamin
             nk_u1x8_t const *a_row = (nk_u1x8_t const *)((char const *)vectors + (row_tile_start + r) * stride);
             a_tile_norms[r] = (nk_f32_t)nk_dots_reduce_sum_u1_smebi32_streaming_(a_row, depth_bytes);
         }
-        for (nk_size_t r = rows_clamped; r < tile_dim; r++) a_tile_norms[r] = 0.0f;
+        // A store, not a loop: Apple Clang lowers loops to `__sme_memset`, absent before macOS 15
+        svst1_f32(svnot_b_z(svptrue_b32(), row_predicate_b32x), a_tile_norms, zero_f32x);
 
         // Upper triangle: start from this row tile's column
         nk_size_t column_tile_index = row_tile_start / tile_dim;

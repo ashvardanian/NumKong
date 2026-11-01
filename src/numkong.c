@@ -114,9 +114,10 @@ nk_capability_t nk_capabilities_runnable_[nk_capability_groups_k] = {nk_cap_seri
 __attribute__((constructor))
 #endif
 static void nk_capabilities_widen_(void) {
-    nk_capability_t const runnable = nk_cpu_capabilities_detected_() & nk_cpu_capabilities_compiled_();
+    nk_capability_t runnable = nk_cpu_capabilities_detected_() & nk_cpu_capabilities_compiled_();
 #if NUMKONG_ARCH_X8664_
-    nk_unused_(nk_cpu_configure_thread_x86_(runnable));
+    if (nk_cpu_configure_thread_x86_(runnable) != nk_success_k)
+        runnable &= ~(nk_cap_sapphireamx_k | nk_cap_graniteamx_k | nk_cap_diamondamx_k);
 #endif
     nk_capabilities_runnable_[nk_capability_group_cpu_k] = runnable;
 }

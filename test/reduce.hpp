@@ -12,6 +12,8 @@
 #ifndef NUMKONG_TEST_REDUCE_HPP
 #define NUMKONG_TEST_REDUCE_HPP
 
+#include <cmath> // `std::ldexp`, `std::ilogb`
+
 #include <algorithm> // `std::fill_n`
 #include <random>    // `std::uniform_int_distribution`
 
@@ -38,17 +40,34 @@ error_stats_t test_reduce_moments(settings_t const &settings, typename input_typ
     auto buffer = make_vector<input_type_>(backend, n * (max_stride_k + sizeof(input_type_)));
     auto sum = make_vector<sum_t>(backend, 1);
     auto sumsq = make_vector<sumsq_t>(backend, 1);
-    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
-        std::size_t stride = stride_distribution(generator);
-        fill_random(settings, generator, buffer);
-        backend.call(kernel, buffer.raw_values_data(), n, stride, sum.raw_values_data(), sumsq.raw_values_data());
-        if (!stats.expect(backend.synchronize())) return stats;
+    auto compare = [&](backend_vector<input_type_, backend_type_> const &input, std::size_t count, std::size_t stride) {
+        backend.call(kernel, input.raw_values_data(), count, stride, sum.raw_values_data(), sumsq.raw_values_data());
+        if (!stats.expect(backend.synchronize())) return false;
         sum_reference_t sum_reference;
         sumsq_reference_t sumsq_reference;
         stats.expect(nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
-            buffer.values_data(), n, stride, &sum_reference, &sumsq_reference, no_tiers_k));
+            input.values_data(), count, stride, &sum_reference, &sumsq_reference, no_tiers_k));
         stats.accumulate(sum[0], sum_reference);
         stats.accumulate(sumsq[0], sumsq_reference);
+        return true;
+    };
+    // Long runs of the largest magnitude overflow any narrow accumulator that is not split in time.
+    if constexpr (input_type_::bits_per_dimension() <= 16 && nk::dimensions_per_value<input_type_>() == 1) {
+        std::size_t const count = 1'048'577;
+        auto extremes = make_vector<input_type_>(backend, count * 8);
+        input_type_ value = input_type_::finite_max();
+        if constexpr (nk::is_integral_dtype<input_type_>() && nk::is_signed_dtype<input_type_>())
+            value = input_type_::finite_min();
+        else if constexpr (!nk::is_integral_dtype<input_type_>())
+            value = input_type_(std::ldexp(1.0, std::ilogb(static_cast<double>(value)))); // powers of two sum exactly
+        std::fill_n(extremes.values_data(), extremes.size_values(), value);
+        if (!compare(extremes, 33, sizeof(input_type_)) || !compare(extremes, count, sizeof(input_type_)) ||
+            !compare(extremes, count, 8 * sizeof(input_type_)))
+            return stats;
+    }
+    for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
+        fill_random(settings, generator, buffer);
+        if (!compare(buffer, n, stride_distribution(generator))) return stats;
     }
     return stats;
 }

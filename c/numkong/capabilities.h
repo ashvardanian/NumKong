@@ -1014,13 +1014,13 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_implied_(void) {
 #if NUMKONG_ARCH_X8664_
 
 NUMKONG_INLINE nk_status_t nk_cpu_configure_thread_x86_(nk_capability_t capabilities) {
-#if NUMKONG_TARGET_SAPPHIREAMX
-    if (capabilities & nk_cap_sapphireamx_k) {
+#if NUMKONG_TARGET_SAPPHIREAMX || NUMKONG_TARGET_GRANITEAMX || NUMKONG_TARGET_DIAMONDAMX
+    if (capabilities & (nk_cap_sapphireamx_k | nk_cap_graniteamx_k | nk_cap_diamondamx_k)) {
 #if NUMKONG_OS_LINUX_
         // Linux requires explicit permission for AMX tile state via arch_prctl syscall
         int const ARCH_REQ_XCOMP_PERM = 0x1023;
         unsigned long const XFEATURE_XTILEDATA = 18;
-        syscall(SYS_arch_prctl, ARCH_REQ_XCOMP_PERM, XFEATURE_XTILEDATA);
+        if (syscall(SYS_arch_prctl, ARCH_REQ_XCOMP_PERM, XFEATURE_XTILEDATA) != 0) return nk_missing_kernel_k;
 #endif
         // On Windows, AMX tile state is automatically enabled by the OS if hardware supports it.
         // On FreeBSD, no explicit request is needed either.
@@ -1032,36 +1032,67 @@ NUMKONG_INLINE nk_status_t nk_cpu_configure_thread_x86_(nk_capability_t capabili
     return nk_success_k;
 }
 
+NUMKONG_INLINE void nk_cpu_cpuid_x8664_(unsigned leaf, unsigned subleaf, int registers[4]) {
+#if defined(_MSC_VER)
+    __cpuidex(registers, (int)leaf, (int)subleaf);
+#else
+    __asm__ __volatile__("cpuid"
+                         : "=a"(registers[0]), "=b"(registers[1]), "=c"(registers[2]), "=d"(registers[3])
+                         : "a"(leaf), "c"(subleaf));
+#endif
+}
+
 NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_x8664_(void) {
     union four_registers_t {
         int array[4];
         struct separate_t {
             unsigned eax, ebx, ecx, edx;
         } named;
-    } info0, info1, info7, info7sub1;
+    } info0, info1, info7 = {{0}}, info7sub1 = {{0}}, info_extended;
 
-#if defined(_MSC_VER)
-    __cpuidex(info0.array, 0, 0);
-    __cpuidex(info1.array, 1, 0);
-    __cpuidex(info7.array, 7, 0);
-    __cpuidex(info7sub1.array, 7, 1);
-#else
-    __asm__ __volatile__("cpuid"
-                         : "=a"(info0.named.eax), "=b"(info0.named.ebx), "=c"(info0.named.ecx), "=d"(info0.named.edx)
-                         : "a"(0), "c"(0));
-    __asm__ __volatile__("cpuid"
-                         : "=a"(info1.named.eax), "=b"(info1.named.ebx), "=c"(info1.named.ecx), "=d"(info1.named.edx)
-                         : "a"(1), "c"(0));
-    __asm__ __volatile__("cpuid"
-                         : "=a"(info7.named.eax), "=b"(info7.named.ebx), "=c"(info7.named.ecx), "=d"(info7.named.edx)
-                         : "a"(7), "c"(0));
-    __asm__ __volatile__("cpuid"
-                         : "=a"(info7sub1.named.eax), "=b"(info7sub1.named.ebx), "=c"(info7sub1.named.ecx),
-                           "=d"(info7sub1.named.edx)
-                         : "a"(7), "c"(1));
-#endif
-
+    nk_cpu_cpuid_x8664_(0, 0, info0.array);
     unsigned max_leaf = info0.named.eax;
+    if (max_leaf < 1) return nk_cap_serial_k;
+    nk_cpu_cpuid_x8664_(1, 0, info1.array);
+    if (max_leaf >= 7) {
+        nk_cpu_cpuid_x8664_(7, 0, info7.array);
+        if (info7.named.eax >= 1) nk_cpu_cpuid_x8664_(7, 1, info7sub1.array);
+    }
+    nk_cpu_cpuid_x8664_(0x80000000, 0, info_extended.array);
+    unsigned supports_lzcnt = 0;
+    if (info_extended.named.eax >= 0x80000001) {
+        nk_cpu_cpuid_x8664_(0x80000001, 0, info_extended.array);
+        supports_lzcnt = (info_extended.named.ecx & 0x00000020) != 0;
+    }
+
+    // XCR0 is readable only when the OS sets OSXSAVE, alongside the AVX and XSAVE bits.
+    unsigned xcr0 = 0;
+    if ((info1.named.ecx & 0x1C000000) == 0x1C000000) {
+#if defined(_MSC_VER)
+        xcr0 = (unsigned)_xgetbv(0);
+#else
+        unsigned xcr0_high;
+        __asm__ __volatile__("xgetbv" : "=a"(xcr0), "=d"(xcr0_high) : "c"(0));
+#endif
+    }
+    unsigned supports_avx_os = (xcr0 & 0x6) == 0x6;
+    unsigned supports_avx512_os = supports_avx_os && (xcr0 & 0xE0) == 0xE0;
+#if NUMKONG_OS_APPLE_
+    // Darwin enables AVX-512 register state lazily, so XCR0 alone is insufficient.
+    int avx512_enabled = 0;
+    size_t avx512_size = sizeof(avx512_enabled);
+    supports_avx512_os = supports_avx_os &&
+                         sysctlbyname("hw.optional.avx512f", &avx512_enabled, &avx512_size, NUMKONG_NULL, 0) == 0 &&
+                         avx512_enabled != 0;
+#endif
+    unsigned supports_amx_os = supports_avx_os && (xcr0 & 0x60000) == 0x60000;
+    unsigned supports_sse41 = (info1.named.ecx & 0x00080000) != 0;
+    unsigned supports_popcnt = (info1.named.ecx & 0x00800000) != 0;
+    unsigned supports_bmi1 = (info7.named.ebx & 0x00000008) != 0;
+    unsigned supports_bmi2 = (info7.named.ebx & 0x00000100) != 0;
+    unsigned supports_avx512dq = (info7.named.ebx & 0x00020000) != 0;
+    unsigned supports_avx512bw = (info7.named.ebx & 0x40000000) != 0;
+    unsigned supports_avx512vl = (info7.named.ebx & 0x80000000) != 0;
     unsigned supports_avx2 = (info7.named.ebx & 0x00000020) != 0;
     unsigned supports_f16c = (info1.named.ecx & 0x20000000) != 0;
     unsigned supports_fma = (info1.named.ecx & 0x00001000) != 0;
@@ -1082,49 +1113,39 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_x8664_(void) {
     unsigned supports_avxvnni = (info7sub1.named.eax & 0x00000010) != 0;
     unsigned supports_avxvnniint8 = (info7sub1.named.edx & 0x00000010) != 0;
 
-    // AVX10.2 detection via CPUID leaf 0x24, subleaf 0.
-    // EBX[7:0] contains the AVX10 convergent vector ISA version number.
+    // AVX10.2 detection via CPUID leaf 0x24, subleaf 0, valid only when leaf 7.1 EDX bit 19 flags
+    // AVX10. EBX[7:0] holds the AVX10 vector ISA version, and bit 18 its 512-bit support.
     unsigned supports_avx10v2 = 0;
-    if (max_leaf >= 0x24) {
+    if (max_leaf >= 0x24 && (info7sub1.named.edx & 0x00080000)) {
         union four_registers_t info24;
-#if defined(_MSC_VER)
-        __cpuidex(info24.array, 0x24, 0);
-#else
-        __asm__ __volatile__("cpuid"
-                             : "=a"(info24.named.eax), "=b"(info24.named.ebx), "=c"(info24.named.ecx),
-                               "=d"(info24.named.edx)
-                             : "a"(0x24), "c"(0));
-#endif
-        supports_avx10v2 = (info24.named.ebx & 0xFF) >= 2;
+        nk_cpu_cpuid_x8664_(0x24, 0, info24.array);
+        supports_avx10v2 = (info24.named.ebx & 0xFF) >= 2 && (info24.named.ebx & 0x00040000) != 0;
     }
 
     unsigned supports_amx_fp8 = 0, supports_amx_avx512 = 0;
     // Diamond Rapids AMX detection via CPUID leaf 0x1E, subleaf 1: EAX bit 4 = AMX-FP8, EAX bit 7 = AMX-AVX512.
     if (max_leaf >= 0x1E) {
         union four_registers_t info1e1;
-#if defined(_MSC_VER)
-        __cpuidex(info1e1.array, 0x1E, 1);
-#else
-        __asm__ __volatile__("cpuid"
-                             : "=a"(info1e1.named.eax), "=b"(info1e1.named.ebx), "=c"(info1e1.named.ecx),
-                               "=d"(info1e1.named.edx)
-                             : "a"(0x1E), "c"(1));
-#endif
+        nk_cpu_cpuid_x8664_(0x1E, 1, info1e1.array);
         supports_amx_fp8 = (info1e1.named.eax & 0x00000010) != 0;
         supports_amx_avx512 = (info1e1.named.eax & 0x00000080) != 0;
     }
 
-    unsigned supports_haswell = supports_avx2 && supports_f16c && supports_fma;
-    unsigned supports_skylake = supports_avx512f;
-    unsigned supports_icelake = supports_avx512vnni && supports_avx512ifma && supports_avx512bitalg &&
-                                supports_avx512vbmi && supports_avx512vbmi2 && supports_avx512vpopcntdq;
-    unsigned supports_genoa = supports_avx512bf16;
-    unsigned supports_sapphire = supports_avx512fp16;
-    unsigned supports_diamond = supports_avx10v2 && supports_sapphire;
-    unsigned supports_turin = supports_avx512vp2intersect && supports_avx512bf16;
-    unsigned supports_sierra = supports_haswell && supports_avxvnniint8;
+    unsigned supports_haswell = supports_avx_os && supports_sse41 && supports_popcnt && supports_avx2 &&
+                                supports_f16c && supports_fma && supports_bmi1 && supports_bmi2;
+    unsigned supports_skylake = supports_haswell && supports_avx512_os && supports_avx512f && supports_avx512dq &&
+                                supports_avx512bw && supports_avx512vl;
+    unsigned supports_icelake = supports_skylake && supports_lzcnt && supports_avx512vnni && supports_avx512ifma &&
+                                supports_avx512bitalg && supports_avx512vbmi && supports_avx512vbmi2 &&
+                                supports_avx512vpopcntdq;
+    unsigned supports_genoa = supports_skylake && supports_avx512bf16 && supports_avx512vnni;
+    unsigned supports_sapphire = supports_skylake && supports_avx512fp16;
+    unsigned supports_diamond = supports_sapphire && supports_avx10v2;
+    unsigned supports_turin = supports_genoa && supports_lzcnt && supports_avx512vbmi2 && supports_avx512vp2intersect;
     unsigned supports_alder = supports_haswell && supports_avxvnni;
-    unsigned supports_sapphireamx = supports_amx_tile && supports_amx_bf16 && supports_amx_int8;
+    unsigned supports_sierra = supports_alder && supports_avxvnniint8;
+    unsigned supports_sapphireamx = supports_sapphire && supports_genoa && supports_avx512vbmi && supports_amx_os &&
+                                    supports_amx_tile && supports_amx_bf16 && supports_amx_int8;
     unsigned supports_graniteamx = supports_sapphireamx && supports_amx_fp16;
     unsigned supports_diamondamx = supports_sapphireamx && supports_amx_fp8 && supports_amx_avx512;
 
@@ -1408,28 +1429,11 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
 
 #if NUMKONG_ARCH_WASM_
 
-#if NUMKONG_OS_WASI_ && NUMKONG_WITH_HOST_PROBES
-
-/** With @c NUMKONG_WITH_HOST_PROBES, the WASI host supplies the capability probes as imports. */
-__attribute__((__import_module__("env"), __import_name__("nk_has_v128"))) extern int nk_has_v128(void);
-__attribute__((__import_module__("env"), __import_name__("nk_has_relaxed"))) extern int nk_has_relaxed(void);
-#endif
-
+/** An engine validates a module whole before running it, so the compiled capabilities are the
+ *  detected ones. */
 NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
-    /*  A hosted module asks its engine to validate one probe module per capability, so
-     *  @c detected describes the engine; any other module was validated whole, so it reports
-     *  its own flags. */
-#if NUMKONG_OS_WASI_ && NUMKONG_WITH_HOST_PROBES
-    nk_capability_t caps = nk_cap_serial_k;
-    if (nk_has_v128()) caps |= nk_cap_v128_k;
-    if (nk_has_relaxed()) caps |= nk_cap_v128_k | nk_cap_v128relaxed_k;
-    return caps;
-#else
-    // The engine validated every opcode this module carries before running it,
-    // so the compiled capabilities are the detected ones.
     return nk_cap_serial_k | (nk_cap_v128_k * NUMKONG_TARGET_V128) |
            (nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED);
-#endif
 }
 
 #endif // NUMKONG_ARCH_WASM_
