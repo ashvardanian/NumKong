@@ -606,6 +606,71 @@ def test_scale_edge_cases(ndim: int, dtype: str, capability: str):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("operation", ["scale", "blend", "fma"])
+@pytest.mark.parametrize(
+    "layout", ["contiguous", "rows", "columns", "reversed", "transposed", "broadcast", "empty", "scalar"]
+)
+def test_affine_tensor_layouts(operation: str, layout: str):
+    base = np.arange(4 * 1026, dtype=np.float32).reshape(4, 1026)
+    a = {
+        "contiguous": base[:2].reshape(2, 3, 342),
+        "rows": base[::2],
+        "columns": base[:2, ::2],
+        "reversed": base[:2, ::-2],
+        "transposed": base[:2].T,
+        "broadcast": np.broadcast_to(base[0, :513], (2, 513)),
+        "empty": base[:0],
+        "scalar": np.array(3, dtype=np.float32),
+    }[layout]
+    b, c = np.full(a.shape, 2, dtype=np.float32), np.full(a.shape, 3, dtype=np.float32)
+    inputs = {"scale": [a], "blend": [a, b], "fma": [a, b, c]}[operation]
+    expected = {"scale": 2 * a + 0.5, "blend": 2 * a + 0.5 * b, "fma": 2 * a * b + 0.5 * c}[operation]
+    kernel = getattr(nk, operation)
+    actual = np.asarray(kernel(*inputs, alpha=2, beta=0.5))
+    assert actual.shape == a.shape
+    np.testing.assert_array_equal(actual, expected)
+    out = np.empty(a.shape, dtype=np.float32)
+    assert kernel(*inputs, alpha=2, beta=0.5, out=out) is None
+    np.testing.assert_array_equal(out, expected)
+    for position in range(len(inputs)):
+        copied = [np.array(x, copy=True, order="C") for x in inputs]
+        out = copied[position].view()
+        assert kernel(*copied, alpha=2, beta=0.5, out=out) is None
+        np.testing.assert_array_equal(out, expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("operation", ["scale", "blend", "fma"])
+def test_affine_tensor_output_validation(operation: str):
+    storage = np.arange(3 * 3 * 4, dtype=np.float32).reshape(3, 3, 4)
+    a, out = storage[:-1], storage[1:]
+    count = {"scale": 1, "blend": 2, "fma": 3}[operation]
+    kernel = getattr(nk, operation)
+    for position in range(count):
+        inputs = [a.copy() for _ in range(count)]
+        inputs[position] = a
+        original = storage.copy()
+        with pytest.raises(ValueError, match="overlap"):
+            kernel(*inputs, out=out)
+        np.testing.assert_array_equal(storage, original)
+    inputs = [a.copy() for _ in range(count)]
+    readonly = np.empty_like(a)
+    readonly.flags.writeable = False
+    for invalid in [
+        readonly,
+        np.empty(a.shape, dtype=np.float64),
+        np.empty((2, 3, 8), dtype=np.float32)[..., ::2],
+        np.empty((24,), dtype=np.float32),
+    ]:
+        with pytest.raises((TypeError, ValueError, BufferError)):
+            kernel(*inputs, out=invalid)
+    if count > 1:
+        inputs[-1] = inputs[-1].astype(np.float64)
+        with pytest.raises(TypeError, match="matching dtypes"):
+            kernel(*inputs)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(randomized_repetitions_count)
 @pytest.mark.parametrize("ndim", dense_dimensions)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])

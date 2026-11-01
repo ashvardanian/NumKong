@@ -158,6 +158,8 @@ char *ensure_contiguous_buffer(char const *src_data, nk_dtype_t src_dtype, nk_dt
  */
 int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second);
 
+int py_buffers_may_overlap(Py_buffer const *first, Py_buffer const *second);
+
 /**
  *  @brief Validate a caller-supplied `out` buffer for an operation that writes it densely.
  *
@@ -182,7 +184,7 @@ void each_sum_recursive(                                           //
     char const *a_data, char const *b_data, char *result_data,     //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,          //
     Py_ssize_t const *b_strides, Py_ssize_t const *result_strides, //
-    size_t remaining_dims, size_t contiguous_tail_dims);
+    size_t remaining_dims, size_t contiguous_tail_dims, size_t item_size);
 
 /**
  *  @brief Recursively apply a unary elementwise scale kernel to an N-D tensor.
@@ -193,7 +195,7 @@ void each_scale_recursive(                                           //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta, //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,            //
     Py_ssize_t const *result_strides,                                //
-    size_t remaining_dims, size_t contiguous_tail_dims);
+    size_t remaining_dims, size_t contiguous_tail_dims, size_t item_size);
 
 /**
  *  @brief Recursively apply a ternary fused-multiply-add kernel to N-D tensors.
@@ -205,7 +207,7 @@ void each_fma_recursive(                                                        
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,                          //
     Py_ssize_t const *b_strides, Py_ssize_t const *c_strides,                      //
     Py_ssize_t const *result_strides,                                              //
-    size_t remaining_dims, size_t contiguous_tail_dims);
+    size_t remaining_dims, size_t contiguous_tail_dims, size_t item_size);
 
 /**
  *  @brief Recursively apply a binary elementwise blend kernel to N-D tensors.
@@ -216,7 +218,7 @@ void each_blend_recursive(                                           //
     nk_scalar_buffer_t const *alpha, nk_scalar_buffer_t const *beta, //
     Py_ssize_t const *shape, Py_ssize_t const *a_strides,            //
     Py_ssize_t const *b_strides, Py_ssize_t const *result_strides,   //
-    size_t remaining_dims, size_t contiguous_tail_dims);
+    size_t remaining_dims, size_t contiguous_tail_dims, size_t item_size);
 
 PyObject *api_from_pointer(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 PyObject *api_empty(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
