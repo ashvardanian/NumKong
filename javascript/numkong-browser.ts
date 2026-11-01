@@ -5,12 +5,12 @@
  *  @brief Self-contained browser ESM entry point for NumKong WASM.
  *
  *  Auto-initializes the Emscripten module on import through a top-level await, probing the engine
- *  first. The matching glue and binary, `numkong-wasm32-v128.js` or `numkong-wasm32-v128relaxed.js`
- *  with its `.wasm`, must sit beside this file, in the same directory or CDN prefix.
+ *  first. Each wasm32 module, `serial`, `v128` or `v128relaxed`, is its own package subpath, so a
+ *  bundler splits them and fetches only the one the engine validates.
  *
  *  @example
  *  ```js
- *  import { dot, euclidean } from './numkong.js';
+ *  import { dot, euclidean } from 'numkong/wasm';
  *  console.log(dot(new Float32Array([1, 2, 3]), new Float32Array([4, 5, 6])));
  *  ```
  *
@@ -36,26 +36,14 @@ export {
     dotsSymmetric, angularsSymmetric, euclideansSymmetric,
 } from './numkong-wasm.js';
 export type { DeviceKind } from './numkong-wasm.js';
-import { detectWasmSimdTier } from './wasm-probes.js';
+import { detectWasmSimdTier, type WasmSimdTier } from './wasm-probes.js';
 
-/** Thrown at import where the engine validates neither SIMD probe; no serial module is shipped. */
-export class NumKongWasmSimdError extends Error {
-    constructor() {
-        super(
-            'This engine validates neither the SIMD128 nor the Relaxed SIMD probe, ' +
-            'and NumKong ships no serial WebAssembly module',
-        );
-        this.name = 'NumKongWasmSimdError';
-    }
-}
+/** Literal subpaths, which bundlers and Node resolve through the package `exports`. */
+const modules: Record<WasmSimdTier, () => Promise<{ default: () => Promise<any> }>> = {
+    v128relaxed: () => import('numkong/wasm32-v128relaxed'),
+    v128: () => import('numkong/wasm32-v128'),
+    serial: () => import('numkong/wasm32-serial'),
+};
 
-/* Auto-initialize: probe the engine, load the matching Emscripten glue relative to this module's
- * URL, instantiate the WASM module, and wire up the wrapper before any export is used. */
-const capability = detectWasmSimdTier();
-if (capability === 'serial') throw new NumKongWasmSimdError();
-const glueUrl = new URL(`./numkong-wasm32-${capability}.js`, import.meta.url);
-const { default: NumKongModule } = await import(glueUrl.href);
-const wasmInstance = await NumKongModule({
-    locateFile: (path: string) => new URL(path, glueUrl).href,
-});
-initWasm(wasmInstance);
+const { default: NumKongModule } = await modules[detectWasmSimdTier()]();
+initWasm(await NumKongModule());

@@ -62,13 +62,23 @@ Other native addons that link NumKong use CMake too: `add_subdirectory` or `Fetc
 
 ## Browser and WASM
 
-The npm package includes pre-built WASM modules under `wasm/`, one per SIMD capability and address width: `numkong-wasm32-v128`, `numkong-wasm32-v128relaxed`, and `numkong-wasm64-v128relaxed`.
-The `wasm/numkong.js` loader validates two tiny probe modules on import and picks the best wasm32 capability the engine accepts, so Chrome, Firefox, and Node get Relaxed SIMD while Safari and iOS WebKit get strict SIMD128.
-The simplest way to use it in a browser is via a CDN — no build step required:
+The npm package includes pre-built WASM modules under `wasm/`, one per SIMD capability and address width: `numkong-wasm32-serial`, `numkong-wasm32-v128`, `numkong-wasm32-v128relaxed`, and `numkong-wasm64-v128relaxed`.
+The `numkong/wasm` entry validates two tiny probe modules on import and picks the best wasm32 capability the engine accepts, so Chrome, Firefox, and Node get Relaxed SIMD, Safari and iOS WebKit get strict SIMD128, and an engine without SIMD gets `serial`.
+Each module is its own package subpath, like `numkong/wasm32-v128`, so a bundler splits them and the page fetches only the one it runs.
+A page without a bundler maps those subpaths itself:
 
 ```html
+<script type="importmap">
+  {
+    "imports": {
+      "numkong/wasm32-serial": "https://cdn.jsdelivr.net/npm/numkong@8/wasm/numkong-wasm32-serial.js",
+      "numkong/wasm32-v128": "https://cdn.jsdelivr.net/npm/numkong@8/wasm/numkong-wasm32-v128.js",
+      "numkong/wasm32-v128relaxed": "https://cdn.jsdelivr.net/npm/numkong@8/wasm/numkong-wasm32-v128relaxed.js"
+    }
+  }
+</script>
 <script type="module">
-  import { dot, euclidean } from 'https://cdn.jsdelivr.net/npm/numkong@7/wasm/numkong.js';
+  import { dot, euclidean } from 'https://cdn.jsdelivr.net/npm/numkong@8/wasm/numkong.js';
 
   const query = new Float32Array([1.0, 2.0, 3.0]);
   const doc = new Float32Array([4.0, 5.0, 6.0]);
@@ -77,20 +87,15 @@ The simplest way to use it in a browser is via a CDN — no build step required:
 </script>
 ```
 
-For self-hosted WASM, download the loader and the modules from a [GitHub Release](https://github.com/ashvardanian/NumKong/releases) and serve them from one directory.
-The loader resolves the glue and binary of the chosen capability relative to its own URL:
+For self-hosted WASM, download the entries and the modules from a [GitHub Release](https://github.com/ashvardanian/NumKong/releases), serve them from one directory, and point the same import map at it.
+Each module finds its `.wasm` binary relative to its own URL.
 
-```html
-<script type="module">
-  import * as numkong from "./numkong.js";
+The opt-in `numkong/wasm-extended` entry loads `numkong-wasm64-v128relaxed`, with Memory64, threads and Relaxed SIMD, where the engine validates them and the page is cross-origin isolated, and throws otherwise.
+Node runs it from version 24, whose Memory64 takes 64-bit sizes, while the package and the minimal entry keep Node 22 as the floor:
 
-  const a = new Float32Array([1, 2, 3]);
-  const b = new Float32Array([4, 5, 6]);
-  console.log(numkong.dot(a, b));
-</script>
+```js
+const numkong = await import("numkong/wasm-extended").catch(() => import("numkong/wasm"));
 ```
-
-An engine that validates neither probe rejects the import with a `NumKongWasmSimdError`, since no serial module is shipped.
 
 Or import the subpath from a bundler or Node.js (without the native addon):
 

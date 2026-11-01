@@ -68,21 +68,21 @@ interface EmscriptenModule {
   [key: string]: any;
 }
 
-/** Pointer type passed to raw C functions: number in wasm32, bigint in wasm64 */
-type WasmPtr = number | bigint;
+/** A pointer or an `nk_size_t`, both pointer-width, as raw C functions take them: number in
+ *  wasm32, bigint in wasm64. */
+type WasmWord = number | bigint;
 
 let Module: EmscriptenModule | null = null;
 
-/** Whether the WASM module uses memory64.
+/** Bytes in a pointer or an `nk_size_t`: 4 in wasm32 and 8 in memory64, set in {@link initWasm}.
  *
  *  In memory64 mode, Emscripten wraps `_malloc`/`_free` to accept and return a plain number, but
- *  raw C function exports expect BigInt, an i64, for pointer parameters. `nk_size_t` is always an
- *  i32 number in WASM, since NUMKONG_ARCH_64BIT_=0. */
-let isMemory64 = false;
+ *  raw C function exports take both pointers and sizes as BigInt, an i64. */
+let wasmWordBytes = 4;
 
 /** Pre-allocated 8-byte result buffer for f64, f32, i32 and u32, allocated once in
  *  {@link initWasm}. It is always a plain number from the Emscripten-wrapped `_malloc`, converted
- *  to `WasmPtr` for C calls. */
+ *  to `WasmWord` for C calls. */
 let resultPtr: number = 0;
 
 /** Heap views, created from the `wasmMemory` buffer. */
@@ -96,10 +96,16 @@ let HEAPF64: Float64Array;
  *  clamps it to the ones this host runs. */
 const cpus: bigint = (1n << 48n) - 1n;
 
-/** Convert a number, e.g. from `_malloc` or `byteOffset`, to the pointer type expected by raw C
- *  function exports. In wasm64, pointers are BigInt, an i64. */
-function toWasmPtr(n: number): WasmPtr {
-  return isMemory64 ? BigInt(n) : n;
+/** Convert a pointer, e.g. from `_malloc` or `byteOffset`, or a size to the word raw C function
+ *  exports take. */
+function toWasmWord(n: number): WasmWord {
+  return wasmWordBytes === 8 ? BigInt(n) : n;
+}
+
+/** Read the `nk_size_t` a C function wrote at heap offset `ptr`. */
+function readWasmWord(ptr: number): number {
+  const buffer = requireModule().wasmMemory.buffer;
+  return wasmWordBytes === 8 ? Number(new BigUint64Array(buffer, ptr, 1)[0]) : new Uint32Array(buffer, ptr, 1)[0];
 }
 
 /** Throws the `nk_status_name` text of `status`, an `nk_status_t`, unless it is a success. */
@@ -114,7 +120,7 @@ function checkStatus(status: number): void {
 /** Runs a C query writing one `nk_capability_t` through its pointer argument, and returns it. */
 function queryCapabilities(fnName: string): bigint {
   const module = requireModule();
-  checkStatus(module[fnName](toWasmPtr(resultPtr)));
+  checkStatus(module[fnName](toWasmWord(resultPtr)));
   return new BigUint64Array(module.wasmMemory.buffer, resultPtr, 1)[0];
 }
 
@@ -133,18 +139,15 @@ export function initWasm(wasmModule: EmscriptenModule): void {
   HEAPF32 = new Float32Array(buffer);
   HEAPF64 = new Float64Array(buffer);
 
-  // Detect memory64 mode by probing whether raw C functions expect BigInt pointers.
-  // Emscripten wraps _malloc/_free to always use number, but raw C exports use i64
-  // (BigInt) for pointers in memory64 mode. We probe by calling a distance function
-  // with BigInt(0) args — if it doesn't throw, we're in memory64 mode.
+  // Only a memory64 export accepts BigInt for every pointer and size; a wasm32 one throws on them.
+  const probe = wasmModule._malloc(8);
   try {
-    const probe = wasmModule._malloc(8);
-    wasmModule._nk_dot_f32_best(BigInt(probe), BigInt(probe), 0, BigInt(probe), 1n, 0n);
-    isMemory64 = true;
-    wasmModule._free(probe);
+    wasmModule._nk_dot_f32_best(BigInt(probe), BigInt(probe), 0n, BigInt(probe), 1n, 0n);
+    wasmWordBytes = 8;
   } catch {
-    isMemory64 = false;
+    wasmWordBytes = 4;
   }
+  wasmModule._free(probe);
 
   // Pre-allocate an 8-byte result buffer (never freed during module lifetime)
   // _malloc always returns number (Emscripten-wrapped in both modes)
@@ -156,7 +159,7 @@ export function initWasm(wasmModule: EmscriptenModule): void {
   const namePtr = wasmModule._malloc(1024);
   let gpus = 0n;
   for (let bit = 1n; bit <= any; bit <<= 1n) {
-    const length = wasmModule._nk_capabilities_name(bit, toWasmPtr(namePtr), 1024);
+    const length = Number(wasmModule._nk_capabilities_name(bit, toWasmWord(namePtr), toWasmWord(1024)));
     if (!length) continue;
     names[String.fromCharCode(...HEAPU8.subarray(namePtr, namePtr + length))] = bit;
     if (bit > cpus) gpus |= bit;
@@ -302,8 +305,7 @@ function distance(metric: string, a: TensorBase | any, b: TensorBase | any): num
       throw new Error(`Function ${fnName} not available in WASM module`);
     }
 
-    // In wasm64, raw C exports expect BigInt for pointer args; nk_size_t is always i32 (number)
-    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), cpus, toWasmPtr(0)));
+    checkStatus(fn(toWasmWord(aOff), toWasmWord(bOff), toWasmWord(n), toWasmWord(resultPtr), cpus, toWasmWord(0)));
 
     // Read result
     return readResult(resultPtr, resolvedA.typeInfo.resultType);
@@ -393,8 +395,8 @@ export function hamming(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8A
       throw new Error('Function _nk_hamming_u1_best not available in WASM module');
     }
 
-    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA * dimensionsPerValue(DType.U1), toWasmPtr(resultPtr),
-                   cpus, toWasmPtr(0)));
+    checkStatus(fn(toWasmWord(aOff), toWasmWord(bOff), toWasmWord(lengthA * dimensionsPerValue(DType.U1)),
+                   toWasmWord(resultPtr), cpus, toWasmWord(0)));
 
     return readResult(resultPtr, 'u32');
   } finally {
@@ -439,8 +441,8 @@ export function jaccard(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8A
       throw new Error('Function _nk_jaccard_u1_best not available in WASM module');
     }
 
-    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA * dimensionsPerValue(DType.U1), toWasmPtr(resultPtr),
-                   cpus, toWasmPtr(0)));
+    checkStatus(fn(toWasmWord(aOff), toWasmWord(bOff), toWasmWord(lengthA * dimensionsPerValue(DType.U1)),
+                   toWasmWord(resultPtr), cpus, toWasmWord(0)));
 
     return readResult(resultPtr, 'f32');
   } finally {
@@ -484,7 +486,7 @@ export function kullbackleibler(a: TensorBase | Float64Array | Float32Array, b: 
       throw new Error(`Function ${fnName} not available in WASM module`);
     }
 
-    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), cpus, toWasmPtr(0)));
+    checkStatus(fn(toWasmWord(aOff), toWasmWord(bOff), toWasmWord(n), toWasmWord(resultPtr), cpus, toWasmWord(0)));
 
     return readResult(resultPtr, resolvedA.typeInfo.resultType);
   } finally {
@@ -530,7 +532,7 @@ export function jensenshannon(a: TensorBase | Float64Array | Float32Array, b: Te
       throw new Error(`Function ${fnName} not available in WASM module`);
     }
 
-    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), cpus, toWasmPtr(0)));
+    checkStatus(fn(toWasmWord(aOff), toWasmWord(bOff), toWasmWord(n), toWasmWord(resultPtr), cpus, toWasmWord(0)));
 
     return readResult(resultPtr, resolvedA.typeInfo.resultType);
   } finally {
@@ -579,7 +581,8 @@ export class Device {
     return 1;
   }
 
-  /** The SIMD capabilities this WASM host supports, compiled in or not, as a bitmask. */
+  /** The SIMD capabilities the engine validated this module with, as a bitmask: it validates a
+   *  module whole, so they equal {@link capabilitiesCompiled}. */
   capabilitiesDetected(): bigint {
     return queryCapabilities('_nk_cpu_capabilities_detected');
   }
@@ -661,8 +664,8 @@ export function dotsPackedSize(columns: number, depth: number, dtype: DType): nu
   if (!fn || typeof fn !== 'function') {
     throw new Error(`Function ${fnName} not available in WASM module`);
   }
-  checkStatus(fn(columns, depth, cpus, toWasmPtr(resultPtr)));
-  return new Uint32Array(Module.wasmMemory.buffer, resultPtr, 1)[0];
+  checkStatus(fn(toWasmWord(columns), toWasmWord(depth), cpus, toWasmWord(resultPtr)));
+  return readWasmWord(resultPtr);
 }
 
 /**
@@ -680,12 +683,10 @@ export function dotsPackedShape(packed: PackedMatrix): { columns: number; depth:
   }
 
   const blobPtr = allocAndCopyResolved(packed.buffer, 0, packed.byteLength);
-  const outPtr = Module._malloc(8); // two nk_size_t out-params (i32 each in WASM)
+  const outPtr = Module._malloc(2 * wasmWordBytes);
   try {
-    checkStatus(fn(toWasmPtr(blobPtr), toWasmPtr(outPtr), toWasmPtr(outPtr + 4), cpus, toWasmPtr(0)));
-    const columns = HEAPU32[outPtr / 4];
-    const depth = HEAPU32[(outPtr + 4) / 4];
-    return { columns, depth };
+    checkStatus(fn(toWasmWord(blobPtr), toWasmWord(outPtr), toWasmWord(outPtr + wasmWordBytes), cpus, toWasmWord(0)));
+    return { columns: readWasmWord(outPtr), depth: readWasmWord(outPtr + wasmWordBytes) };
   } finally {
     Module._free(outPtr);
     Module._free(blobPtr);
@@ -713,12 +714,12 @@ export function dotsPack(matrix: Matrix): PackedMatrix {
 
   try {
     checkStatus(packFn(
-      toWasmPtr(matrixPtr),
-      matrix.rows, matrix.columns,
-      matrix.rowStride,
-      toWasmPtr(packedPtr),
-      0, matrix.rows,
-      cpus, toWasmPtr(0),
+      toWasmWord(matrixPtr),
+      toWasmWord(matrix.rows), toWasmWord(matrix.columns),
+      toWasmWord(matrix.rowStride),
+      toWasmWord(packedPtr),
+      toWasmWord(0), toWasmWord(matrix.rows),
+      cpus, toWasmWord(0),
     ));
   } catch (error) {
     Module._free(packedPtr);
@@ -767,10 +768,11 @@ function wasmPackedOperation(metricPrefix: string, family: KernelFamily, a: Matr
 
   try {
     checkStatus(fn(
-      toWasmPtr(aPtr), toWasmPtr(packedPtr), toWasmPtr(resultPtr),
-      a.rows, packed.columns, a.columns,
-      a.rowStride, out.rowStride,
-      cpus, toWasmPtr(0),
+      toWasmWord(aPtr), toWasmWord(packedPtr), toWasmWord(resultPtr),
+      toWasmWord(a.rows), toWasmWord(packed.columns), toWasmWord(a.columns),
+      toWasmWord(a.rowStride), toWasmWord(out.rowStride),
+      toWasmWord(0), toWasmWord(0), // workspace, workspace_bytes: the CPU path takes no scratch
+      cpus, toWasmWord(0),
     ));
 
     // Copy result back
@@ -807,12 +809,13 @@ function wasmSymmetricOperation(metricPrefix: string, family: KernelFamily, vect
 
   try {
     checkStatus(fn(
-      toWasmPtr(vectorsPtr),
-      vectors.rows, vectors.columns,
-      vectors.rowStride,
-      toWasmPtr(resultPtr), out.rowStride,
-      rowsBegin, resolvedRowsEnd,
-      cpus, toWasmPtr(0),
+      toWasmWord(vectorsPtr),
+      toWasmWord(vectors.rows), toWasmWord(vectors.columns),
+      toWasmWord(vectors.rowStride),
+      toWasmWord(resultPtr), toWasmWord(out.rowStride),
+      toWasmWord(rowsBegin), toWasmWord(resolvedRowsEnd),
+      toWasmWord(0), toWasmWord(0), // workspace, workspace_bytes: the CPU path takes no scratch
+      cpus, toWasmWord(0),
     ));
 
     // Copy result back

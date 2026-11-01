@@ -6,9 +6,11 @@
   ],
   "include": [
     "node-gyp-build.d.ts",
+    "emscripten-glue.d.ts",
     "numkong.ts",
     "numkong-wasm.ts",
     "numkong-browser.ts",
+    "numkong-browser-extended.ts",
     "wasm-probes.ts",
     "types.ts"
   ],

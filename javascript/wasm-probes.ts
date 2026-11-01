@@ -2,15 +2,14 @@
  *  @file javascript/wasm-probes.ts
  *  @author Ash Vardanian
  *  @date September 12, 2026
- *  @brief Probe modules for the WebAssembly SIMD capabilities, validated before a module is chosen.
+ *  @brief Probe modules for the WebAssembly capabilities, validated before a module is chosen.
  *
- *  Each array is one function of type `() → v128`, which `WebAssembly.validate` accepts exactly
- *  where the engine implements that capability. A WASI-hosted module imports its `nk_has_v128` and
- *  `nk_has_relaxed` probes from a host that validates these bytes, so both agree on what runs.
+ *  `WebAssembly.validate` accepts each array exactly where the engine implements its capability;
+ *  the SIMD ones are one function of type `() → v128`.
  */
 
-/** The one `WebAssembly` member this module calls; the package compiles without the DOM typings. */
-declare const WebAssembly: { validate(bytes: Uint8Array): boolean };
+/** The `WebAssembly` members this module calls; the package compiles without the DOM typings. */
+declare const WebAssembly: { validate(bytes: Uint8Array): boolean; Memory: new (descriptor: object) => object };
 
 /** SIMD128: two `v128.const` operands and one `f32x4.add`. */
 export const simd128Probe = new Uint8Array([
@@ -37,6 +36,12 @@ export const relaxedProbe = new Uint8Array([
     0x0b,
 ]);
 
+/** Memory64: one memory section declaring a 64-bit memory of zero pages. */
+export const memory64Probe = new Uint8Array([
+    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, // magic, version
+    0x05, 0x03, 0x01, 0x04, 0x00, // memory section: one 64-bit memory, no maximum, zero pages
+]);
+
 /** The SIMD capabilities a WebAssembly module is built for, from the fastest down. */
 export type WasmSimdTier = 'v128relaxed' | 'v128' | 'serial';
 
@@ -45,4 +50,19 @@ export function detectWasmSimdTier(): WasmSimdTier {
     if (WebAssembly.validate(relaxedProbe)) return 'v128relaxed';
     if (WebAssembly.validate(simd128Probe)) return 'v128';
     return 'serial';
+}
+
+/** Whether the engine runs an extended module: Memory64, Relaxed SIMD and memory shared across
+ *  workers, which a browser grants only to a cross-origin isolated page. */
+export function detectWasmExtended(): boolean {
+    // Node shares memory without cross-origin isolation and leaves the global undefined.
+    const isolated = (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated !== false;
+    if (!isolated || !WebAssembly.validate(memory64Probe) || !WebAssembly.validate(relaxedProbe)) return false;
+    // Engines that validated Memory64 before its JavaScript API settled reject this descriptor.
+    try {
+        new WebAssembly.Memory({ address: 'i64', initial: 0n });
+        return true;
+    } catch {
+        return false;
+    }
 }

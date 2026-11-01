@@ -8,6 +8,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "numkong-browser.ts"
+    "numkong-browser.ts",
+    "numkong-browser-extended.ts"
   ]
 }

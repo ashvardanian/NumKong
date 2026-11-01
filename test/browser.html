@@ -89,7 +89,7 @@
       // Import WASM wrapper and Emscripten module
       import * as numkongWrapper from "../javascript/dist/esm/numkong-wasm.js";
       import { detectWasmSimdTier } from "../javascript/dist/esm/wasm-probes.js";
-      const { default: NumKongModule } = await import(`../build_wasm32_emscripten/numkong-wasm32-${detectWasmSimdTier()}.js`);
+      const { default: NumKongModule } = await import(`../wasm/numkong-wasm32-${detectWasmSimdTier()}.js`);
 
       const results = [];
       let capabilities = null;
@@ -121,7 +121,7 @@
       numkongWrapper.initWasm(wasmInstance);
       const numkong = numkongWrapper;
 
-      capabilities = numkong.capabilitiesEnabled();
+      capabilities = numkong.Device.cpu().capabilitiesEnabled();
       console.log("Runtime capabilities:", "0x" + capabilities.toString(16));
 
       // Run test suite
@@ -186,7 +186,7 @@
       });
 
       test("Capability detection", () => {
-        const caps = numkong.capabilitiesEnabled();
+        const caps = numkong.Device.cpu().capabilitiesEnabled();
         if (typeof caps !== "bigint") {
           throw new Error("capabilitiesEnabled should return bigint");
         }

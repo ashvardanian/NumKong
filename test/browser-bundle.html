@@ -67,11 +67,19 @@
     Loading bundled WASM module and running tests...
   </div>
 
+  <!-- The entry reaches each module by package subpath, which a page without a bundler maps itself. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "numkong/wasm32-serial": "../wasm/numkong-wasm32-serial.js",
+        "numkong/wasm32-v128": "../wasm/numkong-wasm32-v128.js",
+        "numkong/wasm32-v128relaxed": "../wasm/numkong-wasm32-v128relaxed.js"
+      }
+    }
+  </script>
   <script type="module">
-    // Import from the self-contained bundle (no manual init needed).
-    // In the release tarball this is numkong.js; in the dev tree it lives
-    // at build_wasm32_emscripten/numkong-bundle.js so it doesn't shadow the Emscripten glue.
-    import * as numkong from "../build_wasm32_emscripten/numkong-bundle.js";
+    // Import the auto-initializing entry, with no manual init.
+    import * as numkong from "../wasm/numkong.js";
 
     const results = [];
 
@@ -137,7 +145,7 @@
     });
 
     test("capability detection", () => {
-      const caps = numkong.capabilitiesEnabled();
+      const caps = numkong.Device.cpu().capabilitiesEnabled();
       if (typeof caps !== "bigint") throw new Error("should return bigint");
       if (!(caps & numkong.Capability.serial))
         throw new Error("serial should be enabled");

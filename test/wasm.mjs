@@ -17,7 +17,7 @@ import test from "node:test";
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { WASI } from "node:wasi";
-import { relaxedProbe, simd128Probe } from "../javascript/dist/esm/wasm-probes.js";
+import { DType, Matrix } from "../javascript/dist/esm/types.js";
 import { Random, streamKey } from "./random.mjs";
 
 function resolveModule(candidates) {
@@ -39,14 +39,15 @@ async function loadNumKong(runtime) {
       return await import("../javascript/dist/esm/numkong.js");
 
     case "emscripten": {
-      // Load the wasm32 Emscripten build, the relaxed capability where both capabilities were built
+      // Load the wasm32 Emscripten build, the fastest capability where several were built
       const wasmWrapper = await import("../javascript/dist/esm/numkong-wasm.js");
       const emscriptenModule = resolveModule([
         "./build_wasm32_emscripten/numkong-wasm32-v128relaxed.js",
         "./build_wasm32_emscripten/numkong-wasm32-v128.js",
+        "./build_wasm32_emscripten/numkong-wasm32-serial.js",
       ]);
       if (!emscriptenModule) {
-        throw new Error("Missing build_wasm32_emscripten/numkong-wasm32-v128.js or numkong-wasm32-v128relaxed.js");
+        throw new Error("Missing build_wasm32_emscripten/numkong-wasm32-{v128relaxed,v128,serial}.js");
       }
       const EmModule = await import(new URL(`.${emscriptenModule}`, import.meta.url).href);
       const wasmInstance = await EmModule.default();
@@ -64,12 +65,11 @@ async function loadNumKong(runtime) {
     }
 
     case "wasi-node":
-      // Load WASI via Node.js built-in WASI support (node:wasi)
-      // Host probes for SIMD/Relaxed SIMD support and reports honestly via imports.
+      // Without an `argv[0]` the C suite exits 71; it reads its settings from the environment.
       const wasi = new WASI({
         version: "preview1",
-        args: [],
-        env: {},
+        args: ["numkong_cpu_test"],
+        env: process.env,
       });
 
       const wasiModule = resolveModule(["./build_wasm32_wasi/numkong_cpu_test.wasm"]);
@@ -78,21 +78,12 @@ async function loadNumKong(runtime) {
       }
       const wasmBytes = readFileSync(wasiModule);
 
-      // The host reports what this engine validates; the module reports what it compiled, and
-      // dispatch takes the intersection.
-      const hasV128 = WebAssembly.validate(simd128Probe) ? 1 : 0;
-      const hasRelaxed = WebAssembly.validate(relaxedProbe) ? 1 : 0;
-      console.log(`  WASI probe: v128=${hasV128}, relaxed-simd=${hasRelaxed}`);
-
       const { instance } = await WebAssembly.instantiate(wasmBytes, {
         wasi_snapshot_preview1: wasi.wasiImport,
-        env: {
-          nk_has_v128: () => hasV128,
-          nk_has_relaxed: () => hasRelaxed,
-        },
       });
 
-      wasi.start(instance);
+      const exitCode = wasi.start(instance);
+      if (exitCode !== 0) throw new Error(`The WASI C suite exited with ${exitCode}`);
       // The C test binary runs its own comprehensive test suite via wasi.start().
       // It only exports _start/main, not distance functions, so return null
       // to signal that JS-level distance tests should be skipped.
@@ -233,17 +224,22 @@ test(`[${runtime}] Capability detection`, () => {
     assert.strictEqual(gpu.capabilitiesCompiled() & Capability.cpus, 0n);
   }
 
-  // Every engine in the support matrix validates the SIMD128 probe; relaxed SIMD varies by engine.
+  // An engine validates a module whole, so a WASM module detects exactly what it carries.
   if (runtime !== "native") {
-    assert.strictEqual(detected & Capability.v128, Capability.v128, "detected must include v128 on every WASM runtime");
-    if (WebAssembly.validate(relaxedProbe)) {
-      assert.strictEqual(
-        detected & Capability.v128relaxed,
-        Capability.v128relaxed,
-        "detected must include v128relaxed where the engine validates the relaxed probe",
-      );
-    }
+    assert.strictEqual(detected, compiled, "a WASM module must detect exactly what it compiled");
+    if (compiled !== Capability.serial)
+      assert.strictEqual(compiled & Capability.v128, Capability.v128, "a SIMD module carries v128");
   }
+});
+
+test(`[${runtime}] Packed and symmetric dots`, () => {
+  const matrix = Matrix.fromTypedArray(new Float32Array([1, 2, 3, 4, 5, 6]), 2, 3, DType.F32);
+  const expected = [14, 32, 32, 77];
+  const packed = numkong.dotsPacked(matrix, numkong.dotsPack(matrix)).toTypedArray();
+  for (const index of [0, 1, 2, 3]) assertAlmostEqual(packed[index], expected[index], 0.01);
+  // The symmetric kernel fills the upper triangle only.
+  const symmetric = numkong.dotsSymmetric(matrix).toTypedArray();
+  for (const index of [0, 1, 3]) assertAlmostEqual(symmetric[index], expected[index], 0.01);
 });
 
 /** Expanded test coverage over every dtype, function and dimension. */

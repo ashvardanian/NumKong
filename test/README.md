@@ -50,7 +50,7 @@ An explicit device list selects all listed devices and rejects unavailable backe
 
 | Variable                      |     Default | Description                                                               |
 | :---------------------------- | ----------: | :------------------------------------------------------------------------ |
-| `NUMKONG_DEVICES`             |        auto | Comma-separated vendor-local devices, for example `cuda:0,rocm:1` |
+| `NUMKONG_DEVICES`             |        auto | Comma-separated vendor-local devices, for example `cuda:0,rocm:1`         |
 | `NUMKONG_FILTER`              |       unset | ECMAScript regex searched in kernel names; an invalid one is a substring  |
 | `NUMKONG_SEED`                |        `42` | RNG seed, or `random` to draw one; the `- Seed:` line prints it           |
 | `NUMKONG_TIME_LIMIT`          |        `1s` | Time limit per kernel, `<int>ms` or `<int>s`; zero or a bare number exits |
@@ -79,7 +79,7 @@ The run exits 1 on a failure unless `NUMKONG_ASSERT=0`.
 A failing row is followed by a line that replays that kernel alone, with the seed of this run:
 
 ```
-  rerun: NUMKONG_SEED=42 NUMKONG_FILTER='^dot_f32_serial$'
+rerun: NUMKONG_SEED=42 NUMKONG_FILTER='^dot_f32_serial$'
 ```
 
 A kernel that crashes prints the signal it died of and its name to stderr, and the run stops.
@@ -170,13 +170,13 @@ wasmtime run -W relaxed-simd=y,threads=y -S threads=y,inherit-env=y ./build_wasm
 node ./build_wasm32_emscripten/numkong_cpu_test.js
 ```
 
-The JavaScript wrappers run over the Emscripten modules, and over the WASI tests with the host probes, through `test/wasm.mjs`:
+The JavaScript wrappers run over the Emscripten modules, and over the WASI tests, through `test/wasm.mjs`:
 
 ```sh
 npm run build-js
 npm run test:wasm:emscripten                                     # build_wasm32_emscripten
 npm run test:wasm:emscripten64                                   # build_wasm64_emscripten
-npm run test:wasm:wasi                                           # build_wasm32_wasi, with -D NUMKONG_WITH_HOST_PROBES=ON
+npm run test:wasm:wasi                                           # build_wasm32_wasi
 ```
 
 __Memory Model__
@@ -195,9 +195,10 @@ Only the WASI threads build uses `wasm32-wasip1-threads` with `-pthread`; the ke
 
 __SIMD and Relaxed SIMD Support__
 
-All WASM builds require fixed-width SIMD — 128-bit `v128`.
+The SIMD builds require fixed-width SIMD — 128-bit `v128`.
+The `serial` build runs on engines that validate neither probe.
 The `v128relaxed` capability adds Relaxed SIMD instructions like `f32x4.relaxed_madd` and the fused `i8` dot product; an engine without them refuses the whole module at instantiation, which is why the capability is a build choice rather than a runtime one.
-Inside a module, `nk_cpu_capabilities_detected` still reports what the host validates — through the `env.nk_has_*` imports a Node host supplies under `NUMKONG_WITH_HOST_PROBES`, and as the compiled capabilities otherwise — and `nk_cpu_capabilities_enabled` intersects that with what was compiled.
+Inside a module, `nk_cpu_capabilities_detected` reports the capabilities it was compiled with, since an engine validated it whole, so `detected`, `compiled` and `enabled` agree.
 
 | Engine   | SIMD128 | Relaxed SIMD | Threads | Memory64 |
 | :------- | ------: | -----------: | ------: | -------: |
