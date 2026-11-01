@@ -1,32 +1,29 @@
 name: Test C
 
 on:
-  pull_request:
-    branches: ["main", "main-*"]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_call:
 
 permissions:
   contents: read
 
+env:
+  PYTHONUTF8: 1
+  PYTHONFAULTHANDLER: 1
+
 jobs:
-  test_c:
-    name: Test C on Linux
+  test_ubuntu_gcc:
+    name: Test on Ubuntu with GCC 14
     runs-on: ubuntu-26.04
+    timeout-minutes: 90
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Print Machine Specs
-        shell: bash
         run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
+          uname -a
+          lscpu
+          free -h
 
       - name: Install Dependencies
         run: |
@@ -43,21 +40,19 @@ jobs:
         run: ctest --preset release
 
   # Release compiles `nk_assert_` out, so only this job checks the library's invariants.
-  test_c_debug:
-    name: Test Debug build on Ubuntu
+  test_ubuntu_debug:
+    name: Test Debug Build on Ubuntu
     runs-on: ubuntu-26.04
+    timeout-minutes: 90
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Print Machine Specs
-        shell: bash
         run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
+          uname -a
+          lscpu
+          free -h
 
       - name: Install Dependencies
         run: |
@@ -73,12 +68,13 @@ jobs:
       - name: Test
         run: ctest --preset debug -R '^numkong_cpu_test$'
 
-  test_macos_homebrew_llvm:
-    name: Test C on macOS with Homebrew LLVM
-    runs-on: macos-15
+  test_macos_llvm:
+    name: Test on macOS with Homebrew LLVM
+    runs-on: macos-26
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Install Homebrew LLVM
@@ -87,7 +83,7 @@ jobs:
       # Record everything the runner CPU advertises so a future probe
       # mismatch can be diagnosed without repro-locally-only guesswork.
       - name: Print Machine Specs
-        run: sysctl hw.optional.arm || true
+        run: sysctl hw.optional.arm
 
       - name: Build
         run: |
@@ -118,12 +114,13 @@ jobs:
       - name: Test
         run: ctest --preset release
 
-  test_windows:
-    name: Test C on Windows
+  test_windows_msvc:
+    name: Test on Windows x64 with Visual Studio 2026
     runs-on: windows-2025
+    timeout-minutes: 60
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Print Machine Specs
@@ -148,12 +145,13 @@ jobs:
       - name: Test
         run: ctest --preset msvc2026_x64
 
-  test_android:
-    name: Test C for Android ARM64
+  build_android:
+    name: Build for Android ARM64
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Download Android NDK r29
@@ -173,7 +171,7 @@ jobs:
           file build_android_arm64/libnumkong_shared.so | grep -q "ELF 64-bit.*aarch64"
           readelf -d build_android_arm64/libnumkong_shared.so | head -20
 
-      - name: Install Rust Toolchain
+      - name: Set Up Rust Toolchain
         uses: moonrepo/setup-rust@v1
 
       - name: Install cargo-ndk and Target
@@ -186,12 +184,13 @@ jobs:
 
   # 32-bit ARM Android — catches AArch64-only intrinsics leaking into
   # NEON code paths, like float64x2_t which doesn't exist on ARMv7.
-  test_android_armv7:
-    name: Test C for Android ARMv7
+  build_android_armv7:
+    name: Build for Android ARMv7
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Download Android NDK r29
@@ -210,7 +209,7 @@ jobs:
           file build_android_armv7/libnumkong_shared.so
           file build_android_armv7/libnumkong_shared.so | grep -q "ELF 32-bit.*ARM"
 
-      - name: Install Rust Toolchain
+      - name: Set Up Rust Toolchain
         uses: moonrepo/setup-rust@v1
 
       - name: Install cargo-ndk and Target
@@ -223,12 +222,13 @@ jobs:
 
   # 32-bit ARM Linux — validates the same AArch32 code paths as Android ARMv7
   # but with the GNU toolchain instead of the NDK's Clang.
-  test_armv7_linux:
-    name: Test C for Linux ARMv7
+  build_linux_armv7:
+    name: Build for Linux ARMv7
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Install Cross-Compiler
@@ -246,7 +246,7 @@ jobs:
           file build_linux_armv7/libnumkong_shared.so
           file build_linux_armv7/libnumkong_shared.so | grep -q "ELF 32-bit.*ARM"
 
-      - name: Install Rust Toolchain
+      - name: Set Up Rust Toolchain
         uses: moonrepo/setup-rust@v1
 
       - name: Install Target
@@ -259,8 +259,8 @@ jobs:
           CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc-14
         run: cargo build --target armv7-unknown-linux-gnueabihf --release
 
-  test_riscv_llvm23:
-    name: Test RISC-V LLVM 23 under QEMU, ${{ matrix.qemu_cpu }}
+  test_qemu_riscv:
+    name: Test on Linux RISC-V ${{ matrix.qemu_cpu }} under QEMU with LLVM 23
     runs-on: ubuntu-26.04
     # Noble's qemu-user is 8.2, which predates `Zvbb`/`Zvfh` in `riscv_hwprobe`,
     # so RVV would never dispatch and this job would pass on serial fallbacks.
@@ -288,7 +288,7 @@ jobs:
           apt-get update
           apt-get install -y clang-23 lld-23 llvm-23
 
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Configure for ${{ matrix.qemu_cpu }}
@@ -304,8 +304,8 @@ jobs:
       - name: Test
         run: ctest --preset linux_riscv64_llvm -V
 
-  test_qemu_cross:
-    name: Test C under QEMU, ${{ matrix.name }}
+  test_qemu:
+    name: Test on Linux ${{ matrix.name }} under QEMU
     runs-on: ubuntu-26.04
     # LASX and POWER9 scope per function only from GCC 15 on, and Ubuntu 26.04 ships GCC 15 cross compilers for every leg,
     # unlike Trixie, which stops at GCC 14.
@@ -355,7 +355,7 @@ jobs:
           apt-get install -y --no-install-recommends git ca-certificates cmake ninja-build g++ qemu-user \
             gcc-15-${{ matrix.triple }} g++-15-${{ matrix.triple }}
 
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       # The toolchain file knows the emulator and loader prefix; only these two vary.
@@ -371,13 +371,13 @@ jobs:
       - name: Test
         run: ctest --preset linux_${{ matrix.arch }} -V
 
-  test_x86_sde:
-    name: Test x86 under Intel SDE
+  test_sde:
+    name: Test on Granite Rapids under Intel SDE
     runs-on: ubuntu-26.04
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       # Intel rotates the numeric mirror ID per release and retires the old ones,
@@ -408,6 +408,7 @@ jobs:
   build_cuda:
     name: Build CUDA Backend
     runs-on: ubuntu-26.04
+    timeout-minutes: 30
     container: nvidia/cuda:13.4.3-devel-ubuntu26.04
     steps:
       # The family codes like `100f` need CMake 3.31, and Ubuntu 24.04 ships 3.28.
@@ -421,7 +422,7 @@ jobs:
             > /etc/apt/sources.list.d/llvm.list
           apt-get update && apt-get install -y clang-22
           ln -s /usr/bin/clang-22 /usr/local/bin/clang && ln -s /usr/bin/clang++-22 /usr/local/bin/clang++
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
       - name: Build and Test
         run: cmake --workflow --preset cuda
@@ -431,7 +432,8 @@ jobs:
   # Venice builds in AMD's image instead, as its preset compiles `gfx1250`.
   build_machine_profile:
     name: Build Machine Profile ${{ matrix.preset }}
-    runs-on: ${{ contains(fromJSON('["grace_hopper", "vera_rubin"]'), matrix.preset) && 'ubuntu-24.04-arm' || 'ubuntu-26.04' }}
+    runs-on: ${{ contains(fromJSON('["grace_hopper", "vera_rubin"]'), matrix.preset) && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
+    timeout-minutes: 30
     container: ${{ matrix.preset == 'venice_mi450' && 'rocm/dev-ubuntu-26.04:10.0.0-full' || 'nvidia/cuda:13.4.3-devel-ubuntu26.04' }}
     strategy:
       fail-fast: false
@@ -449,7 +451,7 @@ jobs:
           echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/resolute/ llvm-toolchain-resolute-22 main" \
             > /etc/apt/sources.list.d/llvm.list
           apt-get update && apt-get install -y clang-22
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
       - name: Build
         run: |
@@ -460,6 +462,7 @@ jobs:
   build_rocm:
     name: Build ROCm Backend
     runs-on: ubuntu-26.04
+    timeout-minutes: 30
     container: rocm/dev-ubuntu-26.04:10.0.0-full
     steps:
       - name: Install Dependencies
@@ -467,16 +470,17 @@ jobs:
           apt-get update && apt-get install -y cmake ninja-build git
           # The image leaves the HIP runtime off the loader path, so the tests could link but not start
           dirname "$(find /opt/rocm/ -name libamdhip64.so.7 | head -1)" > /etc/ld.so.conf.d/rocm.conf && ldconfig
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
       - name: Build and Test
         run: cmake --workflow --preset rocm
 
   test_metal:
     name: Test Metal Backend
-    runs-on: macos-15
+    runs-on: macos-26
+    timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
       - name: Build and Test
         run: cmake --workflow --preset metal

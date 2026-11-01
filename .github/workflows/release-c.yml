@@ -5,17 +5,32 @@ on:
     types: [published]
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   BUILD_TYPE: Release
   EMSCRIPTEN_VERSION: 6.0.9
+  WASI_SDK_VERSION: "34"
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  hooks:
+    name: Check Release Commit
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+      - name: Check the Release Commit
+        run: .github/scripts/check-release.sh "$GITHUB_REF_NAME"
+
   create_linux_deb_package:
-    name: Create Debian Package for ${{ matrix.arch }}, ${{ matrix.target }}
+    name: Create Debian Package for ${{ matrix.arch }} ${{ matrix.target }}
+    needs: hooks
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     env:
       CC: clang-20
       CXX: clang++-20
@@ -33,8 +48,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -78,12 +91,16 @@ jobs:
           dpkg-deb --build "${DEB_DIR}"
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.so *.deb --clobber
 
   create_windows_dll_library:
-    name: Create Library for Windows, ${{ matrix.arch }} with ${{ matrix.preset }}
+    name: Create Library for Windows ${{ matrix.arch }} with ${{ matrix.preset }}
+    needs: hooks
+    permissions:
+      contents: write
     runs-on: windows-2025
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -93,8 +110,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Set Up MSVC
         uses: microsoft/setup-msbuild@v3
       # Newest CMake, so it knows whichever Visual Studio the image ships.
@@ -121,12 +136,16 @@ jobs:
       - name: Upload to GitHub Release
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} "numkong_windows_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.tar.gz" --clobber
 
   create_macos_dylib_library:
-    name: Create Library for macOS, ${{ matrix.arch }}
-    runs-on: macos-15
+    name: Create Library for macOS ${{ matrix.arch }}
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: macos-26
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -134,8 +153,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -149,12 +166,16 @@ jobs:
             build_release_shared/libnumkong_shared.dylib build_release_shared/libnumkong_static.a c/numkong/ include/numkong/ cpp/numkong/ LICENSE
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.dylib *.zip --clobber
 
   create_android_library:
-    name: Create Library for Android, ${{ matrix.arch }}, ${{ matrix.preset }}
-    runs-on: ubuntu-24.04
+    name: Create Library for Android ${{ matrix.arch }} with ${{ matrix.preset }}
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -166,8 +187,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -183,17 +202,21 @@ jobs:
             build_${{ matrix.preset }}/libnumkong_shared.so c/numkong/ include/numkong/ cpp/numkong/ LICENSE
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.zip --clobber
 
   # One module per tier and width; the loader picks a wasm32 tier by what the engine validates.
   build_wasm_module:
-    name: Build WASM Module, ${{ matrix.width }} ${{ matrix.simd }}
+    name: Build WASM Module ${{ matrix.width }} ${{ matrix.simd }}
+    needs: hooks
     runs-on: ubuntu-26.04
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
+          - width: wasm32
+            simd: serial
           - width: wasm32
             simd: v128
           - width: wasm32
@@ -203,8 +226,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Install Emscripten
         uses: nick-fields/retry@v4
         with:
@@ -228,10 +249,14 @@ jobs:
       - name: Smoke Test WASM64 Module
         if: matrix.width == 'wasm64'
         run: |
-          node --experimental-wasm-memory64 -e "
+          node -e "
             import('./build_wasm/numkong-wasm64-${{ matrix.simd }}.js')
               .then(m => m.default())
-              .then(M => console.log('capabilities:', M._nk_cpu_capabilities_enabled()))"
+              .then(M => {
+                const out = M._malloc(8);
+                M._nk_cpu_capabilities_enabled(BigInt(out));
+                console.log('capabilities:', new BigUint64Array(M.wasmMemory.buffer, out, 1)[0]);
+              })"
       - name: Upload WASM Module
         uses: actions/upload-artifact@v7
         with:
@@ -245,12 +270,13 @@ jobs:
   create_wasm_library:
     name: Create WASM Library
     needs: build_wasm_module
+    permissions:
+      contents: write
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -268,26 +294,78 @@ jobs:
         run: |
           npm install --ignore-scripts
           npm run build-js
-          npx esbuild javascript/dist/esm/numkong-browser.js \
-            --bundle --format=esm --platform=browser --target=es2022 \
-            --outfile=wasm/numkong.js
-          cp javascript/dist/esm/numkong-browser.d.ts wasm/numkong.d.ts
+          npm run build-browser
           cp LICENSE wasm/
+      # The entries import each module by package subpath, which a page without a bundler maps itself.
       - name: Package WASM Release
         run: |
           cd wasm
           tar -czf "../numkong_wasm_${{ steps.set_version.outputs.version }}.tar.gz" \
-            numkong.js numkong.d.ts numkong-wasm32-*.js numkong-wasm32-*.wasm numkong-wasm64-*.js numkong-wasm64-*.wasm LICENSE
+            numkong.js numkong-extended.js numkong-wasm32-*.js numkong-wasm32-*.wasm numkong-wasm64-*.js numkong-wasm64-*.wasm LICENSE
           zip -r "../numkong_wasm_${{ steps.set_version.outputs.version }}.zip" \
-            numkong.js numkong.d.ts numkong-wasm32-*.js numkong-wasm32-*.wasm numkong-wasm64-*.js numkong-wasm64-*.wasm LICENSE
+            numkong.js numkong-extended.js numkong-wasm32-*.js numkong-wasm32-*.wasm numkong-wasm64-*.js numkong-wasm64-*.wasm LICENSE
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} numkong_wasm_*.tar.gz numkong_wasm_*.zip --clobber
 
+  # The static archive and headers for C and Rust callers that link their own WASI module.
+  create_wasi_library:
+    name: Create Library for ${{ matrix.os }} wasm32 ${{ matrix.simd }} with ${{ matrix.preset }}
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: wasi
+            preset: wasm32_wasi
+            simd: v128
+          - os: wasi
+            preset: wasm32_wasi
+            simd: v128relaxed
+          - os: wasi-threads
+            preset: wasm32_wasi_threads
+            simd: v128relaxed
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+      - name: Get Version
+        id: set_version
+        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
+      - name: Install WASI-SDK
+        uses: nick-fields/retry@v4
+        with:
+          max_attempts: 3
+          retry_wait_seconds: 15
+          timeout_minutes: 180
+          command: |
+            wget -q https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${{ env.WASI_SDK_VERSION }}/wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz
+            tar xzf wasi-sdk-${{ env.WASI_SDK_VERSION }}.0-x86_64-linux.tar.gz -C ~
+            mv ~/wasi-sdk-* ~/wasi-sdk
+      - name: Build Static Library
+        run: |
+          cmake --preset ${{ matrix.preset }} -D NUMKONG_MARCH=${{ matrix.simd }}
+          cmake --build --preset ${{ matrix.preset }} --target numkong_static
+      - name: Package Archive
+        run: |
+          zip -r "numkong_${{ matrix.os }}_wasm32-${{ matrix.simd }}_${{ steps.set_version.outputs.version }}.zip" \
+            build_${{ matrix.preset }}/libnumkong_static.a c/numkong/ include/numkong/ cpp/numkong/ LICENSE
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload ${{ github.event.release.tag_name }} *.zip --clobber
+
   create_freebsd_library:
-    name: Create Library for FreeBSD, ${{ matrix.arch }}, ${{ matrix.processor }}, ${{ matrix.freebsd_arch }}
-    runs-on: ubuntu-24.04
+    name: Create Library for FreeBSD ${{ matrix.arch }} ${{ matrix.processor }} ${{ matrix.freebsd_arch }}
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
     env:
       CC: clang-20
       CXX: clang++-20
@@ -309,8 +387,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -341,12 +417,16 @@ jobs:
             "numkong_freebsd_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber
 
   create_linux_exotic_library:
-    name: Create Library for Linux, ${{ matrix.name }}
+    name: Create Library for Linux ${{ matrix.name }}
+    needs: hooks
+    permissions:
+      contents: write
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -378,8 +458,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -400,17 +478,19 @@ jobs:
             "numkong_linux_${{ matrix.arch }}_${{ steps.set_version.outputs.version }}.so"
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber
 
   create_linux_riscv_library:
     name: Create Library for Linux RISC-V
-    runs-on: ubuntu-24.04
+    needs: hooks
+    permissions:
+      contents: write
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Get Version
         id: set_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
@@ -431,5 +511,5 @@ jobs:
             "numkong_linux_riscv64_${{ steps.set_version.outputs.version }}.so"
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh release upload ${{ github.event.release.tag_name }} *.so --clobber

@@ -6,53 +6,50 @@ on:
 
 permissions:
   contents: read
-  id-token: write
-
-env:
-  PYTHONUTF8: 1
 
 jobs:
+  hooks:
+    name: Check Release Commit
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+      - name: Check the Release Commit
+        run: .github/scripts/check-release.sh "$GITHUB_REF_NAME"
+
   wheels:
     name: Build Python Wheels
+    needs: hooks
     uses: ./.github/workflows/build-wheels.yml
-    with:
-      ref: "main"
-    secrets: inherit
 
+  # Runs even if some wheel jobs fail, so the long tail never holds back the core platforms.
   publish_python:
-    name: Publish Python Package to PyPI
-    needs:
-      - wheels
-    # Run even if some build jobs fail (e.g., due to transient network issues)
-    # This ensures successfully built wheels still get published
-    if: always()
-    runs-on: ubuntu-24.04
+    name: Publish Python to PyPI
+    needs: wheels
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
     environment:
       name: pypi
       url: https://pypi.org/p/numkong
     permissions:
+      contents: read
       id-token: write
-
     steps:
-      - name: Download Wheels
-        # unpacks all CIBW artifacts into dist/
-        # continue-on-error handles cases where some wheel jobs failed
+      - name: Download Artifacts
         uses: actions/download-artifact@v8
-        continue-on-error: true
         with:
-          pattern: cibw-*
+          pattern: "{cibw-*,sdist}"
           path: dist
           merge-multiple: true
-
-      - name: Download Source Distribution
-        uses: actions/download-artifact@v8
-        with:
-          name: sdist
-          path: dist
-
-      - name: List Available Distributions
-        run: ls -la dist/
-
+      # The long tail may go missing; losing a core platform must not degrade this to sdist-only.
+      - name: Require Wheels for the Core Platforms
+        shell: bash
+        run: |
+          for platform in 'manylinux*_x86_64' 'manylinux*_aarch64' 'macosx_*' 'win_amd64'; do
+            compgen -G "dist/*$platform.whl" > /dev/null || { echo "::error::no $platform wheel in dist/"; exit 1; }
+          done
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

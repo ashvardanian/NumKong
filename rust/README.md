@@ -527,7 +527,6 @@ let idx = second_column.argmin_all().unwrap();
 assert_eq!(idx, 2);
 ```
 
-
 ## Sparse Operations
 
 Sparse helpers cover both sorted-index intersection and weighted sparse dot products.

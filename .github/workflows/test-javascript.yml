@@ -1,12 +1,7 @@
 name: Test JavaScript
 
 on:
-  pull_request:
-    branches: ["main", "main-*"]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_call:
 
 permissions:
   contents: read
@@ -14,30 +9,29 @@ permissions:
 env:
   EMSCRIPTEN_VERSION: 6.0.9
   WASI_SDK_VERSION: "34"
-  WASMER_VERSION: v7.4.1
+  WASMER_VERSION: v7.5.0
+  WASMTIME_VERSION: v50.0.1
   # wasi-threads runs on Wasmtime 46 and older, so the threaded rows take the 36 LTS line.
-  WASMTIME_VERSION: v36.0.15
+  WASMTIME_THREADS_VERSION: v36.0.20
 
 jobs:
   test_nodejs:
     name: Test Node.js
     runs-on: ubuntu-26.04
+    timeout-minutes: 15
     env:
       CC: gcc-14
       CXX: g++-14
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Print Machine Specs
-        shell: bash
         run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
+          uname -a
+          lscpu
+          free -h
 
       - name: Update Compilers
         uses: nick-fields/retry@v4
@@ -63,13 +57,21 @@ jobs:
 
   # One row per toolchain file, SIMD tier and runtime. A module carries one tier, so the strict and the
   # relaxed rows are separate builds, and the wasm32 Emscripten rows hand their modules to the browser job.
+  # Node 22 stays the Emscripten floor, but its WASI host crashes in `dots_symmetric_f64_serial`.
   test_wasm:
-    name: Test WASM, ${{ matrix.name }}
+    name: Test on WebAssembly ${{ matrix.name }}
     runs-on: ubuntu-26.04
+    timeout-minutes: 70
     strategy:
       fail-fast: false
       matrix:
         include:
+          - name: wasm32-emscripten serial under Node
+            sdk: emscripten
+            preset: wasm32_emscripten
+            simd: serial
+            runtime: emscripten
+            node: 22
           - name: wasm32-emscripten v128 under Node
             sdk: emscripten
             preset: wasm32_emscripten
@@ -93,13 +95,13 @@ jobs:
             preset: wasm32_wasi
             simd: v128
             runtime: wasi-node
-            node: 22
+            node: 24
           - name: wasm32-wasi v128relaxed under Node
             sdk: wasi
             preset: wasm32_wasi
             simd: v128relaxed
             runtime: wasi-node
-            node: 22
+            node: 24
           - name: wasm32-wasi v128 under Wasmtime and Wasmer
             sdk: wasi
             preset: wasm32_wasi
@@ -112,25 +114,22 @@ jobs:
             simd: v128relaxed
             runtime: standalone
             node: 22
-          - name: wasm32-wasi-threads v128relaxed under Wasmtime
+          - name: wasm32-wasi-threads v128relaxed under Wasmtime and Wasmer
             sdk: wasi
             preset: wasm32_wasi_threads
             simd: v128relaxed
-            runtime: wasmtime-threads
+            runtime: standalone-threads
             node: 22
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Print Machine Specs
-        shell: bash
         run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
+          uname -a
+          lscpu
+          free -h
 
       - name: Install Emscripten
         if: matrix.sdk == 'emscripten'
@@ -163,13 +162,15 @@ jobs:
 
       # CTest runs the WASI tests through the Wasmtime the toolchain finds at configure time.
       - name: Install Wasmtime
-        if: matrix.runtime == 'standalone' || matrix.runtime == 'wasmtime-threads'
+        if: matrix.runtime == 'standalone' || matrix.runtime == 'standalone-threads'
         uses: nick-fields/retry@v4
         with:
           max_attempts: 3
           retry_wait_seconds: 15
           timeout_minutes: 10
-          command: curl https://wasmtime.dev/install.sh -sSf | bash -s -- --version "$WASMTIME_VERSION"
+          command: |
+            curl https://wasmtime.dev/install.sh -sSf | bash -s -- --version "${{ matrix.runtime == 'standalone-threads' && env.WASMTIME_THREADS_VERSION || env.WASMTIME_VERSION }}"
+            "$HOME/.wasmtime/bin/wasmtime" --version
 
       # `test/wasm.mjs` and the browser pages load the modules from each preset's build directory by name.
       - name: Build Emscripten Module
@@ -193,12 +194,11 @@ jobs:
       - name: Build WASI Module
         if: matrix.sdk == 'wasi'
         run: |
-          cmake --preset ${{ matrix.preset }} -D NUMKONG_MARCH=${{ matrix.simd }} \
-            -D NUMKONG_WITH_HOST_PROBES=${{ matrix.runtime == 'wasi-node' && 'ON' || 'OFF' }}
+          cmake --preset ${{ matrix.preset }} -D NUMKONG_MARCH=${{ matrix.simd }}
           cmake --build --preset ${{ matrix.preset }}
 
       - name: Build JavaScript Bindings
-        if: matrix.runtime != 'standalone' && matrix.runtime != 'wasmtime-threads'
+        if: matrix.runtime != 'standalone' && matrix.runtime != 'standalone-threads'
         run: |
           npm install --ignore-scripts
           npm run build-js
@@ -206,16 +206,18 @@ jobs:
       - name: Test on Node.js
         if: matrix.runtime == 'emscripten' || matrix.runtime == 'emscripten64' || matrix.runtime == 'wasi-node'
         run: NUMKONG_RUNTIME=${{ matrix.runtime }} node --test test/wasm.mjs
+        env:
+          NUMKONG_TIME_LIMIT: 100ms
 
       - name: Test on Wasmtime
-        if: matrix.runtime == 'standalone' || matrix.runtime == 'wasmtime-threads'
+        if: matrix.runtime == 'standalone' || matrix.runtime == 'standalone-threads'
         run: ctest --preset ${{ matrix.preset }}
 
       # Install the latest released Wasmer (which now ships relaxed-SIMD). Building
       # `--git main` broke: upstream's main pulls a private SSH submodule
       # (git@github.com:wasmerio/quickjs.git) that fails to authenticate in CI.
       - name: Install Wasmer
-        if: matrix.runtime == 'standalone'
+        if: matrix.runtime == 'standalone' || matrix.runtime == 'standalone-threads'
         uses: nick-fields/retry@v4
         with:
           max_attempts: 3
@@ -225,33 +227,32 @@ jobs:
 
       # The strict module runs without the relaxed switch, which is the point of shipping it.
       - name: Test on Wasmer
-        if: matrix.runtime == 'standalone'
+        if: matrix.runtime == 'standalone' || matrix.runtime == 'standalone-threads'
         run: |
           export PATH="$HOME/.wasmer/bin:$PATH"
           wasmer run --enable-simd ${{ matrix.simd == 'v128relaxed' && '--enable-relaxed-simd' || '' }} \
-            --forward-host-env ./build_wasm32_wasi/numkong_cpu_test.wasm
+            ${{ matrix.runtime == 'standalone-threads' && '--enable-threads' || '' }} \
+            --forward-host-env ./build_${{ matrix.preset }}/numkong_cpu_test.wasm
         env:
           NUMKONG_TIME_LIMIT: 100ms
 
-  # Both wasm32 tiers meet in one directory, where the loader picks by what each browser validates.
+  # The wasm32 tiers meet in `wasm/`, as published; the loader picks what each browser validates.
   test_browsers:
-    name: Test WASM, wasm32-emscripten under browsers
+    name: Test on WebAssembly wasm32-emscripten under Browsers
     needs: test_wasm
     if: ${{ !cancelled() }}
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Print Machine Specs
-        shell: bash
         run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
+          uname -a
+          lscpu
+          free -h
 
       - name: Set Up Node.js
         uses: actions/setup-node@v7
@@ -262,7 +263,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           pattern: wasm-module-wasm32-*
-          path: build_wasm32_emscripten
+          path: wasm
           merge-multiple: true
 
       - name: Build JavaScript Bindings and Browser Bundle
@@ -293,22 +294,20 @@ jobs:
   test_deno:
     name: Test Deno
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     env:
       CC: gcc-14
       CXX: g++-14
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Print Machine Specs
-        shell: bash
         run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
+          uname -a
+          lscpu
+          free -h
 
       - name: Update Compilers
         uses: nick-fields/retry@v4
@@ -343,22 +342,20 @@ jobs:
   test_bun:
     name: Test Bun
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     env:
       CC: gcc-14
       CXX: g++-14
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Print Machine Specs
-        shell: bash
         run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || true
-          free -h 2>/dev/null || true
-          echo "::endgroup::"
+          uname -a
+          lscpu
+          free -h
 
       - name: Update Compilers
         uses: nick-fields/retry@v4

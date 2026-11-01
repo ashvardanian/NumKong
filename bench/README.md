@@ -62,7 +62,7 @@ Each benchmark prints one line: its name, calls per second, and its counters.
 
 | Variable                       | Default | Description                                                                         |
 | :----------------------------- | ------: | :---------------------------------------------------------------------------------- |
-| `NUMWARS_DEVICES`              |        auto | Comma-separated vendor-local devices, for example `cuda:0,rocm:1` |
+| `NUMWARS_DEVICES`              |    auto | Comma-separated vendor-local devices, for example `cuda:0,rocm:1`                   |
 | `NUMWARS_FILTER`               |   unset | ECMAScript regex searched in benchmark names; an invalid one matches as a substring |
 | `NUMWARS_SEED`                 |    `42` | RNG seed for reproducible inputs, or `random` to draw one                           |
 | `NUMWARS_WARMUP`               |    `1s` | Untimed run per benchmark, `<int>ms` or `<int>s`                                    |

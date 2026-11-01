@@ -23,7 +23,6 @@ Low-precision dtypes (BFloat16, Float8, Float6, packed bits) flow through the sa
 [scipy]: https://github.com/scipy/scipy
 [pytorch]: https://github.com/pytorch/pytorch
 
-
 ## Quickstart
 
 ```python
@@ -365,15 +364,15 @@ Type name mapping between the two libraries:
 
 Block-scaled formats group elements into fixed-size blocks, each carrying its own scale byte.
 
-| Format         | Block | Element | Scale   | Global    |
-| :------------- | ----: | :------ | :------ | :-------- |
-| `"nvfp4"`      |    16 | `e2m1`  | `ue4m3` | `float32` |
-| `"mxfp4"`      |    32 | `e2m1`  | `ue8m0` | …         |
+| Format        | Block | Element | Scale   | Global    |
+| :------------ | ----: | :------ | :------ | :-------- |
+| `"nvfp4"`     |    16 | `e2m1`  | `ue4m3` | `float32` |
+| `"mxfp4"`     |    32 | `e2m1`  | `ue8m0` | …         |
 | `"mxfp6e2m3"` |    32 | `e2m3`  | `ue8m0` | …         |
 | `"mxfp6e3m2"` |    32 | `e3m2`  | `ue8m0` | …         |
 | `"mxfp8e4m3"` |    32 | `e4m3`  | `ue8m0` | …         |
 | `"mxfp8e5m2"` |    32 | `e5m2`  | `ue8m0` | …         |
-| `"mxint8"`     |    32 | `i8`    | `ue8m0` | …         |
+| `"mxint8"`    |    32 | `i8`    | `ue8m0` | …         |
 
 Quantization happens through the same `astype` verb used for dense casts.
 Passing a block-scaled dtype name to a dense `Tensor.astype(...)` returns a `ScaledTensor`; calling `astype(...)` on a `ScaledTensor` with a dense dtype materializes it back.
@@ -381,14 +380,14 @@ Quantization is always along the __last axis__, which must be a whole multiple o
 
 A `ScaledTensor` exposes plain read attributes, but no getter/setter methods:
 
-| Attribute       | Type             | Meaning                                                                 |
-| :-------------- | :--------------- | :---------------------------------------------------------------------- |
-| `.elements`     | `Tensor`         | Element codes (e.g. `e2m1`), in the logical dense shape                 |
-| `.block_scales` | `Tensor`         | One scale byte per block (`ue4m3` / `ue8m0`), last axis = `n / block`   |
-| `.tensor_scale` | `float` / `None` | NVFP4 per-tensor multiplier; `None` for the MX family                   |
-| `.block_size`   | `int`            | Elements per block (16 for NVFP4, 32 for MX)                            |
-| `.dtype`        | `str`            | Composite format name (e.g. `"nvfp4"`)                                  |
-| `.shape`        | `tuple`          | Logical (dense) shape                                                   |
+| Attribute       | Type             | Meaning                                                               |
+| :-------------- | :--------------- | :-------------------------------------------------------------------- |
+| `.elements`     | `Tensor`         | Element codes (e.g. `e2m1`), in the logical dense shape               |
+| `.block_scales` | `Tensor`         | One scale byte per block (`ue4m3` / `ue8m0`), last axis = `n / block` |
+| `.tensor_scale` | `float` / `None` | NVFP4 per-tensor multiplier; `None` for the MX family                 |
+| `.block_size`   | `int`            | Elements per block (16 for NVFP4, 32 for MX)                          |
+| `.dtype`        | `str`            | Composite format name (e.g. `"nvfp4"`)                                |
+| `.shape`        | `tuple`          | Logical (dense) shape                                                 |
 
 ```python
 import numkong, numpy as np

@@ -23,7 +23,6 @@
 #   -D NUMKONG_COMPARE_TO_BLAS=<AUTO|ON|OFF> (default: AUTO)
 #   -D NUMKONG_COMPARE_TO_MKL=<AUTO|ON|OFF>  (default: AUTO)
 #   -D NUMKONG_BUILD_SHARED=<ON|OFF>         (default: ON when top-level, OFF as a subproject)
-#   -D NUMKONG_WITH_HOST_PROBES=<ON|OFF>     (default: OFF, import capability probes from host)
 #   -D NUMKONG_BUILD_SANITIZERS=<off|address|thread> (default: off, address also arms UndefinedBehaviorSanitizer)
 #   -D NUMKONG_WERROR=<ON|OFF>               (default: OFF, the `check` preset switches it on)
 #   -D NUMKONG_MARCH=<arch>                  (default: the NUMKONG_MARCH environment variable, empty for the
@@ -153,12 +152,6 @@ option(NUMKONG_BUILD_SWIFT "Package the static library for SwiftPM, as an XCFram
 set(NUMKONG_CUDA_ARCH "" CACHE STRING "NVIDIA code the libraries, tests and benchmarks build for: all, native or one")
 set(NUMKONG_ROCM_ARCH "" CACHE STRING "AMD target the libraries, tests and benchmarks build for: all, native or one")
 set(NUMKONG_METAL_ARCH "" CACHE STRING "Apple GPU family whose capabilities the libraries embed: all or one")
-option(NUMKONG_WITH_HOST_PROBES "Import the capability probes from the WASI host" OFF)
-
-# `nk_cpu_capabilities_detected` lives in the library, so the imports reach every unit, not just the tests.
-if (numkong_os_wasi_ AND NUMKONG_WITH_HOST_PROBES)
-    add_compile_definitions(NUMKONG_WITH_HOST_PROBES=1)
-endif ()
 
 # Seeded from the environment at the first configure, so `cargo` and `cmake-js` honour `NUMKONG_MARCH=native`.
 set(NUMKONG_MARCH "$ENV{NUMKONG_MARCH}"
@@ -488,25 +481,14 @@ endif ()
 # unit per enabled CPU capability, defining that capability's kernels of every family. Each unit names its own
 # capability, so every file compiles with the same flags and the units build in parallel. WebAssembly enables its
 # capabilities through NUMKONG_MARCH, so its units follow the platform.
+set(numkong_dispatch_units_
+    src/dispatch/dot.c src/dispatch/dots.c src/dispatch/spatial.c src/dispatch/spatials.c src/dispatch/set.c
+    src/dispatch/sets.c src/dispatch/maxsim.c src/dispatch/attention.c src/dispatch/sparse.c src/dispatch/reduce.c
+    src/dispatch/each.c src/dispatch/cast.c src/dispatch/scalar.c src/dispatch/trigonometry.c src/dispatch/curved.c
+    src/dispatch/probability.c src/dispatch/geospatial.c src/dispatch/shapes.c
+)
 set(numkong_library_units_
-    src/dispatch/dot.c
-    src/dispatch/dots.c
-    src/dispatch/spatial.c
-    src/dispatch/spatials.c
-    src/dispatch/set.c
-    src/dispatch/sets.c
-    src/dispatch/maxsim.c
-    src/dispatch/attention.c
-    src/dispatch/sparse.c
-    src/dispatch/reduce.c
-    src/dispatch/each.c
-    src/dispatch/cast.c
-    src/dispatch/scalar.c
-    src/dispatch/trigonometry.c
-    src/dispatch/curved.c
-    src/dispatch/probability.c
-    src/dispatch/geospatial.c
-    src/dispatch/shapes.c
+    ${numkong_dispatch_units_}
     src/capabilities/serial.c
     $<$<BOOL:${numkong_target_haswell_enabled}>:src/capabilities/haswell.c>
     $<$<BOOL:${numkong_target_alder_enabled}>:src/capabilities/alder.c>
@@ -542,6 +524,12 @@ set(numkong_library_units_
     $<$<BOOL:${numkong_arch_wasm_}>:src/capabilities/v128relaxed.c>
     $<$<BOOL:${numkong_target_powervsx_enabled}>:src/capabilities/powervsx.c>
     $<$<BOOL:${numkong_target_loongsonasx_enabled}>:src/capabilities/loongsonasx.c>
+)
+# Dispatch calls kernels through `void *` signatures on purpose, which every supported ABI passes alike
+set_source_files_properties(
+    ${numkong_dispatch_units_}
+    PROPERTIES COMPILE_OPTIONS
+               "$<$<AND:$<C_COMPILER_ID:Clang,AppleClang>,$<BOOL:${NUMKONG_BUILD_SANITIZERS}>>:-fno-sanitize=function>"
 )
 
 # Build tests

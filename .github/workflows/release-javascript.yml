@@ -6,35 +6,45 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 env:
   EMSCRIPTEN_VERSION: 6.0.9
 
 jobs:
+  hooks:
+    name: Check Release Commit
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+      - name: Check the Release Commit
+        run: .github/scripts/check-release.sh "$GITHUB_REF_NAME"
+
   build_native:
-    name: Build Native Package, ${{ matrix.platform }}
+    name: Build Native Package for ${{ matrix.platform }}
+    needs: hooks
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: linux-x64
-            os: ubuntu-24.04
+            os: ubuntu-26.04
             cc: gcc-14
             cxx: g++-14
             script: prebuild
           - platform: linux-arm64
-            os: ubuntu-24.04
+            os: ubuntu-26.04
             cc: aarch64-linux-gnu-gcc-14
             cxx: aarch64-linux-gnu-g++-14
             script: prebuild-arm64
           - platform: darwin-arm64
-            os: macos-15
+            os: macos-26
             cc: clang
             cxx: clang++
             script: prebuild
           - platform: darwin-x64
-            os: macos-15
+            os: macos-26
             cc: clang
             cxx: clang++
             script: prebuild-x64
@@ -49,6 +59,7 @@ jobs:
             cxx: cl.exe
             script: prebuild-arm64
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     env:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
@@ -56,8 +67,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
 
       - name: Set Up Node.js
         uses: actions/setup-node@v7
@@ -115,12 +124,16 @@ jobs:
 
   # One module per tier and width; the loader picks a wasm32 tier by what the engine validates.
   build_wasm_module:
-    name: Build WASM Module, ${{ matrix.width }} ${{ matrix.simd }}
+    name: Build WASM Module ${{ matrix.width }} ${{ matrix.simd }}
+    needs: hooks
     runs-on: ubuntu-26.04
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
+          - width: wasm32
+            simd: serial
           - width: wasm32
             simd: v128
           - width: wasm32
@@ -130,8 +143,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Install Emscripten
         uses: nick-fields/retry@v4
         with:
@@ -161,11 +172,10 @@ jobs:
     name: Build WASM Bundle
     needs: build_wasm_module
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
       - name: Set Up Node.js
         uses: actions/setup-node@v7
         with:
@@ -176,14 +186,12 @@ jobs:
           pattern: wasm-module-*
           path: wasm
           merge-multiple: true
+      # Both entries join the four modules, reaching each through its package subpath.
       - name: Build JavaScript and Assemble WASM Bundle
         run: |
           npm install --ignore-scripts
           npm run build-js
-          npx esbuild javascript/dist/esm/numkong-browser.js \
-            --bundle --format=esm --platform=browser --target=es2022 \
-            --outfile=wasm/numkong.js
-          cp javascript/dist/esm/numkong-browser.d.ts wasm/numkong.d.ts
+          npm run build-browser
       - name: Upload WASM Bundle
         uses: actions/upload-artifact@v7
         with:
@@ -192,13 +200,15 @@ jobs:
           retention-days: 1
           overwrite: true
 
-  publish_platform_packages:
-    name: Publish Platform Package, ${{ matrix.platform }}
-    needs: [build_native]
-    if: always()
+  publish_javascript_platform:
+    name: Publish JavaScript Platform Package for ${{ matrix.platform }} to npm
+    needs: build_native
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     environment:
-      name: npm-numkong
+      name: npm
+      url: https://www.npmjs.com/package/@numkong/${{ matrix.platform }}
     permissions:
       contents: read
       id-token: write
@@ -209,15 +219,11 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
-
       - name: Set Up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
-
       - name: Download Platform Artifact
         id: download
         uses: actions/download-artifact@v8
@@ -225,19 +231,19 @@ jobs:
           name: numkong-${{ matrix.platform }}
           path: javascript/@numkong-${{ matrix.platform }}/
         continue-on-error: true
-
       - name: Publish @numkong/${{ matrix.platform }}
         if: steps.download.outcome == 'success'
         working-directory: javascript/@numkong-${{ matrix.platform }}
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag ${{ github.event.release.prerelease && 'next' || 'latest' }}
 
-  publish_main:
-    name: Publish Main Package to NPM
-    needs: [publish_platform_packages, build_wasm]
-    if: always()
+  publish_javascript:
+    name: Publish JavaScript to npm
+    needs: [publish_javascript_platform, build_wasm]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-26.04
+    timeout-minutes: 15
     environment:
-      name: npm-numkong
+      name: npm
       url: https://www.npmjs.com/package/numkong
     permissions:
       contents: read
@@ -253,10 +259,8 @@ jobs:
 
       - name: Checkout Repository
         uses: actions/checkout@v7
-        with:
-          ref: "main"
 
-      - name: Set Up Node.js Environment
+      - name: Set Up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "24"
@@ -290,5 +294,5 @@ jobs:
       - name: Run Tests
         run: npm run test
 
-      - name: Publish to NPM
-        run: npm publish --provenance --access public
+      - name: Publish to npm
+        run: npm publish --provenance --access public --tag ${{ github.event.release.prerelease && 'next' || 'latest' }}

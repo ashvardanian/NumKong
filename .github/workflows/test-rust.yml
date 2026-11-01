@@ -1,47 +1,37 @@
 name: Test Rust
 
 on:
-  pull_request:
-    branches: ["main", "main-*"]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
+  # Only `cuda` and `rocm` change the C library, so every host build links one CMake build of it.
   test_rust:
     name: Test Rust
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
+    timeout-minutes: 40
+    env:
+      NUMKONG_LIBRARY_DIR: ${{ github.workspace }}/build_release_shared
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Print Machine Specs
-        shell: bash
         run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
+          uname -a
+          lscpu
+          free -h
 
-      - name: Install Rust Toolchain
+      - name: Set Up Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
 
-      - name: Install Cross-Compilation Targets and Dependencies
+      - name: Build C Library
         run: |
-          rustup target add i686-unknown-linux-gnu
-          rustup target add armv7-unknown-linux-gnueabihf
-          sudo dpkg --add-architecture i386
-          sudo apt-get update
-          # Install i686 multilib and ARM cross-compiler separately to avoid
-          # gcc-multilib vs gcc-arm-linux-gnueabihf package conflicts.
-          sudo apt-get install -y gcc-multilib g++-multilib libc6-dev-i386
-          sudo apt-get install -y gcc-14-arm-linux-gnueabihf g++-14-arm-linux-gnueabihf
+          cmake --preset release_shared
+          cmake --build --preset release_shared --target numkong_static
 
       - name: Test Default Build
         run: cargo test
@@ -58,34 +48,45 @@ jobs:
       - name: Check Alloc-without-Std Build
         run: cargo check --no-default-features --features alloc
 
-      - name: Test i686 Cross-Compilation Build
-        run: cargo build --target i686-unknown-linux-gnu --features std
-
-      - name: Cross-Compile No-Std for i686
-        run: cargo build --target i686-unknown-linux-gnu --no-default-features
-
-      # 32-bit ARM — catches AArch64-only intrinsics leaking into NEON paths
-      - name: Test ARMv7 Cross-Compilation Build
-        env:
-          CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc-14
-          CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++-14
-          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc-14
-        run: cargo build --target armv7-unknown-linux-gnueabihf --features std
-
-      - name: Cross-Compile No-Std for ARMv7
-        env:
-          CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc-14
-          CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++-14
-          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc-14
-        run: cargo build --target armv7-unknown-linux-gnueabihf --no-default-features
-
-  lint:
-    name: Lint Rust
-    runs-on: ubuntu-24.04
+  # 32-bit ARM catches AArch64-only intrinsics leaking into NEON paths.
+  build_rust_cross:
+    name: Build Rust for ${{ matrix.target }} with ${{ matrix.features }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [i686-unknown-linux-gnu, armv7-unknown-linux-gnueabihf]
+        features: ["--features std", "--no-default-features"]
+        include:
+          - target: i686-unknown-linux-gnu
+            packages: gcc-multilib g++-multilib libc6-dev-i386
+          - target: armv7-unknown-linux-gnueabihf
+            packages: gcc-14-arm-linux-gnueabihf g++-14-arm-linux-gnueabihf
+    env:
+      CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc-14
+      CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++-14
+      CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc-14
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
-      - name: Install Rust Toolchain
+      - name: Set Up Rust Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install Cross-Compiler
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.packages }}
+      - name: Build Library
+        run: cargo build --target ${{ matrix.target }} ${{ matrix.features }}
+
+  lint_rust:
+    name: Lint Rust
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+      - name: Set Up Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy, rustfmt
@@ -94,11 +95,12 @@ jobs:
       - name: Rustfmt Check
         run: cargo fmt --all --check
 
-  msrv:
+  build_rust_msrv:
     name: Build Rust via MSRV 1.100
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
       # Until 1.100 reaches stable, nightly stands in, and `rust-version` rejects any older compiler.
       - name: Install Rust 1.100
@@ -109,9 +111,10 @@ jobs:
         run: cargo build --no-default-features
 
   # Each Rust WASI target builds through its own CMake toolchain, with the capability its target features declare.
-  build_wasi:
+  build_rust_wasi:
     name: Build Rust for ${{ matrix.target }} with ${{ matrix.features }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -125,9 +128,9 @@ jobs:
     env:
       WASI_SDK_VERSION: "34"
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
-      - name: Install Rust Toolchain
+      - name: Set Up Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: ${{ matrix.target }}
@@ -147,30 +150,32 @@ jobs:
           RUSTFLAGS: -C target-feature=${{ matrix.features }}
 
   # No hosted runner has a GPU, so the `cuda` and `rocm` features, which build through CMake, are link checks.
-  build_cuda:
+  build_rust_cuda:
     name: Build Rust with CUDA
     runs-on: ubuntu-26.04
+    timeout-minutes: 30
     container: nvidia/cuda:13.4.3-devel-ubuntu26.04
     steps:
       - name: Install Dependencies
         run: apt-get update && apt-get install -y cmake make g++ git curl
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
-      - name: Install Rust Toolchain
+      - name: Set Up Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: Link Tests with CUDA
         run: cargo test --features cuda --no-run
 
-  build_rocm:
+  build_rust_rocm:
     name: Build Rust with ROCm
     runs-on: ubuntu-26.04
+    timeout-minutes: 30
     container: rocm/dev-ubuntu-26.04:10.0.0-full
     steps:
       - name: Install Dependencies
         run: apt-get update && apt-get install -y cmake make git curl
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
-      - name: Install Rust Toolchain
+      - name: Set Up Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: Link Tests with ROCm
         run: cargo test --features rocm --no-run

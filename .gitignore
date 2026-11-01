@@ -1,101 +1,85 @@
+# Build trees and CMake
 /build*/
 _deps
-*.egg-info
 CMakeFiles
-__pycache__
-wheelhouse/
-node_modules/
-package-ci/
-prebuilds/
-wasm/
-dist/
-javascript/dist
-bun.lockb
-.build/
-.venv*/
-.cache/
-.claude/
-tmp/
-/.tmp/
+CMakeCache.txt
+cmake_install.cmake
+/Testing/
 
 # Per-developer preset overrides: toolchain paths that are true of one machine, not of the project
 CMakeUserPresets.json
 
-# Playwright and test artifacts
-playwright-report/
-test-results/
-.pytest_cache/
-
-cmake_install.cmake
-CMakeCache.txt
-
-# Prerequisites
+# C and C++
 *.d
-
-# Compiled Object files
 *.slo
 *.lo
 *.o
 *.obj
-
-# Precompiled Headers
 *.gch
 *.pch
-
-# Compiled Dynamic libraries
 *.so
 *.dylib
 *.dll
-*.pyd
-*.node
-
-# Fortran module files
-*.smod
-
-# Compiled Static libraries
 *.lai
 *.la
 *.a
 *.lib
-
-# Executables
 *.exe
 *.out
 *.app
-*.wasm
-
-# Rust crate
-/target/
-
-# Swift Package Manager
-.swiftpm/
-
-# Mac OS
-.DS_Store
-
-# VS Code
-.devcontainer/
-
-# perfplot charts
-*.png
-
-# Python wheel archives
-*.whl
-
-# Library: don't commit lockfiles!
-Cargo.lock
-uv.lock
-package-lock.json
-CLAUDE.local.md
-
-# Editors, assistants, language servers and tool caches
-/compile_commands.json
-.ruff_cache/
-.mypy_cache/
-
-# Windows compiler, build-runner, and local validation artifacts
-/.vs/
-/Testing/
 *.exp
 *.pdb
 *.ilk
+
+# Python
+__pycache__
+*.egg-info
+*.pyd
+*.whl
+wheelhouse/
+dist/
+.venv*/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+# Libraries leave lockfiles to their consumers
+uv.lock
+
+# Rust
+/target/
+/.cargo/config.toml
+Cargo.lock
+
+# JavaScript
+node_modules/
+package-lock.json
+bun.lockb
+*.node
+prebuilds/
+package-ci/
+javascript/dist
+playwright-report/
+test-results/
+
+# WebAssembly
+wasm/
+*.wasm
+
+# Swift
+.build/
+.swiftpm/
+
+# Editors, assistants, language servers and tool caches
+/compile_commands.json
+.cache/
+.claude/
+CLAUDE.local.md
+.devcontainer/
+/.vs/
+
+# macOS
+.DS_Store
+
+# Local scratch
+tmp/
+/.tmp/

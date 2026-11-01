@@ -286,18 +286,38 @@
     "vector": "cpp"
   },
   "files.watcherExclude": {
-    "**/__pycache__": true,
+    "**/.venv/**": true,
+    "**/__pycache__/**": true,
     "**/build*/**": true,
+    "**/dist*/**": true,
     "**/node_modules/**": true,
-    "**/target/**": true
+    "**/target/**": true,
+    "data/**": true,
+    "datasets/**": true
   },
-  "python.testing.pytestArgs": ["test"],
+  "python.analysis.exclude": [
+    "**/.venv/**",
+    "**/__pycache__/**",
+    "**/build*/**",
+    "**/dist*/**",
+    "**/node_modules/**",
+    "**/target/**",
+    "data/**",
+    "datasets/**"
+  ],
+  "python.testing.pytestArgs": [
+    "test"
+  ],
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
   "search.exclude": {
-    "**/__pycache__": true,
-    "**/node_modules": true,
-    "build*/**": true,
-    "target/**": true
+    "**/.venv/**": true,
+    "**/__pycache__/**": true,
+    "**/build*/**": true,
+    "**/dist*/**": true,
+    "**/node_modules/**": true,
+    "**/target/**": true,
+    "data/**": true,
+    "datasets/**": true
   }
 }

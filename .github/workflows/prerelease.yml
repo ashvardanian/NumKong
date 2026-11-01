@@ -2,81 +2,61 @@ name: Pre-Release
 
 on:
   pull_request:
-    branches: ["main", "main-*"]
+    branches: ["main", "main-dev"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# `actions: read` lets the Swift Android job, which runs in another repository's workflow, download this run's artifacts.
 permissions:
+  actions: read
   contents: read
 
-env:
-  GH_TOKEN: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
-  PYTHONUTF8: 1
-
 jobs:
-  versioning:
-    name: Update Version
-    runs-on: ubuntu-24.04
+  hooks:
+    name: Check Commits
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          persist-credentials: false
-      - name: Run TinySemVer
-        uses: ashvardanian/tinysemver@v3
-        with:
-          verbose: "true"
-          version-file: "VERSION"
-          update-version-in: |
-            Cargo.toml:^version = "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            package.json:"(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            javascript/@numkong-linux-x64/package.json:"version": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            javascript/@numkong-linux-arm64/package.json:"version": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            javascript/@numkong-darwin-x64/package.json:"version": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            javascript/@numkong-darwin-arm64/package.json:"version": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            javascript/@numkong-win32-x64/package.json:"version": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            javascript/@numkong-win32-arm64/package.json:"version": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            CITATION.cff:^version: (\d+\.\d+\.\d+(?:-rc\.\d+)?)
-            Package.swift:releases/download/v(\d+\.\d+\.\d+(?:-rc\.\d+)?)
-            package.json:@numkong/darwin-arm64": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            package.json:@numkong/darwin-x64": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            package.json:@numkong/linux-arm64": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            package.json:@numkong/linux-x64": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            package.json:@numkong/win32-arm64": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-            package.json:@numkong/win32-x64": "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"
-          update-major-version-in: |
-            c/numkong/types.h:^#define NUMKONG_VERSION_MAJOR (\d+)
-          update-minor-version-in: |
-            c/numkong/types.h:^#define NUMKONG_VERSION_MINOR (\d+)
-          update-patch-version-in: |
-            c/numkong/types.h:^#define NUMKONG_VERSION_PATCH (\d+)
-          dry-run: "true"
+      - name: Check Every Commit
+        run: .github/scripts/check-commits.sh "${{ github.event.pull_request.base.sha }}"
 
-  wheels:
-    name: Build Python Wheels
-    uses: ./.github/workflows/build-wheels.yml
-    secrets: inherit
+  test_c:
+    name: Test C
+    needs: hooks
+    uses: ./.github/workflows/test-c.yml
 
-  build_docs:
-    name: Build Docs
-    runs-on: ubuntu-26.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Set Up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-      - name: Install Doxygen
-        run: |
-          curl -sSfL https://www.doxygen.nl/files/doxygen-1.18.0.linux.bin.tar.gz | tar -xz -C "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/doxygen-1.18.0/bin" >> "$GITHUB_PATH"
-      - name: Install Sphinx
-        run: pip install -r docs/requirements.txt
-      - name: Install NumKong from the Checkout
-        run: pip install .
-      - name: Build Docs
-        run: cd docs && doxygen conf.dox && sphinx-build -M html . ../build/docs -W
+  test_python:
+    name: Test Python
+    needs: hooks
+    uses: ./.github/workflows/test-python.yml
+
+  test_rust:
+    name: Test Rust
+    needs: hooks
+    uses: ./.github/workflows/test-rust.yml
+
+  test_javascript:
+    name: Test JavaScript
+    needs: hooks
+    uses: ./.github/workflows/test-javascript.yml
+
+  test_swift:
+    name: Test Swift
+    needs: hooks
+    uses: ./.github/workflows/test-swift.yml
+
+  test_go:
+    name: Test Go
+    needs: hooks
+    uses: ./.github/workflows/test-go.yml
+
+  test_docs:
+    name: Test Docs
+    needs: hooks
+    uses: ./.github/workflows/test-docs.yml

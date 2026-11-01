@@ -1,33 +1,26 @@
 name: Test Go
 
 on:
-  pull_request:
-    branches: ["main", "main-*"]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
-  test_golang:
+  test_go:
     name: Test Go
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
 
       - name: Print Machine Specs
-        shell: bash
         run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || true
-          free -h 2>/dev/null || true
-          echo "::endgroup::"
+          uname -a
+          lscpu
+          free -h
 
       - name: Set Up Go
         uses: actions/setup-go@v7

@@ -37,28 +37,28 @@ build_release/numkong_bench
 `debug`, `check`, `cuda`, `rocm`, `metal`, the `linux_<arch>` cross builds under QEMU, Android and WASM follow the same three commands.
 Machine-specific settings, like a compiler path, belong in an untracked `CMakeUserPresets.json`.
 
-| CMake Flag                    | Default                         | Description                                                                   |
-| :---------------------------- | :------------------------------ | :---------------------------------------------------------------------------- |
-| `NUMKONG_BUILD_TEST`          | `OFF`                           | Compile precision tests, and with the shared library also tests against it    |
-| `NUMKONG_BUILD_BENCH`         | `OFF`                           | Compile micro-benchmarks                                                      |
-| `NUMKONG_BUILD_PYTHON`        | `OFF`                           | Compile the CPython extension, as `pip install .` does through scikit-build   |
-| `NUMKONG_BUILD_NODE`          | `OFF`                           | Compile the Node addon, as `npm run build-native` does through `cmake-js`     |
-| `NUMKONG_BUILD_SWIFT`         | `OFF`                           | Package the static library for SwiftPM, as the `swift` preset does            |
-| `NUMKONG_BUILD_SHARED`        | `ON`, if top-level              | Compile dynamic library                                                       |
-| `NUMKONG_INSTALL`             | `ON`, if top-level              | Install headers, libraries, and the CMake package files                       |
-| `NUMKONG_BUILD_SANITIZERS`    | `off`                           | Instrument the build with `address`, plus UBSan, or `thread`                  |
-| `NUMKONG_WERROR`              | `OFF`                           | Treat warnings as errors, as the `check` preset does                          |
-| `NUMKONG_CUDA_ARCH`           | empty, for no CUDA              | NVIDIA code: `all` for the release set, `native`, or one like `100f`          |
-| `NUMKONG_ROCM_ARCH`           | empty, for no ROCm              | AMD code: `all` for `gfx942;gfx950;gfx1250;gfx1251`, `native`, or one         |
-| `NUMKONG_METAL_ARCH`          | empty, for no Metal             | Apple GPU families to embed: `all` for `apple7;apple9;apple10`, or one        |
-| `NUMKONG_COMPARE_TO_BLAS`     | `AUTO`                          | Include OpenBLAS, or Apple's Accelerate on macOS, into test/bench comparisons |
-| `NUMKONG_COMPARE_TO_MKL`      | `AUTO`                          | Include Intel MKL into test/bench comparisons                                 |
-| `NUMKONG_COMPARE_TO_CUBLAS`   | `ON`                            | Include cuBLASLt and cuBLAS into CUDA benchmarks                              |
-| `NUMKONG_COMPARE_TO_CUDNN`    | `OFF`                           | Include cuDNN attention into CUDA benchmarks, from `NUMKONG_CUDNN_ROOT`       |
-| `NUMKONG_COMPARE_TO_CUVS`     | `OFF`                           | Include cuVS distances into CUDA benchmarks, from `NUMKONG_CUVS_ROOTS`        |
-| `NUMKONG_MARCH`               | `$NUMKONG_MARCH`                | The floor: `x86-64-v3`, a CPU, the host's `native`, or a WASM `v128relaxed`   |
-| `NUMKONG_MULTIVERSIONED`      | `ON`                            | `OFF` keeps one kernel per operation, the best the floor implies              |
-| `NUMKONG_TARGET_<CAPABILITY>` | its probe's verdict             | `0` drops a capability, and `1` keeps one only where its probe compiles       |
+| CMake Flag                    | Default             | Description                                                                   |
+| :---------------------------- | :------------------ | :---------------------------------------------------------------------------- |
+| `NUMKONG_BUILD_TEST`          | `OFF`               | Compile precision tests, and with the shared library also tests against it    |
+| `NUMKONG_BUILD_BENCH`         | `OFF`               | Compile micro-benchmarks                                                      |
+| `NUMKONG_BUILD_PYTHON`        | `OFF`               | Compile the CPython extension, as `pip install .` does through scikit-build   |
+| `NUMKONG_BUILD_NODE`          | `OFF`               | Compile the Node addon, as `npm run build-native` does through `cmake-js`     |
+| `NUMKONG_BUILD_SWIFT`         | `OFF`               | Package the static library for SwiftPM, as the `swift` preset does            |
+| `NUMKONG_BUILD_SHARED`        | `ON`, if top-level  | Compile dynamic library                                                       |
+| `NUMKONG_INSTALL`             | `ON`, if top-level  | Install headers, libraries, and the CMake package files                       |
+| `NUMKONG_BUILD_SANITIZERS`    | `off`               | Instrument the build with `address`, plus UBSan, or `thread`                  |
+| `NUMKONG_WERROR`              | `OFF`               | Treat warnings as errors, as the `check` preset does                          |
+| `NUMKONG_CUDA_ARCH`           | empty, for no CUDA  | NVIDIA code: `all` for the release set, `native`, or one like `100f`          |
+| `NUMKONG_ROCM_ARCH`           | empty, for no ROCm  | AMD code: `all` for `gfx942;gfx950;gfx1250;gfx1251`, `native`, or one         |
+| `NUMKONG_METAL_ARCH`          | empty, for no Metal | Apple GPU families to embed: `all` for `apple7;apple9;apple10`, or one        |
+| `NUMKONG_COMPARE_TO_BLAS`     | `AUTO`              | Include OpenBLAS, or Apple's Accelerate on macOS, into test/bench comparisons |
+| `NUMKONG_COMPARE_TO_MKL`      | `AUTO`              | Include Intel MKL into test/bench comparisons                                 |
+| `NUMKONG_COMPARE_TO_CUBLAS`   | `ON`                | Include cuBLASLt and cuBLAS into CUDA benchmarks                              |
+| `NUMKONG_COMPARE_TO_CUDNN`    | `OFF`               | Include cuDNN attention into CUDA benchmarks, from `NUMKONG_CUDNN_ROOT`       |
+| `NUMKONG_COMPARE_TO_CUVS`     | `OFF`               | Include cuVS distances into CUDA benchmarks, from `NUMKONG_CUVS_ROOTS`        |
+| `NUMKONG_MARCH`               | `$NUMKONG_MARCH`    | The floor: `x86-64-v3`, a CPU, the host's `native`, or a WASM `v128relaxed`   |
+| `NUMKONG_MULTIVERSIONED`      | `ON`                | `OFF` keeps one kernel per operation, the best the floor implies              |
+| `NUMKONG_TARGET_<CAPABILITY>` | its probe's verdict | `0` drops a capability, and `1` keeps one only where its probe compiles       |
 
 Every binding builds the static library through this `CMakeLists.txt`, or links one it built, so CMake is the one place that probes which capabilities the toolchain builds.
 Each capability's probe, `probes/<capability>.c`, calls one of its kernels, compiled header-only at the baseline flags as the library compiles it.
@@ -74,14 +74,14 @@ Units calling capability kernels link `numkong::cpu_capabilities_compiled`, the 
 Each CPU capability's flags for a unit compiled whole for it are cached as `numkong_target_<capability>_flags`, and each GPU capability's architectures as `numkong_target_<capability>_architectures`.
 Each binding hands CMake its options its own way:
 
-| Binding | Builds                                            | Passing another option                                                  |
-| :------ | :------------------------------------------------ | :---------------------------------------------------------------------- |
-| Python  | `NUMKONG_BUILD_PYTHON`, from `pyproject.toml`     | `pip install . -C cmake.define.NUMKONG_CUDA_ARCH=all`                   |
-| Rust    | `numkong_static`, from `build.rs`                 | `cargo build --features cuda`, or `rocm` for `NUMKONG_ROCM_ARCH`        |
-| Node    | `NUMKONG_BUILD_NODE`, from `package.json`         | `npm run build-native -- --CDNUMKONG_MARCH=native`                      |
-| Go      | `numkong_static`, built by hand for `cgo`         | `cmake -D NUMKONG_MARCH=native`, then `--target numkong_static`         |
-| Swift   | `NUMKONG_BUILD_SWIFT`, from the `swift` preset    | `cmake --preset swift -D NUMKONG_MARCH=native`                          |
-| WASM    | the `wasm*_emscripten` and `wasm32_wasi*` presets | `cmake --preset wasm32_wasi -D NUMKONG_MARCH=v128relaxed`               |
+| Binding | Builds                                            | Passing another option                                           |
+| :------ | :------------------------------------------------ | :--------------------------------------------------------------- |
+| Python  | `NUMKONG_BUILD_PYTHON`, from `pyproject.toml`     | `pip install . -C cmake.define.NUMKONG_CUDA_ARCH=all`            |
+| Rust    | `numkong_static`, from `build.rs`                 | `cargo build --features cuda`, or `rocm` for `NUMKONG_ROCM_ARCH` |
+| Node    | `NUMKONG_BUILD_NODE`, from `package.json`         | `npm run build-native -- --CDNUMKONG_MARCH=native`               |
+| Go      | `numkong_static`, built by hand for `cgo`         | `cmake -D NUMKONG_MARCH=native`, then `--target numkong_static`  |
+| Swift   | `NUMKONG_BUILD_SWIFT`, from the `swift` preset    | `cmake --preset swift -D NUMKONG_MARCH=native`                   |
+| WASM    | the `wasm*_emscripten` and `wasm32_wasi*` presets | `cmake --preset wasm32_wasi -D NUMKONG_MARCH=v128relaxed`        |
 
 Rust links an archive CMake already built when `NUMKONG_LIBRARY_DIR` names its directory, and Go always does.
 On WebAssembly, `build.rs` hands CMake the toolchain the Rust target needs and the SIMD capability its target features declare, as [rust/README.md](rust/README.md#webassembly) lists.
@@ -118,16 +118,16 @@ The resulting artifact bakes host-specific instructions into scaffolding code an
 
 ### Compiler Requirements
 
-| ISA Family                              |  GCC | Clang | AppleClang     |        MSVC |
-| :-------------------------------------- | ---: | ----: | :------------- | ----------: |
-| Base — serial, NEON, AVX2               |   9+ |   10+ | Any            |       2019+ |
-| Float16 — NEONHalf, Sapphire FP16, Zvfh |  12+ |   16+ | Any            | 2022 17.14+ |
-| AVX-512 — Skylake, Ice Lake             |   9+ |   10+ | …              |       2019+ |
-| AVX-512BF16 — Genoa                     |  12+ |   16+ | …              | 2022 17.14+ |
-| Intel AMX — Sapphire, Granite           |  14+ |   18+ | …              | 2022 17.14+ |
-| Arm SME                                 |  14+ |   18+ | 16+ / Xcode 16 |           … |
-| RISC-V Vector — RVV 1.0                 |  16+ |   17+ | …              |           … |
-| RVV + Zvfh/Zvfbfwma/Zvbb                |  16+ |   18+ | …              |           … |
+| ISA Family                              | GCC | Clang | AppleClang     |        MSVC |
+| :-------------------------------------- | --: | ----: | :------------- | ----------: |
+| Base — serial, NEON, AVX2               |  9+ |   10+ | Any            |       2019+ |
+| Float16 — NEONHalf, Sapphire FP16, Zvfh | 12+ |   16+ | Any            | 2022 17.14+ |
+| AVX-512 — Skylake, Ice Lake             |  9+ |   10+ | …              |       2019+ |
+| AVX-512BF16 — Genoa                     | 12+ |   16+ | …              | 2022 17.14+ |
+| Intel AMX — Sapphire, Granite           | 14+ |   18+ | …              | 2022 17.14+ |
+| Arm SME                                 | 14+ |   18+ | 16+ / Xcode 16 |           … |
+| RISC-V Vector — RVV 1.0                 | 16+ |   17+ | …              |           … |
+| RVV + Zvfh/Zvfbfwma/Zvbb                | 16+ |   18+ | …              |           … |
 
 NumKong builds with GCC 13, Clang 18, Apple Clang 16, MSVC 19.40 or newer.
 On Ubuntu 24.04 the default packages are enough:
@@ -142,20 +142,20 @@ NumKong ships 12 toolchain files in `cmake/`, each named `toolchain-<name>.cmake
 Tests and benchmarks run transparently under QEMU via `CMAKE_CROSSCOMPILING_EMULATOR`.
 Targets with a `qemu-*` emulator additionally require `qemu-user`.
 
-| Target                  | Toolchain             | Emulator                      | Prerequisites                                   |
-| :---------------------- | :-------------------- | :---------------------------- | :---------------------------------------------- |
-| ARM64 Linux             | `aarch64-gnu`         | `qemu-aarch64 -cpu max`       | `gcc-aarch64-linux-gnu`                         |
-| RISC-V 64 LLVM          | `riscv64-llvm`        | `qemu-riscv64 -cpu max`       | Clang 21+, `gcc-riscv64-linux-gnu`              |
-| RISC-V 64 GCC           | `riscv64-gnu`         | `qemu-riscv64 -cpu max`       | GCC 16+, `gcc-riscv64-linux-gnu`                |
-| ppc64le Linux           | `ppc64le-gnu`         | `qemu-ppc64le -cpu power10`   | `gcc-powerpc64le-linux-gnu`                     |
-| LoongArch 64            | `loongarch64-gnu`     | `qemu-loongarch64 -cpu la464` | `gcc-loongarch64-linux-gnu`                     |
-| Android ARM64           | `android-arm64`       | …                             | `ANDROID_NDK_ROOT`                              |
-| Android ARMv7           | `android-armv7`       | …                             | `ANDROID_NDK_ROOT`                              |
-| x86_64 on Apple Silicon | `x86_64-llvm`         | `arch -x86_64`                | Homebrew LLVM                                   |
-| WASM32 Emscripten       | `wasm32-emscripten`   | Node.js                       | Emscripten 3.1.27+, `v128` by default           |
-| WASM64 Emscripten       | `wasm64-emscripten`   | Node.js 24+                   | Emscripten 3.1.35+, `v128relaxed` by default    |
-| WASI                    | `wasm32-wasi`         | Wasmtime / Wasmer             | WASI SDK 24+, `v128` by default                 |
-| WASI threads            | `wasm32-wasi-threads` | Wasmtime with threads         | WASI SDK 24+, `v128relaxed` by default          |
+| Target                  | Toolchain             | Emulator                      | Prerequisites                                |
+| :---------------------- | :-------------------- | :---------------------------- | :------------------------------------------- |
+| ARM64 Linux             | `aarch64-gnu`         | `qemu-aarch64 -cpu max`       | `gcc-aarch64-linux-gnu`                      |
+| RISC-V 64 LLVM          | `riscv64-llvm`        | `qemu-riscv64 -cpu max`       | Clang 21+, `gcc-riscv64-linux-gnu`           |
+| RISC-V 64 GCC           | `riscv64-gnu`         | `qemu-riscv64 -cpu max`       | GCC 16+, `gcc-riscv64-linux-gnu`             |
+| ppc64le Linux           | `ppc64le-gnu`         | `qemu-ppc64le -cpu power10`   | `gcc-powerpc64le-linux-gnu`                  |
+| LoongArch 64            | `loongarch64-gnu`     | `qemu-loongarch64 -cpu la464` | `gcc-loongarch64-linux-gnu`                  |
+| Android ARM64           | `android-arm64`       | …                             | `ANDROID_NDK_ROOT`                           |
+| Android ARMv7           | `android-armv7`       | …                             | `ANDROID_NDK_ROOT`                           |
+| x86_64 on Apple Silicon | `x86_64-llvm`         | `arch -x86_64`                | Homebrew LLVM                                |
+| WASM32 Emscripten       | `wasm32-emscripten`   | Node.js                       | Emscripten 3.1.27+, `v128` by default        |
+| WASM64 Emscripten       | `wasm64-emscripten`   | Node.js 24+                   | Emscripten 3.1.35+, `v128relaxed` by default |
+| WASI                    | `wasm32-wasi`         | Wasmtime / Wasmer             | WASI SDK 24+, `v128` by default              |
+| WASI threads            | `wasm32-wasi-threads` | Wasmtime with threads         | WASI SDK 24+, `v128relaxed` by default       |
 
 Each QEMU toolchain names its emulated core in `<ARCH>_QEMU_CPU`, the richest by default so the tests run every compiled capability.
 A baseline leg passes the baseline core instead, which runs the library without any capability: `-D AARCH64_QEMU_CPU=cortex-a53`, `-D RISCV_QEMU_CPU=rv64`, `-D PPC_QEMU_CPU=power8`, or `-D LOONGARCH_QEMU_CPU=la464,lsx=off,lasx=off`.
@@ -176,7 +176,8 @@ NUMKONG_IN_QEMU=1 ctest --test-dir build_arm64 # runs under qemu-aarch64 -cpu ma
 ```
 
 The ISA floor is `armv8-a`; individual kernels are gated by the compile probes in `probes/`.
-GCC 14 builds and links the SME kernels, since `dots/sme.h` carries weak `__arm_tpidr2_save` and `__arm_tpidr2_restore` stubs.
+Clang and GCC 16 build the SME kernels, and GCC links them through the weak `__arm_tpidr2_save` and `__arm_tpidr2_restore` stubs in `dots/sme.h`.
+GCC 15 refuses SME without SVE2, so its builds probe SME off and ship without them.
 
 __RISC-V 64 with GCC__
 
@@ -224,6 +225,8 @@ For the `v128relaxed` module beside it, and for wasm64 — Memory64:
 
 ```sh
 cmake --preset wasm32_emscripten -D NUMKONG_MARCH=v128relaxed  # numkong-wasm32-v128relaxed
+cmake --build --preset wasm32_emscripten
+cmake --preset wasm32_emscripten -D NUMKONG_MARCH=serial       # numkong-wasm32-serial
 cmake --build --preset wasm32_emscripten
 cmake --preset wasm64_emscripten                               # numkong-wasm64-v128relaxed
 cmake --build --preset wasm64_emscripten
@@ -450,7 +453,7 @@ cmake --build build_swift_iossim
 ```
 
 The simulators lack the `__sme_memset` routine streaming SME code calls, hence the SME verdicts turned off.
-`.github/workflows/build-swift.yml` builds every slice and triple the release ships, and `release.yml` writes their checksums into `Package.swift` before tagging.
+`.github/workflows/build-swift.yml` builds every slice and triple the release ships, and `.github/scripts/mint-release.sh` writes their checksums into `Package.swift` before tagging.
 On Linux, `swift package experimental-audit-binary-artifact build_swift/NumKongC.artifactbundle` checks that the archive needs nothing beyond the C library.
 
 `Package.swift` declares `swift-tools-version:6.4`, so the package needs Swift 6.4 or newer.
@@ -493,6 +496,28 @@ sudo docker run --rm -v "$PWD:/workspace" -w /workspace swift:6.4 /bin/bash -cl 
 go test ./golang/ # To test
 go test -run=^$ -bench=. -benchmem ./bench/golang/ # To benchmark
 ```
+
+## Commits
+
+`.githooks/commit-msg` checks every message:
+
+- The title reads `<Verb>: <Summary>`, where the verb is one of `Add`, `Break`, `Chore`, `Docs`, `Fix`, `Improve` or `Make`.
+- The summary opens with a capital letter, unless it opens with a code identifier, which keeps its own case.
+- The title runs to at most 80 characters, and a body line to at most 100 columns, unless it holds a URL or is indented code.
+- The message carries no AI-assistant attribution, since authorship is the human who committed.
+
+Git's merge, `fixup!` and `squash!` titles are exempt from the title rules.
+A `Release: vX.Y.Z` title is exempt too, but its commit must stamp every version site, and no other commit may change `VERSION`.
+`.githooks/pre-commit` formats and judges the staged lines, and `.githooks/selftest` runs both hooks against their fixtures.
+On a pull request, `.github/scripts/check-commits.sh` replays `commit-msg` over every commit and runs `pre-commit` over the whole range.
+
+## Releases
+
+`.github/scripts/mint-release.sh X.Y.Z` cuts a release from a clean checkout of the branch it ships.
+It builds the Swift binaries for that version, stamps every version site and the binaries' checksums, and commits `Release: vX.Y.Z`.
+`.github/scripts/check-release.sh` then checks that commit, even in a clone where `core.hooksPath` is unset, before the script tags it and pushes both.
+Then it publishes the GitHub release with the binaries attached, marking `X.Y.Z-rc.N` candidates as prereleases.
+Publishing starts every `release-<binding>.yml` at once, and each runs `check-release.sh` before it builds anything, so each registry trusts only its own binding's file.
 
 ## Adding a New Kernel Family
 
@@ -654,7 +679,7 @@ Each of these words has one meaning across the library:
 | `gpu`                                            | Adjective for every GPU group                                                    | `nk_cap_gpus_k`, `nk_missing_gpu_k`                                               |
 | `device`                                         | A processor kernels run on, which a stream belongs to                            | `nk_cuda_count_devices`, `nk_device_memory_mismatch_k`, `nk_device_current_simt_` |
 | `ordinal`                                        | A device's index within its group, as its runtime numbers it                     | Producer parameters only                                                          |
-| `stream`                                         | A `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>`, which names its device | The trailing `nk_stream_t stream` of every consumer                                     |
+| `stream`                                         | A `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>`, which names its device | The trailing `nk_stream_t stream` of every consumer                               |
 | `unified`                                        | Memory both the host and the stream's device address                             | `nk_memory_allocate_unified_best`                                                 |
 | A capability, like `hopper`, `cdna4` or `apple9` | One bit of a mask                                                                | The last token before the role suffix                                             |
 | `kernel`                                         | A GPU entry point                                                                | `_kernel_`, right after the capability                                            |

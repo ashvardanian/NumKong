@@ -1,47 +1,55 @@
 name: Test Python
 
 on:
-  pull_request:
-    branches: ["main", "main-*"]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_call:
 
 permissions:
   contents: read
 
 env:
   PYTHONUTF8: 1
+  PYTHONFAULTHANDLER: 1
   PYTHONMALLOC: debug
 
 jobs:
   test_python:
-    name: Test Python, ${{ matrix.os }}, ${{ matrix.python-version }}
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         # Architecture comes from the runner label, not a matrix axis.
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
+        os: [ubuntu-26.04, ubuntu-26.04-arm, macos-26, windows-2025]
         python-version: ["3.15", "3.12"]
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v7
       - name: Set Up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Print Machine Specs
-        shell: bash
+      - name: Print Machine Specs on Linux
+        if: runner.os == 'Linux'
         run: |
-          echo "::group::Machine Information"
-          uname -a || true
-          cat /proc/cpuinfo 2>/dev/null | head -30 || sysctl -a machdep.cpu 2>/dev/null | head -30 || wmic cpu get Name,NumberOfCores,MaxClockSpeed 2>/dev/null || true
-          free -h 2>/dev/null || vm_stat 2>/dev/null || systeminfo 2>/dev/null | head -20 || true
-          echo "::endgroup::"
+          uname -a
+          lscpu
+          free -h
+
+      - name: Print Machine Specs on macOS
+        if: runner.os == 'macOS'
+        run: |
+          uname -a
+          sysctl machdep.cpu hw.optional hw.memsize
+
+      - name: Print Machine Specs on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Get-CimInstance Win32_Processor | Format-List Name,Manufacturer,NumberOfCores,NumberOfLogicalProcessors,Description,Architecture
+          Get-ComputerInfo | Format-List CsProcessors,OsArchitecture,WindowsVersion
 
       - name: Install Dependencies
         uses: nick-fields/retry@v4
@@ -58,3 +66,11 @@ jobs:
 
       - name: Test with PyTest
         run: python -X faulthandler -m pytest -x
+
+  # The native Python builds on every OS fail in minutes, before dozens of cibuildwheel jobs start.
+  wheels:
+    name: Build Python Wheels
+    needs: test_python
+    uses: ./.github/workflows/build-wheels.yml
+    with:
+      smoke: true

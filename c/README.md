@@ -59,7 +59,6 @@ Packing handles internal layout itself and does not require caller-side alignmen
 [openblas]: https://github.com/OpenMathLib/OpenBLAS
 [eigen]: https://gitlab.com/libeigen/eigen
 
-
 ## Installation
 
 With CMake `FetchContent`:
@@ -185,18 +184,18 @@ The API is intentionally not STL-shaped.
 The scalar wrappers in `include/numkong/types.hpp` are storage-first types.
 They encode raw layout, default output types, and the kernel function pointer signatures for each family.
 
-| Type          | Layout           | Bytes |            Range |  Inf  |  NaN  |
-| :------------ | :--------------- | ----: | ---------------: | :---: | :---: |
-| `nk_f16_t`    | 1+5+10           |     2 |           ±65504 |  yes  |  yes  |
-| `nk_bf16_t`   | 1+8+7            |     2 |        ±3.4×10³⁸ |  yes  |  yes  |
-| `nk_e4m3_t`   | 1+4+3            |     1 |             ±448 |  no   |  yes  |
-| `nk_e5m2_t`   | 1+5+2            |     1 |           ±57344 |  yes  |  yes  |
-| `nk_e2m3_t`   | 1+2+3            |     1 |             ±7.5 |  no   |  no   |
-| `nk_e3m2_t`   | 1+3+2            |     1 |              ±28 |  no   |  no   |
-| `nk_e2m1x2_t` | 2 × (1+2+1)      |     1 |    ±6 per nibble |  no   |  no   |
-| `nk_u1x8_t`   | 8 packed bits    |     1 |   0 or 1 per bit |  n/a  |  n/a  |
-| `nk_u4x2_t`   | 2 × 4-bit        |     1 |  0…15 per nibble |  n/a  |  n/a  |
-| `nk_i4x2_t`   | 2 × 4-bit signed |     1 |  −8…7 per nibble |  n/a  |  n/a  |
+| Type          | Layout           | Bytes |           Range | Inf | NaN |
+| :------------ | :--------------- | ----: | --------------: | :-: | :-: |
+| `nk_f16_t`    | 1+5+10           |     2 |          ±65504 | yes | yes |
+| `nk_bf16_t`   | 1+8+7            |     2 |       ±3.4×10³⁸ | yes | yes |
+| `nk_e4m3_t`   | 1+4+3            |     1 |            ±448 | no  | yes |
+| `nk_e5m2_t`   | 1+5+2            |     1 |          ±57344 | yes | yes |
+| `nk_e2m3_t`   | 1+2+3            |     1 |            ±7.5 | no  | no  |
+| `nk_e3m2_t`   | 1+3+2            |     1 |             ±28 | no  | no  |
+| `nk_e2m1x2_t` | 2 × (1+2+1)      |     1 |   ±6 per nibble | no  | no  |
+| `nk_u1x8_t`   | 8 packed bits    |     1 |  0 or 1 per bit | n/a | n/a |
+| `nk_u4x2_t`   | 2 × 4-bit        |     1 | 0…15 per nibble | n/a | n/a |
+| `nk_i4x2_t`   | 2 × 4-bit signed |     1 | −8…7 per nibble | n/a | n/a |
 
 The layout column shows sign, exponent, and mantissa bit counts for floating-point types.
 For `nk_f16_t`, 1+5+10 means one sign bit, five exponent bits, and ten mantissa bits, totaling 16 bits stored in 2 bytes.
@@ -379,7 +378,6 @@ Memory ownership is explicit.
 `vector` and `tensor` deallocate through their allocator.
 `vector_view`, `tensor_view`, `matrix_view`, and spans never own memory.
 And heterogenous index types for `operator[]` enable more interesting access patterns:
-
 
 ```cpp
 #include <numkong/numkong.hpp>

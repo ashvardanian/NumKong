@@ -161,6 +161,7 @@ inherit.environment = "append"
 # Also, `ml_dtypes` has no Pyodide wheel, so we skip it.
 [[tool.cibuildwheel.overrides]]
 before-build = ["rm -rf {project}/build_python"]
+environment.NUMKONG_MARCH = "v128"
 select = "*-pyodide*"
 test-command = """
     python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&

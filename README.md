@@ -124,7 +124,6 @@ NumKong covers 18 numeric types — from 4-bit floats to 128-bit complex numbers
 [swift]: swift/README.md
 [go]: golang/README.md
 
-
 ## Design Decisions
 
 - Avoid loop unrolling and scalar tails.
@@ -290,7 +289,7 @@ The standard BLAS interface was never designed for sub-byte types either — [no
 __Some operations need more than GEMM + postprocessing.__
 NumKong implements several GEMM-shaped operations where the "epilogue" is too complex for a simple addition:
 
-- __Bilinear forms__ ($a^T C b$) in quantum computing compute a [scalar expectation value](<https://phys.libretexts.org/Bookshelves/Quantum_Mechanics/Advanced_Quantum_Mechanics_(Kok)/10:_Pauli_Spin_Matrices/10.2:_Expectation_Values>) — the naive approach materializes an $N$-dimensional intermediate vector $Cb$, but NumKong's typed `nk_bilinear_*` kernels stream through rows of $C$ with nested compensated dot products, never allocating beyond registers.
+- __Bilinear forms__ ($a^T C b$) in quantum computing compute a [scalar expectation value](https://phys.libretexts.org/Bookshelves/Quantum_Mechanics/Advanced_Quantum_Mechanics_(Kok)/10:_Pauli_Spin_Matrices/10.2:_Expectation_Values) — the naive approach materializes an $N$-dimensional intermediate vector $Cb$, but NumKong's typed `nk_bilinear_*` kernels stream through rows of $C$ with nested compensated dot products, never allocating beyond registers.
   For complex-valued quantum states, where the intermediate would be a 2N-element complex vector, the savings double.
 - __MaxSim scoring__ for [ColBERT-style late-interaction retrieval](https://github.com/stanford-futuredata/ColBERT) computes $\sum_i \min_j \text{angular}(q_i, d_j)$ — a sum-of-min-distances across token pairs.
   A GEMM would produce the full $M \times N$ similarity matrix, but NumKong's typed `nk_maxsim_packed_*` kernels fuse a coarse Int8-quantized screening with full-precision angular refinement on winning pairs only, packing both query and document matrices to use all 4 SME tiles as accumulators.
