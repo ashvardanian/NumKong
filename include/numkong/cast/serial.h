@@ -2325,6 +2325,39 @@ NK_INTERNAL int nk_scalar_buffer_from_f64(nk_f64_t const *value, nk_scalar_buffe
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
+NK_PUBLIC void nk_cast_truncate_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
+                                       nk_dtype_t to_type) {
+    nk_dtype_family_t to_family = nk_dtype_family(to_type);
+    if (nk_dtype_family(from_type) != nk_dtype_family_float_k || nk_dtype_bits(to_type) < 8 ||
+        (to_family != nk_dtype_family_int_k && to_family != nk_dtype_family_uint_k))
+        return;
+
+    nk_size_t from_stride = nk_dtype_bits(from_type) / NK_BITS_PER_BYTE;
+    nk_size_t to_stride = nk_dtype_bits(to_type) / NK_BITS_PER_BYTE;
+    nk_scalar_buffer_t buffers[NK_BITS_PER_BYTE], output_buffers[NK_BITS_PER_BYTE];
+    for (nk_size_t offset = 0; offset < n;) {
+        nk_size_t count = n - offset < NK_BITS_PER_BYTE ? n - offset : NK_BITS_PER_BYTE;
+        nk_scalar_buffers_to_f64c_((char const *)from + offset * from_stride, from_type, count, buffers);
+        for (nk_size_t i = 0; i < count; ++i) {
+            nk_f64_t number = buffers[i].f64c.real;
+            // Compare with exact powers of two before casting: the largest 64-bit integer
+            // rounds UP when represented in f64. Never cast that rounded endpoint.
+            if (to_family == nk_dtype_family_uint_k)
+                buffers[i].u64 = !(number > 0) ? 0 : number >= 18446744073709551616.0 ? NK_U64_MAX : (nk_u64_t)number;
+            else
+                buffers[i].i64 = number != number                   ? 0
+                                 : number >= 9223372036854775808.0  ? NK_I64_MAX
+                                 : number <= -9223372036854775808.0 ? NK_I64_MIN
+                                                                    : (nk_i64_t)number;
+        }
+        if (to_family == nk_dtype_family_uint_k) nk_scalar_buffers_from_u64_(buffers, output_buffers, to_type, count);
+        else nk_scalar_buffers_from_i64_(buffers, output_buffers, to_type, count);
+        // Buffer-protocol outputs need not be naturally aligned for their dtype.
+        nk_copy_bytes_((char *)to + offset * to_stride, output_buffers, count * to_stride);
+        offset += count;
+    }
+}
+
 NK_PUBLIC void nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
     if (from_type == to_type) {
         nk_size_t size_bits = nk_dtype_bits(from_type);

@@ -256,6 +256,185 @@ def test_capabilities_list():
         nk.disable_capability("neon")
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy required")
+@pytest.mark.parametrize("source_dtype", ["float16", "float32", "float64"])
+@pytest.mark.parametrize("target_dtype", ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64"])
+def test_astype_truncate_numpy_oracle(source_dtype, target_dtype):
+    """NumPy truncates finite in-range values; Python integers clamp exact 64-bit bounds."""
+    limits = np.iinfo(target_dtype)
+    with np.errstate(over="ignore", invalid="ignore"):
+        bounds = np.array([limits.min, limits.max], dtype=source_dtype)
+        source = np.concatenate(
+            [
+                np.array(
+                    [
+                        -300.9,
+                        -128.9,
+                        -2.5,
+                        -1.9,
+                        -1.5,
+                        -0.5,
+                        -0.0,
+                        0.5,
+                        1.5,
+                        1.9,
+                        2.5,
+                        127.9,
+                        255.9,
+                        300.9,
+                        np.nan,
+                        np.inf,
+                        -np.inf,
+                    ],
+                    dtype=source_dtype,
+                ),
+                bounds,
+                np.nextafter(bounds, -np.inf),
+                np.nextafter(bounds, np.inf),
+            ]
+        )
+    # Never cast NaN/inf/out-of-range floats with NumPy: those results are platform-dependent.
+    expected = np.array(
+        [
+            (
+                0
+                if np.isnan(x)
+                else (
+                    limits.max
+                    if x == np.inf
+                    else limits.min if x == -np.inf else min(limits.max, max(limits.min, int(np.trunc(x))))
+                )
+            )
+            for x in source
+        ],
+        dtype=target_dtype,
+    )
+    result = nk.astype(source, target_dtype, rounding="truncate")
+    np.testing.assert_array_equal(np.asarray(result), expected)
+    output = np.empty(source.shape, dtype=target_dtype)
+    assert nk.astype(source, target_dtype, rounding="truncate", out=output) is output
+    np.testing.assert_array_equal(output, expected)
+    finite = source[np.isfinite(source)]
+    in_range = np.array([limits.min <= int(np.trunc(x)) <= limits.max for x in finite])
+    np.testing.assert_array_equal(
+        np.asarray(nk.astype(finite[in_range], target_dtype, rounding="truncate")),
+        finite[in_range].astype(target_dtype),
+    )
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy required")
+@pytest.mark.parametrize(
+    "layout", ["contiguous", "transpose", "reverse", "slice", "broadcast", "scalar", "empty", "rank5"]
+)
+def test_astype_truncate_layout_and_default(layout):
+    source = np.linspace(-20.5, 300.5, 120, dtype=np.float32).reshape(2, 4, 5, 3)
+    source = {
+        "contiguous": source,
+        "transpose": source.transpose(3, 1, 0, 2),
+        "reverse": source[::-1, :, ::-1, :],
+        "slice": source[:, ::2, :, ::2],
+        "broadcast": np.broadcast_to(source[0, 0, 0, 0], (2, 3, 4)),
+        "scalar": np.array(1.9, dtype=np.float32),
+        "empty": source[:, :0],
+        "rank5": source.reshape(2, 2, 2, 5, 3),
+    }[layout]
+    expected = np.clip(np.trunc(source), 0, 255).astype(np.uint8)
+    output = np.empty(source.shape, dtype=np.uint8)
+    result = nk.astype(source, "u1", rounding="truncate")
+    assert result.shape == source.shape
+    np.testing.assert_array_equal(np.asarray(result), expected)
+    assert nk.astype(source, "uint8", rounding="truncate", out=output) is output
+    np.testing.assert_array_equal(output, expected)
+    clipped = np.clip(source, 0, 255)
+    np.testing.assert_array_equal(
+        np.asarray(nk.astype(clipped, "uint8", rounding="truncate")), clipped.astype(np.uint8)
+    )
+    nearest = np.clip(np.rint(source), 0, 255).astype(np.uint8)
+    np.testing.assert_array_equal(np.asarray(nk.astype(source, "uint8")), nearest)
+    np.testing.assert_array_equal(np.asarray(nk.astype(source, "uint8", rounding="nearest_even")), nearest)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy required")
+def test_astype_truncate_validation():
+    source = np.array([-1.9, 0.5, 1.9, 2.5], dtype=np.float32)
+    for rounding, error in [
+        (None, TypeError),
+        (1, TypeError),
+        (b"truncate", TypeError),
+        ("floor", ValueError),
+        ("truncate\0", ValueError),
+    ]:
+        with pytest.raises(error, match="rounding"):
+            nk.astype(source, "int32", rounding=rounding)
+    for src, dtype in [
+        (source, "float64"),
+        (source.astype(np.int32), "int8"),
+        (source.astype(np.complex64), "int8"),
+        (source, "int4"),
+        (source, "uint4"),
+        (source, "uint1"),
+    ]:
+        with pytest.raises(ValueError, match="truncate"):
+            nk.astype(src, dtype, rounding="truncate")
+    for output in [source.view(np.int32), source[::-1].view(np.int32)]:
+        with pytest.raises(ValueError):
+            nk.astype(source, "int32", rounding="truncate", out=output)
+    backing = np.arange(8, dtype=np.float32)
+    with pytest.raises(ValueError, match="overlap"):
+        nk.astype(backing[:4], "int32", rounding="truncate", out=backing[2:6].view(np.int32))
+    for output in [np.empty(3, dtype=np.int32), np.empty(4, dtype=np.int16), np.empty(8, dtype=np.int32)[::2]]:
+        with pytest.raises((ValueError, TypeError)):
+            nk.astype(source, "int32", rounding="truncate", out=output)
+    output = np.empty(4, dtype=np.int32)
+    output.flags.writeable = False
+    with pytest.raises((ValueError, BufferError)):
+        nk.astype(source, "int32", rounding="truncate", out=output)
+    tensor = nk.empty(source.shape, dtype="int32")
+    assert nk.astype(source, "int32", rounding="truncate", out=tensor) is tensor
+    np.testing.assert_array_equal(np.asarray(tensor), source.astype(np.int32))
+
+
+@pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes required")
+@pytest.mark.parametrize("source_dtype", ["bfloat16", "float8_e4m3fn", "float8_e5m2", "float6_e2m3fn", "float6_e3m2fn"])
+@pytest.mark.parametrize("target_dtype", ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64"])
+def test_astype_truncate_minifloats(source_dtype, target_dtype):
+    # Cast the actual quantized values with NumPy, rather than assuming the original fractions survive.
+    source = np.array([-1.9, -1.5, -0.5, 0.5, 1.5, 1.9, 2.5], dtype=getattr(ml_dtypes, source_dtype))
+    reference = source.astype(np.float64)
+    if np.iinfo(target_dtype).min == 0:
+        reference = np.maximum(reference, 0)
+    expected = reference.astype(target_dtype)
+    for inputs, reference_values in [(source, expected), (source[::-1], expected[::-1]), (nk.Tensor(source), expected)]:
+        output = np.empty(source.shape, dtype=target_dtype)
+        assert nk.astype(inputs, target_dtype, rounding="truncate", out=output) is output
+        np.testing.assert_array_equal(output, reference_values)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy required")
+@pytest.mark.parametrize("target_dtype", ["int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64"])
+def test_astype_nearest_even_remains_default(target_dtype):
+    source = np.array([-np.inf, np.nan, -2.5, -1.9, -1.5, -0.5, 0.5, 1.5, 1.9, 2.5, np.inf])
+    limits = np.iinfo(target_dtype)
+    expected = np.array(
+        [limits.min, 0, max(limits.min, -2), max(limits.min, -2), max(limits.min, -2), 0, 0, 2, 2, 2, limits.max],
+        dtype=target_dtype,
+    )
+    np.testing.assert_array_equal(np.asarray(nk.astype(source, target_dtype)), expected)
+    np.testing.assert_array_equal(np.asarray(nk.astype(source, target_dtype, rounding="nearest_even")), expected)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy required")
+@pytest.mark.parametrize("target_dtype", ["int16", "uint16", "int32", "uint32", "int64", "uint64"])
+def test_astype_truncate_unaligned_buffers(target_dtype):
+    # Native-format memoryviews avoid NumPy's '=d' buffer format, which the existing parser rejects.
+    source = memoryview(bytearray(17 * 8 + 1))[1:].cast("d")
+    np.asarray(source)[:] = np.linspace(0.5, 16.5, 17)
+    dtype = np.dtype(target_dtype)
+    output = memoryview(bytearray(17 * dtype.itemsize + 1))[1:].cast(dtype.char)
+    assert nk.astype(source, target_dtype, rounding="truncate", out=output) is output
+    np.testing.assert_array_equal(np.asarray(output), np.asarray(source).astype(target_dtype))
+
+
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize(
     "function, expected_error, args, kwargs",
