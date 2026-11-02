@@ -5,11 +5,13 @@
  *  @brief Many-to-many shape distances for NumKong Python bindings.
  *
  *  This module owns:
- *  - @c ShapesPackedMatrix: point clouds packed onto their principal axes, and views over them.
+ *  - @c ShapesPackedMatrix: point clouds packed onto their principal axes, views over them, and
+ *    @c copy, which gathers them into the unified memory a GPU reads.
  *  - @c shapes_pack: packs one cloud, or a sequence of clouds of any sizes, into it.
  *  - @c shapes_pack_normalized: packs them the same way, each divided by its RMS radius.
- *  - @c chamfers_packed and its hausdorffs, wassersteinprocrustes and gromovwassersteins siblings:
- *    the distance between every row cloud and every column cloud.
+ *  - @c rmsds_packed and its hausdorffs, chamfers, wassersteinprocrustes and gromovwassersteins
+ *    siblings: the distance between every row cloud and every column cloud.
+ *  - @c chamfers_workspace_size and its transport siblings: the bytes a @c workspace= must hold.
  *
  *  Shape naming convention used in docs and errors:
  *  - packed @c a: @b [rows] clouds
@@ -22,15 +24,25 @@
 
 #include "numkong/shapes.h"
 
+/** Reads @p value as a mask keeping the GPU bits @c parse_dispatch_keyword drops. */
+static int shapes_parse_capabilities(PyObject *value, nk_capability_t *capabilities) {
+    unsigned long long const bits = PyLong_AsUnsignedLongLong(value);
+    if (bits == (unsigned long long)-1 && PyErr_Occurred()) return 0;
+    *capabilities = (nk_capability_t)bits;
+    return 1;
+}
+
 /** Reads the pose and bounds of pack @p index into every non-null output, f32 for f16 packs and f64
- *  for f32 ones. */
+ *  for the others. */
 static nk_status_t shapes_packed_shape(ShapesPackedMatrix const *packed, nk_size_t index, nk_size_t *points,
                                        void *centroid, void *frame, void *scale, void *spreads, void *max_radius) {
     void const *pack = packed->packs[index];
-    return packed->dtype == nk_f16_k ? nk_shapes_packed_shape_f16_best(pack, points, centroid, frame, scale, spreads,
-                                                                       max_radius, nk_cap_cpus_k, NULL)
-                                     : nk_shapes_packed_shape_f32_best(pack, points, centroid, frame, scale, spreads,
-                                                                       max_radius, nk_cap_cpus_k, NULL);
+    return packed->dtype == nk_f64_k   ? nk_shapes_packed_shape_f64_best(pack, points, centroid, frame, scale, spreads,
+                                                                         max_radius, nk_cap_cpus_k, NULL)
+           : packed->dtype == nk_f16_k ? nk_shapes_packed_shape_f16_best(pack, points, centroid, frame, scale, spreads,
+                                                                         max_radius, nk_cap_cpus_k, NULL)
+                                       : nk_shapes_packed_shape_f32_best(pack, points, centroid, frame, scale, spreads,
+                                                                         max_radius, nk_cap_cpus_k, NULL);
 }
 
 static nk_size_t shapes_packed_points(ShapesPackedMatrix const *packed, nk_size_t index) {
@@ -69,16 +81,22 @@ static size_t shapes_packed_nbytes(ShapesPackedMatrix const *packed) {
     return total;
 }
 
-/** A view over @p count packs of @p source, every @p step from @p start, sharing its buffer. */
+/** A view over @p count packs of @p source, every @p step from @p start, sharing its buffer. A view
+ *  in steps holds its own host table, which a GPU cannot read; the rest share the source's. */
 static PyObject *shapes_packed_view(ShapesPackedMatrix *source, Py_ssize_t start, Py_ssize_t step, Py_ssize_t count) {
-    ShapesPackedMatrix *view = PyObject_NewVar(ShapesPackedMatrix, &ShapesPackedMatrixType,
-                                               count * (Py_ssize_t)sizeof(void const *));
+    Py_ssize_t const table_bytes = step == 1 ? 0 : count * (Py_ssize_t)sizeof(void const *);
+    ShapesPackedMatrix *view = PyObject_NewVar(ShapesPackedMatrix, &ShapesPackedMatrixType, table_bytes);
     if (!view) return NULL;
     view->dtype = source->dtype;
     view->clouds = (nk_size_t)count;
-    view->owner = source->owner ? source->owner : (PyObject *)source;
+    view->capabilities = source->capabilities;
+    view->unified = NULL;
+    view->unified_bytes = 0;
+    view->owner = (PyObject *)source;
     Py_INCREF(view->owner);
-    for (Py_ssize_t index = 0; index != count; ++index) view->packs[index] = source->packs[start + index * step];
+    view->packs = step == 1 ? source->packs + start : view->table;
+    for (Py_ssize_t index = 0; step != 1 && index != count; ++index)
+        view->table[index] = source->packs[start + index * step];
     return (PyObject *)view;
 }
 
@@ -96,7 +114,11 @@ static int shapes_packed_index(ShapesPackedMatrix const *packed, PyObject *key, 
 }
 
 static void ShapesPackedMatrix_dealloc(PyObject *self) {
-    Py_XDECREF(((ShapesPackedMatrix *)self)->owner);
+    ShapesPackedMatrix *packed = (ShapesPackedMatrix *)self;
+    // The stream it was made on may be freed by now, so it returns on the default one
+    if (packed->unified)
+        nk_unused_(nk_memory_free_unified_best(packed->unified, packed->unified_bytes, packed->capabilities, NULL));
+    Py_XDECREF(packed->owner);
     Py_TYPE(self)->tp_free(self);
 }
 
@@ -172,7 +194,7 @@ typedef enum {
     shapes_max_radii_k,
 } shapes_packed_field_t;
 
-/** The @p field of every pack in @p packed, f32 for f16 packs and f64 for f32 ones. */
+/** The @p field of every pack in @p packed, f32 for f16 packs and f64 for the others. */
 static PyObject *shapes_packed_tensor(ShapesPackedMatrix const *packed, shapes_packed_field_t field) {
     int const scalar = field == shapes_scales_k || field == shapes_max_radii_k;
     nk_dtype_t const field_dtype = packed->dtype == nk_f16_k ? nk_f32_k : nk_f64_k;
@@ -294,7 +316,9 @@ static PyObject *ShapesPackedMatrix_unpack(PyObject *self, PyObject *key) {
     nk_status_t status = nk_success_k;
     // An empty Tensor holds no data pointer for the kernel to write through
     if (shape[0])
-        status = packed->dtype == nk_f16_k
+        status = packed->dtype == nk_f64_k
+                     ? nk_shapes_unpack_f64_best(pack, (nk_f64_t *)cloud->data, nk_cap_cpus_k, NULL)
+                 : packed->dtype == nk_f16_k
                      ? nk_shapes_unpack_f16_best(pack, (nk_f16_t *)cloud->data, nk_cap_cpus_k, NULL)
                      : nk_shapes_unpack_f32_best(pack, (nk_f32_t *)cloud->data, nk_cap_cpus_k, NULL);
     if (check_status(status)) return (PyObject *)cloud;
@@ -302,9 +326,96 @@ static PyObject *ShapesPackedMatrix_unpack(PyObject *self, PyObject *key) {
     return NULL;
 }
 
+static char const doc_ShapesPackedMatrix_copy[] =                                                //
+    "copy(capabilities, *, stream=None) -> ShapesPackedMatrix\n\n"                               //
+    "Gather the table and the packs into one block of the unified memory of `capabilities`,\n"   //
+    "which shape functions of those capabilities read in place and the host reads as usual.\n"   //
+    "Slices in steps copy too. The block lives until the copy and its views are gone, so keep\n" //
+    "them past nk.synchronize().\n\n"                                                            //
+    "Args:\n"                                                                                    //
+    "  capabilities (int): A producer's mask, like nk.cuda_capabilities_enabled(0).\n"           //
+    "  stream (int, optional): A stream of that vendor, naming the device the block is made\n"   //
+    "    on, or None for the default.\n\n"                                                       //
+    "Returns:\n"                                                                                 //
+    "  ShapesPackedMatrix: The same clouds, owning that block.";
+
+static PyObject *ShapesPackedMatrix_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
+    ShapesPackedMatrix *source = (ShapesPackedMatrix *)self;
+    PyObject *capabilities_object = nargs == 1 ? args[0] : NULL;
+    nk_capability_t capabilities = 0;
+    nk_stream_t stream = NULL;
+    if (nargs > 1) {
+        PyErr_SetString(PyExc_TypeError, "copy() takes 1 positional argument: capabilities");
+        return NULL;
+    }
+    Py_ssize_t const nkw = kwnames ? PyTuple_Size(kwnames) : 0;
+    for (Py_ssize_t i = 0; i < nkw; i++) {
+        PyObject *key = PyTuple_GET_ITEM(kwnames, i);
+        if (PyUnicode_CompareWithASCIIString(key, "capabilities") == 0 && !capabilities_object)
+            capabilities_object = args[nargs + i];
+        else if (PyUnicode_CompareWithASCIIString(key, "capabilities") == 0) {
+            PyErr_SetString(PyExc_TypeError, "copy() got multiple values for argument 'capabilities'");
+            return NULL;
+        }
+        else if (!parse_dispatch_keyword(key, args[nargs + i], &capabilities, &stream)) return NULL;
+    }
+    if (!capabilities_object) {
+        PyErr_SetString(PyExc_TypeError, "copy() missing required argument 'capabilities'");
+        return NULL;
+    }
+    if (!shapes_parse_capabilities(capabilities_object, &capabilities)) return NULL;
+
+    nk_shapes_pack_size_punned_t size_fn = NULL;
+    nk_capability_t cap = nk_cap_serial_k;
+    nk_find_kernel_punned(nk_kernel_shapes_pack_size_k, source->dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&size_fn,
+                          &cap);
+    if (!size_fn || !cap) {
+        PyErr_Format(PyExc_LookupError, "No shapes pack_size kernel for dtype '%s'",
+                     nk_dtype_to_pybuffer_typestr(source->dtype));
+        return NULL;
+    }
+    nk_size_t const table_bytes = nk_size_round_up_to_multiple_(source->clouds * sizeof(void const *),
+                                                                nk_default_alignment_k);
+    nk_size_t block_bytes = table_bytes;
+    for (nk_size_t index = 0; index != source->clouds; ++index) {
+        nk_size_t bytes = 0;
+        size_fn(shapes_packed_points(source, index), &bytes);
+        block_bytes += nk_size_round_up_to_multiple_(bytes, nk_default_alignment_k);
+    }
+
+    ShapesPackedMatrix *copy = PyObject_NewVar(ShapesPackedMatrix, &ShapesPackedMatrixType, 0);
+    if (!copy) return NULL;
+    copy->dtype = source->dtype;
+    copy->clouds = source->clouds;
+    copy->capabilities = capabilities;
+    copy->unified = NULL;
+    copy->unified_bytes = block_bytes;
+    copy->owner = NULL;
+    copy->packs = copy->table;
+
+    PyThreadState *save = PyEval_SaveThread();
+    nk_status_t const status = nk_memory_allocate_unified_best(block_bytes, &copy->unified, capabilities, stream);
+    if (status == nk_success_k && copy->unified) {
+        copy->packs = (void const **)copy->unified;
+        char *pack = (char *)copy->unified + table_bytes;
+        for (nk_size_t index = 0; index != source->clouds; ++index) {
+            nk_size_t bytes = 0;
+            size_fn(shapes_packed_points(source, index), &bytes);
+            memcpy(pack, source->packs[index], bytes);
+            copy->packs[index] = pack;
+            pack += nk_size_round_up_to_multiple_(bytes, nk_default_alignment_k);
+        }
+    }
+    PyEval_RestoreThread(save);
+    if (check_status(status)) return (PyObject *)copy;
+    Py_DECREF(copy);
+    return NULL;
+}
+
 static PyMethodDef ShapesPackedMatrix_methods[] = {
     {"pack_size", (PyCFunction)ShapesPackedMatrix_pack_size, METH_CLASS | METH_FASTCALL | METH_KEYWORDS,
      "Return the bytes one packed cloud of the given points and dtype takes."},
+    {"copy", (PyCFunction)ShapesPackedMatrix_copy, METH_FASTCALL | METH_KEYWORDS, doc_ShapesPackedMatrix_copy},
     {"unpack", ShapesPackedMatrix_unpack, METH_O,
      "Return one cloud as [points,3] in the pack dtype and its original pose and scale, within one storage rounding."},
     {NULL, NULL, 0, NULL},
@@ -349,7 +460,7 @@ typedef struct shapes_pack_source_t {
     void *pack;
 } shapes_pack_source_t;
 
-/** Every cloud of a pack, one per tile, named as in `nk_shapes_pack_*`. */
+/** Every cloud of a pack, one per tile, named as in @c nk_shapes_pack_*. */
 typedef struct shapes_pack_task_t {
     nk_shapes_pack_punned_t kernel;
     shapes_pack_source_t const *sources;
@@ -457,14 +568,18 @@ static PyObject *shapes_pack_common(PyObject *const *args, Py_ssize_t nargs, PyO
     if (!packed) goto cleanup;
     packed->dtype = dtype;
     packed->clouds = (nk_size_t)count;
+    packed->capabilities = nk_cap_cpus_k;
+    packed->unified = NULL;
+    packed->unified_bytes = 0;
     packed->owner = NULL;
+    packed->packs = packed->table;
 
-    char *pack = (char *)packed->packs + pointers_bytes;
+    char *pack = (char *)packed->table + pointers_bytes;
     pack += (nk_default_alignment_k - (uintptr_t)pack % nk_default_alignment_k) % nk_default_alignment_k;
     for (Py_ssize_t index = 0; index != count; ++index) {
         nk_size_t bytes = 0;
         size_fn(sources[index].count, &bytes);
-        packed->packs[index] = sources[index].pack = pack;
+        packed->table[index] = sources[index].pack = pack;
         pack += nk_size_round_up_to_multiple_(bytes, nk_default_alignment_k);
     }
     shapes_pack_task_t const task = {.kernel = pack_fn, .sources = sources, .stream = stream};
@@ -491,12 +606,12 @@ char const doc_shapes_pack[] =                                                  
     "Args:\n"                                                                          //
     "  points (array_like or list): One cloud of shape [points,3], or a list or\n"     //
     "    tuple of clouds of any sizes.\n"                                              //
-    "  dtype (string, optional): Packing dtype, 'float16' or 'float32'. Default:\n"    //
-    "    float16 for a float16 first cloud, float32 otherwise.\n"                      //
+    "  dtype (string, optional): Packing dtype, 'float16', 'float32' or 'float64'.\n"  //
+    "    Default: float16 for a float16 first cloud, float32 otherwise.\n"             //
     "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                  //
     "Returns:\n"                                                                       //
-    "  ShapesPackedMatrix: The packed clouds, for chamfers_packed(),\n"                //
-    "    hausdorffs_packed(), wassersteinprocrustes_packed() and\n"                    //
+    "  ShapesPackedMatrix: The packed clouds, for hausdorffs_packed(),\n"              //
+    "    chamfers_packed(), wassersteinprocrustes_packed() and\n"                      //
     "    gromovwassersteins_packed().\n\n"                                             //
     "Signature:\n"                                                                     //
     "  >>> def shapes_pack(points, /, dtype=None, *, threads=1) -> ShapesPackedMatrix: ...";
@@ -516,8 +631,8 @@ char const doc_shapes_pack_normalized[] =                                       
     "Args:\n"                                                                               //
     "  points (array_like or list): One cloud of shape [points,3], or a list or\n"          //
     "    tuple of clouds of any sizes.\n"                                                   //
-    "  dtype (string, optional): Packing dtype, 'float16' or 'float32'. Default:\n"         //
-    "    float16 for a float16 first cloud, float32 otherwise.\n"                           //
+    "  dtype (string, optional): Packing dtype, 'float16', 'float32' or 'float64'.\n"       //
+    "    Default: float16 for a float16 first cloud, float32 otherwise.\n"                  //
     "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                       //
     "Returns:\n"                                                                            //
     "  ShapesPackedMatrix: The packed clouds, for the same functions as\n"                  //
@@ -530,29 +645,66 @@ PyObject *api_shapes_pack_normalized(PyObject *self, PyObject *const *args, Py_s
     return shapes_pack_common(args, nargs, kwnames, nk_kernel_shapes_pack_normalized_k);
 }
 
-/** Acquires @p object as a writable C-contiguous f32 buffer of @p shape, or sets a Python error. */
-static int shapes_rotations_buffer(PyObject *object, Py_ssize_t const *shape, Py_buffer *buffer,
-                                   nk_buffer_backing_t *backing) {
-    if (!nk_get_buffer(object, buffer, PyBUF_WRITABLE | PyBUF_STRIDES | PyBUF_FORMAT, backing)) {
+/** @c nk_get_buffer that, for a GPU kernel, which alone reads it, also describes a GPU Tensor. */
+static int shapes_get_buffer(PyObject *object, Py_buffer *buffer, nk_buffer_backing_t *backing, int on_gpu) {
+    int const flags = PyBUF_WRITABLE | PyBUF_STRIDES | PyBUF_FORMAT;
+    if (!on_gpu || py_object_device(object).device_type == kDLCPU) return nk_get_buffer(object, buffer, flags, backing);
+    return tensor_export_buffer((Tensor *)object, buffer, flags) == 0;
+}
+
+/** Acquires @p object as a writable C-contiguous @p dtype buffer of @p rank and @p shape, or sets a
+ *  Python error naming it @p name. */
+static int shapes_output_buffer(PyObject *object, nk_dtype_t dtype, int rank, Py_ssize_t const *shape, char const *name,
+                                Py_buffer *buffer, nk_buffer_backing_t *backing, int on_gpu) {
+    if (!shapes_get_buffer(object, buffer, backing, on_gpu)) {
         buffer->obj = NULL;
         return 0;
     }
-    int valid = resolve_nk_dtype_in_py_buffer(buffer) == nk_f32_k && buffer->ndim == 4 &&
-                strides_are_c_contiguous(nk_f32_k, 4, buffer->shape, buffer->strides);
-    for (int axis = 0; valid && axis != 4; ++axis) valid = buffer->shape[axis] == shape[axis];
+    int valid = resolve_nk_dtype_in_py_buffer(buffer) == dtype && buffer->ndim == rank &&
+                strides_are_c_contiguous(dtype, rank, buffer->shape, buffer->strides);
+    for (int axis = 0; valid && axis != rank; ++axis) valid = buffer->shape[axis] == shape[axis];
     if (valid) return 1;
     PyBuffer_Release(buffer);
-    PyErr_Format(PyExc_ValueError, "rotations must be a writable C-contiguous float32 buffer of shape [%zd,%zd,3,3]",
-                 shape[0], shape[1]);
+    PyErr_Format(PyExc_ValueError, "%s must be a writable C-contiguous %s buffer of shape [%zd,%zd%s", name,
+                 nk_dtype_python_name(dtype), shape[0], shape[1], rank == 4 ? ",3,3]" : "]");
     return 0;
 }
 
-/** A many-to-many shape call cut into windows of row clouds, named as in `nk_*_packed_*`: window
+/** The windows a call cuts @p rows row clouds into, as there are no more windows than workers. */
+static nk_size_t shapes_windows(nk_size_t threads, nk_size_t rows) {
+    if (threads == 0) threads = nk_parallel_concurrency();
+    return threads < rows ? threads : rows;
+}
+
+/** Sizes one window's workspace of @p workspace_kind for the largest clouds of @p a and @p b. */
+static int shapes_workspace_bytes(nk_kernel_kind_t workspace_kind, ShapesPackedMatrix const *a,
+                                  ShapesPackedMatrix const *b, nk_capability_t capabilities, nk_size_t *bytes) {
+    nk_shapes_workspace_size_punned_t size_fn = NULL;
+    nk_capability_t cap = nk_cap_serial_k;
+    nk_find_kernel_punned(workspace_kind, a->dtype, capabilities, (nk_kernel_punned_t *)&size_fn, &cap);
+    if (!size_fn || !cap) {
+        PyErr_Format(PyExc_LookupError, "No %s kernel for dtype '%s'", nk_kernel_name(workspace_kind),
+                     nk_dtype_to_pybuffer_typestr(a->dtype));
+        return 0;
+    }
+    return check_status(size_fn(shapes_packed_largest(a), shapes_packed_largest(b), bytes));
+}
+
+/** The bytes a @c workspace= holding @p windows aligned windows of @p workspace_bytes must span,
+ *  wherever its buffer starts. */
+static nk_size_t shapes_workspace_span(nk_size_t workspace_bytes, nk_size_t windows) {
+    if (!workspace_bytes) return 0;
+    return windows * nk_size_round_up_to_multiple_(workspace_bytes, nk_default_alignment_k) + nk_default_alignment_k -
+           1;
+}
+
+/** A many-to-many shape call cut into windows of row clouds, named as in @c nk_*_packed_*: window
  *  @c w scores rows from w × rows ÷ windows up to (w + 1) × rows ÷ windows, in its own
- *  @c workspace_stride bytes of @c workspace when @c workspace_kernel is set. */
+ *  @c workspace_stride bytes of @c workspace, all within @c limit where the kind takes one. */
 typedef struct shapes_packed_task_t {
-    nk_shapes_packed_punned_t kernel;
-    nk_shapes_packed_workspace_punned_t workspace_kernel;
+    nk_kernel_punned_t kernel;
+    nk_kernel_kind_t kind;
+    nk_scalar_buffer_t limit;
     void const *const *a_packed;
     nk_size_t rows;
     void const *const *b_packed;
@@ -574,12 +726,21 @@ static nk_status_t shapes_packed_tile_(nk_size_t tile_index, void *context) {
     void const *const *a_packed = task->a_packed + rows_begin;
     char *results = task->results + rows_begin * task->results_stride;
     nk_f32_t *rotations = task->rotations ? task->rotations + rows_begin * task->columns * 9 : NULL;
-    if (!task->workspace_kernel)
-        return task->kernel(a_packed, rows, task->b_packed, task->columns, results, task->results_stride, rotations,
-                            task->stream);
-    return task->workspace_kernel(a_packed, rows, task->b_packed, task->columns, results, task->results_stride,
-                                  rotations, task->workspace + tile_index * task->workspace_stride,
-                                  task->workspace_bytes, task->stream);
+    void *workspace = task->workspace + tile_index * task->workspace_stride;
+    if (task->kind == nk_kernel_rmsds_packed_k)
+        return ((nk_rmsds_packed_punned_t)task->kernel)(a_packed, rows, task->b_packed, task->columns, results,
+                                                        task->results_stride, task->stream);
+    if (task->kind == nk_kernel_hausdorffs_packed_k)
+        return ((nk_hausdorffs_packed_punned_t)task->kernel)(a_packed, rows, task->b_packed, task->columns, results,
+                                                             task->results_stride, rotations, &task->limit,
+                                                             task->stream);
+    if (task->kind == nk_kernel_chamfers_packed_k)
+        return ((nk_chamfers_packed_punned_t)task->kernel)(a_packed, rows, task->b_packed, task->columns, results,
+                                                           task->results_stride, rotations, &task->limit, workspace,
+                                                           task->workspace_bytes, task->stream);
+    return ((nk_wassersteinprocrustes_packed_punned_t)task->kernel)(a_packed, rows, task->b_packed, task->columns,
+                                                                    results, task->results_stride, rotations, workspace,
+                                                                    task->workspace_bytes, task->stream);
 }
 
 /** Scores every row cloud against every column cloud with the many-to-many kernel of @p kind, in a
@@ -599,15 +760,27 @@ static PyObject *shapes_packed_common(PyObject *const *args, Py_ssize_t nargs, P
     ShapesPackedMatrix *a = (ShapesPackedMatrix *)args[0];
     ShapesPackedMatrix *b = (ShapesPackedMatrix *)args[1];
 
-    PyObject *rotations_object = NULL;
+    int const takes_limit = kind == nk_kernel_chamfers_packed_k || kind == nk_kernel_hausdorffs_packed_k;
+    int const takes_workspace = workspace_kind != nk_kernel_unknown_k;
+    int const takes_rotations = kind != nk_kernel_rmsds_packed_k;
+    PyObject *rotations_object = NULL, *limit_object = NULL, *workspace_object = NULL, *out_object = NULL;
     nk_size_t threads = 1;
     nk_capability_t capabilities = nk_cap_cpus_k;
     nk_stream_t stream = NULL;
     Py_ssize_t const nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     for (Py_ssize_t i = 0; i < nkw; i++) {
         PyObject *key = PyTuple_GET_ITEM(kwnames, i);
-        if (PyUnicode_CompareWithASCIIString(key, "rotations") == 0) {
+        if (takes_rotations && PyUnicode_CompareWithASCIIString(key, "rotations") == 0) {
             if (args[nargs + i] != Py_None) rotations_object = args[nargs + i];
+        }
+        else if (takes_limit && PyUnicode_CompareWithASCIIString(key, "limit") == 0) {
+            if (args[nargs + i] != Py_None) limit_object = args[nargs + i];
+        }
+        else if (takes_workspace && PyUnicode_CompareWithASCIIString(key, "workspace") == 0) {
+            if (args[nargs + i] != Py_None) workspace_object = args[nargs + i];
+        }
+        else if (PyUnicode_CompareWithASCIIString(key, "out") == 0) {
+            if (args[nargs + i] != Py_None) out_object = args[nargs + i];
         }
         else if (PyUnicode_CompareWithASCIIString(key, "threads") == 0) {
             Py_ssize_t t = PyLong_AsSsize_t(args[nargs + i]);
@@ -622,6 +795,14 @@ static PyObject *shapes_packed_common(PyObject *const *args, Py_ssize_t nargs, P
                      nk_dtype_to_pybuffer_typestr(b->dtype));
         return NULL;
     }
+    nk_capability_t const gpu = a->capabilities & nk_cap_gpus_k;
+    if (gpu != (b->capabilities & nk_cap_gpus_k)) {
+        PyErr_Format(PyExc_ValueError, "%s needs a and b copied to one GPU", name);
+        return NULL;
+    }
+    int const on_gpu = gpu != 0;
+    // `capabilities=` narrows the CPU dispatch only, while a GPU runs the mask of its packs
+    if (on_gpu) capabilities = gpu;
     nk_dtype_t const dtype = a->dtype;
     nk_dtype_t const out_dtype = nk_kernel_output_dtype(kind, dtype);
 
@@ -633,143 +814,293 @@ static PyObject *shapes_packed_common(PyObject *const *args, Py_ssize_t nargs, P
         return NULL;
     }
 
+    nk_f64_t const requested_limit = limit_object ? PyFloat_AsDouble(limit_object) : NUMKONG_F64_INF;
+    if (limit_object && PyErr_Occurred()) return NULL;
+
     nk_size_t workspace_bytes = 0;
-    if (workspace_kind != nk_kernel_unknown_k) {
-        nk_shapes_workspace_size_punned_t size_fn = NULL;
-        cap = nk_cap_serial_k;
-        nk_find_kernel_punned(workspace_kind, dtype, capabilities, (nk_kernel_punned_t *)&size_fn, &cap);
-        if (!size_fn || !cap) {
-            PyErr_Format(PyExc_LookupError, "No %s kernel for dtype '%s'", nk_kernel_name(workspace_kind),
-                         nk_dtype_to_pybuffer_typestr(dtype));
-            return NULL;
-        }
-        if (!check_status(size_fn(shapes_packed_largest(a), shapes_packed_largest(b), &workspace_bytes))) return NULL;
+    if (takes_workspace && !shapes_workspace_bytes(workspace_kind, a, b, capabilities, &workspace_bytes)) return NULL;
+    if (on_gpu && (!out_object || (workspace_bytes && !workspace_object))) {
+        PyErr_Format(PyExc_ValueError, "%s on a GPU needs out= and any workspace=, as no verb allocates", name);
+        return NULL;
     }
 
     Py_ssize_t const shape[4] = {(Py_ssize_t)a->clouds, (Py_ssize_t)b->clouds, 3, 3};
-    Py_buffer rotations;
-    nk_buffer_backing_t rotations_backing;
-    rotations.obj = NULL;
-    if (rotations_object && !shapes_rotations_buffer(rotations_object, shape, &rotations, &rotations_backing))
-        return NULL;
-    Tensor *distances = Tensor_new(out_dtype, 2, shape);
-    if (!distances) {
-        PyBuffer_Release(&rotations);
-        return NULL;
-    }
-    // Each window solves in its own workspace, so there are no more windows than workers
-    if (threads == 0) threads = nk_parallel_concurrency();
-    nk_size_t const windows = threads < a->clouds ? threads : a->clouds;
-    nk_size_t const workspace_stride = nk_size_round_up_to_multiple_(workspace_bytes, nk_default_alignment_k);
+    Py_buffer rotations, out, workspace_view;
+    nk_buffer_backing_t rotations_backing, out_backing, workspace_backing;
+    rotations.obj = out.obj = workspace_view.obj = NULL;
     char *workspace = NULL, *aligned_workspace = NULL;
-    if (workspace_bytes) {
-        workspace = PyMem_Malloc(windows * workspace_stride + nk_default_alignment_k - 1);
-        if (!workspace) {
-            Py_DECREF(distances);
-            PyBuffer_Release(&rotations);
-            return PyErr_NoMemory();
-        }
-        aligned_workspace = workspace + (nk_default_alignment_k - (uintptr_t)workspace % nk_default_alignment_k) %
-                                            nk_default_alignment_k;
-    }
-
+    Tensor *distances = NULL;
+    PyObject *returned = NULL;
     nk_status_t status = nk_success_k;
+    if (rotations_object && !shapes_output_buffer(rotations_object, nk_f32_k, 4, shape, "rotations", &rotations,
+                                                  &rotations_backing, on_gpu))
+        goto cleanup;
+    if (out_object && !shapes_output_buffer(out_object, out_dtype, 2, shape, "out", &out, &out_backing, on_gpu))
+        goto cleanup;
+    if (!out_object) distances = Tensor_new(out_dtype, 2, shape);
+    if (!out_object && !distances) goto cleanup;
+
+    // Each window solves in its own workspace, so there are no more windows than workers, and a
+    // GPU parallelizes every row itself in one launch rather than the thread pool
+    nk_size_t const windows = on_gpu ? 1 : shapes_windows(threads, a->clouds);
+    nk_size_t const workspace_stride = nk_size_round_up_to_multiple_(workspace_bytes, nk_default_alignment_k);
+    nk_size_t const workspace_span = shapes_workspace_span(workspace_bytes, windows);
+    if (workspace_object) {
+        if (!shapes_get_buffer(workspace_object, &workspace_view, &workspace_backing, on_gpu)) {
+            workspace_view.obj = NULL;
+            goto cleanup;
+        }
+        if (!PyBuffer_IsContiguous(&workspace_view, 'C') || (nk_size_t)workspace_view.len < workspace_span) {
+            PyErr_Format(PyExc_ValueError, "workspace must be a writable contiguous buffer of at least %zu bytes",
+                         (size_t)workspace_span);
+            goto cleanup;
+        }
+        if (workspace_span) aligned_workspace = (char *)workspace_view.buf;
+    }
+    else if (workspace_span) {
+        workspace = PyMem_Malloc(workspace_span);
+        if (!workspace) {
+            PyErr_NoMemory();
+            goto cleanup;
+        }
+        aligned_workspace = workspace;
+    }
+    if (aligned_workspace)
+        aligned_workspace += (nk_default_alignment_k - (uintptr_t)aligned_workspace % nk_default_alignment_k) %
+                             nk_default_alignment_k;
+
     // An empty Tensor holds no data pointer for the kernel to write through
     if (a->clouds && b->clouds) {
-        int const transport = workspace_kind != nk_kernel_unknown_k;
-        shapes_packed_task_t const task = {
-            .kernel = transport ? NULL : (nk_shapes_packed_punned_t)kernel,
-            .workspace_kernel = transport ? (nk_shapes_packed_workspace_punned_t)kernel : NULL,
-            .a_packed = a->packs,
-            .rows = a->clouds,
-            .b_packed = b->packs,
-            .columns = b->clouds,
-            .results = distances->data,
-            .results_stride = b->clouds * nk_dtype_bytes_per_value(out_dtype),
-            .rotations = rotations_object ? (nk_f32_t *)rotations.buf : NULL,
-            .workspace = aligned_workspace,
-            .workspace_bytes = workspace_bytes,
-            .workspace_stride = workspace_stride,
-            .windows = windows,
-            .stream = stream};
+        nk_scalar_buffer_t limit;
+        if (out_dtype == nk_f32_k) limit.f32 = (nk_f32_t)requested_limit;
+        else limit.f64 = requested_limit;
+        shapes_packed_task_t const task = {.kernel = kernel,
+                                           .kind = kind,
+                                           .limit = limit,
+                                           .a_packed = a->packs,
+                                           .rows = a->clouds,
+                                           .b_packed = b->packs,
+                                           .columns = b->clouds,
+                                           .results = out_object ? (char *)out.buf : distances->data,
+                                           .results_stride = b->clouds * nk_dtype_bytes_per_value(out_dtype),
+                                           .rotations = rotations_object ? (nk_f32_t *)rotations.buf : NULL,
+                                           .workspace = aligned_workspace,
+                                           .workspace_bytes = workspace_bytes,
+                                           .workspace_stride = workspace_stride,
+                                           .windows = windows,
+                                           .stream = stream};
         PyThreadState *save = PyEval_SaveThread();
-        status = nk_parallel_for_tiles(windows, threads, shapes_packed_tile_, (void *)&task);
+        status = on_gpu ? shapes_packed_tile_(0, (void *)&task)
+                        : nk_parallel_for_tiles(windows, threads, shapes_packed_tile_, (void *)&task);
         PyEval_RestoreThread(save);
     }
+    if (check_status(status)) returned = out_object ? out_object : (PyObject *)distances;
+    Py_XINCREF(returned);
+
+cleanup:
     PyMem_Free(workspace);
     PyBuffer_Release(&rotations);
-    if (!check_status(status)) {
-        Py_DECREF(distances);
+    PyBuffer_Release(&out);
+    PyBuffer_Release(&workspace_view);
+    Py_XDECREF(distances);
+    return returned;
+}
+
+/** Answers how many bytes a @c workspace= needs between the clouds of two packed sets, across the
+ *  windows @c threads= cuts the rows into. */
+static PyObject *shapes_workspace_size_common(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
+                                              nk_kernel_kind_t workspace_kind) {
+    if (nargs != 2) {
+        PyErr_Format(PyExc_TypeError, "%s() requires exactly 2 positional arguments: a, b",
+                     nk_kernel_name(workspace_kind));
         return NULL;
     }
-    return (PyObject *)distances;
+    if (!PyObject_TypeCheck(args[0], &ShapesPackedMatrixType) ||
+        !PyObject_TypeCheck(args[1], &ShapesPackedMatrixType)) {
+        PyErr_SetString(PyExc_TypeError, "a and b must be ShapesPackedMatrix (use shapes_pack() first)");
+        return NULL;
+    }
+    ShapesPackedMatrix *a = (ShapesPackedMatrix *)args[0];
+    ShapesPackedMatrix *b = (ShapesPackedMatrix *)args[1];
+    nk_size_t threads = 1;
+    nk_capability_t const gpu = a->capabilities & nk_cap_gpus_k;
+    nk_capability_t capabilities = gpu ? gpu : nk_cap_cpus_k;
+    nk_stream_t stream = NULL;
+    Py_ssize_t const nkw = kwnames ? PyTuple_Size(kwnames) : 0;
+    for (Py_ssize_t i = 0; i < nkw; i++) {
+        PyObject *key = PyTuple_GET_ITEM(kwnames, i);
+        if (PyUnicode_CompareWithASCIIString(key, "threads") == 0) {
+            Py_ssize_t t = PyLong_AsSsize_t(args[nargs + i]);
+            if (t == -1 && PyErr_Occurred()) return NULL;
+            threads = (nk_size_t)(t >= 0 ? t : 0);
+        }
+        // Sizes are computed on the host, so unlike `parse_dispatch_keyword` it keeps GPU bits
+        else if (PyUnicode_CompareWithASCIIString(key, "capabilities") == 0) {
+            if (args[nargs + i] != Py_None && !shapes_parse_capabilities(args[nargs + i], &capabilities)) return NULL;
+        }
+        else if (!parse_dispatch_keyword(key, args[nargs + i], &capabilities, &stream)) return NULL;
+    }
+    if (a->dtype != b->dtype) {
+        PyErr_Format(PyExc_TypeError, "dtype mismatch: a is '%s' but b is '%s'", nk_dtype_to_pybuffer_typestr(a->dtype),
+                     nk_dtype_to_pybuffer_typestr(b->dtype));
+        return NULL;
+    }
+    nk_size_t workspace_bytes = 0;
+    if (!shapes_workspace_bytes(workspace_kind, a, b, capabilities, &workspace_bytes)) return NULL;
+    nk_size_t const windows = capabilities & nk_cap_gpus_k ? 1 : shapes_windows(threads, a->clouds);
+    return PyLong_FromSize_t(shapes_workspace_span(workspace_bytes, windows));
 }
 
-char const doc_chamfers_packed[] =                                                       //
-    "chamfers_packed(a, b, /, *, rotations=None, threads=1) -> Tensor\n\n"               //
-    "Chamfer distances between every cloud of a and every cloud of b.\n\n"               //
-    "Each is ½ × (meanᵢ minⱼ ‖aᵢ − S·bⱼ‖ + meanⱼ minᵢ ‖aᵢ − S·bⱼ‖), the best of the 8\n" //
-    "sign flips S of the principal axes, zero between two empty clouds and infinite\n"   //
-    "between an empty and a non-empty one.\n\n"                                          //
-    "Args:\n"                                                                            //
-    "  a (ShapesPackedMatrix): Row clouds.\n"                                            //
-    "  b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"               //
-    "  rotations (array_like, optional): Writable C-contiguous float32 buffer of\n"      //
-    "    shape [rows,columns,3,3] that receives the rotations taking each column\n"      //
-    "    cloud onto each row cloud, aᵢ ≈ R × (bⱼ − b̄) + ā.\n"                            //
-    "  threads (int, optional): Worker threads, defaulting to 1.\n\n"                    //
-    "Returns:\n"                                                                         //
-    "  Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"    //
-    "    for float32 ones.\n\n"                                                          //
-    "Signature:\n"                                                                       //
-    "  >>> def chamfers_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
+char const doc_chamfers_workspace_size[] =                                                   //
+    "chamfers_workspace_size(a, b, /, *, threads=1) -> int\n\n"                              //
+    "Bytes of the workspace= that chamfers_packed(a, b, threads=threads) needs, sized for\n" //
+    "the largest clouds of a and b, any buffer alignment included, and 0 when none is.\n"    //
+    "capabilities= sizes it for that mask, defaulting to the mask a was copied with, and\n"  //
+    "a GPU, which runs one launch, ignores threads=.\n\n"                                    //
+    "Signature:\n"                                                                           //
+    "  >>> def chamfers_workspace_size(a, b, /, *, threads=1) -> int: ...";
 
-PyObject *api_chamfers_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
+PyObject *api_chamfers_workspace_size(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
-    return shapes_packed_common(args, nargs, kwnames, nk_kernel_chamfers_packed_k, nk_kernel_unknown_k);
+    return shapes_workspace_size_common(args, nargs, kwnames, nk_kernel_chamfers_workspace_size_k);
 }
 
-char const doc_hausdorffs_packed[] =                                                  //
-    "hausdorffs_packed(a, b, /, *, rotations=None, threads=1) -> Tensor\n\n"          //
-    "Hausdorff distances between every cloud of a and every cloud of b.\n\n"          //
-    "Each is max(maxᵢ minⱼ ‖aᵢ − S·bⱼ‖, maxⱼ minᵢ ‖aᵢ − S·bⱼ‖), the best of the 8\n"  //
-    "sign flips S of the principal axes, with the empty-cloud convention of\n"        //
-    "chamfers_packed().\n\n"                                                          //
-    "Args:\n"                                                                         //
-    "  a (ShapesPackedMatrix): Row clouds.\n"                                         //
-    "  b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"            //
-    "  rotations (array_like, optional): As in chamfers_packed().\n"                  //
-    "  threads (int, optional): As in chamfers_packed().\n\n"                         //
-    "Returns:\n"                                                                      //
-    "  Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n" //
-    "    for float32 ones.\n\n"                                                       //
-    "Signature:\n"                                                                    //
-    "  >>> def hausdorffs_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
+char const doc_wassersteinprocrustes_workspace_size[] =                      //
+    "wassersteinprocrustes_workspace_size(a, b, /, *, threads=1) -> int\n\n" //
+    "Bytes of the workspace= wassersteinprocrustes_packed() needs, as in\n"  //
+    "chamfers_workspace_size().\n\n"                                         //
+    "Signature:\n"                                                           //
+    "  >>> def wassersteinprocrustes_workspace_size(a, b, /, *, threads=1) -> int: ...";
+
+PyObject *api_wassersteinprocrustes_workspace_size(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
+                                                   PyObject *kwnames) {
+    nk_unused_(self);
+    return shapes_workspace_size_common(args, nargs, kwnames, nk_kernel_wassersteinprocrustes_workspace_size_k);
+}
+
+char const doc_gromovwassersteins_workspace_size[] =                      //
+    "gromovwassersteins_workspace_size(a, b, /, *, threads=1) -> int\n\n" //
+    "Bytes of the workspace= gromovwassersteins_packed() needs, as in\n"  //
+    "chamfers_workspace_size().\n\n"                                      //
+    "Signature:\n"                                                        //
+    "  >>> def gromovwassersteins_workspace_size(a, b, /, *, threads=1) -> int: ...";
+
+PyObject *api_gromovwassersteins_workspace_size(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
+                                                PyObject *kwnames) {
+    nk_unused_(self);
+    return shapes_workspace_size_common(args, nargs, kwnames, nk_kernel_gromovwassersteins_workspace_size_k);
+}
+
+char const doc_rmsds_packed[] =                                                               //
+    "rmsds_packed(a, b, /, *, out=None, threads=1) -> Tensor\n\n"                             //
+    "Superposed RMSDs between every cloud of a and every cloud of b, point i matching\n"      //
+    "point i under the best rotation. Every pack must hold the same number of points.\n\n"    //
+    "Args:\n"                                                                                 //
+    "  a (ShapesPackedMatrix): Row clouds.\n"                                                 //
+    "  b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"                    //
+    "  out (array_like, optional): Writable C-contiguous [rows,columns] buffer of the\n"      //
+    "    output dtype, returned in place of a new Tensor.\n"                                  //
+    "  threads (int, optional): Worker threads, defaulting to 1.\n"                           //
+    "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"       //
+    "Packs from a.copy(capabilities=gpu) run on that GPU in one launch, ignoring threads=\n"  //
+    "and capabilities=. There out= and any workspace= are required, as no verb allocates,\n"  //
+    "and the outputs are Tensor.copy(capabilities=gpu), DLPack GPU Tensors or buffers over\n" //
+    "managed or pinned memory; Metal takes only the first, and float16 packs only. The\n"     //
+    "runtime checks each per call, raising BufferError for memory the device cannot reach,\n" //
+    "which includes slices of those packs in steps until they are copied.\n\n"                //
+    "Returns:\n"                                                                              //
+    "  Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"         //
+    "    for the others.\n\n"                                                                 //
+    "Signature:\n"                                                                            //
+    "  >>> def rmsds_packed(a, b, /, *, out=None, threads=1) -> Tensor: ...";
+
+PyObject *api_rmsds_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
+    nk_unused_(self);
+    return shapes_packed_common(args, nargs, kwnames, nk_kernel_rmsds_packed_k, nk_kernel_unknown_k);
+}
+
+char const doc_hausdorffs_packed[] =                                                      //
+    "hausdorffs_packed(a, b, /, *, rotations=None, limit=None, out=None,\n"               //
+    "    threads=1) -> Tensor\n\n"                                                        //
+    "Hausdorff distances between every cloud of a and every cloud of b.\n\n"              //
+    "Each is max(maxᵢ minⱼ ‖aᵢ − S·bⱼ‖, maxⱼ minᵢ ‖aᵢ − S·bⱼ‖), the best of the 8\n"      //
+    "sign flips S of the principal axes, zero between two empty clouds and infinite\n"    //
+    "between an empty and a non-empty one.\n\n"                                           //
+    "Args:\n"                                                                             //
+    "  a (ShapesPackedMatrix): Row clouds.\n"                                             //
+    "  b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"                //
+    "  rotations (array_like, optional): Writable C-contiguous float32 buffer of\n"       //
+    "    shape [rows,columns,3,3] that receives the rotations taking each column\n"       //
+    "    cloud onto each row cloud, aᵢ ≈ R × (bⱼ − b̄) + ā.\n"                             //
+    "  limit (float, optional): Distances up to it are exact; past it, a pair may stop\n" //
+    "    early and report a lower bound that also lies past it, with that bound's flip\n" //
+    "    in rotations. None scores every pair exactly.\n"                                 //
+    "  out (array_like, optional): As in rmsds_packed().\n"                               //
+    "  threads (int, optional): As in rmsds_packed().\n\n"                                //
+    "Returns:\n"                                                                          //
+    "  Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"     //
+    "    for the others.\n\n"                                                             //
+    "Signature:\n"                                                                        //
+    "  >>> def hausdorffs_packed(a, b, /, *, rotations=None, limit=None, out=None,\n"     //
+    "  ...                       threads=1) -> Tensor: ...";
 
 PyObject *api_hausdorffs_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
     return shapes_packed_common(args, nargs, kwnames, nk_kernel_hausdorffs_packed_k, nk_kernel_unknown_k);
 }
 
-char const doc_wassersteinprocrustes_packed[] =                                           //
-    "wassersteinprocrustes_packed(a, b, /, *, rotations=None, threads=1) -> Tensor\n\n"   //
-    "Wasserstein-Procrustes distances between every cloud of a and every cloud of b.\n\n" //
-    "Each is the root mean squared distance of the exact optimal transport plan\n"        //
-    "between uniform weights, after the rotation or reflection minimizing it,\n"          //
-    "alternated from each of the 8 sign flips of the principal axes. On equal sizes\n"    //
-    "it is at most the Kabsch RMSD of a known correspondence, and equals it when\n"       //
-    "that correspondence is an optimal plan. The empty-cloud convention matches\n"        //
-    "chamfers_packed(), and every thread's workspace is allocated inside the call.\n\n"   //
+char const doc_chamfers_packed[] =                                                        //
+    "chamfers_packed(a, b, /, *, rotations=None, limit=None, workspace=None, out=None,\n" //
+    "                threads=1) -> Tensor\n\n"                                            //
+    "Chamfer distances between every cloud of a and every cloud of b.\n\n"                //
+    "Each is ½ × (meanᵢ minⱼ ‖aᵢ − S·bⱼ‖ + meanⱼ minᵢ ‖aᵢ − S·bⱼ‖), the best of the 8\n"  //
+    "sign flips S of the principal axes, with the empty-cloud convention of\n"            //
+    "hausdorffs_packed().\n\n"                                                            //
     "Args:\n"                                                                             //
     "  a (ShapesPackedMatrix): Row clouds.\n"                                             //
     "  b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"                //
-    "  rotations (array_like, optional): As in chamfers_packed().\n"                      //
-    "  threads (int, optional): As in chamfers_packed().\n\n"                             //
+    "  rotations (array_like, optional): As in hausdorffs_packed().\n"                    //
+    "  limit (float, optional): As in hausdorffs_packed().\n"                             //
+    "  workspace (array_like, optional): Writable contiguous scratch of at least\n"       //
+    "    chamfers_workspace_size(a, b, threads=threads) bytes, or None to allocate.\n"    //
+    "  out (array_like, optional): As in rmsds_packed().\n"                               //
+    "  threads (int, optional): As in rmsds_packed().\n\n"                                //
     "Returns:\n"                                                                          //
     "  Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"     //
-    "    for float32 ones.\n\n"                                                           //
+    "    for the others.\n\n"                                                             //
     "Signature:\n"                                                                        //
-    "  >>> def wassersteinprocrustes_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
+    "  >>> def chamfers_packed(a, b, /, *, rotations=None, limit=None, workspace=None,\n" //
+    "  ...                     out=None, threads=1) -> Tensor: ...";
+
+PyObject *api_chamfers_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
+    nk_unused_(self);
+    return shapes_packed_common(args, nargs, kwnames, nk_kernel_chamfers_packed_k, nk_kernel_chamfers_workspace_size_k);
+}
+
+char const doc_wassersteinprocrustes_packed[] =                                            //
+    "wassersteinprocrustes_packed(a, b, /, *, rotations=None, workspace=None,\n"           //
+    "    out=None, threads=1) -> Tensor\n\n"                                               //
+    "Wasserstein-Procrustes distances between every cloud of a and every cloud of b.\n\n"  //
+    "Each is the root mean squared distance of the exact optimal transport plan\n"         //
+    "between uniform weights, after the rotation or reflection minimizing it,\n"           //
+    "alternated from each of the 8 sign flips of the principal axes. On equal sizes\n"     //
+    "it is at most the Kabsch RMSD of a known correspondence, and equals it when\n"        //
+    "that correspondence is an optimal plan. The empty-cloud convention matches\n"         //
+    "chamfers_packed(), and workspace= or the call supplies each window's scratch.\n\n"    //
+    "Args:\n"                                                                              //
+    "  a (ShapesPackedMatrix): Row clouds.\n"                                              //
+    "  b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"                 //
+    "  rotations (array_like, optional): As in hausdorffs_packed().\n"                     //
+    "  workspace (array_like, optional): As in chamfers_packed(), of\n"                    //
+    "    wassersteinprocrustes_workspace_size(a, b, threads=threads) bytes.\n"             //
+    "  out (array_like, optional): As in rmsds_packed().\n"                                //
+    "  threads (int, optional): As in rmsds_packed().\n\n"                                 //
+    "Returns:\n"                                                                           //
+    "  Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"      //
+    "    for the others.\n\n"                                                              //
+    "Signature:\n"                                                                         //
+    "  >>> def wassersteinprocrustes_packed(a, b, /, *, rotations=None, workspace=None,\n" //
+    "  ...     out=None, threads=1) -> Tensor: ...";
 
 PyObject *api_wassersteinprocrustes_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
@@ -778,24 +1109,29 @@ PyObject *api_wassersteinprocrustes_packed(PyObject *self, PyObject *const *args
 }
 
 char const doc_gromovwassersteins_packed[] =                                             //
-    "gromovwassersteins_packed(a, b, /, *, rotations=None, threads=1) -> Tensor\n\n"     //
+    "gromovwassersteins_packed(a, b, /, *, rotations=None, workspace=None,\n"            //
+    "    out=None, threads=1) -> Tensor\n\n"                                             //
     "Gromov-Wasserstein distances between every cloud of a and every cloud of b.\n\n"    //
     "Each compares the two clouds' own distance matrices under the best transport\n"     //
     "plan a fixed budget of Frank-Wolfe steps finds from the Wasserstein-Procrustes\n"   //
     "plans and the product plan, ½ · √Σᵢⱼₖₗ (‖aᵢ − aₖ‖ − ‖bⱼ − bₗ‖)² · Pᵢⱼ · Pₖₗ. The\n" //
     "rotation is the orthogonal Procrustes fit of that plan. The empty-cloud\n"          //
-    "convention matches chamfers_packed(), and every thread's workspace is allocated\n"  //
-    "inside the call.\n\n"                                                               //
+    "convention matches chamfers_packed(), and every window's workspace comes from\n"    //
+    "workspace= or the call.\n\n"                                                        //
     "Args:\n"                                                                            //
     "  a (ShapesPackedMatrix): Row clouds.\n"                                            //
     "  b (ShapesPackedMatrix): Column clouds, packed in the same dtype.\n"               //
-    "  rotations (array_like, optional): As in chamfers_packed().\n"                     //
-    "  threads (int, optional): As in chamfers_packed().\n\n"                            //
+    "  rotations (array_like, optional): As in hausdorffs_packed().\n"                   //
+    "  workspace (array_like, optional): As in chamfers_packed(), of\n"                  //
+    "    gromovwassersteins_workspace_size(a, b, threads=threads) bytes.\n"              //
+    "  out (array_like, optional): As in rmsds_packed().\n"                              //
+    "  threads (int, optional): As in rmsds_packed().\n\n"                               //
     "Returns:\n"                                                                         //
     "  Tensor: The [rows,columns] distances, float32 for float16 packs and float64\n"    //
-    "    for float32 ones.\n\n"                                                          //
+    "    for the others.\n\n"                                                            //
     "Signature:\n"                                                                       //
-    "  >>> def gromovwassersteins_packed(a, b, /, *, rotations=None, threads=1) -> Tensor: ...";
+    "  >>> def gromovwassersteins_packed(a, b, /, *, rotations=None, workspace=None,\n"  //
+    "  ...     out=None, threads=1) -> Tensor: ...";
 
 PyObject *api_gromovwassersteins_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);

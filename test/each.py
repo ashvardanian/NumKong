@@ -962,9 +962,12 @@ def test_rmsnorm_strided_qk_norm(np_rng: np.random.Generator):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 def test_rmscast_int8_rounds_and_saturates():
-    """Values of ±8 make the inverse RMS exactly 1/8, so each int8 output is ±gamma rounded to nearest even."""
+    """Values of ±8 make the inverse RMS about 1/8, so each int8 output is ±gamma, rounded and saturated.
+
+    Gammas keep clear of ties, as the inverse RMS is an estimate an ulp below exact.
+    """
     x = np.array([[8, -8, 8, -8, 8, -8, 8, -8]], dtype=np.int32)
-    gamma = np.array([0.5, 1.5, 2.5, -2.5, 126.5, 127.5, 300.0, -300.0], dtype=np.float32)
+    gamma = np.array([0.25, 1.75, 2.25, -2.25, 126.25, 127.75, 300.0, -300.0], dtype=np.float32)
     y = np.asarray(nk.rmscast(x, gamma, dtype="int8"))
     np.testing.assert_array_equal(y, np.array([[0, -2, 2, 2, 126, -128, 127, 127]], dtype=np.int8))
 

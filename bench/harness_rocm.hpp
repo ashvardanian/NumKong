@@ -2,7 +2,7 @@
  *  @file bench/harness_rocm.hpp
  *  @author Ash Vardanian
  *  @date October 6, 2026
- *  @brief The ROCm backend that every @c bench/*_rocm.hip file times its rows with.
+ *  @brief The ROCm backend that the ROCm benchmarks time their rows with.
  */
 #pragma once
 #ifndef NUMKONG_BENCH_HARNESS_ROCM_HPP

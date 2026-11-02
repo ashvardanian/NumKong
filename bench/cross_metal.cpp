@@ -15,68 +15,6 @@
 
 namespace ashvardanian::numkong::bench {
 
-#if NUMKONG_ARCH_METAL_
-
-using rmsds_kernel_metal_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t, nk_f32_t *,
-                                             nk_size_t, nk_stream_t);
-
-/** Times an F16 shape @p kernel over a @p side × @p side tile of clouds of @p points each, with
- *  each set's packs, their pointer tables and its outputs in the queue's shared memory. */
-template <typename kernel_type_>
-void measure_shapes_metal(loop_t &loop, environment_t const &env, metal_backend_t backend, kernel_type_ kernel,
-                          std::size_t side, std::size_t points) {
-    using packs_t = nk::vector<std::byte, metal_backend_t::allocator<std::byte>>;
-    using outputs_t = nk::vector<f32_t, metal_backend_t::allocator<f32_t>>;
-    struct input_set {
-        packs_t packs;
-        outputs_t outputs;
-    };
-    nk_size_t pack_bytes = 0;
-    if (!succeeded(loop, nk_shapes_pack_size_f16_serial(points, &pack_bytes))) return;
-    std::size_t const clouds = 2 * side,
-                      pack_stride = nk_size_round_up_to_multiple_(pack_bytes, nk_default_alignment_k);
-    std::size_t const packs_bytes = clouds * pack_stride, table_bytes = clouds * sizeof(void const *);
-    std::vector<input_set> sets(
-        backend.input_sets(bytes_t {packs_bytes + table_bytes + side * side * sizeof(nk_f32_t)}));
-    std::mt19937 generator(env.settings.seed.value);
-    auto cloud = make_vector<f16_t>(points * 3);
-    for (input_set &set : sets) {
-        set.packs = packs_t::uninitialized(packs_bytes + table_bytes, allocator_of<std::byte>(backend)).value;
-        set.outputs = outputs_t::uninitialized(side * side, allocator_of<f32_t>(backend)).value;
-        if (set.packs.empty() || set.outputs.empty()) return loop.skip("set allocation failed");
-        void const **table = reinterpret_cast<void const **>(set.packs.raw_values_data() + packs_bytes);
-        for (std::size_t index = 0; index != clouds; ++index) {
-            nk::fill_uniform(generator, cloud.values_data(), cloud.size_values());
-            std::byte *packed = set.packs.raw_values_data() + index * pack_stride;
-            if (!succeeded(loop, nk_shapes_pack_f16_serial(cloud.raw_values_data(), points, packed, nullptr))) return;
-            table[index] = packed;
-        }
-    }
-    bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
-        input_set &set = sets[index];
-        void const **table = reinterpret_cast<void const **>(set.packs.raw_values_data() + packs_bytes);
-        std::size_t const results_stride = side * sizeof(nk_f32_t);
-        if constexpr (std::is_same_v<kernel_type_, rmsds_kernel_metal_t>)
-            return backend.call(kernel, table, side, table + side, side, set.outputs.raw_values_data(), results_stride);
-        else
-            return backend.call(kernel, table, side, table + side, side, set.outputs.raw_values_data(), results_stride,
-                                static_cast<nk_f32_t *>(nullptr));
-    });
-    if (timed) loop.rate("distances", static_cast<double>(side * side));
-}
-
-/** Runs @p kernel on the 256 × 256 tile that keeps a GPU busy. */
-template <typename kernel_type_>
-void run_shapes_metal(environment_t const &env, std::string const &name, metal_backend_t const &backend,
-                      kernel_type_ kernel) {
-    std::size_t const side = 256, points = env.settings.shape_points;
-    std::string const bench_name = name + "<" + std::to_string(side) + "x" + std::to_string(side) + "x" +
-                                   std::to_string(points) + ">";
-    run_benchmark(env, bench_name, measure_shapes_metal<kernel_type_>, backend, kernel, side, points);
-}
-
-#endif // NUMKONG_ARCH_METAL_
-
 /** Every Metal baseline entry point beside every Apple9 and Apple10 one, so the matrix units'
  *  speedup shows, on devices whose families include each. */
 nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
@@ -298,8 +236,16 @@ nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
         run_attention_rope<nk_f32_k>(env, "attention_rope_f32_metal", nk_attention_rope_f32_metal, backend);
         run_attention_rope<nk_bf16_k>(env, "attention_rope_bf16_metal", nk_attention_rope_bf16_metal, backend);
         run_attention_rope<nk_e4m3_k>(env, "attention_rope_e4m3_metal", nk_attention_rope_e4m3_metal, backend);
-        run_shapes_metal(env, "chamfers_packed_f16_metal", backend, nk_chamfers_packed_f16_metal);
-        run_shapes_metal(env, "hausdorffs_packed_f16_metal", backend, nk_hausdorffs_packed_f16_metal);
+        run_shapes_packed<nk_f16_k>(env, "rmsds_packed_f16_metal", backend, nk_rmsds_packed_f16_metal);
+        run_shapes_packed<nk_f16_k>(env, "hausdorffs_packed_f16_metal", backend, nk_hausdorffs_packed_f16_metal);
+        run_shapes_packed<nk_f16_k>(env, "chamfers_packed_f16_metal", backend,
+                                    with_workspace(nk_chamfers_packed_f16_metal, nk_chamfers_workspace_size_f16_metal));
+        run_shapes_packed<nk_f16_k>(env, "wassersteinprocrustes_packed_f16_metal", backend,
+                                    with_workspace(nk_wassersteinprocrustes_packed_f16_metal,
+                                                   nk_wassersteinprocrustes_workspace_size_f16_metal));
+        run_shapes_packed<nk_f16_k>(
+            env, "gromovwassersteins_packed_f16_metal", backend,
+            with_workspace(nk_gromovwassersteins_packed_f16_metal, nk_gromovwassersteins_workspace_size_f16_metal));
     }
 #if NUMKONG_TARGET_APPLE9
     if (enabled & nk_cap_apple9_k) {
@@ -485,9 +431,10 @@ nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
 #endif // NUMKONG_TARGET_APPLE9
 #if NUMKONG_TARGET_APPLE10
     if (!(enabled & nk_cap_apple10_k)) return nk::status_t::success_k;
-    run_shapes_metal(env, "chamfers_packed_f16_apple10", backend, nk_chamfers_packed_f16_apple10);
-    run_shapes_metal(env, "hausdorffs_packed_f16_apple10", backend, nk_hausdorffs_packed_f16_apple10);
-    run_shapes_metal(env, "rmsds_packed_f16_apple10", backend, nk_rmsds_packed_f16_apple10);
+    run_shapes_packed<nk_f16_k>(env, "rmsds_packed_f16_apple10", backend, nk_rmsds_packed_f16_apple10);
+    run_shapes_packed<nk_f16_k>(env, "hausdorffs_packed_f16_apple10", backend, nk_hausdorffs_packed_f16_apple10);
+    run_shapes_packed<nk_f16_k>(env, "chamfers_packed_f16_apple10", backend,
+                                with_workspace(nk_chamfers_packed_f16_apple10, nk_chamfers_workspace_size_f16_apple10));
     run_dots_packed<nk_nvfp4_k>(env, "dots_packed_nvfp4_apple10", nk_dots_pack_size_nvfp4_apple10,
                                 nk_dots_pack_nvfp4_apple10, nk_dots_packed_nvfp4_apple10, backend);
     run_dots_symmetric<nk_nvfp4_k>(env, "dots_symmetric_nvfp4_apple10", nk_dots_symmetric_nvfp4_apple10, backend);

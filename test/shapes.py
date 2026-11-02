@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test the many-to-many shape distances: nk.shapes_pack and the nk.*_packed kinds.
 
-DTypes: float32, float16.
+DTypes: float64, float32, float16.
 Baselines: SciPy nearest-partner, assignment and linear-program references, RDKit best RMS, POT.
 Matches C++ suite: test/shapes.cpp.
 
@@ -65,8 +65,8 @@ requires_numpy = pytest.mark.skipif(not numpy_available, reason="NumPy is not in
 requires_scipy = pytest.mark.skipif(not (numpy_available and scipy_available), reason="NumPy or SciPy is not installed")
 
 KINDS: dict[str, Callable] = {
-    "chamfers": nk.chamfers_packed,
     "hausdorffs": nk.hausdorffs_packed,
+    "chamfers": nk.chamfers_packed,
     "wassersteinprocrustes": nk.wassersteinprocrustes_packed,
     "gromovwassersteins": nk.gromovwassersteins_packed,
 }
@@ -75,10 +75,10 @@ FLIP_SIGNS = [tuple(-1.0 if flip >> axis & 1 else 1.0 for axis in range(3)) for 
 """The axis signs of flip `s`, negating principal axis `k` when bit `k` is set."""
 PROPER_FLIPS = (0, 3, 5, 6)
 """The flips that are rotations, the rest being reflections."""
-INPUT_TOLERANCES = {"float32": 1e-5, "float16": 3e-2}
+INPUT_TOLERANCES = {"float64": 1e-5, "float32": 1e-5, "float16": 3e-2}
 """The absolute error of values that also see points rounded to the pack dtype, the inputs worst seen at 1e-6
 and 1.6e-2, or the unpacked points that `packed_coordinates` poses back."""
-DISTANCE_DTYPES = {"float32": np.float64, "float16": np.float32} if numpy_available else {}
+DISTANCE_DTYPES = {"float64": np.float64, "float32": np.float64, "float16": np.float32} if numpy_available else {}
 
 
 def random_cloud(generator: np.random.Generator, points: int) -> np.ndarray:
@@ -233,7 +233,7 @@ def check_against_reference(stats, capabilities, kind: str, dtype: str, a_packed
 
 @requires_scipy
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
-@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_chamfers_and_hausdorffs(stats, capabilities, dtype: str, np_rng: np.random.Generator):
     """Chamfer and Hausdorff against brute-force `cdist` and `directed_hausdorff` over the 8 flips."""
     sizes = [SETTINGS.shape_points, SETTINGS.shape_points // 3 + 1, 17]
@@ -245,7 +245,7 @@ def test_chamfers_and_hausdorffs(stats, capabilities, dtype: str, np_rng: np.ran
 
 @requires_scipy
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
-@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_wassersteinprocrustes_equal_sizes(stats, capabilities, dtype: str, np_rng: np.random.Generator):
     """Wasserstein-Procrustes against assignments alternated with Kabsch from the same 8 flip starts."""
     a_packed = nk.shapes_pack([random_cloud(np_rng, 16) for _ in range(2)], dtype=dtype)
@@ -263,7 +263,7 @@ def test_wassersteinprocrustes_equal_sizes(stats, capabilities, dtype: str, np_r
 
 @requires_scipy
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
-@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_wassersteinprocrustes_unequal_sizes(stats, capabilities, dtype: str, np_rng: np.random.Generator):
     """Wasserstein-Procrustes against `linprog` transport alternated with Kabsch from the 8 flip starts."""
     a_packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (7, 12)], dtype=dtype)
@@ -281,7 +281,7 @@ def test_wassersteinprocrustes_unequal_sizes(stats, capabilities, dtype: str, np
 
 @requires_scipy
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
-@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_gromovwassersteins(stats, capabilities, dtype: str, np_rng: np.random.Generator):
     """Gromov-Wasserstein against Frank-Wolfe with `linprog` linear steps from the same three starts."""
     a_packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (6, 9)], dtype=dtype)
@@ -343,7 +343,7 @@ def test_gromovwassersteins_against_pot(capabilities, np_rng: np.random.Generato
 
 @requires_numpy
 @pytest.mark.parametrize("kind", list(KINDS))
-@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_swapped_sides_transpose(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
     """Swapping the sides transposes the distances bit for bit and the rotations with them."""
     a_packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (5, 9, 0)], dtype=dtype)
@@ -376,7 +376,7 @@ def test_threads_match_serial(capabilities, kind: str, threads: int, np_rng: np.
 
 @requires_numpy
 @pytest.mark.parametrize("kind", list(KINDS))
-@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_rigid_motions_preserve_distances(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
     """Rotating, mirroring and moving either cloud before packing leaves every distance unchanged."""
     clouds = [random_cloud(np_rng, points) for points in (10, 7)]
@@ -389,7 +389,7 @@ def test_rigid_motions_preserve_distances(capabilities, kind: str, dtype: str, n
 
 @requires_numpy
 @pytest.mark.parametrize("kind", list(KINDS))
-@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_rotations_superpose_rigid_copies(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
     """Between a cloud and its shuffled rigid motion, every kind vanishes and its rotation maps b onto a."""
     a = random_cloud(np_rng, 11)
@@ -405,7 +405,7 @@ def test_rotations_superpose_rigid_copies(capabilities, kind: str, dtype: str, n
 
 
 @requires_numpy
-@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_normalized_packs_ignore_size(capabilities, dtype: str, np_rng: np.random.Generator):
     """Normalized packs keep each RMS radius as the scale, and every kind scores a cloud about zero against
     its turned, moved and 3.7× grown copy between them, but not between plain packs."""
@@ -437,7 +437,7 @@ def test_empty_clouds(capabilities, kind: str, np_rng: np.random.Generator):
 
 
 @requires_scipy
-@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_packed_poses(dtype: str, np_rng: np.random.Generator):
     """The centroids are the input means, the frames unit quaternions, and the spreads and radii the moments
     and norms of the packed points, the spreads also within a relative tolerance as squared lengths."""
@@ -463,7 +463,7 @@ def test_packed_poses(dtype: str, np_rng: np.random.Generator):
 
 
 @requires_numpy
-@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 def test_unpack_round_trips(dtype: str, np_rng: np.random.Generator):
     """Unpacking returns every input point in the pack dtype within storage rounding, and normalized packs
     return them at their original scale."""
@@ -519,13 +519,194 @@ def test_packed_views(np_rng: np.random.Generator):
 
 
 @requires_numpy
+@pytest.mark.parametrize("kind", list(KINDS))
+def test_copy_keeps_the_distances(capabilities, kind: str, np_rng: np.random.Generator):
+    """`copy` gathers a slice in steps into one unified block that outlives its source and scores as it did."""
+    packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (3, 5, 8, 13, 21)])
+    every_other = packed[::2]
+    expected = np.asarray(KINDS[kind](every_other, every_other))
+    copied = every_other.copy(capabilities=nk.cpu_capabilities_enabled())
+    del packed, every_other
+    gc.collect()
+    np.testing.assert_array_equal(np.asarray(KINDS[kind](copied, copied)), expected)
+    np.testing.assert_array_equal(np.asarray(KINDS[kind](copied[1:], copied)), expected[1:])
+
+
+@requires_numpy
+def test_copy_refuses_what_it_cannot_place(np_rng: np.random.Generator):
+    """`copy` names one group of capabilities, and a group without a device has no unified memory."""
+    packed = nk.shapes_pack(random_cloud(np_rng, 4))
+    missing = 1 << 59  # CDNA5, never compiled here
+    with pytest.raises(RuntimeError):
+        packed.copy(capabilities=missing)
+    with pytest.raises(TypeError):
+        packed.copy()
+    with pytest.raises(TypeError):
+        packed.copy(nk.cpu_capabilities_enabled(), capabilities=nk.cpu_capabilities_enabled())
+    with pytest.raises(TypeError):
+        packed.copy(nk.cpu_capabilities_enabled(), 0)
+    with pytest.raises(TypeError):
+        packed.copy(capabilities="gpu")
+
+
+@requires_numpy
+def test_unified_tensors_stay_fixed():
+    """`copy(capabilities=)` keeps the values, its views keep the block alive, and its storage never moves."""
+    source = nk.zeros((2, 3), dtype="float32")
+    np.asarray(source)[:] = 7.0
+    unified = source.copy(capabilities=nk.cpu_capabilities_enabled())
+    view = unified[1]
+    del source, unified
+    gc.collect()
+    np.testing.assert_array_equal(np.asarray(view), np.full(3, 7.0, dtype=np.float32))
+
+    unified = nk.zeros((2, 3), dtype="float32").copy(capabilities=nk.cpu_capabilities_enabled())
+    with pytest.raises(BufferError):
+        unified.resize(3, 2)
+    with pytest.raises(BufferError):
+        unified.reserve(64)
+    with pytest.raises(TypeError):
+        unified.copy(out=nk.zeros((2, 3), dtype="float32"), capabilities=nk.cpu_capabilities_enabled())
+    with pytest.raises(RuntimeError):
+        unified.copy(capabilities=1 << 59)
+    assert unified.copy().reserve(64) is None
+
+
+METAL_DEVICES = nk.metal_count_devices()
+requires_metal = pytest.mark.skipif(not (numpy_available and METAL_DEVICES), reason="No Metal device in this build")
+
+METAL_TOLERANCES = {
+    "rmsds": 5e-3,
+    "hausdorffs": 1e-3,
+    "chamfers": 1e-3,
+    "wassersteinprocrustes": 1e-2,
+    "gromovwassersteins": 2e-2,
+}
+"""The widest gap to the serial kernels; RMSD's root turns float32 rounding near zero into about 2e-3."""
+
+
+def metal_operands(generator: np.random.Generator, kind: str, stream: int | None = None):
+    """Unified float16 packs of `kind`'s clouds on Metal, their heap source, and a Metal output of `[3,3]`."""
+    gpu = nk.metal_capabilities_enabled(0)
+    points = (11, 11, 11) if kind == "rmsds" else (6, 11, 17)
+    clouds = [random_cloud(generator, count).astype(np.float16) for count in points]
+    heap = nk.shapes_pack(clouds, dtype="float16")
+    distances = nk.zeros((3, 3), dtype="float32").copy(capabilities=gpu, stream=stream)
+    return gpu, heap, heap.copy(gpu, stream=stream), distances
+
+
+def metal_call_arguments(kind: str, packs: nk.ShapesPackedMatrix, gpu, stream: int | None = None) -> dict:
+    """The `workspace=` a Metal transport kind needs, in unified memory, or nothing."""
+    sizes = {
+        "wassersteinprocrustes": nk.wassersteinprocrustes_workspace_size,
+        "gromovwassersteins": nk.gromovwassersteins_workspace_size,
+    }
+    if kind not in sizes:
+        return {}
+    bytes_needed = sizes[kind](packs, packs)
+    return {"workspace": nk.zeros(bytes_needed, dtype="uint8").copy(capabilities=gpu, stream=stream)}
+
+
+METAL_KINDS = {"rmsds": nk.rmsds_packed, **KINDS}
+
+
+@requires_metal
+@pytest.mark.parametrize("kind", list(METAL_KINDS))
+def test_metal_matches_serial(kind: str, np_rng: np.random.Generator):
+    """Every kind on Metal lands within tolerance of the serial kernels."""
+    gpu, heap, packs, out = metal_operands(np_rng, kind)
+    expected = np.asarray(METAL_KINDS[kind](heap, heap, capabilities=nk.Capability.SERIAL))
+    result = METAL_KINDS[kind](packs, packs, out=out, **metal_call_arguments(kind, packs, gpu))
+    assert result is out
+    nk.synchronize(gpu)
+    np.testing.assert_allclose(np.asarray(out), expected, atol=METAL_TOLERANCES[kind])
+
+
+@requires_metal
+@pytest.mark.parametrize("kind", ["hausdorffs", "chamfers"])
+def test_metal_keeps_distances_within_the_limit(kind: str, np_rng: np.random.Generator):
+    """Under `limit=` Metal stays exact below it and reports a lower bound past it."""
+    gpu, heap, packs, out = metal_operands(np_rng, kind)
+    exact = np.asarray(KINDS[kind](heap, heap, capabilities=nk.Capability.SERIAL))
+    limit = float(np.median(exact))
+    KINDS[kind](packs, packs, out=out, limit=limit)
+    nk.synchronize(gpu)
+    found = np.asarray(out)
+    within = exact <= limit
+    np.testing.assert_allclose(found[within], exact[within], atol=METAL_TOLERANCES[kind])
+    assert np.all(found[~within] > limit - METAL_TOLERANCES[kind])
+    assert np.all(found[~within] <= exact[~within] + METAL_TOLERANCES[kind])
+
+
+@requires_metal
+@pytest.mark.parametrize("kind", list(KINDS))
+def test_metal_rotations_superpose(kind: str, np_rng: np.random.Generator):
+    """The rotations of a Metal call take a rigid copy back onto its cloud."""
+    gpu = nk.metal_capabilities_enabled(0)
+    cloud = random_cloud(np_rng, 12).astype(np.float16)
+    rotation = random_rotation(np_rng)
+    moved = (cloud.astype(np.float64) @ rotation.T).astype(np.float16)
+    a, b = nk.shapes_pack(cloud, dtype="float16").copy(gpu), nk.shapes_pack(moved, dtype="float16").copy(gpu)
+    out = nk.zeros((1, 1), dtype="float32").copy(capabilities=gpu)
+    rotations = nk.zeros((1, 1, 3, 3), dtype="float32").copy(capabilities=gpu)
+    KINDS[kind](a, b, out=out, rotations=rotations, **metal_call_arguments(kind, a, gpu))
+    nk.synchronize(gpu)
+    rotation_found = np.asarray(rotations)[0, 0].astype(np.float64)
+    centered_cloud, centered_moved = (
+        points.astype(np.float64) - points.astype(np.float64).mean(0) for points in (cloud, moved)
+    )
+    np.testing.assert_allclose(centered_moved @ rotation_found.T, centered_cloud, atol=2e-2)
+
+
+@requires_metal
+def test_metal_stream_joins_and_keeps_borrows(np_rng: np.random.Generator):
+    """`nk.synchronize` waits for a stream of its own, whose packs and outputs may die before it does."""
+    gpu = nk.metal_capabilities_enabled(0)
+    stream = nk.stream_init_metal(0)
+    _, heap, packs, out = metal_operands(np_rng, "chamfers", stream=stream)
+    expected = np.asarray(nk.chamfers_packed(heap, heap, capabilities=nk.Capability.SERIAL))
+    np.asarray(out)[:] = -1.0
+    nk.chamfers_packed(packs, packs, out=out, stream=stream)
+    nk.synchronize(gpu, stream=stream)
+    np.testing.assert_allclose(np.asarray(out), expected, atol=METAL_TOLERANCES["chamfers"])
+
+    # Metal retains what a command uses, so nothing here dangles before the join
+    np.asarray(out)[:] = -1.0
+    nk.chamfers_packed(packs, packs, out=out, stream=stream)
+    del packs
+    gc.collect()
+    nk.synchronize(gpu, stream=stream)
+    np.testing.assert_allclose(np.asarray(out), expected, atol=METAL_TOLERANCES["chamfers"])
+    nk.stream_free_metal(stream)
+
+
+@requires_metal
+def test_metal_refuses_what_it_cannot_reach(np_rng: np.random.Generator):
+    """Plain NumPy outputs and heap packs raise before a kernel runs, and every GPU call needs its outputs."""
+    gpu, heap, packs, out = metal_operands(np_rng, "chamfers")
+    with pytest.raises(BufferError):
+        nk.chamfers_packed(packs, packs, out=np.zeros((3, 3), dtype=np.float32))
+    with pytest.raises(BufferError):
+        KINDS["hausdorffs"](packs, packs, out=out, rotations=np.zeros((3, 3, 3, 3), dtype=np.float32))
+    with pytest.raises(ValueError):
+        nk.chamfers_packed(packs, packs)
+    with pytest.raises(ValueError):
+        nk.chamfers_packed(packs, heap, out=out)
+    with pytest.raises(ValueError):
+        nk.wassersteinprocrustes_packed(packs, packs, out=out)
+    with pytest.raises(BufferError):
+        nk.chamfers_packed(packs[::2], packs[::2], out=nk.zeros((2, 2), dtype="float32").copy(capabilities=gpu))
+    nk.synchronize(gpu)
+
+
+@requires_numpy
 def test_shapes_errors(np_rng: np.random.Generator):
     """Malformed clouds, dtypes, operands and rotation buffers raise before any kernel runs."""
     cloud = random_cloud(np_rng, 4)
     with pytest.raises(ValueError):
         nk.shapes_pack(cloud[:, :2])
     with pytest.raises(ValueError):
-        nk.shapes_pack(cloud, dtype="float64")
+        nk.shapes_pack(cloud, dtype="int32")
     with pytest.raises(TypeError):
         nk.shapes_pack([cloud, "points"])
     half, single = nk.shapes_pack(cloud, dtype="float16"), nk.shapes_pack(cloud, dtype="float32")
@@ -545,3 +726,82 @@ def test_shapes_errors(np_rng: np.random.Generator):
     read_only.flags.writeable = False
     with pytest.raises(BufferError):
         nk.chamfers_packed(single, single, rotations=read_only)
+
+
+@requires_numpy
+@pytest.mark.parametrize("kind", ["hausdorffs", "chamfers"])
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
+def test_limit_keeps_distances_within_it(capabilities, kind: str, dtype: str, np_rng: np.random.Generator):
+    """A pair within `limit` stays exact, and one past it reports a lower bound still past it."""
+    a = nk.shapes_pack([random_cloud(np_rng, size) for size in (9, 33, 64)], dtype=dtype)
+    b = nk.shapes_pack([random_cloud(np_rng, size) * scale for size, scale in ((17, 1.0), (40, 6.0))], dtype=dtype)
+    packed = getattr(nk, f"{kind}_packed")
+    exact = np.asarray(packed(a, b, capabilities=capabilities))
+    tolerance = INPUT_TOLERANCES[dtype]
+    for limit in (0.0, float(np.min(exact)), float(np.median(exact)), float(np.max(exact)) * 2):
+        bounded = np.asarray(packed(a, b, limit=limit, capabilities=capabilities))
+        within = exact <= limit
+        assert_allclose(bounded[within], exact[within], atol=tolerance, rtol=0)
+        assert np.all(bounded[~within] > limit - tolerance)
+        assert np.all(bounded[~within] <= exact[~within] + tolerance)
+
+
+@requires_numpy
+@pytest.mark.parametrize("kind", ["chamfers", "wassersteinprocrustes", "gromovwassersteins"])
+@pytest.mark.parametrize("threads", [1, 3])
+def test_workspace_matches_the_allocated_one(capabilities, kind: str, threads: int, np_rng: np.random.Generator):
+    """A caller's `workspace` of the queried size scores as the allocated one, and a short one raises."""
+    a = nk.shapes_pack([random_cloud(np_rng, size) for size in (9, 21, 14, 7)], dtype="float32")
+    b = nk.shapes_pack([random_cloud(np_rng, size) for size in (17, 11)], dtype="float32")
+    packed = getattr(nk, f"{kind}_packed")
+    size = getattr(nk, f"{kind}_workspace_size")(a, b, threads=threads, capabilities=capabilities)
+    workspace = np.zeros(size, dtype=np.uint8)
+    expected = np.asarray(packed(a, b, threads=threads, capabilities=capabilities))
+    distances = np.asarray(packed(a, b, workspace=workspace, threads=threads, capabilities=capabilities))
+    np.testing.assert_array_equal(distances, expected)
+    if size:
+        with pytest.raises(ValueError):
+            packed(a, b, workspace=workspace[: size - 1], threads=threads, capabilities=capabilities)
+
+
+@requires_numpy
+def test_out_receives_the_distances(capabilities, np_rng: np.random.Generator):
+    """`out` is filled and returned, and one of the wrong dtype or shape raises."""
+    a = nk.shapes_pack([random_cloud(np_rng, 12), random_cloud(np_rng, 12)], dtype="float32")
+    b = nk.shapes_pack(random_cloud(np_rng, 12), dtype="float32")
+    out = np.zeros((2, 1), dtype=np.float64)
+    returned = nk.hausdorffs_packed(a, b, out=out, capabilities=capabilities)
+    assert returned is out
+    np.testing.assert_array_equal(out, np.asarray(nk.hausdorffs_packed(a, b, capabilities=capabilities)))
+    with pytest.raises(ValueError):
+        nk.hausdorffs_packed(a, b, out=np.zeros((2, 1), dtype=np.float32))
+    with pytest.raises(ValueError):
+        nk.hausdorffs_packed(a, b, out=np.zeros((1, 2), dtype=np.float64))
+
+
+@requires_scipy
+@pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
+def test_rmsds_match_kabsch(capabilities, dtype: str, np_rng: np.random.Generator):
+    """`rmsds_packed` matches the Kabsch RMSD of the point-by-point correspondence."""
+    a = random_cloud(np_rng, 32)
+    b = (a + np_rng.normal(scale=0.1, size=a.shape)) @ random_rotation(np_rng) + np_rng.normal(size=3)
+    distances = nk.rmsds_packed(
+        nk.shapes_pack(a, dtype=dtype), nk.shapes_pack(b, dtype=dtype), capabilities=capabilities
+    )
+    _, root_sum_squares = Rotation.align_vectors(a - a.mean(axis=0), b - b.mean(axis=0))
+    expected = root_sum_squares / math.sqrt(len(a))
+    assert_allclose(float(np.asarray(distances)[0, 0]), expected, atol=INPUT_TOLERANCES[dtype], rtol=0)
+
+
+@requires_numpy
+def test_each_kind_takes_only_its_own_keywords(np_rng: np.random.Generator):
+    """The same `limit` and `workspace` a kind lacks in C++ and Rust is refused here."""
+    packed = nk.shapes_pack(random_cloud(np_rng, 8), dtype="float32")
+    with pytest.raises(TypeError):
+        nk.hausdorffs_packed(packed, packed, workspace=np.zeros(64, dtype=np.uint8))
+    with pytest.raises(TypeError):
+        nk.wassersteinprocrustes_packed(packed, packed, limit=1.0)
+    with pytest.raises(TypeError):
+        nk.rmsds_packed(packed, packed, limit=1.0)
+    with pytest.raises(TypeError):
+        nk.rmsds_packed(packed, packed, rotations=np.zeros((1, 1, 3, 3), dtype=np.float32))

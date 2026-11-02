@@ -15,6 +15,7 @@
  *  _mm512_min_ps/pd       VMINPS/PD (ZMM, ZMM, ZMM)            4cy @ p05     2cy @ p01
  *  _mm512_mask_cvtph_ps   VCVTPH2PS (ZMM {K}, YMM)             7cy @ p0+p5   5cy @ p01
  *  _mm512_mask_cvtps_pd   VCVTPS2PD (ZMM {K}, YMM)             7cy @ p0+p5   4cy @ p12+p23
+ *  _mm512_cvtps_ph        VCVTPS2PH (YMM, ZMM, I8)             5cy @ p05     4cy @ p01
  *  _mm512_shuffle_ps      VSHUFPS (ZMM, ZMM, ZMM, I8)          1cy @ p5      1cy @ p12
  *  _mm512_shuffle_f32x4   VSHUFF32X4 (ZMM, ZMM, ZMM, I8)       3cy @ p5      4cy @ p12
  *  _mm512_permutexvar_ps  VPERMPS (ZMM, ZMM, ZMM)              3cy @ p5      4cy @ p12
@@ -25,8 +26,14 @@
  *  Chamfer and Hausdorff broadcast one outer point against a register of inner points, which sit
  *  contiguous per axis in the pack, and keep one running minimum per axis flip. The x conversion
  *  of the last inner register writes infinity past the cloud, so its padding never wins a minimum.
+ *  Chamfer scores both directions in that one sweep, keeping the inner cloud's minima in the
+ *  workspace, whose 64-byte strides take full-width stores. Hausdorff runs each direction and stops
+ *  once every flip passes the limit, so it reads only the points that decide a pair.
  *
- *  The transport kinds run the serial solvers around block pricing eight arcs at a time, masking
+ *  Packing permutes xyz triples out of two masked loads, widens them, and narrows each rotated
+ *  register back into its axis, measuring the stored points in the same sweep.
+ *
+ *  The transport kinds run the serial simplex around tile pricing eight arcs at a time, masking
  *  the lanes past a row. Arc costs round in fused multiply-adds, and the scalar cost behind the
  *  tree's potentials runs the same lanes, so tree arcs keep a zero reduced cost.
  *
@@ -41,7 +48,9 @@
 
 #include "numkong/types.h"
 #include "numkong/cast/skylake.h"   // `nk_load_f16x16_to_f32x16_skylake_`
-#include "numkong/shapes/serial.h"  // `nk_define_shapes_network_simplex_`, `nk_shapes_workspace_f64_serial_t`
+#include "numkong/scalar/haswell.h" // `nk_rsqrt_f32_haswell_`
+#include "numkong/shapes/serial.h"  // `nk_shapes_best_flip_f32_serial_`, `nk_shapes_simplex_next_tile_serial_`
+#include "numkong/reduce/haswell.h" // `nk_reduce_min_f32x8_haswell_`
 #include "numkong/reduce/skylake.h" // `nk_reduce_min_f64x8_skylake_`
 #include "numkong/dot/skylake.h"    // `nk_dot2_f64x8_skylake_`, `nk_dot_stable_sum_f64x8_skylake_`
 
@@ -58,6 +67,23 @@ extern "C" {
 #endif
 
 #if NUMKONG_TARGET_SKYLAKE
+
+NUMKONG_INLINE nk_f32_t nk_shapes_sqrt_f32_skylake_(nk_f32_t x) { return _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(x))); }
+NUMKONG_INLINE nk_f64_t nk_shapes_sqrt_f64_skylake_(nk_f64_t x) { return _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(x))); }
+
+/** Reciprocal square root: VRSQRT14SD refined by two Newton steps. Zero and infinity keep their
+ *  exact estimates, which the steps would turn into NaNs. */
+NUMKONG_INLINE nk_f64_t nk_shapes_rsqrt_f64_skylake_(nk_f64_t x) {
+    __m128d const x_f64x2 = _mm_set_sd(x), half_f64x2 = _mm_set_sd(0.5), one_f64x2 = _mm_set_sd(1);
+    __m128d const estimate_f64x2 = _mm_rsqrt14_sd(x_f64x2, x_f64x2);
+    __m128d refined_f64x2 = estimate_f64x2;
+    for (int step = 0; step != 2; ++step) {
+        __m128d const error_f64x2 = _mm_fnmadd_sd(_mm_mul_sd(x_f64x2, refined_f64x2), refined_f64x2, one_f64x2);
+        refined_f64x2 = _mm_fmadd_sd(_mm_mul_sd(half_f64x2, refined_f64x2), error_f64x2, refined_f64x2);
+    }
+    __mmask8 const ordered_m8 = _mm_cmp_sd_mask(refined_f64x2, refined_f64x2, _CMP_ORD_Q);
+    return _mm_cvtsd_f64(_mm_mask_move_sd(estimate_f64x2, ordered_m8, estimate_f64x2, refined_f64x2));
+}
 
 /** Minima of neighboring lanes of @p first and @p second, laid out as VHADDPS lays out sums. */
 NUMKONG_INLINE __m512 nk_shapes_neighbor_minima_f32x16_skylake_(__m512 first_f32x16, __m512 second_f32x16) {
@@ -103,7 +129,7 @@ NUMKONG_INLINE __m512d nk_shapes_flip_minima_f64x8_skylake_(__m512d const *minim
 NUMKONG_INLINE void nk_shapes_lower_nearest_f32x16_skylake_(__m512 outer_x_f32x16, __m512 outer_y_f32x16,
                                                             __m512 outer_z_f32x16, __m512 inner_x_f32x16,
                                                             __m512 inner_y_f32x16, __m512 inner_z_f32x16,
-                                                            __m512 *minima_f32x16) {
+                                                            __m512 *nearest_f32x16) {
     __m512 const minus_x_f32x16 = _mm512_sub_ps(outer_x_f32x16, inner_x_f32x16);
     __m512 const plus_x_f32x16 = _mm512_add_ps(outer_x_f32x16, inner_x_f32x16);
     __m512 const minus_y_f32x16 = _mm512_sub_ps(outer_y_f32x16, inner_y_f32x16);
@@ -117,10 +143,10 @@ NUMKONG_INLINE void nk_shapes_lower_nearest_f32x16_skylake_(__m512 outer_x_f32x1
                                      _mm512_fmadd_ps(plus_y_f32x16, plus_y_f32x16, minus_xx_f32x16),
                                      _mm512_fmadd_ps(plus_y_f32x16, plus_y_f32x16, plus_xx_f32x16)};
     for (int flip = 0; flip != 4; ++flip) {
-        minima_f32x16[flip] = _mm512_min_ps(minima_f32x16[flip],
-                                            _mm512_fmadd_ps(minus_z_f32x16, minus_z_f32x16, planar_f32x16[flip]));
-        minima_f32x16[flip + 4] = _mm512_min_ps(minima_f32x16[flip + 4],
-                                                _mm512_fmadd_ps(plus_z_f32x16, plus_z_f32x16, planar_f32x16[flip]));
+        nearest_f32x16[flip] = _mm512_min_ps(nearest_f32x16[flip],
+                                             _mm512_fmadd_ps(minus_z_f32x16, minus_z_f32x16, planar_f32x16[flip]));
+        nearest_f32x16[flip + 4] = _mm512_min_ps(nearest_f32x16[flip + 4],
+                                                 _mm512_fmadd_ps(plus_z_f32x16, plus_z_f32x16, planar_f32x16[flip]));
     }
 }
 
@@ -128,7 +154,7 @@ NUMKONG_INLINE void nk_shapes_lower_nearest_f32x16_skylake_(__m512 outer_x_f32x1
 NUMKONG_INLINE void nk_shapes_lower_nearest_f64x8_skylake_(__m512d outer_x_f64x8, __m512d outer_y_f64x8,
                                                            __m512d outer_z_f64x8, __m512d inner_x_f64x8,
                                                            __m512d inner_y_f64x8, __m512d inner_z_f64x8,
-                                                           __m512d *minima_f64x8) {
+                                                           __m512d *nearest_f64x8) {
     __m512d const minus_x_f64x8 = _mm512_sub_pd(outer_x_f64x8, inner_x_f64x8);
     __m512d const plus_x_f64x8 = _mm512_add_pd(outer_x_f64x8, inner_x_f64x8);
     __m512d const minus_y_f64x8 = _mm512_sub_pd(outer_y_f64x8, inner_y_f64x8);
@@ -142,90 +168,364 @@ NUMKONG_INLINE void nk_shapes_lower_nearest_f64x8_skylake_(__m512d outer_x_f64x8
                                      _mm512_fmadd_pd(plus_y_f64x8, plus_y_f64x8, minus_xx_f64x8),
                                      _mm512_fmadd_pd(plus_y_f64x8, plus_y_f64x8, plus_xx_f64x8)};
     for (int flip = 0; flip != 4; ++flip) {
-        minima_f64x8[flip] = _mm512_min_pd(minima_f64x8[flip],
-                                           _mm512_fmadd_pd(minus_z_f64x8, minus_z_f64x8, planar_f64x8[flip]));
-        minima_f64x8[flip + 4] = _mm512_min_pd(minima_f64x8[flip + 4],
-                                               _mm512_fmadd_pd(plus_z_f64x8, plus_z_f64x8, planar_f64x8[flip]));
+        nearest_f64x8[flip] = _mm512_min_pd(nearest_f64x8[flip],
+                                            _mm512_fmadd_pd(minus_z_f64x8, minus_z_f64x8, planar_f64x8[flip]));
+        nearest_f64x8[flip + 4] = _mm512_min_pd(nearest_f64x8[flip + 4],
+                                                _mm512_fmadd_pd(plus_z_f64x8, plus_z_f64x8, planar_f64x8[flip]));
     }
 }
 
-/** One directed Chamfer and Hausdorff pass between f16 packs, 16 inner points per step, the last
- *  step of a count off the multiple with an infinite x in its padded lanes. */
-NUMKONG_INLINE void nk_shapes_nearest_f16_skylake_(                            //
-    nk_f16_t const *outer_axes, nk_size_t outer_stride, nk_size_t outer_count, //
-    nk_f16_t const *inner_axes, nk_size_t inner_stride, nk_size_t inner_count, //
-    nk_f32_t *sums, nk_f32_t *maxima) {
-    __m512 const infinity_f32x16 = _mm512_set1_ps(NUMKONG_F32_INF);
+/** Lowers the 8 flips' nearest squares as @ref nk_shapes_lower_nearest_f32x16_skylake_ does, and
+ *  the same squares into the inner points' @p reverse_minima , 8 axes @p reverse_stride apart. */
+NUMKONG_INLINE void nk_shapes_lower_mutual_f32x16_skylake_(__m512 outer_x_f32x16, __m512 outer_y_f32x16,
+                                                           __m512 outer_z_f32x16, __m512 inner_x_f32x16,
+                                                           __m512 inner_y_f32x16, __m512 inner_z_f32x16,
+                                                           __m512 *nearest_f32x16, nk_f32_t *reverse_minima,
+                                                           nk_size_t reverse_stride) {
+    __m512 const minus_x_f32x16 = _mm512_sub_ps(outer_x_f32x16, inner_x_f32x16);
+    __m512 const plus_x_f32x16 = _mm512_add_ps(outer_x_f32x16, inner_x_f32x16);
+    __m512 const minus_y_f32x16 = _mm512_sub_ps(outer_y_f32x16, inner_y_f32x16);
+    __m512 const plus_y_f32x16 = _mm512_add_ps(outer_y_f32x16, inner_y_f32x16);
+    __m512 const minus_z_f32x16 = _mm512_sub_ps(outer_z_f32x16, inner_z_f32x16);
+    __m512 const plus_z_f32x16 = _mm512_add_ps(outer_z_f32x16, inner_z_f32x16);
+    __m512 const minus_xx_f32x16 = _mm512_mul_ps(minus_x_f32x16, minus_x_f32x16);
+    __m512 const plus_xx_f32x16 = _mm512_mul_ps(plus_x_f32x16, plus_x_f32x16);
+    __m512 const planar_f32x16[4] = {_mm512_fmadd_ps(minus_y_f32x16, minus_y_f32x16, minus_xx_f32x16),
+                                     _mm512_fmadd_ps(minus_y_f32x16, minus_y_f32x16, plus_xx_f32x16),
+                                     _mm512_fmadd_ps(plus_y_f32x16, plus_y_f32x16, minus_xx_f32x16),
+                                     _mm512_fmadd_ps(plus_y_f32x16, plus_y_f32x16, plus_xx_f32x16)};
+    for (int flip = 0; flip != 4; ++flip) {
+        __m512 const minus_squares_f32x16 = _mm512_fmadd_ps(minus_z_f32x16, minus_z_f32x16, planar_f32x16[flip]);
+        __m512 const plus_squares_f32x16 = _mm512_fmadd_ps(plus_z_f32x16, plus_z_f32x16, planar_f32x16[flip]);
+        nk_f32_t *minus_reverse = reverse_minima + flip * reverse_stride;
+        nk_f32_t *plus_reverse = minus_reverse + 4 * reverse_stride;
+        nearest_f32x16[flip] = _mm512_min_ps(nearest_f32x16[flip], minus_squares_f32x16);
+        nearest_f32x16[flip + 4] = _mm512_min_ps(nearest_f32x16[flip + 4], plus_squares_f32x16);
+        _mm512_storeu_ps(minus_reverse, _mm512_min_ps(minus_squares_f32x16, _mm512_loadu_ps(minus_reverse)));
+        _mm512_storeu_ps(plus_reverse, _mm512_min_ps(plus_squares_f32x16, _mm512_loadu_ps(plus_reverse)));
+    }
+}
+
+/** @copydoc nk_shapes_lower_mutual_f32x16_skylake_ */
+NUMKONG_INLINE void nk_shapes_lower_mutual_f64x8_skylake_(__m512d outer_x_f64x8, __m512d outer_y_f64x8,
+                                                          __m512d outer_z_f64x8, __m512d inner_x_f64x8,
+                                                          __m512d inner_y_f64x8, __m512d inner_z_f64x8,
+                                                          __m512d *nearest_f64x8, nk_f64_t *reverse_minima,
+                                                          nk_size_t reverse_stride) {
+    __m512d const minus_x_f64x8 = _mm512_sub_pd(outer_x_f64x8, inner_x_f64x8);
+    __m512d const plus_x_f64x8 = _mm512_add_pd(outer_x_f64x8, inner_x_f64x8);
+    __m512d const minus_y_f64x8 = _mm512_sub_pd(outer_y_f64x8, inner_y_f64x8);
+    __m512d const plus_y_f64x8 = _mm512_add_pd(outer_y_f64x8, inner_y_f64x8);
+    __m512d const minus_z_f64x8 = _mm512_sub_pd(outer_z_f64x8, inner_z_f64x8);
+    __m512d const plus_z_f64x8 = _mm512_add_pd(outer_z_f64x8, inner_z_f64x8);
+    __m512d const minus_xx_f64x8 = _mm512_mul_pd(minus_x_f64x8, minus_x_f64x8);
+    __m512d const plus_xx_f64x8 = _mm512_mul_pd(plus_x_f64x8, plus_x_f64x8);
+    __m512d const planar_f64x8[4] = {_mm512_fmadd_pd(minus_y_f64x8, minus_y_f64x8, minus_xx_f64x8),
+                                     _mm512_fmadd_pd(minus_y_f64x8, minus_y_f64x8, plus_xx_f64x8),
+                                     _mm512_fmadd_pd(plus_y_f64x8, plus_y_f64x8, minus_xx_f64x8),
+                                     _mm512_fmadd_pd(plus_y_f64x8, plus_y_f64x8, plus_xx_f64x8)};
+    for (int flip = 0; flip != 4; ++flip) {
+        __m512d const minus_squares_f64x8 = _mm512_fmadd_pd(minus_z_f64x8, minus_z_f64x8, planar_f64x8[flip]);
+        __m512d const plus_squares_f64x8 = _mm512_fmadd_pd(plus_z_f64x8, plus_z_f64x8, planar_f64x8[flip]);
+        nk_f64_t *minus_reverse = reverse_minima + flip * reverse_stride;
+        nk_f64_t *plus_reverse = minus_reverse + 4 * reverse_stride;
+        nearest_f64x8[flip] = _mm512_min_pd(nearest_f64x8[flip], minus_squares_f64x8);
+        nearest_f64x8[flip + 4] = _mm512_min_pd(nearest_f64x8[flip + 4], plus_squares_f64x8);
+        _mm512_storeu_pd(minus_reverse, _mm512_min_pd(minus_squares_f64x8, _mm512_loadu_pd(minus_reverse)));
+        _mm512_storeu_pd(plus_reverse, _mm512_min_pd(plus_squares_f64x8, _mm512_loadu_pd(plus_reverse)));
+    }
+}
+
+/** One outer point's sweep of @c f16 inner points in f32 lanes, 16 at a time, the last register
+ *  of a count off the multiple with an infinite x in the padded lanes past @p tail_m16 . */
+NUMKONG_INLINE void nk_shapes_sweep_nearest_f16_skylake_(__m512 outer_x_f32x16, __m512 outer_y_f32x16,
+                                                         __m512 outer_z_f32x16, nk_f16_t const *inner_axes,
+                                                         nk_size_t inner_stride, nk_size_t inner_count,
+                                                         __mmask16 tail_m16, __m512 *nearest_f32x16) {
     nk_size_t const sixteens_end = inner_count & ~(nk_size_t)15;
-    __mmask16 const tail_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)(inner_count - sixteens_end));
-    __m256 sums_f32x8 = _mm256_loadu_ps(sums), maxima_f32x8 = _mm256_loadu_ps(maxima);
     nk_b512_vec_t inner_x_vec, inner_y_vec, inner_z_vec;
-    for (nk_size_t outer_index = 0; outer_index != outer_count; ++outer_index) {
-        nk_f16_t const *outer_point = outer_axes + outer_index;
+    for (nk_size_t inner_index = 0; inner_index != sixteens_end; inner_index += 16) {
+        nk_load_f16x16_to_f32x16_skylake_(inner_axes + inner_index, &inner_x_vec);
+        nk_load_f16x16_to_f32x16_skylake_(inner_axes + inner_stride + inner_index, &inner_y_vec);
+        nk_load_f16x16_to_f32x16_skylake_(inner_axes + 2 * inner_stride + inner_index, &inner_z_vec);
+        nk_shapes_lower_nearest_f32x16_skylake_(outer_x_f32x16, outer_y_f32x16, outer_z_f32x16, inner_x_vec.zmm_ps,
+                                                inner_y_vec.zmm_ps, inner_z_vec.zmm_ps, nearest_f32x16);
+    }
+    if (sixteens_end == inner_count) return;
+    nk_load_f16x16_to_f32x16_skylake_(inner_axes + inner_stride + sixteens_end, &inner_y_vec);
+    nk_load_f16x16_to_f32x16_skylake_(inner_axes + 2 * inner_stride + sixteens_end, &inner_z_vec);
+    __m512 const inner_x_f32x16 = _mm512_mask_cvtph_ps(
+        _mm512_set1_ps(NUMKONG_F32_INF), tail_m16, _mm256_loadu_si256((__m256i const *)(inner_axes + sixteens_end)));
+    nk_shapes_lower_nearest_f32x16_skylake_(outer_x_f32x16, outer_y_f32x16, outer_z_f32x16, inner_x_f32x16,
+                                            inner_y_vec.zmm_ps, inner_z_vec.zmm_ps, nearest_f32x16);
+}
+
+/** @ref nk_shapes_sweep_nearest_f16_skylake_ that also lowers the views' reverse minima. */
+NUMKONG_INLINE void nk_shapes_sweep_mutual_f16_skylake_(__m512 outer_x_f32x16, __m512 outer_y_f32x16,
+                                                        __m512 outer_z_f32x16, nk_shapes_mutual_f16_t const *views,
+                                                        __mmask16 tail_m16, __m512 *nearest_f32x16) {
+    nk_f16_t const *inner_axes = views->inner_axes;
+    nk_size_t const inner_stride = views->inner_stride, inner_count = views->inner_count;
+    nk_size_t const sixteens_end = inner_count & ~(nk_size_t)15;
+    nk_b512_vec_t inner_x_vec, inner_y_vec, inner_z_vec;
+    for (nk_size_t inner_index = 0; inner_index != sixteens_end; inner_index += 16) {
+        nk_load_f16x16_to_f32x16_skylake_(inner_axes + inner_index, &inner_x_vec);
+        nk_load_f16x16_to_f32x16_skylake_(inner_axes + inner_stride + inner_index, &inner_y_vec);
+        nk_load_f16x16_to_f32x16_skylake_(inner_axes + 2 * inner_stride + inner_index, &inner_z_vec);
+        nk_shapes_lower_mutual_f32x16_skylake_(outer_x_f32x16, outer_y_f32x16, outer_z_f32x16, inner_x_vec.zmm_ps,
+                                               inner_y_vec.zmm_ps, inner_z_vec.zmm_ps, nearest_f32x16,
+                                               views->reverse_minima + inner_index, views->reverse_stride);
+    }
+    if (sixteens_end == inner_count) return;
+    nk_load_f16x16_to_f32x16_skylake_(inner_axes + inner_stride + sixteens_end, &inner_y_vec);
+    nk_load_f16x16_to_f32x16_skylake_(inner_axes + 2 * inner_stride + sixteens_end, &inner_z_vec);
+    __m512 const inner_x_f32x16 = _mm512_mask_cvtph_ps(
+        _mm512_set1_ps(NUMKONG_F32_INF), tail_m16, _mm256_loadu_si256((__m256i const *)(inner_axes + sixteens_end)));
+    nk_shapes_lower_mutual_f32x16_skylake_(outer_x_f32x16, outer_y_f32x16, outer_z_f32x16, inner_x_f32x16,
+                                           inner_y_vec.zmm_ps, inner_z_vec.zmm_ps, nearest_f32x16,
+                                           views->reverse_minima + sixteens_end, views->reverse_stride);
+}
+
+/** One outer point's sweep of @c f32 inner points in f64 lanes, 8 at a time, the last register of a
+ *  count off the multiple with an infinite x in the padded lanes past @p tail_m8 . */
+NUMKONG_INLINE void nk_shapes_sweep_nearest_f32_skylake_(__m512d outer_x_f64x8, __m512d outer_y_f64x8,
+                                                         __m512d outer_z_f64x8, nk_f32_t const *inner_axes,
+                                                         nk_size_t inner_stride, nk_size_t inner_count,
+                                                         __mmask8 tail_m8, __m512d *nearest_f64x8) {
+    nk_size_t const octuples_end = inner_count & ~(nk_size_t)7;
+    for (nk_size_t inner_index = 0; inner_index != octuples_end; inner_index += 8)
+        nk_shapes_lower_nearest_f64x8_skylake_(
+            outer_x_f64x8, outer_y_f64x8, outer_z_f64x8, _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + inner_index)),
+            _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + inner_stride + inner_index)),
+            _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + 2 * inner_stride + inner_index)), nearest_f64x8);
+    if (octuples_end == inner_count) return;
+    nk_shapes_lower_nearest_f64x8_skylake_(
+        outer_x_f64x8, outer_y_f64x8, outer_z_f64x8,
+        _mm512_mask_cvtps_pd(_mm512_set1_pd(NUMKONG_F64_INF), tail_m8, _mm256_loadu_ps(inner_axes + octuples_end)),
+        _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + inner_stride + octuples_end)),
+        _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + 2 * inner_stride + octuples_end)), nearest_f64x8);
+}
+
+/** @ref nk_shapes_sweep_nearest_f32_skylake_ that also lowers the views' reverse minima. */
+NUMKONG_INLINE void nk_shapes_sweep_mutual_f32_skylake_(__m512d outer_x_f64x8, __m512d outer_y_f64x8,
+                                                        __m512d outer_z_f64x8, nk_shapes_mutual_f32_t const *views,
+                                                        __mmask8 tail_m8, __m512d *nearest_f64x8) {
+    nk_f32_t const *inner_axes = views->inner_axes;
+    nk_size_t const inner_stride = views->inner_stride, inner_count = views->inner_count;
+    nk_size_t const octuples_end = inner_count & ~(nk_size_t)7;
+    for (nk_size_t inner_index = 0; inner_index != octuples_end; inner_index += 8)
+        nk_shapes_lower_mutual_f64x8_skylake_(
+            outer_x_f64x8, outer_y_f64x8, outer_z_f64x8, _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + inner_index)),
+            _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + inner_stride + inner_index)),
+            _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + 2 * inner_stride + inner_index)), nearest_f64x8,
+            views->reverse_minima + inner_index, views->reverse_stride);
+    if (octuples_end == inner_count) return;
+    nk_shapes_lower_mutual_f64x8_skylake_(
+        outer_x_f64x8, outer_y_f64x8, outer_z_f64x8,
+        _mm512_mask_cvtps_pd(_mm512_set1_pd(NUMKONG_F64_INF), tail_m8, _mm256_loadu_ps(inner_axes + octuples_end)),
+        _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + inner_stride + octuples_end)),
+        _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + 2 * inner_stride + octuples_end)), nearest_f64x8,
+        views->reverse_minima + octuples_end, views->reverse_stride);
+}
+
+/** The roots of @p count reverse minima summed, leaving out the padded lanes past @p tail_m16 . */
+NUMKONG_INLINE nk_f32_t nk_shapes_reverse_sum_f32_skylake_(nk_f32_t const *reverse, nk_size_t count,
+                                                           __mmask16 tail_m16) {
+    nk_size_t const sixteens_end = count & ~(nk_size_t)15;
+    __m512 sum_f32x16 = _mm512_setzero_ps();
+    for (nk_size_t index = 0; index != sixteens_end; index += 16)
+        sum_f32x16 = _mm512_add_ps(sum_f32x16, _mm512_sqrt_ps(_mm512_loadu_ps(reverse + index)));
+    if (tail_m16)
+        sum_f32x16 = _mm512_add_ps(sum_f32x16, _mm512_maskz_sqrt_ps(tail_m16, _mm512_loadu_ps(reverse + sixteens_end)));
+    return nk_reduce_add_f32x16_skylake_(sum_f32x16);
+}
+
+/** The roots of @p count reverse minima summed, leaving out the padded lanes past @p tail_m8 . */
+NUMKONG_INLINE nk_f64_t nk_shapes_reverse_sum_f64_skylake_(nk_f64_t const *reverse, nk_size_t count, __mmask8 tail_m8) {
+    nk_size_t const octuples_end = count & ~(nk_size_t)7;
+    __m512d sum_f64x8 = _mm512_setzero_pd();
+    for (nk_size_t index = 0; index != octuples_end; index += 8)
+        sum_f64x8 = _mm512_add_pd(sum_f64x8, _mm512_sqrt_pd(_mm512_loadu_pd(reverse + index)));
+    if (tail_m8)
+        sum_f64x8 = _mm512_add_pd(sum_f64x8, _mm512_maskz_sqrt_pd(tail_m8, _mm512_loadu_pd(reverse + octuples_end)));
+    return nk_reduce_add_f64x8_skylake_(sum_f64x8);
+}
+
+/** Fused Chamfer flips of @c f16 packs in f32 lanes: each outer point's sweep lowers its own minima
+ *  and the inner points' reverse ones, and the 8 sums stay in one register. */
+NUMKONG_INLINE nk_status_t nk_shapes_chamfer_flips_f16_skylake_(void const *row_packed, void const *column_packed,
+                                                                nk_f32_t limit, void *workspace,
+                                                                nk_size_t workspace_bytes, nk_f32_t *chamfers) {
+    nk_shapes_mutual_f16_t views;
+    nk_status_t const status = nk_shapes_mutual_begin_f16_serial_(row_packed, column_packed, workspace, workspace_bytes,
+                                                                  chamfers, &views);
+    if (status != nk_success_k || !views.outer_count) return status;
+    __m512 const infinity_f32x16 = _mm512_set1_ps(NUMKONG_F32_INF);
+    for (nk_size_t index = 0; index < 8 * views.reverse_stride; index += 16)
+        _mm512_storeu_ps(views.reverse_minima + index, infinity_f32x16);
+    __mmask16 const tail_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)(views.inner_count & 15));
+    nk_f32_t const outer_points = (nk_f32_t)views.outer_count, inner_points = (nk_f32_t)views.inner_count;
+    __m256 const threshold_f32x8 = _mm256_set1_ps(2 * limit * outer_points);
+    __m256 sums_f32x8 = _mm256_setzero_ps();
+    __m512 nearest_f32x16[8];
+    nk_f32_t sums[8], reverse_sums[8];
+    for (nk_size_t outer_index = 0; outer_index != views.outer_count; ++outer_index) {
+        nk_f16_t const *outer_point = views.outer_axes + outer_index;
         __m512 const outer_x_f32x16 = _mm512_cvtph_ps(_mm256_set1_epi16(*(nk_i16_t const *)outer_point));
         __m512 const outer_y_f32x16 = _mm512_cvtph_ps(
-            _mm256_set1_epi16(*(nk_i16_t const *)(outer_point + outer_stride)));
+            _mm256_set1_epi16(*(nk_i16_t const *)(outer_point + views.outer_stride)));
         __m512 const outer_z_f32x16 = _mm512_cvtph_ps(
-            _mm256_set1_epi16(*(nk_i16_t const *)(outer_point + 2 * outer_stride)));
-        __m512 minima_f32x16[8];
-        for (int flip = 0; flip != 8; ++flip) minima_f32x16[flip] = infinity_f32x16;
-        for (nk_size_t inner_index = 0; inner_index != sixteens_end; inner_index += 16) {
-            nk_load_f16x16_to_f32x16_skylake_(inner_axes + inner_index, &inner_x_vec);
-            nk_load_f16x16_to_f32x16_skylake_(inner_axes + inner_stride + inner_index, &inner_y_vec);
-            nk_load_f16x16_to_f32x16_skylake_(inner_axes + 2 * inner_stride + inner_index, &inner_z_vec);
-            nk_shapes_lower_nearest_f32x16_skylake_(outer_x_f32x16, outer_y_f32x16, outer_z_f32x16, inner_x_vec.zmm_ps,
-                                                    inner_y_vec.zmm_ps, inner_z_vec.zmm_ps, minima_f32x16);
+            _mm256_set1_epi16(*(nk_i16_t const *)(outer_point + 2 * views.outer_stride)));
+        for (int flip = 0; flip != 8; ++flip) nearest_f32x16[flip] = infinity_f32x16;
+        nk_shapes_sweep_mutual_f16_skylake_(outer_x_f32x16, outer_y_f32x16, outer_z_f32x16, &views, tail_m16,
+                                            nearest_f32x16);
+        sums_f32x8 = _mm256_add_ps(sums_f32x8, _mm256_sqrt_ps(nk_shapes_flip_minima_f32x16_skylake_(nearest_f32x16)));
+        if (_mm256_cmp_ps_mask(sums_f32x8, threshold_f32x8, _CMP_GT_OQ) == 0xFF) {
+            _mm256_storeu_ps(sums, sums_f32x8);
+            if (nk_shapes_mutual_past_limit_f32_serial_(sums, outer_points, limit, chamfers)) return nk_success_k;
         }
-        if (sixteens_end != inner_count) {
-            nk_load_f16x16_to_f32x16_skylake_(inner_axes + inner_stride + sixteens_end, &inner_y_vec);
-            nk_load_f16x16_to_f32x16_skylake_(inner_axes + 2 * inner_stride + sixteens_end, &inner_z_vec);
-            __m512 const inner_x_f32x16 = _mm512_mask_cvtph_ps(
-                infinity_f32x16, tail_m16, _mm256_loadu_si256((__m256i const *)(inner_axes + sixteens_end)));
-            nk_shapes_lower_nearest_f32x16_skylake_(outer_x_f32x16, outer_y_f32x16, outer_z_f32x16, inner_x_f32x16,
-                                                    inner_y_vec.zmm_ps, inner_z_vec.zmm_ps, minima_f32x16);
-        }
-        __m256 const distances_f32x8 = _mm256_sqrt_ps(nk_shapes_flip_minima_f32x16_skylake_(minima_f32x16));
-        sums_f32x8 = _mm256_add_ps(sums_f32x8, distances_f32x8);
-        maxima_f32x8 = _mm256_max_ps(maxima_f32x8, distances_f32x8);
     }
-    _mm256_storeu_ps(sums, sums_f32x8);
-    _mm256_storeu_ps(maxima, maxima_f32x8);
+    for (int flip = 0; flip != 8; ++flip)
+        reverse_sums[flip] = nk_shapes_reverse_sum_f32_skylake_(views.reverse_minima + flip * views.reverse_stride,
+                                                                views.inner_count, tail_m16);
+    __m256 const outer_mean_f32x8 = _mm256_div_ps(sums_f32x8, _mm256_set1_ps(outer_points));
+    __m256 const inner_mean_f32x8 = _mm256_div_ps(_mm256_loadu_ps(reverse_sums), _mm256_set1_ps(inner_points));
+    _mm256_storeu_ps(chamfers, _mm256_mul_ps(_mm256_add_ps(outer_mean_f32x8, inner_mean_f32x8), _mm256_set1_ps(0.5f)));
+    return nk_success_k;
 }
 
-/** One directed Chamfer and Hausdorff pass between f32 packs, 8 inner points per step in f64, the
- *  last step of a count off the multiple with an infinite x in its padded lanes. */
-NUMKONG_INLINE void nk_shapes_nearest_f32_skylake_(                            //
-    nk_f32_t const *outer_axes, nk_size_t outer_stride, nk_size_t outer_count, //
-    nk_f32_t const *inner_axes, nk_size_t inner_stride, nk_size_t inner_count, //
-    nk_f64_t *sums, nk_f64_t *maxima) {
-    __m512d const infinity_f64x8 = _mm512_set1_pd(NUMKONG_F64_INF);
-    nk_size_t const octuples_end = inner_count & ~(nk_size_t)7;
-    __mmask8 const tail_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)(inner_count - octuples_end));
-    __m512d sums_f64x8 = _mm512_loadu_pd(sums), maxima_f64x8 = _mm512_loadu_pd(maxima);
-    for (nk_size_t outer_index = 0; outer_index != outer_count; ++outer_index) {
-        nk_f32_t const *outer_point = outer_axes + outer_index;
-        __m512d const outer_x_f64x8 = _mm512_set1_pd(outer_point[0]);
-        __m512d const outer_y_f64x8 = _mm512_set1_pd(outer_point[outer_stride]);
-        __m512d const outer_z_f64x8 = _mm512_set1_pd(outer_point[2 * outer_stride]);
-        __m512d minima_f64x8[8];
-        for (int flip = 0; flip != 8; ++flip) minima_f64x8[flip] = infinity_f64x8;
-        for (nk_size_t inner_index = 0; inner_index != octuples_end; inner_index += 8)
-            nk_shapes_lower_nearest_f64x8_skylake_(
-                outer_x_f64x8, outer_y_f64x8, outer_z_f64x8, _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + inner_index)),
-                _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + inner_stride + inner_index)),
-                _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + 2 * inner_stride + inner_index)), minima_f64x8);
-        if (octuples_end != inner_count)
-            nk_shapes_lower_nearest_f64x8_skylake_(
-                outer_x_f64x8, outer_y_f64x8, outer_z_f64x8,
-                _mm512_mask_cvtps_pd(infinity_f64x8, tail_m8, _mm256_loadu_ps(inner_axes + octuples_end)),
-                _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + inner_stride + octuples_end)),
-                _mm512_cvtps_pd(_mm256_loadu_ps(inner_axes + 2 * inner_stride + octuples_end)), minima_f64x8);
-        __m512d const distances_f64x8 = _mm512_sqrt_pd(nk_shapes_flip_minima_f64x8_skylake_(minima_f64x8));
-        sums_f64x8 = _mm512_add_pd(sums_f64x8, distances_f64x8);
-        maxima_f64x8 = _mm512_max_pd(maxima_f64x8, distances_f64x8);
+/** Hausdorff flips of @c f16 packs in f32 lanes: a pair stops once every flip's farthest square
+ *  passes @p limit , whose square rounds, so the distance confirms it. */
+NUMKONG_INLINE void nk_shapes_hausdorff_flips_f16_skylake_(void const *row_packed, void const *column_packed,
+                                                           nk_f32_t limit, nk_f32_t *hausdorffs) {
+    nk_size_t const rows = ((nk_shapes_packed_header_f32_t const *)row_packed)->points;
+    nk_size_t const columns = ((nk_shapes_packed_header_f32_t const *)column_packed)->points;
+    if (!rows || !columns) {
+        for (int flip = 0; flip != 8; ++flip) hausdorffs[flip] = rows == columns ? 0 : NUMKONG_F32_INF;
+        return;
     }
-    _mm512_storeu_pd(sums, sums_f64x8);
-    _mm512_storeu_pd(maxima, maxima_f64x8);
+    nk_f32_t const gap = nk_shapes_radius_gap_f32_serial_(row_packed, column_packed);
+    if (gap > limit) {
+        for (int flip = 0; flip != 8; ++flip) hausdorffs[flip] = gap;
+        return;
+    }
+    nk_size_t row_stride, column_stride;
+    nk_f16_t const *row_axes = nk_shapes_packed_axes_f16_serial_(row_packed, &row_stride);
+    nk_f16_t const *column_axes = nk_shapes_packed_axes_f16_serial_(column_packed, &column_stride);
+    __mmask16 const row_tail_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)(rows & 15));
+    __mmask16 const column_tail_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)(columns & 15));
+    __m512 const infinity_f32x16 = _mm512_set1_ps(NUMKONG_F32_INF);
+    __m256 const limit_squared_f32x8 = _mm256_set1_ps(limit * limit);
+    __m256 farthest_f32x8 = _mm256_setzero_ps();
+    __m512 nearest_f32x16[8];
+    int rejected = 0;
+    for (int direction = 0; direction != 2 && !rejected; ++direction) {
+        nk_f16_t const *outer_axes = direction ? column_axes : row_axes,
+                       *inner_axes = direction ? row_axes : column_axes;
+        nk_size_t const outer_stride = direction ? column_stride : row_stride;
+        nk_size_t const inner_stride = direction ? row_stride : column_stride;
+        nk_size_t const outer_count = direction ? columns : rows, inner_count = direction ? rows : columns;
+        __mmask16 const tail_m16 = direction ? row_tail_m16 : column_tail_m16;
+        for (nk_size_t outer_index = 0; outer_index != outer_count && !rejected; ++outer_index) {
+            nk_f16_t const *outer_point = outer_axes + outer_index;
+            __m512 const outer_x_f32x16 = _mm512_cvtph_ps(_mm256_set1_epi16(*(nk_i16_t const *)outer_point));
+            __m512 const outer_y_f32x16 = _mm512_cvtph_ps(
+                _mm256_set1_epi16(*(nk_i16_t const *)(outer_point + outer_stride)));
+            __m512 const outer_z_f32x16 = _mm512_cvtph_ps(
+                _mm256_set1_epi16(*(nk_i16_t const *)(outer_point + 2 * outer_stride)));
+            for (int flip = 0; flip != 8; ++flip) nearest_f32x16[flip] = infinity_f32x16;
+            nk_shapes_sweep_nearest_f16_skylake_(outer_x_f32x16, outer_y_f32x16, outer_z_f32x16, inner_axes,
+                                                 inner_stride, inner_count, tail_m16, nearest_f32x16);
+            farthest_f32x8 = _mm256_max_ps(farthest_f32x8, nk_shapes_flip_minima_f32x16_skylake_(nearest_f32x16));
+            if (_mm256_cmp_ps_mask(farthest_f32x8, limit_squared_f32x8, _CMP_GT_OQ) == 0xFF)
+                rejected = nk_shapes_sqrt_f32_skylake_(nk_reduce_min_f32x8_haswell_(farthest_f32x8)) > limit;
+        }
+    }
+    _mm256_storeu_ps(hausdorffs, _mm256_sqrt_ps(farthest_f32x8));
+}
+
+/** Fused Chamfer flips of @c f32 packs in f64 lanes, the 8 sums in one register. */
+NUMKONG_INLINE nk_status_t nk_shapes_chamfer_flips_f32_skylake_(void const *row_packed, void const *column_packed,
+                                                                nk_f64_t limit, void *workspace,
+                                                                nk_size_t workspace_bytes, nk_f64_t *chamfers) {
+    nk_shapes_mutual_f32_t views;
+    nk_status_t const status = nk_shapes_mutual_begin_f32_serial_(row_packed, column_packed, workspace, workspace_bytes,
+                                                                  chamfers, &views);
+    if (status != nk_success_k || !views.outer_count) return status;
+    __m512d const infinity_f64x8 = _mm512_set1_pd(NUMKONG_F64_INF);
+    for (nk_size_t index = 0; index < 8 * views.reverse_stride; index += 8)
+        _mm512_storeu_pd(views.reverse_minima + index, infinity_f64x8);
+    __mmask8 const tail_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)(views.inner_count & 7));
+    nk_f64_t const outer_points = (nk_f64_t)views.outer_count, inner_points = (nk_f64_t)views.inner_count;
+    __m512d const threshold_f64x8 = _mm512_set1_pd(2 * limit * outer_points);
+    __m512d sums_f64x8 = _mm512_setzero_pd(), nearest_f64x8[8];
+    nk_f64_t sums[8], reverse_sums[8];
+    for (nk_size_t outer_index = 0; outer_index != views.outer_count; ++outer_index) {
+        nk_f32_t const *outer_point = views.outer_axes + outer_index;
+        __m512d const outer_x_f64x8 = _mm512_set1_pd(outer_point[0]);
+        __m512d const outer_y_f64x8 = _mm512_set1_pd(outer_point[views.outer_stride]);
+        __m512d const outer_z_f64x8 = _mm512_set1_pd(outer_point[2 * views.outer_stride]);
+        for (int flip = 0; flip != 8; ++flip) nearest_f64x8[flip] = infinity_f64x8;
+        nk_shapes_sweep_mutual_f32_skylake_(outer_x_f64x8, outer_y_f64x8, outer_z_f64x8, &views, tail_m8,
+                                            nearest_f64x8);
+        sums_f64x8 = _mm512_add_pd(sums_f64x8, _mm512_sqrt_pd(nk_shapes_flip_minima_f64x8_skylake_(nearest_f64x8)));
+        if (_mm512_cmp_pd_mask(sums_f64x8, threshold_f64x8, _CMP_GT_OQ) == 0xFF) {
+            _mm512_storeu_pd(sums, sums_f64x8);
+            if (nk_shapes_mutual_past_limit_f64_serial_(sums, outer_points, limit, chamfers)) return nk_success_k;
+        }
+    }
+    for (int flip = 0; flip != 8; ++flip)
+        reverse_sums[flip] = nk_shapes_reverse_sum_f64_skylake_(views.reverse_minima + flip * views.reverse_stride,
+                                                                views.inner_count, tail_m8);
+    __m512d const outer_mean_f64x8 = _mm512_div_pd(sums_f64x8, _mm512_set1_pd(outer_points));
+    __m512d const inner_mean_f64x8 = _mm512_div_pd(_mm512_loadu_pd(reverse_sums), _mm512_set1_pd(inner_points));
+    _mm512_storeu_pd(chamfers, _mm512_mul_pd(_mm512_add_pd(outer_mean_f64x8, inner_mean_f64x8), _mm512_set1_pd(0.5)));
+    return nk_success_k;
+}
+
+/** Hausdorff flips of @c f32 packs in f64 lanes, stopping as the @c f16 pair does. */
+NUMKONG_INLINE void nk_shapes_hausdorff_flips_f32_skylake_(void const *row_packed, void const *column_packed,
+                                                           nk_f64_t limit, nk_f64_t *hausdorffs) {
+    nk_size_t const rows = (nk_size_t)((nk_shapes_packed_header_f64_t const *)row_packed)->points;
+    nk_size_t const columns = (nk_size_t)((nk_shapes_packed_header_f64_t const *)column_packed)->points;
+    if (!rows || !columns) {
+        for (int flip = 0; flip != 8; ++flip) hausdorffs[flip] = rows == columns ? 0 : NUMKONG_F64_INF;
+        return;
+    }
+    nk_f64_t const gap = nk_shapes_radius_gap_f64_serial_(row_packed, column_packed);
+    if (gap > limit) {
+        for (int flip = 0; flip != 8; ++flip) hausdorffs[flip] = gap;
+        return;
+    }
+    nk_size_t row_stride, column_stride;
+    nk_f32_t const *row_axes = nk_shapes_packed_axes_f32_serial_(row_packed, &row_stride);
+    nk_f32_t const *column_axes = nk_shapes_packed_axes_f32_serial_(column_packed, &column_stride);
+    __mmask8 const row_tail_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)(rows & 7));
+    __mmask8 const column_tail_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)(columns & 7));
+    __m512d const infinity_f64x8 = _mm512_set1_pd(NUMKONG_F64_INF);
+    __m512d const limit_squared_f64x8 = _mm512_set1_pd(limit * limit);
+    __m512d farthest_f64x8 = _mm512_setzero_pd(), nearest_f64x8[8];
+    int rejected = 0;
+    for (int direction = 0; direction != 2 && !rejected; ++direction) {
+        nk_f32_t const *outer_axes = direction ? column_axes : row_axes,
+                       *inner_axes = direction ? row_axes : column_axes;
+        nk_size_t const outer_stride = direction ? column_stride : row_stride;
+        nk_size_t const inner_stride = direction ? row_stride : column_stride;
+        nk_size_t const outer_count = direction ? columns : rows, inner_count = direction ? rows : columns;
+        __mmask8 const tail_m8 = direction ? row_tail_m8 : column_tail_m8;
+        for (nk_size_t outer_index = 0; outer_index != outer_count && !rejected; ++outer_index) {
+            nk_f32_t const *outer_point = outer_axes + outer_index;
+            for (int flip = 0; flip != 8; ++flip) nearest_f64x8[flip] = infinity_f64x8;
+            nk_shapes_sweep_nearest_f32_skylake_(_mm512_set1_pd(outer_point[0]),
+                                                 _mm512_set1_pd(outer_point[outer_stride]),
+                                                 _mm512_set1_pd(outer_point[2 * outer_stride]), inner_axes,
+                                                 inner_stride, inner_count, tail_m8, nearest_f64x8);
+            farthest_f64x8 = _mm512_max_pd(farthest_f64x8, nk_shapes_flip_minima_f64x8_skylake_(nearest_f64x8));
+            if (_mm512_cmp_pd_mask(farthest_f64x8, limit_squared_f64x8, _CMP_GT_OQ) == 0xFF)
+                rejected = nk_shapes_sqrt_f64_skylake_(nk_reduce_min_f64x8_skylake_(farthest_f64x8)) > limit;
+        }
+    }
+    _mm512_storeu_pd(hausdorffs, _mm512_sqrt_pd(farthest_f64x8));
 }
 
 /** One directed Chamfer and Hausdorff pass between f64 packs, compensating each flip's sum of
@@ -245,20 +545,20 @@ NUMKONG_INLINE void nk_shapes_nearest_f64_skylake_(                            /
         __m512d const outer_x_f64x8 = _mm512_set1_pd(outer_point[0]);
         __m512d const outer_y_f64x8 = _mm512_set1_pd(outer_point[outer_stride]);
         __m512d const outer_z_f64x8 = _mm512_set1_pd(outer_point[2 * outer_stride]);
-        __m512d minima_f64x8[8];
-        for (int flip = 0; flip != 8; ++flip) minima_f64x8[flip] = infinity_f64x8;
+        __m512d nearest_f64x8[8];
+        for (int flip = 0; flip != 8; ++flip) nearest_f64x8[flip] = infinity_f64x8;
         for (nk_size_t inner_index = 0; inner_index != octuples_end; inner_index += 8)
             nk_shapes_lower_nearest_f64x8_skylake_(
                 outer_x_f64x8, outer_y_f64x8, outer_z_f64x8, _mm512_loadu_pd(inner_axes + inner_index),
                 _mm512_loadu_pd(inner_axes + inner_stride + inner_index),
-                _mm512_loadu_pd(inner_axes + 2 * inner_stride + inner_index), minima_f64x8);
+                _mm512_loadu_pd(inner_axes + 2 * inner_stride + inner_index), nearest_f64x8);
         if (octuples_end != inner_count)
             nk_shapes_lower_nearest_f64x8_skylake_(
                 outer_x_f64x8, outer_y_f64x8, outer_z_f64x8,
                 _mm512_mask_loadu_pd(infinity_f64x8, tail_m8, inner_axes + octuples_end),
                 _mm512_loadu_pd(inner_axes + inner_stride + octuples_end),
-                _mm512_loadu_pd(inner_axes + 2 * inner_stride + octuples_end), minima_f64x8);
-        __m512d const distances_f64x8 = _mm512_sqrt_pd(nk_shapes_flip_minima_f64x8_skylake_(minima_f64x8));
+                _mm512_loadu_pd(inner_axes + 2 * inner_stride + octuples_end), nearest_f64x8);
+        __m512d const distances_f64x8 = _mm512_sqrt_pd(nk_shapes_flip_minima_f64x8_skylake_(nearest_f64x8));
         nk_dot2_f64x8_skylake_(&sums_f64x8, &compensations_f64x8, distances_f64x8, one_f64x8);
         maxima_f64x8 = _mm512_max_pd(maxima_f64x8, distances_f64x8);
     }
@@ -266,181 +566,279 @@ NUMKONG_INLINE void nk_shapes_nearest_f64_skylake_(                            /
     _mm512_storeu_pd(maxima, maxima_f64x8);
 }
 
-/** The block pricing of one math type over @p vector_type lanes of 8 columns: squared distances
- *  from a broadcast row point in fused multiply-adds; the scalar cost behind the potentials, run
- *  on the same lanes so tree arcs keep a zero reduced cost; the reduced costs (c − πᵢ) + πⱼ of a
- *  row's @p valid_m8 arcs from @p column, with matrix costs −G taken as πⱼ − (G + πᵢ), which
- *  rounds the same; and the scan of @p count of them from the cursor in row-major order, keeping
- *  the first most negative one below @p entering_cost as the serial scan does. A first pass takes
- *  their least 8 columns at a time, and only a block whose least beats @p entering_cost is scanned
- *  again for the first arc reaching it. In both passes, masks keep the lanes past the scanned part
- *  of a row out of the comparisons. @p widen turns the costs into f64 lanes, empty for costs
- *  already in f64. */
-#define nk_define_shapes_pricing_skylake_(math_type, vector_type, vector_suffix, broadcast, masked_load, subtract,    \
-                                          multiply, multiply_add, first_lane, widen)                                  \
-    NUMKONG_INLINE vector_type nk_shapes_point_costs_##vector_suffix##_skylake_(                                      \
-        vector_type row_x_##vector_suffix, vector_type row_y_##vector_suffix, vector_type row_z_##vector_suffix,      \
-        vector_type column_x_##vector_suffix, vector_type column_y_##vector_suffix,                                   \
-        vector_type column_z_##vector_suffix) {                                                                       \
-        vector_type const delta_x_##vector_suffix = subtract(row_x_##vector_suffix, column_x_##vector_suffix);        \
-        vector_type const delta_y_##vector_suffix = subtract(row_y_##vector_suffix, column_y_##vector_suffix);        \
-        vector_type const delta_z_##vector_suffix = subtract(row_z_##vector_suffix, column_z_##vector_suffix);        \
-        return multiply_add(delta_z_##vector_suffix, delta_z_##vector_suffix,                                         \
-                            multiply_add(delta_y_##vector_suffix, delta_y_##vector_suffix,                            \
-                                         multiply(delta_x_##vector_suffix, delta_x_##vector_suffix)));                \
-    }                                                                                                                 \
-    NUMKONG_INLINE nk_##math_type##_t nk_shapes_point_cost_##math_type##_skylake_(                                    \
-        nk_shapes_workspace_##math_type##_serial_t const *views, nk_size_t row, nk_size_t column) {                   \
-        nk_size_t const stride = views->points_stride;                                                                \
-        nk_##math_type##_t const *row_points = views->row_points, *rotated_points = views->rotated_points;            \
-        return first_lane(nk_shapes_point_costs_##vector_suffix##_skylake_(                                           \
-            broadcast(row_points[row]), broadcast(row_points[stride + row]), broadcast(row_points[2 * stride + row]), \
-            broadcast(rotated_points[column]), broadcast(rotated_points[stride + column]),                            \
-            broadcast(rotated_points[2 * stride + column])));                                                         \
-    }                                                                                                                 \
-    NUMKONG_INLINE __m512d nk_shapes_reduced_costs_##math_type##_skylake_(                                            \
-        nk_shapes_workspace_##math_type##_serial_t const *views, nk_f64_t const *gradient, nk_size_t rows,            \
-        nk_size_t columns, nk_size_t row, nk_size_t column, __mmask8 valid_m8) {                                      \
-        nk_size_t const stride = views->points_stride;                                                                \
-        nk_##math_type##_t const *row_points = views->row_points, *rotated_points = views->rotated_points + column;   \
-        __m512d const row_potential_f64x8 = _mm512_set1_pd(views->potential[row]);                                    \
-        __m512d const column_potentials_f64x8 = _mm512_maskz_loadu_pd(valid_m8, views->potential + rows + column);    \
-        if (gradient)                                                                                                 \
-            return _mm512_sub_pd(column_potentials_f64x8,                                                             \
-                                 _mm512_add_pd(_mm512_maskz_loadu_pd(valid_m8, gradient + row * columns + column),    \
-                                               row_potential_f64x8));                                                 \
-        __m512d const costs_f64x8 = widen(nk_shapes_point_costs_##vector_suffix##_skylake_(                           \
-            broadcast(row_points[row]), broadcast(row_points[stride + row]), broadcast(row_points[2 * stride + row]), \
-            masked_load(valid_m8, rotated_points), masked_load(valid_m8, rotated_points + stride),                    \
-            masked_load(valid_m8, rotated_points + 2 * stride)));                                                     \
-        return _mm512_add_pd(_mm512_sub_pd(costs_f64x8, row_potential_f64x8), column_potentials_f64x8);               \
-    }                                                                                                                 \
-    NUMKONG_INLINE void nk_shapes_price_block_##math_type##_skylake_(                                                 \
-        nk_shapes_workspace_##math_type##_serial_t const *views, nk_f64_t const *gradient, nk_size_t rows,            \
-        nk_size_t columns, nk_size_t count, nk_size_t *cursor_row, nk_size_t *cursor_column, nk_f64_t *entering_cost, \
-        nk_size_t *entering_row, nk_size_t *entering_column) {                                                        \
-        nk_size_t const start_row = *cursor_row, start_column = *cursor_column;                                       \
-        nk_size_t row = start_row, column = start_column;                                                             \
-        __m512d least_f64x8 = _mm512_set1_pd(NUMKONG_F64_INF);                                                        \
-        for (nk_size_t offset = 0; offset != count;) {                                                                \
-            nk_size_t const segment = columns - column < count - offset ? columns - column : count - offset;          \
-            for (nk_size_t step = 0; step < segment; step += 8) {                                                     \
-                nk_size_t const remaining = segment - step;                                                           \
-                __mmask8 const valid_m8 = (__mmask8)_bzhi_u32(0xFF, remaining < 8 ? (unsigned int)remaining : 8);     \
-                __m512d const reduced_f64x8 = nk_shapes_reduced_costs_##math_type##_skylake_(                         \
-                    views, gradient, rows, columns, row, column + step, valid_m8);                                    \
-                least_f64x8 = _mm512_mask_min_pd(least_f64x8, valid_m8, least_f64x8, reduced_f64x8);                  \
-            }                                                                                                         \
-            offset += segment, column += segment;                                                                     \
-            if (column == columns) column = 0, row = row + 1 == rows ? 0 : row + 1;                                   \
-        }                                                                                                             \
-        *cursor_row = row, *cursor_column = column;                                                                   \
-        nk_f64_t const least = nk_reduce_min_f64x8_skylake_(least_f64x8);                                             \
-        if (!(least < *entering_cost)) return;                                                                        \
-        __m512d const least_broadcast_f64x8 = _mm512_set1_pd(least);                                                  \
-        *entering_cost = least, row = start_row, column = start_column;                                               \
-        for (;;) {                                                                                                    \
-            nk_size_t const segment = columns - column;                                                               \
-            for (nk_size_t step = 0; step < segment; step += 8) {                                                     \
-                nk_size_t const remaining = segment - step;                                                           \
-                __mmask8 const valid_m8 = (__mmask8)_bzhi_u32(0xFF, remaining < 8 ? (unsigned int)remaining : 8);     \
-                __m512d const reduced_f64x8 = nk_shapes_reduced_costs_##math_type##_skylake_(                         \
-                    views, gradient, rows, columns, row, column + step, valid_m8);                                    \
-                __mmask8 const equal_m8 = _mm512_mask_cmp_pd_mask(valid_m8, reduced_f64x8, least_broadcast_f64x8,     \
-                                                                  _CMP_EQ_OQ);                                        \
-                if (!equal_m8) continue;                                                                              \
-                *entering_row = row, *entering_column = column + step + _tzcnt_u32(equal_m8);                         \
-                return;                                                                                               \
-            }                                                                                                         \
-            column = 0, row = row + 1 == rows ? 0 : row + 1;                                                          \
-        }                                                                                                             \
+/** Squared distances from a broadcast row point in fused multiply-adds, which also serve single
+ *  arcs, so that tree arcs keep a zero reduced cost. */
+NUMKONG_INLINE __m256 nk_shapes_point_costs_f32x8_skylake_(__m256 row_x_f32x8, __m256 row_y_f32x8, __m256 row_z_f32x8,
+                                                           __m256 column_x_f32x8, __m256 column_y_f32x8,
+                                                           __m256 column_z_f32x8) {
+    __m256 const delta_x_f32x8 = _mm256_sub_ps(row_x_f32x8, column_x_f32x8);
+    __m256 const delta_y_f32x8 = _mm256_sub_ps(row_y_f32x8, column_y_f32x8);
+    __m256 const delta_z_f32x8 = _mm256_sub_ps(row_z_f32x8, column_z_f32x8);
+    return _mm256_fmadd_ps(delta_z_f32x8, delta_z_f32x8,
+                           _mm256_fmadd_ps(delta_y_f32x8, delta_y_f32x8, _mm256_mul_ps(delta_x_f32x8, delta_x_f32x8)));
+}
+
+NUMKONG_INLINE nk_f32_t nk_shapes_point_cost_f32_skylake_(nk_shapes_workspace_f32_serial_t const *views, nk_size_t row,
+                                                          nk_size_t column) {
+    nk_size_t const stride = views->points_stride;
+    nk_f32_t const *row_points = views->row_points, *rotated_points = views->rotated_points;
+    return _mm256_cvtss_f32(nk_shapes_point_costs_f32x8_skylake_(
+        _mm256_set1_ps(row_points[row]), _mm256_set1_ps(row_points[stride + row]),
+        _mm256_set1_ps(row_points[2 * stride + row]), _mm256_set1_ps(rotated_points[column]),
+        _mm256_set1_ps(rotated_points[stride + column]), _mm256_set1_ps(rotated_points[2 * stride + column])));
+}
+
+/** The reduced costs (c − πᵢ) + πⱼ of a row's arcs to 8 columns, with matrix costs −G taken as
+ *  πⱼ − (G + πᵢ), which rounds the same. */
+NUMKONG_INLINE __m512d nk_shapes_reduced_costs_f32_skylake_(nk_shapes_workspace_f32_serial_t const *views,
+                                                            nk_f64_t const *gradient, nk_size_t rows, nk_size_t columns,
+                                                            nk_size_t row, nk_size_t column, __mmask8 valid_m8) {
+    nk_size_t const stride = views->points_stride;
+    nk_f32_t const *row_points = views->row_points, *rotated_points = views->rotated_points + column;
+    __m512d const row_potential_f64x8 = _mm512_set1_pd(views->potential[row]);
+    __m512d const column_potentials_f64x8 = _mm512_maskz_loadu_pd(valid_m8, views->potential + rows + column);
+    if (gradient)
+        return _mm512_sub_pd(
+            column_potentials_f64x8,
+            _mm512_add_pd(_mm512_maskz_loadu_pd(valid_m8, gradient + row * columns + column), row_potential_f64x8));
+    __m512d const costs_f64x8 = _mm512_cvtps_pd(nk_shapes_point_costs_f32x8_skylake_(
+        _mm256_set1_ps(row_points[row]), _mm256_set1_ps(row_points[stride + row]),
+        _mm256_set1_ps(row_points[2 * stride + row]), _mm256_maskz_loadu_ps(valid_m8, rotated_points),
+        _mm256_maskz_loadu_ps(valid_m8, rotated_points + stride),
+        _mm256_maskz_loadu_ps(valid_m8, rotated_points + 2 * stride)));
+    return _mm512_add_pd(_mm512_sub_pd(costs_f64x8, row_potential_f64x8), column_potentials_f64x8);
+}
+
+/** Keeps a tile's first least reduced cost below @p entering_cost, 8 columns at a time, branching
+ *  only where a register beats it. Masks keep lanes past the tile out of the comparisons. */
+NUMKONG_INLINE void nk_shapes_price_tile_f32_skylake_(nk_shapes_workspace_f32_serial_t const *views,
+                                                      nk_f64_t const *gradient, nk_size_t rows, nk_size_t columns,
+                                                      nk_size_t row, nk_size_t column, nk_size_t tile,
+                                                      nk_f64_t *entering_cost, nk_size_t *entering_row,
+                                                      nk_size_t *entering_column) {
+    __m512d const infinity_f64x8 = _mm512_set1_pd(NUMKONG_F64_INF);
+    __m512d least_f64x8 = _mm512_set1_pd(*entering_cost);
+    for (nk_size_t step = 0; step < tile; step += 8) {
+        nk_size_t const remaining = tile - step;
+        __mmask8 const valid_m8 = (__mmask8)_bzhi_u32(0xFF, remaining < 8 ? (unsigned int)remaining : 8);
+        __m512d const reduced_f64x8 = nk_shapes_reduced_costs_f32_skylake_(views, gradient, rows, columns, row,
+                                                                           column + step, valid_m8);
+        if (!_mm512_mask_cmp_pd_mask(valid_m8, reduced_f64x8, least_f64x8, _CMP_LT_OQ)) continue;
+        *entering_cost = nk_reduce_min_f64x8_skylake_(_mm512_mask_mov_pd(infinity_f64x8, valid_m8, reduced_f64x8));
+        least_f64x8 = _mm512_set1_pd(*entering_cost);
+        __mmask8 const equal_m8 = _mm512_mask_cmp_pd_mask(valid_m8, reduced_f64x8, least_f64x8, _CMP_EQ_OQ);
+        *entering_row = row, *entering_column = column + step + _tzcnt_u32(equal_m8);
     }
+}
 
-nk_define_shapes_pricing_skylake_(f64, __m512d, f64x8, _mm512_set1_pd, _mm512_maskz_loadu_pd, _mm512_sub_pd,
-                                  _mm512_mul_pd, _mm512_fmadd_pd, _mm512_cvtsd_f64, )
-nk_define_shapes_pricing_skylake_(f32, __m256, f32x8, _mm256_set1_ps, _mm256_maskz_loadu_ps, _mm256_sub_ps,
-                                  _mm256_mul_ps, _mm256_fmadd_ps, _mm256_cvtss_f32, _mm512_cvtps_pd)
-#undef nk_define_shapes_pricing_skylake_
+NUMKONG_INLINE void nk_shapes_tree_costs_f32_skylake_(nk_shapes_workspace_f32_serial_t const *views,
+                                                      nk_f64_t const *gradient, nk_size_t rows, nk_size_t columns) {
+    nk_u32_t const *parent = views->tree;
+    for (nk_size_t node = 1; node != rows + columns; ++node) {
+        nk_size_t const row = node < rows ? node : parent[node];
+        nk_size_t const column = (node < rows ? parent[node] : node) - rows;
+        views->potential[node] = gradient ? -gradient[row * columns + column]
+                                          : (nk_f64_t)nk_shapes_point_cost_f32_skylake_(views, row, column);
+    }
+}
 
-nk_define_shapes_network_simplex_(f32, skylake, nk_shapes_point_cost_f32_skylake_, nk_shapes_price_block_f32_skylake_)
-nk_define_shapes_network_simplex_(f64, skylake, nk_shapes_point_cost_f64_skylake_, nk_shapes_price_block_f64_skylake_)
-nk_define_shapes_wasserstein_procrustes_(f16, f32, skylake, NUMKONG_F32_INF)
-nk_define_shapes_wasserstein_procrustes_(f32, f64, skylake, NUMKONG_F64_INF)
-nk_define_shapes_gromov_wasserstein_(f16, f32, skylake)
-nk_define_shapes_gromov_wasserstein_(f32, f64, skylake)
+NUMKONG_INLINE void nk_shapes_network_simplex_f32_skylake_(nk_shapes_workspace_f32_serial_t const *views,
+                                                           nk_f64_t const *gradient, nk_size_t rows, nk_size_t columns,
+                                                           nk_f64_t cost_scale) {
+    nk_shapes_simplex_serial_t simplex;
+    nk_shapes_tree_costs_f32_skylake_(views, gradient, rows, columns);
+    nk_shapes_tree_potentials_serial_(views->tree, views->tree_stride, views->potential, rows);
+    nk_shapes_simplex_start_serial_(&simplex, views->tree, views->tree_stride, views->potential, rows, columns,
+                                    cost_scale);
+    while (nk_shapes_simplex_next_tile_serial_(&simplex))
+        nk_shapes_price_tile_f32_skylake_(views, gradient, rows, columns, simplex.row, simplex.column, simplex.tile,
+                                          &simplex.entering_cost, &simplex.entering_row, &simplex.entering_column);
+}
 
-/** Wasserstein-Procrustes of one canonically ordered pair of @c f64 clouds, like the serial one
- *  around the block pricing, the plan cost rounding as the priced lanes do. */
+NUMKONG_INLINE nk_f32_t nk_shapes_tree_cost_f32_skylake_(nk_shapes_workspace_f32_serial_t const *views, nk_size_t rows,
+                                                         nk_size_t columns) {
+    nk_u32_t const *parent = views->tree, *flow = views->tree + views->tree_stride;
+    nk_f32_t cost = 0;
+    for (nk_size_t node = 1; node != rows + columns; ++node) {
+        nk_size_t const row = node < rows ? node : parent[node];
+        nk_size_t const column = (node < rows ? parent[node] : node) - rows;
+        cost += (nk_f32_t)flow[node] * nk_shapes_point_cost_f32_skylake_(views, row, column);
+    }
+    return cost / (nk_f32_t)(rows * columns);
+}
+
+NUMKONG_INLINE __m512d nk_shapes_point_costs_f64x8_skylake_(__m512d row_x_f64x8, __m512d row_y_f64x8,
+                                                            __m512d row_z_f64x8, __m512d column_x_f64x8,
+                                                            __m512d column_y_f64x8, __m512d column_z_f64x8) {
+    __m512d const delta_x_f64x8 = _mm512_sub_pd(row_x_f64x8, column_x_f64x8);
+    __m512d const delta_y_f64x8 = _mm512_sub_pd(row_y_f64x8, column_y_f64x8);
+    __m512d const delta_z_f64x8 = _mm512_sub_pd(row_z_f64x8, column_z_f64x8);
+    return _mm512_fmadd_pd(delta_z_f64x8, delta_z_f64x8,
+                           _mm512_fmadd_pd(delta_y_f64x8, delta_y_f64x8, _mm512_mul_pd(delta_x_f64x8, delta_x_f64x8)));
+}
+
+NUMKONG_INLINE nk_f64_t nk_shapes_point_cost_f64_skylake_(nk_shapes_workspace_f64_serial_t const *views, nk_size_t row,
+                                                          nk_size_t column) {
+    nk_size_t const stride = views->points_stride;
+    nk_f64_t const *row_points = views->row_points, *rotated_points = views->rotated_points;
+    return _mm512_cvtsd_f64(nk_shapes_point_costs_f64x8_skylake_(
+        _mm512_set1_pd(row_points[row]), _mm512_set1_pd(row_points[stride + row]),
+        _mm512_set1_pd(row_points[2 * stride + row]), _mm512_set1_pd(rotated_points[column]),
+        _mm512_set1_pd(rotated_points[stride + column]), _mm512_set1_pd(rotated_points[2 * stride + column])));
+}
+
+NUMKONG_INLINE __m512d nk_shapes_reduced_costs_f64_skylake_(nk_shapes_workspace_f64_serial_t const *views,
+                                                            nk_f64_t const *gradient, nk_size_t rows, nk_size_t columns,
+                                                            nk_size_t row, nk_size_t column, __mmask8 valid_m8) {
+    nk_size_t const stride = views->points_stride;
+    nk_f64_t const *row_points = views->row_points, *rotated_points = views->rotated_points + column;
+    __m512d const row_potential_f64x8 = _mm512_set1_pd(views->potential[row]);
+    __m512d const column_potentials_f64x8 = _mm512_maskz_loadu_pd(valid_m8, views->potential + rows + column);
+    if (gradient)
+        return _mm512_sub_pd(
+            column_potentials_f64x8,
+            _mm512_add_pd(_mm512_maskz_loadu_pd(valid_m8, gradient + row * columns + column), row_potential_f64x8));
+    __m512d const costs_f64x8 = nk_shapes_point_costs_f64x8_skylake_(
+        _mm512_set1_pd(row_points[row]), _mm512_set1_pd(row_points[stride + row]),
+        _mm512_set1_pd(row_points[2 * stride + row]), _mm512_maskz_loadu_pd(valid_m8, rotated_points),
+        _mm512_maskz_loadu_pd(valid_m8, rotated_points + stride),
+        _mm512_maskz_loadu_pd(valid_m8, rotated_points + 2 * stride));
+    return _mm512_add_pd(_mm512_sub_pd(costs_f64x8, row_potential_f64x8), column_potentials_f64x8);
+}
+
+NUMKONG_INLINE void nk_shapes_price_tile_f64_skylake_(nk_shapes_workspace_f64_serial_t const *views,
+                                                      nk_f64_t const *gradient, nk_size_t rows, nk_size_t columns,
+                                                      nk_size_t row, nk_size_t column, nk_size_t tile,
+                                                      nk_f64_t *entering_cost, nk_size_t *entering_row,
+                                                      nk_size_t *entering_column) {
+    __m512d const infinity_f64x8 = _mm512_set1_pd(NUMKONG_F64_INF);
+    __m512d least_f64x8 = _mm512_set1_pd(*entering_cost);
+    for (nk_size_t step = 0; step < tile; step += 8) {
+        nk_size_t const remaining = tile - step;
+        __mmask8 const valid_m8 = (__mmask8)_bzhi_u32(0xFF, remaining < 8 ? (unsigned int)remaining : 8);
+        __m512d const reduced_f64x8 = nk_shapes_reduced_costs_f64_skylake_(views, gradient, rows, columns, row,
+                                                                           column + step, valid_m8);
+        if (!_mm512_mask_cmp_pd_mask(valid_m8, reduced_f64x8, least_f64x8, _CMP_LT_OQ)) continue;
+        *entering_cost = nk_reduce_min_f64x8_skylake_(_mm512_mask_mov_pd(infinity_f64x8, valid_m8, reduced_f64x8));
+        least_f64x8 = _mm512_set1_pd(*entering_cost);
+        __mmask8 const equal_m8 = _mm512_mask_cmp_pd_mask(valid_m8, reduced_f64x8, least_f64x8, _CMP_EQ_OQ);
+        *entering_row = row, *entering_column = column + step + _tzcnt_u32(equal_m8);
+    }
+}
+
+NUMKONG_INLINE void nk_shapes_tree_costs_f64_skylake_(nk_shapes_workspace_f64_serial_t const *views,
+                                                      nk_f64_t const *gradient, nk_size_t rows, nk_size_t columns) {
+    nk_u32_t const *parent = views->tree;
+    for (nk_size_t node = 1; node != rows + columns; ++node) {
+        nk_size_t const row = node < rows ? node : parent[node];
+        nk_size_t const column = (node < rows ? parent[node] : node) - rows;
+        views->potential[node] = gradient ? -gradient[row * columns + column]
+                                          : nk_shapes_point_cost_f64_skylake_(views, row, column);
+    }
+}
+
+NUMKONG_INLINE void nk_shapes_network_simplex_f64_skylake_(nk_shapes_workspace_f64_serial_t const *views,
+                                                           nk_f64_t const *gradient, nk_size_t rows, nk_size_t columns,
+                                                           nk_f64_t cost_scale) {
+    nk_shapes_simplex_serial_t simplex;
+    nk_shapes_tree_costs_f64_skylake_(views, gradient, rows, columns);
+    nk_shapes_tree_potentials_serial_(views->tree, views->tree_stride, views->potential, rows);
+    nk_shapes_simplex_start_serial_(&simplex, views->tree, views->tree_stride, views->potential, rows, columns,
+                                    cost_scale);
+    while (nk_shapes_simplex_next_tile_serial_(&simplex))
+        nk_shapes_price_tile_f64_skylake_(views, gradient, rows, columns, simplex.row, simplex.column, simplex.tile,
+                                          &simplex.entering_cost, &simplex.entering_row, &simplex.entering_column);
+}
+
+NUMKONG_INLINE nk_f64_t nk_shapes_tree_cost_f64_skylake_(nk_shapes_workspace_f64_serial_t const *views, nk_size_t rows,
+                                                         nk_size_t columns) {
+    nk_u32_t const *parent = views->tree, *flow = views->tree + views->tree_stride;
+    nk_f64_t cost = 0;
+    for (nk_size_t node = 1; node != rows + columns; ++node) {
+        nk_size_t const row = node < rows ? node : parent[node];
+        nk_size_t const column = (node < rows ? parent[node] : node) - rows;
+        cost += (nk_f64_t)flow[node] * nk_shapes_point_cost_f64_skylake_(views, row, column);
+    }
+    return cost / (nk_f64_t)(rows * columns);
+}
+
+NUMKONG_INLINE nk_f32_t nk_shapes_wasserstein_procrustes_f16_skylake_(nk_shapes_workspace_f32_serial_t const *views,
+                                                                      nk_size_t rows, nk_size_t columns,
+                                                                      nk_f64_t cost_scale, nk_f32_t *rotation) {
+    nk_shapes_procrustes_f32_serial_t search;
+    nk_shapes_procrustes_start_f32_serial_(&search, views, rows, columns, rotation);
+    while (nk_shapes_procrustes_next_f32_serial_(&search)) {
+        nk_shapes_network_simplex_f32_skylake_(views, NUMKONG_NULL, rows, columns, cost_scale);
+        search.cost = nk_shapes_tree_cost_f32_skylake_(views, rows, columns);
+    }
+    return search.best;
+}
+
+NUMKONG_INLINE nk_f64_t nk_shapes_gromov_wasserstein_f16_skylake_(nk_shapes_workspace_f32_serial_t const *views,
+                                                                  nk_size_t rows, nk_size_t columns,
+                                                                  nk_f64_t cost_scale, nk_f64_t const *row_distances,
+                                                                  nk_f64_t const *column_distances,
+                                                                  nk_f32_t *rotation) {
+    nk_shapes_gromov_serial_t search;
+    nk_shapes_wasserstein_procrustes_f16_skylake_(views, rows, columns, cost_scale, rotation);
+    nk_shapes_gromov_bind_f32_serial_(&search, views, rows, columns, row_distances, column_distances);
+    nk_shapes_gromov_start_serial_(&search);
+    while (nk_shapes_gromov_next_f32_serial_(&search, views, rotation))
+        nk_shapes_network_simplex_f32_skylake_(views, search.gradient, rows, columns, search.gradient_scale);
+    return search.best;
+}
+
+NUMKONG_INLINE nk_f64_t nk_shapes_wasserstein_procrustes_f32_skylake_(nk_shapes_workspace_f64_serial_t const *views,
+                                                                      nk_size_t rows, nk_size_t columns,
+                                                                      nk_f64_t cost_scale, nk_f64_t *rotation) {
+    nk_shapes_procrustes_f64_serial_t search;
+    nk_shapes_procrustes_start_f64_serial_(&search, views, rows, columns, rotation);
+    while (nk_shapes_procrustes_next_f64_serial_(&search)) {
+        nk_shapes_network_simplex_f64_skylake_(views, NUMKONG_NULL, rows, columns, cost_scale);
+        search.cost = nk_shapes_tree_cost_f64_skylake_(views, rows, columns);
+    }
+    return search.best;
+}
+
+NUMKONG_INLINE nk_f64_t nk_shapes_gromov_wasserstein_f32_skylake_(nk_shapes_workspace_f64_serial_t const *views,
+                                                                  nk_size_t rows, nk_size_t columns,
+                                                                  nk_f64_t cost_scale, nk_f64_t const *row_distances,
+                                                                  nk_f64_t const *column_distances,
+                                                                  nk_f64_t *rotation) {
+    nk_shapes_gromov_serial_t search;
+    nk_shapes_wasserstein_procrustes_f32_skylake_(views, rows, columns, cost_scale, rotation);
+    nk_shapes_gromov_bind_f64_serial_(&search, views, rows, columns, row_distances, column_distances);
+    nk_shapes_gromov_start_serial_(&search);
+    while (nk_shapes_gromov_next_f64_serial_(&search, views, rotation))
+        nk_shapes_network_simplex_f64_skylake_(views, search.gradient, rows, columns, search.gradient_scale);
+    return search.best;
+}
+
+/** The mean cost of the plan in a tree with the sum compensated, for @c f64 clouds, rounding as
+ *  the priced lanes do. */
+NUMKONG_INLINE nk_f64_t nk_shapes_tree_cost_compensated_f64_skylake_(nk_shapes_workspace_f64_serial_t const *views,
+                                                                     nk_size_t rows, nk_size_t columns) {
+    nk_u32_t const *parent = views->tree, *flow = views->tree + views->tree_stride;
+    nk_f64_t cost = 0, compensation = 0;
+    for (nk_size_t node = 1; node != rows + columns; ++node) {
+        nk_size_t const row = node < rows ? node : parent[node];
+        nk_size_t const column = (node < rows ? parent[node] : node) - rows;
+        nk_dot2_f64_serial_(&cost, &compensation, (nk_f64_t)flow[node],
+                            nk_shapes_point_cost_f64_skylake_(views, row, column));
+    }
+    return (cost + compensation) / (nk_f64_t)(rows * columns);
+}
+
 NUMKONG_INLINE nk_f64_t nk_shapes_wasserstein_procrustes_f64_skylake_(nk_shapes_workspace_f64_serial_t const *views,
                                                                       nk_size_t rows, nk_size_t columns,
                                                                       nk_f64_t cost_scale, nk_f64_t *rotation) {
-    nk_size_t const stride = views->points_stride;
-    nk_u32_t const *parent = views->tree, *flow = views->tree + views->tree_stride;
-    nk_f64_t const mass = (nk_f64_t)(rows * columns);
-    nk_f64_t best = NUMKONG_F64_INF, best_proper = NUMKONG_F64_INF, best_improper = NUMKONG_F64_INF;
-    for (int flip = 0; flip != 8; ++flip) {
-        nk_f64_t current[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}, start_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-        current[0] = (flip & 1) ? -1 : 1, current[4] = (flip & 2) ? -1 : 1, current[8] = (flip & 4) ? -1 : 1;
-        nk_f64_t const flip_determinant = current[0] * current[4] * current[8];
-        nk_u32_t *parity_plan = flip_determinant > 0 ? views->proper_plan : views->improper_plan;
-        nk_f64_t *parity_best = flip_determinant > 0 ? &best_proper : &best_improper;
-        nk_f64_t start_best = NUMKONG_F64_INF;
-        nk_shapes_northwest_corner_serial_(rows, columns, views->tree, views->tree_stride);
-        for (;;) {
-            for (nk_size_t column = 0; column != columns; ++column) {
-                nk_f64_t const x = views->column_points[column], y = views->column_points[stride + column];
-                nk_f64_t const z = views->column_points[2 * stride + column];
-                for (int axis = 0; axis != 3; ++axis)
-                    views->rotated_points[axis * stride + column] = current[axis * 3] * x + current[axis * 3 + 1] * y +
-                                                                    current[axis * 3 + 2] * z;
-            }
-            nk_shapes_network_simplex_f64_skylake_(views, NUMKONG_NULL, rows, columns, cost_scale);
-            nk_f64_t cost = 0, cost_compensation = 0;
-            for (nk_size_t node = 1; node != rows + columns; ++node) {
-                nk_size_t const row = node < rows ? node : parent[node];
-                nk_size_t const column = (node < rows ? parent[node] : node) - rows;
-                nk_dot2_f64_serial_(&cost, &cost_compensation, (nk_f64_t)flow[node],
-                                    nk_shapes_point_cost_f64_skylake_(views, row, column));
-            }
-            cost = (cost + cost_compensation) / mass;
-            if (!(cost < start_best)) break;
-            start_best = cost;
-            for (int cell = 0; cell != 9; ++cell) start_rotation[cell] = current[cell];
-            if (cost < *parity_best) {
-                *parity_best = cost;
-                nk_shapes_tree_arcs_serial_(rows, columns, views->tree, views->tree_stride, parity_plan,
-                                            views->plan_stride);
-            }
-            nk_f64_t sums[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0}, compensations[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-            for (nk_size_t node = 1; node != rows + columns; ++node) {
-                if (!flow[node]) continue;
-                nk_size_t const row = node < rows ? node : parent[node];
-                nk_size_t const column = (node < rows ? parent[node] : node) - rows;
-                nk_f64_t const weight = (nk_f64_t)flow[node] / mass;
-                for (int column_axis = 0; column_axis != 3; ++column_axis) {
-                    nk_f64_t const weighted = weight * views->column_points[column_axis * stride + column];
-                    for (int row_axis = 0; row_axis != 3; ++row_axis)
-                        nk_dot2_f64_serial_(&sums[column_axis * 3 + row_axis],
-                                            &compensations[column_axis * 3 + row_axis], weighted,
-                                            views->row_points[row_axis * stride + row]);
-                }
-            }
-            nk_f64_t cross_covariance[9], svd_left[9], svd_diagonal[9], svd_right[9];
-            for (int cell = 0; cell != 9; ++cell) cross_covariance[cell] = sums[cell] + compensations[cell];
-            nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
-            nk_rotation_from_svd_f64_serial_(svd_left, svd_right, current);
-            // Each start stays among the rotations, or among the reflections, it began with
-            if (nk_det3x3_f64_serial_(current) * flip_determinant < 0) {
-                svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
-                nk_rotation_from_svd_f64_serial_(svd_left, svd_right, current);
-            }
-        }
-        if (start_best < best) {
-            best = start_best;
-            for (int cell = 0; cell != 9; ++cell) rotation[cell] = start_rotation[cell];
-        }
+    nk_shapes_procrustes_f64_serial_t search;
+    nk_shapes_procrustes_start_f64_serial_(&search, views, rows, columns, rotation);
+    while (nk_shapes_procrustes_next_compensated_f64_serial_(&search)) {
+        nk_shapes_network_simplex_f64_skylake_(views, NUMKONG_NULL, rows, columns, cost_scale);
+        search.cost = nk_shapes_tree_cost_compensated_f64_skylake_(views, rows, columns);
     }
-    return best;
+    return search.best;
 }
 
 /** Dx × V × Dy with each cell's sum over the arcs compensated, 8 columns per step through a masked
@@ -468,123 +866,735 @@ NUMKONG_INLINE void nk_shapes_distance_gradient_compensated_f64_skylake_(nk_u32_
         }
 }
 
-/** Gromov-Wasserstein of one canonically ordered pair of @c f64 clouds, like the serial one
- *  around the block pricing and the gradients on fused multiply-add lanes. */
 NUMKONG_INLINE nk_f64_t nk_shapes_gromov_wasserstein_f64_skylake_(nk_shapes_workspace_f64_serial_t const *views,
                                                                   nk_size_t rows, nk_size_t columns,
                                                                   nk_f64_t cost_scale, nk_f64_t const *row_distances,
                                                                   nk_f64_t const *column_distances,
                                                                   nk_f64_t *rotation) {
-    nk_size_t const cells = rows * columns, arcs = rows + columns - 1, stride = views->points_stride;
-    nk_size_t const plan_stride = views->plan_stride;
-    nk_f64_t *plan = views->matrices, *gradient = views->matrices + views->matrix_stride;
-    nk_f64_t *vertex_gradient = views->matrices + 2 * views->matrix_stride;
-    nk_f64_t const mass = (nk_f64_t)cells;
+    nk_shapes_gromov_serial_t search;
     nk_shapes_wasserstein_procrustes_f64_skylake_(views, rows, columns, cost_scale, rotation);
-    nk_f64_t row_spread = 0, row_spread_compensation = 0, column_spread = 0, column_spread_compensation = 0;
-    for (nk_size_t cell = 0; cell != rows * rows; ++cell)
-        nk_dot2_f64_serial_(&row_spread, &row_spread_compensation, row_distances[cell], row_distances[cell]);
-    for (nk_size_t cell = 0; cell != columns * columns; ++cell)
-        nk_dot2_f64_serial_(&column_spread, &column_spread_compensation, column_distances[cell],
-                            column_distances[cell]);
-    row_spread = (row_spread + row_spread_compensation) / (nk_f64_t)(rows * rows);
-    column_spread = (column_spread + column_spread_compensation) / (nk_f64_t)(columns * columns);
-    // Once its start spreads into the dense plan, the proper plan holds each step's vertex
-    nk_u32_t *vertex = views->proper_plan;
-    nk_f64_t best = NUMKONG_F64_INF;
-    for (int start = 0; start != 3; ++start) {
-        if (start == 2) {
-            // The product plan's gradient is the outer product of the two matrices' row sums
-            for (nk_size_t column = 0; column != columns; ++column) {
-                nk_f64_t column_sum = 0, column_sum_compensation = 0;
-                for (nk_size_t other = 0; other != columns; ++other)
-                    nk_dot2_f64_serial_(&column_sum, &column_sum_compensation,
-                                        column_distances[other * columns + column], 1);
-                vertex_gradient[column] = column_sum + column_sum_compensation;
-            }
-            for (nk_size_t row = 0; row != rows; ++row) {
-                nk_f64_t row_sum = 0, row_sum_compensation = 0;
-                for (nk_size_t other = 0; other != rows; ++other)
-                    nk_dot2_f64_serial_(&row_sum, &row_sum_compensation, row_distances[row * rows + other], 1);
-                row_sum += row_sum_compensation;
-                for (nk_size_t column = 0; column != columns; ++column) {
-                    plan[row * columns + column] = 1 / mass;
-                    gradient[row * columns + column] = row_sum * vertex_gradient[column] / mass;
-                }
-            }
-        }
-        else {
-            nk_u32_t const *start_plan = start ? views->improper_plan : views->proper_plan;
-            for (nk_size_t cell = 0; cell != cells; ++cell) plan[cell] = 0;
-            for (nk_size_t arc = 0; arc != arcs; ++arc)
-                plan[start_plan[arc] * columns + start_plan[plan_stride + arc]] =
-                    (nk_f64_t)start_plan[2 * plan_stride + arc] / mass;
-            nk_shapes_distance_gradient_compensated_f64_skylake_(start_plan, plan_stride, arcs, mass, row_distances,
-                                                                 rows, column_distances, columns, gradient);
-        }
-        nk_f64_t gradient_scale;
-        nk_f64_t plan_score = nk_shapes_plan_score_compensated_f64_serial_(gradient, plan, cells, &gradient_scale);
-        for (int step_index = 0; step_index != 32; ++step_index) {
-            if (!step_index) nk_shapes_northwest_corner_serial_(rows, columns, views->tree, views->tree_stride);
-            nk_shapes_network_simplex_f64_skylake_(views, gradient, rows, columns, gradient_scale);
-            nk_shapes_tree_arcs_serial_(rows, columns, views->tree, views->tree_stride, vertex, plan_stride);
-            nk_shapes_distance_gradient_compensated_f64_skylake_(vertex, plan_stride, arcs, mass, row_distances, rows,
-                                                                 column_distances, columns, vertex_gradient);
-            nk_f64_t vertex_score = 0, vertex_score_compensation = 0;
-            nk_f64_t vertex_curvature = 0, vertex_curvature_compensation = 0;
-            for (nk_size_t arc = 0; arc != arcs; ++arc) {
-                nk_size_t const cell = vertex[arc] * columns + vertex[plan_stride + arc];
-                nk_f64_t const weight = (nk_f64_t)vertex[2 * plan_stride + arc] / mass;
-                nk_dot2_f64_serial_(&vertex_score, &vertex_score_compensation, gradient[cell], weight);
-                nk_dot2_f64_serial_(&vertex_curvature, &vertex_curvature_compensation, vertex_gradient[cell], weight);
-            }
-            vertex_score += vertex_score_compensation, vertex_curvature += vertex_curvature_compensation;
-            nk_f64_t const slope = vertex_score - plan_score;
-            nk_f64_t const curvature = vertex_curvature - 2 * vertex_score + plan_score;
-            nk_f64_t const quadratic = -2 * curvature, linear = -4 * slope;
-            nk_f64_t step = quadratic + linear < 0 ? 1 : 0;
-            if (quadratic > 0) {
-                step = -linear / (2 * quadratic);
-                step = step < 0 ? 0 : step > 1 ? 1 : step;
-            }
-            if (step == 0) break;
-            nk_shapes_plan_step_f64_serial_(plan, gradient, vertex_gradient, cells, 1 - step, step);
-            for (nk_size_t arc = 0; arc != arcs; ++arc)
-                plan[vertex[arc] * columns + vertex[plan_stride + arc]] +=
-                    step * ((nk_f64_t)vertex[2 * plan_stride + arc] / mass);
-            plan_score = nk_shapes_plan_score_compensated_f64_serial_(gradient, plan, cells, &gradient_scale);
-        }
-        nk_f64_t const loss = row_spread + column_spread - 2 * plan_score;
-        if (!(loss < best)) continue;
-        best = loss;
-        nk_f64_t sums[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0}, compensations[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-        for (nk_size_t row = 0; row != rows; ++row)
-            for (nk_size_t column = 0; column != columns; ++column)
-                for (int column_axis = 0; column_axis != 3; ++column_axis) {
-                    nk_f64_t const weighted = plan[row * columns + column] *
-                                              views->column_points[column_axis * stride + column];
-                    for (int row_axis = 0; row_axis != 3; ++row_axis)
-                        nk_dot2_f64_serial_(&sums[column_axis * 3 + row_axis],
-                                            &compensations[column_axis * 3 + row_axis], weighted,
-                                            views->row_points[row_axis * stride + row]);
-                }
-        nk_f64_t cross_covariance[9], svd_left[9], svd_diagonal[9], svd_right[9];
-        for (int cell = 0; cell != 9; ++cell) cross_covariance[cell] = sums[cell] + compensations[cell];
-        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
-        // The McAdams factors are proper, so det H's sign moves into V to fit over O(3)
-        if (nk_det3x3_f64_serial_(cross_covariance) < 0)
-            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
-        nk_rotation_from_svd_f64_serial_(svd_left, svd_right, rotation);
+    nk_shapes_gromov_bind_f64_serial_(&search, views, rows, columns, row_distances, column_distances);
+    nk_shapes_gromov_start_compensated_f64_serial_(&search);
+    for (int request; (request = nk_shapes_gromov_next_compensated_f64_serial_(&search, views, rotation)) != 0;) {
+        if (request == 1)
+            nk_shapes_network_simplex_f64_skylake_(views, search.gradient, rows, columns, search.gradient_scale);
+        else
+            nk_shapes_distance_gradient_compensated_f64_skylake_(search.gradient_plan, search.plan_stride, search.arcs,
+                                                                 search.mass, row_distances, rows, column_distances,
+                                                                 columns, search.gradient_output);
     }
-    return best;
+    return search.best;
 }
 
-nk_define_shapes_flip_kernels_(f64, f64, skylake, nk_shapes_nearest_f64_skylake_, NUMKONG_F64_INF)
-nk_define_shapes_flip_kernels_(f32, f64, skylake, nk_shapes_nearest_f32_skylake_, NUMKONG_F64_INF)
-nk_define_shapes_flip_kernels_(f16, f32, skylake, nk_shapes_nearest_f16_skylake_, NUMKONG_F32_INF)
-nk_define_shapes_transport_kernels_(f64, f64, skylake, NUMKONG_F64_INF)
-nk_define_shapes_transport_kernels_(f32, f64, skylake, NUMKONG_F64_INF)
-nk_define_shapes_transport_kernels_(f16, f32, skylake, NUMKONG_F32_INF)
+NUMKONG_INLINE void nk_jacobi_eigenanalysis_f32_skylake_(nk_f32_t *matrix, nk_f32_t *quaternion) {
+    nk_jacobi_start_f32_serial_(quaternion);
+    for (int sweep = 0; sweep != 16; ++sweep) {
+        for (int axis = 0; axis != 3; ++axis) {
+            nk_f32_t const norm = nk_jacobi_half_angle_f32_serial_(matrix);
+            nk_jacobi_conjugate_f32_serial_(axis, nk_rsqrt_f32_haswell_(norm), matrix, quaternion);
+        }
+        if (nk_jacobi_converged_f32_serial_(matrix, 0x1p-24f)) break;
+    }
+    nk_f32_t const length_squared = nk_jacobi_length_squared_f32_serial_(quaternion);
+    nk_jacobi_rescale_f32_serial_(nk_rsqrt_f32_haswell_(length_squared), quaternion);
+}
+
+NUMKONG_INLINE void nk_jacobi_eigenanalysis_f64_skylake_(nk_f64_t *matrix, nk_f64_t *quaternion) {
+    nk_jacobi_start_f64_serial_(quaternion);
+    for (int sweep = 0; sweep != 16; ++sweep) {
+        for (int axis = 0; axis != 3; ++axis) {
+            nk_f64_t const norm = nk_jacobi_half_angle_f64_serial_(matrix);
+            nk_jacobi_conjugate_f64_serial_(axis, nk_shapes_rsqrt_f64_skylake_(norm), matrix, quaternion);
+        }
+        if (nk_jacobi_converged_f64_serial_(matrix, 0x1p-53)) break;
+    }
+    nk_f64_t const length_squared = nk_jacobi_length_squared_f64_serial_(quaternion);
+    nk_jacobi_rescale_f64_serial_(nk_shapes_rsqrt_f64_skylake_(length_squared), quaternion);
+}
+
+/** The next 16 @c f16 points of the @p left remaining, each axis in f32 lanes. Padded lanes read
+ *  zero, and two masked loads hold the 48 words the axes permute out of. */
+NUMKONG_INLINE void nk_shapes_load_points_f16_skylake_(nk_f16_t const *points, nk_size_t left, __m512 *x_f32x16,
+                                                       __m512 *y_f32x16, __m512 *z_f32x16) {
+    unsigned int const words = left < 16 ? (unsigned int)left * 3 : 48;
+    __m512i const low_u16x32 = _mm512_maskz_loadu_epi16((__mmask32)_bzhi_u32(0xFFFFFFFFu, words), points);
+    __m512i const high_u16x32 = _mm512_maskz_loadu_epi16((__mmask32)_bzhi_u32(0xFFFFu, words > 32 ? words - 32 : 0),
+                                                         points + 32);
+    __m512i const x_indices_u16x32 = _mm512_set_epi16(  //
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, //
+        45, 42, 39, 36, 33, 30, 27, 24, 21, 18, 15, 12, 9, 6, 3, 0);
+    __m512i const y_indices_u16x32 = _mm512_add_epi16(x_indices_u16x32, _mm512_set1_epi16(1));
+    __m512i const z_indices_u16x32 = _mm512_add_epi16(x_indices_u16x32, _mm512_set1_epi16(2));
+    *x_f32x16 = _mm512_cvtph_ps(
+        _mm512_castsi512_si256(_mm512_permutex2var_epi16(low_u16x32, x_indices_u16x32, high_u16x32)));
+    *y_f32x16 = _mm512_cvtph_ps(
+        _mm512_castsi512_si256(_mm512_permutex2var_epi16(low_u16x32, y_indices_u16x32, high_u16x32)));
+    *z_f32x16 = _mm512_cvtph_ps(
+        _mm512_castsi512_si256(_mm512_permutex2var_epi16(low_u16x32, z_indices_u16x32, high_u16x32)));
+}
+
+/** The moments of a cloud of @c f16 points as @ref nk_shapes_moments_f16_serial_ defines them, 16
+ *  points per step. */
+NUMKONG_INLINE nk_f32_t nk_shapes_moments_f16_skylake_(nk_f16_t const *points, nk_size_t count, nk_f32_t *centroid,
+                                                       nk_f32_t *covariance) {
+    centroid[0] = 0, centroid[1] = 0, centroid[2] = 0;
+    for (int entry = 0; entry != 6; ++entry) covariance[entry] = 0;
+    if (!count) return 0;
+    __m512 x_f32x16, y_f32x16, z_f32x16;
+    nk_shapes_load_points_f16_skylake_(points, 1, &x_f32x16, &y_f32x16, &z_f32x16);
+    __m512 const first_x_f32x16 = _mm512_broadcastss_ps(_mm512_castps512_ps128(x_f32x16));
+    __m512 const first_y_f32x16 = _mm512_broadcastss_ps(_mm512_castps512_ps128(y_f32x16));
+    __m512 const first_z_f32x16 = _mm512_broadcastss_ps(_mm512_castps512_ps128(z_f32x16));
+    __m512 sum_x_f32x16 = _mm512_setzero_ps(), sum_y_f32x16 = sum_x_f32x16, sum_z_f32x16 = sum_x_f32x16;
+    int coincident = 1;
+    for (nk_size_t index = 0; index < count; index += 16) {
+        nk_size_t const left = count - index;
+        __mmask16 const valid_m16 = (__mmask16)_bzhi_u32(0xFFFF, left < 16 ? (unsigned int)left : 16);
+        nk_shapes_load_points_f16_skylake_(points + index * 3, left, &x_f32x16, &y_f32x16, &z_f32x16);
+        sum_x_f32x16 = _mm512_add_ps(sum_x_f32x16, x_f32x16), sum_y_f32x16 = _mm512_add_ps(sum_y_f32x16, y_f32x16);
+        sum_z_f32x16 = _mm512_add_ps(sum_z_f32x16, z_f32x16);
+        __mmask16 same_m16 = _mm512_mask_cmp_ps_mask(valid_m16, x_f32x16, first_x_f32x16, _CMP_EQ_OQ);
+        same_m16 = _mm512_mask_cmp_ps_mask(same_m16, y_f32x16, first_y_f32x16, _CMP_EQ_OQ);
+        same_m16 = _mm512_mask_cmp_ps_mask(same_m16, z_f32x16, first_z_f32x16, _CMP_EQ_OQ);
+        coincident &= same_m16 == valid_m16;
+    }
+    nk_f32_t const points_count = (nk_f32_t)count;
+    centroid[0] = nk_reduce_add_f32x16_skylake_(sum_x_f32x16) / points_count;
+    centroid[1] = nk_reduce_add_f32x16_skylake_(sum_y_f32x16) / points_count;
+    centroid[2] = nk_reduce_add_f32x16_skylake_(sum_z_f32x16) / points_count;
+    __m512 const centroid_x_f32x16 = _mm512_set1_ps(centroid[0]), centroid_y_f32x16 = _mm512_set1_ps(centroid[1]);
+    __m512 const centroid_z_f32x16 = _mm512_set1_ps(centroid[2]);
+    __m512 moments_f32x16[6];
+    for (int entry = 0; entry != 6; ++entry) moments_f32x16[entry] = _mm512_setzero_ps();
+    for (nk_size_t index = 0; index < count; index += 16) {
+        nk_size_t const left = count - index;
+        __mmask16 const valid_m16 = (__mmask16)_bzhi_u32(0xFFFF, left < 16 ? (unsigned int)left : 16);
+        nk_shapes_load_points_f16_skylake_(points + index * 3, left, &x_f32x16, &y_f32x16, &z_f32x16);
+        x_f32x16 = _mm512_maskz_sub_ps(valid_m16, x_f32x16, centroid_x_f32x16);
+        y_f32x16 = _mm512_maskz_sub_ps(valid_m16, y_f32x16, centroid_y_f32x16);
+        z_f32x16 = _mm512_maskz_sub_ps(valid_m16, z_f32x16, centroid_z_f32x16);
+        moments_f32x16[0] = _mm512_fmadd_ps(x_f32x16, x_f32x16, moments_f32x16[0]);
+        moments_f32x16[1] = _mm512_fmadd_ps(y_f32x16, x_f32x16, moments_f32x16[1]);
+        moments_f32x16[2] = _mm512_fmadd_ps(y_f32x16, y_f32x16, moments_f32x16[2]);
+        moments_f32x16[3] = _mm512_fmadd_ps(z_f32x16, x_f32x16, moments_f32x16[3]);
+        moments_f32x16[4] = _mm512_fmadd_ps(z_f32x16, y_f32x16, moments_f32x16[4]);
+        moments_f32x16[5] = _mm512_fmadd_ps(z_f32x16, z_f32x16, moments_f32x16[5]);
+    }
+    for (int entry = 0; entry != 6; ++entry)
+        covariance[entry] = nk_reduce_add_f32x16_skylake_(moments_f32x16[entry]) / points_count;
+    return coincident ? 0 : nk_shapes_sqrt_f32_skylake_(covariance[0] + covariance[2] + covariance[5]);
+}
+
+/** The pack of one cloud from its moments, as @c nk_shapes_pack_f16_serial_ lays it out, storing
+ *  each step's points and measuring what was stored in one sweep, with zeros in the padding. */
+NUMKONG_INLINE void nk_shapes_pack_f16_skylake_(nk_f16_t const *points, nk_size_t count, nk_f32_t const *centroid,
+                                                nk_f32_t const *covariance, nk_f32_t scale, void *packed) {
+    nk_shapes_packed_header_f32_t *header = (nk_shapes_packed_header_f32_t *)packed;
+    nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
+                                                                 nk_shapes_alignment_k_);
+    nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(count * sizeof(nk_f16_t), nk_shapes_alignment_k_);
+    nk_u8_t *packed_bytes = (nk_u8_t *)packed;
+    for (nk_size_t byte_index = 0; byte_index != header_bytes; ++byte_index) packed_bytes[byte_index] = 0;
+    header->frame[3] = 1, header->scale = scale;
+    if (!count) return;
+    nk_size_t const axis_stride = axis_bytes / sizeof(nk_f16_t);
+    nk_f16_t *packed_x = (nk_f16_t *)(packed_bytes + header_bytes);
+    nk_f16_t *packed_y = packed_x + axis_stride, *packed_z = packed_y + axis_stride;
+    nk_f32_t spreads[6] = {covariance[0], covariance[1], covariance[2], covariance[3], covariance[4], covariance[5]};
+    nk_f32_t quaternion[4], basis[9], axes[9];
+    int upper_tied, lower_tied;
+    nk_jacobi_eigenanalysis_f32_skylake_(spreads, quaternion);
+    nk_shapes_sorted_basis_f32_serial_(spreads, quaternion, 0x1p-7f, basis, &upper_tied, &lower_tied);
+    if (upper_tied && lower_tied) nk_shapes_pick_axis_f16_serial_(points, count, centroid, basis);
+    else if (upper_tied || lower_tied) nk_shapes_turn_plane_f16_serial_(points, count, centroid, basis);
+    nk_shapes_frame_f32_serial_(basis, upper_tied, header->frame, axes);
+    __m512 axes_f32x16[9];
+    for (int cell = 0; cell != 9; ++cell) axes_f32x16[cell] = _mm512_set1_ps(axes[cell] / scale);
+    __m512 const centroid_x_f32x16 = _mm512_set1_ps(centroid[0]), centroid_y_f32x16 = _mm512_set1_ps(centroid[1]);
+    __m512 const centroid_z_f32x16 = _mm512_set1_ps(centroid[2]);
+    __m512 moments_f32x16[6], largest_f32x16 = _mm512_setzero_ps();
+    for (int entry = 0; entry != 6; ++entry) moments_f32x16[entry] = _mm512_setzero_ps();
+    __m512 x_f32x16, y_f32x16, z_f32x16;
+    for (nk_size_t index = 0; index < count; index += 16) {
+        nk_size_t const left = count - index;
+        __mmask16 const valid_m16 = (__mmask16)_bzhi_u32(0xFFFF, left < 16 ? (unsigned int)left : 16);
+        nk_shapes_load_points_f16_skylake_(points + index * 3, left, &x_f32x16, &y_f32x16, &z_f32x16);
+        x_f32x16 = _mm512_sub_ps(x_f32x16, centroid_x_f32x16), y_f32x16 = _mm512_sub_ps(y_f32x16, centroid_y_f32x16);
+        z_f32x16 = _mm512_sub_ps(z_f32x16, centroid_z_f32x16);
+        __m256i stored_f16x16[3];
+        for (int axis = 0; axis != 3; ++axis) {
+            __m512 const rotated_f32x16 = _mm512_fmadd_ps(
+                z_f32x16, axes_f32x16[axis * 3 + 2],
+                _mm512_fmadd_ps(y_f32x16, axes_f32x16[axis * 3 + 1], _mm512_mul_ps(x_f32x16, axes_f32x16[axis * 3])));
+            stored_f16x16[axis] = _mm512_cvtps_ph(_mm512_maskz_mov_ps(valid_m16, rotated_f32x16),
+                                                  _MM_FROUND_TO_NEAREST_INT);
+        }
+        _mm256_storeu_si256((__m256i *)(packed_x + index), stored_f16x16[0]);
+        _mm256_storeu_si256((__m256i *)(packed_y + index), stored_f16x16[1]);
+        _mm256_storeu_si256((__m256i *)(packed_z + index), stored_f16x16[2]);
+        // The spreads describe the stored points, so the sweep measures them after rounding
+        x_f32x16 = _mm512_cvtph_ps(stored_f16x16[0]), y_f32x16 = _mm512_cvtph_ps(stored_f16x16[1]);
+        z_f32x16 = _mm512_cvtph_ps(stored_f16x16[2]);
+        __m512 const xx_f32x16 = _mm512_mul_ps(x_f32x16, x_f32x16), yy_f32x16 = _mm512_mul_ps(y_f32x16, y_f32x16);
+        __m512 const zz_f32x16 = _mm512_mul_ps(z_f32x16, z_f32x16);
+        largest_f32x16 = _mm512_max_ps(largest_f32x16, _mm512_add_ps(_mm512_add_ps(xx_f32x16, yy_f32x16), zz_f32x16));
+        moments_f32x16[0] = _mm512_add_ps(moments_f32x16[0], xx_f32x16);
+        moments_f32x16[1] = _mm512_fmadd_ps(y_f32x16, x_f32x16, moments_f32x16[1]);
+        moments_f32x16[2] = _mm512_add_ps(moments_f32x16[2], yy_f32x16);
+        moments_f32x16[3] = _mm512_fmadd_ps(z_f32x16, x_f32x16, moments_f32x16[3]);
+        moments_f32x16[4] = _mm512_fmadd_ps(z_f32x16, y_f32x16, moments_f32x16[4]);
+        moments_f32x16[5] = _mm512_add_ps(moments_f32x16[5], zz_f32x16);
+    }
+    for (nk_size_t index = (count + 15) & ~(nk_size_t)15; index < axis_stride; index += 16)
+        for (int axis = 0; axis != 3; ++axis)
+            _mm256_storeu_si256((__m256i *)(packed_x + axis * axis_stride + index), _mm256_setzero_si256());
+    nk_f32_t moments[6];
+    for (int entry = 0; entry != 6; ++entry)
+        moments[entry] = nk_reduce_add_f32x16_skylake_(moments_f32x16[entry]) / (nk_f32_t)count;
+    nk_jacobi_eigenanalysis_f32_skylake_(moments, quaternion);
+    nk_shapes_close_pack_f32_serial_(header, count, centroid, moments,
+                                     nk_shapes_sqrt_f32_skylake_(nk_reduce_max_f32x16_skylake_(largest_f32x16)));
+}
+
+/** The next 8 @c f32 points of the @p left remaining, each axis in f64 lanes. Padded lanes read
+ *  zero, and two masked loads hold the 24 values the axes permute out of. */
+NUMKONG_INLINE void nk_shapes_load_points_f32_skylake_(nk_f32_t const *points, nk_size_t left, __m512d *x_f64x8,
+                                                       __m512d *y_f64x8, __m512d *z_f64x8) {
+    unsigned int const words = left < 8 ? (unsigned int)left * 3 : 24;
+    __m512 const low_f32x16 = _mm512_maskz_loadu_ps((__mmask16)_bzhi_u32(0xFFFF, words), points);
+    __m512 const high_f32x16 = _mm512_maskz_loadu_ps((__mmask16)_bzhi_u32(0xFF, words > 16 ? words - 16 : 0),
+                                                     points + 16);
+    __m512i const x_indices_i32x16 = _mm512_setr_epi32(0, 3, 6, 9, 12, 15, 18, 21, 0, 0, 0, 0, 0, 0, 0, 0);
+    __m512i const y_indices_i32x16 = _mm512_add_epi32(x_indices_i32x16, _mm512_set1_epi32(1));
+    __m512i const z_indices_i32x16 = _mm512_add_epi32(x_indices_i32x16, _mm512_set1_epi32(2));
+    *x_f64x8 = _mm512_cvtps_pd(
+        _mm512_castps512_ps256(_mm512_permutex2var_ps(low_f32x16, x_indices_i32x16, high_f32x16)));
+    *y_f64x8 = _mm512_cvtps_pd(
+        _mm512_castps512_ps256(_mm512_permutex2var_ps(low_f32x16, y_indices_i32x16, high_f32x16)));
+    *z_f64x8 = _mm512_cvtps_pd(
+        _mm512_castps512_ps256(_mm512_permutex2var_ps(low_f32x16, z_indices_i32x16, high_f32x16)));
+}
+
+/** The moments of a cloud of @c f32 points as @ref nk_shapes_moments_f32_serial_ defines them, 8
+ *  points per step. */
+NUMKONG_INLINE nk_f64_t nk_shapes_moments_f32_skylake_(nk_f32_t const *points, nk_size_t count, nk_f64_t *centroid,
+                                                       nk_f64_t *covariance) {
+    centroid[0] = 0, centroid[1] = 0, centroid[2] = 0;
+    for (int entry = 0; entry != 6; ++entry) covariance[entry] = 0;
+    if (!count) return 0;
+    __m512d x_f64x8, y_f64x8, z_f64x8;
+    __m512d const first_x_f64x8 = _mm512_set1_pd(points[0]), first_y_f64x8 = _mm512_set1_pd(points[1]);
+    __m512d const first_z_f64x8 = _mm512_set1_pd(points[2]);
+    __m512d sum_x_f64x8 = _mm512_setzero_pd(), sum_y_f64x8 = sum_x_f64x8, sum_z_f64x8 = sum_x_f64x8;
+    int coincident = 1;
+    for (nk_size_t index = 0; index < count; index += 8) {
+        nk_size_t const left = count - index;
+        __mmask8 const valid_m8 = (__mmask8)_bzhi_u32(0xFF, left < 8 ? (unsigned int)left : 8);
+        nk_shapes_load_points_f32_skylake_(points + index * 3, left, &x_f64x8, &y_f64x8, &z_f64x8);
+        sum_x_f64x8 = _mm512_add_pd(sum_x_f64x8, x_f64x8), sum_y_f64x8 = _mm512_add_pd(sum_y_f64x8, y_f64x8);
+        sum_z_f64x8 = _mm512_add_pd(sum_z_f64x8, z_f64x8);
+        __mmask8 same_m8 = _mm512_mask_cmp_pd_mask(valid_m8, x_f64x8, first_x_f64x8, _CMP_EQ_OQ);
+        same_m8 = _mm512_mask_cmp_pd_mask(same_m8, y_f64x8, first_y_f64x8, _CMP_EQ_OQ);
+        same_m8 = _mm512_mask_cmp_pd_mask(same_m8, z_f64x8, first_z_f64x8, _CMP_EQ_OQ);
+        coincident &= same_m8 == valid_m8;
+    }
+    nk_f64_t const points_count = (nk_f64_t)count;
+    centroid[0] = nk_reduce_add_f64x8_skylake_(sum_x_f64x8) / points_count;
+    centroid[1] = nk_reduce_add_f64x8_skylake_(sum_y_f64x8) / points_count;
+    centroid[2] = nk_reduce_add_f64x8_skylake_(sum_z_f64x8) / points_count;
+    __m512d const centroid_x_f64x8 = _mm512_set1_pd(centroid[0]), centroid_y_f64x8 = _mm512_set1_pd(centroid[1]);
+    __m512d const centroid_z_f64x8 = _mm512_set1_pd(centroid[2]);
+    __m512d moments_f64x8[6];
+    for (int entry = 0; entry != 6; ++entry) moments_f64x8[entry] = _mm512_setzero_pd();
+    for (nk_size_t index = 0; index < count; index += 8) {
+        nk_size_t const left = count - index;
+        __mmask8 const valid_m8 = (__mmask8)_bzhi_u32(0xFF, left < 8 ? (unsigned int)left : 8);
+        nk_shapes_load_points_f32_skylake_(points + index * 3, left, &x_f64x8, &y_f64x8, &z_f64x8);
+        x_f64x8 = _mm512_maskz_sub_pd(valid_m8, x_f64x8, centroid_x_f64x8);
+        y_f64x8 = _mm512_maskz_sub_pd(valid_m8, y_f64x8, centroid_y_f64x8);
+        z_f64x8 = _mm512_maskz_sub_pd(valid_m8, z_f64x8, centroid_z_f64x8);
+        moments_f64x8[0] = _mm512_fmadd_pd(x_f64x8, x_f64x8, moments_f64x8[0]);
+        moments_f64x8[1] = _mm512_fmadd_pd(y_f64x8, x_f64x8, moments_f64x8[1]);
+        moments_f64x8[2] = _mm512_fmadd_pd(y_f64x8, y_f64x8, moments_f64x8[2]);
+        moments_f64x8[3] = _mm512_fmadd_pd(z_f64x8, x_f64x8, moments_f64x8[3]);
+        moments_f64x8[4] = _mm512_fmadd_pd(z_f64x8, y_f64x8, moments_f64x8[4]);
+        moments_f64x8[5] = _mm512_fmadd_pd(z_f64x8, z_f64x8, moments_f64x8[5]);
+    }
+    for (int entry = 0; entry != 6; ++entry)
+        covariance[entry] = nk_reduce_add_f64x8_skylake_(moments_f64x8[entry]) / points_count;
+    return coincident ? 0 : nk_shapes_sqrt_f64_skylake_(covariance[0] + covariance[2] + covariance[5]);
+}
+
+/** @copydoc nk_shapes_pack_f16_skylake_ */
+NUMKONG_INLINE void nk_shapes_pack_f32_skylake_(nk_f32_t const *points, nk_size_t count, nk_f64_t const *centroid,
+                                                nk_f64_t const *covariance, nk_f64_t scale, void *packed) {
+    nk_shapes_packed_header_f64_t *header = (nk_shapes_packed_header_f64_t *)packed;
+    nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
+                                                                 nk_shapes_alignment_k_);
+    nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(count * sizeof(nk_f32_t), nk_shapes_alignment_k_);
+    nk_u8_t *packed_bytes = (nk_u8_t *)packed;
+    for (nk_size_t byte_index = 0; byte_index != header_bytes; ++byte_index) packed_bytes[byte_index] = 0;
+    header->frame[3] = 1, header->scale = scale;
+    if (!count) return;
+    nk_size_t const axis_stride = axis_bytes / sizeof(nk_f32_t);
+    nk_f32_t *packed_x = (nk_f32_t *)(packed_bytes + header_bytes);
+    nk_f32_t *packed_y = packed_x + axis_stride, *packed_z = packed_y + axis_stride;
+    nk_f64_t spreads[6] = {covariance[0], covariance[1], covariance[2], covariance[3], covariance[4], covariance[5]};
+    nk_f64_t quaternion[4], basis[9], axes[9];
+    int upper_tied, lower_tied;
+    nk_jacobi_eigenanalysis_f64_skylake_(spreads, quaternion);
+    nk_shapes_sorted_basis_f64_serial_(spreads, quaternion, 0x1p-16, basis, &upper_tied, &lower_tied);
+    if (upper_tied && lower_tied) nk_shapes_pick_axis_f32_serial_(points, count, centroid, basis);
+    else if (upper_tied || lower_tied) nk_shapes_turn_plane_f32_serial_(points, count, centroid, basis);
+    nk_shapes_frame_f64_serial_(basis, upper_tied, header->frame, axes);
+    __m512d axes_f64x8[9];
+    for (int cell = 0; cell != 9; ++cell) axes_f64x8[cell] = _mm512_set1_pd(axes[cell] / scale);
+    __m512d const centroid_x_f64x8 = _mm512_set1_pd(centroid[0]), centroid_y_f64x8 = _mm512_set1_pd(centroid[1]);
+    __m512d const centroid_z_f64x8 = _mm512_set1_pd(centroid[2]);
+    __m512d moments_f64x8[6], largest_f64x8 = _mm512_setzero_pd();
+    for (int entry = 0; entry != 6; ++entry) moments_f64x8[entry] = _mm512_setzero_pd();
+    __m512d x_f64x8, y_f64x8, z_f64x8;
+    for (nk_size_t index = 0; index < count; index += 8) {
+        nk_size_t const left = count - index;
+        __mmask8 const valid_m8 = (__mmask8)_bzhi_u32(0xFF, left < 8 ? (unsigned int)left : 8);
+        nk_shapes_load_points_f32_skylake_(points + index * 3, left, &x_f64x8, &y_f64x8, &z_f64x8);
+        x_f64x8 = _mm512_sub_pd(x_f64x8, centroid_x_f64x8), y_f64x8 = _mm512_sub_pd(y_f64x8, centroid_y_f64x8);
+        z_f64x8 = _mm512_sub_pd(z_f64x8, centroid_z_f64x8);
+        __m256 stored_f32x8[3];
+        for (int axis = 0; axis != 3; ++axis) {
+            __m512d const rotated_f64x8 = _mm512_fmadd_pd(
+                z_f64x8, axes_f64x8[axis * 3 + 2],
+                _mm512_fmadd_pd(y_f64x8, axes_f64x8[axis * 3 + 1], _mm512_mul_pd(x_f64x8, axes_f64x8[axis * 3])));
+            stored_f32x8[axis] = _mm512_cvtpd_ps(_mm512_maskz_mov_pd(valid_m8, rotated_f64x8));
+        }
+        _mm256_storeu_ps(packed_x + index, stored_f32x8[0]), _mm256_storeu_ps(packed_y + index, stored_f32x8[1]);
+        _mm256_storeu_ps(packed_z + index, stored_f32x8[2]);
+        // The spreads describe the stored points, so the sweep measures them after rounding
+        x_f64x8 = _mm512_cvtps_pd(stored_f32x8[0]), y_f64x8 = _mm512_cvtps_pd(stored_f32x8[1]);
+        z_f64x8 = _mm512_cvtps_pd(stored_f32x8[2]);
+        __m512d const xx_f64x8 = _mm512_mul_pd(x_f64x8, x_f64x8), yy_f64x8 = _mm512_mul_pd(y_f64x8, y_f64x8);
+        __m512d const zz_f64x8 = _mm512_mul_pd(z_f64x8, z_f64x8);
+        largest_f64x8 = _mm512_max_pd(largest_f64x8, _mm512_add_pd(_mm512_add_pd(xx_f64x8, yy_f64x8), zz_f64x8));
+        moments_f64x8[0] = _mm512_add_pd(moments_f64x8[0], xx_f64x8);
+        moments_f64x8[1] = _mm512_fmadd_pd(y_f64x8, x_f64x8, moments_f64x8[1]);
+        moments_f64x8[2] = _mm512_add_pd(moments_f64x8[2], yy_f64x8);
+        moments_f64x8[3] = _mm512_fmadd_pd(z_f64x8, x_f64x8, moments_f64x8[3]);
+        moments_f64x8[4] = _mm512_fmadd_pd(z_f64x8, y_f64x8, moments_f64x8[4]);
+        moments_f64x8[5] = _mm512_add_pd(moments_f64x8[5], zz_f64x8);
+    }
+    for (nk_size_t index = (count + 7) & ~(nk_size_t)7; index < axis_stride; index += 8)
+        for (int axis = 0; axis != 3; ++axis)
+            _mm256_storeu_ps(packed_x + axis * axis_stride + index, _mm256_setzero_ps());
+    nk_f64_t moments[6];
+    for (int entry = 0; entry != 6; ++entry)
+        moments[entry] = nk_reduce_add_f64x8_skylake_(moments_f64x8[entry]) / (nk_f64_t)count;
+    nk_jacobi_eigenanalysis_f64_skylake_(moments, quaternion);
+    nk_shapes_close_pack_f64_serial_(header, count, centroid, moments,
+                                     nk_shapes_sqrt_f64_skylake_(nk_reduce_max_f64x8_skylake_(largest_f64x8)));
+}
+
+NUMKONG_API nk_status_t nk_shapes_pack_f16_skylake(nk_f16_t const *points, nk_size_t count, void *packed,
+                                                   nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f32_t centroid[3], covariance[6];
+    nk_shapes_moments_f16_skylake_(points, count, centroid, covariance);
+    nk_shapes_pack_f16_skylake_(points, count, centroid, covariance, 1, packed);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_shapes_pack_normalized_f16_skylake(nk_f16_t const *points, nk_size_t count, void *packed,
+                                                              nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f32_t centroid[3], covariance[6];
+    nk_f32_t const radius = nk_shapes_moments_f16_skylake_(points, count, centroid, covariance);
+    nk_shapes_pack_f16_skylake_(points, count, centroid, covariance, radius > 0 ? radius : 1, packed);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_shapes_pack_f32_skylake(nk_f32_t const *points, nk_size_t count, void *packed,
+                                                   nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f64_t centroid[3], covariance[6];
+    nk_shapes_moments_f32_skylake_(points, count, centroid, covariance);
+    nk_shapes_pack_f32_skylake_(points, count, centroid, covariance, 1, packed);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_shapes_pack_normalized_f32_skylake(nk_f32_t const *points, nk_size_t count, void *packed,
+                                                              nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f64_t centroid[3], covariance[6];
+    nk_f64_t const radius = nk_shapes_moments_f32_skylake_(points, count, centroid, covariance);
+    nk_shapes_pack_f32_skylake_(points, count, centroid, covariance, radius > 0 ? radius : 1, packed);
+    return nk_success_k;
+}
+
+/** Chamfer flips of @c f64 packs through a compensated nearest pass each way; past @p limit after
+ *  the first direction it skips the second, leaving per-flip lower bounds. */
+NUMKONG_INLINE void nk_shapes_chamfer_directed_f64_skylake_(void const *row_packed, void const *column_packed,
+                                                            nk_f64_t limit, nk_f64_t *chamfers) {
+    nk_size_t const rows = (nk_size_t)((nk_shapes_packed_header_f64_t const *)row_packed)->points;
+    nk_size_t const columns = (nk_size_t)((nk_shapes_packed_header_f64_t const *)column_packed)->points;
+    if (!rows || !columns) {
+        for (int flip = 0; flip != 8; ++flip) chamfers[flip] = rows == columns ? 0 : NUMKONG_F64_INF;
+        return;
+    }
+    nk_size_t row_stride, column_stride;
+    nk_f64_t const *row_axes = nk_shapes_packed_axes_f64_serial_(row_packed, &row_stride);
+    nk_f64_t const *column_axes = nk_shapes_packed_axes_f64_serial_(column_packed, &column_stride);
+    nk_f64_t forward_sums[8] = {0, 0, 0, 0, 0, 0, 0, 0}, backward_sums[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    nk_f64_t forward_maxima[8] = {0, 0, 0, 0, 0, 0, 0, 0}, backward_maxima[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    nk_shapes_nearest_f64_skylake_(row_axes, row_stride, rows, column_axes, column_stride, columns, forward_sums,
+                                   forward_maxima);
+    nk_f64_t const row_count = (nk_f64_t)rows, column_count = (nk_f64_t)columns;
+    nk_f64_t least = NUMKONG_F64_INF;
+    for (int flip = 0; flip != 8; ++flip) {
+        chamfers[flip] = forward_sums[flip] / row_count / 2;
+        least = chamfers[flip] < least ? chamfers[flip] : least;
+    }
+    if (least > limit) return;
+    nk_shapes_nearest_f64_skylake_(column_axes, column_stride, columns, row_axes, row_stride, rows, backward_sums,
+                                   backward_maxima);
+    for (int flip = 0; flip != 8; ++flip)
+        chamfers[flip] = (forward_sums[flip] / row_count + backward_sums[flip] / column_count) / 2;
+}
+
+/** Hausdorff flips of @c f64 packs through a nearest pass each way, stopping as the Chamfer one
+ *  does, and before reading a point when the packs' largest norms alone settle it. */
+NUMKONG_INLINE void nk_shapes_hausdorff_directed_f64_skylake_(void const *row_packed, void const *column_packed,
+                                                              nk_f64_t limit, nk_f64_t *hausdorffs) {
+    nk_size_t const rows = (nk_size_t)((nk_shapes_packed_header_f64_t const *)row_packed)->points;
+    nk_size_t const columns = (nk_size_t)((nk_shapes_packed_header_f64_t const *)column_packed)->points;
+    if (!rows || !columns) {
+        for (int flip = 0; flip != 8; ++flip) hausdorffs[flip] = rows == columns ? 0 : NUMKONG_F64_INF;
+        return;
+    }
+    nk_f64_t const gap = nk_shapes_radius_gap_f64_serial_(row_packed, column_packed);
+    if (gap > limit) {
+        for (int flip = 0; flip != 8; ++flip) hausdorffs[flip] = gap;
+        return;
+    }
+    nk_size_t row_stride, column_stride;
+    nk_f64_t const *row_axes = nk_shapes_packed_axes_f64_serial_(row_packed, &row_stride);
+    nk_f64_t const *column_axes = nk_shapes_packed_axes_f64_serial_(column_packed, &column_stride);
+    nk_f64_t forward_sums[8] = {0, 0, 0, 0, 0, 0, 0, 0}, backward_sums[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    nk_f64_t backward_maxima[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    for (int flip = 0; flip != 8; ++flip) hausdorffs[flip] = 0;
+    nk_shapes_nearest_f64_skylake_(row_axes, row_stride, rows, column_axes, column_stride, columns, forward_sums,
+                                   hausdorffs);
+    nk_f64_t least = NUMKONG_F64_INF;
+    for (int flip = 0; flip != 8; ++flip) least = hausdorffs[flip] < least ? hausdorffs[flip] : least;
+    if (least > limit) return;
+    nk_shapes_nearest_f64_skylake_(column_axes, column_stride, columns, row_axes, row_stride, rows, backward_sums,
+                                   backward_maxima);
+    for (int flip = 0; flip != 8; ++flip)
+        hausdorffs[flip] = backward_maxima[flip] > hausdorffs[flip] ? backward_maxima[flip] : hausdorffs[flip];
+}
+
+NUMKONG_API nk_status_t nk_chamfers_packed_f64_skylake(void const *const *a_packed, nk_size_t rows,
+                                                       void const *const *b_packed, nk_size_t columns,
+                                                       nk_f64_t *results, nk_size_t results_stride, nk_f32_t *rotations,
+                                                       nk_f64_t const *limit, void *workspace,
+                                                       nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
+    nk_f64_t const pair_limit = *limit;
+    nk_f64_t chamfers[8];
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *results_row = (nk_f64_t *)((char *)results + row * results_stride);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_shapes_chamfer_directed_f64_skylake_(a_packed[row], b_packed[column], pair_limit, chamfers);
+            nk_shapes_best_flip_f64_serial_(chamfers, a_packed[row], b_packed[column], results_row + column,
+                                            rotations ? rotations + (row * columns + column) * 9 : NUMKONG_NULL);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_hausdorffs_packed_f64_skylake(void const *const *a_packed, nk_size_t rows,
+                                                         void const *const *b_packed, nk_size_t columns,
+                                                         nk_f64_t *results, nk_size_t results_stride,
+                                                         nk_f32_t *rotations, nk_f64_t const *limit,
+                                                         nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f64_t const pair_limit = *limit;
+    nk_f64_t hausdorffs[8];
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *results_row = (nk_f64_t *)((char *)results + row * results_stride);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_shapes_hausdorff_directed_f64_skylake_(a_packed[row], b_packed[column], pair_limit, hausdorffs);
+            nk_shapes_best_flip_f64_serial_(hausdorffs, a_packed[row], b_packed[column], results_row + column,
+                                            rotations ? rotations + (row * columns + column) * 9 : NUMKONG_NULL);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_chamfers_packed_f32_skylake(void const *const *a_packed, nk_size_t rows,
+                                                       void const *const *b_packed, nk_size_t columns,
+                                                       nk_f64_t *results, nk_size_t results_stride, nk_f32_t *rotations,
+                                                       nk_f64_t const *limit, void *workspace,
+                                                       nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f64_t const pair_limit = *limit;
+    nk_f64_t chamfers[8];
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *results_row = (nk_f64_t *)((char *)results + row * results_stride);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_status_t const status = nk_shapes_chamfer_flips_f32_skylake_(a_packed[row], b_packed[column], pair_limit,
+                                                                            workspace, workspace_bytes, chamfers);
+            if (status != nk_success_k) return status;
+            nk_shapes_best_flip_f64_serial_(chamfers, a_packed[row], b_packed[column], results_row + column,
+                                            rotations ? rotations + (row * columns + column) * 9 : NUMKONG_NULL);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_hausdorffs_packed_f32_skylake(void const *const *a_packed, nk_size_t rows,
+                                                         void const *const *b_packed, nk_size_t columns,
+                                                         nk_f64_t *results, nk_size_t results_stride,
+                                                         nk_f32_t *rotations, nk_f64_t const *limit,
+                                                         nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f64_t const pair_limit = *limit;
+    nk_f64_t hausdorffs[8];
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *results_row = (nk_f64_t *)((char *)results + row * results_stride);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_shapes_hausdorff_flips_f32_skylake_(a_packed[row], b_packed[column], pair_limit, hausdorffs);
+            nk_shapes_best_flip_f64_serial_(hausdorffs, a_packed[row], b_packed[column], results_row + column,
+                                            rotations ? rotations + (row * columns + column) * 9 : NUMKONG_NULL);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_chamfers_packed_f16_skylake(void const *const *a_packed, nk_size_t rows,
+                                                       void const *const *b_packed, nk_size_t columns,
+                                                       nk_f32_t *results, nk_size_t results_stride, nk_f32_t *rotations,
+                                                       nk_f32_t const *limit, void *workspace,
+                                                       nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f32_t const pair_limit = *limit;
+    nk_f32_t chamfers[8];
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f32_t *results_row = (nk_f32_t *)((char *)results + row * results_stride);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_status_t const status = nk_shapes_chamfer_flips_f16_skylake_(a_packed[row], b_packed[column], pair_limit,
+                                                                            workspace, workspace_bytes, chamfers);
+            if (status != nk_success_k) return status;
+            nk_shapes_best_flip_f32_serial_(chamfers, a_packed[row], b_packed[column], results_row + column,
+                                            rotations ? rotations + (row * columns + column) * 9 : NUMKONG_NULL);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_skylake(void const *const *a_packed, nk_size_t rows,
+                                                         void const *const *b_packed, nk_size_t columns,
+                                                         nk_f32_t *results, nk_size_t results_stride,
+                                                         nk_f32_t *rotations, nk_f32_t const *limit,
+                                                         nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f32_t const pair_limit = *limit;
+    nk_f32_t hausdorffs[8];
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f32_t *results_row = (nk_f32_t *)((char *)results + row * results_stride);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_shapes_hausdorff_flips_f16_skylake_(a_packed[row], b_packed[column], pair_limit, hausdorffs);
+            nk_shapes_best_flip_f32_serial_(hausdorffs, a_packed[row], b_packed[column], results_row + column,
+                                            rotations ? rotations + (row * columns + column) * 9 : NUMKONG_NULL);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_f64_skylake(void const *const *a_packed, nk_size_t rows,
+                                                                    void const *const *b_packed, nk_size_t columns,
+                                                                    nk_f64_t *results, nk_size_t results_stride,
+                                                                    nk_f32_t *rotations, void *workspace,
+                                                                    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!rows || !columns) return nk_success_k;
+    nk_shapes_workspace_f64_serial_t views;
+    nk_status_t const status = nk_shapes_transport_views_f64_serial_(a_packed, rows, b_packed, columns, workspace,
+                                                                     workspace_bytes, 0, &views);
+    if (status != nk_success_k) return status;
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *results_row = (nk_f64_t *)((char *)results + row * results_stride);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_shapes_pair_f64_serial_t pair;
+            if (nk_shapes_pair_open_f64_serial_(&pair, a_packed[row], b_packed[column], &views))
+                results_row[column] = nk_sqrt_f64_serial_(nk_shapes_wasserstein_procrustes_f64_skylake_(
+                    &views, pair.rows, pair.columns, pair.cost_scale, pair.inner));
+            else results_row[column] = pair.rows == pair.columns ? 0 : NUMKONG_F64_INF;
+            if (rotations) nk_shapes_pair_rotation_f64_serial_(&pair, rotations + (row * columns + column) * 9);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f64_skylake(void const *const *a_packed, nk_size_t rows,
+                                                                 void const *const *b_packed, nk_size_t columns,
+                                                                 nk_f64_t *results, nk_size_t results_stride,
+                                                                 nk_f32_t *rotations, void *workspace,
+                                                                 nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!rows || !columns) return nk_success_k;
+    nk_shapes_workspace_f64_serial_t views;
+    nk_status_t const status = nk_shapes_transport_views_f64_serial_(a_packed, rows, b_packed, columns, workspace,
+                                                                     workspace_bytes, 1, &views);
+    if (status != nk_success_k) return status;
+    nk_f64_t *cached_distances = views.matrices + 3 * views.matrix_stride;
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *results_row = (nk_f64_t *)((char *)results + row * results_stride);
+        nk_size_t const cached_points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)a_packed[row])->points;
+        nk_f64_t *pair_distances = cached_distances + cached_points * cached_points;
+        nk_shapes_widen_f64_serial_(a_packed[row], views.row_points, views.points_stride);
+        nk_shapes_distances_f64_serial_(views.row_points, cached_points, views.points_stride, cached_distances);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_shapes_pair_f64_serial_t pair;
+            if (nk_shapes_pair_open_f64_serial_(&pair, a_packed[row], b_packed[column], &views)) {
+                // The cached matrix is this row's cloud, on whichever side it is solved
+                nk_shapes_distances_f64_serial_(pair.swapped ? views.row_points : views.column_points,
+                                                pair.swapped ? pair.rows : pair.columns, views.points_stride,
+                                                pair_distances);
+                nk_f64_t const loss = nk_shapes_gromov_wasserstein_f64_skylake_(
+                    &views, pair.rows, pair.columns, pair.cost_scale, pair.swapped ? pair_distances : cached_distances,
+                    pair.swapped ? cached_distances : pair_distances, pair.inner);
+                results_row[column] = (nk_f64_t)(nk_sqrt_f64_serial_(loss) / 2);
+            }
+            else results_row[column] = pair.rows == pair.columns ? 0 : NUMKONG_F64_INF;
+            if (rotations) nk_shapes_pair_rotation_f64_serial_(&pair, rotations + (row * columns + column) * 9);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_f32_skylake(void const *const *a_packed, nk_size_t rows,
+                                                                    void const *const *b_packed, nk_size_t columns,
+                                                                    nk_f64_t *results, nk_size_t results_stride,
+                                                                    nk_f32_t *rotations, void *workspace,
+                                                                    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!rows || !columns) return nk_success_k;
+    nk_shapes_workspace_f64_serial_t views;
+    nk_status_t const status = nk_shapes_transport_views_f64_serial_(a_packed, rows, b_packed, columns, workspace,
+                                                                     workspace_bytes, 0, &views);
+    if (status != nk_success_k) return status;
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *results_row = (nk_f64_t *)((char *)results + row * results_stride);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_shapes_pair_f64_serial_t pair;
+            if (nk_shapes_pair_open_f32_serial_(&pair, a_packed[row], b_packed[column], &views))
+                results_row[column] = nk_sqrt_f64_serial_(nk_shapes_wasserstein_procrustes_f32_skylake_(
+                    &views, pair.rows, pair.columns, pair.cost_scale, pair.inner));
+            else results_row[column] = pair.rows == pair.columns ? 0 : NUMKONG_F64_INF;
+            if (rotations) nk_shapes_pair_rotation_f64_serial_(&pair, rotations + (row * columns + column) * 9);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f32_skylake(void const *const *a_packed, nk_size_t rows,
+                                                                 void const *const *b_packed, nk_size_t columns,
+                                                                 nk_f64_t *results, nk_size_t results_stride,
+                                                                 nk_f32_t *rotations, void *workspace,
+                                                                 nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!rows || !columns) return nk_success_k;
+    nk_shapes_workspace_f64_serial_t views;
+    nk_status_t const status = nk_shapes_transport_views_f64_serial_(a_packed, rows, b_packed, columns, workspace,
+                                                                     workspace_bytes, 1, &views);
+    if (status != nk_success_k) return status;
+    nk_f64_t *cached_distances = views.matrices + 3 * views.matrix_stride;
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f64_t *results_row = (nk_f64_t *)((char *)results + row * results_stride);
+        nk_size_t const cached_points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)a_packed[row])->points;
+        nk_f64_t *pair_distances = cached_distances + cached_points * cached_points;
+        nk_shapes_widen_f32_serial_(a_packed[row], views.row_points, views.points_stride);
+        nk_shapes_distances_f64_serial_(views.row_points, cached_points, views.points_stride, cached_distances);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_shapes_pair_f64_serial_t pair;
+            if (nk_shapes_pair_open_f32_serial_(&pair, a_packed[row], b_packed[column], &views)) {
+                // The cached matrix is this row's cloud, on whichever side it is solved
+                nk_shapes_distances_f64_serial_(pair.swapped ? views.row_points : views.column_points,
+                                                pair.swapped ? pair.rows : pair.columns, views.points_stride,
+                                                pair_distances);
+                nk_f64_t const loss = nk_shapes_gromov_wasserstein_f32_skylake_(
+                    &views, pair.rows, pair.columns, pair.cost_scale, pair.swapped ? pair_distances : cached_distances,
+                    pair.swapped ? cached_distances : pair_distances, pair.inner);
+                results_row[column] = (nk_f64_t)(nk_sqrt_f64_serial_(loss) / 2);
+            }
+            else results_row[column] = pair.rows == pair.columns ? 0 : NUMKONG_F64_INF;
+            if (rotations) nk_shapes_pair_rotation_f64_serial_(&pair, rotations + (row * columns + column) * 9);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_f16_skylake(void const *const *a_packed, nk_size_t rows,
+                                                                    void const *const *b_packed, nk_size_t columns,
+                                                                    nk_f32_t *results, nk_size_t results_stride,
+                                                                    nk_f32_t *rotations, void *workspace,
+                                                                    nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!rows || !columns) return nk_success_k;
+    nk_shapes_workspace_f32_serial_t views;
+    nk_status_t const status = nk_shapes_transport_views_f32_serial_(a_packed, rows, b_packed, columns, workspace,
+                                                                     workspace_bytes, 0, &views);
+    if (status != nk_success_k) return status;
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f32_t *results_row = (nk_f32_t *)((char *)results + row * results_stride);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_shapes_pair_f32_serial_t pair;
+            if (nk_shapes_pair_open_f16_serial_(&pair, a_packed[row], b_packed[column], &views))
+                results_row[column] = nk_sqrt_f32_serial_(nk_shapes_wasserstein_procrustes_f16_skylake_(
+                    &views, pair.rows, pair.columns, pair.cost_scale, pair.inner));
+            else results_row[column] = pair.rows == pair.columns ? 0 : NUMKONG_F32_INF;
+            if (rotations) nk_shapes_pair_rotation_f32_serial_(&pair, rotations + (row * columns + column) * 9);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f16_skylake(void const *const *a_packed, nk_size_t rows,
+                                                                 void const *const *b_packed, nk_size_t columns,
+                                                                 nk_f32_t *results, nk_size_t results_stride,
+                                                                 nk_f32_t *rotations, void *workspace,
+                                                                 nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!rows || !columns) return nk_success_k;
+    nk_shapes_workspace_f32_serial_t views;
+    nk_status_t const status = nk_shapes_transport_views_f32_serial_(a_packed, rows, b_packed, columns, workspace,
+                                                                     workspace_bytes, 1, &views);
+    if (status != nk_success_k) return status;
+    nk_f64_t *cached_distances = views.matrices + 3 * views.matrix_stride;
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f32_t *results_row = (nk_f32_t *)((char *)results + row * results_stride);
+        nk_size_t const cached_points = (nk_size_t)((nk_shapes_packed_header_f32_t const *)a_packed[row])->points;
+        nk_f64_t *pair_distances = cached_distances + cached_points * cached_points;
+        nk_shapes_widen_f16_serial_(a_packed[row], views.row_points, views.points_stride);
+        nk_shapes_distances_f32_serial_(views.row_points, cached_points, views.points_stride, cached_distances);
+        for (nk_size_t column = 0; column != columns; ++column) {
+            nk_shapes_pair_f32_serial_t pair;
+            if (nk_shapes_pair_open_f16_serial_(&pair, a_packed[row], b_packed[column], &views)) {
+                // The cached matrix is this row's cloud, on whichever side it is solved
+                nk_shapes_distances_f32_serial_(pair.swapped ? views.row_points : views.column_points,
+                                                pair.swapped ? pair.rows : pair.columns, views.points_stride,
+                                                pair_distances);
+                nk_f64_t const loss = nk_shapes_gromov_wasserstein_f16_skylake_(
+                    &views, pair.rows, pair.columns, pair.cost_scale, pair.swapped ? pair_distances : cached_distances,
+                    pair.swapped ? cached_distances : pair_distances, pair.inner);
+                results_row[column] = (nk_f32_t)(nk_sqrt_f64_serial_(loss) / 2);
+            }
+            else results_row[column] = pair.rows == pair.columns ? 0 : NUMKONG_F32_INF;
+            if (rotations) nk_shapes_pair_rotation_f32_serial_(&pair, rotations + (row * columns + column) * 9);
+        }
+    }
+    return nk_success_k;
+}
 
 /** Σ‖xᵢ′‖² of a pack of @c f16 points, 16 points per step through the zero padding. */
 NUMKONG_INLINE nk_f32_t nk_rmsds_norm_f16_skylake_(void const *packed) {
@@ -630,8 +1640,8 @@ NUMKONG_INLINE nk_f32_t nk_rmsds_pair_f16_skylake_(void const *row_packed, void 
     return nk_sqrt_f32_serial_(residual / (nk_f32_t)count);
 }
 
-/** Superposed RMSD of one pair of @c f32 packs: H in @c f64, then compensated residuals, 8 points
- *  per step through the zero padding. */
+/** Superposed RMSD of one pair of @c f32 packs: H in @c f64, then the residuals in plain @c f64, 8
+ *  points per step through the zero padding. */
 NUMKONG_INLINE nk_f64_t nk_rmsds_pair_f32_skylake_(void const *row_packed, void const *column_packed) {
     nk_size_t const count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)row_packed)->points;
     if (!count) return 0;
@@ -656,7 +1666,7 @@ NUMKONG_INLINE nk_f64_t nk_rmsds_pair_f32_skylake_(void const *row_packed, void 
     nk_rmsds_rotation_f64_serial_(cross_covariance, rotation);
     __m512d rotation_f64x8[9];
     for (int cell = 0; cell != 9; ++cell) rotation_f64x8[cell] = _mm512_set1_pd(rotation[cell]);
-    __m512d sum_f64x8 = _mm512_setzero_pd(), compensation_f64x8 = _mm512_setzero_pd();
+    __m512d sum_f64x8 = _mm512_setzero_pd();
     for (nk_size_t index = 0; index < count; index += 8) {
         __m512d b_f64x8[3];
         for (int axis = 0; axis != 3; ++axis)
@@ -666,14 +1676,14 @@ NUMKONG_INLINE nk_f64_t nk_rmsds_pair_f32_skylake_(void const *row_packed, void 
             residual_f64x8 = _mm512_fnmadd_pd(rotation_f64x8[axis * 3 + 0], b_f64x8[0], residual_f64x8);
             residual_f64x8 = _mm512_fnmadd_pd(rotation_f64x8[axis * 3 + 1], b_f64x8[1], residual_f64x8);
             residual_f64x8 = _mm512_fnmadd_pd(rotation_f64x8[axis * 3 + 2], b_f64x8[2], residual_f64x8);
-            nk_dot2_f64x8_skylake_(&sum_f64x8, &compensation_f64x8, residual_f64x8, residual_f64x8);
+            sum_f64x8 = _mm512_fmadd_pd(residual_f64x8, residual_f64x8, sum_f64x8);
         }
     }
-    nk_f64_t const residuals = nk_dot_stable_sum_f64x8_skylake_(sum_f64x8, compensation_f64x8);
-    return nk_sqrt_f64_serial_(residuals / (nk_f64_t)count);
+    return nk_sqrt_f64_serial_(nk_reduce_add_f64x8_skylake_(sum_f64x8) / (nk_f64_t)count);
 }
 
-/** Superposed RMSD of one pair of @c f64 packs, like the @c f32 pair with H compensated too. */
+/** Superposed RMSD of one pair of @c f64 packs, like the @c f32 pair with H and the residuals
+ *  compensated. */
 NUMKONG_INLINE nk_f64_t nk_rmsds_pair_f64_skylake_(void const *row_packed, void const *column_packed) {
     nk_size_t const count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)row_packed)->points;
     if (!count) return 0;

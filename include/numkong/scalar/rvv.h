@@ -87,20 +87,21 @@ NUMKONG_INLINE nk_f64_t nk_rsqrt_f64_rvv_(nk_f64_t number) {
     return __riscv_vfmv_f_s_f64m1_f64(estimate_f64m1) * conv.f;
 }
 
-#if NUMKONG_TARGET_RVV
-NUMKONG_API nk_f32_t nk_f32_rsqrt_rvv(nk_f32_t number) { return nk_rsqrt_f32_rvv_(number); }
-
-NUMKONG_API nk_f32_t nk_f32_sqrt_rvv(nk_f32_t number) {
+NUMKONG_INLINE nk_f32_t nk_sqrt_f32_rvv_(nk_f32_t number) {
     vfloat32m1_t x_f32m1 = __riscv_vfmv_s_f_f32m1(number, 1);
     return __riscv_vfmv_f_s_f32m1_f32(__riscv_vfsqrt_v_f32m1(x_f32m1, 1));
 }
 
-NUMKONG_API nk_f64_t nk_f64_rsqrt_rvv(nk_f64_t number) { return nk_rsqrt_f64_rvv_(number); }
-
-NUMKONG_API nk_f64_t nk_f64_sqrt_rvv(nk_f64_t number) {
+NUMKONG_INLINE nk_f64_t nk_sqrt_f64_rvv_(nk_f64_t number) {
     vfloat64m1_t x_f64m1 = __riscv_vfmv_s_f_f64m1(number, 1);
     return __riscv_vfmv_f_s_f64m1_f64(__riscv_vfsqrt_v_f64m1(x_f64m1, 1));
 }
+
+#if NUMKONG_TARGET_RVV
+NUMKONG_API nk_f32_t nk_f32_rsqrt_rvv(nk_f32_t number) { return nk_rsqrt_f32_rvv_(number); }
+NUMKONG_API nk_f32_t nk_f32_sqrt_rvv(nk_f32_t number) { return nk_sqrt_f32_rvv_(number); }
+NUMKONG_API nk_f64_t nk_f64_rsqrt_rvv(nk_f64_t number) { return nk_rsqrt_f64_rvv_(number); }
+NUMKONG_API nk_f64_t nk_f64_sqrt_rvv(nk_f64_t number) { return nk_sqrt_f64_rvv_(number); }
 
 NUMKONG_API nk_f32_t nk_f32_fma_rvv(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
     vfloat32m1_t a_f32m1 = __riscv_vfmv_s_f_f32m1(a, 1);

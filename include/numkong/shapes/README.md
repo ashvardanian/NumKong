@@ -110,7 +110,7 @@ Packing rounds each rotated point once, which moves an RMSD by at most $\sqrt{3}
 A pack is opaque and, like the transport workspace and every NumKong buffer, starts on an `nk_default_alignment_k` boundary.
 Packing centers the cloud, rotates it onto the eigenvectors of its covariance in descending eigenvalue order, and rounds the result once into the input type.
 The pack keeps the centroid, the frame as a unit quaternion, the scale, the descending spreads of the packed points, and their largest norm, which `nk_shapes_packed_shape_*` reads.
-Packing is one serial routine for every capability today, written so no compiler contracts it under the project's ISO C build flags, so a pack is byte-identical on every machine and every capability reads it.
+Every capability reads every pack, since the layout is shared, while each capability packs in its own arithmetic and rounds its own way.
 
 Eigenvalues within $\tau$ of each other, relative to the largest, leave their eigenvectors to rounding, so packing settles them by higher moments, with $\tau = 2^{-16}$ for `f32` and `f64` inputs and $2^{-7}$ for `f16`, whose own rounding moves the moments by more.
 A tied plane around the third axis $c$ turns until the first harmonic of $w = x \cdot a + i \, x \cdot b$ to clear $\tau$ lies along $a$, and three tied axes first point $c$ at a point.
@@ -134,8 +134,8 @@ Every kind compares the packed coordinates, so it sees only shape between normal
 
 The spreads and largest radius that `nk_shapes_packed_shape_*` reads bound the expensive kinds from below, the way vector norms bound dot products:
 
-- Wasserstein-Procrustes ≥ $\sqrt{\sum_k (\sqrt{\lambda_{a,k}} - \sqrt{\lambda_{b,k}})^2}$ over the descending spreads, from Gelbrich's bound between second moments
 - Hausdorff ≥ $|r_a - r_b|$ over the largest radii
+- Wasserstein-Procrustes ≥ $\sqrt{\sum_k (\sqrt{\lambda_{a,k}} - \sqrt{\lambda_{b,k}})^2}$ over the descending spreads, from Gelbrich's bound between second moments
 
 On 200 pools of real molecules the first skips 65% of random candidates and 16% of near neighbors before any transport, with no violation.
 
@@ -143,7 +143,12 @@ On 200 pools of real molecules the first skips 65% of random candidates and 16% 
 
 ### Principal Frames and 8 Flips
 
-Two clouds rotated onto their own principal axes differ by at most a sign per axis, so Chamfer and Hausdorff compare them under the 8 sign patterns instead of searching rotations.
+Hausdorff and Chamfer take a `limit` in their output type, by pointer in the public kernels and by value in device bodies.
+A distance up to the limit is exact, and past it a pair may stop early and report a lower bound that also lies past the limit, so infinity scores every pair.
+On walks of real conformers candidates cluster just past the radius, so Hausdorff, which one far point settles, gains the most, and Chamfer, which averages both directions, gains the least.
+SIMD capabilities score Chamfer's two directions in one sweep, keeping the shorter cloud's running minima in a workspace that `nk_chamfers_workspace_size_*` sizes, since $\|a - S b\| = \|b - S a\|$ for every sign pattern $S$.
+
+Two clouds rotated onto their own principal axes differ by at most a sign per axis, so Hausdorff and Chamfer compare them under the 8 sign patterns instead of searching rotations.
 4 patterns are rotations and 4 are reflections, and all 8 are kept, so mirror images score as equals and the determinant of the returned rotation tells them apart.
 Each squared distance takes the difference form $(a - b)^2$ or $(a + b)^2$ per axis, never $\|a\|^2 + \|b\|^2 - 2 a \cdot b$, which cancels for the near neighbors that set the minima.
 Wasserstein-Procrustes starts from the same 8 frames, since its alternation only descends to the nearest local optimum.
@@ -157,18 +162,18 @@ Exactly linear frames, like 2 points, still lose accuracy, as their two largest 
 ### Blackwell Products
 
 On `blackwell`, `f16` RMSD is one product $C = A \times B^T$ over the atoms: 32 row frames stack their x, y and z rows as tensor-memory lanes 0-31, 32-63 and 64-95, and 32 column frames their axes as columns, so every pair's $M$ is a 3 × 3 block of $C$, drained by three warps and solved per pair in `f32`.
-Chamfer and Hausdorff stay on warps, one pair per warp, each lane walking its outer points through the inner points two per step in packed F32 arithmetic, so the distances match the serial ones bit for bit before the square root.
+Hausdorff and Chamfer stay on warps, one pair per warp, each lane walking its outer points through the inner points two per step in packed F32 arithmetic.
 A product keeps about 25 bits of its largest term, too few to rank near-coincident points, and a round trip costs more than the scan it would save at conformer sizes.
 
 ### Apple GPUs
 
-On `metal`, a simdgroup scores each `f16` pair of Chamfer or Hausdorff, its 32 lanes splitting each direction's points, with every square formed in the serial order, so only the sums over points run in another order.
-The simdgroup bodies, `nk_chamfer_simdgroup_packed_f16_metal_` and `nk_hausdorff_simdgroup_packed_f16_metal_`, take two packs and a limit past which they may stop early, so a kernel compiled after `shapes/metal.metal` scores one query against many candidates, as a graph walk does.
+On `metal`, a simdgroup scores each `f16` pair of Hausdorff or Chamfer, its 32 lanes splitting each direction's points, with every square formed in the serial order, so only the sums over points run in another order.
+The simdgroup bodies, `nk_hausdorff_simdgroup_packed_f16_metal_` and `nk_chamfer_simdgroup_packed_f16_metal_`, take two packs and a limit past which they may stop early, so a kernel compiled after `shapes/metal.metal` scores one query against many candidates, as a graph walk does.
 On `apple10`, `matmul2d` takes the RMSD product of `blackwell` at the sizes Metal's 32 KiB of threadgroup memory allows, stacking 21 frames per side into 63 of 64 operand rows.
-Chamfer and Hausdorff fold the norms into the depth, $[a, \|a\|^2_{hi}, \|a\|^2_{lo}, 1, 1] \cdot [-2 S b, 1, 1, \|b\|^2_{hi}, \|b\|^2_{lo}]$, and one product compares 64 outer with 64 inner points under one flip, the flips taking turns.
+Hausdorff and Chamfer fold the norms into the depth, $[a, \|a\|^2_{hi}, \|a\|^2_{lo}, 1, 1] \cdot [-2 S b, 1, 1, \|b\|^2_{hi}, \|b\|^2_{lo}]$, and one product compares 64 outer with 64 inner points under one flip, the flips taking turns.
 That expansion lies within $\delta = 2^{-19} (\|a\|^2 + r_b^2)$ of the exact square, so it only locates the nearest point, as below.
 Each thread keeps, per flip, the least expanded value, the group of 8 inner points holding it, and the least value of every other group, one integer minimum per product element.
-The nearest point lies in that group unless another group's least comes within $2 \delta$, in which case the thread rescans every inner point, so the distances match the serial ones bit for bit before the square root.
+The nearest point lies in that group unless another group's least comes within $2 \delta$, in which case the thread rescans every inner point.
 
 ```
 for each flip:
@@ -176,7 +181,8 @@ for each flip:
     else:                   exact = min over the 8 points of the least group
 ```
 
-Apple GPUs have no `f64`, which the transport potentials need, so Wasserstein-Procrustes and Gromov-Wasserstein have no Metal kernels.
+Apple GPUs have no `f64`, so the `f16` transport kernels on `metal` keep their potentials and gradients in 64-bit fixed point, where sums are exact and a negative reduced cost is never rounding, and `apple10` falls to them.
+A simdgroup solves each pair by the serial network simplex in its own slot of the workspace, its lanes pricing the arcs and its first lane pivoting.
 Pack tables, packs and outputs are unified memory, and a shared buffer's host address is never its GPU address, so the launcher resolves the allocations the packs lie in, at most 64 per call, and the kernels translate the tables through them.
 
 ### Exact Transport by Network Simplex
@@ -202,7 +208,7 @@ Pack tables, packs, outputs and workspace are device memory, and a pair beyond w
 ### Canonical Pair Order
 
 The transport kinds order each pair by points, spreads, radius and bytes before solving, so swapping the two sides returns the same distance bit for bit and the transposed rotation.
-Chamfer and Hausdorff are symmetric by construction.
+Hausdorff and Chamfer are symmetric by construction.
 
 ### Gromov-Wasserstein Starts
 
@@ -214,10 +220,11 @@ Its workspace holds the dense plan, its gradient and a vertex's gradient, each $
 
 The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
 The input size is controlled by the `NUMKONG_SHAPE_POINTS` environment variable and set to 32, 256, and 2048 points per cloud: the heavy atoms of a drug-like molecule, the Cα atoms of a small protein, and the points sampled from a scanned surface.
-Chamfer and Hausdorff work grows with the product of the two clouds' sizes, so each column costs 64 times the previous one per pair, and the transport kinds grow faster still.
+Hausdorff and Chamfer work grows with the product of the two clouds' sizes, so each column costs 64 times the previous one per pair, and the transport kinds grow faster still.
 The throughput is measured in pairs/s, the cloud pairs scored per second that the `distances` counter reports, over a tile of 8 × 8 clouds on the CPU and of 256 × 256 on GPUs, which a smaller tile leaves idle.
 The Apple M5 rows ran for about 3 seconds each rather than 20, and at 2048 points the GPU rows timed a single tile.
-Its `?` cells are transport kernels that cannot finish an 8 × 8 tile in minutes, and the Xeon rows read `?` until they are measured.
+These rows score every pair with an infinite `limit`, so they show none of what a finite one saves.
+Its `?` cells are transport kernels that cannot finish a tile in minutes, and rows no machine here has run yet: the Xeon and WASM ones, and `blackwell`, `cuda` and `rocm`.
 
 ### Intel Xeon 6 with B300
 
@@ -228,46 +235,46 @@ Rows ran single-threaded on one pinned core of an Intel Xeon 6787P, a Granite Ra
 | Kernel                                        |       32 points |      256 points |     2048 points |
 | :-------------------------------------------- | --------------: | --------------: | --------------: |
 | __f64__                                       | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ |
-| `nk_chamfers_packed_f64_serial`               |               ? |               ? |               ? |
-| `nk_chamfers_packed_f64_skylake`              |               ? |               ? |               ? |
+| `nk_rmsds_packed_f64_serial`                  |               ? |               ? |               ? |
+| `nk_rmsds_packed_f64_skylake`                 |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f64_serial`             |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f64_skylake`            |               ? |               ? |               ? |
+| `nk_chamfers_packed_f64_serial`               |               ? |               ? |               ? |
+| `nk_chamfers_packed_f64_skylake`              |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f64_serial`  |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f64_skylake` |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f64_serial`     |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f64_skylake`    |               ? |               ? |               ? |
-| `nk_rmsds_packed_f64_serial`                  |               ? |               ? |               ? |
-| `nk_rmsds_packed_f64_skylake`                 |               ? |               ? |               ? |
 | __f32__                                       | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ |
-| `nk_chamfers_packed_f32_serial`               |               ? |               ? |               ? |
-| `nk_chamfers_packed_f32_haswell`              |               ? |               ? |               ? |
-| `nk_chamfers_packed_f32_skylake`              |               ? |               ? |               ? |
+| `nk_rmsds_packed_f32_serial`                  |               ? |               ? |               ? |
+| `nk_rmsds_packed_f32_skylake`                 |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f32_serial`             |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f32_haswell`            |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f32_skylake`            |               ? |               ? |               ? |
+| `nk_chamfers_packed_f32_serial`               |               ? |               ? |               ? |
+| `nk_chamfers_packed_f32_haswell`              |               ? |               ? |               ? |
+| `nk_chamfers_packed_f32_skylake`              |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f32_serial`  |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f32_haswell` |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f32_skylake` |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f32_serial`     |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f32_haswell`    |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f32_skylake`    |               ? |               ? |               ? |
-| `nk_rmsds_packed_f32_serial`                  |               ? |               ? |               ? |
-| `nk_rmsds_packed_f32_skylake`                 |               ? |               ? |               ? |
 | __f16__                                       | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ |
-| `nk_chamfers_packed_f16_serial`               |               ? |               ? |               ? |
-| `nk_chamfers_packed_f16_haswell`              |               ? |               ? |               ? |
-| `nk_chamfers_packed_f16_skylake`              |               ? |               ? |               ? |
+| `nk_rmsds_packed_f16_serial`                  |               ? |               ? |               ? |
+| `nk_rmsds_packed_f16_skylake`                 |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f16_serial`             |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f16_haswell`            |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f16_skylake`            |               ? |               ? |               ? |
+| `nk_chamfers_packed_f16_serial`               |               ? |               ? |               ? |
+| `nk_chamfers_packed_f16_haswell`              |               ? |               ? |               ? |
+| `nk_chamfers_packed_f16_skylake`              |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f16_serial`  |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f16_haswell` |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f16_skylake` |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f16_serial`     |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f16_haswell`    |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f16_skylake`    |               ? |               ? |               ? |
-| `nk_rmsds_packed_f16_serial`                  |               ? |               ? |               ? |
-| `nk_rmsds_packed_f16_skylake`                 |               ? |               ? |               ? |
 
 #### WASM
 
@@ -276,31 +283,31 @@ Measured with wasmtime 49.0.2, Cranelift.
 | Kernel                                            |       32 points |      256 points |     2048 points |
 | :------------------------------------------------ | --------------: | --------------: | --------------: |
 | __f64__                                           | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ |
-| `nk_chamfers_packed_f64_serial`                   |               ? |               ? |               ? |
+| `nk_rmsds_packed_f64_serial`                      |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f64_serial`                 |               ? |               ? |               ? |
+| `nk_chamfers_packed_f64_serial`                   |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f64_serial`      |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f64_serial`         |               ? |               ? |               ? |
-| `nk_rmsds_packed_f64_serial`                      |               ? |               ? |               ? |
 | __f32__                                           | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ |
-| `nk_chamfers_packed_f32_serial`                   |               ? |               ? |               ? |
-| `nk_chamfers_packed_f32_v128relaxed`              |               ? |               ? |               ? |
+| `nk_rmsds_packed_f32_serial`                      |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f32_serial`                 |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f32_v128relaxed`            |               ? |               ? |               ? |
+| `nk_chamfers_packed_f32_serial`                   |               ? |               ? |               ? |
+| `nk_chamfers_packed_f32_v128relaxed`              |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f32_serial`      |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f32_v128relaxed` |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f32_serial`         |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f32_v128relaxed`    |               ? |               ? |               ? |
-| `nk_rmsds_packed_f32_serial`                      |               ? |               ? |               ? |
 | __f16__                                           | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ |
-| `nk_chamfers_packed_f16_serial`                   |               ? |               ? |               ? |
-| `nk_chamfers_packed_f16_v128relaxed`              |               ? |               ? |               ? |
+| `nk_rmsds_packed_f16_serial`                      |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f16_serial`                 |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f16_v128relaxed`            |               ? |               ? |               ? |
+| `nk_chamfers_packed_f16_serial`                   |               ? |               ? |               ? |
+| `nk_chamfers_packed_f16_v128relaxed`              |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f16_serial`      |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f16_v128relaxed` |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f16_serial`         |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f16_v128relaxed`    |               ? |               ? |               ? |
-| `nk_rmsds_packed_f16_serial`                      |               ? |               ? |               ? |
 
 #### CUDA
 
@@ -312,11 +319,11 @@ Rows run on one `1g.34gb` MIG slice of a B300 with 18 SMs.
 | `nk_wassersteinprocrustes_packed_f32_cuda` |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f32_cuda`    |               ? |               ? |               ? |
 | __f16__                                    | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ |
-| `nk_chamfers_packed_f16_blackwell`         |               ? |               ? |               ? |
+| `nk_rmsds_packed_f16_blackwell`            |               ? |               ? |               ? |
 | `nk_hausdorffs_packed_f16_blackwell`       |               ? |               ? |               ? |
+| `nk_chamfers_packed_f16_blackwell`         |               ? |               ? |               ? |
 | `nk_wassersteinprocrustes_packed_f16_cuda` |               ? |               ? |               ? |
 | `nk_gromovwassersteins_packed_f16_cuda`    |               ? |               ? |               ? |
-| `nk_rmsds_packed_f16_blackwell`            |               ? |               ? |               ? |
 
 ### Apple M5
 
@@ -327,35 +334,42 @@ Rows ran single-threaded on one core of an Apple M5 Pro, and the `metal` and `ap
 | Kernel                                       |       32 points |      256 points |     2048 points |
 | :------------------------------------------- | --------------: | --------------: | --------------: |
 | __f64__                                      | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ |
-| `nk_chamfers_packed_f64_serial`              |        66.8 k/s |        1.39 k/s |          22.4/s |
-| `nk_hausdorffs_packed_f64_serial`            |        67.4 k/s |        1.40 k/s |          22.6/s |
-| `nk_wassersteinprocrustes_packed_f64_serial` |        2.34 k/s |          11.6/s |               ? |
-| `nk_gromovwassersteins_packed_f64_serial`    |           703/s |          1.32/s |               ? |
-| `nk_rmsds_packed_f64_serial`                 |         401 k/s |         115 k/s |        16.9 k/s |
+| `nk_rmsds_packed_f64_serial`                 |         713 k/s |         142 k/s |        19.5 k/s |
+| `nk_rmsds_packed_f64_neon`                   |        1.40 M/s |         622 k/s |         115 k/s |
+| `nk_hausdorffs_packed_f64_serial`            |        83.8 k/s |        1.68 k/s |          26.9/s |
+| `nk_chamfers_packed_f64_serial`              |        71.5 k/s |        1.40 k/s |          22.1/s |
+| `nk_wassersteinprocrustes_packed_f64_serial` |        2.99 k/s |          15.4/s |               ? |
+| `nk_gromovwassersteins_packed_f64_serial`    |           750/s |          1.48/s |               ? |
 | __f32__                                      | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ |
-| `nk_chamfers_packed_f32_serial`              |         111 k/s |        2.13 k/s |          34.3/s |
-| `nk_chamfers_packed_f32_neon`                |         514 k/s |        8.52 k/s |           133/s |
-| `nk_hausdorffs_packed_f32_serial`            |         110 k/s |        2.13 k/s |          34.4/s |
-| `nk_hausdorffs_packed_f32_neon`              |         515 k/s |        8.50 k/s |           134/s |
-| `nk_wassersteinprocrustes_packed_f32_serial` |        2.76 k/s |          14.3/s |               ? |
-| `nk_wassersteinprocrustes_packed_f32_neon`   |        3.40 k/s |          29.6/s |               ? |
-| `nk_gromovwassersteins_packed_f32_serial`    |        1.01 k/s |          3.05/s |               ? |
-| `nk_gromovwassersteins_packed_f32_neon`      |        1.50 k/s |          5.11/s |               ? |
-| `nk_rmsds_packed_f32_serial`                 |         479 k/s |         176 k/s |        28.6 k/s |
+| `nk_rmsds_packed_f32_serial`                 |        1.12 M/s |         341 k/s |        52.4 k/s |
+| `nk_rmsds_packed_f32_neon`                   |        1.62 M/s |         973 k/s |         231 k/s |
+| `nk_hausdorffs_packed_f32_serial`            |         115 k/s |        2.12 k/s |          33.8/s |
+| `nk_hausdorffs_packed_f32_neon`              |         519 k/s |        8.41 k/s |           132/s |
+| `nk_chamfers_packed_f32_serial`              |         116 k/s |        2.12 k/s |          33.8/s |
+| `nk_chamfers_packed_f32_neon`                |         737 k/s |        12.9 k/s |           137/s |
+| `nk_wassersteinprocrustes_packed_f32_serial` |        3.05 k/s |          15.1/s |               ? |
+| `nk_wassersteinprocrustes_packed_f32_neon`   |        3.71 k/s |          29.3/s |               ? |
+| `nk_gromovwassersteins_packed_f32_serial`    |        1.10 k/s |          3.25/s |               ? |
+| `nk_gromovwassersteins_packed_f32_neon`      |        1.56 k/s |          5.17/s |               ? |
 | __f16__                                      | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░ |
-| `nk_chamfers_packed_f16_serial`              |        69.1 k/s |        1.25 k/s |          19.5/s |
-| `nk_chamfers_packed_f16_neon`                |         989 k/s |        16.9 k/s |           267/s |
-| `nk_chamfers_packed_f16_neonfhm`             |        1.07 M/s |        18.4 k/s |           294/s |
-| `nk_chamfers_packed_f16_metal`               |        40.5 M/s |        1.04 M/s |        16.4 k/s |
-| `nk_chamfers_packed_f16_apple10`             |        1.78 M/s |         111 k/s |        1.69 k/s |
-| `nk_hausdorffs_packed_f16_serial`            |        69.6 k/s |        1.24 k/s |          19.7/s |
-| `nk_hausdorffs_packed_f16_neon`              |         993 k/s |        16.9 k/s |           268/s |
-| `nk_hausdorffs_packed_f16_neonfhm`           |        1.08 M/s |        18.2 k/s |           292/s |
-| `nk_hausdorffs_packed_f16_metal`             |        35.0 M/s |        1.02 M/s |        38.8 k/s |
-| `nk_hausdorffs_packed_f16_apple10`           |        1.85 M/s |         111 k/s |        1.61 k/s |
-| `nk_wassersteinprocrustes_packed_f16_serial` |        2.79 k/s |          14.1/s |               ? |
-| `nk_wassersteinprocrustes_packed_f16_neon`   |        3.42 k/s |          28.4/s |               ? |
-| `nk_gromovwassersteins_packed_f16_serial`    |        1.05 k/s |          3.06/s |               ? |
-| `nk_gromovwassersteins_packed_f16_neon`      |        1.51 k/s |          4.81/s |               ? |
-| `nk_rmsds_packed_f16_serial`                 |        1.80 M/s |         459 k/s |        65.5 k/s |
-| `nk_rmsds_packed_f16_apple10`                |         880 M/s |         684 M/s |         170 M/s |
+| `nk_rmsds_packed_f16_serial`                 |        2.26 M/s |         412 k/s |        55.5 k/s |
+| `nk_rmsds_packed_f16_neon`                   |        6.56 M/s |        2.94 M/s |         546 k/s |
+| `nk_rmsds_packed_f16_neonfhm`                |        7.33 M/s |        3.30 M/s |         534 k/s |
+| `nk_rmsds_packed_f16_metal`                  |        86.2 M/s |        72.0 M/s |        32.0 M/s |
+| `nk_rmsds_packed_f16_apple10`                |         876 M/s |         683 M/s |         170 M/s |
+| `nk_hausdorffs_packed_f16_serial`            |        96.6 k/s |        1.72 k/s |          28.6/s |
+| `nk_hausdorffs_packed_f16_neon`              |         990 k/s |        16.7 k/s |           264/s |
+| `nk_hausdorffs_packed_f16_neonfhm`           |         990 k/s |        16.7 k/s |           261/s |
+| `nk_hausdorffs_packed_f16_metal`             |        34.7 M/s |        1.02 M/s |        38.8 k/s |
+| `nk_hausdorffs_packed_f16_apple10`           |        1.87 M/s |         110 k/s |        1.61 k/s |
+| `nk_chamfers_packed_f16_serial`              |        96.5 k/s |        1.75 k/s |          27.3/s |
+| `nk_chamfers_packed_f16_neon`                |        1.45 M/s |        25.6 k/s |           407/s |
+| `nk_chamfers_packed_f16_neonfhm`             |        1.45 M/s |        25.9 k/s |           410/s |
+| `nk_chamfers_packed_f16_metal`               |        39.8 M/s |        1.01 M/s |        16.4 k/s |
+| `nk_chamfers_packed_f16_apple10`             |        1.79 M/s |         109 k/s |        1.69 k/s |
+| `nk_wassersteinprocrustes_packed_f16_serial` |        3.20 k/s |          15.3/s |               ? |
+| `nk_wassersteinprocrustes_packed_f16_neon`   |        3.81 k/s |          28.4/s |               ? |
+| `nk_wassersteinprocrustes_packed_f16_metal`  |        19.2 k/s |           170/s |               ? |
+| `nk_gromovwassersteins_packed_f16_serial`    |        1.22 k/s |          3.45/s |               ? |
+| `nk_gromovwassersteins_packed_f16_neon`      |        1.57 k/s |          5.16/s |               ? |
+| `nk_gromovwassersteins_packed_f16_metal`     |        13.4 k/s |          23.3/s |               ? |

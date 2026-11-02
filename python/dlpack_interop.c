@@ -108,10 +108,12 @@
  *    user being MLX, but not on an Intel-Mac dGPU.
  *
  *  Accepted as a GPU tensor, which keeps its device type and ordinal: @c kDLCUDA and @c kDLROCM
- *  device memory. Only the GPU paths of @c dots_pack and the dots, angulars and euclideans packed
- *  and symmetric functions take it, dispatching with that device's capabilities; everything that
- *  reads elements on the host raises @c BufferError. The import does not synchronize streams: the
- *  caller orders the producer's work before the one passed as `stream=`.
+ *  device memory. Only the GPU paths of @c dots_pack, the dots, angulars and euclideans packed and
+ *  symmetric functions, and @c attention_pack, @c attention_packed and
+ *  @c attention_packed_gradients take it, dispatching with that device's capabilities, and the
+ *  shape functions take it for their outputs; everything that reads elements on the host raises
+ *  @c BufferError. The import does not synchronize streams: the caller orders the producer's work
+ *  before the one passed as <tt>stream=</tt>.
  *
  *  Rejected, because NumKong has no kernels there and host code cannot read the memory:
  *
@@ -539,9 +541,9 @@ char const doc_from_dlpack[] =                                                  
     "  - kDLOneAPI     — Intel oneAPI USM (host / shared variants only).\n"                               //
     "  - kDLMetal      — Apple Silicon unified memory, as used by MLX.\n"                                 //
     "Accepts kDLCUDA and kDLROCM device memory as a GPU tensor, which keeps its device. Only the\n"       //
-    "GPU paths of dots_pack and the dots, angulars and euclideans _packed and _symmetric functions\n"     //
-    "take it; element access, NumPy conversion and every CPU kernel raise BufferError. No stream\n"       //
-    "is synchronized: order the producer's work before the stream= passed to those functions.\n"          //
+    "GPU paths of the dots, attention and shape functions take it; element access, NumPy\n"               //
+    "conversion and every CPU kernel raise BufferError. No stream is synchronized: order the\n"           //
+    "producer's work before the stream= passed to those functions.\n"                                     //
     "Other device memory, such as kDLOpenCL, kDLVulkan, kDLWebGPU, kDLHexagon, kDLMAIA and kDLTrn,\n"     //
     "is rejected with a clear ValueError naming the device code.\n\n"                                     //
     "Verified producers (zero-copy round-trip in tests):\n"                                               //

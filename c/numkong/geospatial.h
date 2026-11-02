@@ -33,10 +33,10 @@
  *  @section geospatial_packing Packing
  *
  *  @c haversines and @c vincentys take both sides as packs, built once per point set by one serial
- *  routine for every CPU capability and by its twin in the same arithmetic on CUDA devices, so a
- *  pack is byte-identical on every machine. A Haversine pack holds unit vectors on the sphere, a
- *  Vincenty pack the longitude and the sine and cosine of the reduced latitude, so no many-to-many
- *  kernel evaluates trigonometry before its work per pair.
+ *  routine for every CPU capability and by its twin on CUDA devices, which every capability reads.
+ *  A Haversine pack holds unit vectors on the sphere, a Vincenty pack the longitude and the sine
+ *  and cosine of the reduced latitude, so no many-to-many kernel evaluates trigonometry before its
+ *  work per pair.
  *  @c sqeuclideans3d needs no pack: at depth 3 the difference form needs no norms, and the SIMD
  *  bodies de-interleave plain @b [points,3] rows on the fly.
  *

@@ -103,6 +103,24 @@ NUMKONG_INLINE nk_status_t nk_launch_resident_cuda_(void const *kernel, unsigned
     return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
+/** Accepts @p address when the current device addresses it: managed memory, its own allocation, or
+ *  registered host memory it reads over the bus, whose device address the driver reports. */
+NUMKONG_INLINE int nk_address_accessible_cuda_(void const *address) {
+    int device = 0;
+    struct cudaPointerAttributes attributes;
+    if (cudaPointerGetAttributes(&attributes, address) != cudaSuccess || cudaGetDevice(&device) != cudaSuccess)
+        return 0;
+    if (attributes.type == cudaMemoryTypeManaged) return 1;
+    if (attributes.type == cudaMemoryTypeHost) return attributes.devicePointer != NUMKONG_NULL;
+    return attributes.type == cudaMemoryTypeDevice && attributes.device == device;
+}
+
+/** Whether the current device reaches both ends of @p bytes at @p pointer, or nothing to reach. */
+NUMKONG_INLINE int nk_memory_accessible_cuda_(void const *pointer, nk_size_t bytes) {
+    return !bytes || (nk_address_accessible_cuda_(pointer) &&
+                      nk_address_accessible_cuda_((unsigned char const *)pointer + bytes - 1));
+}
+
 /** Reads @p attribute of the stream's device into @p value. */
 NUMKONG_INLINE nk_status_t nk_device_attribute_cuda_(enum cudaDeviceAttr attribute, int *value, nk_stream_t stream) {
     int device = 0;

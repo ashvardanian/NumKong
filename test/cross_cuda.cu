@@ -165,7 +165,7 @@ static void fill_geodesics_case(std::mt19937 &generator, geodesics_case_t kind, 
 
 /** Whether two geodesic packs of @p count points hold the same header and coordinates, past the
  *  padding neither writes. */
-static bool same_geodesic_packs(char const *first, char const *second, std::size_t count) {
+static bool same_geodesic_packs(std::byte const *first, std::byte const *second, std::size_t count) {
     if (std::memcmp(first, second, sizeof(nk_geospatial_packed_header_t))) return false;
     std::size_t const axis_bytes = ((nk_geospatial_packed_header_t const *)first)->axis_stride * sizeof(nk_f64_t);
     for (std::size_t axis = 0; axis != 3; ++axis)

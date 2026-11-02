@@ -44,6 +44,31 @@ void bench_cross_rocm(environment_t const &env, rocm_backend_t const &backend, n
     run_minmax_rows<nk_f32_k>(env, "reduce_minmax_f32_rocm", nk_reduce_minmax_f32_rocm, tokens, hidden, backend);
     run_minmax_rows<nk_bf16_k>(env, "reduce_minmax_bf16_rocm", nk_reduce_minmax_bf16_rocm, tokens, hidden, backend);
     run_minmax_rows<nk_i8_k>(env, "reduce_minmax_i8_rocm", nk_reduce_minmax_i8_rocm, tokens, hidden, backend);
+    run_shapes_packed<nk_f16_k>(env, "rmsds_packed_f16_rocm", backend, nk_rmsds_packed_f16_rocm, {shapes_rmsds_tile_k});
+    run_shapes_packed<nk_f32_k>(env, "rmsds_packed_f32_rocm", backend, nk_rmsds_packed_f32_rocm, {shapes_rmsds_tile_k});
+    run_shapes_packed<nk_f64_k>(env, "rmsds_packed_f64_rocm", backend, nk_rmsds_packed_f64_rocm, {shapes_rmsds_tile_k});
+    run_shapes_packed<nk_f16_k>(env, "hausdorffs_packed_f16_rocm", backend, nk_hausdorffs_packed_f16_rocm,
+                                {shapes_flips_tile_k});
+    run_shapes_packed<nk_f32_k>(env, "hausdorffs_packed_f32_rocm", backend, nk_hausdorffs_packed_f32_rocm,
+                                {shapes_flips_tile_k});
+    run_shapes_packed<nk_f16_k>(env, "chamfers_packed_f16_rocm", backend,
+                                with_workspace(nk_chamfers_packed_f16_rocm, nk_chamfers_workspace_size_f16_rocm),
+                                {shapes_flips_tile_k});
+    run_shapes_packed<nk_f32_k>(env, "chamfers_packed_f32_rocm", backend,
+                                with_workspace(nk_chamfers_packed_f32_rocm, nk_chamfers_workspace_size_f32_rocm),
+                                {shapes_flips_tile_k});
+    run_shapes_packed<nk_f16_k>(
+        env, "wassersteinprocrustes_packed_f16_rocm", backend,
+        with_workspace(nk_wassersteinprocrustes_packed_f16_rocm, nk_wassersteinprocrustes_workspace_size_f16_rocm));
+    run_shapes_packed<nk_f32_k>(
+        env, "wassersteinprocrustes_packed_f32_rocm", backend,
+        with_workspace(nk_wassersteinprocrustes_packed_f32_rocm, nk_wassersteinprocrustes_workspace_size_f32_rocm));
+    run_shapes_packed<nk_f16_k>(
+        env, "gromovwassersteins_packed_f16_rocm", backend,
+        with_workspace(nk_gromovwassersteins_packed_f16_rocm, nk_gromovwassersteins_workspace_size_f16_rocm));
+    run_shapes_packed<nk_f32_k>(
+        env, "gromovwassersteins_packed_f32_rocm", backend,
+        with_workspace(nk_gromovwassersteins_packed_f32_rocm, nk_gromovwassersteins_workspace_size_f32_rocm));
 }
 
 void bench_cross_cdna3([[maybe_unused]] environment_t const &env, [[maybe_unused]] rocm_backend_t const &backend,

@@ -570,7 +570,11 @@ nk_shapes_pack_f32_best(candidate, 5, candidate_packed, capabilities, NULL);
 void const *rows[] = {query_packed}, *columns[] = {candidate_packed};
 nk_f64_t chamfer = 0, procrustes = 0;
 nk_f32_t rotation[9]; // takes the candidate onto the query, through the centroids in the headers
-nk_chamfers_packed_f32_best(rows, 1, columns, 1, &chamfer, sizeof(nk_f64_t), rotation, capabilities, NULL);
+nk_size_t chamfer_bytes = 0;
+nk_chamfers_workspace_size_f32_best(4, 5, capabilities, &chamfer_bytes);
+void *chamfer_workspace = aligned_alloc(alignment, (chamfer_bytes + alignment - 1) / alignment * alignment);
+nk_chamfers_packed_f32_best(rows, 1, columns, 1, &chamfer, sizeof(nk_f64_t), rotation, INFINITY, chamfer_workspace,
+                            chamfer_bytes, capabilities, NULL);
 
 nk_size_t workspace_bytes = 0;
 nk_wassersteinprocrustes_workspace_size_f32_best(4, 5, capabilities, &workspace_bytes);
@@ -601,7 +605,8 @@ nk::f32_t const candidate[] = {0, 0, 0, 0, 2, 0, 0, 0, 2, 2, 0, 0, 1, 1, 1};
 std::span<nk::f32_t const> clouds[] = {query, candidate};
 auto [packs, status] = nk::shapes_packed<nk::f32_t>::make(clouds);
 nk::f64_t distances[4];
-status = nk::hausdorffs_packed<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t), nullptr);
+status = nk::hausdorffs_packed<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t), nullptr,
+                                          nk::f64_t::positive_infinity());
 ```
 
 ## MaxSim

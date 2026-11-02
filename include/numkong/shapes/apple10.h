@@ -44,22 +44,34 @@ static char const nk_shapes_source_apple10_[] = {
 /** Frames per side of an RMSD tile, as the kernels stage them. */
 enum { nk_rmsds_frames_apple10_k = 21 };
 
+NUMKONG_API nk_status_t nk_chamfers_workspace_size_f16_apple10(nk_size_t row_points, nk_size_t column_points,
+                                                               nk_size_t *bytes) {
+    nk_unused_(row_points), nk_unused_(column_points);
+    *bytes = 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_chamfers_packed_f16_apple10(void const *const *a_packed, nk_size_t rows,
                                                        void const *const *b_packed, nk_size_t columns,
                                                        nk_f32_t *results, nk_size_t results_stride, nk_f32_t *rotations,
-                                                       nk_stream_t stream) {
+                                                       nk_f32_t const *limit, void *workspace,
+                                                       nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     return nk_shapes_launch_metal_(nk_shapes_source_apple10_, NUMKONG_METAL_LANGUAGE_4_0_,
                                    "nk_chamfers_packed_f16_apple10_kernel_", rows * columns, NUMKONG_SIZE_MAX, a_packed,
-                                   rows, b_packed, columns, results, results_stride, rotations, stream);
+                                   rows, b_packed, columns, results, results_stride, rotations, *limit, NUMKONG_NULL, 0,
+                                   0, 0, stream);
 }
 
 NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_apple10(void const *const *a_packed, nk_size_t rows,
                                                          void const *const *b_packed, nk_size_t columns,
                                                          nk_f32_t *results, nk_size_t results_stride,
-                                                         nk_f32_t *rotations, nk_stream_t stream) {
+                                                         nk_f32_t *rotations, nk_f32_t const *limit,
+                                                         nk_stream_t stream) {
     return nk_shapes_launch_metal_(nk_shapes_source_apple10_, NUMKONG_METAL_LANGUAGE_4_0_,
                                    "nk_hausdorffs_packed_f16_apple10_kernel_", rows * columns, NUMKONG_SIZE_MAX,
-                                   a_packed, rows, b_packed, columns, results, results_stride, rotations, stream);
+                                   a_packed, rows, b_packed, columns, results, results_stride, rotations, *limit,
+                                   NUMKONG_NULL, 0, 0, 0, stream);
 }
 
 NUMKONG_API nk_status_t nk_rmsds_packed_f16_apple10(void const *const *a_packed, nk_size_t rows,
@@ -68,10 +80,10 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_apple10(void const *const *a_packed,
     if (!rows || !columns) return nk_success_k;
     nk_size_t const tiles = nk_size_divide_round_up_(rows, nk_rmsds_frames_apple10_k) *
                             nk_size_divide_round_up_(columns, nk_rmsds_frames_apple10_k);
-    return nk_shapes_launch_metal_(nk_shapes_source_apple10_, NUMKONG_METAL_LANGUAGE_4_0_,
-                                   "nk_rmsds_packed_f16_apple10_kernel_", tiles,
-                                   ((nk_shapes_packed_header_f32_t const *)a_packed[0])->points, a_packed, rows,
-                                   b_packed, columns, results, results_stride, NUMKONG_NULL, stream);
+    return nk_shapes_launch_metal_(
+        nk_shapes_source_apple10_, NUMKONG_METAL_LANGUAGE_4_0_, "nk_rmsds_packed_f16_apple10_kernel_", tiles,
+        ((nk_shapes_packed_header_f32_t const *)a_packed[0])->points, a_packed, rows, b_packed, columns, results,
+        results_stride, NUMKONG_NULL, NUMKONG_F32_INF, NUMKONG_NULL, 0, 0, 0, stream);
 }
 
 #if defined(__cplusplus)

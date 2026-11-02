@@ -37,6 +37,9 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
+NUMKONG_INLINE nk_f32_t nk_sqrt_f32_neon_(nk_f32_t x) { return vget_lane_f32(vsqrt_f32(vdup_n_f32(x)), 0); }
+NUMKONG_INLINE nk_f64_t nk_sqrt_f64_neon_(nk_f64_t x) { return vget_lane_f64(vsqrt_f64(vdup_n_f64(x)), 0); }
+
 /** Reciprocal square root: the hardware estimate refined by two Newton steps. */
 NUMKONG_INLINE nk_f32_t nk_rsqrt_f32_neon_(nk_f32_t x) {
     nk_fui32_t conv;
@@ -78,8 +81,8 @@ NUMKONG_INLINE nk_u64_t nk_u64_mulhigh_neon_(nk_u64_t a, nk_u64_t b) {
 
 #if NUMKONG_TARGET_NEON
 
-NUMKONG_API nk_f32_t nk_f32_sqrt_neon(nk_f32_t x) { return vget_lane_f32(vsqrt_f32(vdup_n_f32(x)), 0); }
-NUMKONG_API nk_f64_t nk_f64_sqrt_neon(nk_f64_t x) { return vget_lane_f64(vsqrt_f64(vdup_n_f64(x)), 0); }
+NUMKONG_API nk_f32_t nk_f32_sqrt_neon(nk_f32_t x) { return nk_sqrt_f32_neon_(x); }
+NUMKONG_API nk_f64_t nk_f64_sqrt_neon(nk_f64_t x) { return nk_sqrt_f64_neon_(x); }
 NUMKONG_API nk_f32_t nk_f32_rsqrt_neon(nk_f32_t x) { return nk_rsqrt_f32_neon_(x); }
 NUMKONG_API nk_f64_t nk_f64_rsqrt_neon(nk_f64_t x) { return nk_rsqrt_f64_neon_(x); }
 NUMKONG_API nk_f32_t nk_f32_fma_neon(nk_f32_t a, nk_f32_t b, nk_f32_t c) {

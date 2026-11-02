@@ -422,7 +422,13 @@ void nk_tensor_view_freelist_clear(void) {
 static void Tensor_dealloc(PyObject *self) {
     Tensor *tensor = (Tensor *)self;
     if (tensor->parent == NULL) {
-        PyMem_Free(tensor->data); // owns the buffer; PyMem_Free(NULL) is a no-op
+        // The stream it was made on may be freed by now, so it returns on the default one
+        if (tensor->capabilities) {
+            size_t const bytes = dimensions_to_values(tensor->dtype, tensor->capacity) *
+                                 nk_dtype_bytes_per_value(tensor->dtype);
+            nk_unused_(nk_memory_free_unified_best(tensor->data, bytes, tensor->capabilities, NULL));
+        }
+        else PyMem_Free(tensor->data); // owns the buffer; PyMem_Free(NULL) is a no-op
         Py_TYPE(self)->tp_free(self);
         return;
     }
@@ -432,7 +438,8 @@ static void Tensor_dealloc(PyObject *self) {
     Py_TYPE(self)->tp_free(self);
 }
 
-Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
+/** An owning Tensor of @p shape with no storage yet, @c capacity elements of @p total_bytes. */
+static Tensor *tensor_header_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape, size_t *total_bytes) {
     if (rank > NUMKONG_TENSOR_MAX_RANK) {
         PyErr_Format(PyExc_ValueError, "Tensor rank %zu exceeds maximum %d", rank, NUMKONG_TENSOR_MAX_RANK);
         return NULL;
@@ -454,7 +461,7 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
         PyErr_SetString(PyExc_OverflowError, "Tensor allocation too large");
         return NULL;
     }
-    size_t const total_bytes = total_values * item_size;
+    *total_bytes = total_values * item_size;
 
     Tensor *tensor = PyObject_New(Tensor, &TensorType);
     if (!tensor) {
@@ -466,15 +473,23 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
     tensor->rank = rank;
     tensor->parent = NULL;
     tensor->data = NULL;
-    tensor->capacity = 0;
+    tensor->capacity = total_items;
     tensor->exports = 0;
     tensor->device = (DLDevice) {kDLCPU, 0};
+    tensor->capabilities = 0;
 
     for (size_t i = 0; i < NUMKONG_TENSOR_MAX_RANK; i++) {
         tensor->shape[i] = (i < rank) ? shape[i] : 0;
         tensor->strides[i] = 0;
     }
     compute_contiguous_strides(rank, shape, dtype, tensor->strides);
+    return tensor;
+}
+
+Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
+    size_t total_bytes = 0;
+    Tensor *tensor = tensor_header_new(dtype, rank, shape, &total_bytes);
+    if (!tensor) return NULL;
 
     // Storage lives in a separate heap buffer so `reserve()` can grow it in place. A zero-element
     // tensor keeps `data == NULL`; `Tensor_dealloc` frees the buffer only when this owns it.
@@ -486,8 +501,6 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape) {
             return NULL;
         }
     }
-    tensor->capacity = total_items;
-
     return tensor;
 }
 
@@ -531,8 +544,8 @@ DLDevice py_object_device(PyObject *object) {
 int tensor_on_host(Tensor const *tensor) {
     if (tensor->device.device_type == kDLCPU) return 1;
     PyErr_Format(PyExc_BufferError,
-                 "Tensor lives on %s device %d, which host code cannot read; only dots_pack and the dots, " //
-                 "angulars and euclideans _packed and _symmetric functions run on it",
+                 "Tensor lives on %s device %d, which host code cannot read; only the GPU paths of the dots, " //
+                 "attention and shape functions run on it",
                  tensor->device.device_type == kDLCUDA ? "CUDA" : "ROCm", (int)tensor->device.device_id);
     return 0;
 }
@@ -551,6 +564,7 @@ static Tensor *Tensor_scalar(nk_dtype_t dtype, void const *value) {
     tensor->parent = NULL;
     tensor->data = NULL;
     tensor->capacity = 1;
+    tensor->capabilities = 0;
     tensor->exports = 0;
     tensor->device = (DLDevice) {kDLCPU, 0};
     for (size_t i = 0; i < NUMKONG_TENSOR_MAX_RANK; i++) {
@@ -1181,8 +1195,8 @@ static int parse_shape_args_(PyObject *const *args, Py_ssize_t nargs, Py_ssize_t
 char const doc_method_resize[] =                                                                          //
     "Reshape in place within the allocated capacity, without moving the data buffer.\n\n"                 //
     "Unlike reshape(), this mutates the tensor in place and keeps data_ptr stable. It fails if the new\n" //
-    "element count exceeds capacity() (call reserve() to grow first), if the tensor is a view, or if\n"   //
-    "any buffer is currently exported (memoryview / NumPy).\n\n"                                          //
+    "element count exceeds capacity() (call reserve() to grow first), if the tensor is a view or in\n"    //
+    "unified memory, or if any buffer is currently exported (memoryview / NumPy).\n\n"                    //
     "Args:\n"                                                                                             //
     "  *shape: New dimensions, ints or a single shape tuple.\n\n"                                         //
     "Returns:\n"                                                                                          //
@@ -1194,6 +1208,10 @@ static PyObject *Tensor_resize(PyObject *self, PyObject *const *args, Py_ssize_t
     Tensor *tensor = (Tensor *)self;
     if (tensor->parent != NULL) {
         PyErr_SetString(PyExc_ValueError, "cannot resize a view; only owning tensors are resizable");
+        return NULL;
+    }
+    if (tensor->capabilities) {
+        PyErr_SetString(PyExc_BufferError, "cannot resize unified memory, which copy(capabilities=) fixed");
         return NULL;
     }
     if (tensor->exports != 0) {
@@ -1219,7 +1237,7 @@ char const doc_method_reserve[] =                                               
     "Grow the allocated capacity to at least `capacity` elements, reallocating if needed.\n\n"             //
     "Preserves the current contents; a no-op when capacity() is already large enough. May move the data\n" //
     "buffer, so it invalidates outstanding views, memoryviews, NumPy arrays, and DLPack capsules. Fails\n" //
-    "on a view or while buffers are exported.\n\n"                                                         //
+    "on a view, in unified memory, or while buffers are exported.\n\n"                                     //
     "Args:\n"                                                                                              //
     "  capacity: Minimum element capacity to guarantee.\n\n"                                               //
     "Returns:\n"                                                                                           //
@@ -1231,6 +1249,10 @@ static PyObject *Tensor_reserve(PyObject *self, PyObject *const *args, Py_ssize_
     Tensor *tensor = (Tensor *)self;
     if (tensor->parent != NULL) {
         PyErr_SetString(PyExc_ValueError, "cannot reserve on a view; only owning tensors own storage");
+        return NULL;
+    }
+    if (tensor->capabilities) {
+        PyErr_SetString(PyExc_BufferError, "cannot reserve unified memory, which copy(capabilities=) fixed");
         return NULL;
     }
     if (tensor->exports != 0) {
@@ -1376,21 +1398,30 @@ static char *validate_out_buffer(PyObject *out_obj, nk_dtype_t out_dtype, size_t
     return out->data;
 }
 
-char const doc_method_copy[] =                                                //
-    "Return a deep copy of the tensor.\n\n"                                   //
-    "Args:\n"                                                                 //
-    "  out (Tensor, optional): Pre-allocated destination of the same dtype\n" //
-    "    and shape, C-contiguous. When given, the copy writes into it\n"      //
-    "    with no allocation and returns `out`.\n\n"                           //
-    "Returns:\n"                                                              //
-    "  Tensor: Independent copy, or `out` when provided.\n\n"                 //
-    "Signature:\n"                                                            //
-    "  >>> def copy(self, /, *, out=None): ...";
+char const doc_method_copy[] =                                                        //
+    "Return a deep copy of the tensor.\n\n"                                           //
+    "Args:\n"                                                                         //
+    "  out (Tensor, optional): Pre-allocated destination of the same dtype\n"         //
+    "    and shape, C-contiguous. When given, the copy writes into it\n"              //
+    "    with no allocation and returns `out`.\n"                                     //
+    "  capabilities (int, optional): A producer's mask, like\n"                       //
+    "    nk.metal_capabilities_enabled(0), placing the copy in the unified memory\n"  //
+    "    of that device, which GPU functions write and the host reads. It then\n"     //
+    "    refuses resize() and reserve(), and frees with the tensor and its views.\n"  //
+    "    Takes no `out`.\n"                                                           //
+    "  stream (int, optional): A stream of that vendor, naming the device, or None\n" //
+    "    for the default.\n\n"                                                        //
+    "Returns:\n"                                                                      //
+    "  Tensor: Independent copy, or `out` when provided.\n\n"                         //
+    "Signature:\n"                                                                    //
+    "  >>> def copy(self, /, *, out=None, capabilities=None, stream=None): ...";
 
 PyObject *Tensor_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     Tensor *tensor = (Tensor *)self;
 
     PyObject *out_obj = NULL;
+    nk_capability_t capabilities = 0;
+    nk_stream_t stream = NULL;
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     if (nargs != 0) {
         PyErr_SetString(PyExc_TypeError, "copy(*, out=None) takes no positional arguments");
@@ -1399,10 +1430,23 @@ PyObject *Tensor_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, P
     for (Py_ssize_t i = 0; i < nkw; i++) {
         PyObject *name = PyTuple_GET_ITEM(kwnames, i);
         if (PyUnicode_CompareWithASCIIString(name, "out") == 0) out_obj = args[nargs + i];
+        // Keeps the GPU bits `parse_dispatch_keyword` drops
+        else if (PyUnicode_CompareWithASCIIString(name, "capabilities") == 0) {
+            if (args[nargs + i] == Py_None) continue;
+            capabilities = (nk_capability_t)PyLong_AsUnsignedLongLong(args[nargs + i]);
+            if (capabilities == (nk_capability_t)-1 && PyErr_Occurred()) return NULL;
+        }
+        else if (PyUnicode_CompareWithASCIIString(name, "stream") == 0) {
+            if (!parse_dispatch_keyword(name, args[nargs + i], &capabilities, &stream)) return NULL;
+        }
         else {
             PyErr_Format(PyExc_TypeError, "copy() got unexpected keyword argument '%S'", name);
             return NULL;
         }
+    }
+    if (capabilities && out_obj && out_obj != Py_None) {
+        PyErr_SetString(PyExc_TypeError, "copy() takes `out` or `capabilities`, not both");
+        return NULL;
     }
     if (!tensor_on_host(tensor)) return NULL;
 
@@ -1418,7 +1462,22 @@ PyObject *Tensor_copy(PyObject *self, PyObject *const *args, Py_ssize_t nargs, P
         return out_obj;
     }
 
-    Tensor *result = Tensor_new(tensor->dtype, tensor->rank, tensor->shape);
+    Tensor *result;
+    if (capabilities) {
+        size_t total_bytes = 0;
+        result = tensor_header_new(tensor->dtype, tensor->rank, tensor->shape, &total_bytes);
+        if (!result) return NULL;
+        result->capabilities = capabilities;
+        nk_status_t status;
+        Py_BEGIN_ALLOW_THREADS;
+        status = nk_memory_allocate_unified_best(total_bytes, (void **)&result->data, capabilities, stream);
+        Py_END_ALLOW_THREADS;
+        if (!check_status(status)) {
+            Py_DECREF(result);
+            return NULL;
+        }
+    }
+    else result = Tensor_new(tensor->dtype, tensor->rank, tensor->shape);
     if (!result) return NULL;
 
     linearize_cast_into(tensor->data, tensor->dtype, result->data, tensor->dtype, tensor->rank, tensor->shape,

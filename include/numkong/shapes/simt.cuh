@@ -2,7 +2,7 @@
  *  @file include/numkong/shapes/simt.cuh
  *  @author Ash Vardanian
  *  @date October 14, 2026
- *  @brief Exact optimal transport between 3D point clouds on the SIMT cores of CUDA and ROCm.
+ *  @brief Many-to-many shape distances between 3D point clouds on the SIMT cores of CUDA and ROCm.
  *
  *  @sa c/numkong/shapes.h
  *  @sa include/numkong/shapes/serial.h
@@ -92,6 +92,7 @@ NUMKONG_DEVICE nk_f32_t nk_sqrt_f32_simt_(nk_f32_t number) {
 
 /** Adds @p a × @p b into the Dot2 pair, as @c nk_dot2_f64_serial_ does. */
 NUMKONG_DEVICE void nk_dot2_f64_simt_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t a, nk_f64_t b) {
+#pragma clang fp contract(off) // HIP's `__dmul_rn` is a plain product, which would fuse with this sum
     nk_f64_t const product = __dmul_rn(a, b);
     nk_f64_t const product_error = __fma_rn(a, b, -product);
     nk_f64_t const running_sum = *sum + product;
@@ -577,7 +578,7 @@ enum {
     /** Bytes where a team of several blocks meets: the barrier, then 2 argmins and 10 sums of
      *  doubles per block, then the argmins' indices. */
     nk_shapes_meeting_bytes_simt_k = 64 + (2 + nk_shapes_team_values_simt_k) * nk_shapes_team_blocks_simt_k * 8 +
-                                     2 * nk_shapes_team_blocks_simt_k * 4,
+        2 * nk_shapes_team_blocks_simt_k * 4,
 };
 
 /** Bytes of a block's team scratch in shared memory for @p threads threads. */
@@ -1267,7 +1268,7 @@ NUMKONG_DEVICE nk_f64_t nk_shapes_plan_moments_f32_simt_(nk_shapes_network_simt_
     return sums[9] / mass;
 }
 
-/** The simplex tree's potentials walked from its root, as @c nk_shapes_tree_potentials_f64_serial_
+/** The simplex tree's potentials walked from its root, as @c nk_shapes_tree_potentials_serial_
  *  sets them. Runs on one thread. */
 NUMKONG_DEVICE void nk_shapes_tree_potentials_f32_simt_(nk_shapes_network_simt_t *network,
                                                         nk_shapes_points_f32_simt_t const *points) {
@@ -2310,6 +2311,15 @@ NUMKONG_DEVICE nk_f16_t const *nk_shapes_packed_axes_f16_simt_(void const *packe
     return (nk_f16_t const *)((char const *)packed + header_bytes);
 }
 
+/** The x array of a pack of F64 points, with the elements from each axis to the next. */
+NUMKONG_DEVICE nk_f64_t const *nk_shapes_packed_axes_f64_simt_(void const *packed, nk_size_t *axis_stride) {
+    nk_size_t const points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)packed)->points;
+    nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
+                                                                 nk_shapes_alignment_k_);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f64_t), nk_shapes_alignment_k_) / sizeof(nk_f64_t);
+    return (nk_f64_t const *)((char const *)packed + header_bytes);
+}
+
 /** One packed F16 coordinate in F32, exactly. Packs hold finite coordinates, so it skips the
  *  compare and select per value that @c nk_f16_to_f32_simt_ spends keeping NaN payloads. */
 NUMKONG_DEVICE nk_f32_t nk_shapes_coordinate_f16_simt_(nk_f16_t const *coordinate) {
@@ -2365,19 +2375,27 @@ NUMKONG_DEVICE void nk_shapes_nearest_squares_f16_simt_(nk_f32_t outer_x, nk_f32
 }
 
 /** A lower bound of the Hausdorff distance between two packs of F32 points from their headers
- *  alone: the gap between their largest radii. */
+ *  alone: the gap between their largest radii, less 8 roundings of those radii, as each is stored 3
+ *  off and the gap and the computed distance add 5. */
 NUMKONG_DEVICE nk_f64_t nk_hausdorff_bound_packed_f32_simt_(void const *a_packed, void const *b_packed) {
-    nk_f64_t const gap = ((nk_shapes_packed_header_f64_t const *)a_packed)->max_radius -
-                         ((nk_shapes_packed_header_f64_t const *)b_packed)->max_radius;
-    return gap < 0 ? -gap : gap;
+    nk_f64_t const a_radius = ((nk_shapes_packed_header_f64_t const *)a_packed)->max_radius;
+    nk_f64_t const b_radius = ((nk_shapes_packed_header_f64_t const *)b_packed)->max_radius;
+    nk_f64_t const slack = 8 * 0x1p-53 * (a_radius + b_radius);
+    nk_f64_t const difference = a_radius - b_radius;
+    nk_f64_t const gap = (difference < 0 ? -difference : difference) - slack;
+    return gap > 0 ? gap : 0;
 }
 
 /** A lower bound of the Hausdorff distance between two packs of F16 points from their headers
- *  alone: the gap between their largest radii. */
+ *  alone: the gap between their largest radii, less 8 roundings of those radii, as each is stored 3
+ *  off and the gap and the computed distance add 5. */
 NUMKONG_DEVICE nk_f32_t nk_hausdorff_bound_packed_f16_simt_(void const *a_packed, void const *b_packed) {
-    nk_f32_t const gap = ((nk_shapes_packed_header_f32_t const *)a_packed)->max_radius -
-                         ((nk_shapes_packed_header_f32_t const *)b_packed)->max_radius;
-    return gap < 0 ? -gap : gap;
+    nk_f32_t const a_radius = ((nk_shapes_packed_header_f32_t const *)a_packed)->max_radius;
+    nk_f32_t const b_radius = ((nk_shapes_packed_header_f32_t const *)b_packed)->max_radius;
+    nk_f32_t const slack = 8 * 0x1p-24f * (a_radius + b_radius);
+    nk_f32_t const difference = a_radius - b_radius;
+    nk_f32_t const gap = (difference < 0 ? -difference : difference) - slack;
+    return gap > 0 ? gap : 0;
 }
 
 /** The Chamfer distance between two packs of F32 points on one thread, for clouds too small to
@@ -2539,6 +2557,920 @@ NUMKONG_DEVICE nk_f32_t nk_hausdorff_packed_f16_simt_(void const *a_packed, void
 }
 
 #pragma endregion Chamfer and Hausdorff
+
+#pragma region Transport Schedules
+
+enum {
+
+    /** Pairs the Wasserstein-Procrustes workspace keeps in flight, enough for every multiprocessor
+     *  many times over. */
+    nk_shapes_pair_slots_simt_k = 16384,
+
+    /** Pairs times points the Gromov-Wasserstein workspace keeps in flight, between 16 and 4096
+     *  pairs, so its bytes grow with the clouds it was sized for and give that bound back. */
+    nk_gromov_pair_points_simt_k = 131072,
+
+    /** Doubles of a flip's or start's record: its least cost or loss, then its rotation's 9. */
+    nk_shapes_record_simt_k = 10,
+
+    /** Offset of a slot's 8 flip records, after its counters of flips and of starts done. */
+    nk_shapes_slot_records_simt_k = 8,
+
+    /** Offset of a slot's 3 start records. */
+    nk_shapes_slot_starts_simt_k = 8 + 8 * nk_shapes_record_simt_k * 8,
+
+    /** Offset of a Gromov-Wasserstein slot's flip plans. */
+    nk_shapes_slot_plans_simt_k = nk_shapes_slot_starts_simt_k + 3 * nk_shapes_record_simt_k * 8,
+
+    /** Most classes of cloud sizes a Wasserstein-Procrustes chunk sorts its pairs into, up to
+     *  98,304 points. */
+    nk_shapes_classes_simt_k = 24,
+
+    /** Bytes the workspace spends on teams' states in global memory, for clouds past one block. */
+    nk_shapes_team_budget_simt_k = 256 << 20,
+
+    /** Most teams' states the workspace keeps, enough for every resident block. */
+    nk_shapes_teams_simt_k = 1024,
+};
+
+/** One transport launch: the packs, the outputs, the pair slots of the workspace, a slot's layout,
+ *  and the pairs it walks, from @c pair_begin on. Gromov-Wasserstein slots add each flip's best
+ *  plan at @c plans_offset , then the dense state of each start, @c gromov_stride bytes apart from
+ *  @c gromov_offset on. A Wasserstein-Procrustes launch solves the @c class_count pairs listed at
+ *  @c class_slots , whose larger clouds hold at most @c class_ceiling points, which sizes its
+ *  state, and the last one records those above @c class_limit as unsolvable. Without a list, a
+ *  launch takes every pair of its chunk. With @c team_states , teams of blocks keep their state in
+ *  global memory, @c team_stride bytes apart, at most @c teams of them; without, each block keeps
+ *  its own in shared memory. */
+typedef struct {
+    void const *const *a_packed;
+    void const *const *b_packed;
+    void *results;
+    nk_f32_t *rotations;
+    nk_size_t rows, columns, results_stride;
+    nk_size_t pair_begin, pairs;
+    unsigned char *slots;
+    nk_size_t slot_stride, plans_offset, gromov_offset, gromov_stride;
+    nk_u32_t *class_counts;
+    nk_u32_t const *class_count, *class_slots;
+    nk_u32_t class_ceiling, class_limit;
+    int gromov;
+    unsigned char *team_states;
+    nk_size_t team_stride, teams;
+} nk_shapes_transport_schedule_simt_t;
+
+/** The blocks solving one item at a time, from @c first on, @c count teams apart: one block over
+ *  shared memory, or @c blocks blocks over the state at @c region , this one of @c rank . */
+typedef struct {
+    nk_size_t first, count;
+    unsigned blocks, rank;
+    unsigned char *region;
+} nk_shapes_team_simt_t;
+
+/** Bytes of a Wasserstein-Procrustes pair slot: two counters and 8 flip records. */
+NUMKONG_INLINE nk_size_t nk_shapes_slot_bytes_simt_(void) { return nk_shapes_slot_starts_simt_k; }
+
+/** Bytes of a team's meeting place and state in global memory for clouds of up to @p largest
+ *  points of @p point_bytes per coordinate. */
+NUMKONG_INLINE nk_size_t nk_shapes_team_stride_simt_(nk_size_t largest, nk_size_t point_bytes) {
+    return nk_size_round_up_to_multiple_(
+        nk_shapes_meeting_bytes_simt_k + nk_shapes_state_bytes_simt_(largest, largest, point_bytes), 256);
+}
+
+/** Teams' states a workspace keeps for clouds of up to @p largest points. */
+NUMKONG_INLINE nk_size_t nk_shapes_teams_simt_(nk_size_t largest, nk_size_t point_bytes) {
+    nk_size_t const teams = (nk_size_t)nk_shapes_team_budget_simt_k / nk_shapes_team_stride_simt_(largest, point_bytes);
+    return teams < 1 ? 1 : teams > nk_shapes_teams_simt_k ? nk_shapes_teams_simt_k : teams;
+}
+
+/** Bytes of a Wasserstein-Procrustes workspace of @p slots pair slots for clouds of up to
+ *  @p largest points: the teams, the class counts, a list of slots per class, and the slots. */
+NUMKONG_INLINE nk_size_t nk_shapes_workspace_bytes_simt_(nk_size_t slots, nk_size_t largest, nk_size_t point_bytes) {
+    return nk_shapes_teams_simt_(largest, point_bytes) * nk_shapes_team_stride_simt_(largest, point_bytes) +
+           nk_shapes_classes_simt_k * sizeof(nk_u32_t) * (1 + slots) + slots * nk_shapes_slot_bytes_simt_();
+}
+
+/** The largest cloud of class @p class_index : 32, 48, 64, 96, 128 and on, two per doubling. */
+NUMKONG_CONSTEXPR nk_u32_t nk_shapes_class_ceiling_simt_(nk_u32_t class_index) {
+    return (32u << (class_index / 2)) + ((class_index & 1u) ? (16u << (class_index / 2)) : 0u);
+}
+
+/** Offset of a Gromov-Wasserstein slot's dense state, after the 8 flips' plans of up to
+ *  2 × @p largest arcs each. */
+NUMKONG_INLINE nk_size_t nk_gromov_dense_offset_simt_(nk_size_t largest) {
+    return nk_size_round_up_to_multiple_(nk_shapes_slot_plans_simt_k + 8 * 3 * 2 * largest * sizeof(nk_u32_t), 128);
+}
+
+/** Bytes of a Gromov-Wasserstein pair slot for clouds of up to @p largest points: the records, the
+ *  plans, and the 3 starts' dense state. */
+NUMKONG_INLINE nk_size_t nk_gromov_slot_bytes_simt_(nk_size_t largest) {
+    return nk_gromov_dense_offset_simt_(largest) + 3 * nk_shapes_gromov_bytes_simt_(largest);
+}
+
+/** Pair slots of a Gromov-Wasserstein workspace for clouds of up to @p largest points. */
+NUMKONG_INLINE nk_size_t nk_gromov_slots_simt_(nk_size_t largest) {
+    nk_size_t const slots = nk_gromov_pair_points_simt_k / (largest ? largest : 1);
+    return slots < 16 ? 16 : slots > 4096 ? 4096 : slots;
+}
+
+/** Bytes of a Gromov-Wasserstein workspace for clouds of up to @p largest points of @p point_bytes
+ *  per coordinate: the slots, then the teams. */
+NUMKONG_INLINE nk_size_t nk_gromov_workspace_bytes_simt_(nk_size_t largest, nk_size_t point_bytes) {
+    return nk_size_round_up_to_multiple_(nk_gromov_slots_simt_(largest) * nk_gromov_slot_bytes_simt_(largest), 256) +
+           nk_shapes_teams_simt_(largest, point_bytes) * nk_shapes_team_stride_simt_(largest, point_bytes);
+}
+
+/** Whether the column pack of an f32 pair goes first in the canonical order of
+ *  @c nk_shapes_column_first_f32_serial_ : by points, spreads, radius and then bytes. */
+NUMKONG_DEVICE int nk_shapes_column_first_f32_simt_(void const *row_packed, void const *column_packed) {
+    nk_shapes_packed_header_f64_t const *row_header = (nk_shapes_packed_header_f64_t const *)row_packed;
+    nk_shapes_packed_header_f64_t const *column_header = (nk_shapes_packed_header_f64_t const *)column_packed;
+    if (row_header->points != column_header->points) return column_header->points < row_header->points;
+    for (int axis = 0; axis != 3; ++axis)
+        if (row_header->spreads[axis] != column_header->spreads[axis])
+            return column_header->spreads[axis] < row_header->spreads[axis];
+    if (row_header->max_radius != column_header->max_radius) return column_header->max_radius < row_header->max_radius;
+    nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
+                                                                 nk_shapes_alignment_k_);
+    nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(row_header->points * sizeof(nk_f32_t),
+                                                               nk_shapes_alignment_k_);
+    nk_size_t const points_bytes = row_header->points * sizeof(nk_f32_t);
+    nk_u8_t const *row_bytes = (nk_u8_t const *)row_packed + header_bytes;
+    nk_u8_t const *column_bytes = (nk_u8_t const *)column_packed + header_bytes;
+    for (nk_size_t axis_offset = 0; axis_offset != 3 * axis_bytes; axis_offset += axis_bytes)
+        for (nk_size_t byte_index = axis_offset; byte_index != axis_offset + points_bytes; ++byte_index)
+            if (row_bytes[byte_index] != column_bytes[byte_index])
+                return column_bytes[byte_index] < row_bytes[byte_index];
+    return 0;
+}
+
+NUMKONG_DEVICE int nk_shapes_column_first_f16_simt_(void const *row_packed, void const *column_packed) {
+    nk_shapes_packed_header_f32_t const *row_header = (nk_shapes_packed_header_f32_t const *)row_packed;
+    nk_shapes_packed_header_f32_t const *column_header = (nk_shapes_packed_header_f32_t const *)column_packed;
+    if (row_header->points != column_header->points) return column_header->points < row_header->points;
+    for (int axis = 0; axis != 3; ++axis)
+        if (row_header->spreads[axis] != column_header->spreads[axis])
+            return column_header->spreads[axis] < row_header->spreads[axis];
+    if (row_header->max_radius != column_header->max_radius) return column_header->max_radius < row_header->max_radius;
+    nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
+                                                                 nk_shapes_alignment_k_);
+    nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(row_header->points * sizeof(nk_f16_t),
+                                                               nk_shapes_alignment_k_);
+    nk_size_t const points_bytes = row_header->points * sizeof(nk_f16_t);
+    nk_u8_t const *row_bytes = (nk_u8_t const *)row_packed + header_bytes;
+    nk_u8_t const *column_bytes = (nk_u8_t const *)column_packed + header_bytes;
+    for (nk_size_t axis_offset = 0; axis_offset != 3 * axis_bytes; axis_offset += axis_bytes)
+        for (nk_size_t byte_index = axis_offset; byte_index != axis_offset + points_bytes; ++byte_index)
+            if (row_bytes[byte_index] != column_bytes[byte_index])
+                return column_bytes[byte_index] < row_bytes[byte_index];
+    return 0;
+}
+
+/** The rotation 𝑄ₐᵀ × inner × 𝑄ᵦ of @c nk_shapes_rotation_f64_serial_ , taking the column cloud
+ *  onto the row cloud. */
+NUMKONG_DEVICE void nk_shapes_rotation_f64_simt_(nk_f64_t const *row_frame, nk_f64_t const *inner,
+                                                 nk_f64_t const *column_frame, nk_f64_t *rotation) {
+    nk_f64_t row_axes[9], column_axes[9], inner_column[9];
+    nk_quaternion_to_mat3x3_f64_simt_(row_frame, row_axes);
+    nk_quaternion_to_mat3x3_f64_simt_(column_frame, column_axes);
+    for (int row = 0; row != 3; ++row)
+        for (int column = 0; column != 3; ++column)
+            inner_column[row * 3 + column] = inner[row * 3] * column_axes[column] +
+                                             inner[row * 3 + 1] * column_axes[3 + column] +
+                                             inner[row * 3 + 2] * column_axes[6 + column];
+    for (int row = 0; row != 3; ++row)
+        for (int column = 0; column != 3; ++column)
+            rotation[row * 3 + column] = row_axes[row] * inner_column[column] +
+                                         row_axes[3 + row] * inner_column[3 + column] +
+                                         row_axes[6 + row] * inner_column[6 + column];
+}
+
+NUMKONG_DEVICE void nk_shapes_rotation_f32_simt_(nk_f32_t const *row_frame, nk_f32_t const *inner,
+                                                 nk_f32_t const *column_frame, nk_f32_t *rotation) {
+    nk_f32_t row_axes[9], column_axes[9], inner_column[9];
+    nk_quaternion_to_mat3x3_f32_simt_(row_frame, row_axes);
+    nk_quaternion_to_mat3x3_f32_simt_(column_frame, column_axes);
+    for (int row = 0; row != 3; ++row)
+        for (int column = 0; column != 3; ++column)
+            inner_column[row * 3 + column] = inner[row * 3] * column_axes[column] +
+                                             inner[row * 3 + 1] * column_axes[3 + column] +
+                                             inner[row * 3 + 2] * column_axes[6 + column];
+    for (int row = 0; row != 3; ++row)
+        for (int column = 0; column != 3; ++column)
+            rotation[row * 3 + column] = row_axes[row] * inner_column[column] +
+                                         row_axes[3 + row] * inner_column[3 + column] +
+                                         row_axes[6 + row] * inner_column[6 + column];
+}
+
+/** Whether a pair with @p rows and @p columns points is above the launch's largest cloud. */
+NUMKONG_DEVICE int nk_shapes_pair_oversize_simt_(nk_shapes_transport_schedule_simt_t const *schedule, nk_u32_t rows,
+                                                 nk_u32_t columns) {
+    return (rows > columns ? rows : columns) > schedule->class_ceiling;
+}
+
+/** This block's team for a launch of @p items items: itself alone without team states, else as
+ *  many blocks per item as the grid spares, up to 16, which every block derives alike. Tells
+ *  whether the block has a team, as the grid's last blocks may not fill one. */
+NUMKONG_DEVICE int nk_shapes_find_team_simt_(nk_shapes_transport_schedule_simt_t const *schedule, nk_size_t items,
+                                             nk_shapes_team_simt_t *team) {
+    team->first = blockIdx.x, team->count = gridDim.x, team->blocks = 1, team->rank = 0;
+    team->region = NUMKONG_NULL;
+    if (!schedule->team_states) return 1;
+    nk_size_t const spare = gridDim.x / (items ? items : 1);
+    team->blocks = spare >= nk_shapes_team_blocks_simt_k ? nk_shapes_team_blocks_simt_k : spare ? (unsigned)spare : 1;
+    team->count = gridDim.x / team->blocks;
+    team->count = team->count < schedule->teams ? team->count : schedule->teams;
+    team->first = blockIdx.x / team->blocks, team->rank = blockIdx.x % team->blocks;
+    team->region = schedule->team_states + team->first * schedule->team_stride;
+    return team->first < team->count;
+}
+
+/** Carves a team's network over the largest clouds of the launch, the block's scratch at @p shared
+ *  and the state at @p state , and joins the team's blocks. */
+NUMKONG_DEVICE void nk_shapes_team_carve_simt_(nk_shapes_team_simt_t const *team, void *shared, void *state,
+                                               nk_u32_t largest, nk_u32_t rows, nk_u32_t columns, nk_size_t point_bytes,
+                                               nk_shapes_network_simt_t *network) {
+    nk_shapes_network_carve_simt_(shared, state, largest, largest, rows, columns, point_bytes, network);
+    if (team->blocks != 1) nk_shapes_network_join_simt_(network, team->region, team->blocks, team->rank);
+}
+
+/** Lists each pair of the chunk under the class of its larger cloud, the last class taking every
+ *  cloud above @c class_limit . */
+NUMKONG_DEVICE void nk_shapes_classify_simt_(nk_shapes_transport_schedule_simt_t const *schedule, nk_size_t slot_index,
+                                             nk_u32_t largest) {
+    nk_u32_t class_index = 0;
+    while (nk_shapes_class_ceiling_simt_(class_index) < largest &&
+           nk_shapes_class_ceiling_simt_(class_index) < schedule->class_limit &&
+           class_index + 1 != nk_shapes_classes_simt_k)
+        ++class_index;
+    nk_u32_t const position = atomicAdd(&schedule->class_counts[class_index], 1u);
+    // The classifying launch fills the lists every solving launch then reads through `class_slots`.
+    nk_u32_t *const lists = (nk_u32_t *)schedule->class_slots;
+    lists[class_index * schedule->pairs + position] = (nk_u32_t)slot_index;
+}
+
+#pragma endregion Transport Schedules
+
+#pragma region Transport Walks
+
+/** Picks a pair's best flip in the serial order from its 8 records, and writes its distance and
+ *  rotation. Runs on one thread of the last block of the pair. */
+NUMKONG_DEVICE void nk_wassersteinprocrustes_finish_f32_simt_(nk_shapes_transport_schedule_simt_t const *schedule,
+                                                              nk_size_t pair, nk_f64_t const volatile *records) {
+    nk_size_t const row = pair / schedule->columns, column = pair % schedule->columns;
+    void const *a = schedule->a_packed[row], *b = schedule->b_packed[column];
+    int const swapped = nk_shapes_column_first_f32_simt_(a, b);
+    nk_shapes_packed_header_f64_t const *row_header = (nk_shapes_packed_header_f64_t const *)(swapped ? b : a);
+    nk_shapes_packed_header_f64_t const *column_header = (nk_shapes_packed_header_f64_t const *)(swapped ? a : b);
+    int best_flip = 0;
+    for (int flip = 1; flip != 8; ++flip)
+        if (records[flip * nk_shapes_record_simt_k] < records[best_flip * nk_shapes_record_simt_k]) best_flip = flip;
+    nk_f64_t const best = records[best_flip * nk_shapes_record_simt_k];
+    nk_f64_t *results_row = (nk_f64_t *)((char *)schedule->results + row * schedule->results_stride);
+    int const empty = !row_header->points || !column_header->points;
+    // A pair over the launch's largest cloud records NaN, which the root would turn into zero
+    results_row[column] = empty || best != best ? best : nk_sqrt_f64_simt_(best);
+    if (!schedule->rotations) return;
+    nk_f64_t inner[9], pair_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    for (int cell = 0; cell != 9; ++cell) inner[cell] = records[best_flip * nk_shapes_record_simt_k + 1 + cell];
+    if (!empty) nk_shapes_rotation_f64_simt_(row_header->frame, inner, column_header->frame, pair_rotation);
+    nk_f32_t *output = schedule->rotations + pair * 9;
+    for (int cell = 0; cell != 9; ++cell)
+        output[cell] = (nk_f32_t)pair_rotation[swapped ? cell % 3 * 3 + cell / 3 : cell];
+}
+
+NUMKONG_DEVICE void nk_wassersteinprocrustes_finish_f16_simt_(nk_shapes_transport_schedule_simt_t const *schedule,
+                                                              nk_size_t pair, nk_f64_t const volatile *records) {
+    nk_size_t const row = pair / schedule->columns, column = pair % schedule->columns;
+    void const *a = schedule->a_packed[row], *b = schedule->b_packed[column];
+    int const swapped = nk_shapes_column_first_f16_simt_(a, b);
+    nk_shapes_packed_header_f32_t const *row_header = (nk_shapes_packed_header_f32_t const *)(swapped ? b : a);
+    nk_shapes_packed_header_f32_t const *column_header = (nk_shapes_packed_header_f32_t const *)(swapped ? a : b);
+    int best_flip = 0;
+    for (int flip = 1; flip != 8; ++flip)
+        if (records[flip * nk_shapes_record_simt_k] < records[best_flip * nk_shapes_record_simt_k]) best_flip = flip;
+    nk_f32_t const best = (nk_f32_t)records[best_flip * nk_shapes_record_simt_k];
+    nk_f32_t *results_row = (nk_f32_t *)((char *)schedule->results + row * schedule->results_stride);
+    int const empty = !row_header->points || !column_header->points;
+    results_row[column] = empty || best != best ? best : nk_sqrt_f32_simt_(best);
+    if (!schedule->rotations) return;
+    nk_f32_t inner[9], pair_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    for (int cell = 0; cell != 9; ++cell)
+        inner[cell] = (nk_f32_t)records[best_flip * nk_shapes_record_simt_k + 1 + cell];
+    if (!empty) nk_shapes_rotation_f32_simt_(row_header->frame, inner, column_header->frame, pair_rotation);
+    nk_f32_t *output = schedule->rotations + pair * 9;
+    for (int cell = 0; cell != 9; ++cell) output[cell] = pair_rotation[swapped ? cell % 3 * 3 + cell / 3 : cell];
+}
+
+/** Stores the record of the @p index th of a slot's @p count flips or starts at @p offset , and
+ *  tells whether it was the last of them to arrive, which then resets the slot's @p counter . */
+NUMKONG_DEVICE void nk_shapes_record_simt_(unsigned char *slot, nk_size_t offset, nk_u32_t *counter, int index,
+                                           unsigned count, nk_f64_t cost, nk_f64_t const *rotation, int *last) {
+    if (threadIdx.x == 0) {
+        nk_f64_t *record = (nk_f64_t *)(slot + offset) + index * nk_shapes_record_simt_k;
+        record[0] = cost;
+        for (int cell = 0; cell != 9; ++cell) record[1 + cell] = rotation[cell];
+        __threadfence();
+        *last = atomicAdd(counter, 1u) == count - 1;
+        if (*last) __threadfence(), *counter = 0;
+    }
+    __syncthreads();
+}
+
+/** Solves the team's flips of a launch's @p items items, the block's scratch at @p shared and the
+ *  team's state at @p state . Wasserstein-Procrustes finishes each pair in its last flip; for
+ *  Gromov-Wasserstein, each flip only leaves its record and best plan. */
+NUMKONG_DEVICE void nk_wassersteinprocrustes_walk_f32_simt_(nk_shapes_transport_schedule_simt_t const *schedule,
+                                                            nk_shapes_team_simt_t const *team, nk_size_t items,
+                                                            void *shared, void *state, nk_f64_t *shared_rotation,
+                                                            int *last) {
+    unsigned parity = 0;
+    nk_u32_t const plan_arcs = 2 * schedule->class_ceiling;
+    for (nk_size_t item = team->first; item < items; item += team->count) {
+        nk_size_t const slot_index = schedule->class_slots ? schedule->class_slots[item >> 3] : item >> 3;
+        nk_size_t const pair = schedule->pair_begin + slot_index;
+        unsigned char *slot = schedule->slots + slot_index * schedule->slot_stride;
+        int const flip = (int)(item & 7);
+        void const *a = schedule->a_packed[pair / schedule->columns];
+        void const *b = schedule->b_packed[pair % schedule->columns];
+        int const swapped = nk_shapes_column_first_f32_simt_(a, b);
+        void const *row_pack = swapped ? b : a, *column_pack = swapped ? a : b;
+        nk_u32_t const rows = (nk_u32_t)((nk_shapes_packed_header_f64_t const *)row_pack)->points;
+        nk_u32_t const columns = (nk_u32_t)((nk_shapes_packed_header_f64_t const *)column_pack)->points;
+        nk_f64_t cost, rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+        if (nk_shapes_pair_oversize_simt_(schedule, rows, columns)) cost = NUMKONG_F64_INF - NUMKONG_F64_INF;
+        else if (!rows || !columns) cost = rows == columns ? 0 : NUMKONG_F64_INF;
+        else {
+            nk_shapes_points_f32_simt_t points;
+            nk_shapes_network_simt_t network;
+            nk_shapes_team_carve_simt_(team, shared, state, schedule->class_ceiling, rows, columns, sizeof(nk_f64_t),
+                                       &network);
+            nk_shapes_points_carve_f32_simt_(state, schedule->class_ceiling, schedule->class_ceiling, &points);
+            nk_f64_t const radii = ((nk_shapes_packed_header_f64_t const *)row_pack)->max_radius +
+                                   ((nk_shapes_packed_header_f64_t const *)column_pack)->max_radius;
+            network.tolerance = radii * radii * 1e-12;
+            nk_size_t row_stride, column_stride;
+            nk_f32_t const *row_axes = nk_shapes_packed_axes_f32_simt_(row_pack, &row_stride);
+            nk_f32_t const *column_axes = nk_shapes_packed_axes_f32_simt_(column_pack, &column_stride);
+            nk_u32_t *saved_plan = schedule->gromov ? (nk_u32_t *)(slot + schedule->plans_offset) + flip * 3 * plan_arcs
+                                                    : NUMKONG_NULL;
+            nk_shapes_load_rows_f32_simt_(&network, &points, row_axes, row_stride, rows);
+            nk_wassersteinprocrustes_flip_f32_simt_(&network, &points, column_axes, column_stride, flip,
+                                                    shared_rotation, &cost, rotation, saved_plan, &parity);
+        }
+        if (team->rank != 0) continue;
+        nk_shapes_record_simt_(slot, nk_shapes_slot_records_simt_k, (nk_u32_t *)slot, flip, 8, cost, rotation, last);
+        if (*last && !schedule->gromov && threadIdx.x == 0)
+            nk_wassersteinprocrustes_finish_f32_simt_(schedule, pair,
+                                                      (nk_f64_t *)(slot + nk_shapes_slot_records_simt_k));
+        __syncthreads();
+    }
+}
+
+NUMKONG_DEVICE void nk_wassersteinprocrustes_walk_f16_simt_(nk_shapes_transport_schedule_simt_t const *schedule,
+                                                            nk_shapes_team_simt_t const *team, nk_size_t items,
+                                                            void *shared, void *state, nk_f32_t *shared_rotation,
+                                                            int *last) {
+    unsigned parity = 0;
+    nk_u32_t const plan_arcs = 2 * schedule->class_ceiling;
+    for (nk_size_t item = team->first; item < items; item += team->count) {
+        nk_size_t const slot_index = schedule->class_slots ? schedule->class_slots[item >> 3] : item >> 3;
+        nk_size_t const pair = schedule->pair_begin + slot_index;
+        unsigned char *slot = schedule->slots + slot_index * schedule->slot_stride;
+        int const flip = (int)(item & 7);
+        void const *a = schedule->a_packed[pair / schedule->columns];
+        void const *b = schedule->b_packed[pair % schedule->columns];
+        int const swapped = nk_shapes_column_first_f16_simt_(a, b);
+        void const *row_pack = swapped ? b : a, *column_pack = swapped ? a : b;
+        nk_u32_t const rows = ((nk_shapes_packed_header_f32_t const *)row_pack)->points;
+        nk_u32_t const columns = ((nk_shapes_packed_header_f32_t const *)column_pack)->points;
+        nk_f32_t cost, rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+        if (nk_shapes_pair_oversize_simt_(schedule, rows, columns)) cost = NUMKONG_F32_INF - NUMKONG_F32_INF;
+        else if (!rows || !columns) cost = rows == columns ? 0 : NUMKONG_F32_INF;
+        else {
+            nk_shapes_points_f16_simt_t points;
+            nk_shapes_network_simt_t network;
+            nk_shapes_team_carve_simt_(team, shared, state, schedule->class_ceiling, rows, columns, sizeof(nk_f32_t),
+                                       &network);
+            nk_shapes_points_carve_f16_simt_(state, schedule->class_ceiling, schedule->class_ceiling, &points);
+            nk_f32_t const radii = ((nk_shapes_packed_header_f32_t const *)row_pack)->max_radius +
+                                   ((nk_shapes_packed_header_f32_t const *)column_pack)->max_radius;
+            network.tolerance = (nk_f64_t)(radii * radii) * 1e-12;
+            nk_size_t row_stride, column_stride;
+            nk_f16_t const *row_axes = nk_shapes_packed_axes_f16_simt_(row_pack, &row_stride);
+            nk_f16_t const *column_axes = nk_shapes_packed_axes_f16_simt_(column_pack, &column_stride);
+            nk_u32_t *saved_plan = schedule->gromov ? (nk_u32_t *)(slot + schedule->plans_offset) + flip * 3 * plan_arcs
+                                                    : NUMKONG_NULL;
+            nk_shapes_load_rows_f16_simt_(&network, &points, row_axes, row_stride, rows);
+            nk_wassersteinprocrustes_flip_f16_simt_(&network, &points, column_axes, column_stride, flip,
+                                                    shared_rotation, &cost, rotation, saved_plan, &parity);
+        }
+        if (team->rank != 0) continue;
+        nk_f64_t wide_rotation[9];
+        for (int cell = 0; cell != 9; ++cell) wide_rotation[cell] = rotation[cell];
+        nk_shapes_record_simt_(slot, nk_shapes_slot_records_simt_k, (nk_u32_t *)slot, flip, 8, cost, wide_rotation,
+                               last);
+        if (*last && !schedule->gromov && threadIdx.x == 0)
+            nk_wassersteinprocrustes_finish_f16_simt_(schedule, pair,
+                                                      (nk_f64_t *)(slot + nk_shapes_slot_records_simt_k));
+        __syncthreads();
+    }
+}
+
+/** The largest cloud a Wasserstein-Procrustes workspace of @p workspace_bytes holds with every pair
+ *  slot, as the size queries lay it out. */
+NUMKONG_INLINE nk_size_t nk_shapes_workspace_bound_simt_(nk_size_t workspace_bytes, nk_size_t point_bytes) {
+    nk_size_t largest = nk_shapes_class_ceiling_simt_(nk_shapes_classes_simt_k - 1);
+    while (largest &&
+           nk_shapes_workspace_bytes_simt_(nk_shapes_pair_slots_simt_k, largest, point_bytes) > workspace_bytes)
+        --largest;
+    return largest;
+}
+
+/** The flip whose plan starts @p start , the best proper flip for 0 and mirrored for 1, the first
+ *  of equal ones as the serial solver keeps it. */
+NUMKONG_DEVICE int nk_gromov_start_flip_simt_(nk_f64_t const *records, int start) {
+    int best = -1;
+    for (int flip = 0; flip != 8; ++flip) {
+        int const mirrored = ((flip & 1) + ((flip >> 1) & 1) + ((flip >> 2) & 1)) & 1;
+        if (mirrored != start) continue;
+        if (best < 0 || records[flip * nk_shapes_record_simt_k] < records[best * nk_shapes_record_simt_k]) best = flip;
+    }
+    return best;
+}
+
+/** Picks a pair's best start in the serial order from its 3 records, and writes its distance and
+ *  rotation. Runs on one thread of the last block of the pair. */
+NUMKONG_DEVICE void nk_gromovwassersteins_finish_f32_simt_(nk_shapes_transport_schedule_simt_t const *schedule,
+                                                           nk_size_t pair, nk_f64_t const volatile *records) {
+    nk_size_t const row = pair / schedule->columns, column = pair % schedule->columns;
+    void const *a = schedule->a_packed[row], *b = schedule->b_packed[column];
+    int const swapped = nk_shapes_column_first_f32_simt_(a, b);
+    nk_shapes_packed_header_f64_t const *row_header = (nk_shapes_packed_header_f64_t const *)(swapped ? b : a);
+    nk_shapes_packed_header_f64_t const *column_header = (nk_shapes_packed_header_f64_t const *)(swapped ? a : b);
+    nk_f64_t *results_row = (nk_f64_t *)((char *)schedule->results + row * schedule->results_stride);
+    nk_f64_t inner[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}, pair_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    // A pair over the launch's largest cloud records NaN, which no start's loss would replace
+    if (!row_header->points || !column_header->points || records[0] != records[0]) results_row[column] = records[0];
+    else {
+        nk_f64_t best = NUMKONG_F64_INF;
+        for (int start = 0; start != 3; ++start) {
+            if (!(records[start * nk_shapes_record_simt_k] < best)) continue;
+            best = records[start * nk_shapes_record_simt_k];
+            for (int cell = 0; cell != 9; ++cell) inner[cell] = records[start * nk_shapes_record_simt_k + 1 + cell];
+        }
+        results_row[column] = nk_sqrt_f64_simt_(best) / 2;
+        nk_shapes_rotation_f64_simt_(row_header->frame, inner, column_header->frame, pair_rotation);
+    }
+    if (!schedule->rotations) return;
+    nk_f32_t *output = schedule->rotations + pair * 9;
+    for (int cell = 0; cell != 9; ++cell)
+        output[cell] = (nk_f32_t)pair_rotation[swapped ? cell % 3 * 3 + cell / 3 : cell];
+}
+
+NUMKONG_DEVICE void nk_gromovwassersteins_finish_f16_simt_(nk_shapes_transport_schedule_simt_t const *schedule,
+                                                           nk_size_t pair, nk_f64_t const volatile *records) {
+    nk_size_t const row = pair / schedule->columns, column = pair % schedule->columns;
+    void const *a = schedule->a_packed[row], *b = schedule->b_packed[column];
+    int const swapped = nk_shapes_column_first_f16_simt_(a, b);
+    nk_shapes_packed_header_f32_t const *row_header = (nk_shapes_packed_header_f32_t const *)(swapped ? b : a);
+    nk_shapes_packed_header_f32_t const *column_header = (nk_shapes_packed_header_f32_t const *)(swapped ? a : b);
+    nk_f32_t *results_row = (nk_f32_t *)((char *)schedule->results + row * schedule->results_stride);
+    nk_f32_t inner[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}, pair_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    if (!row_header->points || !column_header->points || records[0] != records[0])
+        results_row[column] = (nk_f32_t)records[0];
+    else {
+        nk_f64_t best = NUMKONG_F64_INF;
+        for (int start = 0; start != 3; ++start) {
+            if (!(records[start * nk_shapes_record_simt_k] < best)) continue;
+            best = records[start * nk_shapes_record_simt_k];
+            for (int cell = 0; cell != 9; ++cell)
+                inner[cell] = (nk_f32_t)records[start * nk_shapes_record_simt_k + 1 + cell];
+        }
+        results_row[column] = (nk_f32_t)(nk_sqrt_f64_simt_(best) / 2);
+        nk_shapes_rotation_f32_simt_(row_header->frame, inner, column_header->frame, pair_rotation);
+    }
+    if (!schedule->rotations) return;
+    nk_f32_t *output = schedule->rotations + pair * 9;
+    for (int cell = 0; cell != 9; ++cell) output[cell] = pair_rotation[swapped ? cell % 3 * 3 + cell / 3 : cell];
+}
+
+/** Solves the team's starts of a launch's pairs, the block's scratch at @p shared and the team's
+ *  network at @p state , after the Wasserstein-Procrustes launch left every flip's record and best
+ *  plan in the pair's slot. */
+NUMKONG_DEVICE void nk_gromovwassersteins_walk_f32_simt_(nk_shapes_transport_schedule_simt_t const *schedule,
+                                                         nk_shapes_team_simt_t const *team, void *shared, void *state,
+                                                         nk_f64_t *shared_fit, int *last) {
+    unsigned parity = 0;
+    nk_u32_t const plan_arcs = 2 * schedule->class_ceiling;
+    for (nk_size_t item = team->first; item < schedule->pairs * 3; item += team->count) {
+        nk_size_t const slot_index = item / 3, pair = schedule->pair_begin + slot_index;
+        unsigned char *slot = schedule->slots + slot_index * schedule->slot_stride;
+        int const start = (int)(item % 3);
+        void const *a = schedule->a_packed[pair / schedule->columns];
+        void const *b = schedule->b_packed[pair % schedule->columns];
+        int const swapped = nk_shapes_column_first_f32_simt_(a, b);
+        void const *row_pack = swapped ? b : a, *column_pack = swapped ? a : b;
+        nk_u32_t const rows = (nk_u32_t)((nk_shapes_packed_header_f64_t const *)row_pack)->points;
+        nk_u32_t const columns = (nk_u32_t)((nk_shapes_packed_header_f64_t const *)column_pack)->points;
+        nk_f64_t loss, fit[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+        if (nk_shapes_pair_oversize_simt_(schedule, rows, columns)) loss = NUMKONG_F64_INF - NUMKONG_F64_INF;
+        else if (!rows || !columns) loss = rows == columns ? 0 : NUMKONG_F64_INF;
+        else {
+            nk_shapes_network_simt_t network;
+            nk_shapes_gromov_simt_t gromov;
+            nk_shapes_team_carve_simt_(team, shared, state, schedule->class_ceiling, rows, columns, 0, &network);
+            nk_shapes_gromov_carve_simt_(slot + schedule->gromov_offset + start * schedule->gromov_stride,
+                                         schedule->class_ceiling, &gromov);
+            nk_size_t row_stride, column_stride;
+            nk_f32_t const *row_axes = nk_shapes_packed_axes_f32_simt_(row_pack, &row_stride);
+            nk_f32_t const *column_axes = nk_shapes_packed_axes_f32_simt_(column_pack, &column_stride);
+            nk_shapes_distances_f32_simt_(&network, row_axes, row_stride, rows, gromov.row_distances);
+            nk_shapes_distances_f32_simt_(&network, column_axes, column_stride, columns, gromov.column_distances);
+            nk_f64_t const row_spread = nk_shapes_distance_spread_simt_(&network, gromov.row_distances, rows);
+            nk_f64_t const column_spread = nk_shapes_distance_spread_simt_(&network, gromov.column_distances, columns);
+            if (start == 2) nk_shapes_product_start_simt_(&network, &gromov);
+            else {
+                int const flip = nk_gromov_start_flip_simt_((nk_f64_t const *)(slot + nk_shapes_slot_records_simt_k),
+                                                            start);
+                nk_shapes_network_load_simt_(
+                    &network, (nk_u32_t const *)(slot + schedule->plans_offset) + flip * 3 * plan_arcs, plan_arcs);
+                nk_shapes_plan_start_simt_(&network, &gromov);
+            }
+            nk_f64_t const plan_score = nk_shapes_frank_wolfe_simt_(&network, &gromov, &parity);
+            loss = row_spread + column_spread - 2 * plan_score;
+            nk_shapes_plan_fit_f32_simt_(&network, &gromov, row_axes, row_stride, column_axes, column_stride,
+                                         shared_fit, fit);
+        }
+        if (team->rank != 0) continue;
+        nk_shapes_record_simt_(slot, nk_shapes_slot_starts_simt_k, (nk_u32_t *)slot + 1, start, 3, loss, fit, last);
+        if (*last && threadIdx.x == 0)
+            nk_gromovwassersteins_finish_f32_simt_(schedule, pair, (nk_f64_t *)(slot + nk_shapes_slot_starts_simt_k));
+        __syncthreads();
+    }
+}
+
+NUMKONG_DEVICE void nk_gromovwassersteins_walk_f16_simt_(nk_shapes_transport_schedule_simt_t const *schedule,
+                                                         nk_shapes_team_simt_t const *team, void *shared, void *state,
+                                                         nk_f64_t *shared_fit, int *last) {
+    unsigned parity = 0;
+    nk_u32_t const plan_arcs = 2 * schedule->class_ceiling;
+    for (nk_size_t item = team->first; item < schedule->pairs * 3; item += team->count) {
+        nk_size_t const slot_index = item / 3, pair = schedule->pair_begin + slot_index;
+        unsigned char *slot = schedule->slots + slot_index * schedule->slot_stride;
+        int const start = (int)(item % 3);
+        void const *a = schedule->a_packed[pair / schedule->columns];
+        void const *b = schedule->b_packed[pair % schedule->columns];
+        int const swapped = nk_shapes_column_first_f16_simt_(a, b);
+        void const *row_pack = swapped ? b : a, *column_pack = swapped ? a : b;
+        nk_u32_t const rows = ((nk_shapes_packed_header_f32_t const *)row_pack)->points;
+        nk_u32_t const columns = ((nk_shapes_packed_header_f32_t const *)column_pack)->points;
+        nk_f64_t loss, fit[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+        if (nk_shapes_pair_oversize_simt_(schedule, rows, columns)) loss = NUMKONG_F64_INF - NUMKONG_F64_INF;
+        else if (!rows || !columns) loss = rows == columns ? 0 : NUMKONG_F64_INF;
+        else {
+            nk_shapes_network_simt_t network;
+            nk_shapes_gromov_simt_t gromov;
+            nk_shapes_team_carve_simt_(team, shared, state, schedule->class_ceiling, rows, columns, 0, &network);
+            nk_shapes_gromov_carve_simt_(slot + schedule->gromov_offset + start * schedule->gromov_stride,
+                                         schedule->class_ceiling, &gromov);
+            nk_size_t row_stride, column_stride;
+            nk_f16_t const *row_axes = nk_shapes_packed_axes_f16_simt_(row_pack, &row_stride);
+            nk_f16_t const *column_axes = nk_shapes_packed_axes_f16_simt_(column_pack, &column_stride);
+            nk_shapes_distances_f16_simt_(&network, row_axes, row_stride, rows, gromov.row_distances);
+            nk_shapes_distances_f16_simt_(&network, column_axes, column_stride, columns, gromov.column_distances);
+            nk_f64_t const row_spread = nk_shapes_distance_spread_simt_(&network, gromov.row_distances, rows);
+            nk_f64_t const column_spread = nk_shapes_distance_spread_simt_(&network, gromov.column_distances, columns);
+            if (start == 2) nk_shapes_product_start_simt_(&network, &gromov);
+            else {
+                int const flip = nk_gromov_start_flip_simt_((nk_f64_t const *)(slot + nk_shapes_slot_records_simt_k),
+                                                            start);
+                nk_shapes_network_load_simt_(
+                    &network, (nk_u32_t const *)(slot + schedule->plans_offset) + flip * 3 * plan_arcs, plan_arcs);
+                nk_shapes_plan_start_simt_(&network, &gromov);
+            }
+            nk_f64_t const plan_score = nk_shapes_frank_wolfe_simt_(&network, &gromov, &parity);
+            loss = row_spread + column_spread - 2 * plan_score;
+            nk_shapes_plan_fit_f16_simt_(&network, &gromov, row_axes, row_stride, column_axes, column_stride,
+                                         shared_fit, fit);
+        }
+        if (team->rank != 0) continue;
+        nk_shapes_record_simt_(slot, nk_shapes_slot_starts_simt_k, (nk_u32_t *)slot + 1, start, 3, loss, fit, last);
+        if (*last && threadIdx.x == 0)
+            nk_gromovwassersteins_finish_f16_simt_(schedule, pair, (nk_f64_t *)(slot + nk_shapes_slot_starts_simt_k));
+        __syncthreads();
+    }
+}
+
+/** The largest cloud a Gromov-Wasserstein workspace of @p workspace_bytes holds, as the size
+ *  queries lay it out. */
+NUMKONG_INLINE nk_size_t nk_gromov_workspace_bound_simt_(nk_size_t workspace_bytes, nk_size_t point_bytes) {
+    nk_size_t largest = nk_shapes_class_ceiling_simt_(nk_shapes_classes_simt_k - 1);
+    while (largest && nk_gromov_workspace_bytes_simt_(largest, point_bytes) > workspace_bytes) --largest;
+    return largest;
+}
+
+#pragma endregion Transport Walks
+
+#pragma region Chamfer and Hausdorff Schedules
+
+enum {
+
+    /** Threads of a Chamfer or Hausdorff block: one team of the warp bodies, a pair per block. */
+    nk_shapes_lanes_simt_k = 32,
+};
+
+/** One Chamfer, Hausdorff or RMSD launch: the packs, the outputs in the kind's dtype, and the limit
+ *  in F64, which keeps an F32 limit exact. */
+typedef struct {
+    void const *const *a_packed;
+    void const *const *b_packed;
+    void *results;
+    nk_f32_t *rotations;
+    nk_size_t rows, columns, results_stride;
+    nk_f64_t limit;
+} nk_shapes_schedule_simt_t;
+
+NUMKONG_INLINE nk_shapes_schedule_simt_t nk_shapes_schedule_simt_(void const *const *a_packed, nk_size_t rows,
+                                                                  void const *const *b_packed, nk_size_t columns,
+                                                                  void *results, nk_size_t results_stride,
+                                                                  nk_f32_t *rotations, nk_f64_t limit) {
+    nk_shapes_schedule_simt_t schedule;
+    schedule.a_packed = a_packed, schedule.b_packed = b_packed, schedule.results = results;
+    schedule.rotations = rotations, schedule.rows = rows, schedule.columns = columns;
+    schedule.results_stride = results_stride, schedule.limit = limit;
+    return schedule;
+}
+
+NUMKONG_DEVICE nk_f64_t nk_shapes_least_flip_f64_simt_(nk_f64_t const *flip_distances) {
+    nk_f64_t least = flip_distances[0];
+    for (int flip = 1; flip != 8; ++flip) least = flip_distances[flip] < least ? flip_distances[flip] : least;
+    return least;
+}
+
+NUMKONG_DEVICE nk_f32_t nk_shapes_least_flip_f32_simt_(nk_f32_t const *flip_distances) {
+    nk_f32_t least = flip_distances[0];
+    for (int flip = 1; flip != 8; ++flip) least = flip_distances[flip] < least ? flip_distances[flip] : least;
+    return least;
+}
+
+/** Writes a pair's best flip and, when asked, its rotation, or the identity for an empty cloud, as
+ *  @c nk_shapes_best_flip_f64_serial_ does. Runs on one thread of the pair's team. */
+NUMKONG_DEVICE void nk_shapes_write_best_flip_f64_simt_(nk_shapes_schedule_simt_t const *schedule, nk_size_t row,
+                                                        nk_size_t column, nk_f64_t const *flip_distances) {
+    int best_flip = 0;
+    for (int flip = 1; flip != 8; ++flip)
+        if (flip_distances[flip] < flip_distances[best_flip]) best_flip = flip;
+    ((nk_f64_t *)((char *)schedule->results + row * schedule->results_stride))[column] = flip_distances[best_flip];
+    if (!schedule->rotations) return;
+    nk_shapes_packed_header_f64_t const *row_header = (nk_shapes_packed_header_f64_t const *)schedule->a_packed[row];
+    nk_shapes_packed_header_f64_t const *column_header =
+        (nk_shapes_packed_header_f64_t const *)schedule->b_packed[column];
+    nk_f64_t flip_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}, pair_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    if (row_header->points && column_header->points) {
+        flip_rotation[0] = (best_flip & 1) ? -1 : 1, flip_rotation[4] = (best_flip & 2) ? -1 : 1;
+        flip_rotation[8] = (best_flip & 4) ? -1 : 1;
+        nk_shapes_rotation_f64_simt_(row_header->frame, flip_rotation, column_header->frame, pair_rotation);
+    }
+    nk_f32_t *output = schedule->rotations + (row * schedule->columns + column) * 9;
+    for (int cell = 0; cell != 9; ++cell) output[cell] = (nk_f32_t)pair_rotation[cell];
+}
+
+NUMKONG_DEVICE void nk_shapes_write_best_flip_f32_simt_(nk_shapes_schedule_simt_t const *schedule, nk_size_t row,
+                                                        nk_size_t column, nk_f32_t const *flip_distances) {
+    int best_flip = 0;
+    for (int flip = 1; flip != 8; ++flip)
+        if (flip_distances[flip] < flip_distances[best_flip]) best_flip = flip;
+    ((nk_f32_t *)((char *)schedule->results + row * schedule->results_stride))[column] = flip_distances[best_flip];
+    if (!schedule->rotations) return;
+    nk_shapes_packed_header_f32_t const *row_header = (nk_shapes_packed_header_f32_t const *)schedule->a_packed[row];
+    nk_shapes_packed_header_f32_t const *column_header =
+        (nk_shapes_packed_header_f32_t const *)schedule->b_packed[column];
+    nk_f32_t flip_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}, pair_rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    if (row_header->points && column_header->points) {
+        flip_rotation[0] = (best_flip & 1) ? -1 : 1, flip_rotation[4] = (best_flip & 2) ? -1 : 1;
+        flip_rotation[8] = (best_flip & 4) ? -1 : 1;
+        nk_shapes_rotation_f32_simt_(row_header->frame, flip_rotation, column_header->frame, pair_rotation);
+    }
+    nk_f32_t *output = schedule->rotations + (row * schedule->columns + column) * 9;
+    for (int cell = 0; cell != 9; ++cell) output[cell] = pair_rotation[cell];
+}
+
+#pragma endregion Chamfer and Hausdorff Schedules
+
+#pragma region RMSD
+
+enum {
+
+    /** Threads of an RMSD block, each scoring its own pairs a grid stride apart. */
+    nk_rmsds_threads_simt_k = 128,
+};
+
+/** Σ‖aᵢ − R × bᵢ‖² at the best rotation, folded into Ga + Gb − 2λ and clamped at zero, as
+ *  @c nk_rmsds_folded_f32_serial_ computes it from the row-major M = Σ aᵢ × bᵢᵀ. */
+NUMKONG_DEVICE nk_f32_t nk_rmsds_folded_f32_simt_(nk_f32_t const *cross_covariance, nk_f32_t norms_squared) {
+    nk_f32_t const upper = norms_squared / 2;
+    if (!(upper > 0)) return 0;
+    nk_f32_t const inverse = 1 / upper;
+    nk_f32_t const xx = cross_covariance[0] * inverse, xy = cross_covariance[1] * inverse;
+    nk_f32_t const xz = cross_covariance[2] * inverse, yx = cross_covariance[3] * inverse;
+    nk_f32_t const yy = cross_covariance[4] * inverse, yz = cross_covariance[5] * inverse;
+    nk_f32_t const zx = cross_covariance[6] * inverse, zy = cross_covariance[7] * inverse;
+    nk_f32_t const zz = cross_covariance[8] * inverse;
+    nk_f32_t const xx2 = xx * xx, yy2 = yy * yy, zz2 = zz * zz, xy2 = xy * xy, yz2 = yz * yz;
+    nk_f32_t const xz2 = xz * xz, yx2 = yx * yx, zy2 = zy * zy, zx2 = zx * zx;
+    nk_f32_t const xz_plus_zx = xz + zx, yz_plus_zy = yz + zy, xy_plus_yx = xy + yx;
+    nk_f32_t const yz_minus_zy = yz - zy, xz_minus_zx = xz - zx, xy_minus_yx = xy - yx;
+    nk_f32_t const xx_plus_yy = xx + yy, xx_minus_yy = xx - yy;
+    nk_f32_t const off_diagonal = xy2 + xz2 - yx2 - zx2;
+    nk_f32_t const quadratic = -2 * (xx2 + yy2 + zz2 + xy2 + yx2 + xz2 + zx2 + yz2 + zy2);
+    nk_f32_t const linear = 8 *
+                            (xx * yz * zy + yy * zx * xz + zz * xy * yx - xx * yy * zz - yz * zx * xy - zy * yx * xz);
+    nk_f32_t const twice_minor = 2 * (yz * zy - yy * zz);
+    nk_f32_t const squares = yy2 + zz2 - xx2 + yz2 + zy2;
+    nk_f32_t const constant = off_diagonal * off_diagonal + (squares + twice_minor) * (squares - twice_minor) +
+                              (-xz_plus_zx * yz_minus_zy + xy_minus_yx * (xx_minus_yy - zz)) *
+                                  (-xz_minus_zx * yz_plus_zy + xy_minus_yx * (xx_minus_yy + zz)) +
+                              (-xz_plus_zx * yz_plus_zy - xy_plus_yx * (xx_plus_yy - zz)) *
+                                  (-xz_minus_zx * yz_minus_zy - xy_plus_yx * (xx_plus_yy + zz)) +
+                              (xy_plus_yx * yz_plus_zy + xz_plus_zx * (xx_minus_yy + zz)) *
+                                  (-xy_minus_yx * yz_minus_zy + xz_plus_zx * (xx_plus_yy + zz)) +
+                              (xy_plus_yx * yz_minus_zy + xz_minus_zx * (xx_minus_yy - zz)) *
+                                  (-xy_minus_yx * yz_plus_zy + xz_minus_zx * (xx_plus_yy - zz));
+    nk_f32_t const k00 = xx + yy + zz, k01 = yz_minus_zy, k02 = -xz_minus_zx, k03 = xy_minus_yx;
+    nk_f32_t const k11 = xx - yy - zz, k12 = xy_plus_yx, k13 = xz_plus_zx;
+    nk_f32_t const k22 = -xx + yy - zz, k23 = yz_plus_zy, k33 = -xx - yy + zz;
+    // λ never falls below the largest diagonal entry of K, which stops a rounded step running away
+    nk_f32_t const floor_01 = k00 > k11 ? k00 : k11, floor_23 = k22 > k33 ? k22 : k33;
+    nk_f32_t const floor = floor_01 > floor_23 ? floor_01 : floor_23;
+    // ‖M‖ sets the scale of K's eigenvalues, so the adjugate's rounding noise is that cubed
+    nk_f32_t const frobenius = __fsqrt_rn(-quadratic / 2),
+                   noise = 64 * 0x1p-24f * 8 * frobenius * frobenius * frobenius;
+    nk_f32_t eigenvalue = 1, slope = 0;
+    for (int iteration = 0; iteration != 50; ++iteration) {
+        nk_f32_t const squared = eigenvalue * eigenvalue;
+        nk_f32_t const cubic = (squared + quadratic) * eigenvalue;
+        nk_f32_t const shifted = cubic + linear;
+        nk_f32_t const derivative = 2 * squared * eigenvalue + cubic + shifted;
+        // A repeated largest root leaves no slope, and the iterate already sits on it
+        if (!(derivative > 0)) break;
+        slope = derivative;
+        nk_f32_t const step = (shifted * eigenvalue + constant) / derivative;
+        eigenvalue -= step;
+        if (eigenvalue < floor) {
+            eigenvalue = floor;
+            break;
+        }
+        if (!(nk_f32_abs_(step) > 1e-7f)) break;
+    }
+    // Newton lands within ε of a root as steep as an isotropic or planar frame's, so it stays
+    int refined = slope > 4 * frobenius * frobenius * frobenius;
+    for (int refinement = refined ? 2 : 0; refinement != 2; ++refinement) {
+        nk_f32_t const a00 = k00 - eigenvalue, a11 = k11 - eigenvalue, a22 = k22 - eigenvalue;
+        nk_f32_t const a33 = k33 - eigenvalue;
+        nk_f32_t const s0 = a00 * a11 - k01 * k01, s1 = a00 * k12 - k01 * k02, s2 = a00 * k13 - k01 * k03;
+        nk_f32_t const s3 = k01 * k12 - a11 * k02, s4 = k01 * k13 - a11 * k03, s5 = k02 * k13 - k12 * k03;
+        nk_f32_t const c0 = k02 * k13 - k03 * k12, c1 = k02 * k23 - k03 * a22, c2 = k02 * a33 - k03 * k23;
+        nk_f32_t const c3 = k12 * k23 - k13 * a22, c4 = k12 * a33 - k13 * k23, c5 = a22 * a33 - k23 * k23;
+        nk_f32_t const adjugate[4][4] = {{a11 * c5 - k12 * c4 + k13 * c3, -k01 * c5 + k02 * c4 - k03 * c3,
+                                          k13 * s5 - k23 * s4 + a33 * s3, -k12 * s5 + a22 * s4 - k23 * s3},
+                                         {-k01 * c5 + k12 * c2 - k13 * c1, a00 * c5 - k02 * c2 + k03 * c1,
+                                          -k03 * s5 + k23 * s2 - a33 * s1, k02 * s5 - a22 * s2 + k23 * s1},
+                                         {k01 * c4 - a11 * c2 + k13 * c0, -a00 * c4 + k01 * c2 - k03 * c0,
+                                          k03 * s4 - k13 * s2 + a33 * s0, -k02 * s4 + k12 * s2 - k23 * s0},
+                                         {-k01 * c3 + a11 * c1 - k12 * c0, a00 * c3 - k01 * c1 + k02 * c0,
+                                          -k03 * s3 + k13 * s1 - k23 * s0, k02 * s3 - k12 * s1 + a22 * s0}};
+        // The eigenvalue nearest λ dominates the adjugate, with either sign once λ lands below it
+        int column = 0;
+        for (int candidate = 1; candidate != 4; ++candidate)
+            if (nk_f32_abs_(adjugate[candidate][candidate]) > nk_f32_abs_(adjugate[column][column])) column = candidate;
+        if (!(nk_f32_abs_(adjugate[column][column]) > noise)) break;
+        nk_f32_t const *vector = adjugate[column];
+        nk_f32_t const image[4] = {k00 * vector[0] + k01 * vector[1] + k02 * vector[2] + k03 * vector[3],
+                                   k01 * vector[0] + k11 * vector[1] + k12 * vector[2] + k13 * vector[3],
+                                   k02 * vector[0] + k12 * vector[1] + k22 * vector[2] + k23 * vector[3],
+                                   k03 * vector[0] + k13 * vector[1] + k23 * vector[2] + k33 * vector[3]};
+        nk_f32_t const length = vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2] +
+                                vector[3] * vector[3];
+        nk_f32_t const quotient =
+            (vector[0] * image[0] + vector[1] * image[1] + vector[2] * image[2] + vector[3] * image[3]) / length;
+        // λ lies between the diagonal bound and the iterate, so a quotient outside is noise
+        if (!(quotient >= floor && quotient <= eigenvalue)) break;
+        eigenvalue = quotient, refined = 1;
+    }
+    nk_f32_t residual = 2 * upper * (1 - eigenvalue);
+    // Exactly linear frames repeat the root, so they fold over the Kabsch SVD rotation instead
+    if (!refined) {
+        nk_f32_t const transposed[9] = {cross_covariance[0], cross_covariance[3], cross_covariance[6],
+                                        cross_covariance[1], cross_covariance[4], cross_covariance[7],
+                                        cross_covariance[2], cross_covariance[5], cross_covariance[8]};
+        nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9], rotation[9], trace = 0;
+        nk_svd3x3_f32_simt_(transposed, svd_left, svd_diagonal, svd_right);
+        nk_rotation_from_svd_f32_simt_(svd_left, svd_right, rotation);
+        if (nk_det3x3_f32_simt_(rotation) < 0) {
+            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+            nk_rotation_from_svd_f32_simt_(svd_left, svd_right, rotation);
+        }
+        for (int cell = 0; cell != 9; ++cell) trace += rotation[cell] * cross_covariance[cell];
+        residual = norms_squared - 2 * trace;
+    }
+    return residual > 0 ? residual : 0;
+}
+
+/** The proper rotation R minimizing Σ‖aᵢ − R × bᵢ‖², from the SVD of H = Σ bᵢ × aᵢᵀ, row major, as
+ *  @c nk_rmsds_rotation_f64_serial_ fits it. */
+NUMKONG_DEVICE void nk_rmsds_rotation_f64_simt_(nk_f64_t const *cross_covariance, nk_f64_t *rotation) {
+    nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
+    nk_svd3x3_f64_simt_(cross_covariance, svd_left, svd_diagonal, svd_right);
+    nk_rotation_from_svd_f64_simt_(svd_left, svd_right, rotation);
+    if (nk_det3x3_f64_simt_(rotation) < 0) {
+        svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
+        nk_rotation_from_svd_f64_simt_(svd_left, svd_right, rotation);
+    }
+}
+
+/** Superposed RMSD of one pair of F16 packs on one thread: M and both G in F32, folded. A pair of
+ *  unequal sizes reports NaN, as a launch cannot read the packs to refuse it. */
+NUMKONG_DEVICE nk_f32_t nk_rmsds_pair_f16_simt_(void const *row_packed, void const *column_packed) {
+    nk_size_t const count = ((nk_shapes_packed_header_f32_t const *)row_packed)->points;
+    if (count != ((nk_shapes_packed_header_f32_t const *)column_packed)->points)
+        return NUMKONG_F32_INF - NUMKONG_F32_INF;
+    if (!count) return 0;
+    nk_size_t axis_stride;
+    nk_f16_t const *a_axes = nk_shapes_packed_axes_f16_simt_(row_packed, &axis_stride);
+    nk_f16_t const *b_axes = nk_shapes_packed_axes_f16_simt_(column_packed, &axis_stride);
+    nk_f32_t cross_covariance[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0}, a_norm = 0, b_norm = 0, a[3], b[3];
+    for (nk_size_t index = 0; index != count; ++index) {
+        for (int axis = 0; axis != 3; ++axis) {
+            a[axis] = nk_shapes_coordinate_f16_simt_(a_axes + axis * axis_stride + index);
+            b[axis] = nk_shapes_coordinate_f16_simt_(b_axes + axis * axis_stride + index);
+            a_norm += a[axis] * a[axis], b_norm += b[axis] * b[axis];
+        }
+        for (int row = 0; row != 3; ++row)
+            for (int column = 0; column != 3; ++column) cross_covariance[row * 3 + column] += a[row] * b[column];
+    }
+    nk_f32_t const residual = nk_rmsds_folded_f32_simt_(cross_covariance, a_norm + b_norm);
+    return __fsqrt_rn(residual / (nk_f32_t)count);
+}
+
+/** Superposed RMSD of one pair of F32 packs on one thread: H in plain F64, its Kabsch rotation,
+ *  then a second pass summing the residuals directly, as the fold would cancel to √ε once the
+ *  frames align. A pair of unequal sizes reports NaN. */
+NUMKONG_DEVICE nk_f64_t nk_rmsds_pair_f32_simt_(void const *row_packed, void const *column_packed) {
+    nk_size_t const count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)row_packed)->points;
+    if (count != (nk_size_t)((nk_shapes_packed_header_f64_t const *)column_packed)->points)
+        return NUMKONG_F64_INF - NUMKONG_F64_INF;
+    if (!count) return 0;
+    nk_size_t axis_stride;
+    nk_f32_t const *a_axes = nk_shapes_packed_axes_f32_simt_(row_packed, &axis_stride);
+    nk_f32_t const *b_axes = nk_shapes_packed_axes_f32_simt_(column_packed, &axis_stride);
+    nk_f64_t cross_covariance[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0}, rotation[9], sum = 0;
+    for (nk_size_t index = 0; index != count; ++index)
+        for (int column = 0; column != 3; ++column)
+            for (int row = 0; row != 3; ++row)
+                cross_covariance[column * 3 + row] += (nk_f64_t)b_axes[column * axis_stride + index] *
+                                                      (nk_f64_t)a_axes[row * axis_stride + index];
+    nk_rmsds_rotation_f64_simt_(cross_covariance, rotation);
+    for (nk_size_t index = 0; index != count; ++index)
+        for (int axis = 0; axis != 3; ++axis) {
+            nk_f64_t residual = a_axes[axis * axis_stride + index];
+            for (int column = 0; column != 3; ++column)
+                residual -= rotation[axis * 3 + column] * (nk_f64_t)b_axes[column * axis_stride + index];
+            sum += residual * residual;
+        }
+    return __dsqrt_rn(sum / (nk_f64_t)count);
+}
+
+/** Superposed RMSD of one pair of F64 packs on one thread, like the F32 pair with both sums
+ *  compensated. A pair of unequal sizes reports NaN. */
+NUMKONG_DEVICE nk_f64_t nk_rmsds_pair_f64_simt_(void const *row_packed, void const *column_packed) {
+    nk_size_t const count = (nk_size_t)((nk_shapes_packed_header_f64_t const *)row_packed)->points;
+    if (count != (nk_size_t)((nk_shapes_packed_header_f64_t const *)column_packed)->points)
+        return NUMKONG_F64_INF - NUMKONG_F64_INF;
+    if (!count) return 0;
+    nk_size_t axis_stride;
+    nk_f64_t const *a_axes = nk_shapes_packed_axes_f64_simt_(row_packed, &axis_stride);
+    nk_f64_t const *b_axes = nk_shapes_packed_axes_f64_simt_(column_packed, &axis_stride);
+    nk_f64_t sums[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0}, compensations[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+    for (nk_size_t index = 0; index != count; ++index)
+        for (int column = 0; column != 3; ++column)
+            for (int row = 0; row != 3; ++row)
+                nk_dot2_f64_simt_(&sums[column * 3 + row], &compensations[column * 3 + row],
+                                  b_axes[column * axis_stride + index], a_axes[row * axis_stride + index]);
+    nk_f64_t cross_covariance[9], rotation[9], sum = 0, compensation = 0;
+    for (int cell = 0; cell != 9; ++cell) cross_covariance[cell] = sums[cell] + compensations[cell];
+    nk_rmsds_rotation_f64_simt_(cross_covariance, rotation);
+    for (nk_size_t index = 0; index != count; ++index)
+        for (int axis = 0; axis != 3; ++axis) {
+            nk_f64_t residual = a_axes[axis * axis_stride + index];
+            for (int column = 0; column != 3; ++column)
+                residual -= rotation[axis * 3 + column] * b_axes[column * axis_stride + index];
+            nk_dot2_f64_simt_(&sum, &compensation, residual, residual);
+        }
+    return __dsqrt_rn((sum + compensation) / (nk_f64_t)count);
+}
+
+#pragma endregion RMSD
 
 #if defined(__cplusplus)
 } // extern "C"

@@ -2,7 +2,7 @@
  *  @file bench/harness_cuda.hpp
  *  @author Ash Vardanian
  *  @date October 6, 2026
- *  @brief The CUDA backend that every @c bench/*_cuda.cu file times its rows with.
+ *  @brief The CUDA backend that the CUDA benchmarks time their rows with.
  */
 #pragma once
 #ifndef NUMKONG_BENCH_HARNESS_CUDA_HPP

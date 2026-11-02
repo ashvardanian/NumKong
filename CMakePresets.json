@@ -133,6 +133,11 @@
       "toolchainFile": "${sourceDir}/cmake/toolchain-riscv64-llvm.cmake"
     },
     {
+      "name": "linux_x86_64_llvm",
+      "inherits": "cross",
+      "toolchainFile": "${sourceDir}/cmake/toolchain-x86_64-llvm.cmake"
+    },
+    {
       "name": "linux_armv7",
       "inherits": "cross",
       "displayName": "Linux ARMv7 - compile only",
@@ -338,6 +343,7 @@
     { "name": "linux_ppc64le", "configurePreset": "linux_ppc64le" },
     { "name": "linux_riscv64", "configurePreset": "linux_riscv64" },
     { "name": "linux_riscv64_llvm", "configurePreset": "linux_riscv64_llvm" },
+    { "name": "linux_x86_64_llvm", "configurePreset": "linux_x86_64_llvm" },
     { "name": "linux_armv7", "configurePreset": "linux_armv7" },
     { "name": "android_arm64", "configurePreset": "android_arm64" },
     { "name": "android_armv7", "configurePreset": "android_armv7" },
@@ -390,6 +396,7 @@
     { "name": "linux_ppc64le", "inherits": "emulated", "configurePreset": "linux_ppc64le" },
     { "name": "linux_riscv64", "inherits": "emulated", "configurePreset": "linux_riscv64" },
     { "name": "linux_riscv64_llvm", "inherits": "emulated", "configurePreset": "linux_riscv64_llvm" },
+    { "name": "linux_x86_64_llvm", "inherits": "emulated", "configurePreset": "linux_x86_64_llvm" },
     { "name": "wasm32_wasi", "inherits": "emulated", "configurePreset": "wasm32_wasi" },
     { "name": "wasm32_wasi_threads", "inherits": "emulated", "configurePreset": "wasm32_wasi_threads" },
     {

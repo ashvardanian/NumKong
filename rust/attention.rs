@@ -37,11 +37,7 @@
 //! Author: Ash Vardanian
 //! Date: July 7, 2026
 
-use core::{
-    ffi::c_void,
-    marker::PhantomData,
-    ptr::{null, null_mut},
-};
+use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
 
 #[cfg(feature = "parallel")]
 use forkunion as fu;
@@ -308,6 +304,7 @@ extern "C" {
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
+    #[cfg(feature = "parallel")]
     fn nk_attention_packed_segments(
         key_value_packed: *const u8,
         segment_count: nk_size_t,
@@ -1577,7 +1574,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     /// Key counts of the packed segments, located by the C accessor so that blobs adopted from
     /// bytes read the same as ones packed here.
     fn packed_lengths(&self) -> &[u32] {
-        let (mut offsets, mut lengths) = (null(), null());
+        let (mut offsets, mut lengths) = (core::ptr::null(), core::ptr::null());
         unsafe {
             let status =
                 nk_attention_packed_segments(self.buffer.as_ptr(), self.segment_count, &mut offsets, &mut lengths);

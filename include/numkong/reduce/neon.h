@@ -4219,6 +4219,37 @@ NUMKONG_API nk_status_t nk_reduce_moments_f16_neon(              //
     return nk_success_k;
 }
 
+/** Sums @c bf16 values and their squares in f32 lanes, four values per step. */
+NUMKONG_INLINE void nk_reduce_moments_contiguous_bf16_neon_( //
+    nk_bf16_t const *data_ptr, nk_size_t count,              //
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
+    float32x4_t sum_f32x4 = vdupq_n_f32(0), sumsq_f32x4 = vdupq_n_f32(0);
+    nk_size_t index = 0;
+    for (; index + 4 <= count; index += 4) {
+        float32x4_t const values_f32x4 = nk_load_bf16x4_as_f32_neon_(data_ptr + index);
+        sum_f32x4 = vaddq_f32(sum_f32x4, values_f32x4);
+        sumsq_f32x4 = vfmaq_f32(sumsq_f32x4, values_f32x4, values_f32x4);
+    }
+    if (index < count) {
+        nk_b64_vec_t tail_vec;
+        nk_partial_load_b16x4_serial_(data_ptr + index, &tail_vec, count - index);
+        float32x4_t const values_f32x4 = nk_bf16x4_to_f32x4_neon_(vcreate_u16(tail_vec.u64));
+        sum_f32x4 = vaddq_f32(sum_f32x4, values_f32x4);
+        sumsq_f32x4 = vfmaq_f32(sumsq_f32x4, values_f32x4, values_f32x4);
+    }
+    *sum_ptr = vaddvq_f32(sum_f32x4), *sumsq_ptr = vaddvq_f32(sumsq_f32x4);
+}
+
+NUMKONG_API nk_status_t nk_reduce_moments_bf16_neon(              //
+    nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
+    else if (stride == sizeof(nk_bf16_t)) nk_reduce_moments_contiguous_bf16_neon_(data_ptr, count, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_strided_bf16_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_reduce_moments_u1_neon(                //
     nk_u1x8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {

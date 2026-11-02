@@ -19,7 +19,9 @@
 //! This module also provides:
 //!
 //! - [`Capability`]: One capability — NEON, Skylake, Hopper, etc.
-//! - [`UnifiedAllocator`]: Memory the host and the GPU of a mask both address
+//! - [`Stream`]: A device's queue, which [`Stream::scope`] joins so verbs can stay safe
+//! - [`Scope`]: The span of such a body, which the safe `_on` verbs queue on
+//! - [`UnifiedAllocator`]: Memory the host and the device of a stream both address
 //! - [`Status`]: What a C call reports
 //!
 //! File: rust/capabilities.rs
@@ -30,6 +32,7 @@ use core::{
     alloc::Layout,
     ffi::{c_char, c_void, CStr},
     fmt,
+    marker::PhantomData,
     ops::BitOr,
     ptr::NonNull,
 };
@@ -416,6 +419,14 @@ impl Capabilities {
             .filter(move |&capability| self.contains(capability))
     }
 
+    /// The GPU vendor whose bit tops this set, which C's dispatch reads as the set's group, or none
+    /// for the CPU's.
+    fn vendor(self) -> Option<Capability> {
+        [Capability::Metal, Capability::Rocm, Capability::Cuda]
+            .into_iter()
+            .find(|&vendor| self.0 >= vendor as nk_capability_t)
+    }
+
     /// Capabilities this CPU supports, whether or not their kernels were compiled in.
     pub fn cpu_detected() -> Self {
         let mut capabilities: nk_capability_t = 0;
@@ -615,31 +626,194 @@ impl Capabilities {
 #[cfg(any(test, feature = "parallel"))]
 pub(crate) fn configure_cpu_thread() -> Result<(), Error> { Capabilities::cpu_enabled().configure_thread() }
 
-/// Memory the host and the device of a capability mask both address, on the null stream: managed
-/// memory on CUDA and ROCm, a shared buffer on Metal, and the heap on the CPU.
+/// One GPU vendor's stream producer and the release of what it made.
+type StreamProducers = (
+    unsafe extern "C" fn(nk_size_t, *mut *mut c_void) -> nk_status_t,
+    unsafe extern "C" fn(*mut c_void) -> nk_status_t,
+);
+
+/// The stream producers of the vendor `capabilities` belong to, none for the CPU's.
+fn stream_producers(capabilities: Capabilities) -> Option<StreamProducers> {
+    match capabilities.vendor() {
+        Some(Capability::Cuda) => Some((nk_stream_init_cuda, nk_stream_free_cuda)),
+        Some(Capability::Rocm) => Some((nk_stream_init_rocm, nk_stream_free_rocm)),
+        Some(Capability::Metal) => Some((nk_stream_init_metal, nk_stream_free_metal)),
+        _ => None,
+    }
+}
+
+/// A stream of one capability group's device, where verbs and [`UnifiedAllocator`] blocks queue
+/// work: a vendor's default when null, the CPU's always null.
 ///
 /// # Example
 /// ```
-/// use numkong::{Capabilities, Tensor, UnifiedAllocator};
+/// use numkong::{Capabilities, Stream};
+///
+/// let cpu = Stream::default(Capabilities::cpu_enabled());
+/// assert!(cpu.as_raw().is_null());
+///
+/// // A vendor with no devices fails with `Status::MissingGpu`.
+/// for ordinal in 0..Capabilities::cuda_count_devices()? {
+///     let stream = Stream::new(Capabilities::cuda_enabled(ordinal)?, ordinal)?;
+///     stream.synchronize()?;
+/// }
+/// # Ok::<(), numkong::Error>(())
+/// ```
+#[derive(Debug)]
+pub struct Stream {
+    capabilities: Capabilities,
+    handle: *mut c_void,
+    owned: bool,
+}
+
+impl Stream {
+    /// The default stream of the default device of the group `capabilities` name.
+    pub fn default(capabilities: Capabilities) -> Self {
+        Stream {
+            capabilities,
+            handle: core::ptr::null_mut(),
+            owned: false,
+        }
+    }
+
+    /// A new stream on device `ordinal` of the vendor `capabilities` name, a `cudaStream_t`, a
+    /// `hipStream_t` or an `id<MTLCommandQueue>`, freed on drop. The CPU gets [`Stream::default`].
+    ///
+    /// Fails with [`Status::MissingGpu`] past the last device or where this build lacks the vendor.
+    pub fn new(capabilities: Capabilities, ordinal: usize) -> Result<Self, Error> {
+        let Some((init, _)) = stream_producers(capabilities) else {
+            return Ok(Self::default(capabilities));
+        };
+        let mut handle = core::ptr::null_mut();
+        unsafe { init(ordinal, &mut handle) }.check()?;
+        Ok(Stream {
+            capabilities,
+            handle,
+            owned: true,
+        })
+    }
+
+    /// Borrows a stream the caller made and keeps owning, which is never freed here.
+    ///
+    /// # Safety
+    /// `handle` must be null or a live stream of the vendor `capabilities` name, a `cudaStream_t`,
+    /// a `hipStream_t` or an `id<MTLCommandQueue>`, null on the CPU, and outlive the result.
+    pub unsafe fn from_raw(capabilities: Capabilities, handle: *mut c_void) -> Self {
+        Stream {
+            capabilities,
+            handle,
+            owned: false,
+        }
+    }
+
+    /// The capabilities every consumer of this stream dispatches with.
+    pub fn capabilities(&self) -> Capabilities { self.capabilities }
+
+    /// The vendor's handle, null for a default stream.
+    pub fn as_raw(&self) -> *mut c_void { self.handle }
+
+    /// Waits for everything queued on this stream, after which whatever its verbs wrote is readable
+    /// from the host. The CPU has nothing to wait for.
+    pub fn synchronize(&self) -> Result<(), Error> {
+        unsafe { nk_stream_synchronize_best(self.capabilities.0, self.handle) }.check()
+    }
+
+    /// Runs `body`, whose verbs queue on this stream, then joins the stream, even when `body` fails
+    /// or unwinds, and reports the first failure, the body's or the join's.
+    ///
+    /// A verb borrows what it reads and writes for the whole scope, so none of it can be touched
+    /// before the join.
+    ///
+    /// # Example
+    /// ```
+    /// use numkong::{Capabilities, ShapesPackedMatrix, Stream};
+    ///
+    /// let triangle = [[1.0_f32, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+    /// let packs = ShapesPackedMatrix::new(&[&triangle[..]])?;
+    /// let stream = Stream::default(Capabilities::cpu_enabled());
+    /// let mut distances = [1.0_f64; 1];
+    /// stream.scope(|scope| packs.rmsds_on(scope, &packs, &mut distances))?;
+    /// assert!(distances[0] < 1e-6);
+    /// # Ok::<(), numkong::Error>(())
+    /// ```
+    pub fn scope<'env, Output>(
+        &'env self,
+        body: impl for<'scope> FnOnce(&'scope Scope<'scope, 'env>) -> Result<Output, Error>,
+    ) -> Result<Output, Error> {
+        let join_on_unwind = JoinOnUnwind(self);
+        let output = body(&Scope {
+            stream: self,
+            scope: PhantomData,
+        });
+        core::mem::forget(join_on_unwind);
+        let joined = self.synchronize();
+        let output = output?;
+        joined.map(|()| output)
+    }
+}
+
+impl Drop for Stream {
+    fn drop(&mut self) {
+        if let Some((_, free)) = stream_producers(self.capabilities).filter(|_| self.owned) {
+            // A drop has nowhere to report a failed release.
+            let _ = unsafe { free(self.handle) }.check();
+        }
+    }
+}
+
+/// Joins a stream when dropped, which a [`Stream::scope`] body lets happen only by unwinding.
+struct JoinOnUnwind<'stream>(&'stream Stream);
+
+impl Drop for JoinOnUnwind<'_> {
+    fn drop(&mut self) { let _ = self.0.synchronize(); }
+}
+
+/// The span of a [`Stream::scope`] body, which every `_on` verb takes to queue on that stream.
+///
+/// A verb borrows what it reads and writes for `'scope`, which ends only once the stream is joined.
+pub struct Scope<'scope, 'env: 'scope> {
+    stream: &'env Stream,
+    scope: PhantomData<&'scope mut &'scope ()>,
+}
+
+impl Scope<'_, '_> {
+    /// The stream every verb of this scope queues on, whose capabilities it dispatches with.
+    pub fn stream(&self) -> &Stream { self.stream }
+}
+
+/// Memory the host and the devices of one capability group both address, for the packs and outputs
+/// of their verbs: managed memory on CUDA and ROCm, a shared buffer on Metal, and the heap on the
+/// CPU. Every block lands on the device of the stream it borrows, and a block aligned less strictly
+/// than its layout asks is refused.
+///
+/// # Example
+/// ```
+/// use numkong::{Capabilities, Stream, Tensor, UnifiedAllocator};
 ///
 /// let capabilities = match Capabilities::cuda_count_devices()? {
 ///     0 => Capabilities::cpu_enabled(),
 ///     _ => Capabilities::cuda_enabled(0)?,
 /// };
-/// let ones = Tensor::<f32, UnifiedAllocator>::ones_in(&[4, 4], UnifiedAllocator::new(capabilities))?;
-/// unsafe { capabilities.synchronize(core::ptr::null_mut())? };
+/// let stream = Stream::default(capabilities);
+/// let ones = Tensor::<f32, UnifiedAllocator>::ones_in(&[4, 4], UnifiedAllocator::new(&stream))?;
+/// stream.synchronize()?;
 /// assert_eq!(ones.as_slice()[15], 1.0);
 /// # Ok::<(), numkong::Error>(())
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct UnifiedAllocator(Capabilities);
-
-impl UnifiedAllocator {
-    /// Allocates for the group of `capabilities`, like [`Capabilities::cuda_enabled`] reports.
-    pub const fn new(capabilities: Capabilities) -> Self { UnifiedAllocator(capabilities) }
+#[derive(Clone, Copy, Debug)]
+pub struct UnifiedAllocator<'stream> {
+    stream: &'stream Stream,
 }
 
-unsafe impl Allocator for UnifiedAllocator {
+impl<'stream> UnifiedAllocator<'stream> {
+    /// Unified memory on the device of `stream`, the host heap for a CPU stream.
+    pub const fn new(stream: &'stream Stream) -> Self { UnifiedAllocator { stream } }
+
+    /// The capabilities whose memory every block comes from.
+    pub fn capabilities(&self) -> Capabilities { self.stream.capabilities }
+}
+
+unsafe impl Allocator for UnifiedAllocator<'_> {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         if layout.size() == 0 {
             return Ok(NonNull::slice_from_raw_parts(
@@ -647,8 +821,9 @@ unsafe impl Allocator for UnifiedAllocator {
                 0,
             ));
         }
+        let (capabilities, stream) = (self.stream.capabilities.0, self.stream.handle);
         let mut pointer = core::ptr::null_mut();
-        unsafe { nk_memory_allocate_unified_best(layout.size(), &mut pointer, self.0 .0, core::ptr::null_mut()) }
+        unsafe { nk_memory_allocate_unified_best(layout.size(), &mut pointer, capabilities, stream) }
             .check()
             .map_err(|_| AllocError)?;
         let block = NonNull::new(pointer.cast::<u8>()).ok_or(AllocError)?;
@@ -661,9 +836,8 @@ unsafe impl Allocator for UnifiedAllocator {
 
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         if layout.size() > 0 {
-            let _ = unsafe {
-                nk_memory_free_unified_best(ptr.as_ptr().cast(), layout.size(), self.0 .0, core::ptr::null_mut())
-            };
+            let (capabilities, stream) = (self.stream.capabilities.0, self.stream.handle);
+            let _ = unsafe { nk_memory_free_unified_best(ptr.as_ptr().cast(), layout.size(), capabilities, stream) };
         }
     }
 }
@@ -825,8 +999,8 @@ mod tests {
     fn unified_memory_follows_the_group() {
         use crate::tensor::{Tensor, DEFAULT_ALIGNMENT};
 
-        let cpu = Capabilities::cpu_enabled();
-        let allocator = UnifiedAllocator::new(cpu);
+        let cpu = Stream::default(Capabilities::cpu_enabled());
+        let allocator = UnifiedAllocator::new(&cpu);
         let empty_layout = Layout::from_size_align(0, 256).unwrap();
         for allocator in [&allocator as &dyn Allocator, &crate::tensor::Global] {
             let empty = allocator.allocate(empty_layout).unwrap();
@@ -834,18 +1008,46 @@ mod tests {
             let empty = allocator.allocate_zeroed(empty_layout).unwrap();
             assert_eq!(empty.as_ptr().cast::<u8>().addr() % 256, 0);
         }
-        let ones = Tensor::<f32, UnifiedAllocator>::ones_in(&[3, 5], UnifiedAllocator::new(cpu)).unwrap();
+        let ones = Tensor::<f32, UnifiedAllocator>::ones_in(&[3, 5], UnifiedAllocator::new(&cpu)).unwrap();
         assert!(ones.as_slice().iter().all(|&one| one == 1.0));
         assert_eq!(ones.as_slice().as_ptr() as usize % DEFAULT_ALIGNMENT, 0);
-        assert_eq!(unsafe { cpu.synchronize(core::ptr::null_mut()) }, Ok(()));
+        assert_eq!(cpu.synchronize(), Ok(()));
 
         // A group without a device, or missing from this build, hands out nothing
         for (count_devices, _, _, _, baseline) in GPU_PRODUCERS {
             let present = count_devices().unwrap() != 0;
-            let gpu = Capabilities::from(baseline);
-            let zeros = Tensor::<f32, UnifiedAllocator>::zeros_in(&[2], UnifiedAllocator::new(gpu));
+            let gpu = Stream::default(Capabilities::from(baseline));
+            let zeros = Tensor::<f32, UnifiedAllocator>::zeros_in(&[2], UnifiedAllocator::new(&gpu));
             assert_eq!(zeros.is_ok(), present);
-            assert_eq!(unsafe { gpu.synchronize(core::ptr::null_mut()) }.is_ok(), present);
+            assert_eq!(gpu.synchronize().is_ok(), present);
+        }
+    }
+
+    #[test]
+    fn streams_follow_their_vendor() {
+        let cpu = Stream::new(Capabilities::cpu_enabled(), 7).unwrap();
+        assert!(cpu.as_raw().is_null());
+        assert_eq!(cpu.scope(|scope| Ok(scope.stream().as_raw().is_null())), Ok(true));
+
+        for (count_devices, _, _, _, baseline) in GPU_PRODUCERS {
+            let count = count_devices().unwrap();
+            let gpu = Capabilities::from(baseline);
+            let past_the_last = Err(Error::KernelFailed {
+                status: Status::MissingGpu,
+            });
+            assert_eq!(Stream::new(gpu, count).map(|_| ()), past_the_last);
+            if count == 0 {
+                assert_eq!(Stream::default(gpu).scope(|_| Ok(())), past_the_last);
+            }
+        }
+
+        // The body's failure outranks the join's
+        let refused: Result<(), Error> = Err(Error::KernelFailed {
+            status: Status::Misaligned,
+        });
+        let cuda = Stream::default(Capability::Cuda.into());
+        if Capabilities::cuda_count_devices().unwrap() == 0 {
+            assert_eq!(cuda.scope(|_| refused.clone()), refused);
         }
     }
 

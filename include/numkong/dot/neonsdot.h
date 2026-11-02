@@ -41,6 +41,13 @@
  *  throughput on A76 (4/cy on newer cores) enables int8 matrix multiplication for quantized neural
  *  network inference, where 8-bit weights reduce memory bandwidth by 4x vs FP32.
  *
+ *  UDOT over ones looks like a one-instruction widening add, but it backfires with a single
+ *  accumulator. M5 charges the full 3 cycles through the accumulator, where Neoverse V2 forwards it
+ *  in about one, so a lone AND, CNT, UDOT chain over one pair ran at 0.57x the speed of the AND,
+ *  CNT, ADD.16B byte accumulators of the NEON kernels on 8 KB bit-vectors. Only kernels with
+ *  parallel accumulators, like batched ones with one state per column, gained: 1.16x to 1.32x on
+ *  M5. That's why binary kernels are absent from this file.
+ *
  *  @section dot_neonsdot_stateful Stateful Streaming Logic
  *
  *  To build memory-optimal tiled algorithms, this file defines following structures and

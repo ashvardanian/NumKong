@@ -992,7 +992,18 @@ if (NUMKONG_BUILD_TEST)
             )
             set(vendor_enabled_ ${NUMKONG_CUDA_ARCH})
         elseif (vendor_ STREQUAL "rocm")
-            set(vendor_sources_ test/cross_rocm.hip test/each_rocm.hip test/cast_rocm.hip)
+            # CMake keeps one language per source, so HIP reaches the unit it shares with CUDA through an include
+            file(CONFIGURE OUTPUT test/shapes_rocm.hip CONTENT "#if defined(__HIP__)
+#include \"@PROJECT_SOURCE_DIR@/test/shapes_cuda.cu\"
+#else
+#include \"@PROJECT_SOURCE_DIR@/test/harness.hpp\"
+void ashvardanian::numkong::test::test_shapes_rocm(ashvardanian::numkong::test::error_stats_section_t &) {}
+#endif
+" @ONLY
+            )
+            set(vendor_sources_ test/cross_rocm.hip test/each_rocm.hip test/cast_rocm.hip
+                                "${CMAKE_CURRENT_BINARY_DIR}/test/shapes_rocm.hip"
+            )
             set(vendor_enabled_ ${NUMKONG_ROCM_ARCH})
         else ()
             set(vendor_sources_ test/cross_metal.cpp test/each_metal.cpp test/cast_metal.cpp test/shapes_metal.cpp)

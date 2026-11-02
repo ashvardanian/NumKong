@@ -2,7 +2,8 @@
  *  @file test/shapes_metal.cpp
  *  @author Ash Vardanian
  *  @date October 24, 2026
- *  @brief Chamfer and Hausdorff simdgroup bodies against the serial kernels.
+ *  @brief Chamfer and Hausdorff simdgroup bodies against the serial kernels, limits of the public
+ *      kernels, and transport on random and tied clouds.
  *
  *  The bodies are device helpers, so this unit compiles its own kernel over them, after the source
  *  the library embeds, and keeps the @c metal exports of their header switched off, as the library
@@ -97,10 +98,13 @@ error_stats_t test_shapes_simdgroup_metal(settings_t const &settings) {
         a_packed[pair] = packs[pair / count], b_packed[pair] = packs[pair % count];
 
     std::vector<nk_f32_t> references(pairs);
-    auto const serial = kind_ == nk_kernel_chamfers_packed_k ? nk_chamfers_packed_f16_serial
-                                                             : nk_hausdorffs_packed_f16_serial;
-    stats.expect(serial(packs.data(), count, packs.data(), count, references.data(), count * sizeof(nk_f32_t), nullptr,
-                        nullptr));
+    nk_f32_t const unbounded = NUMKONG_F32_INF;
+    if constexpr (kind_ == nk_kernel_chamfers_packed_k)
+        stats.expect(nk_chamfers_packed_f16_serial(packs.data(), count, packs.data(), count, references.data(),
+                                                   count * sizeof(nk_f32_t), nullptr, &unbounded, nullptr, 0, nullptr));
+    else
+        stats.expect(nk_hausdorffs_packed_f16_serial(packs.data(), count, packs.data(), count, references.data(),
+                                                     count * sizeof(nk_f32_t), nullptr, &unbounded, nullptr));
 
     auto limits = make_vector<f32_t>(backend, pairs);
     auto results = make_vector<f32_t>(backend, pairs * lanes);
@@ -137,10 +141,255 @@ error_stats_t test_shapes_simdgroup_metal(settings_t const &settings) {
     return stats;
 }
 
+/** Whether @p rotation is 𝑄ₐᵀ × S × 𝑄ᵦ for one of the 8 sign diagonals S of two packs' frames. */
+static bool shapes_rotation_is_flip_metal(nk_f32_t const *rotation, void const *a_packed, void const *b_packed) {
+    nk_f32_t a_axes[9], b_axes[9];
+    nk_quaternion_to_mat3x3_f32_serial_(((nk_shapes_packed_header_f32_t const *)a_packed)->frame, a_axes);
+    nk_quaternion_to_mat3x3_f32_serial_(((nk_shapes_packed_header_f32_t const *)b_packed)->frame, b_axes);
+    for (std::size_t row = 0; row != 3; ++row)
+        for (std::size_t column = 0; column != 3; ++column) {
+            nk_f64_t sign = 0;
+            for (std::size_t left = 0; left != 3; ++left)
+                for (std::size_t right = 0; right != 3; ++right)
+                    sign += static_cast<nk_f64_t>(a_axes[row * 3 + left]) * rotation[left * 3 + right] *
+                            b_axes[column * 3 + right];
+            if (std::fabs(std::fabs(sign) - (row == column)) > 1e-4) return false;
+        }
+    return true;
+}
+
+/**
+ *  @brief One capability's public Chamfer or Hausdorff kernel at limits below, at and above each
+ *      pair's exact distance, with rotations, over clouds spanning several slabs of its grain.
+ *
+ *  At or above the distance a limit keeps the bits of the unbounded call, and its rotation. Below
+ *  it, a pair reports a lower bound past the limit, up to the 3 roundings of each pack radius the
+ *  Hausdorff header bound subtracts, with one of the pair's own flips.
+ */
+template <nk_kernel_kind_t kind_>
+error_stats_t test_shapes_limits_metal(settings_t const &settings, nk_capability_t capability) {
+    error_stats_t stats(comparison_family_t::bounded_k);
+    auto backend = make_backend<metal_backend_t>(settings);
+    std::mt19937 generator(settings.seed.value);
+    std::size_t const rows = 3, columns = 3, points = std::max<std::size_t>(settings.shape_points, 97);
+    auto const row_packs = device_random_packed(settings, backend, generator, rows, points, stats);
+    auto const column_packs = device_random_packed(settings, backend, generator, columns, points + 3, stats);
+    auto score = make_vector<f32_t>(backend, 1);
+    auto rotation = make_vector<f32_t>(backend, 9);
+    auto const call = [&](std::size_t row, std::size_t column, nk_f32_t limit) {
+        if constexpr (kind_ == nk_kernel_chamfers_packed_k) {
+            nk_size_t bytes = 1;
+            stats.expect(nk_chamfers_workspace_size_f16_best(points, points + 3, capability, &bytes));
+            stats.expect(bytes == 0, "GPU Chamfer asked for a workspace");
+            backend.call(
+                [capability](auto... arguments) noexcept {
+                    return call_best<nk_chamfers_packed_f16_best>(capability, arguments...);
+                },
+                row_packs.data() + row, nk_size_t(1), column_packs.data() + column, nk_size_t(1),
+                score.raw_values_data(), sizeof(nk_f32_t), rotation.raw_values_data(), &limit,
+                static_cast<void *>(nullptr), bytes);
+        }
+        else
+            backend.call(
+                [capability](auto... arguments) noexcept {
+                    return call_best<nk_hausdorffs_packed_f16_best>(capability, arguments...);
+                },
+                row_packs.data() + row, nk_size_t(1), column_packs.data() + column, nk_size_t(1),
+                score.raw_values_data(), sizeof(nk_f32_t), rotation.raw_values_data(), &limit);
+        return stats.expect(backend.synchronize());
+    };
+    nk_f64_t const roundoff = half_ulp<f32_t>(1.0);
+    for (std::size_t row = 0; row != rows; ++row)
+        for (std::size_t column = 0; column != columns; ++column) {
+            if (!call(row, column, NUMKONG_F32_INF)) return stats;
+            nk_f32_t const exact = score.raw_values_data()[0];
+            std::array<nk_f32_t, 9> exact_rotation;
+            std::memcpy(exact_rotation.data(), rotation.raw_values_data(), sizeof(exact_rotation));
+            nk_f64_t const reach =
+                3 * roundoff *
+                (static_cast<nk_f64_t>(((nk_shapes_packed_header_f32_t const *)row_packs[row])->max_radius) +
+                 ((nk_shapes_packed_header_f32_t const *)column_packs[column])->max_radius);
+            for (nk_f32_t limit : {nk_f32_t(0), exact / 4, exact / 2, exact, exact * 2}) {
+                if (!call(row, column, limit)) return stats;
+                nk_f32_t const bounded = score.raw_values_data()[0];
+                nk_f32_t const *bounded_rotation = rotation.raw_values_data();
+                if (exact <= limit) {
+                    stats.expect(bounded == exact, "a limit changed a distance within it");
+                    stats.expect(std::memcmp(bounded_rotation, exact_rotation.data(), sizeof(exact_rotation)) == 0,
+                                 "a limit changed the rotation of a distance within it");
+                    continue;
+                }
+                stats.expect(bounded > limit, "a limit admitted a distance past it");
+                stats.expect(limit != 0 || bounded < exact, "a limit of zero never stopped a pair");
+                stats.expect(bounded <= exact + reach, "a result past its limit exceeds the distance");
+                stats.expect(shapes_rotation_is_flip_metal(bounded_rotation, row_packs[row], column_packs[column]),
+                             "a stopped pair reported no flip of its frames");
+            }
+        }
+    return stats;
+}
+
+/** Transport clouds: random, or exact ties of a lattice with power-of-two steps, points repeated
+ *  4 times, or a regular polygon around a column of points. */
+enum class transport_layout_metal_t { random_k, lattice_k, repeated_k, ring_k };
+
+/** @p count F16 clouds of @p points each in @p layout , packed serially into @p backend memory. */
+static auto transport_packs_metal(settings_t const &settings, metal_backend_t &backend, std::mt19937 &generator,
+                                  transport_layout_metal_t layout, std::size_t count, std::size_t points,
+                                  error_stats_t &stats) {
+    auto coordinates = make_vector<f16_t>(count * points * 3);
+    fill_random(settings, generator, coordinates);
+    std::vector<std::span<f16_t const>> clouds(count);
+    std::size_t const corners = points > 8 ? points - points / 8 : points;
+    for (std::size_t index = 0; index != count; ++index) {
+        f16_t *values = coordinates.values_data() + index * points * 3;
+        for (std::size_t point = 0; point != points; ++point) {
+            float const shift = float(index % 3);
+            if (layout == transport_layout_metal_t::lattice_k)
+                values[point * 3] = float(point % 4) + shift, values[point * 3 + 1] = 0.5f * float(point / 4 % 4),
+                               values[point * 3 + 2] = 0.25f * float(point / 16);
+            else if (layout == transport_layout_metal_t::repeated_k)
+                for (std::size_t axis = 0; axis != 3; ++axis)
+                    values[point * 3 + axis] = values[(point - point % 4) * 3 + axis];
+            else if (layout == transport_layout_metal_t::ring_k) {
+                double const angle = 6.283185307179586 * double(point) / double(corners);
+                bool const corner = point < corners;
+                values[point * 3] = float(corner ? std::cos(angle) : 0.0) + shift;
+                values[point * 3 + 1] = float(corner ? std::sin(angle) : 0.0);
+                values[point * 3 + 2] = corner ? 0.0f : 0.5f * float(point - corners);
+            }
+        }
+        clouds[index] = {values, points * 3};
+    }
+    using packs_t = nk::shapes_packed<f16_t, metal_backend_t::allocator<char>>;
+    auto packs = packs_t::make(clouds, allocator_of<char>(backend), nk_cap_serial_k);
+    stats.expect(packs.status);
+    return std::move(packs.value);
+}
+
+/**
+ *  @brief The Metal transport kernels against the serial ones on random and tied clouds of unequal
+ *      sizes, launched in slots fewer than the pairs.
+ *
+ *  Distances stay within the bound the CPU capabilities meet: the roundings of a plan of up to n +
+ *  m − 1 arcs, each costing at most the squared sum of both radii, and the simplex tolerance, under
+ *  a root. Swapping the sides keeps the bits and transposes the rotation. A workspace below one
+ *  slot and a misaligned one are refused, and @c apple10 in the mask falls to @c metal .
+ */
+template <nk_kernel_kind_t kind_>
+error_stats_t test_transport_packed_metal(settings_t const &settings) {
+    constexpr bool procrustes_k = kind_ == nk_kernel_wassersteinprocrustes_packed_k;
+    constexpr nk_capability_t capabilities = nk_cap_metal_k | nk_cap_apple10_k;
+    error_stats_t stats(comparison_family_t::bounded_k);
+    auto backend = make_backend<metal_backend_t>(settings);
+    std::mt19937 generator(settings.seed.value);
+    std::size_t const points = settings.shape_points, rows = 5, columns = 7, largest = points + 3;
+    nk_size_t bytes = 0, serial_bytes = 0;
+    if constexpr (procrustes_k) {
+        stats.expect(nk_wassersteinprocrustes_workspace_size_f16_best(largest, largest, capabilities, &bytes));
+        stats.expect(nk_wassersteinprocrustes_workspace_size_f16_serial(largest, largest, &serial_bytes));
+    }
+    else {
+        stats.expect(nk_gromovwassersteins_workspace_size_f16_best(largest, largest, capabilities, &bytes));
+        stats.expect(nk_gromovwassersteins_workspace_size_f16_serial(largest, largest, &serial_bytes));
+    }
+    auto workspace = make_vector<std::byte>(backend, bytes);
+    auto serial_workspace = make_vector<std::byte>(serial_bytes);
+    auto results = make_vector<f32_t>(backend, rows * columns);
+    auto rotations = make_vector<f32_t>(backend, rows * columns * 9);
+    auto swapped_results = make_vector<f32_t>(backend, rows * columns);
+    auto swapped_rotations = make_vector<f32_t>(backend, rows * columns * 9);
+    auto const launch = [&](auto const &row_packs, std::size_t row_count, auto const &column_packs,
+                            std::size_t column_count, nk_f32_t *distances, nk_f32_t *turns, std::byte *memory,
+                            nk_size_t memory_bytes) {
+        auto const kernel = [](auto... arguments) noexcept {
+            if constexpr (procrustes_k)
+                return call_best<nk_wassersteinprocrustes_packed_f16_best>(capabilities, arguments...);
+            else return call_best<nk_gromovwassersteins_packed_f16_best>(capabilities, arguments...);
+        };
+        return kernel(row_packs.data(), row_count, column_packs.data(), column_count, distances,
+                      column_count * sizeof(nk_f32_t), turns, static_cast<void *>(memory), memory_bytes,
+                      backend.stream);
+    };
+    std::vector<nk_f32_t> expected(rows * columns), expected_rotations(rows * columns * 9);
+    nk_f64_t const roundoff = half_ulp<f32_t>(1.0), terms = static_cast<nk_f64_t>(points + largest);
+    for (transport_layout_metal_t const layout :
+         {transport_layout_metal_t::random_k, transport_layout_metal_t::lattice_k, transport_layout_metal_t::repeated_k,
+          transport_layout_metal_t::ring_k}) {
+        auto const row_packs = transport_packs_metal(settings, backend, generator, layout, rows, points, stats);
+        auto const column_packs = transport_packs_metal(settings, backend, generator, layout, columns, largest, stats);
+        nk_f32_t *distances = results.raw_values_data(), *turns = rotations.raw_values_data();
+        nk_f32_t *swapped_distances = swapped_results.raw_values_data();
+        nk_f32_t *swapped_turns = swapped_rotations.raw_values_data();
+        std::byte *memory = workspace.raw_values_data();
+        stats.expect(
+            launch(row_packs, rows, column_packs, columns, distances, turns, memory + 1, bytes) == nk_misaligned_k,
+            "a misaligned workspace passed");
+        stats.expect(
+            launch(row_packs, rows, column_packs, columns, distances, turns, memory, 1) == nk_unexpected_dimensions_k,
+            "a workspace below one slot passed");
+        // A workspace of 6 slots walks the 35 pairs in launches that reuse them
+        nk_size_t const slot_bytes = procrustes_k ? nk_wassersteinprocrustes_slot_bytes_metal_(largest)
+                                                  : nk_gromovwassersteins_slot_bytes_metal_(largest);
+        nk_size_t const memory_bytes = std::min(bytes, 6 * slot_bytes);
+        stats.expect(launch(row_packs, rows, column_packs, columns, distances, turns, memory, memory_bytes));
+        if (!stats.expect(backend.synchronize())) return stats;
+        stats.expect(
+            launch(column_packs, columns, row_packs, rows, swapped_distances, swapped_turns, memory, memory_bytes));
+        if (!stats.expect(backend.synchronize())) return stats;
+        if constexpr (procrustes_k)
+            stats.expect(nk_wassersteinprocrustes_packed_f16_serial(
+                row_packs.data(), rows, column_packs.data(), columns, expected.data(), columns * sizeof(nk_f32_t),
+                expected_rotations.data(), serial_workspace.raw_values_data(), serial_bytes, nullptr));
+        else
+            stats.expect(nk_gromovwassersteins_packed_f16_serial(
+                row_packs.data(), rows, column_packs.data(), columns, expected.data(), columns * sizeof(nk_f32_t),
+                expected_rotations.data(), serial_workspace.raw_values_data(), serial_bytes, nullptr));
+        for (std::size_t row = 0; row != rows; ++row)
+            for (std::size_t column = 0; column != columns; ++column) {
+                auto const radius = [](void const *packed) {
+                    return static_cast<nk_f64_t>(((nk_shapes_packed_header_f32_t const *)packed)->max_radius);
+                };
+                nk_f64_t const reach = radius(row_packs[row]) + radius(column_packs[column]);
+                nk_f64_t const scale = reach * reach, tolerance = nk::shapes_transport_epsilon_k * scale;
+                nk_f64_t const reference = expected[row * columns + column];
+                nk_f64_t bound;
+                if constexpr (procrustes_k) {
+                    nk_f64_t const squared = (terms + 32) * roundoff * scale + tolerance;
+                    bound = std::min(std::sqrt(squared), squared / reference);
+                }
+                else {
+                    nk_f64_t const loss = 4 * ((terms + 64) * roundoff * scale + tolerance);
+                    bound = std::min(0.5 * std::sqrt(loss), loss / (8 * reference));
+                }
+                nk_f32_t const distance = distances[row * columns + column];
+                stats.accumulate_bounded(f32_t::from_raw(distance), f64_t(reference), bound);
+                stats.expect(std::memcmp(&distance, swapped_distances + column * rows + row, sizeof(distance)) == 0,
+                             "swapping the sides changed a distance");
+                for (std::size_t cell = 0; cell != 9; ++cell)
+                    stats.expect(std::memcmp(turns + (row * columns + column) * 9 + cell,
+                                             swapped_turns + (column * rows + row) * 9 + cell % 3 * 3 + cell / 3,
+                                             sizeof(nk_f32_t)) == 0,
+                                 "swapping the sides left the rotation untransposed");
+            }
+    }
+    return stats;
+}
+
 void test_shapes_metal(error_stats_section_t &check) {
     check.section("Shapes Metal", nk_cap_metal_k);
-    check("chamfer_simdgroup_packed_f16_metal", test_shapes_simdgroup_metal<nk_kernel_chamfers_packed_k>);
+    check("rmsds_packed_f16_metal", test_rmsds_packed_f16<metal_backend_t>,
+          [](auto... arguments) noexcept { return call_best<nk_rmsds_packed_f16_best>(nk_cap_metal_k, arguments...); });
     check("hausdorff_simdgroup_packed_f16_metal", test_shapes_simdgroup_metal<nk_kernel_hausdorffs_packed_k>);
+    check("hausdorffs_limits_f16_metal", test_shapes_limits_metal<nk_kernel_hausdorffs_packed_k>, nk_cap_metal_k);
+    check("chamfer_simdgroup_packed_f16_metal", test_shapes_simdgroup_metal<nk_kernel_chamfers_packed_k>);
+    check("chamfers_limits_f16_metal", test_shapes_limits_metal<nk_kernel_chamfers_packed_k>, nk_cap_metal_k);
+    check("wassersteinprocrustes_packed_f16_metal",
+          test_transport_packed_metal<nk_kernel_wassersteinprocrustes_packed_k>);
+    check("gromovwassersteins_packed_f16_metal", test_transport_packed_metal<nk_kernel_gromovwassersteins_packed_k>);
+    check.section("Shapes Apple10", nk_cap_apple10_k);
+    check("hausdorffs_limits_f16_apple10", test_shapes_limits_metal<nk_kernel_hausdorffs_packed_k>, nk_cap_apple10_k);
+    check("chamfers_limits_f16_apple10", test_shapes_limits_metal<nk_kernel_chamfers_packed_k>, nk_cap_apple10_k);
 }
 
 #else  // !NUMKONG_ARCH_METAL_

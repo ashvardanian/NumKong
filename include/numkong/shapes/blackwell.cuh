@@ -17,10 +17,10 @@
  *  CPU capabilities do.
  *
  *  Chamfer and Hausdorff score one pair per warp, each lane walking its outer points through the
- *  inner points two per step in packed F32 arithmetic, bit-identical to the CPU capabilities before
- *  the square root. They stay off the tensor cores: a product keeps about 25 bits of its largest
- *  term, which cannot rank near-coincident points, and a round trip costs more than the scan it
- *  would save at conformer sizes.
+ *  inner points two per step in packed F32 arithmetic, and past the limit a pair stops with each
+ *  flip's lower bound, so the best flip's rotation is that bound's. They stay off the tensor cores:
+ *  a product keeps about 25 bits of its largest term, which cannot rank near-coincident points, and
+ *  a round trip costs more than the scan it would save at conformer sizes.
  */
 #ifndef NUMKONG_SHAPES_BLACKWELL_CUH
 #define NUMKONG_SHAPES_BLACKWELL_CUH
@@ -29,8 +29,9 @@
 #if NUMKONG_ARCH_CUDA_BLACKWELL_
 
 #include "numkong/dots/blackwell.cuh"
+#include "numkong/shapes/cuda.cuh" // `nk_shapes_accessible_cuda_`
 #include "numkong/shapes/serial.h" // `nk_shapes_packed_header_f32_t`, `nk_shapes_alignment_k_`
-#include "numkong/shapes/simt.cuh" // `nk_svd3x3_f32_simt_`, `nk_rotation_from_svd_f32_simt_`
+#include "numkong/shapes/simt.cuh" // `nk_rmsds_folded_f32_simt_`, `nk_shapes_least_flip_f32_simt_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -88,13 +89,8 @@ typedef struct {
     nk_f32_t *results;
     nk_f32_t *rotations;
     nk_size_t rows, columns, results_stride;
+    nk_f32_t limit;
 } nk_shapes_schedule_blackwell_t;
-
-/** The per-flip sums and maxima of nearest distances, from one cloud's points to the other's. */
-typedef struct {
-    nk_f32_t sums[nk_shapes_flips_blackwell_k];
-    nk_f32_t maxima[nk_shapes_flips_blackwell_k];
-} nk_shapes_direction_blackwell_t;
 
 #pragma endregion Configuration
 
@@ -156,117 +152,6 @@ NUMKONG_DEVICE float2 nk_f32x2_add_blackwell_(float2 first, float2 second) {
         : "=f"(result.x), "=f"(result.y)
         : "f"(first.x), "f"(first.y), "f"(second.x), "f"(second.y));
     return result;
-}
-
-/** Σ‖aᵢ − R × bᵢ‖² at the best rotation, folded into Ga + Gb − 2λ and clamped at zero, as
- *  @c nk_rmsds_folded_f32_serial_ computes it from the row-major M = Σ aᵢ × bᵢᵀ. */
-NUMKONG_DEVICE nk_f32_t nk_rmsds_folded_f32_blackwell_(nk_f32_t const *cross_covariance, nk_f32_t norms_squared) {
-    nk_f32_t const upper = norms_squared / 2;
-    if (!(upper > 0)) return 0;
-    nk_f32_t const inverse = 1 / upper;
-    nk_f32_t const xx = cross_covariance[0] * inverse, xy = cross_covariance[1] * inverse;
-    nk_f32_t const xz = cross_covariance[2] * inverse, yx = cross_covariance[3] * inverse;
-    nk_f32_t const yy = cross_covariance[4] * inverse, yz = cross_covariance[5] * inverse;
-    nk_f32_t const zx = cross_covariance[6] * inverse, zy = cross_covariance[7] * inverse;
-    nk_f32_t const zz = cross_covariance[8] * inverse;
-    nk_f32_t const xx2 = xx * xx, yy2 = yy * yy, zz2 = zz * zz, xy2 = xy * xy, yz2 = yz * yz;
-    nk_f32_t const xz2 = xz * xz, yx2 = yx * yx, zy2 = zy * zy, zx2 = zx * zx;
-    nk_f32_t const xz_plus_zx = xz + zx, yz_plus_zy = yz + zy, xy_plus_yx = xy + yx;
-    nk_f32_t const yz_minus_zy = yz - zy, xz_minus_zx = xz - zx, xy_minus_yx = xy - yx;
-    nk_f32_t const xx_plus_yy = xx + yy, xx_minus_yy = xx - yy;
-    nk_f32_t const off_diagonal = xy2 + xz2 - yx2 - zx2;
-    nk_f32_t const quadratic = -2 * (xx2 + yy2 + zz2 + xy2 + yx2 + xz2 + zx2 + yz2 + zy2);
-    nk_f32_t const linear = 8 *
-                            (xx * yz * zy + yy * zx * xz + zz * xy * yx - xx * yy * zz - yz * zx * xy - zy * yx * xz);
-    nk_f32_t const twice_minor = 2 * (yz * zy - yy * zz);
-    nk_f32_t const squares = yy2 + zz2 - xx2 + yz2 + zy2;
-    nk_f32_t const constant = off_diagonal * off_diagonal + (squares + twice_minor) * (squares - twice_minor) +
-                              (-xz_plus_zx * yz_minus_zy + xy_minus_yx * (xx_minus_yy - zz)) *
-                                  (-xz_minus_zx * yz_plus_zy + xy_minus_yx * (xx_minus_yy + zz)) +
-                              (-xz_plus_zx * yz_plus_zy - xy_plus_yx * (xx_plus_yy - zz)) *
-                                  (-xz_minus_zx * yz_minus_zy - xy_plus_yx * (xx_plus_yy + zz)) +
-                              (xy_plus_yx * yz_plus_zy + xz_plus_zx * (xx_minus_yy + zz)) *
-                                  (-xy_minus_yx * yz_minus_zy + xz_plus_zx * (xx_plus_yy + zz)) +
-                              (xy_plus_yx * yz_minus_zy + xz_minus_zx * (xx_minus_yy - zz)) *
-                                  (-xy_minus_yx * yz_plus_zy + xz_minus_zx * (xx_plus_yy - zz));
-    nk_f32_t const k00 = xx + yy + zz, k01 = yz_minus_zy, k02 = -xz_minus_zx, k03 = xy_minus_yx;
-    nk_f32_t const k11 = xx - yy - zz, k12 = xy_plus_yx, k13 = xz_plus_zx;
-    nk_f32_t const k22 = -xx + yy - zz, k23 = yz_plus_zy, k33 = -xx - yy + zz;
-    // λ never falls below the largest diagonal entry of K, which stops a rounded step running away
-    nk_f32_t const floor_01 = k00 > k11 ? k00 : k11, floor_23 = k22 > k33 ? k22 : k33;
-    nk_f32_t const floor = floor_01 > floor_23 ? floor_01 : floor_23;
-    // ‖M‖ sets the scale of K's eigenvalues, so the adjugate's rounding noise is that cubed
-    nk_f32_t const frobenius = __fsqrt_rn(-quadratic / 2),
-                   noise = 64 * 0x1p-24f * 8 * frobenius * frobenius * frobenius;
-    nk_f32_t eigenvalue = 1, slope = 0;
-    for (int iteration = 0; iteration != 50; ++iteration) {
-        nk_f32_t const squared = eigenvalue * eigenvalue;
-        nk_f32_t const cubic = (squared + quadratic) * eigenvalue;
-        nk_f32_t const shifted = cubic + linear;
-        nk_f32_t const derivative = 2 * squared * eigenvalue + cubic + shifted;
-        // A repeated largest root leaves no slope, and the iterate already sits on it
-        if (!(derivative > 0)) break;
-        slope = derivative;
-        nk_f32_t const step = (shifted * eigenvalue + constant) / derivative;
-        eigenvalue -= step;
-        if (eigenvalue < floor) {
-            eigenvalue = floor;
-            break;
-        }
-        if (!(nk_f32_abs_(step) > 1e-7f)) break;
-    }
-    // Newton lands within ε of a root as steep as an isotropic or planar frame's, so it stays
-    int refined = slope > 4 * frobenius * frobenius * frobenius;
-    for (int refinement = refined ? 2 : 0; refinement != 2; ++refinement) {
-        nk_f32_t const a00 = k00 - eigenvalue, a11 = k11 - eigenvalue, a22 = k22 - eigenvalue;
-        nk_f32_t const a33 = k33 - eigenvalue;
-        nk_f32_t const s0 = a00 * a11 - k01 * k01, s1 = a00 * k12 - k01 * k02, s2 = a00 * k13 - k01 * k03;
-        nk_f32_t const s3 = k01 * k12 - a11 * k02, s4 = k01 * k13 - a11 * k03, s5 = k02 * k13 - k12 * k03;
-        nk_f32_t const c0 = k02 * k13 - k03 * k12, c1 = k02 * k23 - k03 * a22, c2 = k02 * a33 - k03 * k23;
-        nk_f32_t const c3 = k12 * k23 - k13 * a22, c4 = k12 * a33 - k13 * k23, c5 = a22 * a33 - k23 * k23;
-        nk_f32_t const adjugate[4][4] = {{a11 * c5 - k12 * c4 + k13 * c3, -k01 * c5 + k02 * c4 - k03 * c3,
-                                          k13 * s5 - k23 * s4 + a33 * s3, -k12 * s5 + a22 * s4 - k23 * s3},
-                                         {-k01 * c5 + k12 * c2 - k13 * c1, a00 * c5 - k02 * c2 + k03 * c1,
-                                          -k03 * s5 + k23 * s2 - a33 * s1, k02 * s5 - a22 * s2 + k23 * s1},
-                                         {k01 * c4 - a11 * c2 + k13 * c0, -a00 * c4 + k01 * c2 - k03 * c0,
-                                          k03 * s4 - k13 * s2 + a33 * s0, -k02 * s4 + k12 * s2 - k23 * s0},
-                                         {-k01 * c3 + a11 * c1 - k12 * c0, a00 * c3 - k01 * c1 + k02 * c0,
-                                          -k03 * s3 + k13 * s1 - k23 * s0, k02 * s3 - k12 * s1 + a22 * s0}};
-        // The eigenvalue nearest λ dominates the adjugate, with either sign once λ lands below it
-        int column = 0;
-        for (int candidate = 1; candidate != 4; ++candidate)
-            if (nk_f32_abs_(adjugate[candidate][candidate]) > nk_f32_abs_(adjugate[column][column])) column = candidate;
-        if (!(nk_f32_abs_(adjugate[column][column]) > noise)) break;
-        nk_f32_t const *vector = adjugate[column];
-        nk_f32_t const image[4] = {k00 * vector[0] + k01 * vector[1] + k02 * vector[2] + k03 * vector[3],
-                                   k01 * vector[0] + k11 * vector[1] + k12 * vector[2] + k13 * vector[3],
-                                   k02 * vector[0] + k12 * vector[1] + k22 * vector[2] + k23 * vector[3],
-                                   k03 * vector[0] + k13 * vector[1] + k23 * vector[2] + k33 * vector[3]};
-        nk_f32_t const length = vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2] +
-                                vector[3] * vector[3];
-        nk_f32_t const quotient =
-            (vector[0] * image[0] + vector[1] * image[1] + vector[2] * image[2] + vector[3] * image[3]) / length;
-        // λ lies between the diagonal bound and the iterate, so a quotient outside is noise
-        if (!(quotient >= floor && quotient <= eigenvalue)) break;
-        eigenvalue = quotient, refined = 1;
-    }
-    nk_f32_t residual = 2 * upper * (1 - eigenvalue);
-    // Exactly linear frames repeat the root, so they fold over the Kabsch SVD rotation instead
-    if (!refined) {
-        nk_f32_t const transposed[9] = {cross_covariance[0], cross_covariance[3], cross_covariance[6],
-                                        cross_covariance[1], cross_covariance[4], cross_covariance[7],
-                                        cross_covariance[2], cross_covariance[5], cross_covariance[8]};
-        nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9], rotation[9], trace = 0;
-        nk_svd3x3_f32_simt_(transposed, svd_left, svd_diagonal, svd_right);
-        nk_rotation_from_svd_f32_simt_(svd_left, svd_right, rotation);
-        if (nk_det3x3_f32_simt_(rotation) < 0) {
-            svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
-            nk_rotation_from_svd_f32_simt_(svd_left, svd_right, rotation);
-        }
-        for (int cell = 0; cell != 9; ++cell) trace += rotation[cell] * cross_covariance[cell];
-        residual = norms_squared - 2 * trace;
-    }
-    return residual > 0 ? residual : 0;
 }
 
 /** The x array of a shape pack of @c f16 points, with the elements from each axis to the next. */
@@ -444,7 +329,7 @@ NUMKONG_DEVICE void nk_rmsds_superpose_blackwell_(nk_rmsds_schedule_blackwell_t 
         for (unsigned cell = 0; cell != 9; ++cell)
             cross_covariance[cell] = shared->cross_covariances[cell][row][column];
         nk_f32_t const norms = shared->row_norms[row] + shared->column_norms[column];
-        nk_f32_t const residual = nk_rmsds_folded_f32_blackwell_(cross_covariance, norms);
+        nk_f32_t const residual = nk_rmsds_folded_f32_simt_(cross_covariance, norms);
         nk_f32_t *results_row = (nk_f32_t *)((char *)schedule->results + (row_begin + row) * schedule->results_stride);
         results_row[column_begin + column] = norms != norms ? norms
                                              : points       ? __fsqrt_rn(residual / (nk_f32_t)points)
@@ -479,6 +364,9 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_blackwell(void const *const *a_packe
                                                       nk_size_t results_stride, nk_stream_t stream) {
     if (!rows || !columns) return nk_success_k;
     if (((nk_size_t)results | results_stride) & (sizeof(nk_f32_t) - 1)) return nk_misaligned_k;
+    nk_status_t const reached = nk_shapes_accessible_cuda_(a_packed, rows, b_packed, columns, results, results_stride,
+                                                           sizeof(nk_f32_t), NUMKONG_NULL, NUMKONG_NULL, 0, stream);
+    if (reached != nk_success_k) return reached;
     nk_rmsds_schedule_blackwell_t schedule;
     schedule.a_packed = a_packed, schedule.b_packed = b_packed, schedule.results = results;
     schedule.rows = rows, schedule.columns = columns, schedule.results_stride = results_stride;
@@ -537,51 +425,23 @@ NUMKONG_DEVICE void nk_shapes_nearest_squares_f16_blackwell_(nk_f32_t const *out
     nk_shapes_nearest_pair_f16_blackwell_(outer_point, axis_pairs, nearest);
 }
 
-/** Sums and maxima over every outer point of its distance to the nearest inner point, per flip, on
- *  a whole warp, in every lane. Distances follow the difference form of the CPU capabilities. */
-NUMKONG_DEVICE void nk_shapes_direction_warp_f16_blackwell_(void const *outer_packed, void const *inner_packed,
-                                                            unsigned lane, nk_shapes_direction_blackwell_t *direction) {
-    nk_size_t const outer_count = ((nk_shapes_packed_header_f32_t const *)outer_packed)->points;
-    nk_size_t const inner_count = ((nk_shapes_packed_header_f32_t const *)inner_packed)->points;
-    nk_size_t outer_stride, inner_stride;
-    nk_f16_t const *outer_axes = nk_shapes_packed_axes_f16_blackwell_(outer_packed, &outer_stride);
-    nk_f16_t const *inner_axes = nk_shapes_packed_axes_f16_blackwell_(inner_packed, &inner_stride);
-    nk_f32_t *sums = direction->sums, *maxima = direction->maxima;
-    for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) sums[flip] = 0, maxima[flip] = 0;
-    for (nk_size_t point = lane; point < outer_count; point += nk_shapes_lanes_blackwell_k) {
-        nk_f32_t const outer_point[3] = {nk_shapes_coordinate_f16_simt_(outer_axes + point),
-                                         nk_shapes_coordinate_f16_simt_(outer_axes + outer_stride + point),
-                                         nk_shapes_coordinate_f16_simt_(outer_axes + 2 * outer_stride + point)};
-        nk_f32_t nearest[nk_shapes_flips_blackwell_k];
-        nk_shapes_nearest_squares_f16_blackwell_(outer_point, inner_axes, inner_stride, inner_count, nearest);
-        for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) {
-            nk_f32_t const distance = __fsqrt_rn(nearest[flip]);
-            sums[flip] += distance, maxima[flip] = distance > maxima[flip] ? distance : maxima[flip];
-        }
-    }
-    for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip)
-        for (unsigned offset = nk_shapes_lanes_blackwell_k / 2; offset; offset >>= 1) {
-            nk_f32_t const other_maximum = nk_shuffle_xor_f32_cuda_(maxima[flip], offset);
-            sums[flip] += nk_shuffle_xor_f32_cuda_(sums[flip], offset);
-            maxima[flip] = other_maximum > maxima[flip] ? other_maximum : maxima[flip];
-        }
-}
-
 /** Writes the best flip's distance and, when asked, its rotation 𝑄ₐᵀ × S × 𝑄ᵦ, or the identity for
  *  an empty cloud. */
 NUMKONG_DEVICE void nk_shapes_write_best_flip_blackwell_(nk_shapes_schedule_blackwell_t const *schedule, nk_size_t row,
-                                                         nk_size_t column, nk_f32_t const *flip_distances, int clouds) {
+                                                         nk_size_t column, nk_f32_t const *flip_distances) {
     unsigned best_flip = 0;
     for (unsigned flip = 1; flip != nk_shapes_flips_blackwell_k; ++flip)
         if (flip_distances[flip] < flip_distances[best_flip]) best_flip = flip;
     ((nk_f32_t *)((char *)schedule->results + row * schedule->results_stride))[column] = flip_distances[best_flip];
     if (!schedule->rotations) return;
     nk_f32_t *rotation = schedule->rotations + (row * schedule->columns + column) * 9;
+    nk_shapes_packed_header_f32_t const *row_header = (nk_shapes_packed_header_f32_t const *)schedule->a_packed[row];
+    nk_shapes_packed_header_f32_t const *column_header =
+        (nk_shapes_packed_header_f32_t const *)schedule->b_packed[column];
+    int const clouds = row_header->points && column_header->points;
     nk_f32_t row_axes[9], column_axes[9];
-    nk_quaternion_to_mat3x3_f32_blackwell_(((nk_shapes_packed_header_f32_t const *)schedule->a_packed[row])->frame,
-                                           row_axes);
-    nk_quaternion_to_mat3x3_f32_blackwell_(((nk_shapes_packed_header_f32_t const *)schedule->b_packed[column])->frame,
-                                           column_axes);
+    nk_quaternion_to_mat3x3_f32_blackwell_(row_header->frame, row_axes);
+    nk_quaternion_to_mat3x3_f32_blackwell_(column_header->frame, column_axes);
     for (unsigned output_row = 0; output_row != 3; ++output_row)
         for (unsigned output_column = 0; output_column != 3; ++output_column) {
             nk_f32_t sum = 0;
@@ -592,38 +452,19 @@ NUMKONG_DEVICE void nk_shapes_write_best_flip_blackwell_(nk_shapes_schedule_blac
         }
 }
 
-/** Both directions of one pair on a whole warp, or the empty-cloud convention, into per-flip
- *  Chamfer and Hausdorff distances in every lane. Returns whether both clouds hold points. */
-NUMKONG_DEVICE int nk_shapes_flips_warp_f16_blackwell_(void const *row_packed, void const *column_packed, unsigned lane,
-                                                       nk_f32_t *chamfers, nk_f32_t *hausdorffs) {
-    nk_shapes_packed_header_f32_t const *row_header = (nk_shapes_packed_header_f32_t const *)row_packed;
-    nk_shapes_packed_header_f32_t const *column_header = (nk_shapes_packed_header_f32_t const *)column_packed;
-    nk_size_t const rows = row_header->points, columns = column_header->points;
-    if (!rows || !columns) {
-        nk_f32_t const distance = rows == columns ? 0 : NUMKONG_F32_INF;
-        for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip)
-            chamfers[flip] = distance, hausdorffs[flip] = distance;
-        return 0;
-    }
-    nk_shapes_direction_blackwell_t forward, backward;
-    nk_shapes_direction_warp_f16_blackwell_(row_packed, column_packed, lane, &forward);
-    nk_shapes_direction_warp_f16_blackwell_(column_packed, row_packed, lane, &backward);
-    for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) {
-        chamfers[flip] = (forward.sums[flip] / (nk_f32_t)rows + backward.sums[flip] / (nk_f32_t)columns) / 2;
-        hausdorffs[flip] = forward.maxima[flip] > backward.maxima[flip] ? forward.maxima[flip] : backward.maxima[flip];
-    }
-    return 1;
-}
-
-/** The Chamfer distance between two packs of F16 points on a whole warp, equal to
- *  @c nk_chamfer_warp_packed_f16_cuda_ , each lane scanning two inner points per step. Every lane
- *  calls with the same packs and its own @p lane . Distances up to @p limit are exact; past it, the
- *  warp may stop early and return a lower bound that also lies past @p limit . */
-NUMKONG_DEVICE nk_f32_t nk_chamfer_warp_packed_f16_blackwell_(void const *a_packed, void const *b_packed,
-                                                              nk_f32_t limit, unsigned lane) {
+/** The Chamfer distance between two packs of F16 points under each of the 8 flips on a whole warp,
+ *  each lane scanning two inner points per step. Every lane calls with the same packs and its own
+ *  @p lane . Distances up to @p limit are exact; past it, the warp may stop early, leaving each
+ *  flip's lower bound, the least of which also lies past @p limit . */
+NUMKONG_DEVICE void nk_chamfer_flips_warp_packed_f16_blackwell_(void const *a_packed, void const *b_packed,
+                                                                nk_f32_t limit, unsigned lane,
+                                                                nk_f32_t *flip_distances) {
     nk_size_t const a_count = ((nk_shapes_packed_header_f32_t const *)a_packed)->points;
     nk_size_t const b_count = ((nk_shapes_packed_header_f32_t const *)b_packed)->points;
-    if (!a_count || !b_count) return a_count == b_count ? 0 : NUMKONG_F32_INF;
+    if (!a_count || !b_count) {
+        for (int flip = 0; flip != 8; ++flip) flip_distances[flip] = a_count == b_count ? 0 : NUMKONG_F32_INF;
+        return;
+    }
     nk_size_t a_stride, b_stride;
     nk_f16_t const *a_axes = nk_shapes_packed_axes_f16_blackwell_(a_packed, &a_stride);
     nk_f16_t const *b_axes = nk_shapes_packed_axes_f16_blackwell_(b_packed, &b_stride);
@@ -655,30 +496,46 @@ NUMKONG_DEVICE nk_f32_t nk_chamfer_warp_packed_f16_blackwell_(void const *a_pack
             if (!exceeded) continue;
             nk_f32_t partial = NUMKONG_F32_INF;
             for (int flip = 0; flip != 8; ++flip) {
-                nk_f32_t const chamfer = (means[flip] + sums[flip] / count) / 2;
-                partial = chamfer < partial ? chamfer : partial;
+                flip_distances[flip] = (means[flip] + sums[flip] / count) / 2;
+                partial = flip_distances[flip] < partial ? flip_distances[flip] : partial;
             }
-            if (partial > limit) return partial;
+            if (partial > limit) return;
         }
         for (int flip = 0; flip != 8; ++flip) means[flip] += sums[flip] / count;
     }
-    nk_f32_t best = means[0] / 2;
-    for (int flip = 1; flip != 8; ++flip) best = means[flip] / 2 < best ? means[flip] / 2 : best;
-    return best;
+    for (int flip = 0; flip != 8; ++flip) flip_distances[flip] = means[flip] / 2;
 }
 
-/** The Hausdorff distance between two packs of F16 points on a whole warp, equal to
- *  @c nk_hausdorff_warp_packed_f16_cuda_ , each lane scanning two inner points per step. Every lane
+/** The Chamfer distance between two packs of F16 points on a whole warp, equal to
+ *  @c nk_chamfer_warp_packed_f16_cuda_ , each lane scanning two inner points per step. Every lane
  *  calls with the same packs and its own @p lane . Distances up to @p limit are exact; past it, the
- *  warp may return early, even before reading a point, with a lower bound that also lies past
+ *  warp may stop early and return a lower bound that also lies past @p limit . */
+NUMKONG_DEVICE nk_f32_t nk_chamfer_warp_packed_f16_blackwell_(void const *a_packed, void const *b_packed,
+                                                              nk_f32_t limit, unsigned lane) {
+    nk_f32_t flip_distances[nk_shapes_flips_blackwell_k];
+    nk_chamfer_flips_warp_packed_f16_blackwell_(a_packed, b_packed, limit, lane, flip_distances);
+    return nk_shapes_least_flip_f32_simt_(flip_distances);
+}
+
+/** The Hausdorff distance between two packs of F16 points under each of the 8 flips on a whole
+ *  warp, each lane scanning two inner points per step. Every lane calls with the same packs and its
+ *  own @p lane . Distances up to @p limit are exact; past it, the warp may return early, even
+ *  before reading a point, leaving each flip's lower bound, the least of which also lies past
  *  @p limit . */
-NUMKONG_DEVICE nk_f32_t nk_hausdorff_warp_packed_f16_blackwell_(void const *a_packed, void const *b_packed,
-                                                                nk_f32_t limit, unsigned lane) {
+NUMKONG_DEVICE void nk_hausdorff_flips_warp_packed_f16_blackwell_(void const *a_packed, void const *b_packed,
+                                                                  nk_f32_t limit, unsigned lane,
+                                                                  nk_f32_t *flip_distances) {
     nk_size_t const a_count = ((nk_shapes_packed_header_f32_t const *)a_packed)->points;
     nk_size_t const b_count = ((nk_shapes_packed_header_f32_t const *)b_packed)->points;
-    if (!a_count || !b_count) return a_count == b_count ? 0 : NUMKONG_F32_INF;
+    if (!a_count || !b_count) {
+        for (int flip = 0; flip != 8; ++flip) flip_distances[flip] = a_count == b_count ? 0 : NUMKONG_F32_INF;
+        return;
+    }
     nk_f32_t const bound = nk_hausdorff_bound_packed_f16_simt_(a_packed, b_packed);
-    if (bound > limit) return bound;
+    if (bound > limit) {
+        for (int flip = 0; flip != 8; ++flip) flip_distances[flip] = bound;
+        return;
+    }
     nk_size_t a_stride, b_stride;
     nk_f16_t const *a_axes = nk_shapes_packed_axes_f16_blackwell_(a_packed, &a_stride);
     nk_f16_t const *b_axes = nk_shapes_packed_axes_f16_blackwell_(b_packed, &b_stride);
@@ -706,46 +563,71 @@ NUMKONG_DEVICE nk_f32_t nk_hausdorff_warp_packed_f16_blackwell_(void const *a_pa
                 }
                 least = farthest[flip] < least ? farthest[flip] : least;
             }
-            if (least > limit_squared && __fsqrt_rn(least) > limit) return __fsqrt_rn(least);
+            if (least > limit_squared && __fsqrt_rn(least) > limit) {
+                for (int flip = 0; flip != 8; ++flip) flip_distances[flip] = __fsqrt_rn(farthest[flip]);
+                return;
+            }
         }
     }
-    nk_f32_t least = farthest[0];
-    for (int flip = 1; flip != 8; ++flip) least = farthest[flip] < least ? farthest[flip] : least;
-    return __fsqrt_rn(least);
+    for (int flip = 0; flip != 8; ++flip) flip_distances[flip] = __fsqrt_rn(farthest[flip]);
+}
+
+/** The Hausdorff distance between two packs of F16 points on a whole warp, equal to
+ *  @c nk_hausdorff_warp_packed_f16_cuda_ , each lane scanning two inner points per step. Every lane
+ *  calls with the same packs and its own @p lane . Distances up to @p limit are exact; past it, the
+ *  warp may return early, even before reading a point, with a lower bound that also lies past
+ *  @p limit . */
+NUMKONG_DEVICE nk_f32_t nk_hausdorff_warp_packed_f16_blackwell_(void const *a_packed, void const *b_packed,
+                                                                nk_f32_t limit, unsigned lane) {
+    nk_f32_t flip_distances[nk_shapes_flips_blackwell_k];
+    nk_hausdorff_flips_warp_packed_f16_blackwell_(a_packed, b_packed, limit, lane, flip_distances);
+    return nk_shapes_least_flip_f32_simt_(flip_distances);
 }
 
 static __global__ void __launch_bounds__(nk_shapes_lanes_blackwell_k, 1)
     nk_chamfers_packed_f16_blackwell_kernel_(nk_shapes_schedule_blackwell_t const schedule) {
-    nk_f32_t chamfers[nk_shapes_flips_blackwell_k], hausdorffs[nk_shapes_flips_blackwell_k];
+    nk_f32_t flip_distances[nk_shapes_flips_blackwell_k];
     for (nk_size_t pair = blockIdx.x; pair < schedule.rows * schedule.columns; pair += gridDim.x) {
         nk_size_t const row = pair / schedule.columns, column = pair % schedule.columns;
-        int const clouds = nk_shapes_flips_warp_f16_blackwell_(schedule.a_packed[row], schedule.b_packed[column],
-                                                               threadIdx.x, chamfers, hausdorffs);
-        if (threadIdx.x == 0) nk_shapes_write_best_flip_blackwell_(&schedule, row, column, chamfers, clouds);
+        nk_chamfer_flips_warp_packed_f16_blackwell_(schedule.a_packed[row], schedule.b_packed[column], schedule.limit,
+                                                    threadIdx.x, flip_distances);
+        if (threadIdx.x == 0) nk_shapes_write_best_flip_blackwell_(&schedule, row, column, flip_distances);
     }
 }
 
 static __global__ void __launch_bounds__(nk_shapes_lanes_blackwell_k, 1)
     nk_hausdorffs_packed_f16_blackwell_kernel_(nk_shapes_schedule_blackwell_t const schedule) {
-    nk_f32_t chamfers[nk_shapes_flips_blackwell_k], hausdorffs[nk_shapes_flips_blackwell_k];
+    nk_f32_t flip_distances[nk_shapes_flips_blackwell_k];
     for (nk_size_t pair = blockIdx.x; pair < schedule.rows * schedule.columns; pair += gridDim.x) {
         nk_size_t const row = pair / schedule.columns, column = pair % schedule.columns;
-        int const clouds = nk_shapes_flips_warp_f16_blackwell_(schedule.a_packed[row], schedule.b_packed[column],
-                                                               threadIdx.x, chamfers, hausdorffs);
-        if (threadIdx.x == 0) nk_shapes_write_best_flip_blackwell_(&schedule, row, column, hausdorffs, clouds);
+        nk_hausdorff_flips_warp_packed_f16_blackwell_(schedule.a_packed[row], schedule.b_packed[column], schedule.limit,
+                                                      threadIdx.x, flip_distances);
+        if (threadIdx.x == 0) nk_shapes_write_best_flip_blackwell_(&schedule, row, column, flip_distances);
     }
+}
+
+NUMKONG_API nk_status_t nk_chamfers_workspace_size_f16_blackwell(nk_size_t row_points, nk_size_t column_points,
+                                                                 nk_size_t *bytes) {
+    nk_unused_(row_points), nk_unused_(column_points);
+    *bytes = 0;
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_chamfers_packed_f16_blackwell(void const *const *a_packed, nk_size_t rows,
                                                          void const *const *b_packed, nk_size_t columns,
                                                          nk_f32_t *results, nk_size_t results_stride,
-                                                         nk_f32_t *rotations, nk_stream_t stream) {
+                                                         nk_f32_t *rotations, nk_f32_t const *limit, void *workspace,
+                                                         nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
     if (!rows || !columns) return nk_success_k;
     if (((nk_size_t)results | results_stride | (nk_size_t)rotations) & (sizeof(nk_f32_t) - 1)) return nk_misaligned_k;
+    nk_status_t const reached = nk_shapes_accessible_cuda_(a_packed, rows, b_packed, columns, results, results_stride,
+                                                           sizeof(nk_f32_t), rotations, NUMKONG_NULL, 0, stream);
+    if (reached != nk_success_k) return reached;
     nk_shapes_schedule_blackwell_t schedule;
     schedule.a_packed = a_packed, schedule.b_packed = b_packed, schedule.results = results;
     schedule.rotations = rotations, schedule.rows = rows, schedule.columns = columns;
-    schedule.results_stride = results_stride;
+    schedule.results_stride = results_stride, schedule.limit = *limit;
     return nk_launch_resident_cuda_((void const *)nk_chamfers_packed_f16_blackwell_kernel_, nk_shapes_lanes_blackwell_k,
                                     0, 0, rows * columns, &schedule, stream);
 }
@@ -753,13 +635,17 @@ NUMKONG_API nk_status_t nk_chamfers_packed_f16_blackwell(void const *const *a_pa
 NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_blackwell(void const *const *a_packed, nk_size_t rows,
                                                            void const *const *b_packed, nk_size_t columns,
                                                            nk_f32_t *results, nk_size_t results_stride,
-                                                           nk_f32_t *rotations, nk_stream_t stream) {
+                                                           nk_f32_t *rotations, nk_f32_t const *limit,
+                                                           nk_stream_t stream) {
     if (!rows || !columns) return nk_success_k;
     if (((nk_size_t)results | results_stride | (nk_size_t)rotations) & (sizeof(nk_f32_t) - 1)) return nk_misaligned_k;
+    nk_status_t const reached = nk_shapes_accessible_cuda_(a_packed, rows, b_packed, columns, results, results_stride,
+                                                           sizeof(nk_f32_t), rotations, NUMKONG_NULL, 0, stream);
+    if (reached != nk_success_k) return reached;
     nk_shapes_schedule_blackwell_t schedule;
     schedule.a_packed = a_packed, schedule.b_packed = b_packed, schedule.results = results;
     schedule.rotations = rotations, schedule.rows = rows, schedule.columns = columns;
-    schedule.results_stride = results_stride;
+    schedule.results_stride = results_stride, schedule.limit = *limit;
     return nk_launch_resident_cuda_((void const *)nk_hausdorffs_packed_f16_blackwell_kernel_,
                                     nk_shapes_lanes_blackwell_k, 0, 0, rows * columns, &schedule, stream);
 }

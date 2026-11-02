@@ -198,7 +198,7 @@ pub use cast::{
 };
 
 // Re-export capabilities
-pub use capabilities::{Capabilities, Capability, Status, UnifiedAllocator};
+pub use capabilities::{Capabilities, Capability, Scope, Status, Stream, UnifiedAllocator};
 
 // Re-export tensor types
 pub use tensor::{

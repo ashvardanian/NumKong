@@ -493,11 +493,18 @@ struct f32_t {
                                                          nk_f64_t *, nk_f64_t *, nk_stream_t);
     using shapes_unpack_kernel_t = nk_status_t (*)(void const *, raw_t *, nk_stream_t);
     using shapes_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
-    using shapes_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
-                                                   nk_f64_t *, nk_size_t, nk_f32_t *, nk_stream_t);
-    using shapes_packed_workspace_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *,
-                                                             nk_size_t, nk_f64_t *, nk_size_t, nk_f32_t *, void *,
-                                                             nk_size_t, nk_stream_t);
+    using chamfers_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                                     nk_f64_t *, nk_size_t, nk_f32_t *, nk_f64_t const *, void *,
+                                                     nk_size_t, nk_stream_t);
+    using hausdorffs_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                                       nk_f64_t *, nk_size_t, nk_f32_t *, nk_f64_t const *,
+                                                       nk_stream_t);
+    using wassersteinprocrustes_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *,
+                                                                  nk_size_t, nk_f64_t *, nk_size_t, nk_f32_t *, void *,
+                                                                  nk_size_t, nk_stream_t);
+    using gromovwassersteins_packed_kernel_t = wassersteinprocrustes_packed_kernel_t;
+    using rmsds_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                                  nk_f64_t *, nk_size_t, nk_stream_t);
     using sparse_dot_kernel_t = nk_status_t (*)(nk_u32_t const *, nk_u32_t const *, raw_t const *, raw_t const *,
                                                 nk_size_t, nk_size_t, nk_f64_t *, nk_stream_t);
     using scale_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, scale_t const *, scale_t const *, raw_t *,
@@ -810,11 +817,18 @@ struct f64_t {
                                                          nk_f64_t *, nk_f64_t *, nk_stream_t);
     using shapes_unpack_kernel_t = nk_status_t (*)(void const *, raw_t *, nk_stream_t);
     using shapes_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
-    using shapes_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
-                                                   nk_f64_t *, nk_size_t, nk_f32_t *, nk_stream_t);
-    using shapes_packed_workspace_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *,
-                                                             nk_size_t, nk_f64_t *, nk_size_t, nk_f32_t *, void *,
-                                                             nk_size_t, nk_stream_t);
+    using chamfers_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                                     nk_f64_t *, nk_size_t, nk_f32_t *, nk_f64_t const *, void *,
+                                                     nk_size_t, nk_stream_t);
+    using hausdorffs_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                                       nk_f64_t *, nk_size_t, nk_f32_t *, nk_f64_t const *,
+                                                       nk_stream_t);
+    using wassersteinprocrustes_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *,
+                                                                  nk_size_t, nk_f64_t *, nk_size_t, nk_f32_t *, void *,
+                                                                  nk_size_t, nk_stream_t);
+    using gromovwassersteins_packed_kernel_t = wassersteinprocrustes_packed_kernel_t;
+    using rmsds_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                                  nk_f64_t *, nk_size_t, nk_stream_t);
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_f64_k; }
     static constexpr char const *dtype_name() noexcept { return "f64"; }
@@ -1560,11 +1574,18 @@ struct f16_t {
                                                          nk_f32_t *, nk_f32_t *, nk_stream_t);
     using shapes_unpack_kernel_t = nk_status_t (*)(void const *, raw_t *, nk_stream_t);
     using shapes_workspace_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
-    using shapes_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
-                                                   nk_f32_t *, nk_size_t, nk_f32_t *, nk_stream_t);
-    using shapes_packed_workspace_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *,
-                                                             nk_size_t, nk_f32_t *, nk_size_t, nk_f32_t *, void *,
-                                                             nk_size_t, nk_stream_t);
+    using chamfers_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                                     nk_f32_t *, nk_size_t, nk_f32_t *, nk_f32_t const *, void *,
+                                                     nk_size_t, nk_stream_t);
+    using hausdorffs_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                                       nk_f32_t *, nk_size_t, nk_f32_t *, nk_f32_t const *,
+                                                       nk_stream_t);
+    using wassersteinprocrustes_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *,
+                                                                  nk_size_t, nk_f32_t *, nk_size_t, nk_f32_t *, void *,
+                                                                  nk_size_t, nk_stream_t);
+    using gromovwassersteins_packed_kernel_t = wassersteinprocrustes_packed_kernel_t;
+    using rmsds_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
+                                                  nk_f32_t *, nk_size_t, nk_stream_t);
     using scale_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, scale_t const *, scale_t const *, raw_t *,
                                            nk_stream_t);
     using sum_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, nk_size_t, raw_t *, nk_stream_t);

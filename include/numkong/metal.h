@@ -322,11 +322,16 @@ NUMKONG_INLINE void nk_bind_bytes_metal_(void *encoder, void const *arguments, n
         encoder, sel_registerName("setBytes:length:atIndex:"), arguments, bytes, index);
 }
 
+/** Encodes @p groups threadgroups of @p threads each, running after what the encoder holds. */
+NUMKONG_INLINE void nk_encode_dispatch_metal_(void *encoder, nk_metal_size_t groups, nk_metal_size_t threads) {
+    ((void (*)(void *, SEL, nk_metal_size_t, nk_metal_size_t))objc_msgSend)(
+        encoder, sel_registerName("dispatchThreadgroups:threadsPerThreadgroup:"), groups, threads);
+}
+
 /** Dispatches @p groups threadgroups of @p threads each, then commits the call, so it starts
  *  running while the host moves on, as a CUDA launch does. */
 NUMKONG_INLINE nk_status_t nk_dispatch_metal_(nk_metal_call_t *call, nk_metal_size_t groups, nk_metal_size_t threads) {
-    ((void (*)(void *, SEL, nk_metal_size_t, nk_metal_size_t))objc_msgSend)(
-        call->encoder, sel_registerName("dispatchThreadgroups:threadsPerThreadgroup:"), groups, threads);
+    nk_encode_dispatch_metal_(call->encoder, groups, threads);
     nk_do_metal_(call->encoder, "endEncoding");
     nk_do_metal_(call->encoder, "release");
     call->encoder = NULL;

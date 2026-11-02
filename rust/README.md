@@ -144,8 +144,11 @@ Each group reports a `Capabilities` set of `Capability` bits along two independe
 Reach for the `_enabled` ones unless you specifically mean one of the raw axes.
 `cpu_detected()` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
 The crate keeps no process state: every CPU kernel call passes `Capabilities::CPUS`, and the library clamps it to the CPU capabilities it settles as it loads.
-`UnifiedAllocator::new(capabilities)` allocates memory the host and that group's device both address, and `capabilities.synchronize(stream)` waits for a stream of that group.
-`Capabilities::stream_init_cuda(ordinal)` makes such a stream on any device by its ordinal, and `Capabilities::stream_free_cuda(stream)` frees it once synchronized, with `rocm_` and `metal_` twins.
+No verb allocates: a GPU verb takes any memory its device reaches, which the runtime checks per call.
+`Stream::new(capabilities, ordinal)` makes a stream on a device, `Stream::default(capabilities)` names the vendor's default, and `stream.synchronize()` waits for it.
+`UnifiedAllocator::new(&stream)` allocates memory the host and that stream's device both address, the only unified memory the crate hands out.
+`stream.scope(|scope| ...)` runs the safe `_on` verbs, each queueing on that stream with its capabilities, and joins it before anything they borrow is released.
+`Capabilities::stream_init_cuda(ordinal)` and `Capabilities::stream_free_cuda(stream)` stay as the unsafe raw handles, with `rocm_` and `metal_` twins.
 
 Call `configure_thread` at the start of every thread that will use AMX operations.
 In a thread-pool setting, each worker thread needs its own call.
@@ -614,7 +617,7 @@ assert!(score.is_finite());
 
 `ShapesPackedMatrix` packs point clouds of any sizes once each, centered and rotated onto their principal axes.
 Its methods score every cloud of one set against every cloud of another into caller-provided slices.
-Distances are `f64` for `f32` clouds and `f32` for `f16` ones, and the optional rotations are row-major `[f32; 9]` matrices taking each column cloud onto each row cloud.
+Distances are `f32` for `f16` clouds and `f64` for the others, and the optional rotations are row-major `[f32; 9]` matrices taking each column cloud onto each row cloud.
 On equal sizes, Wasserstein-Procrustes is at most the Kabsch RMSD of a known correspondence, and equals it when that correspondence is an optimal plan.
 
 ```rust
@@ -631,7 +634,7 @@ let mut rotations = [[0.0_f32; 9]; 2];
 rows.wassersteinprocrustes(&columns, &mut distances, Some(&mut rotations)).unwrap();
 assert!(distances[0] < 1e-6);
 
-rows.chamfers(&columns, &mut distances, None).unwrap();
+rows.chamfers(&columns, &mut distances, None, f64::INFINITY).unwrap();
 assert_eq!(columns.shape(), (2, 7)); // clouds and their total points
 assert_eq!(columns.cloud_points(1).unwrap(), 3);
 
@@ -652,6 +655,23 @@ The pack layout is private, and the `cloud_points(i)`, `centroid(i)`, `frame(i)`
 Between normalized packs, the rotation also scales by `scale_a / scale_b`, and each kind compares the packed coordinates, so mixing absolute and normalized packs in one call is the caller's choice.
 
 The transport kinds, `wassersteinprocrustes` and `gromovwassersteins`, allocate their workspace through the row set's allocator for the call.
+
+Every kind has a safe `_on` verb, which runs the capabilities of a `Stream::scope` and keeps every borrow until the stream joins.
+`new_in` with a `UnifiedAllocator` writes the table and the packs into one block, which a GPU reads as it stands, as the host packs and every capability reads every pack.
+No verb allocates, so `results` and `workspace` come from the caller, and memory the device cannot reach fails with `Status::DeviceMemoryMismatch`, whichever allocator made it.
+
+```rust
+use numkong::{f16, Capabilities, Shapes, ShapesPackedMatrix, Stream, UnifiedAllocator};
+
+let stream = Stream::new(Capabilities::cuda_enabled(0)?, 0)?;
+let unified = UnifiedAllocator::new(&stream);
+let packs = ShapesPackedMatrix::<f16, _>::new_in(&clouds, unified)?;
+
+let (mut results, mut workspace) = (Vec::new_in(unified), Vec::new_in(unified));
+results.resize(clouds.len() * clouds.len(), 0.0_f32);
+workspace.resize(f16::chamfers_workspace_size(largest, largest, stream.capabilities())?, 0_u8);
+stream.scope(|scope| packs.chamfers_on(scope, &packs, &mut results, None, limit, &mut workspace))?;
+```
 
 ## Tolerance Comparison
 

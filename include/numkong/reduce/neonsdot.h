@@ -374,6 +374,74 @@ NUMKONG_API nk_status_t nk_reduce_moments_e2m3_neonsdot(          //
     return nk_success_k;
 }
 
+/** Sums U4 nibbles and their squares through UDOT, widening each step's lanes, sixteen bytes at a
+ *  time. */
+NUMKONG_INLINE void nk_reduce_moments_contiguous_u4_neonsdot_( //
+    nk_u4x2_t const *data_ptr, nk_size_t count,                //
+    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
+    uint8x16_t const mask_u8x16 = vdupq_n_u8(0x0F), ones_u8x16 = vdupq_n_u8(1);
+    uint32x4_t const zeros_u32x4 = vdupq_n_u32(0);
+    uint64x2_t sum_u64x2 = vdupq_n_u64(0), sumsq_u64x2 = vdupq_n_u64(0);
+    unsigned char const *bytes = (unsigned char const *)data_ptr;
+    nk_size_t const bytes_count = count / NUMKONG_NIBBLES_PER_BYTE;
+    for (nk_size_t index = 0; index < bytes_count; index += 16) {
+        nk_b128_vec_t bytes_vec;
+        if (index + 16 <= bytes_count) bytes_vec.u8x16 = vld1q_u8(bytes + index);
+        else nk_partial_load_b8x16_serial_(bytes + index, &bytes_vec, bytes_count - index);
+        uint8x16_t const low_u8x16 = vandq_u8(bytes_vec.u8x16, mask_u8x16);
+        uint8x16_t const high_u8x16 = vshrq_n_u8(bytes_vec.u8x16, 4);
+        sum_u64x2 = vpadalq_u32(sum_u64x2,
+                                vdotq_u32(vdotq_u32(zeros_u32x4, low_u8x16, ones_u8x16), high_u8x16, ones_u8x16));
+        sumsq_u64x2 = vpadalq_u32(sumsq_u64x2,
+                                  vdotq_u32(vdotq_u32(zeros_u32x4, low_u8x16, low_u8x16), high_u8x16, high_u8x16));
+    }
+    *sum_ptr = vaddvq_u64(sum_u64x2), *sumsq_ptr = vaddvq_u64(sumsq_u64x2);
+}
+
+NUMKONG_API nk_status_t nk_reduce_moments_u4_neonsdot(            //
+    nk_u4x2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
+    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
+    else if (stride == 1) nk_reduce_moments_contiguous_u4_neonsdot_(data_ptr, count, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_strided_u4_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    return nk_success_k;
+}
+
+/** Sums I4 nibbles and their squares through SDOT, each nibble sign-extended into its byte. */
+NUMKONG_INLINE void nk_reduce_moments_contiguous_i4_neonsdot_( //
+    nk_i4x2_t const *data_ptr, nk_size_t count,                //
+    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
+    int8x16_t const ones_i8x16 = vdupq_n_s8(1);
+    int32x4_t const zeros_i32x4 = vdupq_n_s32(0);
+    int64x2_t sum_i64x2 = vdupq_n_s64(0), sumsq_i64x2 = vdupq_n_s64(0);
+    unsigned char const *bytes = (unsigned char const *)data_ptr;
+    nk_size_t const bytes_count = count / NUMKONG_NIBBLES_PER_BYTE;
+    for (nk_size_t index = 0; index < bytes_count; index += 16) {
+        nk_b128_vec_t bytes_vec;
+        if (index + 16 <= bytes_count) bytes_vec.u8x16 = vld1q_u8(bytes + index);
+        else nk_partial_load_b8x16_serial_(bytes + index, &bytes_vec, bytes_count - index);
+        int8x16_t const packed_i8x16 = vreinterpretq_s8_u8(bytes_vec.u8x16);
+        int8x16_t const low_i8x16 = vshrq_n_s8(vshlq_n_s8(packed_i8x16, 4), 4);
+        int8x16_t const high_i8x16 = vshrq_n_s8(packed_i8x16, 4);
+        sum_i64x2 = vpadalq_s32(sum_i64x2,
+                                vdotq_s32(vdotq_s32(zeros_i32x4, low_i8x16, ones_i8x16), high_i8x16, ones_i8x16));
+        sumsq_i64x2 = vpadalq_s32(sumsq_i64x2,
+                                  vdotq_s32(vdotq_s32(zeros_i32x4, low_i8x16, low_i8x16), high_i8x16, high_i8x16));
+    }
+    *sum_ptr = vaddvq_s64(sum_i64x2), *sumsq_ptr = (nk_u64_t)vaddvq_s64(sumsq_i64x2);
+}
+
+NUMKONG_API nk_status_t nk_reduce_moments_i4_neonsdot(            //
+    nk_i4x2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
+    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
+    else if (stride == 1) nk_reduce_moments_contiguous_i4_neonsdot_(data_ptr, count, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_strided_i4_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    return nk_success_k;
+}
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)

@@ -3,7 +3,7 @@
  *  @author Ash Vardanian
  *  @date September 23, 2026
  *  @brief Backend-neutral cross-kernel benchmarks: batched dots, angular and euclidean distances,
- *      ragged attention, and the element-wise kernels over token rows.
+ *      ragged attention, the element-wise kernels over token rows, and packed shapes.
  *
  *  Every driver is a template over the input dtype, its kernels, and a backend value owning where
  *  operands live, how a kernel is called, when its results become readable, and how a window of
@@ -26,15 +26,17 @@
 #include <cstdint> // `std::int64_t`, `std::uint64_t`
 #include <cstring> // `std::memcpy`, `std::memset`
 
-#include <algorithm>   // `std::min`, `std::max`
-#include <array>       // `std::array`
-#include <random>      // `std::uniform_int_distribution`
-#include <string>      // `std::string`, `std::to_string`
-#include <type_traits> // `std::is_integral_v`, `std::is_same_v`
-#include <vector>      // `std::vector`
+#include <algorithm>        // `std::min`, `std::max`
+#include <array>            // `std::array`
+#include <initializer_list> // `std::initializer_list`
+#include <random>           // `std::uniform_int_distribution`
+#include <string>           // `std::string`, `std::to_string`
+#include <type_traits>      // `std::is_integral_v`, `std::is_same_v`
+#include <vector>           // `std::vector`
 
 #include "numkong/attention.hpp" // `nk::attention_packed_workspace_size`
 #include "numkong/cast.h"        // `nk_cast_serial`
+#include "numkong/shapes.hpp"    // `nk::shapes_pack`, `nk::shapes_pack_size`
 
 #include "harness.hpp"
 #include "harness_cpu.hpp" // `host_backend_t`, the drivers' default backend
@@ -1226,6 +1228,134 @@ void run_minmax_rows(environment_t const &env, std::string const &name, kernel_t
 }
 
 #pragma endregion Token Rows
+
+#pragma region Shapes
+
+/** One shape row's clouds: @p rows of @p row_points against @p columns of @p column_points. */
+struct shapes_tile_t {
+    std::size_t rows, columns, row_points, column_points;
+};
+
+/** The tiles that keep a data-center GPU busy on the kinds whose pairs finish in a pass. */
+inline constexpr shapes_tile_t shapes_flips_tile_k {512, 512, 256, 256}, shapes_rmsds_tile_k {4096, 4096, 300, 300};
+
+/** Launches a shape @p kernel, whichever kind the aliases of @p input_type_ say it is, with no
+ *  rotations and every pair scored in full. */
+template <typename input_type_, typename backend_type_, typename kernel_type_>
+nk_status_t call_shapes_packed(backend_type_ &backend, kernel_type_ kernel, void const *const *a_table,
+                               std::size_t rows, void const *const *b_table, std::size_t columns,
+                               typename input_type_::shapes_distance_t::raw_t *results, std::byte *workspace,
+                               nk_size_t workspace_bytes) {
+    using input_t = input_type_;
+    using distance_t = typename input_t::shapes_distance_t;
+    using raw_distance_t = typename distance_t::raw_t;
+    nk_size_t const results_stride = columns * sizeof(raw_distance_t);
+    nk_f32_t *const no_rotations = nullptr;
+    raw_distance_t const unbounded = distance_t::positive_infinity().raw_;
+    if constexpr (std::is_same_v<kernel_type_, typename input_t::rmsds_packed_kernel_t>)
+        return backend.call(kernel, a_table, rows, b_table, columns, results, results_stride);
+    else if constexpr (std::is_same_v<kernel_type_, typename input_t::hausdorffs_packed_kernel_t>)
+        return backend.call(kernel, a_table, rows, b_table, columns, results, results_stride, no_rotations, &unbounded);
+    else if constexpr (std::is_same_v<kernel_type_, typename input_t::chamfers_packed_kernel_t>)
+        return backend.call(kernel, a_table, rows, b_table, columns, results, results_stride, no_rotations, &unbounded,
+                            workspace, workspace_bytes);
+    else
+        return backend.call(kernel, a_table, rows, b_table, columns, results, results_stride, no_rotations, workspace,
+                            workspace_bytes);
+}
+
+/** Times a shape @p kernel over one @p tile per rotating set. Clouds are packed on the host by the
+ *  serial routine every capability reads, then uploaded with the tables of their addresses. */
+template <nk_dtype_t input_dtype_, typename backend_type_, typename kernel_type_>
+void measure_shapes_packed(loop_t &loop, environment_t const &env, backend_type_ backend, kernel_type_ kernel,
+                           shapes_tile_t tile) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    using distance_t = typename input_t::shapes_distance_t;
+    using packs_t = nk::vector<std::byte, typename backend_type_::template allocator<std::byte>>;
+    using outputs_t = nk::vector<distance_t, typename backend_type_::template allocator<distance_t>>;
+
+    nk::expected<std::size_t> const row_pack = nk::shapes_pack_size<input_t>(tile.row_points, nk_cap_serial_k);
+    nk::expected<std::size_t> const column_pack = nk::shapes_pack_size<input_t>(tile.column_points, nk_cap_serial_k);
+    if (nk::failed(row_pack.status) || nk::failed(column_pack.status)) return loop.skip("pack size failed");
+    nk_size_t workspace_bytes = 0;
+    if (!workspace_size_bytes(loop, workspace_bytes, kernel, tile.row_points, tile.column_points)) return;
+
+    // Each set holds the row packs, the column packs and the table of their addresses, back to back
+    std::size_t const row_stride = nk_size_round_up_to_multiple_(row_pack.value, nk_default_alignment_k);
+    std::size_t const column_stride = nk_size_round_up_to_multiple_(column_pack.value, nk_default_alignment_k);
+    std::size_t const clouds = tile.rows + tile.columns;
+    std::size_t const table_offset = tile.rows * row_stride + tile.columns * column_stride;
+    std::size_t const set_bytes = nk_size_round_up_to_multiple_(table_offset + clouds * sizeof(void const *),
+                                                                nk_default_alignment_k);
+    std::size_t const sets_count = backend.input_sets(bytes_t {set_bytes});
+
+    packs_t packs = packs_t::uninitialized(sets_count * set_bytes, allocator_of<std::byte>(backend)).value;
+    packs_t workspace = packs_t::uninitialized(workspace_bytes, allocator_of<std::byte>(backend)).value;
+    outputs_t results = outputs_t::uninitialized(tile.rows * tile.columns, allocator_of<distance_t>(backend)).value;
+    if (packs.empty() || results.empty() || (workspace_bytes != 0 && workspace.empty()))
+        return loop.skip("allocation failed");
+
+    nk::vector<std::byte> staged = make_vector<std::byte>(set_bytes);
+    nk::vector<input_t> cloud = make_vector<input_t>(std::max(tile.row_points, tile.column_points) * 3);
+    void const **staged_table = reinterpret_cast<void const **>(staged.raw_values_data() + table_offset);
+    std::mt19937 generator(env.settings.seed.value);
+    for (std::size_t set = 0; set != sets_count; ++set) {
+        std::byte *uploaded = packs.raw_values_data() + set * set_bytes;
+        for (std::size_t index = 0; index != clouds; ++index) {
+            bool const is_row = index < tile.rows;
+            std::size_t const points = is_row ? tile.row_points : tile.column_points;
+            std::size_t const offset = is_row ? index * row_stride
+                                              : tile.rows * row_stride + (index - tile.rows) * column_stride;
+            nk::fill_uniform(generator, cloud.values_data(), points * 3);
+            if (nk::failed(nk::shapes_pack<input_t>(cloud.raw_values_data(), points, staged.raw_values_data() + offset,
+                                                    nk_cap_serial_k)))
+                return loop.skip("pack failed");
+            staged_table[index] = uploaded + offset;
+        }
+        if (!succeeded(loop, backend.copy(uploaded, staged.raw_values_data(), set_bytes))) return;
+    }
+
+    bool const timed = time_rotating(loop, backend, sets_count, [&](std::size_t set) {
+        void const *const *table = reinterpret_cast<void const *const *>(packs.raw_values_data() + set * set_bytes +
+                                                                         table_offset);
+        return call_shapes_packed<input_t>(backend, kernel_of(kernel), table, tile.rows, table + tile.rows,
+                                           tile.columns, results.raw_values_data(), workspace.raw_values_data(),
+                                           workspace_bytes);
+    });
+    if (timed) loop.rate("distances", static_cast<double>(tile.rows * tile.columns));
+}
+
+/** Runs @p kernel over each of @p tiles; a row names both cloud sizes only where they differ. */
+template <nk_dtype_t input_dtype_, typename backend_type_, typename kernel_type_>
+void run_shapes_packed(environment_t const &env, std::string const &name, backend_type_ const &backend,
+                       kernel_type_ kernel, std::initializer_list<shapes_tile_t> tiles) {
+    for (shapes_tile_t const tile : tiles) {
+        std::string const points = tile.row_points == tile.column_points
+                                       ? std::to_string(tile.row_points)
+                                       : std::to_string(tile.row_points) + "x" + std::to_string(tile.column_points);
+        run_benchmark(env,
+                      name + "<" + std::to_string(tile.rows) + "x" + std::to_string(tile.columns) + "x" + points + ">",
+                      measure_shapes_packed<input_dtype_, backend_type_, kernel_type_>, backend, kernel, tile);
+    }
+}
+
+/** Runs @p kernel on one cloud against many and a square tile on the host, and on a device on the
+ *  256 × 256 tile that keeps a GPU busy, or the 16 × 16 one a transport solver ends in a round. */
+template <nk_dtype_t input_dtype_, typename backend_type_, typename kernel_type_>
+void run_shapes_packed(environment_t const &env, std::string const &name, backend_type_ const &backend,
+                       kernel_type_ kernel) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    using transport_t = scratch_kernel<typename input_t::wassersteinprocrustes_packed_kernel_t,
+                                       typename input_t::shapes_workspace_size_kernel_t>;
+    std::size_t const points = env.settings.shape_points;
+    if constexpr (std::is_base_of_v<device_backend_t, backend_type_>) {
+        std::size_t const side = std::is_same_v<kernel_type_, transport_t> ? 16 : 256;
+        run_shapes_packed<input_dtype_>(env, name, backend, kernel, {{side, side, points, points}});
+    }
+    else run_shapes_packed<input_dtype_>(env, name, backend, kernel, {{1, 16, points, points}, {8, 8, points, points}});
+}
+
+#pragma endregion Shapes
 
 } // namespace ashvardanian::numkong::bench
 

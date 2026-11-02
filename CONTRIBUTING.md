@@ -529,7 +529,7 @@ To add a new operation family, for example `foo`:
 2. __Kernels per capability__: add `include/numkong/foo/serial.h`, `foo/neon.h`, `foo/haswell.h`, etc.
    Each opens the guards of its capability's shape, listed under [Macro Naming](#macro-naming).
    A kernel never calls another public kernel: logic two kernels share lives in a helper named for what it computes.
-   A kernel takes typed arguments from a per-dtype macro, never a runtime `nk_dtype_t`.
+   A kernel takes typed arguments, from a per-dtype macro in `serial.h` or a body per capability, never a runtime `nk_dtype_t`.
    Each dtype on each capability has its own body, calling typed helpers directly: never a function pointer, whether a parameter, a typedef or a struct field.
    Compilers inline a pointer argument but not one stored in a struct whose address escapes, which then costs an indirect call per element.
    The public punned kernel types and the `_best` capability lists are the only function pointers.
@@ -537,7 +537,7 @@ To add a new operation family, for example `foo`:
    A reduction accumulates one tier above the narrowest type it reads or writes, F32 for anything narrower than F32 and F64 for F32, and compensates only when input and output are both F64.
    Its element-wise steps run at their input's working precision, and family headers state the reduction type in a `nk_<family>_*_dtype` helper.
    SME kernels finish in predicated streaming SVE, never NEON, which faults in streaming mode.
-   A new `nk_define_*` macro needs approval: add it to `approved_codegen_macros` in the same commit.
+   A new `nk_define_*` macro needs approval: add it to the `StatementMacros` list of `.clang-format` in the same commit.
 3. __Library__: create `src/dispatch/foo.c` with a `static` capability list per dispatch point, like `nk_foo_f32_capabilities`, the `_best` body that picks from it, and `nk_foo_find_kernel`.
    Include each capability header from its unit, like `src/capabilities/haswell.c`, and route the family's kernel kinds to `nk_foo_find_kernel` in `src/numkong.c`.
 4. __C++ wrapper__: create `cpp/numkong/foo.hpp` with the typed C++ API, ending in the dispatch point's mask and stream.
@@ -546,6 +546,10 @@ To add a new operation family, for example `foo`:
 7. __Cross-platform tests__: add a scenario to `test/cross.hpp`, then register it in the relevant `test/cross_*` files, `test/cross_cuda.cu` and `test/cross_rocm.hip` included.
 8. __CMakeLists.txt__: wire the new source files into the `numkong_cpu_test` and `numkong_bench` targets.
 9. __Language bindings__: update `python/numkong.c`, `javascript/numkong.c`, `rust/numkong.rs`, etc. as needed.
+   No verb allocates.
+   A GPU verb takes any memory its device reaches, and the runtime checks that per call.
+   Unified memory comes only from an explicit `copy`, or from `UnifiedAllocator` in Rust.
+   A GPU verb runs the capabilities the caller names.
 
 ## Adding a Capability to an Existing Family
 

@@ -6,7 +6,8 @@
  *      managed memory, the launches, the streams and the device producers, then the wavefront and
  *      rounding primitives every ROCm kernel shares.
  *
- *  Only hipcc sees past the guard, and nothing here is shared with CUDA, whose twins live in
+ *  Only hipcc sees past the guard. Kernels shared with CUDA live in the families' @c simt.cuh
+ *  headers, unsuffixed by vendor, and what talks to the runtime stays here, with its twins in
  *  <tt>cuda.cuh</tt> under their own names, so a library holding both vendors links one body per name.
  *
  *  @sa include/numkong/cuda.cuh
@@ -91,6 +92,52 @@ NUMKONG_INLINE nk_status_t nk_launch_resident_rocm_(void const *kernel, unsigned
                                      : hipErrorInvalidConfiguration;
     nk_device_leave_rocm_(caller);
     return status == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
+}
+
+/** Launches as many blocks of @p threads running @p kernel as stay resident on the stream's device,
+ *  all at once, as the blocks of a team spin on each other and need forward progress, passing the
+ *  one argument struct at @p arguments by value. */
+NUMKONG_INLINE nk_status_t nk_launch_cooperative_rocm_(void const *kernel, unsigned threads, nk_size_t shared_bytes,
+                                                       void *arguments, nk_stream_t stream) {
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_rocm_(stream, &caller);
+    if (entered != nk_success_k) return entered;
+    int device = 0, multiprocessors = 0, per_multiprocessor = 0;
+    if (hipGetDevice(&device) != hipSuccess ||
+        hipFuncSetAttribute(kernel, hipFuncAttributeMaxDynamicSharedMemorySize, (int)shared_bytes) != hipSuccess ||
+        hipDeviceGetAttribute(&multiprocessors, hipDeviceAttributeMultiprocessorCount, device) != hipSuccess ||
+        hipOccupancyMaxActiveBlocksPerMultiprocessor(&per_multiprocessor, kernel, (int)threads, shared_bytes) !=
+            hipSuccess) {
+        nk_device_leave_rocm_(caller);
+        return nk_device_code_mismatch_k;
+    }
+    void *launch_arguments[1];
+    launch_arguments[0] = arguments;
+    dim3 grid, block;
+    grid.x = (unsigned)(multiprocessors * per_multiprocessor), grid.y = 1, grid.z = 1;
+    block.x = threads, block.y = 1, block.z = 1;
+    hipError_t const status = grid.x ? hipLaunchCooperativeKernel(kernel, grid, block, launch_arguments,
+                                                                  (uint32_t)shared_bytes, (hipStream_t)stream)
+                                     : hipErrorInvalidConfiguration;
+    nk_device_leave_rocm_(caller);
+    return status == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
+}
+
+/** Accepts @p address when the current device addresses it: managed memory, its own allocation, or
+ *  registered host memory it reads over the bus, whose device address the driver reports. */
+NUMKONG_INLINE int nk_address_accessible_rocm_(void const *address) {
+    int device = 0;
+    hipPointerAttribute_t attributes;
+    if (hipPointerGetAttributes(&attributes, address) != hipSuccess || hipGetDevice(&device) != hipSuccess) return 0;
+    if (attributes.isManaged || attributes.type == hipMemoryTypeManaged) return 1;
+    if (attributes.type == hipMemoryTypeHost) return attributes.devicePointer != NUMKONG_NULL;
+    return attributes.type == hipMemoryTypeDevice && attributes.device == device;
+}
+
+/** Whether the current device reaches both ends of @p bytes at @p pointer, or nothing to reach. */
+NUMKONG_INLINE int nk_memory_accessible_rocm_(void const *pointer, nk_size_t bytes) {
+    return !bytes || (nk_address_accessible_rocm_(pointer) &&
+                      nk_address_accessible_rocm_((unsigned char const *)pointer + bytes - 1));
 }
 
 /** Reads @p attribute of the stream's device into @p value. */

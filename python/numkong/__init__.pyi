@@ -354,7 +354,9 @@ class Tensor(memoryview):
         """Transpose of the tensor."""
         ...
 
-    def copy(self, *, out: Tensor | None = None) -> Tensor:
+    def copy(
+        self, *, out: Tensor | None = None, capabilities: Capability | int | None = None, stream: int | None = None
+    ) -> Tensor:
         """Return a deep copy of the tensor, or write it into `out` and return `out`."""
         ...
 
@@ -1842,12 +1844,18 @@ class ShapesPackedMatrix:
         ...
 
     @classmethod
-    def pack_size(cls, points: int, /, dtype: Literal["f16", "float16", "f32", "float32"] | type[float16]) -> int:
+    def pack_size(
+        cls, points: int, /, dtype: Literal["f16", "float16", "f32", "float32", "f64", "float64"] | type[float16]
+    ) -> int:
         """Return the bytes one packed cloud of the given points and dtype takes."""
         ...
 
     def unpack(self, index: int, /) -> Tensor:
         """Return one cloud as [points,3] in the pack dtype and its original pose and scale, within one rounding."""
+        ...
+
+    def copy(self, capabilities: Capability | int, *, stream: int | None = None) -> ShapesPackedMatrix:
+        """Gather the table and packs into one block of the unified memory of `capabilities`, for GPU shape functions."""
         ...
 
     def __len__(self) -> int:
@@ -1866,7 +1874,7 @@ class ShapesPackedMatrix:
 def shapes_pack(
     points: _BufferType | list[_BufferType] | tuple[_BufferType, ...],
     /,
-    dtype: Literal["f16", "float16", "f32", "float32"] | type[float16] | None = None,
+    dtype: Literal["f16", "float16", "f32", "float32", "f64", "float64"] | type[float16] | None = None,
     *,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
@@ -1878,7 +1886,7 @@ def shapes_pack(
 def shapes_pack_normalized(
     points: _BufferType | list[_BufferType] | tuple[_BufferType, ...],
     /,
-    dtype: Literal["f16", "float16", "f32", "float32"] | type[float16] | None = None,
+    dtype: Literal["f16", "float16", "f32", "float32", "f64", "float64"] | type[float16] | None = None,
     *,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
@@ -1890,16 +1898,16 @@ def shapes_pack_normalized(
 # for float32 ones. A `rotations` buffer, writable C-contiguous float32 of shape [rows,columns,3,3],
 # receives the rotations taking each column cloud onto each row cloud:
 # aᵢ ≈ (scale_a / scale_b) × R × (bⱼ − b̄) + ā.
-def chamfers_packed(
+def rmsds_packed(
     a: ShapesPackedMatrix,
     b: ShapesPackedMatrix,
     /,
     *,
-    rotations: _BufferType | None = None,
+    out: _BufferType | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
-    """Compute Chamfer distances, the mean nearest-partner distance both ways, halved, best of 8 axis flips."""
+    """Compute superposed RMSDs of clouds with equally many points, point i matching point i."""
     ...
 
 def hausdorffs_packed(
@@ -1908,10 +1916,27 @@ def hausdorffs_packed(
     /,
     *,
     rotations: _BufferType | None = None,
+    limit: float | None = None,
+    out: _BufferType | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
     """Compute Hausdorff distances, the worst nearest-partner distance either way, best of 8 axis flips."""
+    ...
+
+def chamfers_packed(
+    a: ShapesPackedMatrix,
+    b: ShapesPackedMatrix,
+    /,
+    *,
+    rotations: _BufferType | None = None,
+    limit: float | None = None,
+    workspace: _BufferType | None = None,
+    out: _BufferType | None = None,
+    threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
+) -> Tensor:
+    """Compute Chamfer distances, the mean nearest-partner distance both ways, halved, best of 8 axis flips."""
     ...
 
 def wassersteinprocrustes_packed(
@@ -1920,6 +1945,8 @@ def wassersteinprocrustes_packed(
     /,
     *,
     rotations: _BufferType | None = None,
+    workspace: _BufferType | None = None,
+    out: _BufferType | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
@@ -1932,10 +1959,45 @@ def gromovwassersteins_packed(
     /,
     *,
     rotations: _BufferType | None = None,
+    workspace: _BufferType | None = None,
+    out: _BufferType | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
     """Compute Gromov-Wasserstein distances between the clouds' own distance matrices."""
+    ...
+
+def chamfers_workspace_size(
+    a: ShapesPackedMatrix,
+    b: ShapesPackedMatrix,
+    /,
+    *,
+    threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
+) -> int:
+    """Return the bytes of the `workspace` that chamfers_packed() needs, any alignment included."""
+    ...
+
+def wassersteinprocrustes_workspace_size(
+    a: ShapesPackedMatrix,
+    b: ShapesPackedMatrix,
+    /,
+    *,
+    threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
+) -> int:
+    """Return the bytes of the `workspace` that wassersteinprocrustes_packed() needs."""
+    ...
+
+def gromovwassersteins_workspace_size(
+    a: ShapesPackedMatrix,
+    b: ShapesPackedMatrix,
+    /,
+    *,
+    threads: int = 1,
+    **dispatch: Unpack[_Dispatch],
+) -> int:
+    """Return the bytes of the `workspace` that gromovwassersteins_packed() needs."""
     ...
 
 # endregion Shapes

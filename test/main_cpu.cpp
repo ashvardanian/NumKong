@@ -475,6 +475,7 @@ static error_stats_t test_find_kernel(settings_t const &) {
         nk_kernel_shapes_pack_normalized_k,
         nk_kernel_shapes_packed_shape_k,
         nk_kernel_shapes_unpack_k,
+        nk_kernel_chamfers_workspace_size_k,
         nk_kernel_chamfers_packed_k,
         nk_kernel_hausdorffs_packed_k,
         nk_kernel_wassersteinprocrustes_workspace_size_k,
@@ -659,6 +660,7 @@ static nk::status_t test_device(error_stats_section_t &check, nk::device_t devic
         case nk::device_kind_t::rocm_k:
             test_cast_rocm(check);
             test_each_rocm(check);
+            test_shapes_rocm(check);
             test_cross_rocm(check);
             break;
         case nk::device_kind_t::metal_k:

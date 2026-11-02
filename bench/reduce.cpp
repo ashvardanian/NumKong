@@ -106,6 +106,7 @@ void bench_reduce(environment_t const &env) {
         run_reduce_moments<f64_k>(env, "reduce_moments_f64_neon", nk_reduce_moments_f64_neon);
         run_reduce_moments<f32_k>(env, "reduce_moments_f32_neon", nk_reduce_moments_f32_neon);
         run_reduce_moments<f16_k>(env, "reduce_moments_f16_neon", nk_reduce_moments_f16_neon);
+        run_reduce_moments<bf16_k>(env, "reduce_moments_bf16_neon", nk_reduce_moments_bf16_neon);
         run_reduce_moments<i8_k>(env, "reduce_moments_i8_neon", nk_reduce_moments_i8_neon);
         run_reduce_moments<u8_k>(env, "reduce_moments_u8_neon", nk_reduce_moments_u8_neon);
         run_reduce_moments<i16_k>(env, "reduce_moments_i16_neon", nk_reduce_moments_i16_neon);
@@ -146,6 +147,8 @@ void bench_reduce(environment_t const &env) {
     if (section(env, "Reductions NEON I8", nk_cap_neonsdot_k)) {
         run_reduce_moments<i8_k>(env, "reduce_moments_i8_neonsdot", nk_reduce_moments_i8_neonsdot);
         run_reduce_moments<u8_k>(env, "reduce_moments_u8_neonsdot", nk_reduce_moments_u8_neonsdot);
+        run_reduce_moments<i4_k>(env, "reduce_moments_i4_neonsdot", nk_reduce_moments_i4_neonsdot);
+        run_reduce_moments<u4_k>(env, "reduce_moments_u4_neonsdot", nk_reduce_moments_u4_neonsdot);
         run_reduce_moments<e2m3_k>(env, "reduce_moments_e2m3_neonsdot", nk_reduce_moments_e2m3_neonsdot);
     }
 #endif

@@ -117,6 +117,7 @@ void test_reduce(error_stats_section_t &check) {
 
 #if NUMKONG_TARGET_NEON
     check.section("Reductions NEON", nk_cap_neon_k);
+    check("reduce_moments_bf16_neon", test_reduce_moments<bf16_t>, nk_reduce_moments_bf16_neon);
     check("reduce_moments_f32_neon", test_reduce_moments<f32_t>, nk_reduce_moments_f32_neon);
     check("reduce_moments_f64_neon", test_reduce_moments<f64_t>, nk_reduce_moments_f64_neon);
     check("reduce_moments_f16_neon", test_reduce_moments<f16_t>, nk_reduce_moments_f16_neon);
@@ -158,6 +159,8 @@ void test_reduce(error_stats_section_t &check) {
     check.section("Reductions NEON I8", nk_cap_neonsdot_k);
     check("reduce_moments_i8_neonsdot", test_reduce_moments<i8_t>, nk_reduce_moments_i8_neonsdot);
     check("reduce_moments_u8_neonsdot", test_reduce_moments<u8_t>, nk_reduce_moments_u8_neonsdot);
+    check("reduce_moments_i4_neonsdot", test_reduce_moments<i4x2_t>, nk_reduce_moments_i4_neonsdot);
+    check("reduce_moments_u4_neonsdot", test_reduce_moments<u4x2_t>, nk_reduce_moments_u4_neonsdot);
     check("reduce_moments_e2m3_neonsdot", test_reduce_moments<e2m3_t>, nk_reduce_moments_e2m3_neonsdot);
 #endif // NUMKONG_TARGET_NEONSDOT
 

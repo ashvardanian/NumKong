@@ -12,8 +12,8 @@
  *  std::span<nk::f32_t const> clouds[] = {first_cloud, second_cloud};
  *  auto [packs, status] = nk::shapes_packed<nk::f32_t>::make(clouds);
  *  nk::f64_t distances[4];
- *  status = nk::chamfers_packed<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t),
- *                                          nullptr);
+ *  status = nk::hausdorffs_packed<nk::f32_t>(packs.data(), 2, packs.data(), 2, distances, 2 * sizeof(nk::f64_t),
+ *                                            nullptr, nk::f64_t::positive_infinity());
  *  @endcode
  */
 #ifndef NUMKONG_SHAPES_HPP
@@ -1272,7 +1272,38 @@ status_t shapes_unpack(void const *packed, typename in_type_::raw_t *points,
 }
 
 /**
- *  @brief Chamfer distances between every row pack and every column pack, the best of 8 axis flips.
+ *  @brief Superposed RMSDs between every row pack and every column pack of equally many points.
+ *  @param[in] a_packed The row packs, one per row cloud.
+ *  @param[in] rows Number of row packs.
+ *  @param[in] b_packed The column packs, one per column cloud.
+ *  @param[in] columns Number of column packs.
+ *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
+ *  @param[in] results_stride Bytes between the rows of @p results.
+ *  @param[in] capabilities Capabilities to pick from.
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
+ *
+ *  @par Statuses:
+ *  - @c misaligned_k
+ *  - @c unexpected_dimensions_k The packs differ in points.
+ *  - @c missing_kernel_k
+ */
+template <shapes_dtype in_type_>
+status_t rmsds_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed, std::size_t columns,
+                      typename in_type_::shapes_distance_t *results, std::size_t results_stride,
+                      nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
+    if constexpr (std::is_same_v<in_type_, f64_t>)
+        return static_cast<status_t>(nk_rmsds_packed_f64_best(a_packed, rows, b_packed, columns, &results->raw_,
+                                                              results_stride, capabilities, stream));
+    else if constexpr (std::is_same_v<in_type_, f32_t>)
+        return static_cast<status_t>(nk_rmsds_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_,
+                                                              results_stride, capabilities, stream));
+    else
+        return static_cast<status_t>(nk_rmsds_packed_f16_best(a_packed, rows, b_packed, columns, &results->raw_,
+                                                              results_stride, capabilities, stream));
+}
+
+/**
+ *  @brief Hausdorff distances between every row and every column pack, the best of 8 axis flips.
  *  @param[in] a_packed The row packs, one per row cloud.
  *  @param[in] rows Number of row packs.
  *  @param[in] b_packed The column packs, one per column cloud.
@@ -1281,14 +1312,51 @@ status_t shapes_unpack(void const *packed, typename in_type_::raw_t *points,
  *  @param[in] results_stride Bytes between the rows of @p results.
  *  @param[out] rotations Null, or the @b [rows,columns,3,3] rotations taking each column cloud onto
  *      each row cloud through the centroids.
+ *  @param[in] limit Distances up to it are exact; past it, a pair may stop early and report a lower
+ *      bound that also lies past it, with that bound's flip in @p rotations. Infinity scores all.
  *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  */
 template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
           typename rotation_type_ = f32_t>
+status_t hausdorffs_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
+                           std::size_t columns, distance_type_ *results, std::size_t results_stride,
+                           std::type_identity_t<rotation_type_> *rotations, std::type_identity_t<distance_type_> limit,
+                           nk_capability_t capabilities = default_capabilities(),
+                           nk_stream_t stream = nullptr) noexcept {
+    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
+                              std::is_same_v<rotation_type_, f32_t>;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return static_cast<status_t>(nk_hausdorffs_packed_f64_best(
+                a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                reinterpret_cast<nk_f32_t *>(rotations), &limit.raw_, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return static_cast<status_t>(nk_hausdorffs_packed_f32_best(
+                a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                reinterpret_cast<nk_f32_t *>(rotations), &limit.raw_, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return static_cast<status_t>(nk_hausdorffs_packed_f16_best(
+                a_packed, rows, b_packed, columns, &results->raw_, results_stride,
+                reinterpret_cast<nk_f32_t *>(rotations), &limit.raw_, capabilities, stream));
+    }
+    shapes_nearest_reference_<in_type_, nk_kernel_hausdorffs_packed_k>(a_packed, rows, b_packed, columns, results,
+                                                                       results_stride, rotations);
+    return status_t::success_k;
+}
+
+/**
+ *  @brief Chamfer distances between every row pack and every column pack, the best of 8 axis flips,
+ *      taking what @c hausdorffs_packed takes and the workspace.
+ *  @param[in,out] workspace Scratch of @p workspace_bytes, as @c chamfers_workspace_size reports.
+ *  @param[in] workspace_bytes The bytes of @p workspace.
+ */
+template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
+          typename rotation_type_ = f32_t>
 status_t chamfers_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
                          std::size_t columns, distance_type_ *results, std::size_t results_stride,
-                         std::type_identity_t<rotation_type_> *rotations,
+                         std::type_identity_t<rotation_type_> *rotations, std::type_identity_t<distance_type_> limit,
+                         void *workspace, std::size_t workspace_bytes,
                          nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
                               std::is_same_v<rotation_type_, f32_t>;
@@ -1296,48 +1364,54 @@ status_t chamfers_packed(void const *const *a_packed, std::size_t rows, void con
         if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
             return static_cast<status_t>(
                 nk_chamfers_packed_f64_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                                            reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+                                            reinterpret_cast<nk_f32_t *>(rotations), &limit.raw_, workspace,
+                                            workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
             return static_cast<status_t>(
                 nk_chamfers_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                                            reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+                                            reinterpret_cast<nk_f32_t *>(rotations), &limit.raw_, workspace,
+                                            workspace_bytes, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
             return static_cast<status_t>(
                 nk_chamfers_packed_f16_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                                            reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+                                            reinterpret_cast<nk_f32_t *>(rotations), &limit.raw_, workspace,
+                                            workspace_bytes, capabilities, stream));
     }
     shapes_nearest_reference_<in_type_, nk_kernel_chamfers_packed_k>(a_packed, rows, b_packed, columns, results,
                                                                      results_stride, rotations);
     return status_t::success_k;
 }
 
-/** Hausdorff distances between every row and column pack, taking what @c chamfers_packed takes. */
-template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
-          typename rotation_type_ = f32_t>
-status_t hausdorffs_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
-                           std::size_t columns, distance_type_ *results, std::size_t results_stride,
-                           std::type_identity_t<rotation_type_> *rotations,
-                           nk_capability_t capabilities = default_capabilities(),
-                           nk_stream_t stream = nullptr) noexcept {
-    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t> &&
-                              std::is_same_v<rotation_type_, f32_t>;
+/**
+ *  @brief Returns the workspace bytes of @c chamfers_packed between clouds of up to @p row_points
+ *      and @p column_points points.
+ *  @param[in] row_points Most points in any row cloud.
+ *  @param[in] column_points Most points in any column cloud.
+ *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
+ */
+template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
+expected<std::size_t> chamfers_workspace_size(std::size_t row_points, std::size_t column_points,
+                                              nk_capability_t capabilities = default_capabilities()) noexcept {
+    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t>;
     if (capabilities) {
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
-            return static_cast<status_t>(
-                nk_hausdorffs_packed_f64_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                                              reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
-            return static_cast<status_t>(
-                nk_hausdorffs_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                                              reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
-            return static_cast<status_t>(
-                nk_hausdorffs_packed_f16_best(a_packed, rows, b_packed, columns, &results->raw_, results_stride,
-                                              reinterpret_cast<nk_f32_t *>(rotations), capabilities, stream));
+        nk_size_t bytes = 0;
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch) {
+            nk_status_t const status = nk_chamfers_workspace_size_f64_best(row_points, column_points, capabilities,
+                                                                           &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch) {
+            nk_status_t const status = nk_chamfers_workspace_size_f32_best(row_points, column_points, capabilities,
+                                                                           &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch) {
+            nk_status_t const status = nk_chamfers_workspace_size_f16_best(row_points, column_points, capabilities,
+                                                                           &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
     }
-    shapes_nearest_reference_<in_type_, nk_kernel_hausdorffs_packed_k>(a_packed, rows, b_packed, columns, results,
-                                                                       results_stride, rotations);
-    return status_t::success_k;
+    return {std::size_t(0), status_t::success_k};
 }
 
 /**
@@ -1372,35 +1446,6 @@ expected<std::size_t> wassersteinprocrustes_workspace_size(
     shapes_transport_workspace_<distance_type_> layout;
     return {shapes_transport_layout_<distance_type_, nk_kernel_wassersteinprocrustes_packed_k>(
                 layout, nullptr, row_points, column_points),
-            status_t::success_k};
-}
-
-/** The workspace bytes of @c gromovwassersteins_packed, queried like the Procrustes workspace. */
-template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
-expected<std::size_t> gromovwassersteins_workspace_size(
-    std::size_t row_points, std::size_t column_points, nk_capability_t capabilities = default_capabilities()) noexcept {
-    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t>;
-    if (capabilities) {
-        nk_size_t bytes = 0;
-        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch) {
-            nk_status_t const status = nk_gromovwassersteins_workspace_size_f64_best(row_points, column_points,
-                                                                                     capabilities, &bytes);
-            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
-        }
-        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch) {
-            nk_status_t const status = nk_gromovwassersteins_workspace_size_f32_best(row_points, column_points,
-                                                                                     capabilities, &bytes);
-            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
-        }
-        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch) {
-            nk_status_t const status = nk_gromovwassersteins_workspace_size_f16_best(row_points, column_points,
-                                                                                     capabilities, &bytes);
-            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
-        }
-    }
-    shapes_transport_workspace_<distance_type_> layout;
-    return {shapes_transport_layout_<distance_type_, nk_kernel_gromovwassersteins_packed_k>(layout, nullptr, row_points,
-                                                                                            column_points),
             status_t::success_k};
 }
 
@@ -1452,6 +1497,35 @@ status_t wassersteinprocrustes_packed(void const *const *a_packed, std::size_t r
     }
     return shapes_transport_reference_<in_type_, nk_kernel_wassersteinprocrustes_packed_k>(
         a_packed, rows, b_packed, columns, results, results_stride, rotations, workspace);
+}
+
+/** The workspace bytes of @c gromovwassersteins_packed, queried like the Procrustes workspace. */
+template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
+expected<std::size_t> gromovwassersteins_workspace_size(
+    std::size_t row_points, std::size_t column_points, nk_capability_t capabilities = default_capabilities()) noexcept {
+    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t>;
+    if (capabilities) {
+        nk_size_t bytes = 0;
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch) {
+            nk_status_t const status = nk_gromovwassersteins_workspace_size_f64_best(row_points, column_points,
+                                                                                     capabilities, &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch) {
+            nk_status_t const status = nk_gromovwassersteins_workspace_size_f32_best(row_points, column_points,
+                                                                                     capabilities, &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch) {
+            nk_status_t const status = nk_gromovwassersteins_workspace_size_f16_best(row_points, column_points,
+                                                                                     capabilities, &bytes);
+            return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
+        }
+    }
+    shapes_transport_workspace_<distance_type_> layout;
+    return {shapes_transport_layout_<distance_type_, nk_kernel_gromovwassersteins_packed_k>(layout, nullptr, row_points,
+                                                                                            column_points),
+            status_t::success_k};
 }
 
 /** Gromov-Wasserstein distances between every row and column pack, with the parameters of

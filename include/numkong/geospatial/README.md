@@ -65,7 +65,7 @@ The clearance is the least gap between the sight line and those samples: positiv
 
 `nk_haversines_pack_f64` stores each point as a unit vector and `nk_vincentys_pack_f64` stores its longitude with the sine and cosine of its reduced latitude, in planar arrays every capability reads alike.
 A rows × columns product then evaluates no trigonometry per point: Haversine reduces to two compensated norms and one `atan2` per pair, and Vincenty starts its iteration from precomputed reduced latitudes instead of an `atan` per pair.
-Every CPU capability packs through the serial routine and CUDA through its twin, which rounds the same polynomials one operation at a time, so a pack built once is byte-identical wherever it is read.
+Every CPU capability packs through the serial routine and CUDA through its twin, and every capability reads the result.
 
 ### Exact 3D Squares
 

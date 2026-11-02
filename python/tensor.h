@@ -40,7 +40,8 @@ extern "C" {
  *  NumKong's extended type system.
  *
  *  Memory layout:
- *  - If parent == NULL: owns a heap-allocated @c data buffer holding @c capacity elements
+ *  - If parent == NULL: owns a @c data buffer holding @c capacity elements, on the heap, or in
+ *    unified memory after @c copy with @c capabilities
  *  - If parent != NULL: view into parent's memory, @c data points there
  *
  *  Storage lives in a separately heap-allocated buffer, not inline in the object, so `reserve()`
@@ -75,6 +76,9 @@ typedef struct Tensor {
 
     /** @c kDLCUDA or @c kDLROCM for GPU memory from @c from_dlpack, else @c kDLCPU. */
     DLDevice device;
+
+    /** The mask an owning tensor's unified @c data came from, or 0 on the heap; unset on views. */
+    nk_capability_t capabilities;
 } Tensor;
 
 /**

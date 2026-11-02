@@ -960,8 +960,8 @@ int check_status(nk_status_t status) {
     switch (status) {
     case nk_success_k: return 1;
     case nk_bad_alloc_k: type = PyExc_MemoryError; break;
+    case nk_device_memory_mismatch_k: type = PyExc_BufferError; break;
     case nk_unexpected_dimensions_k:
-    case nk_device_memory_mismatch_k:
     case nk_misaligned_k:
     case nk_pack_mismatch_k: type = PyExc_ValueError; break;
     default: break;
@@ -1115,8 +1115,9 @@ static char const doc_capabilities_compiled[] =                                 
 
 static char const doc_capabilities_enabled[] =                                                        //
     "Get the mask one GPU dispatches with: what it executes and this binary holds kernels for.\n\n"   //
-    "Pass it as `capabilities=` with a stream of that device, to `synchronize`, and to the unified\n" //
-    "memory of the bindings. Raises ValueError past the devices this process sees.\n\n"               //
+    "Pass it as `capabilities=` with a stream of that device, to `synchronize`, and to the `copy`\n"  //
+    "methods placing tensors and shape packs in unified memory. Raises ValueError past the devices\n" //
+    "this process sees.\n\n"                                                                          //
     "Signature:\n"                                                                                    //
     "  >>> def cuda_capabilities_enabled(ordinal, /) -> Capability: ...  # rocm_ and metal_ alike";
 
@@ -1343,12 +1344,19 @@ static PyMethodDef nk_methods[] = {
     {"shapes_pack", (PyCFunction)api_shapes_pack, METH_FASTCALL | METH_KEYWORDS, doc_shapes_pack},
     {"shapes_pack_normalized", (PyCFunction)api_shapes_pack_normalized, METH_FASTCALL | METH_KEYWORDS,
      doc_shapes_pack_normalized},
-    {"chamfers_packed", (PyCFunction)api_chamfers_packed, METH_FASTCALL | METH_KEYWORDS, doc_chamfers_packed},
+    {"rmsds_packed", (PyCFunction)api_rmsds_packed, METH_FASTCALL | METH_KEYWORDS, doc_rmsds_packed},
     {"hausdorffs_packed", (PyCFunction)api_hausdorffs_packed, METH_FASTCALL | METH_KEYWORDS, doc_hausdorffs_packed},
+    {"chamfers_packed", (PyCFunction)api_chamfers_packed, METH_FASTCALL | METH_KEYWORDS, doc_chamfers_packed},
     {"wassersteinprocrustes_packed", (PyCFunction)api_wassersteinprocrustes_packed, METH_FASTCALL | METH_KEYWORDS,
      doc_wassersteinprocrustes_packed},
     {"gromovwassersteins_packed", (PyCFunction)api_gromovwassersteins_packed, METH_FASTCALL | METH_KEYWORDS,
      doc_gromovwassersteins_packed},
+    {"chamfers_workspace_size", (PyCFunction)api_chamfers_workspace_size, METH_FASTCALL | METH_KEYWORDS,
+     doc_chamfers_workspace_size},
+    {"wassersteinprocrustes_workspace_size", (PyCFunction)api_wassersteinprocrustes_workspace_size,
+     METH_FASTCALL | METH_KEYWORDS, doc_wassersteinprocrustes_workspace_size},
+    {"gromovwassersteins_workspace_size", (PyCFunction)api_gromovwassersteins_workspace_size,
+     METH_FASTCALL | METH_KEYWORDS, doc_gromovwassersteins_workspace_size},
 
     // Matrix multiplication with pre-packed matrices
     {"dots_pack", (PyCFunction)api_dots_pack, METH_FASTCALL | METH_KEYWORDS, doc_dots_pack},

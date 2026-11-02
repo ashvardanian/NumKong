@@ -235,7 +235,6 @@ np.testing.assert_allclose(js_forward, js_reverse, atol=1e-6)  # JSD is symmetri
 Geospatial kernels score every row point against every column point into a `[rows, columns]` matrix.
 Inputs are in radians, and outputs are in metres.
 Haversine and Vincenty take both sides as packs, built once per point set, so the many-to-many kernels evaluate no trigonometry before their per-pair work.
-One serial routine builds every pack, so a pack is the same on every machine.
 
 ```python
 import numpy as np
@@ -684,8 +683,33 @@ Between normalized packs, the rotation also scales by `scale_a / scale_b`, and e
 The pack layout is private, and the `centroids`, `frames`, `scales`, `spreads` and `max_radii` properties report every cloud's pose and bounds.
 `unpack(index)` returns one cloud as a `[points, 3]` tensor in the pack dtype and its original pose and scale, within one storage rounding.
 `nk.ShapesPackedMatrix.pack_size(points, dtype)` returns the bytes one pack takes.
-Wasserstein-Procrustes and Gromov-Wasserstein allocate their workspace inside the call.
+Chamfer and Hausdorff take `limit=`: distances up to it are exact, and a pair past it may stop early and report a lower bound that also lies past it.
+Chamfer, Wasserstein-Procrustes and Gromov-Wasserstein allocate their workspace inside the call, or take a writable `workspace=` of `nk.chamfers_workspace_size(a, b, threads=threads)` bytes, with its `wassersteinprocrustes` and `gromovwassersteins` siblings.
+`nk.rmsds_packed(a, b)` scores clouds of equally many points, point i matching point i under the best rotation.
+Every kind takes `out=`, a writable `[rows, columns]` buffer of its output dtype.
 Every kind takes `threads=`, splitting the row clouds with a workspace per worker, and both packing functions take it to split the clouds.
+
+Packs need no GPU kernel: the host gathers them, and `copy` places the table and every pack in one block of unified memory on the GPU the mask names.
+Every shape function then runs that mask in one launch on `stream=`, ignoring `threads=`, so it needs `out=` and, where the workspace size is not zero, a single window of `workspace=`.
+
+```python
+gpu = nk.cuda_capabilities_enabled(0)
+packs = nk.shapes_pack(clouds, dtype="f16", threads=8).copy(capabilities=gpu)
+distances = nk.from_dlpack(torch.empty((n, n), device="cuda"))
+nk.chamfers_packed(packs, packs, out=distances, limit=2.5, stream=stream)
+nk.synchronize(gpu, stream=stream)
+```
+
+A slice of copied packs in steps would rebuild the table on the host, so it raises `BufferError` on the GPU until it is copied itself.
+Metal runs `float16` packs only, and writes only into blocks of its own allocator, so a plain NumPy `out=` raises `BufferError`:
+
+```python
+gpu = nk.metal_capabilities_enabled(0)
+packs = nk.shapes_pack(clouds, dtype="f16").copy(gpu)
+distances = nk.zeros((n, n), dtype="float32").copy(capabilities=gpu)
+nk.chamfers_packed(packs, packs, out=distances, limit=2.5)
+nk.synchronize(gpu)
+```
 
 ## MaxSim
 
@@ -830,12 +854,16 @@ Builds configured with `-C cmake.define.NUMKONG_CUDA_ARCH=all` or `-C cmake.defi
 `nk.cuda_count_devices()` counts the devices this process sees, zero without the runtime or its kernels, and `nk.cuda_capabilities_enabled(0)` reports the mask device 0 dispatches with, raising `ValueError` past the last.
 `nk.cuda_capabilities_detected` and `nk.cuda_capabilities_compiled` answer as their CPU twins do, `nk.rocm_*` and `nk.metal_*` do the same for the other vendors, and `cpu_configure_thread` is CPU only.
 `nk.from_dlpack` imports a CUDA or ROCm tensor without a copy and records its device.
-Only `dots_pack` and the dots, angulars and euclideans `_packed` and `_symmetric` functions run on it, with that device's enabled capabilities.
+Only `dots_pack`, the dots, angulars and euclideans `_packed` and `_symmetric` functions, and `attention_pack`, `attention_packed` and `attention_packed_gradients` run on it, with that device's enabled capabilities.
+The shape functions also take it for their outputs, running the mask their packs were copied with.
 Element access, NumPy conversion, `cdist`, `maxsim` and every other CPU kernel raise `BufferError` rather than read device memory.
-NumKong allocates no device memory, so every GPU call writes into an `out=` Tensor on the same device, and mixing devices raises `ValueError`.
+No verb allocates, so every GPU call writes into an `out=` its device reaches.
+The dots and attention families take that as a Tensor on the same device, and mixing devices raises `ValueError`.
+The shape functions take any memory the device reaches, a Tensor or a buffer over managed or pinned memory, which the runtime checks per call, raising `BufferError` for the rest.
+Unified memory comes only from an explicit `copy`, as in `nk.shapes_pack(clouds).copy(capabilities=gpu)` and `nk.zeros(shape).copy(capabilities=gpu)`, which frees with the tensor and its views and refuses `resize()` and `reserve()`.
 A GPU call queues one launch on `stream=`, an integer handle defaulting to 0, the legacy stream, and returns before it finishes, as PyTorch does, and `nk.synchronize(capabilities, stream=stream)` waits for it.
 `nk.stream_init_cuda(ordinal)` makes such a handle on any device by its ordinal, and `nk.stream_free_cuda(stream)` frees it once synchronized, with `rocm_` and `metal_` twins.
-Metal tensors are host-readable and keep running on the CPU kernels.
+Metal tensors are host-readable and keep running on the CPU kernels, except the shape functions, which run on Metal over blocks of its allocator.
 
 ```python
 import torch

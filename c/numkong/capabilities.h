@@ -510,6 +510,9 @@ typedef enum {
     /** Packed cloud restoration into the input type, the inverse of packing. */
     nk_kernel_shapes_unpack_k = '1',
 
+    /** Workspace bytes of many-to-many Chamfer. */
+    nk_kernel_chamfers_workspace_size_k = '~',
+
     /** Many-to-many Chamfer over principal-frame flips. */
     nk_kernel_chamfers_packed_k = '8',
 
@@ -654,6 +657,7 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_shapes_pack_normalized_k: return "shapes_pack_normalized";
     case nk_kernel_shapes_packed_shape_k: return "shapes_packed_shape";
     case nk_kernel_shapes_unpack_k: return "shapes_unpack";
+    case nk_kernel_chamfers_workspace_size_k: return "chamfers_workspace_size";
     case nk_kernel_chamfers_packed_k: return "chamfers_packed";
     case nk_kernel_hausdorffs_packed_k: return "hausdorffs_packed";
     case nk_kernel_wassersteinprocrustes_workspace_size_k: return "wassersteinprocrustes_workspace_size";
@@ -754,6 +758,7 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "shapes_pack_normalized")) return nk_kernel_shapes_pack_normalized_k;
     if (nk_same_literal_(name, length, "shapes_packed_shape")) return nk_kernel_shapes_packed_shape_k;
     if (nk_same_literal_(name, length, "shapes_unpack")) return nk_kernel_shapes_unpack_k;
+    if (nk_same_literal_(name, length, "chamfers_workspace_size")) return nk_kernel_chamfers_workspace_size_k;
     if (nk_same_literal_(name, length, "chamfers_packed")) return nk_kernel_chamfers_packed_k;
     if (nk_same_literal_(name, length, "hausdorffs_packed")) return nk_kernel_hausdorffs_packed_k;
     if (nk_same_literal_(name, length, "wassersteinprocrustes_workspace_size"))
@@ -932,19 +937,27 @@ typedef nk_status_t (*nk_shapes_unpack_punned_t)(void const *packed, void *point
 typedef nk_status_t (*nk_shapes_workspace_size_punned_t)(nk_size_t row_points, nk_size_t column_points,
                                                          nk_size_t *bytes);
 
-typedef nk_status_t (*nk_shapes_packed_punned_t)(void const *const *a_packed, nk_size_t rows,
-                                                 void const *const *b_packed, nk_size_t columns, void *results,
-                                                 nk_size_t results_stride, void *rotations, nk_stream_t stream);
+typedef nk_status_t (*nk_chamfers_packed_punned_t)(void const *const *a_packed, nk_size_t rows,
+                                                   void const *const *b_packed, nk_size_t columns, void *results,
+                                                   nk_size_t results_stride, void *rotations, void const *limit,
+                                                   void *workspace, nk_size_t workspace_bytes, nk_stream_t stream);
+
+typedef nk_status_t (*nk_hausdorffs_packed_punned_t)(void const *const *a_packed, nk_size_t rows,
+                                                     void const *const *b_packed, nk_size_t columns, void *results,
+                                                     nk_size_t results_stride, void *rotations, void const *limit,
+                                                     nk_stream_t stream);
 
 typedef nk_status_t (*nk_rmsds_packed_punned_t)(void const *const *a_packed, nk_size_t rows,
                                                 void const *const *b_packed, nk_size_t columns, void *results,
                                                 nk_size_t results_stride, nk_stream_t stream);
 
-typedef nk_status_t (*nk_shapes_packed_workspace_punned_t)(void const *const *a_packed, nk_size_t rows,
-                                                           void const *const *b_packed, nk_size_t columns,
-                                                           void *results, nk_size_t results_stride, void *rotations,
-                                                           void *workspace, nk_size_t workspace_bytes,
-                                                           nk_stream_t stream);
+typedef nk_status_t (*nk_wassersteinprocrustes_packed_punned_t)(void const *const *a_packed, nk_size_t rows,
+                                                                void const *const *b_packed, nk_size_t columns,
+                                                                void *results, nk_size_t results_stride,
+                                                                void *rotations, void *workspace,
+                                                                nk_size_t workspace_bytes, nk_stream_t stream);
+
+typedef nk_wassersteinprocrustes_packed_punned_t nk_gromovwassersteins_packed_punned_t;
 
 typedef nk_status_t (*nk_attention_packed_shape_punned_t)(void const *packed, nk_size_t *key_value_head_count,
                                                           nk_size_t *depth, nk_size_t *segments, nk_stream_t stream);

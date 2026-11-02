@@ -137,14 +137,23 @@ error_stats_t test_shapes_flips_f16(settings_t const &settings, kernel_type_ ker
     auto const column_packs = device_random_packed(settings, backend, generator, columns, points + 3, stats);
     auto results = make_vector<f32_t>(backend, rows * columns);
     auto rotations = make_vector<f32_t>(backend, rows * columns * 9);
-    auto const serial = kind_ == nk_kernel_chamfers_packed_k ? nk_chamfers_packed_f16_serial
-                                                             : nk_hausdorffs_packed_f16_serial;
-    backend.call(kernel, row_packs.data(), rows, column_packs.data(), columns, results.raw_values_data(),
-                 columns * sizeof(nk_f32_t), rotations.raw_values_data());
-    if (!stats.expect(backend.synchronize())) return stats;
+    nk_f32_t const unbounded = NUMKONG_F32_INF;
     std::vector<nk_f32_t> expected(rows * columns), expected_rotations(rows * columns * 9);
-    stats.expect(serial(row_packs.data(), rows, column_packs.data(), columns, expected.data(),
-                        columns * sizeof(nk_f32_t), expected_rotations.data(), nullptr));
+    if constexpr (kind_ == nk_kernel_chamfers_packed_k) {
+        backend.call(kernel, row_packs.data(), rows, column_packs.data(), columns, results.raw_values_data(),
+                     columns * sizeof(nk_f32_t), rotations.raw_values_data(), &unbounded, nullptr, nk_size_t(0));
+        stats.expect(nk_chamfers_packed_f16_serial(row_packs.data(), rows, column_packs.data(), columns,
+                                                   expected.data(), columns * sizeof(nk_f32_t),
+                                                   expected_rotations.data(), &unbounded, nullptr, 0, nullptr));
+    }
+    else {
+        backend.call(kernel, row_packs.data(), rows, column_packs.data(), columns, results.raw_values_data(),
+                     columns * sizeof(nk_f32_t), rotations.raw_values_data(), &unbounded);
+        stats.expect(nk_hausdorffs_packed_f16_serial(row_packs.data(), rows, column_packs.data(), columns,
+                                                     expected.data(), columns * sizeof(nk_f32_t),
+                                                     expected_rotations.data(), &unbounded, nullptr));
+    }
+    if (!stats.expect(backend.synchronize())) return stats;
     for (std::size_t row = 0; row != rows; ++row)
         for (std::size_t column = 0; column != columns; ++column) {
             auto const radius = [](void const *packed) {

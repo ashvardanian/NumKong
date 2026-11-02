@@ -121,6 +121,34 @@ NUMKONG_INLINE uint16x8_t nk_splat_u16x8_neon_(nk_u16_t bits) {
     return vdupq_n_u16(bits);
 }
 
+/** The 8 bytes of a @p length -byte buffer from @p cursor on, zeros past its end, never read
+ *  outside it: 8 bytes or more load the 8 ending at its end once the cursor nears it, and shift out
+ *  the ones already passed. */
+NUMKONG_INLINE nk_u64_t nk_partial_load_octet_neon_(void const *pointer, nk_size_t length, nk_size_t cursor) {
+    nk_u8_t const *bytes = (nk_u8_t const *)pointer;
+    if (length < 8) {
+        nk_u64_t octet = 0;
+        for (nk_size_t byte = cursor; byte < length; ++byte) octet |= (nk_u64_t)bytes[byte] << ((byte - cursor) * 8);
+        return octet;
+    }
+    nk_size_t const start = cursor < length - 8 ? cursor : length - 8;
+    nk_size_t const passed = (cursor < length ? cursor : length) - start;
+    // Two half shifts, as 8 bytes passed shift a whole word out
+    nk_u64_t const octet = vget_lane_u64(vreinterpret_u64_u8(vld1_u8(bytes + start)), 0);
+    return (octet >> (passed * 4)) >> (passed * 4);
+}
+
+/** Type-agnostic partial load of @p n bytes, up to 16, zeros past them, without byte stores. */
+NUMKONG_INLINE void nk_partial_load_b8x16_neon_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+    dst->u8x16 = vcombine_u8(vcreate_u8(nk_partial_load_octet_neon_(src, n, 0)),
+                             vcreate_u8(nk_partial_load_octet_neon_(src, n, 8)));
+}
+
+/** Type-agnostic partial load of @p n 16-bit elements, up to 8, zeros past them. */
+NUMKONG_INLINE void nk_partial_load_b16x8_neon_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+    nk_partial_load_b8x16_neon_(src, dst, n * 2);
+}
+
 #pragma endregion Type Punned Loads and Stores
 
 #pragma region Vectorized Conversions

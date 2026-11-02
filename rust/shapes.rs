@@ -4,8 +4,8 @@
 //! its principal axes, so a pack is the same on every machine. Its methods then score every packed
 //! cloud of one set, the rows, against every packed cloud of another, the columns:
 //!
-//! - [`ShapesPackedMatrix::chamfers`]: the mean nearest-partner distance both ways, halved
 //! - [`ShapesPackedMatrix::hausdorffs`]: the worst nearest-partner distance either way
+//! - [`ShapesPackedMatrix::chamfers`]: the mean nearest-partner distance both ways, halved
 //! - [`ShapesPackedMatrix::wassersteinprocrustes`]: the exact transport RMSD after the best
 //!   rotation or reflection, on equal sizes at most the Kabsch RMSD of a known correspondence, and
 //!   equal to it when that correspondence is an optimal plan
@@ -15,12 +15,17 @@
 //! None of them needs a correspondence between points, and the two sides may differ in size. Every
 //! kind is invariant to rotation, reflection and translation, and between packs made by
 //! [`ShapesPackedMatrix::new_normalized`], which divide each cloud by its RMS distance from the
-//! centroid, to scale as well. Distances are `f32` for `f16` clouds and `f64` for `f32` ones, and
+//! centroid, to scale as well. Distances are `f32` for `f16` clouds and `f64` for the others, and
 //! the optional rotations are row-major `[f32; 9]` matrices taking each column cloud onto each row
 //! cloud through the centroids and scales: `aᵢ ≈ (scale_a / scale_b) × R × (bⱼ − b̄) + ā`.
 //!
 //! The pack layout is private: the accessors report each cloud's pose and bounds, and
 //! [`ShapesPackedMatrix::unpack`] writes a cloud back in its original pose and scale.
+//!
+//! Each kind also has a safe `_on` verb, like [`ShapesPackedMatrix::chamfers_on`], which runs the
+//! capabilities of a [`Stream::scope`](crate::Stream::scope). Packs built with
+//! [`new_in`](ShapesPackedMatrix::new_in) and a [`UnifiedAllocator`](crate::UnifiedAllocator) hold
+//! their table and packs in one block a GPU reads as they stand, while the host still packs them.
 //!
 //! # Example
 //!
@@ -47,7 +52,7 @@ use core::{alloc::Layout, ffi::c_void, marker::PhantomData, ptr::null_mut};
 use forkunion as fu;
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, Scope, StatusCode},
     tensor::{check_len, Allocator, Error, Global, PackedBuffer, DEFAULT_ALIGNMENT},
     types::{f16, StorageElement},
 };
@@ -132,25 +137,23 @@ extern "C" {
         stream: *mut c_void,
     ) -> nk_status_t;
 
-    fn nk_chamfers_packed_f16_best(
+    fn nk_rmsds_packed_f16_best(
         a_packed: *const *const u8,
         rows: nk_size_t,
         b_packed: *const *const u8,
         columns: nk_size_t,
         results: *mut f32,
         results_stride: nk_size_t,
-        rotations: *mut f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
-    fn nk_chamfers_packed_f32_best(
+    fn nk_rmsds_packed_f32_best(
         a_packed: *const *const u8,
         rows: nk_size_t,
         b_packed: *const *const u8,
         columns: nk_size_t,
         results: *mut f64,
         results_stride: nk_size_t,
-        rotations: *mut f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -162,6 +165,7 @@ extern "C" {
         results: *mut f32,
         results_stride: nk_size_t,
         rotations: *mut f32,
+        limit: *const f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -173,10 +177,51 @@ extern "C" {
         results: *mut f64,
         results_stride: nk_size_t,
         rotations: *mut f32,
+        limit: *const f64,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_chamfers_packed_f16_best(
+        a_packed: *const *const u8,
+        rows: nk_size_t,
+        b_packed: *const *const u8,
+        columns: nk_size_t,
+        results: *mut f32,
+        results_stride: nk_size_t,
+        rotations: *mut f32,
+        limit: *const f32,
+        workspace: *mut u8,
+        workspace_bytes: nk_size_t,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_chamfers_packed_f32_best(
+        a_packed: *const *const u8,
+        rows: nk_size_t,
+        b_packed: *const *const u8,
+        columns: nk_size_t,
+        results: *mut f64,
+        results_stride: nk_size_t,
+        rotations: *mut f32,
+        limit: *const f64,
+        workspace: *mut u8,
+        workspace_bytes: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
+    fn nk_chamfers_workspace_size_f16_best(
+        row_points: nk_size_t,
+        column_points: nk_size_t,
+        capabilities: nk_capability_t,
+        bytes: *mut nk_size_t,
+    ) -> nk_status_t;
+    fn nk_chamfers_workspace_size_f32_best(
+        row_points: nk_size_t,
+        column_points: nk_size_t,
+        capabilities: nk_capability_t,
+        bytes: *mut nk_size_t,
+    ) -> nk_status_t;
     fn nk_wassersteinprocrustes_workspace_size_f16_best(
         row_points: nk_size_t,
         column_points: nk_size_t,
@@ -254,6 +299,123 @@ extern "C" {
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
+
+    fn nk_shapes_pack_size_f64_best(
+        points: nk_size_t,
+        capabilities: nk_capability_t,
+        bytes: *mut nk_size_t,
+    ) -> nk_status_t;
+    fn nk_shapes_pack_f64_best(
+        points: *const f64,
+        count: nk_size_t,
+        packed: *mut u8,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_shapes_pack_normalized_f64_best(
+        points: *const f64,
+        count: nk_size_t,
+        packed: *mut u8,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_shapes_packed_shape_f64_best(
+        packed: *const u8,
+        points: *mut nk_size_t,
+        centroid: *mut f64,
+        frame: *mut f64,
+        scale: *mut f64,
+        spreads: *mut f64,
+        max_radius: *mut f64,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_shapes_unpack_f64_best(
+        packed: *const u8,
+        points: *mut f64,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_rmsds_packed_f64_best(
+        a_packed: *const *const u8,
+        rows: nk_size_t,
+        b_packed: *const *const u8,
+        columns: nk_size_t,
+        results: *mut f64,
+        results_stride: nk_size_t,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_hausdorffs_packed_f64_best(
+        a_packed: *const *const u8,
+        rows: nk_size_t,
+        b_packed: *const *const u8,
+        columns: nk_size_t,
+        results: *mut f64,
+        results_stride: nk_size_t,
+        rotations: *mut f32,
+        limit: *const f64,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_chamfers_packed_f64_best(
+        a_packed: *const *const u8,
+        rows: nk_size_t,
+        b_packed: *const *const u8,
+        columns: nk_size_t,
+        results: *mut f64,
+        results_stride: nk_size_t,
+        rotations: *mut f32,
+        limit: *const f64,
+        workspace: *mut u8,
+        workspace_bytes: nk_size_t,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_chamfers_workspace_size_f64_best(
+        row_points: nk_size_t,
+        column_points: nk_size_t,
+        capabilities: nk_capability_t,
+        bytes: *mut nk_size_t,
+    ) -> nk_status_t;
+    fn nk_wassersteinprocrustes_workspace_size_f64_best(
+        row_points: nk_size_t,
+        column_points: nk_size_t,
+        capabilities: nk_capability_t,
+        bytes: *mut nk_size_t,
+    ) -> nk_status_t;
+    fn nk_wassersteinprocrustes_packed_f64_best(
+        a_packed: *const *const u8,
+        rows: nk_size_t,
+        b_packed: *const *const u8,
+        columns: nk_size_t,
+        results: *mut f64,
+        results_stride: nk_size_t,
+        rotations: *mut f32,
+        workspace: *mut u8,
+        workspace_bytes: nk_size_t,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_gromovwassersteins_workspace_size_f64_best(
+        row_points: nk_size_t,
+        column_points: nk_size_t,
+        capabilities: nk_capability_t,
+        bytes: *mut nk_size_t,
+    ) -> nk_status_t;
+    fn nk_gromovwassersteins_packed_f64_best(
+        a_packed: *const *const u8,
+        rows: nk_size_t,
+        b_packed: *const *const u8,
+        columns: nk_size_t,
+        results: *mut f64,
+        results_stride: nk_size_t,
+        rotations: *mut f32,
+        workspace: *mut u8,
+        workspace_bytes: nk_size_t,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
 }
 
 // endregion: FFI
@@ -262,18 +424,19 @@ extern "C" {
 
 mod private {
     pub trait Sealed {}
+    impl Sealed for f64 {}
     impl Sealed for f32 {}
     impl Sealed for super::f16 {}
 }
 
-/// Cloud packing and the many-to-many shape kernels, for `f16` and `f32` clouds.
+/// Cloud packing and the many-to-many shape kernels, for `f16`, `f32` and `f64` clouds.
 ///
 /// # Errors
 ///
 /// [`Error::KernelFailed`] when the kernel refuses to run, like on a misaligned workspace.
 pub trait Shapes: private::Sealed + StorageElement {
-    /// Distance type and pose type: `f32` for `f16` clouds, `f64` for `f32` ones.
-    type Distance: Copy + Default;
+    /// Distance type and pose type: `f32` for `f16` clouds, `f64` for the others.
+    type Distance: Copy + Default + Send + Sync;
 
     /// Returns the bytes a pack of `points` points takes.
     fn shapes_pack_size(points: usize) -> Result<usize, Error>;
@@ -318,26 +481,32 @@ pub trait Shapes: private::Sealed + StorageElement {
     /// it packed.
     unsafe fn shapes_unpack(packed: *const u8, points: *mut [Self; 3]) -> Result<(), Error>;
 
-    /// Chamfer distances between every row cloud and every column cloud.
+    /// The limit that scores every pair exactly.
+    const UNBOUNDED: Self::Distance;
+
+    /// Superposed RMSDs between every row cloud and every column cloud of equally many points.
     ///
     /// # Safety
     /// - `a_packed` and `b_packed` must hold `rows` and `columns` pointers to packs of `Self`
     /// - `results` must hold `rows` rows of `columns` distances, `results_stride` bytes apart
-    /// - `rotations` must be null or hold `rows × columns × 9` writable values
-    unsafe fn chamfers_packed(
+    /// - `stream` must be null or a live stream of the group `capabilities` name, null on the CPU,
+    ///   and on a GPU everything above must stay alive and untouched until that stream joins
+    unsafe fn rmsds_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
         columns: usize,
         results: *mut Self::Distance,
         results_stride: usize,
-        rotations: *mut f32,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error>;
 
     /// Hausdorff distances between every row cloud and every column cloud.
     ///
     /// # Safety
-    /// The contract of [`Shapes::chamfers_packed`].
+    /// The contract of [`Shapes::rmsds_packed`], plus `rotations` must be null or hold
+    /// `rows × columns × 9` writable values.
     unsafe fn hausdorffs_packed(
         a_packed: *const *const u8,
         rows: usize,
@@ -346,11 +515,47 @@ pub trait Shapes: private::Sealed + StorageElement {
         results: *mut Self::Distance,
         results_stride: usize,
         rotations: *mut f32,
+        limit: Self::Distance,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error>;
+
+    /// Chamfer distances between every row cloud and every column cloud.
+    ///
+    /// # Safety
+    /// The contract of [`Shapes::hausdorffs_packed`], plus `workspace` must have `workspace_bytes`
+    /// writable bytes, on the default alignment, as [`Shapes::chamfers_workspace_size`] reports for
+    /// the largest clouds.
+    unsafe fn chamfers_packed(
+        a_packed: *const *const u8,
+        rows: usize,
+        b_packed: *const *const u8,
+        columns: usize,
+        results: *mut Self::Distance,
+        results_stride: usize,
+        rotations: *mut f32,
+        limit: Self::Distance,
+        workspace: *mut u8,
+        workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
+    ) -> Result<(), Error>;
+
+    /// Returns the workspace bytes Chamfer needs between clouds of up to `row_points` and
+    /// `column_points` points.
+    fn chamfers_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error>;
 
     /// Returns the workspace bytes Wasserstein-Procrustes needs between clouds of up to
     /// `row_points` and `column_points` points.
-    fn wassersteinprocrustes_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error>;
+    fn wassersteinprocrustes_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error>;
 
     /// Wasserstein-Procrustes distances between every row cloud and every column cloud.
     ///
@@ -367,11 +572,17 @@ pub trait Shapes: private::Sealed + StorageElement {
         rotations: *mut f32,
         workspace: *mut u8,
         workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error>;
 
     /// Returns the workspace bytes Gromov-Wasserstein needs between clouds of up to `row_points`
     /// and `column_points` points.
-    fn gromovwassersteins_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error>;
+    fn gromovwassersteins_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error>;
 
     /// Gromov-Wasserstein distances between every row cloud and every column cloud.
     ///
@@ -387,6 +598,8 @@ pub trait Shapes: private::Sealed + StorageElement {
         rotations: *mut f32,
         workspace: *mut u8,
         workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error>;
 }
 
@@ -452,25 +665,27 @@ impl Shapes for f16 {
         nk_shapes_unpack_f16_best(packed, points.cast(), Capabilities::CPUS.bits(), null_mut()).check()
     }
 
-    unsafe fn chamfers_packed(
+    const UNBOUNDED: f32 = f32::INFINITY;
+
+    unsafe fn rmsds_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
         columns: usize,
         results: *mut f32,
         results_stride: usize,
-        rotations: *mut f32,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error> {
-        nk_chamfers_packed_f16_best(
+        nk_rmsds_packed_f16_best(
             a_packed,
             rows,
             b_packed,
             columns,
             results,
             results_stride,
-            rotations,
-            Capabilities::CPUS.bits(),
-            null_mut(),
+            capabilities.bits(),
+            stream,
         )
         .check()
     }
@@ -483,6 +698,9 @@ impl Shapes for f16 {
         results: *mut f32,
         results_stride: usize,
         rotations: *mut f32,
+        limit: f32,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error> {
         nk_hausdorffs_packed_f16_best(
             a_packed,
@@ -492,21 +710,63 @@ impl Shapes for f16 {
             results,
             results_stride,
             rotations,
-            Capabilities::CPUS.bits(),
-            null_mut(),
+            &limit,
+            capabilities.bits(),
+            stream,
         )
         .check()
     }
 
-    fn wassersteinprocrustes_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
+    fn chamfers_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error> {
+        let mut bytes = 0;
+        unsafe { nk_chamfers_workspace_size_f16_best(row_points, column_points, capabilities.bits(), &mut bytes) }
+            .check()?;
+        Ok(bytes)
+    }
+
+    unsafe fn chamfers_packed(
+        a_packed: *const *const u8,
+        rows: usize,
+        b_packed: *const *const u8,
+        columns: usize,
+        results: *mut f32,
+        results_stride: usize,
+        rotations: *mut f32,
+        limit: f32,
+        workspace: *mut u8,
+        workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
+    ) -> Result<(), Error> {
+        nk_chamfers_packed_f16_best(
+            a_packed,
+            rows,
+            b_packed,
+            columns,
+            results,
+            results_stride,
+            rotations,
+            &limit,
+            workspace,
+            workspace_bytes,
+            capabilities.bits(),
+            stream,
+        )
+        .check()
+    }
+
+    fn wassersteinprocrustes_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error> {
         let mut bytes = 0;
         unsafe {
-            nk_wassersteinprocrustes_workspace_size_f16_best(
-                row_points,
-                column_points,
-                Capabilities::CPUS.bits(),
-                &mut bytes,
-            )
+            nk_wassersteinprocrustes_workspace_size_f16_best(row_points, column_points, capabilities.bits(), &mut bytes)
         }
         .check()?;
         Ok(bytes)
@@ -522,6 +782,8 @@ impl Shapes for f16 {
         rotations: *mut f32,
         workspace: *mut u8,
         workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error> {
         nk_wassersteinprocrustes_packed_f16_best(
             a_packed,
@@ -533,21 +795,20 @@ impl Shapes for f16 {
             rotations,
             workspace,
             workspace_bytes,
-            Capabilities::CPUS.bits(),
-            null_mut(),
+            capabilities.bits(),
+            stream,
         )
         .check()
     }
 
-    fn gromovwassersteins_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
+    fn gromovwassersteins_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error> {
         let mut bytes = 0;
         unsafe {
-            nk_gromovwassersteins_workspace_size_f16_best(
-                row_points,
-                column_points,
-                Capabilities::CPUS.bits(),
-                &mut bytes,
-            )
+            nk_gromovwassersteins_workspace_size_f16_best(row_points, column_points, capabilities.bits(), &mut bytes)
         }
         .check()?;
         Ok(bytes)
@@ -563,6 +824,8 @@ impl Shapes for f16 {
         rotations: *mut f32,
         workspace: *mut u8,
         workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error> {
         nk_gromovwassersteins_packed_f16_best(
             a_packed,
@@ -574,8 +837,8 @@ impl Shapes for f16 {
             rotations,
             workspace,
             workspace_bytes,
-            Capabilities::CPUS.bits(),
-            null_mut(),
+            capabilities.bits(),
+            stream,
         )
         .check()
     }
@@ -639,25 +902,27 @@ impl Shapes for f32 {
         nk_shapes_unpack_f32_best(packed, points.cast(), Capabilities::CPUS.bits(), null_mut()).check()
     }
 
-    unsafe fn chamfers_packed(
+    const UNBOUNDED: f64 = f64::INFINITY;
+
+    unsafe fn rmsds_packed(
         a_packed: *const *const u8,
         rows: usize,
         b_packed: *const *const u8,
         columns: usize,
         results: *mut f64,
         results_stride: usize,
-        rotations: *mut f32,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error> {
-        nk_chamfers_packed_f32_best(
+        nk_rmsds_packed_f32_best(
             a_packed,
             rows,
             b_packed,
             columns,
             results,
             results_stride,
-            rotations,
-            Capabilities::CPUS.bits(),
-            null_mut(),
+            capabilities.bits(),
+            stream,
         )
         .check()
     }
@@ -670,6 +935,9 @@ impl Shapes for f32 {
         results: *mut f64,
         results_stride: usize,
         rotations: *mut f32,
+        limit: f64,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error> {
         nk_hausdorffs_packed_f32_best(
             a_packed,
@@ -679,21 +947,63 @@ impl Shapes for f32 {
             results,
             results_stride,
             rotations,
-            Capabilities::CPUS.bits(),
-            null_mut(),
+            &limit,
+            capabilities.bits(),
+            stream,
         )
         .check()
     }
 
-    fn wassersteinprocrustes_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
+    fn chamfers_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error> {
+        let mut bytes = 0;
+        unsafe { nk_chamfers_workspace_size_f32_best(row_points, column_points, capabilities.bits(), &mut bytes) }
+            .check()?;
+        Ok(bytes)
+    }
+
+    unsafe fn chamfers_packed(
+        a_packed: *const *const u8,
+        rows: usize,
+        b_packed: *const *const u8,
+        columns: usize,
+        results: *mut f64,
+        results_stride: usize,
+        rotations: *mut f32,
+        limit: f64,
+        workspace: *mut u8,
+        workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
+    ) -> Result<(), Error> {
+        nk_chamfers_packed_f32_best(
+            a_packed,
+            rows,
+            b_packed,
+            columns,
+            results,
+            results_stride,
+            rotations,
+            &limit,
+            workspace,
+            workspace_bytes,
+            capabilities.bits(),
+            stream,
+        )
+        .check()
+    }
+
+    fn wassersteinprocrustes_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error> {
         let mut bytes = 0;
         unsafe {
-            nk_wassersteinprocrustes_workspace_size_f32_best(
-                row_points,
-                column_points,
-                Capabilities::CPUS.bits(),
-                &mut bytes,
-            )
+            nk_wassersteinprocrustes_workspace_size_f32_best(row_points, column_points, capabilities.bits(), &mut bytes)
         }
         .check()?;
         Ok(bytes)
@@ -709,6 +1019,8 @@ impl Shapes for f32 {
         rotations: *mut f32,
         workspace: *mut u8,
         workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error> {
         nk_wassersteinprocrustes_packed_f32_best(
             a_packed,
@@ -720,21 +1032,20 @@ impl Shapes for f32 {
             rotations,
             workspace,
             workspace_bytes,
-            Capabilities::CPUS.bits(),
-            null_mut(),
+            capabilities.bits(),
+            stream,
         )
         .check()
     }
 
-    fn gromovwassersteins_workspace_size(row_points: usize, column_points: usize) -> Result<usize, Error> {
+    fn gromovwassersteins_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error> {
         let mut bytes = 0;
         unsafe {
-            nk_gromovwassersteins_workspace_size_f32_best(
-                row_points,
-                column_points,
-                Capabilities::CPUS.bits(),
-                &mut bytes,
-            )
+            nk_gromovwassersteins_workspace_size_f32_best(row_points, column_points, capabilities.bits(), &mut bytes)
         }
         .check()?;
         Ok(bytes)
@@ -750,6 +1061,8 @@ impl Shapes for f32 {
         rotations: *mut f32,
         workspace: *mut u8,
         workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
     ) -> Result<(), Error> {
         nk_gromovwassersteins_packed_f32_best(
             a_packed,
@@ -761,8 +1074,245 @@ impl Shapes for f32 {
             rotations,
             workspace,
             workspace_bytes,
+            capabilities.bits(),
+            stream,
+        )
+        .check()
+    }
+}
+
+impl Shapes for f64 {
+    type Distance = f64;
+
+    fn shapes_pack_size(points: usize) -> Result<usize, Error> {
+        let mut bytes = 0;
+        unsafe { nk_shapes_pack_size_f64_best(points, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
+        Ok(bytes)
+    }
+
+    unsafe fn shapes_pack(points: &[[Self; 3]], packed: *mut u8) -> Result<(), Error> {
+        nk_shapes_pack_f64_best(
+            points.as_ptr().cast(),
+            points.len(),
+            packed,
             Capabilities::CPUS.bits(),
             null_mut(),
+        )
+        .check()
+    }
+
+    unsafe fn shapes_pack_normalized(points: &[[Self; 3]], packed: *mut u8) -> Result<(), Error> {
+        nk_shapes_pack_normalized_f64_best(
+            points.as_ptr().cast(),
+            points.len(),
+            packed,
+            Capabilities::CPUS.bits(),
+            null_mut(),
+        )
+        .check()
+    }
+
+    unsafe fn shapes_packed_shape(
+        packed: *const u8,
+        points: *mut usize,
+        centroid: *mut f64,
+        frame: *mut f64,
+        scale: *mut f64,
+        spreads: *mut f64,
+        max_radius: *mut f64,
+    ) -> Result<(), Error> {
+        nk_shapes_packed_shape_f64_best(
+            packed,
+            points,
+            centroid,
+            frame,
+            scale,
+            spreads,
+            max_radius,
+            Capabilities::CPUS.bits(),
+            null_mut(),
+        )
+        .check()
+    }
+
+    unsafe fn shapes_unpack(packed: *const u8, points: *mut [Self; 3]) -> Result<(), Error> {
+        nk_shapes_unpack_f64_best(packed, points.cast(), Capabilities::CPUS.bits(), null_mut()).check()
+    }
+
+    const UNBOUNDED: f64 = f64::INFINITY;
+
+    unsafe fn rmsds_packed(
+        a_packed: *const *const u8,
+        rows: usize,
+        b_packed: *const *const u8,
+        columns: usize,
+        results: *mut f64,
+        results_stride: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
+    ) -> Result<(), Error> {
+        nk_rmsds_packed_f64_best(
+            a_packed,
+            rows,
+            b_packed,
+            columns,
+            results,
+            results_stride,
+            capabilities.bits(),
+            stream,
+        )
+        .check()
+    }
+
+    unsafe fn hausdorffs_packed(
+        a_packed: *const *const u8,
+        rows: usize,
+        b_packed: *const *const u8,
+        columns: usize,
+        results: *mut f64,
+        results_stride: usize,
+        rotations: *mut f32,
+        limit: f64,
+        capabilities: Capabilities,
+        stream: *mut c_void,
+    ) -> Result<(), Error> {
+        nk_hausdorffs_packed_f64_best(
+            a_packed,
+            rows,
+            b_packed,
+            columns,
+            results,
+            results_stride,
+            rotations,
+            &limit,
+            capabilities.bits(),
+            stream,
+        )
+        .check()
+    }
+
+    fn chamfers_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error> {
+        let mut bytes = 0;
+        unsafe { nk_chamfers_workspace_size_f64_best(row_points, column_points, capabilities.bits(), &mut bytes) }
+            .check()?;
+        Ok(bytes)
+    }
+
+    unsafe fn chamfers_packed(
+        a_packed: *const *const u8,
+        rows: usize,
+        b_packed: *const *const u8,
+        columns: usize,
+        results: *mut f64,
+        results_stride: usize,
+        rotations: *mut f32,
+        limit: f64,
+        workspace: *mut u8,
+        workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
+    ) -> Result<(), Error> {
+        nk_chamfers_packed_f64_best(
+            a_packed,
+            rows,
+            b_packed,
+            columns,
+            results,
+            results_stride,
+            rotations,
+            &limit,
+            workspace,
+            workspace_bytes,
+            capabilities.bits(),
+            stream,
+        )
+        .check()
+    }
+
+    fn wassersteinprocrustes_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error> {
+        let mut bytes = 0;
+        unsafe {
+            nk_wassersteinprocrustes_workspace_size_f64_best(row_points, column_points, capabilities.bits(), &mut bytes)
+        }
+        .check()?;
+        Ok(bytes)
+    }
+
+    unsafe fn wassersteinprocrustes_packed(
+        a_packed: *const *const u8,
+        rows: usize,
+        b_packed: *const *const u8,
+        columns: usize,
+        results: *mut f64,
+        results_stride: usize,
+        rotations: *mut f32,
+        workspace: *mut u8,
+        workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
+    ) -> Result<(), Error> {
+        nk_wassersteinprocrustes_packed_f64_best(
+            a_packed,
+            rows,
+            b_packed,
+            columns,
+            results,
+            results_stride,
+            rotations,
+            workspace,
+            workspace_bytes,
+            capabilities.bits(),
+            stream,
+        )
+        .check()
+    }
+
+    fn gromovwassersteins_workspace_size(
+        row_points: usize,
+        column_points: usize,
+        capabilities: Capabilities,
+    ) -> Result<usize, Error> {
+        let mut bytes = 0;
+        unsafe {
+            nk_gromovwassersteins_workspace_size_f64_best(row_points, column_points, capabilities.bits(), &mut bytes)
+        }
+        .check()?;
+        Ok(bytes)
+    }
+
+    unsafe fn gromovwassersteins_packed(
+        a_packed: *const *const u8,
+        rows: usize,
+        b_packed: *const *const u8,
+        columns: usize,
+        results: *mut f64,
+        results_stride: usize,
+        rotations: *mut f32,
+        workspace: *mut u8,
+        workspace_bytes: usize,
+        capabilities: Capabilities,
+        stream: *mut c_void,
+    ) -> Result<(), Error> {
+        nk_gromovwassersteins_packed_f64_best(
+            a_packed,
+            rows,
+            b_packed,
+            columns,
+            results,
+            results_stride,
+            rotations,
+            workspace,
+            workspace_bytes,
+            capabilities.bits(),
+            stream,
         )
         .check()
     }
@@ -929,43 +1479,47 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
             .unwrap_or(0)
     }
 
-    /// Chamfer distances from every cloud of `self` to every cloud of `columns`, the best of the 8
-    /// sign flips of the principal axes, zero between two empty clouds and infinite between an
-    /// empty and a non-empty one.
-    ///
-    /// Fills `results` with __\[rows,columns\]__ distances and, when given, `rotations` with
-    /// as many matrices taking each column cloud onto each row cloud.
-    ///
-    /// Returns `Err` if `results` or `rotations` does not hold __rows × columns__ entries.
-    pub fn chamfers<OtherAlloc: Allocator>(
+    /// Superposed RMSDs from every cloud of `self` to every cloud of `columns`, each holding the
+    /// same number of points, point i matching point i under the best rotation.
+    pub fn rmsds<OtherAlloc: Allocator>(
         &self,
         columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
         results: &mut [Scalar::Distance],
-        rotations: Option<&mut [[f32; 9]]>,
     ) -> Result<(), Error> {
-        let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
+        let (results_stride, _) = check_outputs(self.clouds, columns.clouds, results, None)?;
         let (rows, columns) = (self.packs(), columns.packs());
         unsafe {
-            Scalar::chamfers_packed(
+            Scalar::rmsds_packed(
                 rows.as_ptr(),
                 rows.len(),
                 columns.as_ptr(),
                 columns.len(),
                 results.as_mut_ptr(),
                 results_stride,
-                rotations,
+                Capabilities::CPUS,
+                null_mut(),
             )
         }
     }
 
     /// Hausdorff distances from every cloud of `self` to every cloud of `columns`, the best of the
-    /// 8 sign flips of the principal axes, with the outputs and conventions of
-    /// [`chamfers`](Self::chamfers).
+    /// 8 sign flips of the principal axes, zero between two empty clouds and infinite between an
+    /// empty and a non-empty one.
+    ///
+    /// Fills `results` with __\[rows,columns\]__ distances and, when given, `rotations` with
+    /// as many matrices taking each column cloud onto each row cloud.
+    ///
+    /// Distances up to `limit` are exact; past it, a pair may stop early and report a lower bound
+    /// that also lies past it, with that bound's flip in `rotations`.
+    /// [`Shapes::UNBOUNDED`] scores every pair exactly.
+    ///
+    /// Returns `Err` if `results` or `rotations` does not hold __rows × columns__ entries.
     pub fn hausdorffs<OtherAlloc: Allocator>(
         &self,
         columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
         results: &mut [Scalar::Distance],
         rotations: Option<&mut [[f32; 9]]>,
+        limit: Scalar::Distance,
     ) -> Result<(), Error> {
         let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
         let (rows, columns) = (self.packs(), columns.packs());
@@ -978,8 +1532,42 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
                 results.as_mut_ptr(),
                 results_stride,
                 rotations,
+                limit,
+                Capabilities::CPUS,
+                null_mut(),
             )
         }
+    }
+
+    /// Chamfer distances from every cloud of `self` to every cloud of `columns`, the best of the 8
+    /// sign flips of the principal axes, with the outputs and conventions of
+    /// [`hausdorffs`](Self::hausdorffs).
+    pub fn chamfers<OtherAlloc: Allocator>(
+        &self,
+        columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &mut [Scalar::Distance],
+        rotations: Option<&mut [[f32; 9]]>,
+        limit: Scalar::Distance,
+    ) -> Result<(), Error> {
+        let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
+        let workspace_bytes = Scalar::chamfers_workspace_size(self.largest(), columns.largest(), Capabilities::CPUS)?;
+        let (rows, columns) = (self.packs(), columns.packs());
+        with_workspace(self.allocator(), workspace_bytes, |workspace| unsafe {
+            Scalar::chamfers_packed(
+                rows.as_ptr(),
+                rows.len(),
+                columns.as_ptr(),
+                columns.len(),
+                results.as_mut_ptr(),
+                results_stride,
+                rotations,
+                limit,
+                workspace,
+                workspace_bytes,
+                Capabilities::CPUS,
+                null_mut(),
+            )
+        })
     }
 
     /// Wasserstein-Procrustes distances from every cloud of `self` to every cloud of `columns`:
@@ -987,7 +1575,7 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
     /// reflection minimizing it.
     ///
     /// The workspace comes from `self`'s allocator for the call. Outputs and conventions match
-    /// [`chamfers`](Self::chamfers).
+    /// [`hausdorffs`](Self::hausdorffs).
     pub fn wassersteinprocrustes<OtherAlloc: Allocator>(
         &self,
         columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
@@ -995,7 +1583,8 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
         rotations: Option<&mut [[f32; 9]]>,
     ) -> Result<(), Error> {
         let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
-        let workspace_bytes = Scalar::wassersteinprocrustes_workspace_size(self.largest(), columns.largest())?;
+        let workspace_bytes =
+            Scalar::wassersteinprocrustes_workspace_size(self.largest(), columns.largest(), Capabilities::CPUS)?;
         let (rows, columns) = (self.packs(), columns.packs());
         with_workspace(self.allocator(), workspace_bytes, |workspace| unsafe {
             Scalar::wassersteinprocrustes_packed(
@@ -1008,6 +1597,8 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
                 rotations,
                 workspace,
                 workspace_bytes,
+                Capabilities::CPUS,
+                null_mut(),
             )
         })
     }
@@ -1017,7 +1608,7 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
     /// the Wasserstein-Procrustes plans and the product plan.
     ///
     /// The workspace comes from `self`'s allocator for the call. Outputs and conventions match
-    /// [`chamfers`](Self::chamfers).
+    /// [`hausdorffs`](Self::hausdorffs).
     pub fn gromovwassersteins<OtherAlloc: Allocator>(
         &self,
         columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
@@ -1025,7 +1616,8 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
         rotations: Option<&mut [[f32; 9]]>,
     ) -> Result<(), Error> {
         let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
-        let workspace_bytes = Scalar::gromovwassersteins_workspace_size(self.largest(), columns.largest())?;
+        let workspace_bytes =
+            Scalar::gromovwassersteins_workspace_size(self.largest(), columns.largest(), Capabilities::CPUS)?;
         let (rows, columns) = (self.packs(), columns.packs());
         with_workspace(self.allocator(), workspace_bytes, |workspace| unsafe {
             Scalar::gromovwassersteins_packed(
@@ -1038,8 +1630,162 @@ impl<Scalar: Shapes, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> {
                 rotations,
                 workspace,
                 workspace_bytes,
+                Capabilities::CPUS,
+                null_mut(),
             )
         })
+    }
+
+    /// [`rmsds`](Self::rmsds) queued on the stream of `scope`, with its capabilities.
+    ///
+    /// On a GPU the packs of both sets, `results`, `rotations` and `workspace` must lie in memory
+    /// the device reaches, like blocks of a [`UnifiedAllocator`](crate::UnifiedAllocator), or the
+    /// runtime's check refuses them with [`Status::DeviceMemoryMismatch`](crate::Status).
+    pub fn rmsds_on<'scope, OtherAlloc: Allocator>(
+        &'scope self,
+        scope: &'scope Scope<'scope, '_>,
+        columns: &'scope ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &'scope mut [Scalar::Distance],
+    ) -> Result<(), Error> {
+        let (results_stride, _) = check_outputs(self.clouds, columns.clouds, results, None)?;
+        let (rows, columns) = (self.packs(), columns.packs());
+        let stream = scope.stream();
+        unsafe {
+            Scalar::rmsds_packed(
+                rows.as_ptr(),
+                rows.len(),
+                columns.as_ptr(),
+                columns.len(),
+                results.as_mut_ptr(),
+                results_stride,
+                stream.capabilities(),
+                stream.as_raw(),
+            )
+        }
+    }
+
+    /// [`hausdorffs`](Self::hausdorffs) queued on the stream of `scope`, as in
+    /// [`rmsds_on`](Self::rmsds_on).
+    pub fn hausdorffs_on<'scope, OtherAlloc: Allocator>(
+        &'scope self,
+        scope: &'scope Scope<'scope, '_>,
+        columns: &'scope ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &'scope mut [Scalar::Distance],
+        rotations: Option<&'scope mut [[f32; 9]]>,
+        limit: Scalar::Distance,
+    ) -> Result<(), Error> {
+        let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
+        let (rows, columns) = (self.packs(), columns.packs());
+        let stream = scope.stream();
+        unsafe {
+            Scalar::hausdorffs_packed(
+                rows.as_ptr(),
+                rows.len(),
+                columns.as_ptr(),
+                columns.len(),
+                results.as_mut_ptr(),
+                results_stride,
+                rotations,
+                limit,
+                stream.capabilities(),
+                stream.as_raw(),
+            )
+        }
+    }
+
+    /// [`chamfers`](Self::chamfers) queued on the stream of `scope`, as in
+    /// [`rmsds_on`](Self::rmsds_on), in the caller's `workspace` of at least
+    /// [`Shapes::chamfers_workspace_size`] bytes.
+    pub fn chamfers_on<'scope, OtherAlloc: Allocator>(
+        &'scope self,
+        scope: &'scope Scope<'scope, '_>,
+        columns: &'scope ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &'scope mut [Scalar::Distance],
+        rotations: Option<&'scope mut [[f32; 9]]>,
+        limit: Scalar::Distance,
+        workspace: &'scope mut [u8],
+    ) -> Result<(), Error> {
+        let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
+        let (rows, columns) = (self.packs(), columns.packs());
+        let stream = scope.stream();
+        unsafe {
+            Scalar::chamfers_packed(
+                rows.as_ptr(),
+                rows.len(),
+                columns.as_ptr(),
+                columns.len(),
+                results.as_mut_ptr(),
+                results_stride,
+                rotations,
+                limit,
+                workspace.as_mut_ptr(),
+                workspace.len(),
+                stream.capabilities(),
+                stream.as_raw(),
+            )
+        }
+    }
+
+    /// [`wassersteinprocrustes`](Self::wassersteinprocrustes) queued on the stream of `scope`, as
+    /// in [`chamfers_on`](Self::chamfers_on), with [`Shapes::wassersteinprocrustes_workspace_size`]
+    /// bytes of `workspace` on an `nk_default_alignment_k` boundary.
+    pub fn wassersteinprocrustes_on<'scope, OtherAlloc: Allocator>(
+        &'scope self,
+        scope: &'scope Scope<'scope, '_>,
+        columns: &'scope ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &'scope mut [Scalar::Distance],
+        rotations: Option<&'scope mut [[f32; 9]]>,
+        workspace: &'scope mut [u8],
+    ) -> Result<(), Error> {
+        let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
+        let (rows, columns) = (self.packs(), columns.packs());
+        let stream = scope.stream();
+        unsafe {
+            Scalar::wassersteinprocrustes_packed(
+                rows.as_ptr(),
+                rows.len(),
+                columns.as_ptr(),
+                columns.len(),
+                results.as_mut_ptr(),
+                results_stride,
+                rotations,
+                workspace.as_mut_ptr(),
+                workspace.len(),
+                stream.capabilities(),
+                stream.as_raw(),
+            )
+        }
+    }
+
+    /// [`gromovwassersteins`](Self::gromovwassersteins) queued on the stream of `scope`, as in
+    /// [`wassersteinprocrustes_on`](Self::wassersteinprocrustes_on), with
+    /// [`Shapes::gromovwassersteins_workspace_size`] bytes of `workspace`.
+    pub fn gromovwassersteins_on<'scope, OtherAlloc: Allocator>(
+        &'scope self,
+        scope: &'scope Scope<'scope, '_>,
+        columns: &'scope ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &'scope mut [Scalar::Distance],
+        rotations: Option<&'scope mut [[f32; 9]]>,
+        workspace: &'scope mut [u8],
+    ) -> Result<(), Error> {
+        let (results_stride, rotations) = check_outputs(self.clouds, columns.clouds, results, rotations)?;
+        let (rows, columns) = (self.packs(), columns.packs());
+        let stream = scope.stream();
+        unsafe {
+            Scalar::gromovwassersteins_packed(
+                rows.as_ptr(),
+                rows.len(),
+                columns.as_ptr(),
+                columns.len(),
+                results.as_mut_ptr(),
+                results_stride,
+                rotations,
+                workspace.as_mut_ptr(),
+                workspace.len(),
+                stream.capabilities(),
+                stream.as_raw(),
+            )
+        }
     }
 }
 
@@ -1090,22 +1836,30 @@ impl<Scalar: Shapes + Sync, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> 
         Ok(packed)
     }
 
-    /// [`chamfers`](Self::chamfers) with the row clouds split across `pool`.
-    pub fn chamfers_parallel<OtherAlloc: Allocator>(
+    /// [`rmsds`](Self::rmsds) with the row clouds split across `pool`.
+    pub fn rmsds_parallel<OtherAlloc: Allocator>(
         &self,
         columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
         results: &mut [Scalar::Distance],
-        rotations: Option<&mut [[f32; 9]]>,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), Error> {
         self.rows_parallel(
             columns,
             results,
-            rotations,
+            None,
             0,
             pool,
-            |row, packs, count, results, results_stride, rotations, _| unsafe {
-                Scalar::chamfers_packed(row, 1, packs, count, results, results_stride, rotations)
+            |row, packs, count, results, results_stride, _, _| unsafe {
+                Scalar::rmsds_packed(
+                    row,
+                    1,
+                    packs,
+                    count,
+                    results,
+                    results_stride,
+                    Capabilities::CPUS,
+                    null_mut(),
+                )
             },
         )
     }
@@ -1116,6 +1870,7 @@ impl<Scalar: Shapes + Sync, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> 
         columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
         results: &mut [Scalar::Distance],
         rotations: Option<&mut [[f32; 9]]>,
+        limit: Scalar::Distance,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), Error> {
         self.rows_parallel(
@@ -1125,7 +1880,53 @@ impl<Scalar: Shapes + Sync, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> 
             0,
             pool,
             |row, packs, count, results, results_stride, rotations, _| unsafe {
-                Scalar::hausdorffs_packed(row, 1, packs, count, results, results_stride, rotations)
+                Scalar::hausdorffs_packed(
+                    row,
+                    1,
+                    packs,
+                    count,
+                    results,
+                    results_stride,
+                    rotations,
+                    limit,
+                    Capabilities::CPUS,
+                    null_mut(),
+                )
+            },
+        )
+    }
+
+    /// [`chamfers`](Self::chamfers) with the row clouds split across `pool`.
+    pub fn chamfers_parallel<OtherAlloc: Allocator>(
+        &self,
+        columns: &ShapesPackedMatrix<Scalar, OtherAlloc>,
+        results: &mut [Scalar::Distance],
+        rotations: Option<&mut [[f32; 9]]>,
+        limit: Scalar::Distance,
+        pool: &mut fu::ThreadPool,
+    ) -> Result<(), Error> {
+        let workspace_bytes = Scalar::chamfers_workspace_size(self.largest(), columns.largest(), Capabilities::CPUS)?;
+        self.rows_parallel(
+            columns,
+            results,
+            rotations,
+            workspace_bytes,
+            pool,
+            |row, packs, count, results, results_stride, rotations, workspace| unsafe {
+                Scalar::chamfers_packed(
+                    row,
+                    1,
+                    packs,
+                    count,
+                    results,
+                    results_stride,
+                    rotations,
+                    limit,
+                    workspace,
+                    workspace_bytes,
+                    Capabilities::CPUS,
+                    null_mut(),
+                )
             },
         )
     }
@@ -1139,7 +1940,8 @@ impl<Scalar: Shapes + Sync, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> 
         rotations: Option<&mut [[f32; 9]]>,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), Error> {
-        let workspace_bytes = Scalar::wassersteinprocrustes_workspace_size(self.largest(), columns.largest())?;
+        let workspace_bytes =
+            Scalar::wassersteinprocrustes_workspace_size(self.largest(), columns.largest(), Capabilities::CPUS)?;
         self.rows_parallel(
             columns,
             results,
@@ -1157,6 +1959,8 @@ impl<Scalar: Shapes + Sync, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> 
                     rotations,
                     workspace,
                     workspace_bytes,
+                    Capabilities::CPUS,
+                    null_mut(),
                 )
             },
         )
@@ -1171,7 +1975,8 @@ impl<Scalar: Shapes + Sync, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> 
         rotations: Option<&mut [[f32; 9]]>,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), Error> {
-        let workspace_bytes = Scalar::gromovwassersteins_workspace_size(self.largest(), columns.largest())?;
+        let workspace_bytes =
+            Scalar::gromovwassersteins_workspace_size(self.largest(), columns.largest(), Capabilities::CPUS)?;
         self.rows_parallel(
             columns,
             results,
@@ -1189,6 +1994,8 @@ impl<Scalar: Shapes + Sync, Alloc: Allocator> ShapesPackedMatrix<Scalar, Alloc> 
                     rotations,
                     workspace,
                     workspace_bytes,
+                    Capabilities::CPUS,
+                    null_mut(),
                 )
             },
         )
@@ -1308,7 +2115,10 @@ fn with_workspace<Alloc: Allocator>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{assert_close, FloatLike, NumberLike};
+    use crate::{
+        capabilities::{Capability, Status, Stream, UnifiedAllocator},
+        types::{assert_close, FloatLike, NumberLike},
+    };
 
     /// An irregular cloud, so its principal axes and their order are unambiguous.
     const CLOUD: [[f32; 3]; 7] = [
@@ -1412,6 +2222,7 @@ mod tests {
 
     #[test]
     fn shapes_pack_reports_poses() {
+        check_poses::<f64>(1e-5);
         check_poses::<f32>(1e-5);
         check_poses::<f16>(1e-2);
     }
@@ -1445,6 +2256,7 @@ mod tests {
 
     #[test]
     fn shapes_unpack_round_trips() {
+        check_unpack::<f64>(1e-5);
         check_unpack::<f32>(1e-5);
         check_unpack::<f16>(1e-2);
     }
@@ -1465,9 +2277,13 @@ mod tests {
         let mut distances = [Scalar::Distance::default(); 1];
         let mut rotations = [[0.0_f32; 9]; 1];
 
-        rows.chamfers(&columns, &mut distances, None).unwrap();
+        rows.rmsds(&rows, &mut distances).unwrap();
+        assert_close(distances[0].to_f64(), 0.0, tolerance, 0.0, &format!("rmsds<{name}>"));
+        rows.chamfers(&columns, &mut distances, None, Scalar::UNBOUNDED)
+            .unwrap();
         assert_close(distances[0].to_f64(), 0.0, tolerance, 0.0, &format!("chamfers<{name}>"));
-        rows.hausdorffs(&columns, &mut distances, None).unwrap();
+        rows.hausdorffs(&columns, &mut distances, None, Scalar::UNBOUNDED)
+            .unwrap();
         assert_close(
             distances[0].to_f64(),
             0.0,
@@ -1517,6 +2333,7 @@ mod tests {
     #[test]
     fn shapes_rigid_copies_vanish() {
         // Rounding the moved inputs costs at most 3e-7 for `f32` and 1.4e-3 for `f16`
+        check_rigid_copies::<f64>(1e-5);
         check_rigid_copies::<f32>(1e-5);
         check_rigid_copies::<f16>(1e-2);
     }
@@ -1544,8 +2361,8 @@ mod tests {
         assert_eq!(plain_rows.scale(0).unwrap(), 1.0);
         type Kind = fn(&ShapesPackedMatrix<f32>, &ShapesPackedMatrix<f32>, &mut [f64]) -> Result<(), Error>;
         let kinds: [Kind; 4] = [
-            |a, b, results| a.chamfers(b, results, None),
-            |a, b, results| a.hausdorffs(b, results, None),
+            |a, b, results| a.chamfers(b, results, None, f64::INFINITY),
+            |a, b, results| a.hausdorffs(b, results, None, f64::INFINITY),
             |a, b, results| a.wassersteinprocrustes(b, results, None),
             |a, b, results| a.gromovwassersteins(b, results, None),
         ];
@@ -1576,8 +2393,8 @@ mod tests {
         let columns = ShapesPackedMatrix::new(&[&large[..], small, empty]).unwrap();
         type Kind = fn(&ShapesPackedMatrix<f32>, &ShapesPackedMatrix<f32>, &mut [f64]) -> Result<(), Error>;
         let kinds: [Kind; 4] = [
-            |a, b, results| a.chamfers(b, results, None),
-            |a, b, results| a.hausdorffs(b, results, None),
+            |a, b, results| a.chamfers(b, results, None, f64::INFINITY),
+            |a, b, results| a.hausdorffs(b, results, None, f64::INFINITY),
             |a, b, results| a.wassersteinprocrustes(b, results, None),
             |a, b, results| a.gromovwassersteins(b, results, None),
         ];
@@ -1594,6 +2411,43 @@ mod tests {
             assert_eq!(forward[8], 0.0, "two empty clouds");
             assert!(forward[2].is_infinite() && forward[6].is_infinite(), "one empty cloud");
         }
+    }
+
+    /// Equal clouds of every dtype score the same across `pool`, RMSD and a Chamfer limit included.
+    #[cfg(feature = "parallel")]
+    fn check_parallel_dtype<Scalar>()
+    where
+        Scalar: Shapes + FloatLike + Sync,
+        Scalar::Distance: NumberLike,
+    {
+        let topology = fu::Topology::new().unwrap();
+        let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
+        let (cloud, moved) = (
+            convert_cloud::<Scalar>(&CLOUD),
+            convert_cloud::<Scalar>(&moved_cloud([0.3, 0.0, -1.0])),
+        );
+        let packed = ShapesPackedMatrix::new(&[&cloud[..], &moved[..]]).unwrap();
+        let parallel = ShapesPackedMatrix::new_parallel(&[&cloud[..], &moved[..]], &mut pool).unwrap();
+        let bits = |values: [Scalar::Distance; 4]| values.map(|value| value.to_f64().to_bits());
+        let (mut expected, mut found) = ([Scalar::Distance::default(); 4], [Scalar::Distance::default(); 4]);
+        packed.rmsds(&packed, &mut expected).unwrap();
+        parallel.rmsds_parallel(&parallel, &mut found, &mut pool).unwrap();
+        assert_eq!(bits(expected), bits(found));
+        packed
+            .chamfers(&packed, &mut expected, None, Scalar::UNBOUNDED)
+            .unwrap();
+        parallel
+            .chamfers_parallel(&parallel, &mut found, None, Scalar::UNBOUNDED, &mut pool)
+            .unwrap();
+        assert_eq!(bits(expected), bits(found));
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn shapes_parallel_covers_every_dtype() {
+        check_parallel_dtype::<f64>();
+        check_parallel_dtype::<f32>();
+        check_parallel_dtype::<f16>();
     }
 
     #[cfg(feature = "parallel")]
@@ -1625,9 +2479,23 @@ mod tests {
             Option<&mut [[f32; 9]]>,
             &mut fu::ThreadPool,
         ) -> Result<(), Error>;
-        let kinds: [(Serial, Parallel); 4] = [
-            (ShapesPackedMatrix::chamfers, ShapesPackedMatrix::chamfers_parallel),
-            (ShapesPackedMatrix::hausdorffs, ShapesPackedMatrix::hausdorffs_parallel),
+        let kinds: [(Serial, Parallel); 6] = [
+            (
+                |a, b, results, rotations| a.chamfers(b, results, rotations, f64::INFINITY),
+                |a, b, results, rotations, pool| a.chamfers_parallel(b, results, rotations, f64::INFINITY, pool),
+            ),
+            (
+                |a, b, results, rotations| a.hausdorffs(b, results, rotations, f64::INFINITY),
+                |a, b, results, rotations, pool| a.hausdorffs_parallel(b, results, rotations, f64::INFINITY, pool),
+            ),
+            (
+                |a, b, results, rotations| a.chamfers(b, results, rotations, 0.75),
+                |a, b, results, rotations, pool| a.chamfers_parallel(b, results, rotations, 0.75, pool),
+            ),
+            (
+                |a, b, results, rotations| a.hausdorffs(b, results, rotations, 0.75),
+                |a, b, results, rotations, pool| a.hausdorffs_parallel(b, results, rotations, 0.75, pool),
+            ),
             (
                 ShapesPackedMatrix::wassersteinprocrustes,
                 ShapesPackedMatrix::wassersteinprocrustes_parallel,
@@ -1655,6 +2523,113 @@ mod tests {
         }
     }
 
+    /// Every `_on` verb, its packs and its outputs in unified memory, scores on the stream of the
+    /// CPU as the plain verbs do.
+    #[test]
+    fn shapes_verbs_on_a_stream_match() {
+        let stream = Stream::default(Capabilities::cpu_enabled());
+        let allocator = UnifiedAllocator::new(&stream);
+        let clouds = [&CLOUD[..], &CLOUD[..]];
+        let packs = ShapesPackedMatrix::new_in(&clouds, allocator).unwrap();
+        let plain = ShapesPackedMatrix::new(&clouds).unwrap();
+        let (mut found, mut expected) = (Vec::new_in(allocator), [0.0_f64; 4]);
+        found.resize(4, f64::NAN);
+        let mut workspace = Vec::new_in(allocator);
+        let chamfers_bytes = f32::chamfers_workspace_size(7, 7, stream.capabilities()).unwrap();
+        let wasserstein_bytes = f32::wassersteinprocrustes_workspace_size(7, 7, stream.capabilities()).unwrap();
+        let gromov_bytes = f32::gromovwassersteins_workspace_size(7, 7, stream.capabilities()).unwrap();
+        workspace.resize(chamfers_bytes.max(wasserstein_bytes).max(gromov_bytes), 0_u8);
+
+        stream
+            .scope(|scope| packs.chamfers_on(scope, &packs, &mut found, None, f64::INFINITY, &mut workspace))
+            .unwrap();
+        plain.chamfers(&plain, &mut expected, None, f64::INFINITY).unwrap();
+        assert_eq!(found[..], expected[..]);
+        stream
+            .scope(|scope| packs.hausdorffs_on(scope, &packs, &mut found, None, f64::INFINITY))
+            .unwrap();
+        plain.hausdorffs(&plain, &mut expected, None, f64::INFINITY).unwrap();
+        assert_eq!(found[..], expected[..]);
+        stream.scope(|scope| packs.rmsds_on(scope, &packs, &mut found)).unwrap();
+        plain.rmsds(&plain, &mut expected).unwrap();
+        assert_eq!(found[..], expected[..]);
+        stream
+            .scope(|scope| packs.wassersteinprocrustes_on(scope, &packs, &mut found, None, &mut workspace))
+            .unwrap();
+        plain.wassersteinprocrustes(&plain, &mut expected, None).unwrap();
+        assert_eq!(found[..], expected[..]);
+        stream
+            .scope(|scope| packs.gromovwassersteins_on(scope, &packs, &mut found, None, &mut workspace))
+            .unwrap();
+        plain.gromovwassersteins(&plain, &mut expected, None).unwrap();
+        assert_eq!(found[..], expected[..]);
+    }
+
+    /// A short workspace and short outputs refuse before any kernel writes.
+    #[test]
+    fn shapes_verbs_on_a_stream_refuse() {
+        let stream = Stream::default(Capabilities::cpu_enabled());
+        let packs = ShapesPackedMatrix::new(&[&CLOUD[..]]).unwrap();
+        let mut results = [0.0_f64; 1];
+        let mut short = Vec::new_in(UnifiedAllocator::new(&stream));
+        short.push(0_u8);
+        let refused =
+            stream.scope(|scope| packs.wassersteinprocrustes_on(scope, &packs, &mut results, None, &mut short));
+        assert_eq!(
+            refused,
+            Err(Error::KernelFailed {
+                status: Status::UnexpectedDimensions
+            })
+        );
+        let mut empty = [0.0_f64; 0];
+        let refused = stream.scope(|scope| packs.rmsds_on(scope, &packs, &mut empty));
+        assert!(matches!(refused, Err(Error::ShapeMismatch { .. })));
+    }
+
+    /// Without a device, a GPU's stream, memory and kernels all report it, and the verbs compile.
+    #[test]
+    fn shapes_verbs_without_a_gpu() {
+        for (count_devices, compiled, vendor) in [
+            (
+                Capabilities::cuda_count_devices as fn() -> Result<usize, Error>,
+                Capabilities::cuda_compiled as fn() -> Capabilities,
+                Capability::Cuda,
+            ),
+            (
+                Capabilities::rocm_count_devices,
+                Capabilities::rocm_compiled,
+                Capability::Rocm,
+            ),
+        ] {
+            if count_devices().unwrap() != 0 {
+                continue;
+            }
+            let gpu = Capabilities::from(vendor);
+            let missing_gpu = Err(Error::KernelFailed {
+                status: Status::MissingGpu,
+            });
+            assert_eq!(Stream::new(gpu, 0).map(|_| ()), missing_gpu);
+            let stream = Stream::default(gpu);
+            assert_eq!(
+                ShapesPackedMatrix::<f32, _>::new_in(&[&CLOUD[..]], UnifiedAllocator::new(&stream)).map(|_| ()),
+                Err(Error::AllocationFailed)
+            );
+            assert_eq!(stream.scope(|_| Ok(())), missing_gpu);
+            let packs = ShapesPackedMatrix::new(&[&CLOUD[..]]).unwrap();
+            let mut results = [0.0_f64; 1];
+            assert_eq!(
+                stream.scope(|scope| packs.rmsds_on(scope, &packs, &mut results)),
+                if compiled().bits() != 0 {
+                    missing_gpu
+                } else {
+                    Err(Error::KernelFailed {
+                        status: Status::MissingKernel,
+                    })
+                }
+            );
+        }
+    }
+
     #[test]
     fn shapes_reject_short_outputs() {
         let packed = ShapesPackedMatrix::new(&[&CLOUD[..], &CLOUD[..3]]).unwrap();
@@ -1664,9 +2639,12 @@ mod tests {
             expected: 4,
             got: 3,
         });
-        assert_eq!(packed.chamfers(&packed, &mut results, None), mismatch);
+        assert_eq!(packed.chamfers(&packed, &mut results, None, f64::INFINITY), mismatch);
         let mut results = [0.0_f64; 4];
         let mut rotations = [[0.0_f32; 9]; 3];
-        assert_eq!(packed.hausdorffs(&packed, &mut results, Some(&mut rotations)), mismatch);
+        assert_eq!(
+            packed.hausdorffs(&packed, &mut results, Some(&mut rotations), f64::INFINITY),
+            mismatch
+        );
     }
 }

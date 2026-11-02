@@ -23,6 +23,9 @@
  *  According to the available literature, the throughput for those basic integer ops is identical
  *  across most Apple, Qualcomm, and AWS Graviton chips. As long as we avoid widening operations and
  *  horizontal reductions, we won't face any reasonable bottlenecks.
+ *
+ *  UDOT over ones isn't an upgrade for those byte accumulators: with one accumulator it's
+ *  latency-bound on M5 and loses on long vectors, as explained in @c dot/neonsdot.h .
  */
 #ifndef NUMKONG_SET_NEON_H
 #define NUMKONG_SET_NEON_H

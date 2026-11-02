@@ -32,6 +32,9 @@ Author: Ash Vardanian
 Date: April 18, 2026
 """
 
+import ctypes
+import math
+
 import pytest
 
 import numkong as nk
@@ -328,6 +331,63 @@ def _cupy_or_skip():
     except Exception as exc:
         pytest.skip(f"CuPy/GPU mismatch: cannot allocate ({exc})")
     return cupy
+
+
+_DEVICE_TENSORS = []
+"""Every `_DeviceTensor`, whose structs the importer reads until its Tensor dies, so they outlive any Tensor."""
+
+
+class _DeviceTensor:
+    """A DLPack producer claiming host doubles live on CUDA device 0, for refusals that need no GPU."""
+
+    class _Tensor(ctypes.Structure):
+        _fields_ = [
+            ("data", ctypes.c_void_p),
+            ("device_type", ctypes.c_int32),
+            ("device_id", ctypes.c_int32),
+            ("ndim", ctypes.c_int32),
+            ("code", ctypes.c_uint8),
+            ("bits", ctypes.c_uint8),
+            ("lanes", ctypes.c_uint16),
+            ("shape", ctypes.POINTER(ctypes.c_int64)),
+            ("strides", ctypes.POINTER(ctypes.c_int64)),
+            ("byte_offset", ctypes.c_uint64),
+            ("manager_ctx", ctypes.c_void_p),
+            ("deleter", ctypes.c_void_p),
+        ]
+
+    def __init__(self, *shape: int):
+        self.values = (ctypes.c_double * math.prod(shape))()
+        self.shape = (ctypes.c_int64 * len(shape))(*shape)
+        self.tensor = self._Tensor(
+            data=ctypes.addressof(self.values),
+            device_type=2,
+            ndim=len(shape),
+            code=2,
+            bits=64,
+            lanes=1,
+            shape=self.shape,
+        )
+        _DEVICE_TENSORS.append(self)
+
+    def __dlpack__(self, **_):
+        capsule_new = ctypes.pythonapi.PyCapsule_New
+        capsule_new.restype, capsule_new.argtypes = (
+            ctypes.py_object,
+            [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_void_p],
+        )
+        return capsule_new(ctypes.addressof(self.tensor), b"dltensor", None)
+
+
+@pytest.mark.parametrize("keyword", ["out", "workspace"])
+def test_host_packs_refuse_gpu_tensors(keyword: str):
+    """A kernel on the host never gets a GPU Tensor, so packs left on the heap raise ``BufferError``."""
+    numpy = pytest.importorskip("numpy")
+    packed = nk.shapes_pack(numpy.arange(12.0, dtype=numpy.float32).reshape(4, 3))
+    tensor = nk.from_dlpack(_DeviceTensor(1, 1))
+    assert tensor.__dlpack_device__() == (2, 0)  # kDLCUDA
+    with pytest.raises(BufferError):
+        nk.chamfers_packed(packed, packed, **{keyword: tensor})
 
 
 def test_cupy_device_memory_keeps_its_device():

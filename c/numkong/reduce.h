@@ -538,6 +538,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_f16_neon(nk_f16_t const *, nk_size_t, 
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_NEONBFDOT
+/** @copydoc nk_reduce_moments_bf16_serial */
+NUMKONG_API nk_status_t nk_reduce_moments_bf16_neon(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
+                                                    nk_stream_t);
 /** @copydoc nk_reduce_moments_f64_best */
 NUMKONG_API nk_status_t nk_reduce_moments_bf16_neonbfdot(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *,
                                                          nk_f32_t *, nk_stream_t stream);
@@ -550,6 +553,12 @@ NUMKONG_API nk_status_t nk_reduce_moments_i8_neonsdot(nk_i8_t const *, nk_size_t
 /** @copydoc nk_reduce_moments_f64_best */
 NUMKONG_API nk_status_t nk_reduce_moments_u8_neonsdot(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *,
                                                       nk_stream_t stream);
+/** @copydoc nk_reduce_moments_i4_serial */
+NUMKONG_API nk_status_t nk_reduce_moments_i4_neonsdot(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *,
+                                                      nk_stream_t);
+/** @copydoc nk_reduce_moments_u4_serial */
+NUMKONG_API nk_status_t nk_reduce_moments_u4_neonsdot(nk_u4x2_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *,
+                                                      nk_stream_t);
 /** @copydoc nk_reduce_moments_f64_best */
 NUMKONG_API nk_status_t nk_reduce_moments_e2m3_neonsdot(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
                                                         nk_stream_t stream);
