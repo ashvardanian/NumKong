@@ -145,6 +145,15 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
         }
         else if constexpr (target_t::scaled) fill_random(settings, generator, source.elements);
         else fill_random_bits(generator, source.elements);
+        // Midpoints of neighbouring target codes are ties, which random bits almost never meet
+        if constexpr (from_type_::dtype() == nk_f32_k && !target_t::scaled)
+            for (std::size_t i = 0; i < source.elements.size(); i += 2) {
+                typename to_type_::raw_t const code = typename to_type_::raw_t(generator());
+                typename to_type_::raw_t const codes[2] = {code, typename to_type_::raw_t(code + 1)};
+                nk_f32_t neighbours[2];
+                stats.expect(nk_cast_serial(codes, to_type_::dtype(), neighbours, nk_f32_k, 2, nullptr));
+                source.elements[i].raw_ = (neighbours[0] + neighbours[1]) / 2;
+            }
 
         for (float const tensor_scale : {1.0f, 0.0f}) {
             if (tensor_scale == 0.0f && !target_t::has_tensor_scale) continue;

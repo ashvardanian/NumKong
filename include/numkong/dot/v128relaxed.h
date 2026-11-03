@@ -802,45 +802,38 @@ NUMKONG_INLINE void nk_dot_e3m2x16_init_v128relaxed(nk_dot_e3m2x16_state_v128rel
     state->sum_i32x4 = wasm_i32x4_splat(0);
 }
 
-NUMKONG_INLINE void nk_dot_e3m2x16_update_v128relaxed(nk_dot_e3m2x16_state_v128relaxed_t *state, nk_b128_vec_t a,
-                                                      nk_b128_vec_t b, nk_size_t depth_offset,
+/** E3M2 values times sixteen as signed halfwords, magnitudes up to 448: the signed mantissa with
+ *  its implicit bit, widened by multiplying with two to the exponent minus one. */
+NUMKONG_INLINE void nk_e3m2x16_to_i16x8x2_v128relaxed_(v128_t codes_u8x16, v128_t *low_i16x8, v128_t *high_i16x8) {
+    v128_t const powers_u8x16 = wasm_u8x16_const(1, 1, 2, 4, 8, 16, 32, 64, 0, 0, 0, 0, 0, 0, 0, 0);
+    v128_t exponent_u8x16 = wasm_v128_and(wasm_u8x16_shr(codes_u8x16, 2), wasm_u8x16_splat(7));
+    v128_t implicit_u8x16 = wasm_v128_and(wasm_i8x16_ne(exponent_u8x16, wasm_u8x16_splat(0)), wasm_u8x16_splat(4));
+    v128_t mantissa_u8x16 = wasm_v128_or(wasm_v128_and(codes_u8x16, wasm_u8x16_splat(3)), implicit_u8x16);
+    v128_t negate_u8x16 = wasm_i8x16_ne(wasm_v128_and(codes_u8x16, wasm_u8x16_splat(0x20)), wasm_u8x16_splat(0));
+    v128_t mantissa_i8x16 = wasm_i8x16_sub(wasm_v128_xor(mantissa_u8x16, negate_u8x16), negate_u8x16);
+    v128_t scale_u8x16 = wasm_i8x16_swizzle(powers_u8x16, exponent_u8x16);
+    *low_i16x8 = wasm_i16x8_extmul_low_i8x16(mantissa_i8x16, scale_u8x16);
+    *high_i16x8 = wasm_i16x8_extmul_high_i8x16(mantissa_i8x16, scale_u8x16);
+}
+
+/** Loads 16 E3M2 codes as the signed halfwords @c nk_dot_e3m2x16_update_v128relaxed multiplies. */
+NUMKONG_INLINE void nk_load_e3m2x16_to_i16x16_v128relaxed_(void const *src, nk_b256_vec_t *dst) {
+    nk_e3m2x16_to_i16x8x2_v128relaxed_(wasm_v128_load(src), &dst->v128s[0], &dst->v128s[1]);
+}
+
+NUMKONG_INLINE void nk_partial_load_e3m2x16_to_i16x16_v128relaxed_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
+    nk_b128_vec_t codes_vec;
+    nk_partial_load_b8x16_serial_(src, &codes_vec, n);
+    nk_e3m2x16_to_i16x8x2_v128relaxed_(codes_vec.v128, &dst->v128s[0], &dst->v128s[1]);
+}
+
+NUMKONG_INLINE void nk_dot_e3m2x16_update_v128relaxed(nk_dot_e3m2x16_state_v128relaxed_t *state, nk_b256_vec_t a,
+                                                      nk_b256_vec_t b, nk_size_t depth_offset,
                                                       nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    // 4× scaled LUT — all values ≤ 112, fits u7 for relaxed_dot.
-    // Indices 0-11 rounded to nearest integer (max error ±0.5 in the 4× domain = ±0.125 in value).
-    // Indices 12-31 exact.
-    v128_t lut_low_u8x16 = wasm_i8x16_const(0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 4, 4, 5, 6, 7);
-    v128_t lut_high_u8x16 = wasm_i8x16_const(8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 112);
-    v128_t magnitude_mask_u8x16 = wasm_u8x16_splat(0x1F);
-    v128_t nibble_mask_u8x16 = wasm_u8x16_splat(0x0F);
-    v128_t half_select_u8x16 = wasm_u8x16_splat(0x10);
-    v128_t sign_mask_u8x16 = wasm_u8x16_splat(0x20);
-
-    v128_t a_mag_u8x16 = wasm_v128_and(a.v128, magnitude_mask_u8x16);
-    v128_t b_mag_u8x16 = wasm_v128_and(b.v128, magnitude_mask_u8x16);
-
-    // Dual swizzle LUT for a
-    v128_t a_idx_u8x16 = wasm_v128_and(a_mag_u8x16, nibble_mask_u8x16);
-    v128_t a_low_u8x16 = wasm_i8x16_relaxed_swizzle(lut_low_u8x16, a_idx_u8x16);
-    v128_t a_high_u8x16 = wasm_i8x16_relaxed_swizzle(lut_high_u8x16, a_idx_u8x16);
-    v128_t a_sel_u8x16 = wasm_i8x16_eq(wasm_v128_and(a_mag_u8x16, half_select_u8x16), half_select_u8x16);
-    v128_t a_unsigned_u8x16 = wasm_i8x16_relaxed_laneselect(a_high_u8x16, a_low_u8x16, a_sel_u8x16);
-
-    // Dual swizzle LUT for b
-    v128_t b_idx_u8x16 = wasm_v128_and(b_mag_u8x16, nibble_mask_u8x16);
-    v128_t b_low_u8x16 = wasm_i8x16_relaxed_swizzle(lut_low_u8x16, b_idx_u8x16);
-    v128_t b_high_u8x16 = wasm_i8x16_relaxed_swizzle(lut_high_u8x16, b_idx_u8x16);
-    v128_t b_sel_u8x16 = wasm_i8x16_eq(wasm_v128_and(b_mag_u8x16, half_select_u8x16), half_select_u8x16);
-    v128_t b_unsigned_u8x16 = wasm_i8x16_relaxed_laneselect(b_high_u8x16, b_low_u8x16, b_sel_u8x16);
-
-    // Combined sign → apply to a (relaxed_dot wants i8 × u7)
-    v128_t sign_u8x16 = wasm_v128_and(wasm_v128_xor(a.v128, b.v128), sign_mask_u8x16);
-    v128_t neg_mask_u8x16 = wasm_i8x16_eq(sign_u8x16, sign_mask_u8x16);
-    v128_t a_neg_u8x16 = wasm_i8x16_neg(a_unsigned_u8x16);
-    v128_t a_signed_i8x16 = wasm_i8x16_relaxed_laneselect(a_neg_u8x16, a_unsigned_u8x16, neg_mask_u8x16);
-
-    state->sum_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(a_signed_i8x16, b_unsigned_u8x16, state->sum_i32x4);
+    v128_t sum_i32x4 = wasm_i32x4_add(state->sum_i32x4, wasm_i32x4_dot_i16x8(a.v128s[0], b.v128s[0]));
+    state->sum_i32x4 = wasm_i32x4_add(sum_i32x4, wasm_i32x4_dot_i16x8(a.v128s[1], b.v128s[1]));
 }
 
 NUMKONG_INLINE void nk_dot_e3m2x16_finalize_v128relaxed(                                                  //
@@ -848,12 +841,11 @@ NUMKONG_INLINE void nk_dot_e3m2x16_finalize_v128relaxed(                        
     nk_dot_e3m2x16_state_v128relaxed_t const *state_c, nk_dot_e3m2x16_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
-    // × 4 per operand → × 16 product scaling → divide by 16
-    nk_f32_t inv_16 = 1.0f / 16.0f;
-    result->f32s[0] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_a->sum_i32x4) * inv_16;
-    result->f32s[1] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_b->sum_i32x4) * inv_16;
-    result->f32s[2] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_c->sum_i32x4) * inv_16;
-    result->f32s[3] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_d->sum_i32x4) * inv_16;
+    nk_f32_t const scale = 1.0f / 256.0f;
+    result->f32s[0] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_a->sum_i32x4) * scale;
+    result->f32s[1] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_b->sum_i32x4) * scale;
+    result->f32s[2] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_c->sum_i32x4) * scale;
+    result->f32s[3] = (nk_f32_t)nk_reduce_add_i32x4_v128_(state_d->sum_i32x4) * scale;
 }
 
 typedef struct nk_dot_through_f32x4_state_v128relaxed_t_ nk_dot_e4m3x4_state_v128relaxed_t;
