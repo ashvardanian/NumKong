@@ -608,7 +608,7 @@ NUMKONG_INLINE void nk_dot_f64x2_finalize_neon(                                 
 NUMKONG_INLINE void nk_dot_bf16_through_f32_neon_(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
                                                   nk_size_t count_scalars, nk_f32_t *result) {
     uint16x8_t a_u16x8, b_u16x8;
-    float32x4_t sum_f32x4 = vdupq_n_f32(0);
+    float32x4_t sum_low_f32x4 = vdupq_n_f32(0), sum_high_f32x4 = vdupq_n_f32(0);
 nk_dot_bf16_through_f32_neon_cycle:
     if (count_scalars < 8) {
         nk_b128_vec_t a_vec, b_vec;
@@ -627,10 +627,10 @@ nk_dot_bf16_through_f32_neon_cycle:
     float32x4_t a_high_f32x4 = vreinterpretq_f32_u32(vshll_high_n_u16(a_u16x8, 16));
     float32x4_t b_low_f32x4 = vreinterpretq_f32_u32(vshll_n_u16(vget_low_u16(b_u16x8), 16));
     float32x4_t b_high_f32x4 = vreinterpretq_f32_u32(vshll_high_n_u16(b_u16x8, 16));
-    sum_f32x4 = vfmaq_f32(sum_f32x4, a_low_f32x4, b_low_f32x4);
-    sum_f32x4 = vfmaq_f32(sum_f32x4, a_high_f32x4, b_high_f32x4);
+    sum_low_f32x4 = vfmaq_f32(sum_low_f32x4, a_low_f32x4, b_low_f32x4);
+    sum_high_f32x4 = vfmaq_f32(sum_high_f32x4, a_high_f32x4, b_high_f32x4);
     if (count_scalars) goto nk_dot_bf16_through_f32_neon_cycle;
-    *result = vaddvq_f32(sum_f32x4);
+    *result = vaddvq_f32(vaddq_f32(sum_low_f32x4, sum_high_f32x4));
 }
 
 /**
@@ -672,7 +672,7 @@ NUMKONG_INLINE void nk_dot_bf16x8_finalize_neon(                                
 NUMKONG_INLINE void nk_dot_f16_through_f32_neon_(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
                                                  nk_size_t count_scalars, nk_f32_t *result) {
     uint16x8_t a_u16x8, b_u16x8;
-    float32x4_t sum_f32x4 = vdupq_n_f32(0);
+    float32x4_t sum_low_f32x4 = vdupq_n_f32(0), sum_high_f32x4 = vdupq_n_f32(0);
 nk_dot_f16_through_f32_neon_cycle:
     if (count_scalars < 8) {
         nk_b128_vec_t a_vec, b_vec;
@@ -693,10 +693,10 @@ nk_dot_f16_through_f32_neon_cycle:
     float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
     float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
     float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
-    sum_f32x4 = vfmaq_f32(sum_f32x4, a_low_f32x4, b_low_f32x4);
-    sum_f32x4 = vfmaq_f32(sum_f32x4, a_high_f32x4, b_high_f32x4);
+    sum_low_f32x4 = vfmaq_f32(sum_low_f32x4, a_low_f32x4, b_low_f32x4);
+    sum_high_f32x4 = vfmaq_f32(sum_high_f32x4, a_high_f32x4, b_high_f32x4);
     if (count_scalars) goto nk_dot_f16_through_f32_neon_cycle;
-    *result = vaddvq_f32(sum_f32x4);
+    *result = vaddvq_f32(vaddq_f32(sum_low_f32x4, sum_high_f32x4));
 }
 
 /**
@@ -786,8 +786,8 @@ NUMKONG_API nk_status_t nk_dot_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t con
                                          nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Upcast f32 to f64 for accumulation (2 complex pairs per iteration, avoids slow vget_low/high)
-    float64x2_t sum_real_f64x2 = vdupq_n_f64(0);
-    float64x2_t sum_imag_f64x2 = vdupq_n_f64(0);
+    float64x2_t sum_real_real_f64x2 = vdupq_n_f64(0), sum_imag_imag_f64x2 = vdupq_n_f64(0);
+    float64x2_t sum_real_imag_f64x2 = vdupq_n_f64(0), sum_imag_real_f64x2 = vdupq_n_f64(0);
     nk_size_t idx_pairs = 0;
     // ARMv8.3-A FCMLA (`vcmlaq_rot0/rot90_f32`) was benchmarked as an alternative to the
     // deinterleave+4FMA pattern below. FCMLA processes only 2 complex pairs per iteration
@@ -805,14 +805,14 @@ NUMKONG_API nk_status_t nk_dot_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t con
         float64x2_t b_real_f64x2 = vcvt_f64_f32(b_f32x2x2.val[0]);
         float64x2_t b_imag_f64x2 = vcvt_f64_f32(b_f32x2x2.val[1]);
         // Compute the dot product: real = aᵣ × bᵣ - aᵢ × bᵢ, imag = aᵣ × bᵢ + aᵢ × bᵣ
-        sum_real_f64x2 = vfmaq_f64(sum_real_f64x2, a_real_f64x2, b_real_f64x2);
-        sum_real_f64x2 = vfmsq_f64(sum_real_f64x2, a_imag_f64x2, b_imag_f64x2);
-        sum_imag_f64x2 = vfmaq_f64(sum_imag_f64x2, a_real_f64x2, b_imag_f64x2);
-        sum_imag_f64x2 = vfmaq_f64(sum_imag_f64x2, a_imag_f64x2, b_real_f64x2);
+        sum_real_real_f64x2 = vfmaq_f64(sum_real_real_f64x2, a_real_f64x2, b_real_f64x2);
+        sum_imag_imag_f64x2 = vfmaq_f64(sum_imag_imag_f64x2, a_imag_f64x2, b_imag_f64x2);
+        sum_real_imag_f64x2 = vfmaq_f64(sum_real_imag_f64x2, a_real_f64x2, b_imag_f64x2);
+        sum_imag_real_f64x2 = vfmaq_f64(sum_imag_real_f64x2, a_imag_f64x2, b_real_f64x2);
     }
     // Reduce horizontal sums:
-    nk_f64_t sum_real_f64 = vaddvq_f64(sum_real_f64x2);
-    nk_f64_t sum_imag_f64 = vaddvq_f64(sum_imag_f64x2);
+    nk_f64_t sum_real_f64 = vaddvq_f64(vsubq_f64(sum_real_real_f64x2, sum_imag_imag_f64x2));
+    nk_f64_t sum_imag_f64 = vaddvq_f64(vaddq_f64(sum_real_imag_f64x2, sum_imag_real_f64x2));
     // Handle the tail:
     for (; idx_pairs != count_pairs; ++idx_pairs) {
         nk_f32c_t a_pair = a_pairs[idx_pairs], b_pair = b_pairs[idx_pairs];
@@ -829,8 +829,8 @@ NUMKONG_API nk_status_t nk_vdot_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t co
                                           nk_f64c_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     // Upcast f32 to f64 for accumulation (2 complex pairs per iteration, avoids slow vget_low/high)
-    float64x2_t sum_real_f64x2 = vdupq_n_f64(0);
-    float64x2_t sum_imag_f64x2 = vdupq_n_f64(0);
+    float64x2_t sum_real_real_f64x2 = vdupq_n_f64(0), sum_imag_imag_f64x2 = vdupq_n_f64(0);
+    float64x2_t sum_real_imag_f64x2 = vdupq_n_f64(0), sum_imag_real_f64x2 = vdupq_n_f64(0);
     nk_size_t idx_pairs = 0;
     for (; idx_pairs + 2 <= count_pairs; idx_pairs += 2) {
         // Unpack 2 complex pairs into real and imaginary parts:
@@ -842,14 +842,14 @@ NUMKONG_API nk_status_t nk_vdot_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t co
         float64x2_t b_real_f64x2 = vcvt_f64_f32(b_f32x2x2.val[0]);
         float64x2_t b_imag_f64x2 = vcvt_f64_f32(b_f32x2x2.val[1]);
         // Compute conjugate dot product: real = aᵣ × bᵣ + aᵢ × bᵢ, imag = aᵣ × bᵢ - aᵢ × bᵣ
-        sum_real_f64x2 = vfmaq_f64(sum_real_f64x2, a_real_f64x2, b_real_f64x2);
-        sum_real_f64x2 = vfmaq_f64(sum_real_f64x2, a_imag_f64x2, b_imag_f64x2);
-        sum_imag_f64x2 = vfmaq_f64(sum_imag_f64x2, a_real_f64x2, b_imag_f64x2);
-        sum_imag_f64x2 = vfmsq_f64(sum_imag_f64x2, a_imag_f64x2, b_real_f64x2);
+        sum_real_real_f64x2 = vfmaq_f64(sum_real_real_f64x2, a_real_f64x2, b_real_f64x2);
+        sum_imag_imag_f64x2 = vfmaq_f64(sum_imag_imag_f64x2, a_imag_f64x2, b_imag_f64x2);
+        sum_real_imag_f64x2 = vfmaq_f64(sum_real_imag_f64x2, a_real_f64x2, b_imag_f64x2);
+        sum_imag_real_f64x2 = vfmaq_f64(sum_imag_real_f64x2, a_imag_f64x2, b_real_f64x2);
     }
     // Reduce horizontal sums:
-    nk_f64_t sum_real_f64 = vaddvq_f64(sum_real_f64x2);
-    nk_f64_t sum_imag_f64 = vaddvq_f64(sum_imag_f64x2);
+    nk_f64_t sum_real_f64 = vaddvq_f64(vaddq_f64(sum_real_real_f64x2, sum_imag_imag_f64x2));
+    nk_f64_t sum_imag_f64 = vaddvq_f64(vsubq_f64(sum_real_imag_f64x2, sum_imag_real_f64x2));
     // Handle the tail:
     for (; idx_pairs != count_pairs; ++idx_pairs) {
         nk_f32c_t a_pair = a_pairs[idx_pairs], b_pair = b_pairs[idx_pairs];
@@ -1094,7 +1094,7 @@ NUMKONG_API nk_status_t nk_dot_e4m3_neon(nk_e4m3_t const *a_scalars, nk_e4m3_t c
                                          nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float16x8_t a_f16x8, b_f16x8;
-    float32x4_t sum_f32x4 = vdupq_n_f32(0);
+    float32x4_t sum_low_f32x4 = vdupq_n_f32(0), sum_high_f32x4 = vdupq_n_f32(0);
 nk_dot_e4m3_neon_cycle:
     if (count_scalars < 8) {
         nk_b64_vec_t a_vec, b_vec;
@@ -1113,10 +1113,10 @@ nk_dot_e4m3_neon_cycle:
     float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
     float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
     float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
-    sum_f32x4 = vfmaq_f32(sum_f32x4, a_low_f32x4, b_low_f32x4);
-    sum_f32x4 = vfmaq_f32(sum_f32x4, a_high_f32x4, b_high_f32x4);
+    sum_low_f32x4 = vfmaq_f32(sum_low_f32x4, a_low_f32x4, b_low_f32x4);
+    sum_high_f32x4 = vfmaq_f32(sum_high_f32x4, a_high_f32x4, b_high_f32x4);
     if (count_scalars) goto nk_dot_e4m3_neon_cycle;
-    *result = vaddvq_f32(sum_f32x4);
+    *result = vaddvq_f32(vaddq_f32(sum_low_f32x4, sum_high_f32x4));
     return nk_success_k;
 }
 
@@ -1124,7 +1124,7 @@ NUMKONG_API nk_status_t nk_dot_e5m2_neon(nk_e5m2_t const *a_scalars, nk_e5m2_t c
                                          nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     float16x8_t a_f16x8, b_f16x8;
-    float32x4_t sum_f32x4 = vdupq_n_f32(0);
+    float32x4_t sum_low_f32x4 = vdupq_n_f32(0), sum_high_f32x4 = vdupq_n_f32(0);
 nk_dot_e5m2_neon_cycle:
     if (count_scalars < 8) {
         nk_b64_vec_t a_vec, b_vec;
@@ -1143,10 +1143,10 @@ nk_dot_e5m2_neon_cycle:
     float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
     float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
     float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
-    sum_f32x4 = vfmaq_f32(sum_f32x4, a_low_f32x4, b_low_f32x4);
-    sum_f32x4 = vfmaq_f32(sum_f32x4, a_high_f32x4, b_high_f32x4);
+    sum_low_f32x4 = vfmaq_f32(sum_low_f32x4, a_low_f32x4, b_low_f32x4);
+    sum_high_f32x4 = vfmaq_f32(sum_high_f32x4, a_high_f32x4, b_high_f32x4);
     if (count_scalars) goto nk_dot_e5m2_neon_cycle;
-    *result = vaddvq_f32(sum_f32x4);
+    *result = vaddvq_f32(vaddq_f32(sum_low_f32x4, sum_high_f32x4));
     return nk_success_k;
 }
 
