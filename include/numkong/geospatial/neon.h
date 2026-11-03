@@ -270,13 +270,12 @@ NUMKONG_API nk_status_t nk_sqeuclideans3d_i32_neon(nk_i32_t const *a, nk_size_t 
             vst1q_u64(output + column + 2, sums_high_u64x2);
         }
         if (column < columns) {
-            // Partial loads fill three adjacent registers that `LD3` then reads like whole rows
-            nk_size_t const remaining = columns - column, values = remaining * 3;
-            nk_b128_vec_t b_tail_vec[3], sums_low_vec, sums_high_vec;
-            nk_partial_load_b32x4_serial_(b + column * 3, &b_tail_vec[0], values);
-            nk_partial_load_b32x4_serial_(b + column * 3 + 4, &b_tail_vec[1], values > 4 ? values - 4 : 0);
-            nk_partial_load_b32x4_serial_(b + column * 3 + 8, &b_tail_vec[2], values > 8 ? values - 8 : 0);
-            int32x4x3_t const b_i32x4x3 = vld3q_s32((nk_i32_t const *)b_tail_vec);
+            nk_size_t const remaining = columns - column;
+            nk_b128_vec_t sums_low_vec, sums_high_vec;
+            int32x4x3_t b_i32x4x3 = {{vdupq_n_s32(0), vdupq_n_s32(0), vdupq_n_s32(0)}};
+            b_i32x4x3 = vld3q_lane_s32(b + column * 3, b_i32x4x3, 0);
+            if (remaining > 1) b_i32x4x3 = vld3q_lane_s32(b + column * 3 + 3, b_i32x4x3, 1);
+            if (remaining > 2) b_i32x4x3 = vld3q_lane_s32(b + column * 3 + 6, b_i32x4x3, 2);
             nk_sqeuclidean3d_i32x4_neon_(a_x_i32x4, a_y_i32x4, a_z_i32x4, b_i32x4x3.val[0], b_i32x4x3.val[1],
                                          b_i32x4x3.val[2], &sums_low_vec.u64x2, &sums_high_vec.u64x2);
             nk_partial_store_b64x2_serial_(&sums_low_vec, output + column, remaining);

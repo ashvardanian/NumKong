@@ -102,12 +102,16 @@ void test_probability(error_stats_section_t &check) {
     check.section("Probability Divergences NEON", nk_cap_neon_k);
     check("kld_f32_neon", test_kld<f32_t>, nk_kld_f32_neon);
     check("jsd_f32_neon", test_jsd<f32_t>, nk_jsd_f32_neon);
+    check("kld_f64_neon", test_kld<f64_t>, nk_kld_f64_neon);
+    check("jsd_f64_neon", test_jsd<f64_t>, nk_jsd_f64_neon);
     check("kld_f16_neon", test_kld<f16_t>, nk_kld_f16_neon);
     check("jsd_f16_neon", test_jsd<f16_t>, nk_jsd_f16_neon);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_HASWELL
     check.section("Probability Divergences Haswell", nk_cap_haswell_k);
+    check("kld_f32_haswell", test_kld<f32_t>, nk_kld_f32_haswell);
+    check("jsd_f32_haswell", test_jsd<f32_t>, nk_jsd_f32_haswell);
     check("kld_f16_haswell", test_kld<f16_t>, nk_kld_f16_haswell);
     check("kld_f64_haswell", test_kld<f64_t>, nk_kld_f64_haswell);
     check("jsd_f16_haswell", test_jsd<f16_t>, nk_jsd_f16_haswell);

@@ -3900,6 +3900,13 @@ NUMKONG_INLINE void nk_reduce_moments_contiguous_u1_neon_( //
         sum += (nk_u64_t)vaddlvq_u8(popcount_u8x16);
     }
     nk_u8_t const *data_bytes = (nk_u8_t const *)data_ptr;
+    // Under 8 bytes the partial load itself loops, and bytes through the scalar popcount win
+    if (byte_count - idx >= 8) {
+        nk_b128_vec_t tail_vec;
+        nk_partial_load_b8x16_neon_(data_bytes + idx, &tail_vec, byte_count - idx);
+        sum += (nk_u64_t)vaddlvq_u8(vcntq_u8(tail_vec.u8x16));
+        idx = byte_count;
+    }
     for (; idx < byte_count; ++idx) sum += nk_u1x8_popcount_(data_bytes[idx]);
     *sum_ptr = sum, *sumsq_ptr = sum;
 }
@@ -4216,6 +4223,129 @@ NUMKONG_API nk_status_t nk_reduce_moments_f16_neon(              //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_reduce_moments_chunked_f16_neon_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    return nk_success_k;
+}
+
+/** Maps F16 or BF16 bits onto I16, so integer order follows the sign-magnitude float order. */
+NUMKONG_INLINE int16x8_t nk_fp16x8_to_comparable_i16x8_neon_(uint16x8_t raw_u16x8) {
+    uint16x8_t sign_u16x8 = vreinterpretq_u16_s16(vshrq_n_s16(vreinterpretq_s16_u16(raw_u16x8), 15));
+    return vreinterpretq_s16_u16(veorq_u16(raw_u16x8, vshrq_n_u16(sign_u16x8, 1)));
+}
+
+/** Finds the earliest position of @p value, from lane extrema and the cycles that set them. */
+NUMKONG_INLINE nk_size_t nk_reduce_earliest_i16x8_neon_(int16x8_t extrema_i16x8, uint16x8_t cycles_u16x8,
+                                                        nk_i16_t value) {
+    uint16x8_t value_match_u16x8 = vceqq_s16(extrema_i16x8, vdupq_n_s16(value));
+    nk_u16_t cycle = vminvq_u16(vbslq_u16(value_match_u16x8, cycles_u16x8, vdupq_n_u16(0xFFFF)));
+    uint16x8_t both_match_u16x8 = vandq_u16(value_match_u16x8, vceqq_u16(cycles_u16x8, vdupq_n_u16(cycle)));
+    uint16x8_t lane_indices_u16x8 = vcombine_u16(vreinterpret_u16_u64(vcreate_u64(0x0003000200010000ULL)),
+                                                 vreinterpret_u16_u64(vcreate_u64(0x0007000600050004ULL)));
+    nk_u16_t lane = vminvq_u16(vbslq_u16(both_match_u16x8, lane_indices_u16x8, vdupq_n_u16(0xFFFF)));
+    return (nk_size_t)cycle * 8 + (nk_size_t)lane;
+}
+
+/** Scans F16 or BF16 values, which differ only in where NaNs start, past @p infinity_bits . */
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_fp16_neon_(            //
+    nk_u16_t const *data_ptr, nk_size_t count, nk_u16_t infinity_bits, //
+    nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
+    nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    int16x8_t min_i16x8 = vdupq_n_s16(NUMKONG_I16_MAX), max_i16x8 = vdupq_n_s16(NUMKONG_I16_MIN);
+    uint16x8_t min_iter_u16x8 = vdupq_n_u16(0), max_iter_u16x8 = vdupq_n_u16(0);
+    uint16x8_t iter_u16x8 = vdupq_n_u16(0), one_u16x8 = vdupq_n_u16(1);
+    uint16x8_t magnitude_mask_u16x8 = vdupq_n_u16(0x7FFF), infinity_u16x8 = vdupq_n_u16(infinity_bits);
+    uint16x8_t lane_indices_u16x8 = vcombine_u16(vreinterpret_u16_u64(vcreate_u64(0x0003000200010000ULL)),
+                                                 vreinterpret_u16_u64(vcreate_u64(0x0007000600050004ULL)));
+    for (nk_size_t idx = 0; idx < count; idx += 8) {
+        nk_size_t const remaining = count - idx;
+        uint16x8_t raw_u16x8, valid_u16x8;
+        if (remaining >= 8) raw_u16x8 = vld1q_u16(data_ptr + idx), valid_u16x8 = vdupq_n_u16(0xFFFF);
+        else {
+            nk_b128_vec_t tail_vec;
+            nk_partial_load_b16x8_neon_(data_ptr + idx, &tail_vec, remaining);
+            raw_u16x8 = tail_vec.u16x8, valid_u16x8 = vcltq_u16(lane_indices_u16x8, vdupq_n_u16((nk_u16_t)remaining));
+        }
+        valid_u16x8 = vandq_u16(valid_u16x8, vcleq_u16(vandq_u16(raw_u16x8, magnitude_mask_u16x8), infinity_u16x8));
+        int16x8_t data_i16x8 = nk_fp16x8_to_comparable_i16x8_neon_(raw_u16x8);
+        uint16x8_t less_u16x8 = vandq_u16(vcltq_s16(data_i16x8, min_i16x8), valid_u16x8);
+        uint16x8_t greater_u16x8 = vandq_u16(vcgtq_s16(data_i16x8, max_i16x8), valid_u16x8);
+        min_i16x8 = vbslq_s16(less_u16x8, data_i16x8, min_i16x8);
+        max_i16x8 = vbslq_s16(greater_u16x8, data_i16x8, max_i16x8);
+        min_iter_u16x8 = vbslq_u16(less_u16x8, iter_u16x8, min_iter_u16x8);
+        max_iter_u16x8 = vbslq_u16(greater_u16x8, iter_u16x8, max_iter_u16x8);
+        iter_u16x8 = vaddq_u16(iter_u16x8, one_u16x8);
+    }
+    nk_i16_t min_value = vminvq_s16(min_i16x8), max_value = vmaxvq_s16(max_i16x8);
+    *min_value_ptr = min_value, *max_value_ptr = max_value;
+    // Infinities map inside both sentinels, so a sentinel on both sides means every value was NaN
+    if (min_value == NUMKONG_I16_MAX && max_value == NUMKONG_I16_MIN) {
+        *min_index_ptr = NUMKONG_SIZE_MAX, *max_index_ptr = NUMKONG_SIZE_MAX;
+        return;
+    }
+    *min_index_ptr = nk_reduce_earliest_i16x8_neon_(min_i16x8, min_iter_u16x8, min_value);
+    *max_index_ptr = nk_reduce_earliest_i16x8_neon_(max_i16x8, max_iter_u16x8, max_value);
+}
+
+/** Folds chunks of nonzero @p count values, leaving comparable extrema and global indices. */
+NUMKONG_INLINE void nk_reduce_minmax_chunked_fp16_neon_(               //
+    nk_u16_t const *data_ptr, nk_size_t count, nk_u16_t infinity_bits, //
+    nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,                 //
+    nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr) {
+    nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_U16_MAX + 1) * 8;
+    *min_value_ptr = NUMKONG_I16_MAX, *min_index_ptr = NUMKONG_SIZE_MAX;
+    *max_value_ptr = NUMKONG_I16_MIN, *max_index_ptr = NUMKONG_SIZE_MAX;
+    for (nk_size_t start = 0; start < count; start += chunk_limit) {
+        nk_size_t const chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
+        nk_i16_t min_value, max_value;
+        nk_size_t min_index, max_index;
+        nk_reduce_minmax_contiguous_fp16_neon_(data_ptr + start, chunk_count, infinity_bits, &min_value, &min_index,
+                                               &max_value, &max_index);
+        if (min_index == NUMKONG_SIZE_MAX) continue;
+        if (*min_index_ptr == NUMKONG_SIZE_MAX || min_value < *min_value_ptr)
+            *min_value_ptr = min_value, *min_index_ptr = start + min_index;
+        if (*max_index_ptr == NUMKONG_SIZE_MAX || max_value > *max_value_ptr)
+            *max_value_ptr = max_value, *max_index_ptr = start + max_index;
+    }
+}
+
+NUMKONG_API nk_status_t nk_reduce_minmax_f16_neon(               //
+    nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
+    nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr,           //
+    nk_f16_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (count == 0 || stride != sizeof(nk_f16_t)) {
+        nk_reduce_minmax_strided_f16_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                             max_index_ptr);
+        return nk_success_k;
+    }
+    nk_i16_t min_comparable, max_comparable;
+    nk_reduce_minmax_chunked_fp16_neon_((nk_u16_t const *)data_ptr, count, 0x7C00, &min_comparable, min_index_ptr,
+                                        &max_comparable, max_index_ptr);
+    if (*min_index_ptr == NUMKONG_SIZE_MAX) *min_value_ptr = NUMKONG_F16_MAX, *max_value_ptr = NUMKONG_F16_MIN;
+    else {
+        *min_value_ptr = nk_u16_as_f16_((nk_u16_t)(min_comparable ^ ((nk_u16_t)(min_comparable >> 15) >> 1)));
+        *max_value_ptr = nk_u16_as_f16_((nk_u16_t)(max_comparable ^ ((nk_u16_t)(max_comparable >> 15) >> 1)));
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_reduce_minmax_bf16_neon(               //
+    nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
+    nk_bf16_t *min_value_ptr, nk_size_t *min_index_ptr,           //
+    nk_bf16_t *max_value_ptr, nk_size_t *max_index_ptr, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (count == 0 || stride != sizeof(nk_bf16_t)) {
+        nk_reduce_minmax_strided_bf16_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                              max_index_ptr);
+        return nk_success_k;
+    }
+    nk_i16_t min_comparable, max_comparable;
+    nk_reduce_minmax_chunked_fp16_neon_((nk_u16_t const *)data_ptr, count, 0x7F80, &min_comparable, min_index_ptr,
+                                        &max_comparable, max_index_ptr);
+    if (*min_index_ptr == NUMKONG_SIZE_MAX) *min_value_ptr = NUMKONG_BF16_MAX, *max_value_ptr = NUMKONG_BF16_MIN;
+    else {
+        *min_value_ptr = nk_u16_as_bf16_((nk_u16_t)(min_comparable ^ ((nk_u16_t)(min_comparable >> 15) >> 1)));
+        *max_value_ptr = nk_u16_as_bf16_((nk_u16_t)(max_comparable ^ ((nk_u16_t)(max_comparable >> 15) >> 1)));
+    }
     return nk_success_k;
 }
 

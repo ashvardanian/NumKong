@@ -130,6 +130,8 @@ void bench_reduce(environment_t const &env) {
         run_reduce_minmax<u32_k>(env, "reduce_minmax_u32_neon", nk_reduce_minmax_u32_neon);
         run_reduce_minmax<i64_k>(env, "reduce_minmax_i64_neon", nk_reduce_minmax_i64_neon);
         run_reduce_minmax<u64_k>(env, "reduce_minmax_u64_neon", nk_reduce_minmax_u64_neon);
+        run_reduce_minmax<f16_k>(env, "reduce_minmax_f16_neon", nk_reduce_minmax_f16_neon);
+        run_reduce_minmax<bf16_k>(env, "reduce_minmax_bf16_neon", nk_reduce_minmax_bf16_neon);
         run_reduce_minmax<e4m3_k>(env, "reduce_minmax_e4m3_neon", nk_reduce_minmax_e4m3_neon);
         run_reduce_minmax<e5m2_k>(env, "reduce_minmax_e5m2_neon", nk_reduce_minmax_e5m2_neon);
         run_reduce_minmax<e2m3_k>(env, "reduce_minmax_e2m3_neon", nk_reduce_minmax_e2m3_neon);

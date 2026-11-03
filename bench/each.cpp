@@ -215,9 +215,11 @@ void bench_each(environment_t const &env) {
         run_each<bf16_k, blend_k, f32_k>(env, "each_blend_bf16_haswell", nk_each_blend_bf16_haswell);
         run_each<bf16_k, fma_k, f32_k>(env, "each_fma_bf16_haswell", nk_each_fma_bf16_haswell);
         run_swiglu<f32_k>(env, "each_swiglu_f32_haswell", nk_each_swiglu_f32_haswell);
+        run_swiglu<f16_k>(env, "each_swiglu_f16_haswell", nk_each_swiglu_f16_haswell);
         run_swiglu<bf16_k>(env, "each_swiglu_bf16_haswell", nk_each_swiglu_bf16_haswell);
         run_swiglu<e4m3_k>(env, "each_swiglu_e4m3_haswell", nk_each_swiglu_e4m3_haswell);
         run_rmsnorm<f32_k>(env, "each_rmsnorm_f32_haswell", nk_each_rmsnorm_f32_haswell);
+        run_rmsnorm<f16_k>(env, "each_rmsnorm_f16_haswell", nk_each_rmsnorm_f16_haswell);
         run_rmsnorm<bf16_k>(env, "each_rmsnorm_bf16_haswell", nk_each_rmsnorm_bf16_haswell);
         run_rmsnorm<e4m3_k>(env, "each_rmsnorm_e4m3_haswell", nk_each_rmsnorm_e4m3_haswell);
         run_rmsnorm<f32_k, bf16_k>(env, "each_rmscast_bf16_haswell", nk_each_rmscast_bf16_haswell);
@@ -286,9 +288,11 @@ void bench_each(environment_t const &env) {
         run_each<bf16_k, blend_k, f32_k>(env, "each_blend_bf16_skylake", nk_each_blend_bf16_skylake);
         run_each<bf16_k, fma_k, f32_k>(env, "each_fma_bf16_skylake", nk_each_fma_bf16_skylake);
         run_swiglu<f32_k>(env, "each_swiglu_f32_skylake", nk_each_swiglu_f32_skylake);
+        run_swiglu<f16_k>(env, "each_swiglu_f16_skylake", nk_each_swiglu_f16_skylake);
         run_swiglu<bf16_k>(env, "each_swiglu_bf16_skylake", nk_each_swiglu_bf16_skylake);
         run_swiglu<e4m3_k>(env, "each_swiglu_e4m3_skylake", nk_each_swiglu_e4m3_skylake);
         run_rmsnorm<f32_k>(env, "each_rmsnorm_f32_skylake", nk_each_rmsnorm_f32_skylake);
+        run_rmsnorm<f16_k>(env, "each_rmsnorm_f16_skylake", nk_each_rmsnorm_f16_skylake);
         run_rmsnorm<bf16_k>(env, "each_rmsnorm_bf16_skylake", nk_each_rmsnorm_bf16_skylake);
         run_rmsnorm<e4m3_k>(env, "each_rmsnorm_e4m3_skylake", nk_each_rmsnorm_e4m3_skylake);
         run_rmsnorm<f32_k, bf16_k>(env, "each_rmscast_bf16_skylake", nk_each_rmscast_bf16_skylake);

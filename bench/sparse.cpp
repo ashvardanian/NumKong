@@ -77,6 +77,14 @@ void bench_sparse(environment_t const &env) {
     }
 #endif
 
+#if NUMKONG_TARGET_HASWELL
+    if (section(env, "Sparse Operations Haswell", nk_cap_haswell_k)) {
+        run_sparse<u16_k>(env, "sparse_intersect_u16_haswell", nk_sparse_intersect_u16_haswell);
+        run_sparse<u32_k>(env, "sparse_intersect_u32_haswell", nk_sparse_intersect_u32_haswell);
+        run_sparse<u64_k>(env, "sparse_intersect_u64_haswell", nk_sparse_intersect_u64_haswell);
+    }
+#endif
+
 #if NUMKONG_TARGET_SVE2
     if (section(env, "Sparse Operations SVE2", nk_cap_sve2_k)) {
         run_sparse<u16_k>(env, "sparse_intersect_u16_sve2", nk_sparse_intersect_u16_sve2);
@@ -177,6 +185,13 @@ void bench_sparse_dot(environment_t const &env) {
     constexpr nk_dtype_t u32_k = nk_u32_k;
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t bf16_k = nk_bf16_k;
+
+#if NUMKONG_TARGET_NEON
+    if (section(env, "Sparse Operations NEON", nk_cap_neon_k)) {
+        run_sparse_dot<u32_k, f32_k>(env, "sparse_dot_u32f32_neon", nk_sparse_dot_u32f32_neon);
+        run_sparse_dot<u16_k, bf16_k>(env, "sparse_dot_u16bf16_neon", nk_sparse_dot_u16bf16_neon);
+    }
+#endif
 
 #if NUMKONG_TARGET_SVE2
     if (section(env, "Sparse Operations SVE2", nk_cap_sve2_k)) {

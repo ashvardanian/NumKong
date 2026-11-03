@@ -16,7 +16,7 @@
 #if NUMKONG_TARGET_GENOA
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"    // `nk_bf16_to_f32_serial_`, `nk_f32_to_e4m3_serial_`
+#include "numkong/each/skylake.h"   // `nk_each_rmsnorm_output_bf16_skylake_`
 #include "numkong/reduce/genoa.h"   // `nk_reduce_moments_chunked_bf16_genoa_`
 #include "numkong/scalar/haswell.h" // `nk_rsqrt_f32_haswell_`
 
@@ -54,12 +54,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_genoa(nk_bf16_t const *x, nk_f32_t 
                 sumsq += partial_sumsq;
             }
             nk_f32_t const gain = nk_rsqrt_f32_haswell_(sumsq / (nk_f32_t)columns + epsilon);
-            for (nk_size_t c = 0; c != columns; ++c) {
-                nk_f32_t value;
-                nk_bf16_to_f32_serial_(group_input + c, &value);
-                nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
-                nk_f32_to_bf16_serial_(&result, group_output + c);
-            }
+            nk_each_rmsnorm_output_bf16_skylake_(group_input, group_output, columns, _mm512_set1_ps(gain), gamma);
         }
     }
     return nk_success_k;
@@ -79,12 +74,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_genoa(nk_e4m3_t const *x, nk_f32_t 
             nk_f32_t sum, sumsq;
             nk_reduce_moments_chunked_e4m3_genoa_(group_input, columns, sizeof(nk_e4m3_t), &sum, &sumsq);
             nk_f32_t const gain = nk_rsqrt_f32_haswell_(sumsq / (nk_f32_t)columns + epsilon);
-            for (nk_size_t c = 0; c != columns; ++c) {
-                nk_f32_t value;
-                nk_e4m3_to_f32_serial_(group_input + c, &value);
-                nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
-                nk_f32_to_e4m3_serial_(&result, group_output + c);
-            }
+            nk_each_rmsnorm_output_e4m3_skylake_(group_input, group_output, columns, _mm512_set1_ps(gain), gamma);
         }
     }
     return nk_success_k;

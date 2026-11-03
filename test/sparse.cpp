@@ -28,8 +28,7 @@ error_stats_t test_intersect(settings_t const &settings, typename index_type_::s
         nk::fill_sorted_unique(generator, a.values_data(), a_length, index_t(dim * 4));
         nk::fill_sorted_unique(generator, b.values_data(), b_length, index_t(dim * 2));
 
-        // Same input twice: NEON has no compress-store, so it delegates the storing form to serial
-        // and only the counting form reaches its SIMD loop.
+        // Same input twice: counting and storing take separate paths through the block walk
         nk_size_t count, stored_count;
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), a_length, b_length, nullptr, &count, nullptr));
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), a_length, b_length, matched.raw_values_data(),
@@ -106,6 +105,8 @@ void test_sparse(error_stats_section_t &check) {
     check("sparse_intersect_u16_neon", test_intersect<u16_t>, nk_sparse_intersect_u16_neon);
     check("sparse_intersect_u32_neon", test_intersect<u32_t>, nk_sparse_intersect_u32_neon);
     check("sparse_intersect_u64_neon", test_intersect<u64_t>, nk_sparse_intersect_u64_neon);
+    check("sparse_dot_u32f32_neon", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_neon);
+    check("sparse_dot_u16bf16_neon", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_neon);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_SVE2
@@ -127,6 +128,9 @@ void test_sparse(error_stats_section_t &check) {
 
 #if NUMKONG_TARGET_HASWELL
     check.section("Sparse Operations Haswell", nk_cap_haswell_k);
+    check("sparse_intersect_u16_haswell", test_intersect<u16_t>, nk_sparse_intersect_u16_haswell);
+    check("sparse_intersect_u32_haswell", test_intersect<u32_t>, nk_sparse_intersect_u32_haswell);
+    check("sparse_intersect_u64_haswell", test_intersect<u64_t>, nk_sparse_intersect_u64_haswell);
     check("sparse_dot_u32f32_haswell", test_sparse_dot<f32_t>, nk_sparse_dot_u32f32_haswell);
 #endif // NUMKONG_TARGET_HASWELL
 

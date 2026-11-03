@@ -120,11 +120,13 @@ NUMKONG_INLINE nk_f32_t nk_shapes_reverse_sum_f32_neon_(nk_f32_t const *reverse,
 /** The mask over a tail of @p inner_count points, in @p lanes of f16 or f32 inputs. */
 NUMKONG_INLINE nk_b128_vec_t nk_shapes_tail_neon_(nk_size_t inner_count, nk_size_t lanes) {
     nk_b128_vec_t tail_vec;
-    nk_size_t const end = inner_count & ~(lanes - 1);
+    nk_size_t const remaining = inner_count & (lanes - 1);
     if (lanes == 8)
-        for (nk_size_t lane = 0; lane != 8; ++lane) tail_vec.u16s[lane] = end + lane < inner_count ? 0xFFFF : 0;
+        tail_vec.u16x8 = vcltq_u16(vcombine_u16(vcreate_u16(0x0003000200010000ULL), vcreate_u16(0x0007000600050004ULL)),
+                                   vdupq_n_u16((nk_u16_t)remaining));
     else
-        for (nk_size_t lane = 0; lane != 4; ++lane) tail_vec.u32s[lane] = end + lane < inner_count ? ~0u : 0;
+        tail_vec.u32x4 = vcltq_u32(vcombine_u32(vcreate_u32(0x0000000100000000ULL), vcreate_u32(0x0000000300000002ULL)),
+                                   vdupq_n_u32((nk_u32_t)remaining));
     return tail_vec;
 }
 
@@ -793,20 +795,19 @@ NUMKONG_INLINE void nk_jacobi_eigenanalysis_f64_neon_(nk_f64_t *matrix, nk_f64_t
 NUMKONG_INLINE void nk_shapes_load_points_f16_neon_(nk_f16_t const *points, nk_size_t left, float32x4_t *x_f32x4,
                                                     float32x4_t *y_f32x4, float32x4_t *z_f32x4,
                                                     uint32x4_t *valid_u32x4) {
-    nk_u16_t padded[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     nk_u16_t const *source = (nk_u16_t const *)points;
-    nk_b128_vec_t valid_vec;
-    valid_vec.u32x4 = vdupq_n_u32(~0u);
-    if (left < 4) {
-        for (nk_size_t lane = 0; lane != left * 3; ++lane) padded[lane] = source[lane];
-        for (nk_size_t lane = left; lane != 4; ++lane) valid_vec.u32s[lane] = 0;
-        source = padded;
+    uint16x4x3_t xyz_u16x4x3 = {{vdup_n_u16(0), vdup_n_u16(0), vdup_n_u16(0)}};
+    if (left >= 4) xyz_u16x4x3 = vld3_u16(source);
+    else {
+        if (left > 0) xyz_u16x4x3 = vld3_lane_u16(source, xyz_u16x4x3, 0);
+        if (left > 1) xyz_u16x4x3 = vld3_lane_u16(source + 3, xyz_u16x4x3, 1);
+        if (left > 2) xyz_u16x4x3 = vld3_lane_u16(source + 6, xyz_u16x4x3, 2);
     }
-    uint16x4x3_t const xyz_u16x4x3 = vld3_u16(source);
     *x_f32x4 = vcvt_f32_f16(vreinterpret_f16_u16(xyz_u16x4x3.val[0]));
     *y_f32x4 = vcvt_f32_f16(vreinterpret_f16_u16(xyz_u16x4x3.val[1]));
     *z_f32x4 = vcvt_f32_f16(vreinterpret_f16_u16(xyz_u16x4x3.val[2]));
-    *valid_u32x4 = valid_vec.u32x4;
+    *valid_u32x4 = vcltq_u32(vcombine_u32(vcreate_u32(0x0000000100000000ULL), vcreate_u32(0x0000000300000002ULL)),
+                             vdupq_n_u32(left < 4 ? (nk_u32_t)left : 4));
 }
 
 /** The moments of a cloud of @c f16 points as @ref nk_shapes_moments_f16_serial_ defines them, four

@@ -144,6 +144,8 @@ void test_reduce(error_stats_section_t &check) {
     check("reduce_minmax_u32_neon", test_reduce_minmax<u32_t>, nk_reduce_minmax_u32_neon);
     check("reduce_minmax_i64_neon", test_reduce_minmax<i64_t>, nk_reduce_minmax_i64_neon);
     check("reduce_minmax_u64_neon", test_reduce_minmax<u64_t>, nk_reduce_minmax_u64_neon);
+    check("reduce_minmax_f16_neon", test_reduce_minmax<f16_t>, nk_reduce_minmax_f16_neon);
+    check("reduce_minmax_bf16_neon", test_reduce_minmax<bf16_t>, nk_reduce_minmax_bf16_neon);
     check("reduce_minmax_e4m3_neon", test_reduce_minmax<e4m3_t>, nk_reduce_minmax_e4m3_neon);
     check("reduce_minmax_e5m2_neon", test_reduce_minmax<e5m2_t>, nk_reduce_minmax_e5m2_neon);
     check("reduce_minmax_e2m3_neon", test_reduce_minmax<e2m3_t>, nk_reduce_minmax_e2m3_neon);

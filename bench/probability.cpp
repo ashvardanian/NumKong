@@ -21,6 +21,8 @@ void bench_probability(environment_t const &env) {
     if (section(env, "Probability Divergences NEON", nk_cap_neon_k)) {
         run_dense<f32_k, f64_k>(env, "kld_f32_neon", nk_kld_f32_neon);
         run_dense<f32_k, f64_k>(env, "jsd_f32_neon", nk_jsd_f32_neon);
+        run_dense<f64_k, f64_k>(env, "kld_f64_neon", nk_kld_f64_neon);
+        run_dense<f64_k, f64_k>(env, "jsd_f64_neon", nk_jsd_f64_neon);
         run_dense<f16_k, f32_k>(env, "kld_f16_neon", nk_kld_f16_neon);
         run_dense<f16_k, f32_k>(env, "jsd_f16_neon", nk_jsd_f16_neon);
     }
@@ -28,6 +30,8 @@ void bench_probability(environment_t const &env) {
 
 #if NUMKONG_TARGET_HASWELL
     if (section(env, "Probability Divergences Haswell", nk_cap_haswell_k)) {
+        run_dense<f32_k, f64_k>(env, "kld_f32_haswell", nk_kld_f32_haswell);
+        run_dense<f32_k, f64_k>(env, "jsd_f32_haswell", nk_jsd_f32_haswell);
         run_dense<f16_k, f32_k>(env, "kld_f16_haswell", nk_kld_f16_haswell);
         run_dense<f16_k, f32_k>(env, "jsd_f16_haswell", nk_jsd_f16_haswell);
         run_dense<f64_k, f64_k>(env, "kld_f64_haswell", nk_kld_f64_haswell);

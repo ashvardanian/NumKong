@@ -235,6 +235,14 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u32_neon(nk_u32_t const *a, nk_u32_t
 NUMKONG_API nk_status_t nk_sparse_intersect_u64_neon(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
                                                      nk_size_t b_length, nk_u64_t *result, nk_size_t *count,
                                                      nk_stream_t stream);
+/** @copydoc nk_sparse_dot_u32f32_best */
+NUMKONG_API nk_status_t nk_sparse_dot_u32f32_neon(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
+                                                  nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                                  nk_f64_t *product, nk_stream_t stream);
+/** @copydoc nk_sparse_dot_u16bf16_best */
+NUMKONG_API nk_status_t nk_sparse_dot_u16bf16_neon(nk_u16_t const *a, nk_u16_t const *b, nk_bf16_t const *a_weights,
+                                                   nk_bf16_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
+                                                   nk_f32_t *product, nk_stream_t stream);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_SVE2
@@ -280,6 +288,18 @@ NUMKONG_API nk_status_t nk_sparse_dot_u32f32_icelake(nk_u32_t const *a, nk_u32_t
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if NUMKONG_TARGET_HASWELL
+/** @copydoc nk_sparse_intersect_u16_best */
+NUMKONG_API nk_status_t nk_sparse_intersect_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
+                                                        nk_size_t b_length, nk_u16_t *result, nk_size_t *count,
+                                                        nk_stream_t stream);
+/** @copydoc nk_sparse_intersect_u32_best */
+NUMKONG_API nk_status_t nk_sparse_intersect_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
+                                                        nk_size_t b_length, nk_u32_t *result, nk_size_t *count,
+                                                        nk_stream_t stream);
+/** @copydoc nk_sparse_intersect_u64_best */
+NUMKONG_API nk_status_t nk_sparse_intersect_u64_haswell(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
+                                                        nk_size_t b_length, nk_u64_t *result, nk_size_t *count,
+                                                        nk_stream_t stream);
 /** @copydoc nk_sparse_dot_u32f32_best */
 NUMKONG_API nk_status_t nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
                                                      nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,

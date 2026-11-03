@@ -50,21 +50,27 @@ NUMKONG_API nk_status_t nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const 
     nk_size_t count_bytes = n / NUMKONG_BITS_PER_BYTE;
 
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
+    nk_size_t const max_vector_length = __riscv_vsetvlmax_e8m4();
 
     nk_size_t i = 0;
-    for (nk_size_t vector_length; i + 1 <= count_bytes; i += vector_length) {
-        vector_length = __riscv_vsetvl_e8m4(count_bytes - i);
+    while (i < count_bytes) {
+        // U8 lanes hold 31 strips of popcounts, up to 8 per byte, before they must drain
+        vuint8m4_t lanes_u8m4 = __riscv_vmv_v_x_u8m4(0, max_vector_length);
+        for (unsigned strip = 0; strip != 31 && i < count_bytes; ++strip) {
+            nk_size_t const vector_length = __riscv_vsetvl_e8m4(count_bytes - i);
 
-        vuint8m4_t a_u8m4 = __riscv_vle8_v_u8m4(a + i, vector_length);
-        vuint8m4_t b_u8m4 = __riscv_vle8_v_u8m4(b + i, vector_length);
-        vuint8m4_t xor_u8m4 = __riscv_vxor_vv_u8m4(a_u8m4, b_u8m4, vector_length);
+            vuint8m4_t a_u8m4 = __riscv_vle8_v_u8m4(a + i, vector_length);
+            vuint8m4_t b_u8m4 = __riscv_vle8_v_u8m4(b + i, vector_length);
+            vuint8m4_t xor_u8m4 = __riscv_vxor_vv_u8m4(a_u8m4, b_u8m4, vector_length);
 
-        // Native per-element popcount via Zvbb (1 instruction vs 11 SWAR)
-        vuint8m4_t popcount_u8m4 = nk_popcount_u8m4_rvvbb_(xor_u8m4);
+            // Native per-element popcount via Zvbb (1 instruction vs 11 SWAR)
+            vuint8m4_t popcount_u8m4 = nk_popcount_u8m4_rvvbb_(xor_u8m4);
 
-        // Widen to u16 and accumulate via widening reduction sum
-        vuint16m8_t popcount_u16m8 = __riscv_vwaddu_vx_u16m8(popcount_u8m4, 0, vector_length);
-        sum_u32m1 = __riscv_vwredsumu_vs_u16m8_u32m1(popcount_u16m8, sum_u32m1, vector_length);
+            lanes_u8m4 = __riscv_vadd_vv_u8m4_tu(lanes_u8m4, lanes_u8m4, popcount_u8m4, vector_length);
+            i += vector_length;
+        }
+        vuint16m8_t lanes_u16m8 = __riscv_vwaddu_vx_u16m8(lanes_u8m4, 0, max_vector_length);
+        sum_u32m1 = __riscv_vwredsumu_vs_u16m8_u32m1(lanes_u16m8, sum_u32m1, max_vector_length);
     }
 
     *result = __riscv_vmv_x_s_u32m1_u32(sum_u32m1);
@@ -78,27 +84,37 @@ NUMKONG_API nk_status_t nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const 
 
     vuint32m1_t intersection_sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
     vuint32m1_t union_sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
+    nk_size_t const max_vector_length = __riscv_vsetvlmax_e8m4();
 
     nk_size_t i = 0;
-    for (nk_size_t vector_length; i + 1 <= count_bytes; i += vector_length) {
-        vector_length = __riscv_vsetvl_e8m4(count_bytes - i);
+    while (i < count_bytes) {
+        // U8 lanes hold 31 strips of popcounts, up to 8 per byte, before they must drain
+        vuint8m4_t intersection_lanes_u8m4 = __riscv_vmv_v_x_u8m4(0, max_vector_length);
+        vuint8m4_t union_lanes_u8m4 = __riscv_vmv_v_x_u8m4(0, max_vector_length);
+        for (unsigned strip = 0; strip != 31 && i < count_bytes; ++strip) {
+            nk_size_t const vector_length = __riscv_vsetvl_e8m4(count_bytes - i);
 
-        vuint8m4_t a_u8m4 = __riscv_vle8_v_u8m4(a + i, vector_length);
-        vuint8m4_t b_u8m4 = __riscv_vle8_v_u8m4(b + i, vector_length);
+            vuint8m4_t a_u8m4 = __riscv_vle8_v_u8m4(a + i, vector_length);
+            vuint8m4_t b_u8m4 = __riscv_vle8_v_u8m4(b + i, vector_length);
 
-        vuint8m4_t intersection_u8m4 = __riscv_vand_vv_u8m4(a_u8m4, b_u8m4, vector_length);
-        vuint8m4_t union_u8m4 = __riscv_vor_vv_u8m4(a_u8m4, b_u8m4, vector_length);
+            vuint8m4_t intersection_u8m4 = __riscv_vand_vv_u8m4(a_u8m4, b_u8m4, vector_length);
+            vuint8m4_t union_u8m4 = __riscv_vor_vv_u8m4(a_u8m4, b_u8m4, vector_length);
 
-        // Native per-element popcount via Zvbb
-        vuint8m4_t intersection_popcount_u8m4 = nk_popcount_u8m4_rvvbb_(intersection_u8m4);
-        vuint8m4_t union_popcount_u8m4 = nk_popcount_u8m4_rvvbb_(union_u8m4);
+            // Native per-element popcount via Zvbb
+            vuint8m4_t intersection_popcount_u8m4 = nk_popcount_u8m4_rvvbb_(intersection_u8m4);
+            vuint8m4_t union_popcount_u8m4 = nk_popcount_u8m4_rvvbb_(union_u8m4);
 
-        // Widen and accumulate
-        vuint16m8_t intersection_popcount_u16m8 = __riscv_vwaddu_vx_u16m8(intersection_popcount_u8m4, 0, vector_length);
-        vuint16m8_t union_popcount_u16m8 = __riscv_vwaddu_vx_u16m8(union_popcount_u8m4, 0, vector_length);
-        intersection_sum_u32m1 = __riscv_vwredsumu_vs_u16m8_u32m1(intersection_popcount_u16m8, intersection_sum_u32m1,
-                                                                  vector_length);
-        union_sum_u32m1 = __riscv_vwredsumu_vs_u16m8_u32m1(union_popcount_u16m8, union_sum_u32m1, vector_length);
+            intersection_lanes_u8m4 = __riscv_vadd_vv_u8m4_tu(intersection_lanes_u8m4, intersection_lanes_u8m4,
+                                                              intersection_popcount_u8m4, vector_length);
+            union_lanes_u8m4 = __riscv_vadd_vv_u8m4_tu(union_lanes_u8m4, union_lanes_u8m4, union_popcount_u8m4,
+                                                       vector_length);
+            i += vector_length;
+        }
+        vuint16m8_t intersection_lanes_u16m8 = __riscv_vwaddu_vx_u16m8(intersection_lanes_u8m4, 0, max_vector_length);
+        vuint16m8_t union_lanes_u16m8 = __riscv_vwaddu_vx_u16m8(union_lanes_u8m4, 0, max_vector_length);
+        intersection_sum_u32m1 = __riscv_vwredsumu_vs_u16m8_u32m1(intersection_lanes_u16m8, intersection_sum_u32m1,
+                                                                  max_vector_length);
+        union_sum_u32m1 = __riscv_vwredsumu_vs_u16m8_u32m1(union_lanes_u16m8, union_sum_u32m1, max_vector_length);
     }
 
     nk_u32_t intersection_count_u32 = __riscv_vmv_x_s_u32m1_u32(intersection_sum_u32m1);

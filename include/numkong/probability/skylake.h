@@ -93,7 +93,7 @@ NUMKONG_INLINE __m512d nk_log2_f64x8_skylake_(__m512d x) {
 NUMKONG_API nk_status_t nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    __m512 sum_f32x16 = _mm512_setzero_ps();
+    __m512d sum_low_f64x8 = _mm512_setzero_pd(), sum_high_f64x8 = _mm512_setzero_pd();
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     __m512 epsilon_f32x16 = _mm512_set1_ps(epsilon);
     __m512 a_f32x16, b_f32x16;
@@ -112,23 +112,19 @@ nk_kld_f32_skylake_cycle:
     }
     __m512 ratio_f32x16 = _mm512_div_ps(_mm512_max_ps(a_f32x16, epsilon_f32x16),
                                         _mm512_max_ps(b_f32x16, epsilon_f32x16));
-    __m512 log_ratio_f32x16 = nk_log2_f32x16_skylake_(ratio_f32x16);
-    sum_f32x16 = _mm512_fmadd_ps(a_f32x16, log_ratio_f32x16, sum_f32x16);
+    __m512 contribution_f32x16 = _mm512_mul_ps(a_f32x16, nk_log2_f32x16_skylake_(ratio_f32x16));
+    sum_low_f64x8 = _mm512_add_pd(sum_low_f64x8, _mm512_cvtps_pd(_mm512_castps512_ps256(contribution_f32x16)));
+    sum_high_f64x8 = _mm512_add_pd(sum_high_f64x8, _mm512_cvtps_pd(_mm512_extractf32x8_ps(contribution_f32x16, 1)));
     if (n) goto nk_kld_f32_skylake_cycle;
 
-    __m256 lower_f32x8 = _mm512_castps512_ps256(sum_f32x16);
-    __m256 upper_f32x8 = _mm512_extractf32x8_ps(sum_f32x16, 1);
-    nk_f64_t sum = _mm512_reduce_add_pd(_mm512_cvtps_pd(lower_f32x8)) +
-                   _mm512_reduce_add_pd(_mm512_cvtps_pd(upper_f32x8));
-    nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
-    *result = sum * log2_normalizer;
+    *result = _mm512_reduce_add_pd(_mm512_add_pd(sum_low_f64x8, sum_high_f64x8)) * NUMKONG_F64_LN2_;
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_jsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    __m512 sum_f32x16 = _mm512_setzero_ps();
+    __m512d sum_low_f64x8 = _mm512_setzero_pd(), sum_high_f64x8 = _mm512_setzero_pd();
     nk_f32_t epsilon = NUMKONG_F32_DIVISION_EPSILON;
     __m512 epsilon_f32x16 = _mm512_set1_ps(epsilon);
     __m512 a_f32x16, b_f32x16;
@@ -153,16 +149,12 @@ nk_jsd_f32_skylake_cycle:
     __m512 log_ratio_b_f32x16 = nk_log2_f32x16_skylake_(ratio_b_f32x16);
     __m512 contribution_a_f32x16 = _mm512_mul_ps(a_f32x16, log_ratio_a_f32x16);
     __m512 contribution_b_f32x16 = _mm512_mul_ps(b_f32x16, log_ratio_b_f32x16);
-    sum_f32x16 = _mm512_add_ps(sum_f32x16, _mm512_add_ps(contribution_a_f32x16, contribution_b_f32x16));
+    __m512 contribution_f32x16 = _mm512_add_ps(contribution_a_f32x16, contribution_b_f32x16);
+    sum_low_f64x8 = _mm512_add_pd(sum_low_f64x8, _mm512_cvtps_pd(_mm512_castps512_ps256(contribution_f32x16)));
+    sum_high_f64x8 = _mm512_add_pd(sum_high_f64x8, _mm512_cvtps_pd(_mm512_extractf32x8_ps(contribution_f32x16, 1)));
     if (n) goto nk_jsd_f32_skylake_cycle;
 
-    __m256 lower_f32x8 = _mm512_castps512_ps256(sum_f32x16);
-    __m256 upper_f32x8 = _mm512_extractf32x8_ps(sum_f32x16, 1);
-    nk_f64_t sum = (_mm512_reduce_add_pd(_mm512_cvtps_pd(lower_f32x8)) +
-                    _mm512_reduce_add_pd(_mm512_cvtps_pd(upper_f32x8))) *
-                   NUMKONG_F64_LN2_ / 2.0;
-    nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
-    nk_unused_(log2_normalizer);
+    nk_f64_t sum = _mm512_reduce_add_pd(_mm512_add_pd(sum_low_f64x8, sum_high_f64x8)) * NUMKONG_F64_LN2_ / 2.0;
     *result = sum > 0 ? _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum))) : 0;
     return nk_success_k;
 }

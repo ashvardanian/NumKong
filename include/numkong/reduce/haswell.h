@@ -2031,26 +2031,22 @@ NUMKONG_INLINE void nk_reduce_minmax_contiguous_e4m3_haswell_( //
     nk_size_t remaining = count - idx;
     if (remaining > 0) {
         nk_b256_vec_t tail_vec;
-        tail_vec.ymm = _mm256_set1_epi8((char)0xFF);
-        nk_partial_load_b8x32_serial_(data_ptr + idx, &tail_vec, remaining);
-        for (nk_size_t i = remaining; i < 32; ++i) tail_vec.u8s[i] = 0xFF;
-        __m256i data_cmp_u8x32 = nk_fp8x32_to_u8x32_comparable_haswell_(tail_vec.ymm);
-        // Detect NaN in valid lanes, then combine with invalid-lane neutralization
+        nk_partial_load_b8x32_haswell_(data_ptr + idx, &tail_vec, remaining);
+        // Lanes past the tail read 0xFF, a NaN, so the NaN blend below neutralizes them
+        __m256i lane_indices_i8x32 = _mm256_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+                                                      19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31);
+        __m256i past_tail_i8x32 = _mm256_cmpgt_epi8(lane_indices_i8x32, _mm256_set1_epi8((char)(remaining - 1)));
+        __m256i data_cmp_u8x32 = nk_fp8x32_to_u8x32_comparable_haswell_(_mm256_or_si256(tail_vec.ymm, past_tail_i8x32));
         __m256i is_nan_low_u8x32 = _mm256_cmpeq_epi8(data_cmp_u8x32, _mm256_setzero_si256());
         __m256i is_nan_high_u8x32 = _mm256_cmpeq_epi8(data_cmp_u8x32, all_ones_u8x32);
         __m256i is_nan_u8x32 = _mm256_or_si256(is_nan_low_u8x32, is_nan_high_u8x32);
         __m256i data_min_u8x32 = _mm256_blendv_epi8(data_cmp_u8x32, all_ones_u8x32, is_nan_u8x32);
         __m256i data_max_u8x32 = _mm256_blendv_epi8(data_cmp_u8x32, _mm256_setzero_si256(), is_nan_u8x32);
-        // Fill invalid lanes with neutral values
-        nk_b256_vec_t min_cmp_vec, max_cmp_vec;
-        min_cmp_vec.ymm = data_min_u8x32;
-        max_cmp_vec.ymm = data_max_u8x32;
-        for (nk_size_t i = remaining; i < 32; ++i) min_cmp_vec.u8s[i] = 0xFF, max_cmp_vec.u8s[i] = 0x00;
-        __m256i new_min_u8x32 = _mm256_min_epu8(min_vec.ymm, min_cmp_vec.ymm);
+        __m256i new_min_u8x32 = _mm256_min_epu8(min_vec.ymm, data_min_u8x32);
         __m256i min_changed_i8x32 = _mm256_xor_si256(_mm256_cmpeq_epi8(new_min_u8x32, min_vec.ymm), all_ones_u8x32);
         min_vec.ymm = new_min_u8x32;
         min_loop_cycle_u8x32 = _mm256_blendv_epi8(min_loop_cycle_u8x32, current_loop_cycle_u8x32, min_changed_i8x32);
-        __m256i new_max_u8x32 = _mm256_max_epu8(max_vec.ymm, max_cmp_vec.ymm);
+        __m256i new_max_u8x32 = _mm256_max_epu8(max_vec.ymm, data_max_u8x32);
         __m256i max_changed_i8x32 = _mm256_xor_si256(_mm256_cmpeq_epi8(new_max_u8x32, max_vec.ymm), all_ones_u8x32);
         max_vec.ymm = new_max_u8x32;
         max_loop_cycle_u8x32 = _mm256_blendv_epi8(max_loop_cycle_u8x32, current_loop_cycle_u8x32, max_changed_i8x32);
@@ -2198,25 +2194,23 @@ NUMKONG_INLINE void nk_reduce_minmax_contiguous_e5m2_haswell_( //
     nk_size_t remaining = count - idx;
     if (remaining > 0) {
         nk_b256_vec_t tail_vec;
-        tail_vec.ymm = _mm256_set1_epi8((char)0xFF);
-        nk_partial_load_b8x32_serial_(data_ptr + idx, &tail_vec, remaining);
-        for (nk_size_t i = remaining; i < 32; ++i) tail_vec.u8s[i] = 0xFF;
-        __m256i data_cmp_u8x32 = nk_fp8x32_to_u8x32_comparable_haswell_(tail_vec.ymm);
+        nk_partial_load_b8x32_haswell_(data_ptr + idx, &tail_vec, remaining);
+        // Lanes past the tail read 0xFF, a NaN, so the NaN blend below neutralizes them
+        __m256i lane_indices_i8x32 = _mm256_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+                                                      19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31);
+        __m256i past_tail_i8x32 = _mm256_cmpgt_epi8(lane_indices_i8x32, _mm256_set1_epi8((char)(remaining - 1)));
+        __m256i data_cmp_u8x32 = nk_fp8x32_to_u8x32_comparable_haswell_(_mm256_or_si256(tail_vec.ymm, past_tail_i8x32));
         __m256i is_nan_low_u8x32 = _mm256_cmpeq_epi8(_mm256_min_epu8(data_cmp_u8x32, low_bound_u8x32), data_cmp_u8x32);
         __m256i is_nan_high_u8x32 = _mm256_cmpeq_epi8(_mm256_max_epu8(data_cmp_u8x32, high_bound_u8x32),
                                                       data_cmp_u8x32);
         __m256i is_nan_u8x32 = _mm256_or_si256(is_nan_low_u8x32, is_nan_high_u8x32);
         __m256i data_min_u8x32 = _mm256_blendv_epi8(data_cmp_u8x32, all_ones_u8x32, is_nan_u8x32);
         __m256i data_max_u8x32 = _mm256_blendv_epi8(data_cmp_u8x32, _mm256_setzero_si256(), is_nan_u8x32);
-        nk_b256_vec_t min_cmp_vec, max_cmp_vec;
-        min_cmp_vec.ymm = data_min_u8x32;
-        max_cmp_vec.ymm = data_max_u8x32;
-        for (nk_size_t i = remaining; i < 32; ++i) min_cmp_vec.u8s[i] = 0xFF, max_cmp_vec.u8s[i] = 0x00;
-        __m256i new_min_u8x32 = _mm256_min_epu8(min_vec.ymm, min_cmp_vec.ymm);
+        __m256i new_min_u8x32 = _mm256_min_epu8(min_vec.ymm, data_min_u8x32);
         __m256i min_changed_i8x32 = _mm256_xor_si256(_mm256_cmpeq_epi8(new_min_u8x32, min_vec.ymm), all_ones_u8x32);
         min_vec.ymm = new_min_u8x32;
         min_loop_cycle_u8x32 = _mm256_blendv_epi8(min_loop_cycle_u8x32, current_loop_cycle_u8x32, min_changed_i8x32);
-        __m256i new_max_u8x32 = _mm256_max_epu8(max_vec.ymm, max_cmp_vec.ymm);
+        __m256i new_max_u8x32 = _mm256_max_epu8(max_vec.ymm, data_max_u8x32);
         __m256i max_changed_i8x32 = _mm256_xor_si256(_mm256_cmpeq_epi8(new_max_u8x32, max_vec.ymm), all_ones_u8x32);
         max_vec.ymm = new_max_u8x32;
         max_loop_cycle_u8x32 = _mm256_blendv_epi8(max_loop_cycle_u8x32, current_loop_cycle_u8x32, max_changed_i8x32);

@@ -807,11 +807,8 @@ NUMKONG_INLINE void nk_shapes_load_points_f16_v128relaxed_(nk_f16_t const *point
                                                            v128_t *y_f32x4, v128_t *z_f32x4, v128_t *valid_u32x4) {
     nk_u16_t padded[12];
     nk_u16_t const *source = (nk_u16_t const *)points;
-    nk_b128_vec_t valid_vec;
-    valid_vec.v128 = wasm_i32x4_splat(-1);
     if (left < 4) {
         for (nk_size_t lane = 0; lane != 12; ++lane) padded[lane] = lane < left * 3 ? source[lane] : 0;
-        for (nk_size_t lane = left; lane != 4; ++lane) valid_vec.u32s[lane] = 0;
         source = padded;
     }
     v128_t const low_u16x8 = wasm_v128_load(source), high_u16x8 = wasm_v128_load64_zero(source + 8);
@@ -822,7 +819,7 @@ NUMKONG_INLINE void nk_shapes_load_points_f16_v128relaxed_(nk_f16_t const *point
     *x_f32x4 = nk_f16x4_to_f32x4_v128relaxed_(x_vec).v128;
     *y_f32x4 = nk_f16x4_to_f32x4_v128relaxed_(y_vec).v128;
     *z_f32x4 = nk_f16x4_to_f32x4_v128relaxed_(z_vec).v128;
-    *valid_u32x4 = valid_vec.v128;
+    *valid_u32x4 = wasm_i32x4_lt(wasm_i32x4_make(0, 1, 2, 3), wasm_i32x4_splat(left < 4 ? (int)left : 4));
 }
 
 /** The moments of a cloud of @c f16 points as @ref nk_shapes_moments_f16_serial_ defines them, four

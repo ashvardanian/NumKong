@@ -34,6 +34,7 @@
 #if NUMKONG_ARCH_ARM64_NEON_
 
 #include "numkong/types.h"      // `nk_u1x8_t`
+#include "numkong/cast/neon.h"  // `nk_partial_load_b8x16_neon_`
 #include "numkong/set/serial.h" // `nk_u1x8_popcount_`
 
 #if defined(__cplusplus)
@@ -68,7 +69,14 @@ NUMKONG_INLINE nk_u32_t nk_u1_xor_popcount_neon_(nk_u1x8_t const *a, nk_u1x8_t c
         }
         differences += (nk_u32_t)vaddlvq_u8(popcount_u8x16);
     }
-    // Handle the tail
+    // Under 8 bytes the partial load itself loops, and bytes through the scalar popcount win
+    if (n_bytes - i >= 8) {
+        nk_b128_vec_t a_vec, b_vec;
+        nk_partial_load_b8x16_neon_(a + i, &a_vec, n_bytes - i);
+        nk_partial_load_b8x16_neon_(b + i, &b_vec, n_bytes - i);
+        differences += (nk_u32_t)vaddlvq_u8(vcntq_u8(veorq_u8(a_vec.u8x16, b_vec.u8x16)));
+        i = n_bytes;
+    }
     for (; i != n_bytes; ++i) differences += nk_u1x8_popcount_(a[i] ^ b[i]);
     return differences;
 }
@@ -95,7 +103,15 @@ NUMKONG_INLINE void nk_u1_and_or_popcounts_neon_(nk_u1x8_t const *a, nk_u1x8_t c
         intersection_count += (nk_u32_t)vaddlvq_u8(intersection_popcount_u8x16);
         union_count += (nk_u32_t)vaddlvq_u8(union_popcount_u8x16);
     }
-    // Handle the tail
+    // Under 8 bytes the partial load itself loops, and bytes through the scalar popcount win
+    if (n_bytes - i >= 8) {
+        nk_b128_vec_t a_vec, b_vec;
+        nk_partial_load_b8x16_neon_(a + i, &a_vec, n_bytes - i);
+        nk_partial_load_b8x16_neon_(b + i, &b_vec, n_bytes - i);
+        intersection_count += (nk_u32_t)vaddlvq_u8(vcntq_u8(vandq_u8(a_vec.u8x16, b_vec.u8x16)));
+        union_count += (nk_u32_t)vaddlvq_u8(vcntq_u8(vorrq_u8(a_vec.u8x16, b_vec.u8x16)));
+        i = n_bytes;
+    }
     for (; i != n_bytes; ++i)
         intersection_count += nk_u1x8_popcount_(a[i] & b[i]), union_count += nk_u1x8_popcount_(a[i] | b[i]);
     *intersection_count_ptr = intersection_count, *union_count_ptr = union_count;
@@ -145,22 +161,15 @@ NUMKONG_API nk_status_t nk_hamming_u8_neon(nk_u8_t const *a, nk_u8_t const *b, n
                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
-    uint32x4_t diff_count_u32x4 = vdupq_n_u32(0);
-    // Process 16 bytes at a time using NEON with widening adds to avoid overflow.
-    // Uses pairwise widening chain: 16 u8 → 8 u16 → 4 u32 per iteration.
-    for (; i + 16 <= n; i += 16) {
-        uint8x16_t a_u8x16 = vld1q_u8(a + i);
-        uint8x16_t b_u8x16 = vld1q_u8(b + i);
-        // vceqq_u8 returns 0xFF for equal, 0x00 for not-equal
-        // Invert to get 0xFF for not-equal, then shift right by 7 to get 1
-        uint8x16_t not_equal_u8x16 = vmvnq_u8(vceqq_u8(a_u8x16, b_u8x16));
-        uint8x16_t diff_u8x16 = vshrq_n_u8(not_equal_u8x16, 7);
-        // Widen: 16 u8 → 8 u16 → 4 u32 using pairwise add and widen
-        uint16x8_t diff_u16x8 = vpaddlq_u8(diff_u8x16);
-        uint32x4_t diff_u32x4 = vpaddlq_u16(diff_u16x8);
-        diff_count_u32x4 = vaddq_u32(diff_count_u32x4, diff_u32x4);
+    nk_u32_t matches = 0;
+    // Each `VSUB` adds one per equal byte, so U8 lanes hold 255 blocks before they must drain
+    while (i + 16 <= n) {
+        uint8x16_t matches_u8x16 = vdupq_n_u8(0);
+        for (nk_size_t cycle = 0; cycle != 255 && i + 16 <= n; ++cycle, i += 16)
+            matches_u8x16 = vsubq_u8(matches_u8x16, vceqq_u8(vld1q_u8(a + i), vld1q_u8(b + i)));
+        matches += (nk_u32_t)vaddlvq_u8(matches_u8x16);
     }
-    nk_u32_t differences = vaddvq_u32(diff_count_u32x4);
+    nk_u32_t differences = (nk_u32_t)i - matches;
     // Handle tail elements
     for (; i != n; ++i) differences += (a[i] != b[i]);
     *result = differences;

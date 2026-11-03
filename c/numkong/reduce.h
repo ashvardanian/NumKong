@@ -526,6 +526,12 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_neon(nk_e2m3_t const *, nk_size_t,
 /** @copydoc nk_reduce_minmax_f64_best */
 NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_neon(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
                                                    nk_e3m2_t *, nk_size_t *, nk_stream_t stream);
+/** @copydoc nk_reduce_minmax_f16_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_f16_neon(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *, nk_size_t *,
+                                                  nk_f16_t *, nk_size_t *, nk_stream_t stream);
+/** @copydoc nk_reduce_minmax_bf16_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_bf16_neon(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *, nk_size_t *,
+                                                   nk_bf16_t *, nk_size_t *, nk_stream_t stream);
 /** @copydoc nk_reduce_minmax_f64_best */
 NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_neon(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *, nk_size_t *,
                                                    nk_e4m3_t *, nk_size_t *, nk_stream_t stream);

@@ -266,6 +266,48 @@ NUMKONG_INLINE __m512 nk_silu_f32x16_skylake_(__m512 x_f32x16) {
     return _mm512_div_ps(x_f32x16, _mm512_add_ps(_mm512_set1_ps(1.0f), e_f32x16));
 }
 
+/** Writes the gained values of one BF16 group, the second RMSNorm pass shared with Genoa. */
+NUMKONG_INLINE void nk_each_rmsnorm_output_bf16_skylake_(nk_bf16_t const *input, nk_bf16_t *output, nk_size_t columns,
+                                                         __m512 gain_f32x16, nk_f32_t const *gamma) {
+    nk_size_t c = 0;
+    for (; c + 16 <= columns; c += 16) {
+        nk_b512_vec_t input_vec;
+        nk_load_bf16x16_to_f32x16_skylake_(input + c, &input_vec);
+        __m512 normalized_f32x16 = _mm512_mul_ps(input_vec.zmm_ps, gain_f32x16);
+        if (gamma) normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_loadu_ps(gamma + c));
+        _mm256_storeu_si256((__m256i *)(output + c), nk_f32x16_to_bf16x16_skylake_(normalized_f32x16));
+    }
+    if (c == columns) return;
+    nk_size_t const remaining = columns - c;
+    __mmask16 const mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)remaining);
+    nk_b512_vec_t input_vec;
+    nk_partial_load_bf16x16_to_f32x16_skylake_(input + c, &input_vec, remaining);
+    __m512 normalized_f32x16 = _mm512_mul_ps(input_vec.zmm_ps, gain_f32x16);
+    if (gamma) normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_maskz_loadu_ps(mask_m16, gamma + c));
+    _mm256_mask_storeu_epi16((void *)(output + c), mask_m16, nk_f32x16_to_bf16x16_skylake_(normalized_f32x16));
+}
+
+/** Writes the gained values of one E4M3 group, the second RMSNorm pass shared with Genoa. */
+NUMKONG_INLINE void nk_each_rmsnorm_output_e4m3_skylake_(nk_e4m3_t const *input, nk_e4m3_t *output, nk_size_t columns,
+                                                         __m512 gain_f32x16, nk_f32_t const *gamma) {
+    nk_size_t c = 0;
+    for (; c + 16 <= columns; c += 16) {
+        nk_b512_vec_t input_vec;
+        nk_load_e4m3x16_to_f32x16_skylake_(input + c, &input_vec);
+        __m512 normalized_f32x16 = _mm512_mul_ps(input_vec.zmm_ps, gain_f32x16);
+        if (gamma) normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_loadu_ps(gamma + c));
+        _mm_storeu_si128((__m128i *)(output + c), nk_f32x16_to_e4m3x16_skylake_(normalized_f32x16));
+    }
+    if (c == columns) return;
+    nk_size_t const remaining = columns - c;
+    __mmask16 const mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)remaining);
+    nk_b512_vec_t input_vec;
+    nk_partial_load_e4m3x16_to_f32x16_skylake_(input + c, &input_vec, remaining);
+    __m512 normalized_f32x16 = _mm512_mul_ps(input_vec.zmm_ps, gain_f32x16);
+    if (gamma) normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_maskz_loadu_ps(mask_m16, gamma + c));
+    _mm_mask_storeu_epi8((void *)(output + c), mask_m16, nk_f32x16_to_e4m3x16_skylake_(normalized_f32x16));
+}
+
 #if NUMKONG_TARGET_SKYLAKE
 
 NUMKONG_API nk_status_t nk_each_sum_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
@@ -1877,6 +1919,33 @@ NUMKONG_API nk_status_t nk_each_swiglu_f32_skylake(nk_f32_t const *gate, nk_f32_
     return nk_success_k;
 }
 
+NUMKONG_API nk_status_t nk_each_swiglu_f16_skylake(nk_f16_t const *gate, nk_f16_t const *up, nk_f16_t *y,
+                                                   nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
+                                                   nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
+                                                   nk_f32_t output_scale, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    __m512 gate_scale_f32x16 = _mm512_set1_ps(gate_scale);
+    __m512 output_scale_f32x16 = _mm512_set1_ps(output_scale);
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f16_t const *gate_row = (nk_f16_t const *)((unsigned char const *)gate + row * gate_stride);
+        nk_f16_t const *up_row = up ? (nk_f16_t const *)((unsigned char const *)up + row * up_stride) : NUMKONG_NULL;
+        nk_f16_t *y_row = (nk_f16_t *)((unsigned char *)y + row * y_stride);
+        for (nk_size_t col = 0; col < columns; col += 16) {
+            nk_size_t const remaining = columns - col;
+            __mmask16 const mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)(remaining < 16 ? remaining : 16));
+            __m512 gate_f32x16 = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask_m16, gate_row + col));
+            __m512 result_f32x16 = nk_silu_f32x16_skylake_(_mm512_mul_ps(gate_f32x16, gate_scale_f32x16));
+            if (up_row)
+                result_f32x16 = _mm512_mul_ps(result_f32x16,
+                                              _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask_m16, up_row + col)));
+            result_f32x16 = _mm512_mul_ps(result_f32x16, output_scale_f32x16);
+            _mm256_mask_storeu_epi16((void *)(y_row + col), mask_m16,
+                                     _mm512_cvtps_ph(result_f32x16, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+        }
+    }
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_each_swiglu_bf16_skylake(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
                                                     nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
                                                     nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
@@ -1998,6 +2067,42 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_f32_skylake(nk_f32_t const *x, nk_f32_t 
     return nk_success_k;
 }
 
+NUMKONG_API nk_status_t nk_each_rmsnorm_f16_skylake(nk_f16_t const *x, nk_f32_t const *gamma, nk_f16_t *y,
+                                                    nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                    nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                    nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f16_t const *x_row = (nk_f16_t const *)((unsigned char const *)x + r * x_stride);
+        nk_f16_t *y_row = (nk_f16_t *)((unsigned char *)y + r * y_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f16_t const *group_input = x_row + group * columns;
+            nk_f16_t *group_output = y_row + group * columns;
+            nk_f32_t sumsq = 0;
+            // Short F32 reductions bound error independently of row width
+            for (nk_size_t start = 0; start < columns; start += 64) {
+                nk_size_t const count = columns - start < 64 ? columns - start : 64;
+                nk_f32_t partial_sum, partial_sumsq;
+                nk_reduce_moments_contiguous_f16_skylake_(group_input + start, count, &partial_sum, &partial_sumsq);
+                sumsq += partial_sumsq;
+            }
+            __m512 gain_f32x16 = nk_rsqrt_f32x16_skylake_(_mm512_set1_ps(sumsq / (nk_f32_t)columns + epsilon));
+            for (nk_size_t c = 0; c < columns; c += 16) {
+                nk_size_t const remaining = columns - c;
+                __mmask16 const mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)(remaining < 16 ? remaining : 16));
+                __m512 input_f32x16 = _mm512_cvtph_ps(_mm256_maskz_loadu_epi16(mask_m16, group_input + c));
+                __m512 normalized_f32x16 = _mm512_mul_ps(input_f32x16, gain_f32x16);
+                if (gamma)
+                    normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_maskz_loadu_ps(mask_m16, gamma + c));
+                _mm256_mask_storeu_epi16(
+                    (void *)(group_output + c), mask_m16,
+                    _mm512_cvtps_ph(normalized_f32x16, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+            }
+        }
+    }
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_skylake(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
                                                      nk_size_t rows, nk_size_t groups, nk_size_t columns,
                                                      nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
@@ -2018,26 +2123,9 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_skylake(nk_bf16_t const *x, nk_f32_
                                                         &partial_sumsq);
                 sumsq += partial_sumsq;
             }
-            __m512 gain_f32x16 = nk_rsqrt_f32x16_skylake_(_mm512_set1_ps(sumsq / (nk_f32_t)columns + epsilon));
-            nk_size_t c = 0;
-            for (; c + 16 <= columns; c += 16) {
-                nk_b512_vec_t input_vec;
-                nk_load_bf16x16_to_f32x16_skylake_(group_input + c, &input_vec);
-                __m512 normalized_f32x16 = _mm512_mul_ps(input_vec.zmm_ps, gain_f32x16);
-                if (gamma) normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_loadu_ps(gamma + c));
-                _mm256_storeu_si256((__m256i *)(group_output + c), nk_f32x16_to_bf16x16_skylake_(normalized_f32x16));
-            }
-            if (c < columns) {
-                nk_size_t remaining = columns - c;
-                __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)remaining);
-                nk_b512_vec_t input_vec;
-                nk_partial_load_bf16x16_to_f32x16_skylake_(group_input + c, &input_vec, remaining);
-                __m512 normalized_f32x16 = _mm512_mul_ps(input_vec.zmm_ps, gain_f32x16);
-                if (gamma)
-                    normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_maskz_loadu_ps(mask_m16, gamma + c));
-                _mm256_mask_storeu_epi16((void *)(group_output + c), mask_m16,
-                                         nk_f32x16_to_bf16x16_skylake_(normalized_f32x16));
-            }
+            nk_each_rmsnorm_output_bf16_skylake_(
+                group_input, group_output, columns,
+                nk_rsqrt_f32x16_skylake_(_mm512_set1_ps(sumsq / (nk_f32_t)columns + epsilon)), gamma);
         }
     }
     return nk_success_k;
@@ -2056,26 +2144,9 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_skylake(nk_e4m3_t const *x, nk_f32_
             nk_e4m3_t *group_output = y_row + group * columns;
             nk_f32_t sum, sumsq;
             nk_reduce_moments_chunked_e4m3_skylake_(group_input, columns, sizeof(nk_e4m3_t), &sum, &sumsq);
-            __m512 gain_f32x16 = nk_rsqrt_f32x16_skylake_(_mm512_set1_ps(sumsq / (nk_f32_t)columns + epsilon));
-            nk_size_t c = 0;
-            for (; c + 16 <= columns; c += 16) {
-                nk_b512_vec_t input_vec;
-                nk_load_e4m3x16_to_f32x16_skylake_(group_input + c, &input_vec);
-                __m512 normalized_f32x16 = _mm512_mul_ps(input_vec.zmm_ps, gain_f32x16);
-                if (gamma) normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_loadu_ps(gamma + c));
-                _mm_storeu_si128((__m128i *)(group_output + c), nk_f32x16_to_e4m3x16_skylake_(normalized_f32x16));
-            }
-            if (c < columns) {
-                nk_size_t remaining = columns - c;
-                __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)remaining);
-                nk_b512_vec_t input_vec;
-                nk_partial_load_e4m3x16_to_f32x16_skylake_(group_input + c, &input_vec, remaining);
-                __m512 normalized_f32x16 = _mm512_mul_ps(input_vec.zmm_ps, gain_f32x16);
-                if (gamma)
-                    normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_maskz_loadu_ps(mask_m16, gamma + c));
-                _mm_mask_storeu_epi8((void *)(group_output + c), mask_m16,
-                                     nk_f32x16_to_e4m3x16_skylake_(normalized_f32x16));
-            }
+            nk_each_rmsnorm_output_e4m3_skylake_(
+                group_input, group_output, columns,
+                nk_rsqrt_f32x16_skylake_(_mm512_set1_ps(sumsq / (nk_f32_t)columns + epsilon)), gamma);
         }
     }
     return nk_success_k;

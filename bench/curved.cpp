@@ -154,6 +154,8 @@ void bench_curved(environment_t const &env) {
 
 #if NUMKONG_TARGET_NEON
     if (section(env, "Curved Kernels NEON", nk_cap_neon_k)) {
+        run_curved<f64_k>(env, "bilinear_f64_neon", nk_bilinear_f64_neon);
+        run_curved<f64_k>(env, "mahalanobis_f64_neon", nk_mahalanobis_f64_neon);
         run_curved<f32_k>(env, "bilinear_f32_neon", nk_bilinear_f32_neon);
         run_curved<f32_k>(env, "mahalanobis_f32_neon", nk_mahalanobis_f32_neon);
         run_curved<f32c_k>(env, "bilinear_f32c_neon", nk_bilinear_f32c_neon);
@@ -184,6 +186,8 @@ void bench_curved(environment_t const &env) {
 
 #if NUMKONG_TARGET_HASWELL
     if (section(env, "Curved Kernels Haswell", nk_cap_haswell_k)) {
+        run_curved<f64_k>(env, "bilinear_f64_haswell", nk_bilinear_f64_haswell);
+        run_curved<f64_k>(env, "mahalanobis_f64_haswell", nk_mahalanobis_f64_haswell);
         run_curved<f32_k>(env, "bilinear_f32_haswell", nk_bilinear_f32_haswell);
         run_curved<f32_k>(env, "mahalanobis_f32_haswell", nk_mahalanobis_f32_haswell);
         run_curved<f16_k>(env, "bilinear_f16_haswell", nk_bilinear_f16_haswell);

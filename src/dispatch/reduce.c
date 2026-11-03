@@ -1354,7 +1354,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_f16_best(nk_f16_t const *data, nk_size
 
 static nk_capability_kernels_t const *nk_reduce_minmax_f16_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+        above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
                    nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
                    nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
         !NUMKONG_MULTIVERSIONED
@@ -1362,6 +1362,9 @@ static nk_capability_kernels_t const *nk_reduce_minmax_f16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_reduce_minmax_f16_serial,
+#if NUMKONG_TARGET_NEON
+        above_k & ~(nk_cap_neon_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_reduce_minmax_f16_neon,
+#endif
 #if NUMKONG_TARGET_HASWELL
         above_k & ~(nk_cap_haswell_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_reduce_minmax_f16_haswell,
 #endif
@@ -1391,8 +1394,9 @@ static nk_capability_kernels_t const *nk_reduce_minmax_f16_capabilities(void) {
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
@@ -1483,7 +1487,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_bf16_best(nk_bf16_t const *data, nk_si
 
 static nk_capability_kernels_t const *nk_reduce_minmax_bf16_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+        above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
                    nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
                    nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED) *
         !NUMKONG_MULTIVERSIONED
@@ -1491,6 +1495,9 @@ static nk_capability_kernels_t const *nk_reduce_minmax_bf16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_reduce_minmax_bf16_serial,
+#if NUMKONG_TARGET_NEON
+        above_k & ~(nk_cap_neon_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_reduce_minmax_bf16_neon,
+#endif
 #if NUMKONG_TARGET_HASWELL
         above_k & ~(nk_cap_haswell_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_reduce_minmax_bf16_haswell,
 #endif
@@ -1522,8 +1529,9 @@ static nk_capability_kernels_t const *nk_reduce_minmax_bf16_capabilities(void) {
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-             nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
+             nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},

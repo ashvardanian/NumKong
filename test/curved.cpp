@@ -126,6 +126,8 @@ void test_curved(error_stats_section_t &check) {
 
 #if NUMKONG_TARGET_NEON
     check.section("Curved Kernels NEON", nk_cap_neon_k);
+    check("bilinear_f64_neon", test_bilinear<f64_t>, nk_bilinear_f64_neon);
+    check("mahalanobis_f64_neon", test_mahalanobis<f64_t>, nk_mahalanobis_f64_neon);
     check("bilinear_f32_neon", test_bilinear<f32_t>, nk_bilinear_f32_neon);
     check("bilinear_f32c_neon", test_bilinear<f32c_t>, nk_bilinear_f32c_neon);
     check("mahalanobis_f32_neon", test_mahalanobis<f32_t>, nk_mahalanobis_f32_neon);
@@ -143,6 +145,8 @@ void test_curved(error_stats_section_t &check) {
 
 #if NUMKONG_TARGET_HASWELL
     check.section("Curved Kernels Haswell", nk_cap_haswell_k);
+    check("bilinear_f64_haswell", test_bilinear<f64_t>, nk_bilinear_f64_haswell);
+    check("mahalanobis_f64_haswell", test_mahalanobis<f64_t>, nk_mahalanobis_f64_haswell);
     check("bilinear_f32_haswell", test_bilinear<f32_t>, nk_bilinear_f32_haswell);
     check("bilinear_f16_haswell", test_bilinear<f16_t>, nk_bilinear_f16_haswell);
     check("bilinear_bf16_haswell", test_bilinear<bf16_t>, nk_bilinear_bf16_haswell);

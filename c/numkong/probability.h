@@ -279,6 +279,12 @@ NUMKONG_API nk_status_t nk_kld_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk
 /** @copydoc nk_jsd_f32_best */
 NUMKONG_API nk_status_t nk_jsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
                                         nk_stream_t stream);
+/** @copydoc nk_kld_f64_best */
+NUMKONG_API nk_status_t nk_kld_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                        nk_stream_t stream);
+/** @copydoc nk_jsd_f64_best */
+NUMKONG_API nk_status_t nk_jsd_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                        nk_stream_t stream);
 /** @copydoc nk_kld_f16_best */
 NUMKONG_API nk_status_t nk_kld_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
                                         nk_stream_t stream);
@@ -288,6 +294,12 @@ NUMKONG_API nk_status_t nk_jsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_HASWELL
+/** @copydoc nk_kld_f32_best */
+NUMKONG_API nk_status_t nk_kld_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                           nk_stream_t stream);
+/** @copydoc nk_jsd_f32_best */
+NUMKONG_API nk_status_t nk_jsd_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                           nk_stream_t stream);
 /** @copydoc nk_kld_f64_best */
 NUMKONG_API nk_status_t nk_kld_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                            nk_stream_t stream);

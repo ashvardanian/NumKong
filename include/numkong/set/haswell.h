@@ -41,6 +41,31 @@ extern "C" {
 #pragma GCC target("avx2", "sse4.1", "popcnt")
 #endif
 
+/** Adds the 4 U64 lanes, as this family's target lacks what the reduce helpers require. */
+NUMKONG_INLINE nk_u64_t nk_set_sum_u64x4_haswell_(__m256i sum_u64x4) {
+    __m128i sum_u64x2 = _mm_add_epi64(_mm256_castsi256_si128(sum_u64x4), _mm256_extracti128_si256(sum_u64x4, 1));
+    return (nk_u64_t)_mm_cvtsi128_si64(_mm_add_epi64(sum_u64x2, _mm_unpackhi_epi64(sum_u64x2, sum_u64x2)));
+}
+
+/** Adds the 8 U32 lanes. */
+NUMKONG_INLINE nk_u32_t nk_set_sum_u32x8_haswell_(__m256i sum_u32x8) {
+    __m128i sum_u32x4 = _mm_add_epi32(_mm256_castsi256_si128(sum_u32x8), _mm256_extracti128_si256(sum_u32x8, 1));
+    sum_u32x4 = _mm_add_epi32(sum_u32x4, _mm_unpackhi_epi64(sum_u32x4, sum_u32x4));
+    return (nk_u32_t)_mm_cvtsi128_si32(sum_u32x4) + (nk_u32_t)_mm_extract_epi32(sum_u32x4, 1);
+}
+
+/** Sums the popcounts of each 8 bytes of @p bytes_u8x32 , through nibble lookups, in U64 lanes. */
+NUMKONG_INLINE __m256i nk_set_popcount_u64x4_haswell_(__m256i bytes_u8x32) {
+    __m256i lut_i8x32 = _mm256_setr_epi8( //
+        0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4);
+    __m256i mask_0f_i8x32 = _mm256_set1_epi8(0x0F);
+    __m256i low_nibble_u8x32 = _mm256_and_si256(bytes_u8x32, mask_0f_i8x32);
+    __m256i high_nibble_u8x32 = _mm256_and_si256(_mm256_srli_epi16(bytes_u8x32, 4), mask_0f_i8x32);
+    return _mm256_sad_epu8(_mm256_add_epi8(_mm256_shuffle_epi8(lut_i8x32, low_nibble_u8x32),
+                                           _mm256_shuffle_epi8(lut_i8x32, high_nibble_u8x32)),
+                           _mm256_setzero_si256());
+}
+
 #if NUMKONG_TARGET_HASWELL
 
 #pragma region Binary Sets
@@ -49,8 +74,18 @@ NUMKONG_API nk_status_t nk_hamming_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t cons
                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
-    // x86 supports unaligned loads and works just fine with the scalar version for small vectors.
     nk_u32_t differences = 0;
+    if (n_bytes >= 32) {
+        __m256i differences_u64x4 = _mm256_setzero_si256();
+        for (; n_bytes >= 32; n_bytes -= 32, a += 32, b += 32) {
+            __m256i a_u8x32 = _mm256_loadu_si256((__m256i const *)a);
+            __m256i b_u8x32 = _mm256_loadu_si256((__m256i const *)b);
+            differences_u64x4 = _mm256_add_epi64(differences_u64x4,
+                                                 nk_set_popcount_u64x4_haswell_(_mm256_xor_si256(a_u8x32, b_u8x32)));
+        }
+        differences = (nk_u32_t)nk_set_sum_u64x4_haswell_(differences_u64x4);
+    }
+    // x86 supports unaligned loads and works just fine with the scalar version for small vectors.
     for (; n_bytes >= 8; n_bytes -= 8, a += 8, b += 8)
         differences += _mm_popcnt_u64(*(nk_u64_t const *)a ^ *(nk_u64_t const *)b);
     for (; n_bytes; --n_bytes, ++a, ++b) differences += _mm_popcnt_u32(*a ^ *b);
@@ -62,8 +97,21 @@ NUMKONG_API nk_status_t nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t cons
                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
-    // x86 supports unaligned loads and works just fine with the scalar version for small vectors.
     nk_u32_t intersection_count = 0, union_count = 0;
+    if (n_bytes >= 32) {
+        __m256i intersection_u64x4 = _mm256_setzero_si256(), union_u64x4 = _mm256_setzero_si256();
+        for (; n_bytes >= 32; n_bytes -= 32, a += 32, b += 32) {
+            __m256i a_u8x32 = _mm256_loadu_si256((__m256i const *)a);
+            __m256i b_u8x32 = _mm256_loadu_si256((__m256i const *)b);
+            intersection_u64x4 = _mm256_add_epi64(intersection_u64x4,
+                                                  nk_set_popcount_u64x4_haswell_(_mm256_and_si256(a_u8x32, b_u8x32)));
+            union_u64x4 = _mm256_add_epi64(union_u64x4,
+                                           nk_set_popcount_u64x4_haswell_(_mm256_or_si256(a_u8x32, b_u8x32)));
+        }
+        intersection_count = (nk_u32_t)nk_set_sum_u64x4_haswell_(intersection_u64x4);
+        union_count = (nk_u32_t)nk_set_sum_u64x4_haswell_(union_u64x4);
+    }
+    // x86 supports unaligned loads and works just fine with the scalar version for small vectors.
     for (; n_bytes >= 8; n_bytes -= 8, a += 8, b += 8)
         intersection_count += (nk_u32_t)_mm_popcnt_u64(*(nk_u64_t const *)a & *(nk_u64_t const *)b),
             union_count += (nk_u32_t)_mm_popcnt_u64(*(nk_u64_t const *)a | *(nk_u64_t const *)b);
@@ -80,15 +128,14 @@ NUMKONG_API nk_status_t nk_jaccard_u1_haswell(nk_u1x8_t const *a, nk_u1x8_t cons
 NUMKONG_API nk_status_t nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f32_t *result,
                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_u32_t intersection_count = 0;
     nk_size_t n_remaining = n;
-    for (; n_remaining >= 4; n_remaining -= 4, a += 4, b += 4) {
-        __m128i a_u32x4 = _mm_loadu_si128((__m128i const *)a);
-        __m128i b_u32x4 = _mm_loadu_si128((__m128i const *)b);
-        __m128i equality_u32x4 = _mm_cmpeq_epi32(a_u32x4, b_u32x4);
-        int equality_mask = _mm_movemask_ps(_mm_castsi128_ps(equality_u32x4));
-        intersection_count += (nk_u32_t)_mm_popcnt_u32((unsigned int)equality_mask);
+    __m256i intersection_u32x8 = _mm256_setzero_si256();
+    for (; n_remaining >= 8; n_remaining -= 8, a += 8, b += 8) {
+        __m256i a_u32x8 = _mm256_loadu_si256((__m256i const *)a);
+        __m256i b_u32x8 = _mm256_loadu_si256((__m256i const *)b);
+        intersection_u32x8 = _mm256_sub_epi32(intersection_u32x8, _mm256_cmpeq_epi32(a_u32x8, b_u32x8));
     }
+    nk_u32_t intersection_count = nk_set_sum_u32x8_haswell_(intersection_u32x8);
     for (; n_remaining; --n_remaining, ++a, ++b) intersection_count += (*a == *b);
     *result = (n != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)n : 0.0f;
     return nk_success_k;
@@ -97,44 +144,18 @@ NUMKONG_API nk_status_t nk_jaccard_u32_haswell(nk_u32_t const *a, nk_u32_t const
 NUMKONG_API nk_status_t nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
                                               nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    // Process 32 bytes at a time using AVX2 (256-bit registers).
-    // Compare bytes for equality, invert to get not-equal mask, then count mismatches.
-    //
-    // Haswell port analysis:
-    // - `_mm256_loadu_si256`:   p23, 1cy latency (load)
-    // - `_mm256_cmpeq_epi8`:    p015, 1cy latency, 0.33cy throughput
-    // - `_mm256_extracti128`:   p5, 3cy latency, 1cy throughput
-    // - `_mm_popcnt_u64`:       p1 only, 3cy latency, 1cy throughput (bottleneck)
-    //
-    // For counting mismatches, we XOR and popcount the resulting bits set to 1.
-    // Alternative: compare → movemask → popcount, but movemask only works per-byte MSBs.
-    // XOR approach: each differing byte produces 0xFF (8 bits set), need to count bytes not bits.
-
-    nk_u32_t differences = 0;
     nk_size_t n_remaining = n;
+    __m256i differences_u64x4 = _mm256_setzero_si256();
+    __m256i one_u8x32 = _mm256_set1_epi8(1), zero_u8x32 = _mm256_setzero_si256();
 
-    // Main loop: process 32 bytes at a time
+    // Equal bytes turn 0xFF and wrap to 0 on the increment, and `VPSADBW` cannot overflow U64 lanes
     for (; n_remaining >= 32; n_remaining -= 32, a += 32, b += 32) {
         __m256i a_u8x32 = _mm256_loadu_si256((__m256i const *)a);
         __m256i b_u8x32 = _mm256_loadu_si256((__m256i const *)b);
-
-        // Compare for equality: 0xFF where equal, 0x00 where different
-        __m256i equality_u8x32 = _mm256_cmpeq_epi8(a_u8x32, b_u8x32);
-
-        // Extract to two 128-bit halves for movemask
-        // movemask extracts the MSB of each byte, giving us 16 bits per 128-bit half
-        __m128i equality_low_u8x16 = _mm256_castsi256_si128(equality_u8x32);
-        __m128i equality_high_u8x16 = _mm256_extracti128_si256(equality_u8x32, 1);
-
-        // Get masks: bit set = equal (0xFF MSB = 1), bit clear = different
-        int mask_low = _mm_movemask_epi8(equality_low_u8x16);   // 16 bits
-        int mask_high = _mm_movemask_epi8(equality_high_u8x16); // 16 bits
-
-        // Invert to count differences (bit set = different)
-        // Then popcount to count mismatches
-        differences += (nk_u32_t)_mm_popcnt_u32((unsigned int)(~mask_low & 0xFFFF));
-        differences += (nk_u32_t)_mm_popcnt_u32((unsigned int)(~mask_high & 0xFFFF));
+        __m256i different_u8x32 = _mm256_add_epi8(_mm256_cmpeq_epi8(a_u8x32, b_u8x32), one_u8x32);
+        differences_u64x4 = _mm256_add_epi64(differences_u64x4, _mm256_sad_epu8(different_u8x32, zero_u8x32));
     }
+    nk_u32_t differences = (nk_u32_t)nk_set_sum_u64x4_haswell_(differences_u64x4);
 
     // Handle remaining bytes (0-31) with scalar code
     for (; n_remaining; --n_remaining, ++a, ++b) differences += (*a != *b);
@@ -146,47 +167,18 @@ NUMKONG_API nk_status_t nk_hamming_u8_haswell(nk_u8_t const *a, nk_u8_t const *b
 NUMKONG_API nk_status_t nk_jaccard_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t *result,
                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    // Process 16 u16 values at a time using AVX2 (256-bit registers).
-    // Compare 16-bit integers for equality and count matches.
-    //
-    // Haswell port analysis:
-    // - `_mm256_loadu_si256`:   p23, 1cy latency (load)
-    // - `_mm256_cmpeq_epi16`:   p015, 1cy latency, 0.33cy throughput
-    // - `_mm256_packs_epi16`:   p5, 1cy latency, 1cy throughput (pack 16 → 8 bit)
-    // - `_mm_movemask_epi8`:    p0, 3cy latency (extracts MSB of each byte)
-    // - `_mm_popcnt_u32`:       p1 only, 3cy latency, 1cy throughput
-
-    nk_u32_t matches = 0;
     nk_size_t n_remaining = n;
+    __m256i matches_u32x8 = _mm256_setzero_si256();
+    __m256i one_i16x16 = _mm256_set1_epi16(1);
 
-    // Main loop: process 16 u16 values at a time
+    // `VPMADDWD` folds pairs of -1 masks into I32 lanes, which cannot overflow as U16 lanes would
     for (; n_remaining >= 16; n_remaining -= 16, a += 16, b += 16) {
         __m256i a_u16x16 = _mm256_loadu_si256((__m256i const *)a);
         __m256i b_u16x16 = _mm256_loadu_si256((__m256i const *)b);
-
-        // Compare for equality: 0xFFFF where equal, 0x0000 where different
         __m256i equality_u16x16 = _mm256_cmpeq_epi16(a_u16x16, b_u16x16);
-
-        // Pack 16-bit results to 8-bit to use movemask efficiently.
-        // _mm256_packs_epi16 saturates signed 16-bit to signed 8-bit:
-        // 0xFFFF (-1) → 0x80 (-128), 0x0000 (0) → 0x00 (0)
-        // Note: packs interleaves lanes, so we need to handle the permutation.
-        // For counting, we just need the total popcount, so lane order doesn't matter.
-        __m256i packed_i8x32 = _mm256_packs_epi16(equality_u16x16, equality_u16x16);
-
-        // Extract to 128-bit halves
-        __m128i packed_low_i8x16 = _mm256_castsi256_si128(packed_i8x32);
-        __m128i packed_high_i8x16 = _mm256_extracti128_si256(packed_i8x32, 1);
-
-        // movemask extracts MSB of each byte
-        // After packs: 0x80 (MSB=1) for equal, 0x00 (MSB=0) for different
-        // Each 128-bit half has 8 relevant bytes (lower 8 from each original lane)
-        int mask_low = _mm_movemask_epi8(packed_low_i8x16) & 0xFF;   // Lower 8 bytes
-        int mask_high = _mm_movemask_epi8(packed_high_i8x16) & 0xFF; // Lower 8 bytes from high lane
-
-        matches += (nk_u32_t)_mm_popcnt_u32((unsigned int)mask_low);
-        matches += (nk_u32_t)_mm_popcnt_u32((unsigned int)mask_high);
+        matches_u32x8 = _mm256_sub_epi32(matches_u32x8, _mm256_madd_epi16(equality_u16x16, one_i16x16));
     }
+    nk_u32_t matches = nk_set_sum_u32x8_haswell_(matches_u32x8);
 
     // Handle remaining elements (0-15) with scalar code
     for (; n_remaining; --n_remaining, ++a, ++b) matches += (*a == *b);

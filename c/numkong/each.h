@@ -1333,6 +1333,11 @@ NUMKONG_API nk_status_t nk_each_swiglu_bf16_haswell(nk_bf16_t const *gate, nk_bf
                                                     nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
                                                     nk_f32_t output_scale, nk_stream_t stream);
 /** @copydoc nk_each_swiglu_f32_best */
+NUMKONG_API nk_status_t nk_each_swiglu_f16_haswell(nk_f16_t const *gate, nk_f16_t const *up, nk_f16_t *y,
+                                                   nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
+                                                   nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
+                                                   nk_f32_t output_scale, nk_stream_t stream);
+/** @copydoc nk_each_swiglu_f32_best */
 NUMKONG_API nk_status_t nk_each_swiglu_e4m3_haswell(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
                                                     nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
                                                     nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
@@ -1347,6 +1352,11 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_haswell(nk_bf16_t const *x, nk_f32_
                                                      nk_size_t rows, nk_size_t groups, nk_size_t columns,
                                                      nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
                                                      nk_stream_t stream);
+/** @copydoc nk_each_rmsnorm_f32_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_f16_haswell(nk_f16_t const *x, nk_f32_t const *gamma, nk_f16_t *y,
+                                                    nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                    nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                    nk_stream_t stream);
 /** @copydoc nk_each_rmsnorm_f32_best */
 NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_haswell(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
                                                      nk_size_t rows, nk_size_t groups, nk_size_t columns,
@@ -1381,6 +1391,11 @@ NUMKONG_API nk_status_t nk_each_swiglu_bf16_skylake(nk_bf16_t const *gate, nk_bf
                                                     nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
                                                     nk_f32_t output_scale, nk_stream_t stream);
 /** @copydoc nk_each_swiglu_f32_best */
+NUMKONG_API nk_status_t nk_each_swiglu_f16_skylake(nk_f16_t const *gate, nk_f16_t const *up, nk_f16_t *y,
+                                                   nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
+                                                   nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
+                                                   nk_f32_t output_scale, nk_stream_t stream);
+/** @copydoc nk_each_swiglu_f32_best */
 NUMKONG_API nk_status_t nk_each_swiglu_e4m3_skylake(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
                                                     nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
                                                     nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
@@ -1395,6 +1410,11 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_skylake(nk_bf16_t const *x, nk_f32_
                                                      nk_size_t rows, nk_size_t groups, nk_size_t columns,
                                                      nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
                                                      nk_stream_t stream);
+/** @copydoc nk_each_rmsnorm_f32_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_f16_skylake(nk_f16_t const *x, nk_f32_t const *gamma, nk_f16_t *y,
+                                                    nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                    nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                    nk_stream_t stream);
 /** @copydoc nk_each_rmsnorm_f32_best */
 NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_skylake(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
                                                      nk_size_t rows, nk_size_t groups, nk_size_t columns,

@@ -70,7 +70,8 @@ For UInt64, `_mm512_2intersect_epi64` processes 8 × 8 = 64 pairs per instructio
 `nk_sparse_intersect_u16_sve2` uses the `svmatch_u16` instruction — true hardware set membership testing that matches each element against a 128-bit lane of candidates.
 However, `svmatch` only operates on UInt8 and UInt16 — no UInt32 or UInt64 variant exists in SVE2.
 For UInt32/UInt64, `nk_sparse_intersect_u32_sve2` uses `svhistcnt_u32_z` (histogram count): this computes a prefix-match count for each element against preceding elements in the combined register, and a reverse pass captures the upper triangle — ORing both halves yields the full intersection mask.
-NEON (`nk_sparse_intersect_u32_neon`) lacks compress-store entirely — when intersection results must be materialized (not just counted), the kernel falls back to serial extraction, using `vclz_u32` (count leading zeros) to compute pointer advance steps from comparison masks.
+NEON (`nk_sparse_intersect_u32_neon`) lacks compress-store entirely, so materialized matches leave the block lane by lane, and `vclz_u32` (count leading zeros) computes pointer advance steps from comparison masks.
+AVX2 kernels (`nk_sparse_intersect_u32_haswell`) walk 8-lane blocks the same way, and `nk_sparse_intersect_u64_neon` stores through the serial merge, as two lanes per step cannot beat it.
 
 ### BFloat16 Weights in Sparse Dot Products
 

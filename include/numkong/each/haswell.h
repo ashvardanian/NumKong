@@ -46,6 +46,34 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
+/** Loads @p bytes of at most 16, zeros past them, for the one tail step of a kernel. */
+NUMKONG_INLINE __m128i nk_each_partial_load_b128_haswell_(void const *source, nk_size_t bytes) {
+    nk_b128_vec_t partial_vec;
+    nk_partial_load_b8x16_haswell_(source, &partial_vec, bytes);
+    return partial_vec.xmm;
+}
+
+/** Stores the first @p bytes of at most 16, for the one tail step of a kernel. */
+NUMKONG_INLINE void nk_each_partial_store_b128_haswell_(void *destination, __m128i values_u8x16, nk_size_t bytes) {
+    nk_b128_vec_t partial_vec;
+    partial_vec.xmm = values_u8x16;
+    nk_partial_store_b8x16_haswell_(&partial_vec, destination, bytes);
+}
+
+/** Loads @p bytes of at most 32, zeros past them, for the one tail step of a kernel. */
+NUMKONG_INLINE __m256i nk_each_partial_load_b256_haswell_(void const *source, nk_size_t bytes) {
+    nk_b256_vec_t partial_vec;
+    nk_partial_load_b8x32_haswell_(source, &partial_vec, bytes);
+    return partial_vec.ymm;
+}
+
+/** Stores the first @p bytes of at most 32, for the one tail step of a kernel. */
+NUMKONG_INLINE void nk_each_partial_store_b256_haswell_(void *destination, __m256i values_u8x32, nk_size_t bytes) {
+    nk_b256_vec_t partial_vec;
+    partial_vec.ymm = values_u8x32;
+    nk_partial_store_b8x32_haswell_(&partial_vec, destination, bytes);
+}
+
 /** Adds @p n F32 values of @p a and @p b elementwise. */
 NUMKONG_INLINE void nk_add_f32_haswell_(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result) {
     // The main loop:
@@ -230,12 +258,12 @@ NUMKONG_INLINE void nk_add_i8_haswell_(nk_i8_t const *a, nk_i8_t const *b, nk_si
         __m256i result_i8x32 = _mm256_adds_epi8(a_i8x32, b_i8x32);
         _mm256_storeu_si256((__m256i *)(result + i), result_i8x32);
     }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_f32_t ai = a[i], bi = b[i];
-        nk_f32_t sum = ai + bi;
-        nk_f32_to_i8_serial_(&sum, result + i);
+    if (i < n) {
+        nk_size_t const count = n - i;
+        __m256i a_i8x32 = nk_each_partial_load_b256_haswell_(a + i, count);
+        __m256i b_i8x32 = nk_each_partial_load_b256_haswell_(b + i, count);
+        __m256i result_i8x32 = _mm256_adds_epi8(a_i8x32, b_i8x32);
+        nk_each_partial_store_b256_haswell_(result + i, result_i8x32, count);
     }
 }
 
@@ -246,35 +274,14 @@ NUMKONG_INLINE void nk_affine_i8_haswell_(nk_i8_t const *a, nk_size_t n, nk_f32_
     nk_f32_t beta_val = *beta;
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
     __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
-    int sum_i32s[8], a_i32s[8];
 
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        //? Handling loads and stores with SIMD is tricky. Not because of upcasting, but the
-        //? downcasting at the end of the loop. In AVX2 it's a drag! Keep it for another day.
-        a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
-            a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
-        //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
-        __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
+        __m256 a_f32x8 = nk_i8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(a + i)));
         // The normal part.
         __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
-        // Instead of serial `nk_f32_to_i8_serial_` calls, clip and convert with SIMD, zeroing NaNs.
-        __m256 ordered_f32x8 = _mm256_cmp_ps(result_f32x8, result_f32x8, _CMP_ORD_Q);
-        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_set1_ps(-128.0f));
-        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(127.0f));
-        __m256i result_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(result_f32x8, ordered_f32x8));
-        // Export into a serial buffer.
-        _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
-        result[i + 0] = (nk_i8_t)sum_i32s[0];
-        result[i + 1] = (nk_i8_t)sum_i32s[1];
-        result[i + 2] = (nk_i8_t)sum_i32s[2];
-        result[i + 3] = (nk_i8_t)sum_i32s[3];
-        result[i + 4] = (nk_i8_t)sum_i32s[4];
-        result[i + 5] = (nk_i8_t)sum_i32s[5];
-        result[i + 6] = (nk_i8_t)sum_i32s[6];
-        result[i + 7] = (nk_i8_t)sum_i32s[7];
+        _mm_storel_epi64((__m128i *)(result + i), nk_f32x8_to_i8x8_haswell_(result_f32x8));
     }
 
     // The tail:
@@ -295,12 +302,12 @@ NUMKONG_INLINE void nk_add_u8_haswell_(nk_u8_t const *a, nk_u8_t const *b, nk_si
         __m256i result_u8x32 = _mm256_adds_epu8(a_u8x32, b_u8x32);
         _mm256_storeu_si256((__m256i *)(result + i), result_u8x32);
     }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_f32_t ai = a[i], bi = b[i];
-        nk_f32_t sum = ai + bi;
-        nk_f32_to_u8_serial_(&sum, result + i);
+    if (i < n) {
+        nk_size_t const count = n - i;
+        __m256i a_u8x32 = nk_each_partial_load_b256_haswell_(a + i, count);
+        __m256i b_u8x32 = nk_each_partial_load_b256_haswell_(b + i, count);
+        __m256i result_u8x32 = _mm256_adds_epu8(a_u8x32, b_u8x32);
+        nk_each_partial_store_b256_haswell_(result + i, result_u8x32, count);
     }
 }
 
@@ -311,34 +318,14 @@ NUMKONG_INLINE void nk_affine_u8_haswell_(nk_u8_t const *a, nk_size_t n, nk_f32_
     nk_f32_t beta_val = *beta;
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
     __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
-    int sum_i32s[8], a_i32s[8];
 
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        //? Handling loads and stores with SIMD is tricky. Not because of upcasting, but the
-        //? downcasting at the end of the loop. In AVX2 it's a drag! Keep it for another day.
-        a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
-            a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
-        //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
-        __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
+        __m256 a_f32x8 = nk_u8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(a + i)));
         // The normal part.
         __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
-        // Instead of serial calls to expensive `nk_f32_to_u8_serial_`, clip and convert with SIMD.
-        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_setzero_ps());
-        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(255.0f));
-        __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
-        // Export into a serial buffer.
-        _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
-        result[i + 0] = (nk_u8_t)sum_i32s[0];
-        result[i + 1] = (nk_u8_t)sum_i32s[1];
-        result[i + 2] = (nk_u8_t)sum_i32s[2];
-        result[i + 3] = (nk_u8_t)sum_i32s[3];
-        result[i + 4] = (nk_u8_t)sum_i32s[4];
-        result[i + 5] = (nk_u8_t)sum_i32s[5];
-        result[i + 6] = (nk_u8_t)sum_i32s[6];
-        result[i + 7] = (nk_u8_t)sum_i32s[7];
+        _mm_storel_epi64((__m128i *)(result + i), nk_f32x8_to_u8x8_haswell_(result_f32x8));
     }
 
     // The tail:
@@ -854,39 +841,16 @@ NUMKONG_API nk_status_t nk_each_blend_i8_haswell(    //
     // The general case.
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
     __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
-    int sum_i32s[8], a_i32s[8], b_i32s[8];
 
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        //? Handling loads and stores with SIMD is tricky. Not because of upcasting, but the
-        //? downcasting at the end of the loop. In AVX2 it's a drag! Keep it for another day.
-        a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
-            a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
-        b_i32s[0] = b[i + 0], b_i32s[1] = b[i + 1], b_i32s[2] = b[i + 2], b_i32s[3] = b[i + 3], //
-            b_i32s[4] = b[i + 4], b_i32s[5] = b[i + 5], b_i32s[6] = b[i + 6], b_i32s[7] = b[i + 7];
-        //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
-        __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
-        __m256 b_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)b_i32s));
+        __m256 a_f32x8 = nk_i8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(a + i)));
+        __m256 b_f32x8 = nk_i8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(b + i)));
         // The normal part.
         __m256 ab_f32x8 = _mm256_mul_ps(a_f32x8, alpha_f32x8);
         __m256 result_f32x8 = _mm256_fmadd_ps(b_f32x8, beta_f32x8, ab_f32x8);
-        // Instead of serial `nk_f32_to_i8_serial_` calls, clip and convert with SIMD, zeroing NaNs.
-        __m256 ordered_f32x8 = _mm256_cmp_ps(result_f32x8, result_f32x8, _CMP_ORD_Q);
-        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_set1_ps(-128.0f));
-        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(127.0f));
-        __m256i result_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(result_f32x8, ordered_f32x8));
-        // Export into a serial buffer.
-        _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
-        result[i + 0] = (nk_i8_t)sum_i32s[0];
-        result[i + 1] = (nk_i8_t)sum_i32s[1];
-        result[i + 2] = (nk_i8_t)sum_i32s[2];
-        result[i + 3] = (nk_i8_t)sum_i32s[3];
-        result[i + 4] = (nk_i8_t)sum_i32s[4];
-        result[i + 5] = (nk_i8_t)sum_i32s[5];
-        result[i + 6] = (nk_i8_t)sum_i32s[6];
-        result[i + 7] = (nk_i8_t)sum_i32s[7];
+        _mm_storel_epi64((__m128i *)(result + i), nk_f32x8_to_i8x8_haswell_(result_f32x8));
     }
 
     // The tail:
@@ -938,38 +902,16 @@ NUMKONG_API nk_status_t nk_each_blend_u8_haswell(    //
     // The general case.
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
     __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
-    int sum_i32s[8], a_i32s[8], b_i32s[8];
 
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        //? Handling loads and stores with SIMD is tricky. Not because of upcasting, but the
-        //? downcasting at the end of the loop. In AVX2 it's a drag! Keep it for another day.
-        a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
-            a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
-        b_i32s[0] = b[i + 0], b_i32s[1] = b[i + 1], b_i32s[2] = b[i + 2], b_i32s[3] = b[i + 3], //
-            b_i32s[4] = b[i + 4], b_i32s[5] = b[i + 5], b_i32s[6] = b[i + 6], b_i32s[7] = b[i + 7];
-        //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
-        __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
-        __m256 b_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)b_i32s));
+        __m256 a_f32x8 = nk_u8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(a + i)));
+        __m256 b_f32x8 = nk_u8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(b + i)));
         // The normal part.
         __m256 ab_f32x8 = _mm256_mul_ps(a_f32x8, alpha_f32x8);
         __m256 result_f32x8 = _mm256_fmadd_ps(b_f32x8, beta_f32x8, ab_f32x8);
-        // Instead of serial calls to expensive `nk_f32_to_u8_serial_`, clip and convert with SIMD.
-        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_setzero_ps());
-        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(255.0f));
-        __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
-        // Export into a serial buffer.
-        _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
-        result[i + 0] = (nk_u8_t)sum_i32s[0];
-        result[i + 1] = (nk_u8_t)sum_i32s[1];
-        result[i + 2] = (nk_u8_t)sum_i32s[2];
-        result[i + 3] = (nk_u8_t)sum_i32s[3];
-        result[i + 4] = (nk_u8_t)sum_i32s[4];
-        result[i + 5] = (nk_u8_t)sum_i32s[5];
-        result[i + 6] = (nk_u8_t)sum_i32s[6];
-        result[i + 7] = (nk_u8_t)sum_i32s[7];
+        _mm_storel_epi64((__m128i *)(result + i), nk_f32x8_to_u8x8_haswell_(result_f32x8));
     }
 
     // The tail:
@@ -989,43 +931,18 @@ NUMKONG_API nk_status_t nk_each_fma_i8_haswell(                        //
     nk_f32_t beta_val = *beta;
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
     __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
-    int sum_i32s[8], a_i32s[8], b_i32s[8], c_i32s[8];
 
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        //? Handling loads and stores with SIMD is tricky. Not because of upcasting, but the
-        //? downcasting at the end of the loop. In AVX2 it's a drag! Keep it for another day.
-        a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
-            a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
-        b_i32s[0] = b[i + 0], b_i32s[1] = b[i + 1], b_i32s[2] = b[i + 2], b_i32s[3] = b[i + 3], //
-            b_i32s[4] = b[i + 4], b_i32s[5] = b[i + 5], b_i32s[6] = b[i + 6], b_i32s[7] = b[i + 7];
-        c_i32s[0] = c[i + 0], c_i32s[1] = c[i + 1], c_i32s[2] = c[i + 2], c_i32s[3] = c[i + 3], //
-            c_i32s[4] = c[i + 4], c_i32s[5] = c[i + 5], c_i32s[6] = c[i + 6], c_i32s[7] = c[i + 7];
-        //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
-        __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
-        __m256 b_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)b_i32s));
-        __m256 c_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)c_i32s));
+        __m256 a_f32x8 = nk_i8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(a + i)));
+        __m256 b_f32x8 = nk_i8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(b + i)));
+        __m256 c_f32x8 = nk_i8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(c + i)));
         // The normal part.
         __m256 ab_f32x8 = _mm256_mul_ps(a_f32x8, b_f32x8);
         __m256 abc_f32x8 = _mm256_mul_ps(ab_f32x8, alpha_f32x8);
         __m256 result_f32x8 = _mm256_fmadd_ps(c_f32x8, beta_f32x8, abc_f32x8);
-        // Instead of serial `nk_f32_to_i8_serial_` calls, clip and convert with SIMD, zeroing NaNs.
-        __m256 ordered_f32x8 = _mm256_cmp_ps(result_f32x8, result_f32x8, _CMP_ORD_Q);
-        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_set1_ps(-128.0f));
-        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(127.0f));
-        __m256i result_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(result_f32x8, ordered_f32x8));
-        // Export into a serial buffer.
-        _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
-        result[i + 0] = (nk_i8_t)sum_i32s[0];
-        result[i + 1] = (nk_i8_t)sum_i32s[1];
-        result[i + 2] = (nk_i8_t)sum_i32s[2];
-        result[i + 3] = (nk_i8_t)sum_i32s[3];
-        result[i + 4] = (nk_i8_t)sum_i32s[4];
-        result[i + 5] = (nk_i8_t)sum_i32s[5];
-        result[i + 6] = (nk_i8_t)sum_i32s[6];
-        result[i + 7] = (nk_i8_t)sum_i32s[7];
+        _mm_storel_epi64((__m128i *)(result + i), nk_f32x8_to_i8x8_haswell_(result_f32x8));
     }
 
     // The tail:
@@ -1045,42 +962,18 @@ NUMKONG_API nk_status_t nk_each_fma_u8_haswell(                        //
     nk_f32_t beta_val = *beta;
     __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
     __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
-    int sum_i32s[8], a_i32s[8], b_i32s[8], c_i32s[8];
 
     // The main loop:
     nk_size_t i = 0;
     for (; i + 8 <= n; i += 8) {
-        //? Handling loads and stores with SIMD is tricky. Not because of upcasting, but the
-        //? downcasting at the end of the loop. In AVX2 it's a drag! Keep it for another day.
-        a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
-            a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
-        b_i32s[0] = b[i + 0], b_i32s[1] = b[i + 1], b_i32s[2] = b[i + 2], b_i32s[3] = b[i + 3], //
-            b_i32s[4] = b[i + 4], b_i32s[5] = b[i + 5], b_i32s[6] = b[i + 6], b_i32s[7] = b[i + 7];
-        c_i32s[0] = c[i + 0], c_i32s[1] = c[i + 1], c_i32s[2] = c[i + 2], c_i32s[3] = c[i + 3], //
-            c_i32s[4] = c[i + 4], c_i32s[5] = c[i + 5], c_i32s[6] = c[i + 6], c_i32s[7] = c[i + 7];
-        //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on @c _mm256_cvtepi32_ps: 4cy (1/cy) @ p01.
-        __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
-        __m256 b_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)b_i32s));
-        __m256 c_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)c_i32s));
+        __m256 a_f32x8 = nk_u8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(a + i)));
+        __m256 b_f32x8 = nk_u8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(b + i)));
+        __m256 c_f32x8 = nk_u8x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)(c + i)));
         // The normal part.
         __m256 ab_f32x8 = _mm256_mul_ps(a_f32x8, b_f32x8);
         __m256 abc_f32x8 = _mm256_mul_ps(ab_f32x8, alpha_f32x8);
         __m256 result_f32x8 = _mm256_fmadd_ps(c_f32x8, beta_f32x8, abc_f32x8);
-        // Instead of serial calls to expensive `nk_f32_to_u8_serial_`, clip and convert with SIMD.
-        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_setzero_ps());
-        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(255.0f));
-        __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
-        // Export into a serial buffer.
-        _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
-        result[i + 0] = (nk_u8_t)sum_i32s[0];
-        result[i + 1] = (nk_u8_t)sum_i32s[1];
-        result[i + 2] = (nk_u8_t)sum_i32s[2];
-        result[i + 3] = (nk_u8_t)sum_i32s[3];
-        result[i + 4] = (nk_u8_t)sum_i32s[4];
-        result[i + 5] = (nk_u8_t)sum_i32s[5];
-        result[i + 6] = (nk_u8_t)sum_i32s[6];
-        result[i + 7] = (nk_u8_t)sum_i32s[7];
+        _mm_storel_epi64((__m128i *)(result + i), nk_f32x8_to_u8x8_haswell_(result_f32x8));
     }
 
     // The tail:
@@ -1289,12 +1182,12 @@ NUMKONG_API nk_status_t nk_each_sum_i32_haswell(nk_i32_t const *a, nk_i32_t cons
         __m256i sum_vec = _mm256_adds_epi32_haswell(a_vec, b_vec);
         _mm256_storeu_si256((__m256i *)(result + i), sum_vec);
     }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_i64_t ai = a[i], bi = b[i];
-        nk_i64_t sum = ai + bi;
-        nk_i64_to_i32_serial_(&sum, result + i);
+    if (i < n) {
+        nk_size_t const count = n - i;
+        __m256i a_vec = nk_each_partial_load_b256_haswell_(a + i, count * sizeof(nk_i32_t));
+        __m256i b_vec = nk_each_partial_load_b256_haswell_(b + i, count * sizeof(nk_i32_t));
+        __m256i sum_vec = _mm256_adds_epi32_haswell(a_vec, b_vec);
+        nk_each_partial_store_b256_haswell_(result + i, sum_vec, count * sizeof(nk_i32_t));
     }
     return nk_success_k;
 }
@@ -1379,12 +1272,12 @@ NUMKONG_API nk_status_t nk_each_sum_u32_haswell(nk_u32_t const *a, nk_u32_t cons
         __m256i sum_vec = _mm256_adds_epu32_haswell(a_vec, b_vec);
         _mm256_storeu_si256((__m256i *)(result + i), sum_vec);
     }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_i64_t ai = a[i], bi = b[i];
-        nk_i64_t sum = ai + bi;
-        nk_i64_to_u32_serial_(&sum, result + i);
+    if (i < n) {
+        nk_size_t const count = n - i;
+        __m256i a_vec = nk_each_partial_load_b256_haswell_(a + i, count * sizeof(nk_u32_t));
+        __m256i b_vec = nk_each_partial_load_b256_haswell_(b + i, count * sizeof(nk_u32_t));
+        __m256i sum_vec = _mm256_adds_epu32_haswell(a_vec, b_vec);
+        nk_each_partial_store_b256_haswell_(result + i, sum_vec, count * sizeof(nk_u32_t));
     }
     return nk_success_k;
 }
@@ -1469,6 +1362,8 @@ NUMKONG_API nk_status_t nk_each_sum_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t c
         __m128i result_e4m3x8 = nk_f32x8_to_e4m3x8_haswell_(result_f32x8);
         _mm_storel_epi64((__m128i *)(result + i), result_e4m3x8);
     }
+
+    // The tail:
     for (; i < n; ++i) {
         nk_f32_t ai, bi;
         nk_e4m3_to_f32_serial_(a + i, &ai);
@@ -1492,6 +1387,8 @@ NUMKONG_API nk_status_t nk_each_sum_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t c
         __m128i result_e5m2x8 = nk_f32x8_to_e5m2x8_haswell_(result_f32x8);
         _mm_storel_epi64((__m128i *)(result + i), result_e5m2x8);
     }
+
+    // The tail:
     for (; i < n; ++i) {
         nk_f32_t ai, bi;
         nk_e5m2_to_f32_serial_(a + i, &ai);
@@ -1517,6 +1414,8 @@ NUMKONG_API nk_status_t nk_each_scale_e4m3_haswell(nk_e4m3_t const *a, nk_size_t
         __m128i result_e4m3x8 = nk_f32x8_to_e4m3x8_haswell_(result_f32x8);
         _mm_storel_epi64((__m128i *)(result + i), result_e4m3x8);
     }
+
+    // The tail:
     for (; i < n; ++i) {
         nk_f32_t ai;
         nk_e4m3_to_f32_serial_(a + i, &ai);
@@ -1541,6 +1440,8 @@ NUMKONG_API nk_status_t nk_each_scale_e5m2_haswell(nk_e5m2_t const *a, nk_size_t
         __m128i result_e5m2x8 = nk_f32x8_to_e5m2x8_haswell_(result_f32x8);
         _mm_storel_epi64((__m128i *)(result + i), result_e5m2x8);
     }
+
+    // The tail:
     for (; i < n; ++i) {
         nk_f32_t ai;
         nk_e5m2_to_f32_serial_(a + i, &ai);
@@ -1567,6 +1468,8 @@ NUMKONG_API nk_status_t nk_each_blend_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t
         __m128i result_e4m3x8 = nk_f32x8_to_e4m3x8_haswell_(result_f32x8);
         _mm_storel_epi64((__m128i *)(result + i), result_e4m3x8);
     }
+
+    // The tail:
     for (; i < n; ++i) {
         nk_f32_t ai, bi;
         nk_e4m3_to_f32_serial_(a + i, &ai);
@@ -1594,6 +1497,8 @@ NUMKONG_API nk_status_t nk_each_blend_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t
         __m128i result_e5m2x8 = nk_f32x8_to_e5m2x8_haswell_(result_f32x8);
         _mm_storel_epi64((__m128i *)(result + i), result_e5m2x8);
     }
+
+    // The tail:
     for (; i < n; ++i) {
         nk_f32_t ai, bi;
         nk_e5m2_to_f32_serial_(a + i, &ai);
@@ -1627,6 +1532,8 @@ NUMKONG_API nk_status_t nk_each_fma_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t c
         __m128i result_e4m3x8 = nk_f32x8_to_e4m3x8_haswell_(result_f32x8);
         _mm_storel_epi64((__m128i *)(result + i), result_e4m3x8);
     }
+
+    // The tail:
     for (; i < n; ++i) {
         nk_f32_t ai, bi, ci;
         nk_e4m3_to_f32_serial_(a + i, &ai);
@@ -1661,6 +1568,8 @@ NUMKONG_API nk_status_t nk_each_fma_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t c
         __m128i result_e5m2x8 = nk_f32x8_to_e5m2x8_haswell_(result_f32x8);
         _mm_storel_epi64((__m128i *)(result + i), result_e5m2x8);
     }
+
+    // The tail:
     for (; i < n; ++i) {
         nk_f32_t ai, bi, ci;
         nk_e5m2_to_f32_serial_(a + i, &ai);
@@ -1906,11 +1815,53 @@ NUMKONG_API nk_status_t nk_each_swiglu_f32_haswell(nk_f32_t const *gate, nk_f32_
             result_f32x8 = _mm256_mul_ps(result_f32x8, output_scale_f32x8);
             _mm256_storeu_ps(y_row + col, result_f32x8);
         }
-        for (; col != columns; ++col) {
-            nk_f32_t result = nk_f32_silu_serial_(gate_row[col] * gate_scale);
-            if (up_row) result *= up_row[col];
-            result *= output_scale;
-            y_row[col] = result;
+        if (col < columns) {
+            nk_b256_vec_t gate_vec, up_vec, result_vec;
+            nk_partial_load_b32x8_haswell_(gate_row + col, &gate_vec, columns - col);
+            __m256 result_f32x8 = nk_silu_f32x8_haswell_(_mm256_mul_ps(gate_vec.ymm_ps, gate_scale_f32x8));
+            if (up_row) {
+                nk_partial_load_b32x8_haswell_(up_row + col, &up_vec, columns - col);
+                result_f32x8 = _mm256_mul_ps(result_f32x8, up_vec.ymm_ps);
+            }
+            result_vec.ymm_ps = _mm256_mul_ps(result_f32x8, output_scale_f32x8);
+            nk_partial_store_b32x8_haswell_(&result_vec, y_row + col, columns - col);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_swiglu_f16_haswell(nk_f16_t const *gate, nk_f16_t const *up, nk_f16_t *y,
+                                                   nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
+                                                   nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
+                                                   nk_f32_t output_scale, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    __m256 gate_scale_f32x8 = _mm256_set1_ps(gate_scale);
+    __m256 output_scale_f32x8 = _mm256_set1_ps(output_scale);
+    for (nk_size_t row = 0; row != rows; ++row) {
+        nk_f16_t const *gate_row = (nk_f16_t const *)((unsigned char const *)gate + row * gate_stride);
+        nk_f16_t const *up_row = up ? (nk_f16_t const *)((unsigned char const *)up + row * up_stride) : NUMKONG_NULL;
+        nk_f16_t *y_row = (nk_f16_t *)((unsigned char *)y + row * y_stride);
+        nk_size_t col = 0;
+        for (; col + 8 <= columns; col += 8) {
+            __m256 gate_f32x8 = _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)(gate_row + col)));
+            __m256 result_f32x8 = nk_silu_f32x8_haswell_(_mm256_mul_ps(gate_f32x8, gate_scale_f32x8));
+            if (up_row)
+                result_f32x8 = _mm256_mul_ps(result_f32x8,
+                                             _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)(up_row + col))));
+            result_f32x8 = _mm256_mul_ps(result_f32x8, output_scale_f32x8);
+            _mm_storeu_si128((__m128i *)(y_row + col),
+                             _mm256_cvtps_ph(result_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+        }
+        if (col < columns) {
+            nk_size_t const bytes = (columns - col) * sizeof(nk_f16_t);
+            __m256 gate_f32x8 = _mm256_cvtph_ps(nk_each_partial_load_b128_haswell_(gate_row + col, bytes));
+            __m256 result_f32x8 = nk_silu_f32x8_haswell_(_mm256_mul_ps(gate_f32x8, gate_scale_f32x8));
+            if (up_row)
+                result_f32x8 = _mm256_mul_ps(result_f32x8,
+                                             _mm256_cvtph_ps(nk_each_partial_load_b128_haswell_(up_row + col, bytes)));
+            result_f32x8 = _mm256_mul_ps(result_f32x8, output_scale_f32x8);
+            nk_each_partial_store_b128_haswell_(
+                y_row + col, _mm256_cvtps_ph(result_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC), bytes);
         }
     }
     return nk_success_k;
@@ -1940,17 +1891,16 @@ NUMKONG_API nk_status_t nk_each_swiglu_bf16_haswell(nk_bf16_t const *gate, nk_bf
             result_f32x8 = _mm256_mul_ps(result_f32x8, output_scale_f32x8);
             _mm_storeu_si128((__m128i *)(y_row + col), nk_f32x8_to_bf16x8_haswell_(result_f32x8));
         }
-        for (; col != columns; ++col) {
-            nk_f32_t gate_value;
-            nk_bf16_to_f32_serial_(gate_row + col, &gate_value);
-            nk_f32_t result = nk_f32_silu_serial_(gate_value * gate_scale);
+        if (col < columns) {
+            nk_size_t const bytes = (columns - col) * sizeof(nk_bf16_t);
+            __m256 gate_f32x8 = nk_bf16x8_to_f32x8_haswell_(nk_each_partial_load_b128_haswell_(gate_row + col, bytes));
+            __m256 result_f32x8 = nk_silu_f32x8_haswell_(_mm256_mul_ps(gate_f32x8, gate_scale_f32x8));
             if (up_row) {
-                nk_f32_t up_value;
-                nk_bf16_to_f32_serial_(up_row + col, &up_value);
-                result *= up_value;
+                __m256 up_f32x8 = nk_bf16x8_to_f32x8_haswell_(nk_each_partial_load_b128_haswell_(up_row + col, bytes));
+                result_f32x8 = _mm256_mul_ps(result_f32x8, up_f32x8);
             }
-            result *= output_scale;
-            nk_f32_to_bf16_serial_(&result, y_row + col);
+            result_f32x8 = _mm256_mul_ps(result_f32x8, output_scale_f32x8);
+            nk_each_partial_store_b128_haswell_(y_row + col, nk_f32x8_to_bf16x8_haswell_(result_f32x8), bytes);
         }
     }
     return nk_success_k;
@@ -1980,17 +1930,16 @@ NUMKONG_API nk_status_t nk_each_swiglu_e4m3_haswell(nk_e4m3_t const *gate, nk_e4
             result_f32x8 = _mm256_mul_ps(result_f32x8, output_scale_f32x8);
             _mm_storel_epi64((__m128i *)(y_row + col), nk_f32x8_to_e4m3x8_haswell_(result_f32x8));
         }
-        for (; col != columns; ++col) {
-            nk_f32_t gate_value;
-            nk_e4m3_to_f32_serial_(gate_row + col, &gate_value);
-            nk_f32_t result = nk_f32_silu_serial_(gate_value * gate_scale);
+        if (col < columns) {
+            nk_size_t const count = columns - col;
+            __m256 gate_f32x8 = nk_e4m3x8_to_f32x8_haswell_(nk_each_partial_load_b128_haswell_(gate_row + col, count));
+            __m256 result_f32x8 = nk_silu_f32x8_haswell_(_mm256_mul_ps(gate_f32x8, gate_scale_f32x8));
             if (up_row) {
-                nk_f32_t up_value;
-                nk_e4m3_to_f32_serial_(up_row + col, &up_value);
-                result *= up_value;
+                __m256 up_f32x8 = nk_e4m3x8_to_f32x8_haswell_(nk_each_partial_load_b128_haswell_(up_row + col, count));
+                result_f32x8 = _mm256_mul_ps(result_f32x8, up_f32x8);
             }
-            result *= output_scale;
-            nk_f32_to_e4m3_serial_(&result, y_row + col);
+            result_f32x8 = _mm256_mul_ps(result_f32x8, output_scale_f32x8);
+            nk_each_partial_store_b128_haswell_(y_row + col, nk_f32x8_to_e4m3x8_haswell_(result_f32x8), count);
         }
     }
     return nk_success_k;
@@ -2020,6 +1969,53 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_f32_haswell(nk_f32_t const *x, nk_f32_t 
                 _mm256_storeu_ps(group_output + c, normalized_f32x8);
             }
             for (; c != columns; ++c) group_output[c] = group_input[c] * prescale * gain * (gamma ? gamma[c] : 1.0f);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmsnorm_f16_haswell(nk_f16_t const *x, nk_f32_t const *gamma, nk_f16_t *y,
+                                                    nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                    nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                    nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f16_t const *x_row = (nk_f16_t const *)((unsigned char const *)x + r * x_stride);
+        nk_f16_t *y_row = (nk_f16_t *)((unsigned char *)y + r * y_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f16_t const *group_input = x_row + group * columns;
+            nk_f16_t *group_output = y_row + group * columns;
+            nk_f32_t sumsq = 0;
+            // Short F32 reductions bound error independently of row width
+            for (nk_size_t start = 0; start < columns; start += 64) {
+                nk_size_t const count = columns - start < 64 ? columns - start : 64;
+                nk_f32_t partial_sum, partial_sumsq;
+                nk_reduce_moments_contiguous_f16_haswell_(group_input + start, count, &partial_sum, &partial_sumsq);
+                sumsq += partial_sumsq;
+            }
+            __m256 gain_f32x8 = _mm256_set1_ps(nk_rsqrt_f32_haswell_(sumsq / (nk_f32_t)columns + epsilon));
+            nk_size_t c = 0;
+            for (; c + 8 <= columns; c += 8) {
+                __m256 input_f32x8 = _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)(group_input + c)));
+                __m256 normalized_f32x8 = _mm256_mul_ps(input_f32x8, gain_f32x8);
+                if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
+                _mm_storeu_si128((__m128i *)(group_output + c),
+                                 _mm256_cvtps_ph(normalized_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+            }
+            if (c < columns) {
+                nk_size_t const count = columns - c;
+                __m256 input_f32x8 = _mm256_cvtph_ps(
+                    nk_each_partial_load_b128_haswell_(group_input + c, count * sizeof(nk_f16_t)));
+                __m256 normalized_f32x8 = _mm256_mul_ps(input_f32x8, gain_f32x8);
+                if (gamma) {
+                    nk_b256_vec_t gamma_vec;
+                    nk_partial_load_b32x8_haswell_(gamma + c, &gamma_vec, count);
+                    normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, gamma_vec.ymm_ps);
+                }
+                nk_each_partial_store_b128_haswell_(
+                    group_output + c, _mm256_cvtps_ph(normalized_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC),
+                    count * sizeof(nk_f16_t));
+            }
         }
     }
     return nk_success_k;
@@ -2055,11 +2051,18 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_haswell(nk_bf16_t const *x, nk_f32_
                 if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
                 _mm_storeu_si128((__m128i *)(group_output + c), nk_f32x8_to_bf16x8_haswell_(normalized_f32x8));
             }
-            for (; c != columns; ++c) {
-                nk_f32_t value;
-                nk_bf16_to_f32_serial_(group_input + c, &value);
-                nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
-                nk_f32_to_bf16_serial_(&result, group_output + c);
+            if (c < columns) {
+                nk_size_t const count = columns - c;
+                __m256 input_f32x8 = nk_bf16x8_to_f32x8_haswell_(
+                    nk_each_partial_load_b128_haswell_(group_input + c, count * sizeof(nk_bf16_t)));
+                __m256 normalized_f32x8 = _mm256_mul_ps(input_f32x8, gain_f32x8);
+                if (gamma) {
+                    nk_b256_vec_t gamma_vec;
+                    nk_partial_load_b32x8_haswell_(gamma + c, &gamma_vec, count);
+                    normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, gamma_vec.ymm_ps);
+                }
+                nk_each_partial_store_b128_haswell_(group_output + c, nk_f32x8_to_bf16x8_haswell_(normalized_f32x8),
+                                                    count * sizeof(nk_bf16_t));
             }
         }
     }
@@ -2089,11 +2092,18 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_haswell(nk_e4m3_t const *x, nk_f32_
                 if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
                 _mm_storel_epi64((__m128i *)(group_output + c), nk_f32x8_to_e4m3x8_haswell_(normalized_f32x8));
             }
-            for (; c != columns; ++c) {
-                nk_f32_t value;
-                nk_e4m3_to_f32_serial_(group_input + c, &value);
-                nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
-                nk_f32_to_e4m3_serial_(&result, group_output + c);
+            if (c < columns) {
+                nk_size_t const count = columns - c;
+                __m256 input_f32x8 = nk_e4m3x8_to_f32x8_haswell_(
+                    nk_each_partial_load_b128_haswell_(group_input + c, count));
+                __m256 normalized_f32x8 = _mm256_mul_ps(input_f32x8, gain_f32x8);
+                if (gamma) {
+                    nk_b256_vec_t gamma_vec;
+                    nk_partial_load_b32x8_haswell_(gamma + c, &gamma_vec, count);
+                    normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, gamma_vec.ymm_ps);
+                }
+                nk_each_partial_store_b128_haswell_(group_output + c, nk_f32x8_to_e4m3x8_haswell_(normalized_f32x8),
+                                                    count);
             }
         }
     }
@@ -2146,9 +2156,18 @@ NUMKONG_API nk_status_t nk_each_rmscast_bf16_haswell(nk_f32_t const *x, nk_f32_t
                 if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
                 _mm_storeu_si128((__m128i *)(group_output + c), nk_f32x8_to_bf16x8_haswell_(normalized_f32x8));
             }
-            for (; c != columns; ++c) {
-                nk_f32_t result = group_input[c] * gain * (gamma ? gamma[c] : 1.0f);
-                nk_f32_to_bf16_serial_(&result, group_output + c);
+            if (c < columns) {
+                nk_size_t const count = columns - c;
+                __m256 input_f32x8 = _mm256_castsi256_ps(
+                    nk_each_partial_load_b256_haswell_(group_input + c, count * sizeof(nk_f32_t)));
+                __m256 normalized_f32x8 = _mm256_mul_ps(input_f32x8, gain_f32x8);
+                if (gamma) {
+                    nk_b256_vec_t gamma_vec;
+                    nk_partial_load_b32x8_haswell_(gamma + c, &gamma_vec, count);
+                    normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, gamma_vec.ymm_ps);
+                }
+                nk_each_partial_store_b128_haswell_(group_output + c, nk_f32x8_to_bf16x8_haswell_(normalized_f32x8),
+                                                    count * sizeof(nk_bf16_t));
             }
         }
     }
@@ -2175,9 +2194,18 @@ NUMKONG_API nk_status_t nk_each_rmscast_e4m3_haswell(nk_f32_t const *x, nk_f32_t
                 if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
                 _mm_storel_epi64((__m128i *)(group_output + c), nk_f32x8_to_e4m3x8_haswell_(normalized_f32x8));
             }
-            for (; c != columns; ++c) {
-                nk_f32_t result = group_input[c] * gain * (gamma ? gamma[c] : 1.0f);
-                nk_f32_to_e4m3_serial_(&result, group_output + c);
+            if (c < columns) {
+                nk_size_t const count = columns - c;
+                __m256 input_f32x8 = _mm256_castsi256_ps(
+                    nk_each_partial_load_b256_haswell_(group_input + c, count * sizeof(nk_f32_t)));
+                __m256 normalized_f32x8 = _mm256_mul_ps(input_f32x8, gain_f32x8);
+                if (gamma) {
+                    nk_b256_vec_t gamma_vec;
+                    nk_partial_load_b32x8_haswell_(gamma + c, &gamma_vec, count);
+                    normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, gamma_vec.ymm_ps);
+                }
+                nk_each_partial_store_b128_haswell_(group_output + c, nk_f32x8_to_e4m3x8_haswell_(normalized_f32x8),
+                                                    count);
             }
         }
     }

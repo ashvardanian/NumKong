@@ -178,6 +178,74 @@ nk_jsd_f16_haswell_cycle:
     return nk_success_k;
 }
 
+NUMKONG_API nk_status_t nk_kld_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                           nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    __m256 epsilon_f32x8 = _mm256_set1_ps(NUMKONG_F32_DIVISION_EPSILON);
+    __m256d sum_low_f64x4 = _mm256_setzero_pd(), sum_high_f64x4 = _mm256_setzero_pd();
+    __m256 a_f32x8, b_f32x8;
+
+nk_kld_f32_haswell_cycle:
+    if (n < 8) {
+        nk_b256_vec_t a_vec, b_vec;
+        nk_partial_load_b32x8_haswell_(a, &a_vec, n);
+        nk_partial_load_b32x8_haswell_(b, &b_vec, n);
+        a_f32x8 = a_vec.ymm_ps;
+        b_f32x8 = b_vec.ymm_ps;
+        n = 0;
+    }
+    else {
+        a_f32x8 = _mm256_loadu_ps(a);
+        b_f32x8 = _mm256_loadu_ps(b);
+        n -= 8, a += 8, b += 8;
+    }
+    __m256 ratio_f32x8 = _mm256_div_ps(_mm256_max_ps(a_f32x8, epsilon_f32x8), _mm256_max_ps(b_f32x8, epsilon_f32x8));
+    __m256 contribution_f32x8 = _mm256_mul_ps(a_f32x8, nk_log2_f32x8_haswell_(ratio_f32x8));
+    sum_low_f64x4 = _mm256_add_pd(sum_low_f64x4, _mm256_cvtps_pd(_mm256_castps256_ps128(contribution_f32x8)));
+    sum_high_f64x4 = _mm256_add_pd(sum_high_f64x4, _mm256_cvtps_pd(_mm256_extractf128_ps(contribution_f32x8, 1)));
+    if (n) goto nk_kld_f32_haswell_cycle;
+
+    *result = nk_reduce_add_f64x4_haswell_(_mm256_add_pd(sum_low_f64x4, sum_high_f64x4)) * NUMKONG_F64_LN2_;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_jsd_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                           nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    __m256 epsilon_f32x8 = _mm256_set1_ps(NUMKONG_F32_DIVISION_EPSILON);
+    __m256d sum_low_f64x4 = _mm256_setzero_pd(), sum_high_f64x4 = _mm256_setzero_pd();
+    __m256 a_f32x8, b_f32x8;
+
+nk_jsd_f32_haswell_cycle:
+    if (n < 8) {
+        nk_b256_vec_t a_vec, b_vec;
+        nk_partial_load_b32x8_haswell_(a, &a_vec, n);
+        nk_partial_load_b32x8_haswell_(b, &b_vec, n);
+        a_f32x8 = a_vec.ymm_ps;
+        b_f32x8 = b_vec.ymm_ps;
+        n = 0;
+    }
+    else {
+        a_f32x8 = _mm256_loadu_ps(a);
+        b_f32x8 = _mm256_loadu_ps(b);
+        n -= 8, a += 8, b += 8;
+    }
+    __m256 mean_f32x8 = _mm256_max_ps(_mm256_mul_ps(_mm256_add_ps(a_f32x8, b_f32x8), _mm256_set1_ps(0.5f)),
+                                      epsilon_f32x8);
+    __m256 ratio_a_f32x8 = _mm256_div_ps(_mm256_max_ps(a_f32x8, epsilon_f32x8), mean_f32x8);
+    __m256 ratio_b_f32x8 = _mm256_div_ps(_mm256_max_ps(b_f32x8, epsilon_f32x8), mean_f32x8);
+    __m256 contribution_a_f32x8 = _mm256_mul_ps(a_f32x8, nk_log2_f32x8_haswell_(ratio_a_f32x8));
+    __m256 contribution_b_f32x8 = _mm256_mul_ps(b_f32x8, nk_log2_f32x8_haswell_(ratio_b_f32x8));
+    __m256 contribution_f32x8 = _mm256_add_ps(contribution_a_f32x8, contribution_b_f32x8);
+    sum_low_f64x4 = _mm256_add_pd(sum_low_f64x4, _mm256_cvtps_pd(_mm256_castps256_ps128(contribution_f32x8)));
+    sum_high_f64x4 = _mm256_add_pd(sum_high_f64x4, _mm256_cvtps_pd(_mm256_extractf128_ps(contribution_f32x8, 1)));
+    if (n) goto nk_jsd_f32_haswell_cycle;
+
+    nk_f64_t sum = nk_reduce_add_f64x4_haswell_(_mm256_add_pd(sum_low_f64x4, sum_high_f64x4)) * NUMKONG_F64_LN2_ / 2;
+    *result = sum > 0 ? _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum))) : 0;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_kld_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);

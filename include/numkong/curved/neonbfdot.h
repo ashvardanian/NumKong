@@ -29,8 +29,8 @@
 #if NUMKONG_ARCH_ARM64_
 #if NUMKONG_TARGET_NEONBFDOT
 
-#include "numkong/types.h"       // `nk_bf16_t`
-#include "numkong/cast/serial.h" // `nk_bf16_to_f32_serial_`
+#include "numkong/types.h"     // `nk_bf16_t`
+#include "numkong/cast/neon.h" // `nk_partial_load_b16x8_neon_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -43,42 +43,66 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
+/** Widens one BF16 into all four F32 lanes. */
+NUMKONG_INLINE float32x4_t nk_load_bf16_as_f32x4_neonbfdot_(nk_bf16_t const *value) {
+    return nk_bf16x4_to_f32x4_neon_(vld1_dup_u16((nk_u16_t const *)value));
+}
+
+/** Widens up to 3 BF16 values without byte stores, leaving zeros past them. */
+NUMKONG_INLINE float32x4_t nk_partial_load_bf16x3_neonbfdot_(nk_bf16_t const *values, nk_size_t count) {
+    nk_u16_t const *source = (nk_u16_t const *)values;
+    uint16x4_t bits_u16x4 = vdup_n_u16(0);
+    if (count > 0) bits_u16x4 = vld1_lane_u16(source, bits_u16x4, 0);
+    if (count > 1) bits_u16x4 = vld1_lane_u16(source + 1, bits_u16x4, 1);
+    if (count > 2) bits_u16x4 = vld1_lane_u16(source + 2, bits_u16x4, 2);
+    return nk_bf16x4_to_f32x4_neon_(bits_u16x4);
+}
+
+/** Deinterleaves up to 3 complex BF16 pairs without byte stores, leaving zeros past them. */
+NUMKONG_INLINE int16x4x2_t nk_partial_load_bf16c_neonbfdot_(nk_bf16c_t const *pairs, nk_size_t count) {
+    int16x4x2_t result_i16x4x2 = {{vdup_n_s16(0), vdup_n_s16(0)}};
+    if (count > 0) result_i16x4x2 = vld2_lane_s16((short const *)pairs, result_i16x4x2, 0);
+    if (count > 1) result_i16x4x2 = vld2_lane_s16((short const *)(pairs + 1), result_i16x4x2, 1);
+    if (count > 2) result_i16x4x2 = vld2_lane_s16((short const *)(pairs + 2), result_i16x4x2, 2);
+    return result_i16x4x2;
+}
+
+/** Adds the complex products of 4 deinterleaved BF16 pairs of @p c and @p b onto F32 lanes. */
+NUMKONG_INLINE void nk_fma_bf16cx4_neonbfdot_(int16x4x2_t c_i16x4x2, int16x4x2_t b_i16x4x2, float32x4_t *real_f32x4,
+                                              float32x4_t *imag_f32x4) {
+    float32x4_t b_real_f32x4 = vcvt_f32_bf16(vreinterpret_bf16_s16(b_i16x4x2.val[0]));
+    float32x4_t b_imag_f32x4 = vcvt_f32_bf16(vreinterpret_bf16_s16(b_i16x4x2.val[1]));
+    float32x4_t c_real_f32x4 = vcvt_f32_bf16(vreinterpret_bf16_s16(c_i16x4x2.val[0]));
+    float32x4_t c_imag_f32x4 = vcvt_f32_bf16(vreinterpret_bf16_s16(c_i16x4x2.val[1]));
+    *real_f32x4 = vfmaq_f32(*real_f32x4, c_real_f32x4, b_real_f32x4);
+    *real_f32x4 = vfmsq_f32(*real_f32x4, c_imag_f32x4, b_imag_f32x4);
+    *imag_f32x4 = vfmaq_f32(*imag_f32x4, c_real_f32x4, b_imag_f32x4);
+    *imag_f32x4 = vfmaq_f32(*imag_f32x4, c_imag_f32x4, b_real_f32x4);
+}
+
 NUMKONG_API nk_status_t nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
                                                    nk_size_t n, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t const tail_length = n % 8, tail_start = n - tail_length;
+    nk_b128_vec_t b_tail_vec;
+    nk_partial_load_b16x8_neon_(b + tail_start, &b_tail_vec, tail_length);
+    bfloat16x8_t const b_tail_bf16x8 = vreinterpretq_bf16_u16(b_tail_vec.u16x8);
     float32x4_t outer_sum_f32x4 = vdupq_n_f32(0);
-
-    for (nk_size_t i = 0; i != n; ++i) {
-        // Load a[i] and broadcast to f32
-        nk_f32_t a_i_f32;
-        nk_bf16_to_f32_serial_(a + i, &a_i_f32);
-        float32x4_t a_i_f32x4 = vdupq_n_f32(a_i_f32);
-
-        // Inner sum
+    for (nk_size_t row = 0; row != n; ++row) {
+        nk_bf16_t const *c_row = c + row * n;
         float32x4_t inner_sum_f32x4 = vdupq_n_f32(0);
-        nk_size_t j = 0;
-
-        // Process 8 elements at a time using BFDOT
-        for (; j + 8 <= n; j += 8) {
-            bfloat16x8_t b_bf16x8 = vld1q_bf16((nk_bf16_for_arm_simd_t const *)(b + j));
-            bfloat16x8_t c_bf16x8 = vld1q_bf16((nk_bf16_for_arm_simd_t const *)(c + i * n + j));
+        for (nk_size_t column = 0; column != tail_start; column += 8) {
+            bfloat16x8_t b_bf16x8 = vld1q_bf16((nk_bf16_for_arm_simd_t const *)(b + column));
+            bfloat16x8_t c_bf16x8 = vld1q_bf16((nk_bf16_for_arm_simd_t const *)(c_row + column));
             inner_sum_f32x4 = vbfdotq_f32(inner_sum_f32x4, c_bf16x8, b_bf16x8);
         }
-
-        // Handle tail elements (less than 8)
-        if (j < n) {
-            nk_b128_vec_t b_vec, c_vec;
-            nk_partial_load_b16x8_serial_(b + j, &b_vec, n - j);
-            nk_partial_load_b16x8_serial_(c + i * n + j, &c_vec, n - j);
-            bfloat16x8_t b_bf16x8 = vreinterpretq_bf16_u16(b_vec.u16x8);
-            bfloat16x8_t c_bf16x8 = vreinterpretq_bf16_u16(c_vec.u16x8);
-            inner_sum_f32x4 = vbfdotq_f32(inner_sum_f32x4, c_bf16x8, b_bf16x8);
+        if (tail_length) {
+            nk_b128_vec_t c_tail_vec;
+            nk_partial_load_b16x8_neon_(c_row + tail_start, &c_tail_vec, tail_length);
+            inner_sum_f32x4 = vbfdotq_f32(inner_sum_f32x4, vreinterpretq_bf16_u16(c_tail_vec.u16x8), b_tail_bf16x8);
         }
-
-        // Accumulate: outer_sum += a[i] * inner_sum
-        outer_sum_f32x4 = vfmaq_f32(outer_sum_f32x4, a_i_f32x4, inner_sum_f32x4);
+        outer_sum_f32x4 = vfmaq_f32(outer_sum_f32x4, nk_load_bf16_as_f32x4_neonbfdot_(a + row), inner_sum_f32x4);
     }
-
     *result = vaddvq_f32(outer_sum_f32x4);
     return nk_success_k;
 }
@@ -86,51 +110,27 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t
 NUMKONG_API nk_status_t nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
                                                       nk_size_t n, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_f32_t outer_sum = 0;
-
-    for (nk_size_t i = 0; i != n; ++i) {
-        // Compute diff_i = a[i] - b[i] in f32
-        nk_f32_t a_i_f32, b_i_f32;
-        nk_bf16_to_f32_serial_(a + i, &a_i_f32);
-        nk_bf16_to_f32_serial_(b + i, &b_i_f32);
-        nk_f32_t diff_i = a_i_f32 - b_i_f32;
-
-        // Inner sum
+    nk_size_t const tail_length = n % 4, tail_start = n - tail_length;
+    float32x4_t const diff_tail_f32x4 = vsubq_f32(nk_partial_load_bf16x3_neonbfdot_(a + tail_start, tail_length),
+                                                  nk_partial_load_bf16x3_neonbfdot_(b + tail_start, tail_length));
+    float32x4_t outer_sum_f32x4 = vdupq_n_f32(0);
+    for (nk_size_t row = 0; row != n; ++row) {
+        nk_bf16_t const *c_row = c + row * n;
         float32x4_t inner_sum_f32x4 = vdupq_n_f32(0);
-        nk_size_t j = 0;
-
-        // Process 4 elements at a time (convert bf16 → f32, subtract, then FMA)
-        for (; j + 4 <= n; j += 4) {
-            bfloat16x4_t a_j_bf16x4 = vld1_bf16((nk_bf16_for_arm_simd_t const *)(a + j));
-            bfloat16x4_t b_j_bf16x4 = vld1_bf16((nk_bf16_for_arm_simd_t const *)(b + j));
-            bfloat16x4_t c_bf16x4 = vld1_bf16((nk_bf16_for_arm_simd_t const *)(c + i * n + j));
-
-            float32x4_t a_j_f32x4 = vcvt_f32_bf16(a_j_bf16x4);
-            float32x4_t b_j_f32x4 = vcvt_f32_bf16(b_j_bf16x4);
-            float32x4_t c_f32x4 = vcvt_f32_bf16(c_bf16x4);
-
-            float32x4_t diff_j_f32x4 = vsubq_f32(a_j_f32x4, b_j_f32x4);
-            inner_sum_f32x4 = vfmaq_f32(inner_sum_f32x4, c_f32x4, diff_j_f32x4);
+        for (nk_size_t column = 0; column != tail_start; column += 4) {
+            float32x4_t a_f32x4 = nk_bf16x4_to_f32x4_neon_(vld1_u16((nk_u16_t const *)(a + column)));
+            float32x4_t b_f32x4 = nk_bf16x4_to_f32x4_neon_(vld1_u16((nk_u16_t const *)(b + column)));
+            float32x4_t c_f32x4 = nk_bf16x4_to_f32x4_neon_(vld1_u16((nk_u16_t const *)(c_row + column)));
+            inner_sum_f32x4 = vfmaq_f32(inner_sum_f32x4, c_f32x4, vsubq_f32(a_f32x4, b_f32x4));
         }
-
-        // Handle tail elements
-        nk_f32_t inner_sum_tail = 0;
-        for (; j < n; ++j) {
-            nk_f32_t a_j_f32, b_j_f32, c_f32;
-            nk_bf16_to_f32_serial_(a + j, &a_j_f32);
-            nk_bf16_to_f32_serial_(b + j, &b_j_f32);
-            nk_bf16_to_f32_serial_(c + i * n + j, &c_f32);
-            inner_sum_tail += c_f32 * (a_j_f32 - b_j_f32);
-        }
-
-        // Reduce inner sum and add tail
-        nk_f32_t inner_sum = vaddvq_f32(inner_sum_f32x4) + inner_sum_tail;
-
-        // Accumulate: outer_sum += diff_i * inner_sum
-        outer_sum += diff_i * inner_sum;
+        if (tail_length)
+            inner_sum_f32x4 = vfmaq_f32(
+                inner_sum_f32x4, nk_partial_load_bf16x3_neonbfdot_(c_row + tail_start, tail_length), diff_tail_f32x4);
+        float32x4_t diff_row_f32x4 = vsubq_f32(nk_load_bf16_as_f32x4_neonbfdot_(a + row),
+                                               nk_load_bf16_as_f32x4_neonbfdot_(b + row));
+        outer_sum_f32x4 = vfmaq_f32(outer_sum_f32x4, diff_row_f32x4, inner_sum_f32x4);
     }
-
-    nk_f32_t quadratic = outer_sum;
+    nk_f32_t quadratic = vaddvq_f32(outer_sum_f32x4);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(quadratic > 0 ? quadratic : 0)), 0);
     return nk_success_k;
 }
@@ -141,66 +141,29 @@ NUMKONG_API nk_status_t nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, n
     nk_assert_(stream == NUMKONG_NULL);
     // ARMv8.3-A FCMLA was benchmarked for this complex multiply pattern.
     // The deinterleave+4FMA approach is 2.3x faster on Apple M4 — see `dot/neon.h` comment.
-    nk_f32_t outer_sum_real = 0;
-    nk_f32_t outer_sum_imag = 0;
-
-    for (nk_size_t i = 0; i != n; ++i) {
-        // Load a[i] as complex (real, imag) and convert to f32
-        nk_f32_t a_real, a_imag;
-        nk_bf16_to_f32_serial_(&a_pairs[i].real, &a_real);
-        nk_bf16_to_f32_serial_(&a_pairs[i].imag, &a_imag);
-
-        // Inner sums for real and imaginary parts of c[i,j] * b[j]
-        float32x4_t inner_sum_real_f32x4 = vdupq_n_f32(0);
-        float32x4_t inner_sum_imag_f32x4 = vdupq_n_f32(0);
-        nk_size_t j = 0;
-
-        // Process 4 complex pairs at a time
-        for (; j + 4 <= n; j += 4) {
-            // Deinterleave load: separate real and imaginary parts
-            // MSVC doesn't support vld2_bf16, so load as s16 and reinterpret
-            int16x4x2_t b_i16x4x2 = vld2_s16((short const *)(b_pairs + j));
-            int16x4x2_t c_i16x4x2 = vld2_s16((short const *)(c_pairs + i * n + j));
-
-            float32x4_t b_real_f32x4 = vcvt_f32_bf16(vreinterpret_bf16_s16(b_i16x4x2.val[0]));
-            float32x4_t b_imag_f32x4 = vcvt_f32_bf16(vreinterpret_bf16_s16(b_i16x4x2.val[1]));
-            float32x4_t c_real_f32x4 = vcvt_f32_bf16(vreinterpret_bf16_s16(c_i16x4x2.val[0]));
-            float32x4_t c_imag_f32x4 = vcvt_f32_bf16(vreinterpret_bf16_s16(c_i16x4x2.val[1]));
-
-            // Complex multiply: c * b = (c_real*b_real - c_imag*b_imag) + (c_real*b_imag + c_imag*b_real)*i
-            // Real part: c_real*b_real - c_imag*b_imag
-            inner_sum_real_f32x4 = vfmaq_f32(inner_sum_real_f32x4, c_real_f32x4, b_real_f32x4);
-            inner_sum_real_f32x4 = vfmsq_f32(inner_sum_real_f32x4, c_imag_f32x4, b_imag_f32x4);
-            // Imaginary part: c_real*b_imag + c_imag*b_real
-            inner_sum_imag_f32x4 = vfmaq_f32(inner_sum_imag_f32x4, c_real_f32x4, b_imag_f32x4);
-            inner_sum_imag_f32x4 = vfmaq_f32(inner_sum_imag_f32x4, c_imag_f32x4, b_real_f32x4);
-        }
-
-        // Handle tail elements
-        nk_f32_t inner_sum_real_tail = 0, inner_sum_imag_tail = 0;
-        for (; j < n; ++j) {
-            nk_f32_t b_real, b_imag, c_real, c_imag;
-            nk_bf16_to_f32_serial_(&b_pairs[j].real, &b_real);
-            nk_bf16_to_f32_serial_(&b_pairs[j].imag, &b_imag);
-            nk_bf16_to_f32_serial_(&c_pairs[i * n + j].real, &c_real);
-            nk_bf16_to_f32_serial_(&c_pairs[i * n + j].imag, &c_imag);
-            // Complex multiply: c * b
-            inner_sum_real_tail += c_real * b_real - c_imag * b_imag;
-            inner_sum_imag_tail += c_real * b_imag + c_imag * b_real;
-        }
-
-        // Reduce inner sums
-        nk_f32_t inner_sum_real = vaddvq_f32(inner_sum_real_f32x4) + inner_sum_real_tail;
-        nk_f32_t inner_sum_imag = vaddvq_f32(inner_sum_imag_f32x4) + inner_sum_imag_tail;
-
-        // Complex multiply: a * inner_sum = (a_real*inner_real - a_imag*inner_imag) + (a_real*inner_imag +
-        // a_imag*inner_real)*i
-        outer_sum_real += a_real * inner_sum_real - a_imag * inner_sum_imag;
-        outer_sum_imag += a_real * inner_sum_imag + a_imag * inner_sum_real;
+    nk_size_t const tail_length = n % 4, tail_start = n - tail_length;
+    int16x4x2_t const b_tail_i16x4x2 = nk_partial_load_bf16c_neonbfdot_(b_pairs + tail_start, tail_length);
+    float32x4_t outer_real_f32x4 = vdupq_n_f32(0), outer_imag_f32x4 = vdupq_n_f32(0);
+    for (nk_size_t row = 0; row != n; ++row) {
+        nk_bf16c_t const *c_row = c_pairs + row * n;
+        float32x4_t a_real_f32x4 = nk_load_bf16_as_f32x4_neonbfdot_(&a_pairs[row].real);
+        float32x4_t a_imag_f32x4 = nk_load_bf16_as_f32x4_neonbfdot_(&a_pairs[row].imag);
+        float32x4_t inner_real_f32x4 = vdupq_n_f32(0), inner_imag_f32x4 = vdupq_n_f32(0);
+        // MSVC doesn't support vld2_bf16, so load as s16 and reinterpret
+        for (nk_size_t column = 0; column != tail_start; column += 4)
+            nk_fma_bf16cx4_neonbfdot_(vld2_s16((short const *)(c_row + column)),
+                                      vld2_s16((short const *)(b_pairs + column)), &inner_real_f32x4,
+                                      &inner_imag_f32x4);
+        if (tail_length)
+            nk_fma_bf16cx4_neonbfdot_(nk_partial_load_bf16c_neonbfdot_(c_row + tail_start, tail_length), b_tail_i16x4x2,
+                                      &inner_real_f32x4, &inner_imag_f32x4);
+        outer_real_f32x4 = vfmaq_f32(outer_real_f32x4, a_real_f32x4, inner_real_f32x4);
+        outer_real_f32x4 = vfmsq_f32(outer_real_f32x4, a_imag_f32x4, inner_imag_f32x4);
+        outer_imag_f32x4 = vfmaq_f32(outer_imag_f32x4, a_real_f32x4, inner_imag_f32x4);
+        outer_imag_f32x4 = vfmaq_f32(outer_imag_f32x4, a_imag_f32x4, inner_real_f32x4);
     }
-
-    result->real = outer_sum_real;
-    result->imag = outer_sum_imag;
+    result->real = vaddvq_f32(outer_real_f32x4);
+    result->imag = vaddvq_f32(outer_imag_f32x4);
     return nk_success_k;
 }
 

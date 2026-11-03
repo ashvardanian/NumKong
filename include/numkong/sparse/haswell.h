@@ -20,10 +20,10 @@ extern "C" {
 #endif
 
 #if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2"))), apply_to = function)
+#pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2,popcnt"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
-#pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
+#pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "popcnt")
 #endif
 
 NUMKONG_INLINE nk_size_t nk_sparse_lower_bound_gallop_u32_haswell_(nk_u32_t const *indices, nk_size_t length,
@@ -83,7 +83,149 @@ NUMKONG_INLINE nk_f64_t nk_sparse_reduce_f64x4x2_haswell_(__m256d accumulator_lo
     return _mm_cvtsd_f64(sum_f64x1);
 }
 
+/** Compares every lane of @p a to all 8 lanes of @p b, which rotate through <tt>VPALIGNR</tt>. */
+NUMKONG_INLINE __m128i nk_intersect_u16x8_haswell_(__m128i a, __m128i b) {
+    __m128i matches_b16x8 = _mm_cmpeq_epi16(a, b);
+    matches_b16x8 = _mm_or_si128(matches_b16x8, _mm_cmpeq_epi16(a, _mm_alignr_epi8(b, b, 2)));
+    matches_b16x8 = _mm_or_si128(matches_b16x8, _mm_cmpeq_epi16(a, _mm_alignr_epi8(b, b, 4)));
+    matches_b16x8 = _mm_or_si128(matches_b16x8, _mm_cmpeq_epi16(a, _mm_alignr_epi8(b, b, 6)));
+    matches_b16x8 = _mm_or_si128(matches_b16x8, _mm_cmpeq_epi16(a, _mm_alignr_epi8(b, b, 8)));
+    matches_b16x8 = _mm_or_si128(matches_b16x8, _mm_cmpeq_epi16(a, _mm_alignr_epi8(b, b, 10)));
+    matches_b16x8 = _mm_or_si128(matches_b16x8, _mm_cmpeq_epi16(a, _mm_alignr_epi8(b, b, 12)));
+    return _mm_or_si128(matches_b16x8, _mm_cmpeq_epi16(a, _mm_alignr_epi8(b, b, 14)));
+}
+
+/** Compares every lane of @p a to all 8 lanes of @p b, rotating inside each half, then across. */
+NUMKONG_INLINE __m256i nk_intersect_u32x8_haswell_(__m256i a, __m256i b) {
+    __m256i b_swapped_u32x8 = _mm256_permute2x128_si256(b, b, 1);
+    __m256i matches_b32x8 = _mm256_cmpeq_epi32(a, b);
+    matches_b32x8 = _mm256_or_si256(matches_b32x8, _mm256_cmpeq_epi32(a, _mm256_shuffle_epi32(b, 0x39)));
+    matches_b32x8 = _mm256_or_si256(matches_b32x8, _mm256_cmpeq_epi32(a, _mm256_shuffle_epi32(b, 0x4E)));
+    matches_b32x8 = _mm256_or_si256(matches_b32x8, _mm256_cmpeq_epi32(a, _mm256_shuffle_epi32(b, 0x93)));
+    matches_b32x8 = _mm256_or_si256(matches_b32x8, _mm256_cmpeq_epi32(a, b_swapped_u32x8));
+    matches_b32x8 = _mm256_or_si256(matches_b32x8, _mm256_cmpeq_epi32(a, _mm256_shuffle_epi32(b_swapped_u32x8, 0x39)));
+    matches_b32x8 = _mm256_or_si256(matches_b32x8, _mm256_cmpeq_epi32(a, _mm256_shuffle_epi32(b_swapped_u32x8, 0x4E)));
+    return _mm256_or_si256(matches_b32x8, _mm256_cmpeq_epi32(a, _mm256_shuffle_epi32(b_swapped_u32x8, 0x93)));
+}
+
+/** Compares every lane of @p a to all 4 lanes of @p b, swapping inside each half, then across. */
+NUMKONG_INLINE __m256i nk_intersect_u64x4_haswell_(__m256i a, __m256i b) {
+    __m256i b_swapped_u64x4 = _mm256_permute2x128_si256(b, b, 1);
+    __m256i matches_b64x4 = _mm256_or_si256(_mm256_cmpeq_epi64(a, b),
+                                            _mm256_cmpeq_epi64(a, _mm256_shuffle_epi32(b, 0x4E)));
+    matches_b64x4 = _mm256_or_si256(matches_b64x4, _mm256_cmpeq_epi64(a, b_swapped_u64x4));
+    return _mm256_or_si256(matches_b64x4, _mm256_cmpeq_epi64(a, _mm256_shuffle_epi32(b_swapped_u64x4, 0x4E)));
+}
+
 #if NUMKONG_TARGET_HASWELL
+
+NUMKONG_API nk_status_t nk_sparse_intersect_u16_haswell(nk_u16_t const *a, nk_u16_t const *b, nk_size_t a_length,
+                                                        nk_size_t b_length, nk_u16_t *result, nk_size_t *count,
+                                                        nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // Galloping through the longer array beats any block walk
+    if (a_length / 64 >= b_length || b_length / 64 >= a_length) {
+        nk_sparse_intersect_u16_serial_(a, b, a_length, b_length, result, count);
+        return nk_success_k;
+    }
+    nk_u16_t const *const a_end = a + a_length;
+    nk_u16_t const *const b_end = b + b_length;
+    nk_size_t matches = 0;
+    while (a + 8 <= a_end && b + 8 <= b_end) {
+        __m128i a_u16x8 = _mm_loadu_si128((__m128i const *)a);
+        __m128i b_u16x8 = _mm_loadu_si128((__m128i const *)b);
+        __m128i a_max_u16x8 = _mm_set1_epi16((short)a[7]), b_max_u16x8 = _mm_set1_epi16((short)b[7]);
+        __m128i matches_i8x16 = _mm_packs_epi16(nk_intersect_u16x8_haswell_(a_u16x8, b_u16x8), _mm_setzero_si128());
+        unsigned lane_bits = (unsigned)_mm_movemask_epi8(matches_i8x16);
+        // The loop ends on the last match, so it only touches slots the matches fill
+        if (result) {
+            for (nk_size_t lane = 0; lane_bits; ++lane, lane_bits >>= 1)
+                result[matches] = a[lane], matches += lane_bits & 1;
+        }
+        else matches += (nk_size_t)_mm_popcnt_u32(lane_bits);
+        __m128i a_inrange_b16x8 = _mm_cmpeq_epi16(_mm_min_epu16(a_u16x8, b_max_u16x8), a_u16x8);
+        __m128i b_inrange_b16x8 = _mm_cmpeq_epi16(_mm_min_epu16(b_u16x8, a_max_u16x8), b_u16x8);
+        unsigned inrange_bits = (unsigned)_mm_movemask_epi8(_mm_packs_epi16(a_inrange_b16x8, b_inrange_b16x8));
+        a += _tzcnt_u32((~inrange_bits & 0xFF) | 0x100), b += _tzcnt_u32(((~inrange_bits >> 8) & 0xFF) | 0x100);
+    }
+    nk_size_t tail_count = 0;
+    nk_sparse_intersect_u16_serial_(a, b, a_end - a, b_end - b, result ? result + matches : 0, &tail_count);
+    *count = matches + tail_count;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sparse_intersect_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t a_length,
+                                                        nk_size_t b_length, nk_u32_t *result, nk_size_t *count,
+                                                        nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // Galloping through the longer array beats any block walk
+    if (a_length / 64 >= b_length || b_length / 64 >= a_length) {
+        nk_sparse_intersect_u32_serial_(a, b, a_length, b_length, result, count);
+        return nk_success_k;
+    }
+    nk_u32_t const *const a_end = a + a_length;
+    nk_u32_t const *const b_end = b + b_length;
+    nk_size_t matches = 0;
+    while (a + 8 <= a_end && b + 8 <= b_end) {
+        __m256i a_u32x8 = _mm256_loadu_si256((__m256i const *)a);
+        __m256i b_u32x8 = _mm256_loadu_si256((__m256i const *)b);
+        __m256i a_max_u32x8 = _mm256_set1_epi32((int)a[7]), b_max_u32x8 = _mm256_set1_epi32((int)b[7]);
+        __m256i matches_b32x8 = nk_intersect_u32x8_haswell_(a_u32x8, b_u32x8);
+        unsigned lane_bits = (unsigned)_mm256_movemask_ps(_mm256_castsi256_ps(matches_b32x8));
+        // The loop ends on the last match, so it only touches slots the matches fill
+        if (result) {
+            for (nk_size_t lane = 0; lane_bits; ++lane, lane_bits >>= 1)
+                result[matches] = a[lane], matches += lane_bits & 1;
+        }
+        else matches += (nk_size_t)_mm_popcnt_u32(lane_bits);
+        __m256i a_inrange_b32x8 = _mm256_cmpeq_epi32(_mm256_min_epu32(a_u32x8, b_max_u32x8), a_u32x8);
+        __m256i b_inrange_b32x8 = _mm256_cmpeq_epi32(_mm256_min_epu32(b_u32x8, a_max_u32x8), b_u32x8);
+        a += _tzcnt_u32(~(unsigned)_mm256_movemask_ps(_mm256_castsi256_ps(a_inrange_b32x8)));
+        b += _tzcnt_u32(~(unsigned)_mm256_movemask_ps(_mm256_castsi256_ps(b_inrange_b32x8)));
+    }
+    nk_size_t tail_count = 0;
+    nk_sparse_intersect_u32_serial_(a, b, a_end - a, b_end - b, result ? result + matches : 0, &tail_count);
+    *count = matches + tail_count;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sparse_intersect_u64_haswell(nk_u64_t const *a, nk_u64_t const *b, nk_size_t a_length,
+                                                        nk_size_t b_length, nk_u64_t *result, nk_size_t *count,
+                                                        nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // Galloping through the longer array beats any block walk
+    if (a_length / 64 >= b_length || b_length / 64 >= a_length) {
+        nk_sparse_intersect_u64_serial_(a, b, a_length, b_length, result, count);
+        return nk_success_k;
+    }
+    nk_u64_t const *const a_end = a + a_length;
+    nk_u64_t const *const b_end = b + b_length;
+    nk_size_t matches = 0;
+    __m256i const sign_bit_u64x4 = _mm256_set1_epi64x((long long)0x8000000000000000ull);
+    while (a + 4 <= a_end && b + 4 <= b_end) {
+        __m256i a_u64x4 = _mm256_loadu_si256((__m256i const *)a);
+        __m256i b_u64x4 = _mm256_loadu_si256((__m256i const *)b);
+        __m256i a_max_i64x4 = _mm256_set1_epi64x((long long)(a[3] ^ 0x8000000000000000ull));
+        __m256i b_max_i64x4 = _mm256_set1_epi64x((long long)(b[3] ^ 0x8000000000000000ull));
+        __m256i matches_b64x4 = nk_intersect_u64x4_haswell_(a_u64x4, b_u64x4);
+        unsigned lane_bits = (unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(matches_b64x4));
+        // The loop ends on the last match, so it only touches slots the matches fill
+        if (result) {
+            for (nk_size_t lane = 0; lane_bits; ++lane, lane_bits >>= 1)
+                result[matches] = a[lane], matches += lane_bits & 1;
+        }
+        else matches += (nk_size_t)_mm_popcnt_u32(lane_bits);
+        // AVX2 compares 64-bit lanes only as signed, and sorted lanes stay past the other maximum
+        __m256i a_beyond_b64x4 = _mm256_cmpgt_epi64(_mm256_xor_si256(a_u64x4, sign_bit_u64x4), b_max_i64x4);
+        __m256i b_beyond_b64x4 = _mm256_cmpgt_epi64(_mm256_xor_si256(b_u64x4, sign_bit_u64x4), a_max_i64x4);
+        a += _tzcnt_u32((unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(a_beyond_b64x4)) | 0x10);
+        b += _tzcnt_u32((unsigned)_mm256_movemask_pd(_mm256_castsi256_pd(b_beyond_b64x4)) | 0x10);
+    }
+    nk_size_t tail_count = 0;
+    nk_sparse_intersect_u64_serial_(a, b, a_end - a, b_end - b, result ? result + matches : 0, &tail_count);
+    *count = matches + tail_count;
+    return nk_success_k;
+}
 
 NUMKONG_API nk_status_t nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
                                                      nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,

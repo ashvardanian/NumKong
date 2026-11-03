@@ -249,7 +249,12 @@ void test_each(error_stats_section_t &check) {
     check("each_scale_i8_haswell", test_scale<i8_t>, nk_each_scale_i8_haswell);
     check("each_scale_u16_haswell", test_scale<u16_t>, nk_each_scale_u16_haswell);
     check("each_scale_u8_haswell", test_scale<u8_t>, nk_each_scale_u8_haswell);
+    check("each_swiglu_f32_haswell", test_swiglu<f32_t>, nk_each_swiglu_f32_haswell);
+    check("each_swiglu_f16_haswell", test_swiglu<f16_t>, nk_each_swiglu_f16_haswell);
+    check("each_swiglu_bf16_haswell", test_swiglu<bf16_t>, nk_each_swiglu_bf16_haswell);
+    check("each_swiglu_e4m3_haswell", test_swiglu<e4m3_t>, nk_each_swiglu_e4m3_haswell);
     check("each_rmsnorm_f32_haswell", test_rmsnorm<f32_t>, nk_each_rmsnorm_f32_haswell);
+    check("each_rmsnorm_f16_haswell", test_rmsnorm<f16_t>, nk_each_rmsnorm_f16_haswell);
     check("each_rmsnorm_bf16_haswell", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_haswell);
     check("each_rmsnorm_e4m3_haswell", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_haswell);
     check("each_rmscast_bf16_haswell", test_rmsnorm<bf16_t, host_backend_t, f32_t>, nk_each_rmscast_bf16_haswell);
@@ -290,7 +295,12 @@ void test_each(error_stats_section_t &check) {
     check("each_scale_u8_skylake", test_scale<u8_t>, nk_each_scale_u8_skylake);
     check("each_blend_u8_skylake", test_blend<u8_t>, nk_each_blend_u8_skylake);
     check("each_fma_u8_skylake", test_fma<u8_t>, nk_each_fma_u8_skylake);
+    check("each_swiglu_f32_skylake", test_swiglu<f32_t>, nk_each_swiglu_f32_skylake);
+    check("each_swiglu_f16_skylake", test_swiglu<f16_t>, nk_each_swiglu_f16_skylake);
+    check("each_swiglu_bf16_skylake", test_swiglu<bf16_t>, nk_each_swiglu_bf16_skylake);
+    check("each_swiglu_e4m3_skylake", test_swiglu<e4m3_t>, nk_each_swiglu_e4m3_skylake);
     check("each_rmsnorm_f32_skylake", test_rmsnorm<f32_t>, nk_each_rmsnorm_f32_skylake);
+    check("each_rmsnorm_f16_skylake", test_rmsnorm<f16_t>, nk_each_rmsnorm_f16_skylake);
     check("each_rmsnorm_bf16_skylake", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_skylake);
     check("each_rmsnorm_e4m3_skylake", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_skylake);
     check("each_rmscast_bf16_skylake", test_rmsnorm<bf16_t, host_backend_t, f32_t>, nk_each_rmscast_bf16_skylake);
