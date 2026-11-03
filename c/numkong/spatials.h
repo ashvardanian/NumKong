@@ -4370,6 +4370,78 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_icelake(nk_i4x2_t const *vect
                                                            nk_size_t result_stride, nk_size_t rows_begin,
                                                            nk_size_t rows_end, void *workspace,
                                                            nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_e2m3_icelake(nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_angulars_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_e2m3_icelake(nk_size_t vector_count, nk_size_t depth,
+                                                                          nk_size_t rows_begin, nk_size_t rows_end,
+                                                                          nk_size_t *bytes);
+/** @copydoc nk_euclideans_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_e2m3_icelake(nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_euclideans_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_e2m3_icelake(nk_size_t vector_count, nk_size_t depth,
+                                                                            nk_size_t rows_begin, nk_size_t rows_end,
+                                                                            nk_size_t *bytes);
+/** @copydoc nk_angulars_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_e2m1_icelake(nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_angulars_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_e2m1_icelake(nk_size_t vector_count, nk_size_t depth,
+                                                                          nk_size_t rows_begin, nk_size_t rows_end,
+                                                                          nk_size_t *bytes);
+/** @copydoc nk_euclideans_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_e2m1_icelake(nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_euclideans_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_e2m1_icelake(nk_size_t vector_count, nk_size_t depth,
+                                                                            nk_size_t rows_begin, nk_size_t rows_end,
+                                                                            nk_size_t *bytes);
+/** @copydoc nk_angulars_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_icelake(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                        nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_icelake(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                        nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_icelake(nk_e2m3_t const *vectors, nk_size_t vector_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t rows_begin,
+                                                           nk_size_t rows_end, void *workspace,
+                                                           nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_icelake(nk_e2m1x2_t const *vectors, nk_size_t vector_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t rows_begin,
+                                                           nk_size_t rows_end, void *workspace,
+                                                           nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_packed_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_icelake(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                          nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_packed_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_icelake(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                          nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_symmetric_e2m3_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_icelake(nk_e2m3_t const *vectors, nk_size_t vector_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t rows_begin,
+                                                             nk_size_t rows_end, void *workspace,
+                                                             nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_symmetric_e2m1_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_icelake(nk_e2m1x2_t const *vectors, nk_size_t vector_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t rows_begin,
+                                                             nk_size_t rows_end, void *workspace,
+                                                             nk_size_t workspace_bytes, nk_stream_t stream);
 
 /** @copydoc nk_angulars_packed_u4_best */
 NUMKONG_API nk_status_t nk_angulars_packed_u4_icelake(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *result,

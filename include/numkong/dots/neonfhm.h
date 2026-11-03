@@ -18,6 +18,7 @@
 #include "numkong/dots/serial.h"
 #include "numkong/dots/neon.h" // `nk_pack_mxfp8_scales_neon_`, `nk_cross_scaled_exact_wide_mxfp8e4m3_neon_`
 #include "numkong/dot/neonfhm.h"
+#include "numkong/reduce/neonfhm.h" // `nk_reduce_moments_chunked_e4m3_neonfhm_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -30,13 +31,29 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+simd+fp16+fp16fml")
 #endif
 
+#pragma region Norms
+
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_neonfhm_(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_reduce_moments_chunked_e4m3_neonfhm_(data, count, stride, &sum, &sumsq);
+    return sumsq;
+}
+
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_neonfhm_(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_reduce_moments_chunked_e5m2_neonfhm_(data, count, stride, &sum, &sumsq);
+    return sumsq;
+}
+
+#pragma endregion Norms
+
 /* F16 GEMM using FMLAL: depth_simd_dimensions=8 (8 f16s = 16 bytes = NEON register width) */
 nk_define_cross_pack_size_(dots, f16, neonfhm, f16, f16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/8,
                            /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, f16, neonfhm)
 nk_define_cross_pack_(dots, f16, neonfhm, f16, f16, nk_b128_vec_t, nk_load_b128_neon_, nk_partial_load_b16x8_serial_,
                       nk_store_b128_neon_, nk_partial_store_b16x8_serial_,
-                      /*simd_width=*/8, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_f16_serial_,
+                      /*simd_width=*/8, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_f16_neon_,
                       /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f16, neonfhm, f16, f32, nk_b128_vec_t, nk_dot_f16x8_state_neonfhm_t, nk_b128_vec_t,
@@ -56,7 +73,7 @@ nk_define_cross_pack_size_(dots, e4m3, neonfhm, e4m3, e4m3, /*norm_value_type=*/
 nk_define_cross_packed_shape_(dots, e4m3, neonfhm)
 nk_define_cross_pack_(dots, e4m3, neonfhm, e4m3, e4m3, nk_b128_vec_t, nk_load_b128_neon_, nk_partial_load_b8x16_serial_,
                       nk_store_b128_neon_, nk_partial_store_b8x16_serial_,
-                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_neonfhm_,
                       /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e4m3, neonfhm, e4m3, f32, nk_b128_vec_t, nk_dot_e4m3x16_state_neonfhm_t, nk_b128_vec_t,
@@ -76,7 +93,7 @@ nk_define_cross_pack_size_(dots, e5m2, neonfhm, e5m2, e5m2, /*norm_value_type=*/
 nk_define_cross_packed_shape_(dots, e5m2, neonfhm)
 nk_define_cross_pack_(dots, e5m2, neonfhm, e5m2, e5m2, nk_b128_vec_t, nk_load_b128_neon_, nk_partial_load_b8x16_serial_,
                       nk_store_b128_neon_, nk_partial_store_b8x16_serial_,
-                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_neonfhm_,
                       /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e5m2, neonfhm, e5m2, f32, nk_b128_vec_t, nk_dot_e5m2x16_state_neonfhm_t, nk_b128_vec_t,
@@ -96,7 +113,7 @@ nk_define_cross_pack_size_(dots, mxfp8e4m3, neonfhm, e4m3, f16, /*norm_value_typ
 nk_define_cross_packed_shape_(dots, mxfp8e4m3, neonfhm)
 nk_define_cross_pack_(dots, mxfp8e4m3, neonfhm, e4m3, f16, nk_b256_vec_t, nk_load_e4m3x16_to_f16x16_neon_,
                       nk_partial_load_e4m3x16_to_f16x16_neon_, nk_store_b256_neon_, nk_partial_store_b16x16_serial_,
-                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_neonfhm_,
                       /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_pack_mxfp8_scales_neon_,
                       /*scale_bytes=*/5)
 nk_define_cross_scaled_packed_(dots, mxfp8e4m3, neonfhm, f16, nk_dot_scaled_f16x32_operand_neon_t,
@@ -115,7 +132,7 @@ nk_define_cross_pack_size_(dots, mxfp8e5m2, neonfhm, e5m2, f16, /*norm_value_typ
 nk_define_cross_packed_shape_(dots, mxfp8e5m2, neonfhm)
 nk_define_cross_pack_(dots, mxfp8e5m2, neonfhm, e5m2, f16, nk_b256_vec_t, nk_load_e5m2x16_to_f16x16_neon_,
                       nk_partial_load_e5m2x16_to_f16x16_neon_, nk_store_b256_neon_, nk_partial_store_b16x16_serial_,
-                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_neonfhm_,
                       /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_pack_mxfp8_scales_neon_,
                       /*scale_bytes=*/5)
 nk_define_cross_scaled_packed_(dots, mxfp8e5m2, neonfhm, f16, nk_dot_scaled_f16x32_operand_neon_t,

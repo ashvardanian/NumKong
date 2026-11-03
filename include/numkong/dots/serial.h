@@ -676,8 +676,7 @@ NUMKONG_INLINE void nk_dots_reduce_moments_i4_serial_(nk_i4x2_t const *data, nk_
     *norm = (nk_u32_t)sq;
 }
 
-/*  A-row sum helpers for compensated GEMM finalization. i8/u8: no A-side correction needed, stubs
- *  return 0. i4: needs A-side sum for correction term. */
+/*  A-row sum stubs for compensated GEMM finalization: only B carries a correction. */
 NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_stub_i8_serial_(nk_i8_t const *d, nk_size_t c) {
     nk_unused_(d);
     nk_unused_(c);
@@ -688,11 +687,10 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_stub_u8_serial_(nk_u8_t const *d, nk_
     nk_unused_(c);
     return 0;
 }
-NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_serial_(nk_i4x2_t const *data, nk_size_t count) {
-    nk_i64_t sum;
-    nk_u64_t sumsq;
-    nk_reduce_moments_strided_i4_serial_(data, count, sizeof(nk_i4x2_t), &sum, &sumsq);
-    return (nk_i32_t)sum;
+NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_stub_i4_serial_(nk_i4x2_t const *d, nk_size_t c) {
+    nk_unused_(d);
+    nk_unused_(c);
+    return 0;
 }
 
 /**

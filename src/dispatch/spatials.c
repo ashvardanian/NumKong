@@ -3211,6 +3211,9 @@ static nk_capability_kernels_t const *nk_angulars_packed_e2m3_capabilities(void)
 #if NUMKONG_TARGET_SKYLAKE
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_angulars_packed_e2m3_skylake,
 #endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_angulars_packed_e2m3_icelake,
+#endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1) ? NUMKONG_NULL
                                                   : (nk_kernel_punned_t)&nk_angulars_packed_e2m3_sapphireamx,
@@ -3365,6 +3368,9 @@ static nk_capability_kernels_t const *nk_angulars_packed_e2m1_capabilities(void)
 #endif
 #if NUMKONG_TARGET_SKYLAKE
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_angulars_packed_e2m1_skylake,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_angulars_packed_e2m1_icelake,
 #endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1) ? NUMKONG_NULL
@@ -4014,6 +4020,9 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_e2m3_capabilities(vo
 #if NUMKONG_TARGET_SKYLAKE
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_angulars_symmetric_e2m3_skylake,
 #endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_angulars_symmetric_e2m3_icelake,
+#endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1) ? NUMKONG_NULL
                                                   : (nk_kernel_punned_t)&nk_angulars_symmetric_e2m3_sapphireamx,
@@ -4171,6 +4180,9 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_e2m1_capabilities(vo
 #endif
 #if NUMKONG_TARGET_SKYLAKE
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_angulars_symmetric_e2m1_skylake,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_angulars_symmetric_e2m1_icelake,
 #endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1) ? NUMKONG_NULL
@@ -4847,6 +4859,9 @@ static nk_capability_kernels_t const *nk_euclideans_packed_e2m3_capabilities(voi
 #if NUMKONG_TARGET_SKYLAKE
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_euclideans_packed_e2m3_skylake,
 #endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_euclideans_packed_e2m3_icelake,
+#endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1) ? NUMKONG_NULL
                                                   : (nk_kernel_punned_t)&nk_euclideans_packed_e2m3_sapphireamx,
@@ -5001,6 +5016,9 @@ static nk_capability_kernels_t const *nk_euclideans_packed_e2m1_capabilities(voi
 #endif
 #if NUMKONG_TARGET_SKYLAKE
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_euclideans_packed_e2m1_skylake,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_euclideans_packed_e2m1_icelake,
 #endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1) ? NUMKONG_NULL
@@ -5665,6 +5683,10 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_e2m3_capabilities(
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL
                                               : (nk_kernel_punned_t)&nk_euclideans_symmetric_e2m3_skylake,
 #endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL
+                                              : (nk_kernel_punned_t)&nk_euclideans_symmetric_e2m3_icelake,
+#endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1) ? NUMKONG_NULL
                                                   : (nk_kernel_punned_t)&nk_euclideans_symmetric_e2m3_sapphireamx,
@@ -5826,6 +5848,10 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_e2m1_capabilities(
 #if NUMKONG_TARGET_SKYLAKE
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL
                                               : (nk_kernel_punned_t)&nk_euclideans_symmetric_e2m1_skylake,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL
+                                              : (nk_kernel_punned_t)&nk_euclideans_symmetric_e2m1_icelake,
 #endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1) ? NUMKONG_NULL
@@ -12784,6 +12810,10 @@ static nk_capability_kernels_t const *nk_angulars_packed_workspace_size_e2m3_cap
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL
                                               : (nk_kernel_punned_t)&nk_angulars_packed_workspace_size_e2m3_skylake,
 #endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL
+                                              : (nk_kernel_punned_t)&nk_angulars_packed_workspace_size_e2m3_icelake,
+#endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1)
             ? NUMKONG_NULL
@@ -12958,6 +12988,10 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_workspace_size_e2m3_
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL
                                               : (nk_kernel_punned_t)&nk_angulars_symmetric_workspace_size_e2m3_skylake,
 #endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL
+                                              : (nk_kernel_punned_t)&nk_angulars_symmetric_workspace_size_e2m3_icelake,
+#endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1)
             ? NUMKONG_NULL
@@ -13131,6 +13165,10 @@ static nk_capability_kernels_t const *nk_euclideans_packed_workspace_size_e2m3_c
 #if NUMKONG_TARGET_SKYLAKE
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL
                                               : (nk_kernel_punned_t)&nk_euclideans_packed_workspace_size_e2m3_skylake,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL
+                                              : (nk_kernel_punned_t)&nk_euclideans_packed_workspace_size_e2m3_icelake,
 #endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1)
@@ -13310,6 +13348,11 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_workspace_size_e2m
             ? NUMKONG_NULL
             : (nk_kernel_punned_t)&nk_euclideans_symmetric_workspace_size_e2m3_skylake,
 #endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1)
+            ? NUMKONG_NULL
+            : (nk_kernel_punned_t)&nk_euclideans_symmetric_workspace_size_e2m3_icelake,
+#endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1)
             ? NUMKONG_NULL
@@ -13485,6 +13528,10 @@ static nk_capability_kernels_t const *nk_angulars_packed_workspace_size_e2m1_cap
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL
                                               : (nk_kernel_punned_t)&nk_angulars_packed_workspace_size_e2m1_skylake,
 #endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL
+                                              : (nk_kernel_punned_t)&nk_angulars_packed_workspace_size_e2m1_icelake,
+#endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1)
             ? NUMKONG_NULL
@@ -13659,6 +13706,10 @@ static nk_capability_kernels_t const *nk_angulars_symmetric_workspace_size_e2m1_
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL
                                               : (nk_kernel_punned_t)&nk_angulars_symmetric_workspace_size_e2m1_skylake,
 #endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL
+                                              : (nk_kernel_punned_t)&nk_angulars_symmetric_workspace_size_e2m1_icelake,
+#endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1)
             ? NUMKONG_NULL
@@ -13832,6 +13883,10 @@ static nk_capability_kernels_t const *nk_euclideans_packed_workspace_size_e2m1_c
 #if NUMKONG_TARGET_SKYLAKE
         above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL
                                               : (nk_kernel_punned_t)&nk_euclideans_packed_workspace_size_e2m1_skylake,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1) ? NUMKONG_NULL
+                                              : (nk_kernel_punned_t)&nk_euclideans_packed_workspace_size_e2m1_icelake,
 #endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1)
@@ -14010,6 +14065,11 @@ static nk_capability_kernels_t const *nk_euclideans_symmetric_workspace_size_e2m
         above_k & ~(nk_cap_skylake_k * 2 - 1)
             ? NUMKONG_NULL
             : (nk_kernel_punned_t)&nk_euclideans_symmetric_workspace_size_e2m1_skylake,
+#endif
+#if NUMKONG_TARGET_ICELAKE
+        above_k & ~(nk_cap_icelake_k * 2 - 1)
+            ? NUMKONG_NULL
+            : (nk_kernel_punned_t)&nk_euclideans_symmetric_workspace_size_e2m1_icelake,
 #endif
 #if NUMKONG_TARGET_SAPPHIREAMX
         above_k & ~(nk_cap_sapphireamx_k * 2 - 1)

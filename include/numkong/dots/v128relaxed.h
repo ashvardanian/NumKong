@@ -19,6 +19,7 @@
 #include "numkong/dot/v128relaxed.h"
 #include "numkong/dots/v128.h" // `nk_dots_reduce_sumsq_i8_v128_`
 #include "numkong/dots/serial.h"
+#include "numkong/reduce/v128relaxed.h" // `nk_reduce_moments_contiguous_f32_v128relaxed_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -27,6 +28,71 @@ extern "C" {
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
+
+#pragma region Norms
+
+NUMKONG_INLINE nk_f64_t nk_dots_reduce_sumsq_f64_v128relaxed_(nk_f64_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f64_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_contiguous_f64_v128_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+
+NUMKONG_INLINE nk_f64_t nk_dots_reduce_sumsq_f32_v128relaxed_(nk_f32_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f64_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_contiguous_f32_v128relaxed_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_f16_v128relaxed_(nk_f16_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_contiguous_f16_v128relaxed_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_v128relaxed_(nk_bf16_t const *data, nk_size_t count,
+                                                               nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_contiguous_bf16_v128_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_v128relaxed_(nk_e4m3_t const *data, nk_size_t count,
+                                                               nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_contiguous_e4m3_v128relaxed_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_v128relaxed_(nk_e5m2_t const *data, nk_size_t count,
+                                                               nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_contiguous_e5m2_v128relaxed_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_v128relaxed_(nk_e2m3_t const *data, nk_size_t count,
+                                                               nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_contiguous_e2m3_v128relaxed_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_v128relaxed_(nk_e3m2_t const *data, nk_size_t count,
+                                                               nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_contiguous_e3m2_v128relaxed_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+
+#pragma endregion Norms
 
 /* I8 GEMM: depth_simd_dimensions=16 — standard (correction depends on both A and B) */
 nk_define_cross_pack_size_(dots, i8, v128relaxed, i8, i8, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/16,
@@ -87,7 +153,7 @@ nk_define_cross_pack_size_(dots, e2m3, v128relaxed, e2m3, e2m3, /*norm_value_typ
 nk_define_cross_packed_shape_(dots, e2m3, v128relaxed)
 nk_define_cross_pack_(dots, e2m3, v128relaxed, e2m3, e2m3, nk_b128_vec_t, nk_load_b128_v128_,
                       nk_partial_load_b8x16_serial_, nk_store_b128_v128_, nk_partial_store_b8x16_serial_,
-                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m3_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m3_v128relaxed_,
                       /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e2m3, v128relaxed, e2m3, f32, nk_b128_vec_t, nk_dot_e2m3x16_state_v128relaxed_t,
@@ -132,7 +198,7 @@ nk_define_cross_pack_size_(dots, e3m2, v128relaxed, e3m2, e3m2, /*norm_value_typ
 nk_define_cross_packed_shape_(dots, e3m2, v128relaxed)
 nk_define_cross_pack_(dots, e3m2, v128relaxed, e3m2, e3m2, nk_b128_vec_t, nk_load_b128_v128_,
                       nk_partial_load_b8x16_serial_, nk_store_b128_v128_, nk_partial_store_b8x16_serial_,
-                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e3m2_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e3m2_v128relaxed_,
                       /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e3m2, v128relaxed, e3m2, f32, nk_b128_vec_t, nk_dot_e3m2x16_state_v128relaxed_t,
@@ -154,7 +220,7 @@ nk_define_cross_pack_size_(dots, bf16, v128relaxed, bf16, bf16, /*norm_value_typ
 nk_define_cross_packed_shape_(dots, bf16, v128relaxed)
 nk_define_cross_pack_(dots, bf16, v128relaxed, bf16, bf16, nk_b128_vec_t, nk_load_b128_v128_,
                       nk_partial_load_b16x8_serial_, nk_store_b128_v128_, nk_partial_store_b16x8_serial_,
-                      /*simd_width=*/8, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_bf16_serial_,
+                      /*simd_width=*/8, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_bf16_v128relaxed_,
                       /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, bf16, v128relaxed, bf16, f32, nk_b128_vec_t, nk_dot_bf16x8_state_v128relaxed_t,
@@ -175,7 +241,7 @@ nk_define_cross_pack_size_(dots, f16, v128relaxed, f16, f32, /*norm_value_type=*
 nk_define_cross_packed_shape_(dots, f16, v128relaxed)
 nk_define_cross_pack_(dots, f16, v128relaxed, f16, f32, nk_b128_vec_t, nk_load_f16x4_to_f32x4_v128relaxed_,
                       nk_partial_load_f16x4_to_f32x4_v128relaxed_, nk_store_b128_v128_, nk_partial_store_b32x4_serial_,
-                      /*simd_width=*/4, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_f16_serial_,
+                      /*simd_width=*/4, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_f16_v128relaxed_,
                       /*depth_simd_dimensions=*/4,
                       /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_, /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f16, v128relaxed, f16, f32, nk_b128_vec_t, nk_dot_through_f32x4_state_v128relaxed_t_,
@@ -196,7 +262,7 @@ nk_define_cross_pack_size_(dots, f32, v128relaxed, f32, f32, /*norm_value_type=*
 nk_define_cross_packed_shape_(dots, f32, v128relaxed)
 nk_define_cross_pack_(dots, f32, v128relaxed, f32, f32, nk_b128_vec_t, nk_load_b128_v128_,
                       nk_partial_load_b32x4_serial_, nk_store_b128_v128_, nk_partial_store_b32x4_serial_,
-                      /*simd_width=*/4, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f32_serial_,
+                      /*simd_width=*/4, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f32_v128relaxed_,
                       /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f32, v128relaxed, f32, f64, nk_b64_vec_t, nk_dot_f32x2_state_v128relaxed_t,
@@ -216,7 +282,7 @@ nk_define_cross_pack_size_(dots, f64, v128relaxed, f64, f64, /*norm_value_type=*
 nk_define_cross_packed_shape_(dots, f64, v128relaxed)
 nk_define_cross_pack_(dots, f64, v128relaxed, f64, f64, nk_b128_vec_t, nk_load_b128_v128_,
                       nk_partial_load_b64x2_serial_, nk_store_b128_v128_, nk_partial_store_b64x2_serial_,
-                      /*simd_width=*/2, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f64_serial_,
+                      /*simd_width=*/2, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f64_v128relaxed_,
                       /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f64, v128relaxed, f64, f64, nk_b128_vec_t, nk_dot_f64x2_state_v128relaxed_t,
@@ -236,7 +302,7 @@ nk_define_cross_pack_size_(dots, e4m3, v128relaxed, e4m3, f32, /*norm_value_type
 nk_define_cross_packed_shape_(dots, e4m3, v128relaxed)
 nk_define_cross_pack_(dots, e4m3, v128relaxed, e4m3, f32, nk_b128_vec_t, nk_load_e4m3x4_to_f32x4_v128relaxed_,
                       nk_partial_load_e4m3x4_to_f32x4_v128relaxed_, nk_store_b128_v128_, nk_partial_store_b32x4_serial_,
-                      /*simd_width=*/4, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_serial_,
+                      /*simd_width=*/4, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_v128relaxed_,
                       /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e4m3, v128relaxed, e4m3, f32, nk_b128_vec_t, nk_dot_e4m3x4_state_v128relaxed_t,
@@ -258,7 +324,7 @@ nk_define_cross_pack_size_(dots, e5m2, v128relaxed, e5m2, f32, /*norm_value_type
 nk_define_cross_packed_shape_(dots, e5m2, v128relaxed)
 nk_define_cross_pack_(dots, e5m2, v128relaxed, e5m2, f32, nk_b128_vec_t, nk_load_e5m2x4_to_f32x4_v128_,
                       nk_partial_load_e5m2x4_to_f32x4_v128_, nk_store_b128_v128_, nk_partial_store_b32x4_serial_,
-                      /*simd_width=*/4, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_serial_,
+                      /*simd_width=*/4, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_v128relaxed_,
                       /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e5m2, v128relaxed, e5m2, f32, nk_b128_vec_t, nk_dot_e5m2x4_state_v128relaxed_t,
@@ -294,7 +360,7 @@ nk_define_cross_packed_(dots, u4, v128relaxed, u4x2, u4x2, u32, nk_b128_vec_t, n
                         nk_dot_u4x32_finalize_v128relaxed, nk_store_b128_v128_, nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 
-/* I4 GEMM: depth_simd_dimensions=32 — compensated (XOR-bias algebraic transform) */
+/* I4 GEMM: depth_simd_dimensions=32, compensated (B sums precomputed in pack) */
 nk_define_cross_packed_shape_(dots, i4, v128relaxed)
 nk_define_cross_compensated_pack_size_(dots, i4, v128relaxed, i4x2, i4x2,
                                        /*sum_value_type=*/i32, /*norm_value_type=*/u32,
@@ -322,7 +388,7 @@ nk_define_cross_compensated_packed_(dots, i4, v128relaxed, i4x2, i4x2, i32,
                                     nk_partial_load_b4x32_serial_, nk_dot_i4x32_update_v128relaxed,
                                     nk_dot_i4x32_finalize_v128relaxed, nk_store_b128_v128_,
                                     nk_partial_store_b32x4_serial_, nk_load_b128_v128_, nk_partial_load_b32x4_serial_,
-                                    nk_dots_reduce_sum_i4_serial_,
+                                    nk_dots_reduce_sum_stub_i4_serial_,
                                     /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 
 #if defined(__clang__)

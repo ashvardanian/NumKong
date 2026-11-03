@@ -400,6 +400,31 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
 
 #if NUMKONG_TARGET_ICELAKE
     check.section("Cross Ice Lake", nk_cap_icelake_k);
+    check("dots_packed_e2m3_icelake", test_dots_packed<e2m3_t>, nk_dots_pack_size_e2m3_icelake,
+          nk_dots_pack_e2m3_icelake, nk_dots_packed_e2m3_icelake);
+    check("dots_pack_e2m3_icelake",
+          test_dots_pack_layout<e2m3_t, host_backend_t, nk_dots_pack_size_e2m3_icelake,
+                                nk_dots_packed_shape_e2m3_icelake, nk_dots_pack_e2m3_icelake>);
+    check("dots_packed_e2m1_icelake", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_icelake,
+          nk_dots_pack_e2m1_icelake, nk_dots_packed_e2m1_icelake);
+    check("dots_pack_e2m1_icelake",
+          test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1_icelake,
+                                nk_dots_packed_shape_e2m1_icelake, nk_dots_pack_e2m1_icelake>);
+    check("dots_symmetric_e2m3_icelake", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_icelake);
+    check("dots_symmetric_e2m1_icelake", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_icelake);
+    check("angulars_packed_e2m3_icelake", test_angulars_packed<e2m3_t>, nk_dots_pack_size_e2m3_icelake,
+          nk_dots_pack_e2m3_icelake, nk_angulars_packed_e2m3_icelake);
+    check("angulars_packed_e2m1_icelake", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_icelake,
+          nk_dots_pack_e2m1_icelake, nk_angulars_packed_e2m1_icelake);
+    check("angulars_symmetric_e2m3_icelake", test_angulars_symmetric<e2m3_t>, nk_angulars_symmetric_e2m3_icelake);
+    check("angulars_symmetric_e2m1_icelake", test_angulars_symmetric<e2m1x2_t>, nk_angulars_symmetric_e2m1_icelake);
+    check("euclideans_packed_e2m3_icelake", test_euclideans_packed<e2m3_t>, nk_dots_pack_size_e2m3_icelake,
+          nk_dots_pack_e2m3_icelake, nk_euclideans_packed_e2m3_icelake);
+    check("euclideans_packed_e2m1_icelake", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_icelake,
+          nk_dots_pack_e2m1_icelake, nk_euclideans_packed_e2m1_icelake);
+    check("euclideans_symmetric_e2m3_icelake", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_icelake);
+    check("euclideans_symmetric_e2m1_icelake", test_euclideans_symmetric<e2m1x2_t>,
+          nk_euclideans_symmetric_e2m1_icelake);
     check("dots_packed_i8_icelake", test_dots_packed<i8_t>, nk_dots_pack_size_i8_icelake, nk_dots_pack_i8_icelake,
           nk_dots_packed_i8_icelake);
     check("dots_pack_i8_icelake", test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_icelake,

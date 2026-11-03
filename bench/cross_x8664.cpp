@@ -375,6 +375,26 @@ void bench_cross_x8664(environment_t const &env) {
 
 #if NUMKONG_TARGET_ICELAKE
     if (section(env, "Cross Ice Lake", nk_cap_icelake_k)) {
+        run_dots_packed<e2m3_k>(env, "dots_packed_e2m3_icelake", nk_dots_pack_size_e2m3_icelake,
+                                nk_dots_pack_e2m3_icelake, nk_dots_packed_e2m3_icelake);
+        run_dots_packed<e2m1_k>(env, "dots_packed_e2m1_icelake", nk_dots_pack_size_e2m1_icelake,
+                                nk_dots_pack_e2m1_icelake, nk_dots_packed_e2m1_icelake);
+        run_dots_symmetric<e2m3_k>(env, "dots_symmetric_e2m3_icelake", nk_dots_symmetric_e2m3_icelake);
+        run_dots_symmetric<e2m1_k>(env, "dots_symmetric_e2m1_icelake", nk_dots_symmetric_e2m1_icelake);
+        run_angulars_packed<e2m3_k>(env, "angulars_packed_e2m3_icelake", nk_dots_pack_size_e2m3_icelake,
+                                    nk_dots_pack_e2m3_icelake, nk_angulars_packed_e2m3_icelake);
+        run_angulars_packed<e2m1_k>(env, "angulars_packed_e2m1_icelake", nk_dots_pack_size_e2m1_icelake,
+                                    nk_dots_pack_e2m1_icelake, nk_angulars_packed_e2m1_icelake);
+        run_angulars_symmetric<e2m3_k>(env, "angulars_symmetric_e2m3_icelake", nk_angulars_symmetric_e2m3_icelake);
+        run_angulars_symmetric<e2m1_k>(env, "angulars_symmetric_e2m1_icelake", nk_angulars_symmetric_e2m1_icelake);
+        run_euclideans_packed<e2m3_k>(env, "euclideans_packed_e2m3_icelake", nk_dots_pack_size_e2m3_icelake,
+                                      nk_dots_pack_e2m3_icelake, nk_euclideans_packed_e2m3_icelake);
+        run_euclideans_packed<e2m1_k>(env, "euclideans_packed_e2m1_icelake", nk_dots_pack_size_e2m1_icelake,
+                                      nk_dots_pack_e2m1_icelake, nk_euclideans_packed_e2m1_icelake);
+        run_euclideans_symmetric<e2m3_k>(env, "euclideans_symmetric_e2m3_icelake",
+                                         nk_euclideans_symmetric_e2m3_icelake);
+        run_euclideans_symmetric<e2m1_k>(env, "euclideans_symmetric_e2m1_icelake",
+                                         nk_euclideans_symmetric_e2m1_icelake);
 
         run_dots_packed<i8_k>(env, "dots_packed_i8_icelake", nk_dots_pack_size_i8_icelake, nk_dots_pack_i8_icelake,
                               nk_dots_packed_i8_icelake);

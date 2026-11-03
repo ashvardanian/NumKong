@@ -82,6 +82,7 @@
 
 #include "numkong/types.h"
 #include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
+#include "numkong/dot/skylake.h"    // `nk_dot_e2m3x64_state_skylake_t`, `nk_dot_e2m1x128_state_skylake_t`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -312,7 +313,7 @@ NUMKONG_INLINE nk_i32_t nk_sum_i4x128_finalize_icelake(nk_sum_i4x128_state_icela
 
 typedef struct nk_dot_i4x128_state_icelake_t {
 
-    /** Products of both inputs biased by eight. */
+    /** Products of the first input biased by eight and the signed second input. */
     __m512i biased_product_sum_i32x16;
 } nk_dot_i4x128_state_icelake_t;
 
@@ -322,48 +323,37 @@ NUMKONG_INLINE void nk_dot_i4x128_init_icelake(nk_dot_i4x128_state_icelake_t *st
 
 NUMKONG_INLINE void nk_dot_i4x128_update_icelake(nk_dot_i4x128_state_icelake_t *state, nk_b512_vec_t a, nk_b512_vec_t b,
                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
-    // i4 values are packed as nibbles: 128 nibbles in 64 bytes (512 bits)
-    // Algebraic transformation: a × b = (a^8) × (b^8) − 8 × (Σa + Σb) − 64 × n
-    // Correction applied at finalize time using precomputed sums.
+    // Algebraic transformation: a × b = (a^8) × b − 8 × b, corrected at finalize from the pack
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     __m512i const nibble_mask_u8x64 = _mm512_set1_epi8(0x0F);
     __m512i const bias_xor_mask_u8x64 = _mm512_set1_epi8(0x08);
 
-    __m512i a_i4x128 = a.zmm;
-    __m512i b_i4x128 = b.zmm;
+    __m512i a_biased_low_u8x64 = _mm512_xor_si512(_mm512_and_si512(a.zmm, nibble_mask_u8x64), bias_xor_mask_u8x64);
+    __m512i a_biased_high_u8x64 = _mm512_xor_si512(_mm512_and_si512(_mm512_srli_epi16(a.zmm, 4), nibble_mask_u8x64),
+                                                   bias_xor_mask_u8x64);
+    __m512i b_biased_low_u8x64 = _mm512_xor_si512(_mm512_and_si512(b.zmm, nibble_mask_u8x64), bias_xor_mask_u8x64);
+    __m512i b_biased_high_u8x64 = _mm512_xor_si512(_mm512_and_si512(_mm512_srli_epi16(b.zmm, 4), nibble_mask_u8x64),
+                                                   bias_xor_mask_u8x64);
+    __m512i b_signed_low_i8x64 = _mm512_sub_epi8(b_biased_low_u8x64, bias_xor_mask_u8x64);
+    __m512i b_signed_high_i8x64 = _mm512_sub_epi8(b_biased_high_u8x64, bias_xor_mask_u8x64);
 
-    // Extract low and high nibbles (all 128 nibbles from 64 bytes)
-    __m512i a_low_u8x64 = _mm512_and_si512(a_i4x128, nibble_mask_u8x64);
-    __m512i a_high_u8x64 = _mm512_and_si512(_mm512_srli_epi16(a_i4x128, 4), nibble_mask_u8x64);
-    __m512i b_low_u8x64 = _mm512_and_si512(b_i4x128, nibble_mask_u8x64);
-    __m512i b_high_u8x64 = _mm512_and_si512(_mm512_srli_epi16(b_i4x128, 4), nibble_mask_u8x64);
-
-    // Apply bias transformation: XOR with 8
-    __m512i a_biased_low_u8x64 = _mm512_xor_si512(a_low_u8x64, bias_xor_mask_u8x64);
-    __m512i a_biased_high_u8x64 = _mm512_xor_si512(a_high_u8x64, bias_xor_mask_u8x64);
-    __m512i b_biased_low_u8x64 = _mm512_xor_si512(b_low_u8x64, bias_xor_mask_u8x64);
-    __m512i b_biased_high_u8x64 = _mm512_xor_si512(b_high_u8x64, bias_xor_mask_u8x64);
-
-    // Compute dot products of a_biased × b_biased — no SAD correction accumulators
     state->biased_product_sum_i32x16 = _mm512_dpbusd_epi32(state->biased_product_sum_i32x16, a_biased_low_u8x64,
-                                                           b_biased_low_u8x64);
+                                                           b_signed_low_i8x64);
     state->biased_product_sum_i32x16 = _mm512_dpbusd_epi32(state->biased_product_sum_i32x16, a_biased_high_u8x64,
-                                                           b_biased_high_u8x64);
+                                                           b_signed_high_i8x64);
 }
 
 NUMKONG_INLINE void nk_dot_i4x128_finalize_icelake(                                             //
     nk_dot_i4x128_state_icelake_t const *state_a, nk_dot_i4x128_state_icelake_t const *state_b, //
     nk_dot_i4x128_state_icelake_t const *state_c, nk_dot_i4x128_state_icelake_t const *state_d, //
     nk_size_t total_dimensions,                                                                 //
-    nk_i32_t a_sum, /* A row sum (signed sum of i4 values) */                                   //
+    nk_i32_t a_sum, /* A row sum (unused for i4) */                                             //
     nk_b128_vec_t const *b_sums_vec, /* 4 × i32 B column sums */                                //
     nk_b128_vec_t *result_vec) {
 
-    // Compensated 4-way reduction with external correction sums.
-    // Formula: result = biased_product − 8 × (Σa + Σb) − 64 × depth_padded
-    nk_size_t depth_nibbles = nk_size_round_up_to_multiple_(total_dimensions, 128);
-
+    nk_unused_(total_dimensions);
+    nk_unused_(a_sum);
     // Reduce main products: zmm (i32x16) → ymm (i32x8)
     __m256i product_a_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(state_a->biased_product_sum_i32x16),
                                                _mm512_extracti32x8_epi32(state_a->biased_product_sum_i32x16, 1));
@@ -394,12 +384,8 @@ NUMKONG_INLINE void nk_dot_i4x128_finalize_icelake(                             
                                          _mm_add_epi32(_mm_unpacklo_epi64(t_ab_high_i32x4, t_cd_high_i32x4),
                                                        _mm_unpackhi_epi64(t_ab_high_i32x4, t_cd_high_i32x4)));
 
-    // Apply compensation: result = biased − 8 × (Σa + Σb) − 64 × depth_padded
-    __m128i a_sum_broadcast_i32x4 = _mm_set1_epi32(a_sum);
-    __m128i ab_sums_i32x4 = _mm_add_epi32(a_sum_broadcast_i32x4, b_sums_vec->xmm);
-    __m128i correction_i32x4 = _mm_slli_epi32(ab_sums_i32x4, 3); // × 8
-    __m128i offset_i32x4 = _mm_set1_epi32((nk_i32_t)(-64LL * (nk_i64_t)depth_nibbles));
-    result_vec->xmm = _mm_add_epi32(_mm_sub_epi32(biased_i32x4, correction_i32x4), offset_i32x4);
+    // Apply compensation: result = biased − 8 × Σb
+    result_vec->xmm = _mm_sub_epi32(biased_i32x4, _mm_slli_epi32(b_sums_vec->xmm, 3));
 }
 
 typedef struct nk_dot_u4x128_state_icelake_t {
@@ -470,6 +456,68 @@ NUMKONG_INLINE void nk_dot_u4x128_finalize_icelake(                             
                                         _mm_add_epi32(sum_lane2_i32x4, sum_lane3_i32x4));
     result->xmm = final_i32x4;
 }
+
+#pragma region Mini Floats
+
+/** E2M3 values times sixteen as signed bytes, sign included. VPERMB reads the low 6 bits of a code,
+ *  and with them the sign bit, so one table needs no mask. */
+NUMKONG_INLINE __m512i nk_e2m3x64_to_i8x64_icelake_(__m512i codes_u8x64) {
+    static nk_i8_t const lut_data[64] = {
+        0,   2,   4,   6,   8,   10,  12,  14,  16,  18,  20,  22,  24,  26,   28,   30,  //
+        32,  36,  40,  44,  48,  52,  56,  60,  64,  72,  80,  88,  96,  104,  112,  120, //
+        0,   -2,  -4,  -6,  -8,  -10, -12, -14, -16, -18, -20, -22, -24, -26,  -28,  -30, //
+        -32, -36, -40, -44, -48, -52, -56, -60, -64, -72, -80, -88, -96, -104, -112, -120};
+    return _mm512_permutexvar_epi8(codes_u8x64, _mm512_loadu_si512(lut_data));
+}
+
+/** Loads 64 E2M3 codes as the signed bytes @c nk_dot_e2m3x64_update_icelake multiplies. */
+NUMKONG_INLINE void nk_load_e2m3x64_to_i8x64_icelake_(void const *src, nk_b512_vec_t *dst) {
+    dst->zmm = nk_e2m3x64_to_i8x64_icelake_(_mm512_loadu_si512(src));
+}
+
+NUMKONG_INLINE void nk_partial_load_e2m3x64_to_i8x64_icelake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
+    nk_partial_load_b8x64_skylake_(src, dst, n);
+    dst->zmm = nk_e2m3x64_to_i8x64_icelake_(dst->zmm);
+}
+
+/** VPDPBUSD wants u8 × i8, so @p b is negated where @p a is negative. */
+NUMKONG_INLINE void nk_dot_e2m3x64_update_icelake(nk_dot_e2m3x64_state_skylake_t *state, nk_b512_vec_t a,
+                                                  nk_b512_vec_t b, nk_size_t depth_offset,
+                                                  nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    __mmask64 a_negative_m64 = _mm512_movepi8_mask(a.zmm);
+    __m512i b_signed_i8x64 = _mm512_mask_sub_epi8(b.zmm, a_negative_m64, _mm512_setzero_si512(), b.zmm);
+    state->sum_i32x16 = _mm512_dpbusd_epi32(state->sum_i32x16, _mm512_abs_epi8(a.zmm), b_signed_i8x64);
+}
+
+/** Looks up twice every E2M1 value by its full nibble, then negates @p b where @p a is negative, as
+ *  VPDPBUSD wants u8 × i8. */
+NUMKONG_INLINE void nk_dot_e2m1x128_update_icelake(nk_dot_e2m1x128_state_skylake_t *state, nk_b512_vec_t a,
+                                                   nk_b512_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    __m512i const lut_i8x64 = _mm512_broadcast_i32x4(
+        _mm_setr_epi8(0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12));
+    __m512i const nibble_mask_u8x64 = _mm512_set1_epi8(0x0F);
+    __m512i a_low_i8x64 = _mm512_shuffle_epi8(lut_i8x64, _mm512_and_si512(a.zmm, nibble_mask_u8x64));
+    __m512i a_high_i8x64 = _mm512_shuffle_epi8(lut_i8x64,
+                                               _mm512_and_si512(_mm512_srli_epi16(a.zmm, 4), nibble_mask_u8x64));
+    __m512i b_low_i8x64 = _mm512_shuffle_epi8(lut_i8x64, _mm512_and_si512(b.zmm, nibble_mask_u8x64));
+    __m512i b_high_i8x64 = _mm512_shuffle_epi8(lut_i8x64,
+                                               _mm512_and_si512(_mm512_srli_epi16(b.zmm, 4), nibble_mask_u8x64));
+    __mmask64 a_low_negative_m64 = _mm512_movepi8_mask(a_low_i8x64);
+    __mmask64 a_high_negative_m64 = _mm512_movepi8_mask(a_high_i8x64);
+    __m512i b_low_signed_i8x64 = _mm512_mask_sub_epi8(b_low_i8x64, a_low_negative_m64, _mm512_setzero_si512(),
+                                                      b_low_i8x64);
+    __m512i b_high_signed_i8x64 = _mm512_mask_sub_epi8(b_high_i8x64, a_high_negative_m64, _mm512_setzero_si512(),
+                                                       b_high_i8x64);
+    __m512i sum_i32x16 = _mm512_dpbusd_epi32(state->sum_i32x16, _mm512_abs_epi8(a_low_i8x64), b_low_signed_i8x64);
+    state->sum_i32x16 = _mm512_dpbusd_epi32(sum_i32x16, _mm512_abs_epi8(a_high_i8x64), b_high_signed_i8x64);
+}
+
+#pragma endregion Mini Floats
 
 #pragma region Binary
 

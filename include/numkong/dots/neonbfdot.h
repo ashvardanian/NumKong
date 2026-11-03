@@ -14,6 +14,7 @@
 
 #include "numkong/dots/serial.h"
 #include "numkong/dot/neonbfdot.h"
+#include "numkong/reduce/neonbfdot.h" // `nk_reduce_moments_chunked_bf16_neonbfdot_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -26,13 +27,23 @@ extern "C" {
 #pragma GCC target("arch=armv8.6-a+simd+bf16")
 #endif
 
+#pragma region Norms
+
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_neonbfdot_(nk_bf16_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_reduce_moments_chunked_bf16_neonbfdot_(data, count, stride, &sum, &sumsq);
+    return sumsq;
+}
+
+#pragma endregion Norms
+
 /* BF16 GEMM: depth_simd_dimensions=8 (8 bf16s = 16 bytes = NEON register width) */
 nk_define_cross_pack_size_(dots, bf16, neonbfdot, bf16, bf16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/8,
                            /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, bf16, neonbfdot)
 nk_define_cross_pack_(dots, bf16, neonbfdot, bf16, bf16, nk_b128_vec_t, nk_load_b128_neon_,
                       nk_partial_load_b16x8_serial_, nk_store_b128_neon_, nk_partial_store_b16x8_serial_,
-                      /*simd_width=*/8, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_bf16_serial_,
+                      /*simd_width=*/8, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_bf16_neonbfdot_,
                       /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, bf16, neonbfdot, bf16, f32, nk_b128_vec_t, nk_dot_bf16x8_state_neonbfdot_t,

@@ -174,6 +174,24 @@ NUMKONG_INLINE void nk_dot_through_f32_update_skylake_(nk_dot_through_f32_state_
     state->sum_f32x16 = _mm512_fmadd_ps(a.zmm_ps, b.zmm_ps, state->sum_f32x16);
 }
 
+/** Loads 16 E5M2 codes as F16, whose high byte each code matches, for a pack to store. */
+NUMKONG_INLINE void nk_load_e5m2x16_to_f16x16_skylake_(void const *src, nk_b256_vec_t *dst) {
+    dst->ymm = _mm256_slli_epi16(_mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i const *)src)), 8);
+}
+
+NUMKONG_INLINE void nk_partial_load_e5m2x16_to_f16x16_skylake_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
+    nk_b128_vec_t codes_vec;
+    nk_partial_load_b8x16_skylake_(src, &codes_vec, n);
+    dst->ymm = _mm256_slli_epi16(_mm256_cvtepu8_epi16(codes_vec.xmm), 8);
+}
+
+/** Loads 16 E5M2 codes as F32, through the same F16 bit pattern. */
+NUMKONG_INLINE void nk_load_e5m2x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
+    nk_b256_vec_t codes_vec;
+    nk_load_e5m2x16_to_f16x16_skylake_(src, &codes_vec);
+    dst->zmm_ps = _mm512_cvtph_ps(codes_vec.ymm);
+}
+
 /** E5M2 byte-batched update: consumes 64 raw E5M2 bytes per call and widens inline. Two independent
  *  FMA chains (each 2-deep) merge into the single state accumulator at exit. Keeps register
  *  pressure at one __m512 across calls while breaking the FMA dep chain. */
@@ -580,98 +598,59 @@ NUMKONG_INLINE void nk_dot_e2m1x128_finalize_skylake(                           
     results->xmm = _mm_castps_si128(_mm_mul_ps(_mm_cvtepi32_ps(sum_i32x4), _mm_set1_ps(0.25f)));
 }
 
-typedef struct nk_dot_e3m2x64_state_skylake_t {
-    __m512i sum_a_i32x16;
-    __m512i sum_b_i32x16;
-} nk_dot_e3m2x64_state_skylake_t;
-
-NUMKONG_INLINE void nk_dot_e3m2x64_init_skylake(nk_dot_e3m2x64_state_skylake_t *state) {
-    state->sum_a_i32x16 = _mm512_setzero_si512();
-    state->sum_b_i32x16 = _mm512_setzero_si512();
+/** E3M2 values times sixteen as signed halfwords through 2 registers of table: bit 5 of a code, its
+ *  sign, selects the register. */
+NUMKONG_INLINE __m512i nk_e3m2x32_to_i16x32_skylake_(__m256i codes_u8x32) {
+    static nk_i16_t const lut_data[64] = {
+        0,   1,   2,   3,   4,   5,   6,   7,    8,    10,   12,   14,   16,   20,   24,   28,  //
+        32,  40,  48,  56,  64,  80,  96,  112,  128,  160,  192,  224,  256,  320,  384,  448, //
+        0,   -1,  -2,  -3,  -4,  -5,  -6,  -7,   -8,   -10,  -12,  -14,  -16,  -20,  -24,  -28, //
+        -32, -40, -48, -56, -64, -80, -96, -112, -128, -160, -192, -224, -256, -320, -384, -448};
+    __m512i index_i16x32 = _mm512_and_si512(_mm512_cvtepu8_epi16(codes_u8x32), _mm512_set1_epi16(0x3F));
+    return _mm512_permutex2var_epi16(_mm512_loadu_si512(lut_data), index_i16x32, _mm512_loadu_si512(lut_data + 32));
 }
 
-NUMKONG_INLINE void nk_dot_e3m2x64_update_skylake(nk_dot_e3m2x64_state_skylake_t *state, nk_b512_vec_t a,
+/** Loads 32 E3M2 codes as the signed halfwords @c nk_dot_e3m2x32_update_skylake multiplies. */
+NUMKONG_INLINE void nk_load_e3m2x32_to_i16x32_skylake_(void const *src, nk_b512_vec_t *dst) {
+    dst->zmm = nk_e3m2x32_to_i16x32_skylake_(_mm256_loadu_si256((__m256i const *)src));
+}
+
+NUMKONG_INLINE void nk_partial_load_e3m2x32_to_i16x32_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
+    dst->zmm = nk_e3m2x32_to_i16x32_skylake_(
+        _mm256_maskz_loadu_epi8((__mmask32)_bzhi_u32(0xFFFFFFFFu, (unsigned)n), src));
+}
+
+typedef struct nk_dot_e3m2x32_state_skylake_t {
+    __m512i sum_i32x16;
+} nk_dot_e3m2x32_state_skylake_t;
+
+NUMKONG_INLINE void nk_dot_e3m2x32_init_skylake(nk_dot_e3m2x32_state_skylake_t *state) {
+    state->sum_i32x16 = _mm512_setzero_si512();
+}
+
+NUMKONG_INLINE void nk_dot_e3m2x32_update_skylake(nk_dot_e3m2x32_state_skylake_t *state, nk_b512_vec_t a,
                                                   nk_b512_vec_t b, nk_size_t depth_offset,
                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    __m512i const lut_low_byte_first_u8x64 = _mm512_set_epi8(                                                         //
-        28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0, 28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0, //
-        28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0, 28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0);
-    __m512i const lut_low_byte_second_u8x64 = _mm512_set_epi8(                                                    //
-        (char)192, (char)128, 64, 0, (char)224, (char)192, (char)160, (char)128, 112, 96, 80, 64, 56, 48, 40, 32, //
-        (char)192, (char)128, 64, 0, (char)224, (char)192, (char)160, (char)128, 112, 96, 80, 64, 56, 48, 40, 32, //
-        (char)192, (char)128, 64, 0, (char)224, (char)192, (char)160, (char)128, 112, 96, 80, 64, 56, 48, 40, 32, //
-        (char)192, (char)128, 64, 0, (char)224, (char)192, (char)160, (char)128, 112, 96, 80, 64, 56, 48, 40, 32);
-    __m512i const nibble_mask_u8x64 = _mm512_set1_epi8(0x0F);
-    __m512i const magnitude_mask_u8x64 = _mm512_set1_epi8(0x1F);
-    __m512i const half_select_u8x64 = _mm512_set1_epi8(0x10);
-    __m512i const sign_mask_u8x64 = _mm512_set1_epi8(0x20);
-    __m512i const ones_u8x64 = _mm512_set1_epi8(1);
-
-    __m512i a_u8x64 = a.zmm;
-    __m512i b_u8x64 = b.zmm;
-
-    __m512i a_magnitude_u8x64 = _mm512_and_si512(a_u8x64, magnitude_mask_u8x64);
-    __m512i b_magnitude_u8x64 = _mm512_and_si512(b_u8x64, magnitude_mask_u8x64);
-    __m512i a_shuffle_idx_u8x64 = _mm512_and_si512(a_magnitude_u8x64, nibble_mask_u8x64);
-    __m512i b_shuffle_idx_u8x64 = _mm512_and_si512(b_magnitude_u8x64, nibble_mask_u8x64);
-
-    __mmask64 a_high_m64 = _mm512_test_epi8_mask(a_magnitude_u8x64, half_select_u8x64);
-    __mmask64 b_high_m64 = _mm512_test_epi8_mask(b_magnitude_u8x64, half_select_u8x64);
-
-    __m512i a_low_byte_u8x64 = _mm512_mask_blend_epi8(
-        a_high_m64, _mm512_shuffle_epi8(lut_low_byte_first_u8x64, a_shuffle_idx_u8x64),
-        _mm512_shuffle_epi8(lut_low_byte_second_u8x64, a_shuffle_idx_u8x64));
-    __m512i b_low_byte_u8x64 = _mm512_mask_blend_epi8(
-        b_high_m64, _mm512_shuffle_epi8(lut_low_byte_first_u8x64, b_shuffle_idx_u8x64),
-        _mm512_shuffle_epi8(lut_low_byte_second_u8x64, b_shuffle_idx_u8x64));
-
-    __mmask64 a_high_mask_m64 = _mm512_cmpge_epu8_mask(a_magnitude_u8x64, _mm512_set1_epi8(28));
-    __mmask64 b_high_mask_m64 = _mm512_cmpge_epu8_mask(b_magnitude_u8x64, _mm512_set1_epi8(28));
-    __m512i a_high_byte_u8x64 = _mm512_maskz_mov_epi8(a_high_mask_m64, ones_u8x64);
-    __m512i b_high_byte_u8x64 = _mm512_maskz_mov_epi8(b_high_mask_m64, ones_u8x64);
-
-    __m512i a_low_i16x32 = _mm512_unpacklo_epi8(a_low_byte_u8x64, a_high_byte_u8x64);
-    __m512i a_high_i16x32 = _mm512_unpackhi_epi8(a_low_byte_u8x64, a_high_byte_u8x64);
-    __m512i b_low_i16x32 = _mm512_unpacklo_epi8(b_low_byte_u8x64, b_high_byte_u8x64);
-    __m512i b_high_i16x32 = _mm512_unpackhi_epi8(b_low_byte_u8x64, b_high_byte_u8x64);
-
-    // Combined sign: negate b at i16 level via PEXT + mask_sub
-    __m512i sign_combined_u8x64 = _mm512_and_si512(_mm512_xor_si512(a_u8x64, b_u8x64), sign_mask_u8x64);
-    __mmask64 negate_u8_m64 = _mm512_test_epi8_mask(sign_combined_u8x64, sign_combined_u8x64);
-    __mmask32 negate_low_m32 = (__mmask32)_pext_u64(negate_u8_m64, 0x00FF00FF00FF00FFULL);
-    __mmask32 negate_high_m32 = (__mmask32)_pext_u64(negate_u8_m64, 0xFF00FF00FF00FF00ULL);
-    __m512i b_signed_low_i16x32 = _mm512_mask_sub_epi16(b_low_i16x32, negate_low_m32, _mm512_setzero_si512(),
-                                                        b_low_i16x32);
-    __m512i b_signed_high_i16x32 = _mm512_mask_sub_epi16(b_high_i16x32, negate_high_m32, _mm512_setzero_si512(),
-                                                         b_high_i16x32);
-
-    state->sum_a_i32x16 = _mm512_add_epi32(state->sum_a_i32x16, _mm512_madd_epi16(a_low_i16x32, b_signed_low_i16x32));
-    state->sum_b_i32x16 = _mm512_add_epi32(state->sum_b_i32x16, _mm512_madd_epi16(a_high_i16x32, b_signed_high_i16x32));
+    state->sum_i32x16 = _mm512_add_epi32(state->sum_i32x16, _mm512_madd_epi16(a.zmm, b.zmm));
 }
 
-NUMKONG_INLINE void nk_dot_e3m2x64_finalize_skylake(                                              //
-    nk_dot_e3m2x64_state_skylake_t const *state_a, nk_dot_e3m2x64_state_skylake_t const *state_b, //
-    nk_dot_e3m2x64_state_skylake_t const *state_c, nk_dot_e3m2x64_state_skylake_t const *state_d, //
+NUMKONG_INLINE void nk_dot_e3m2x32_finalize_skylake(                                              //
+    nk_dot_e3m2x32_state_skylake_t const *state_a, nk_dot_e3m2x32_state_skylake_t const *state_b, //
+    nk_dot_e3m2x32_state_skylake_t const *state_c, nk_dot_e3m2x32_state_skylake_t const *state_d, //
     nk_size_t total_dimensions, nk_b128_vec_t *results) {
     nk_unused_(total_dimensions);
 
-    // Merge two accumulators per state
-    __m512i merged_a_i32x16 = _mm512_add_epi32(state_a->sum_a_i32x16, state_a->sum_b_i32x16);
-    __m512i merged_b_i32x16 = _mm512_add_epi32(state_b->sum_a_i32x16, state_b->sum_b_i32x16);
-    __m512i merged_c_i32x16 = _mm512_add_epi32(state_c->sum_a_i32x16, state_c->sum_b_i32x16);
-    __m512i merged_d_i32x16 = _mm512_add_epi32(state_d->sum_a_i32x16, state_d->sum_b_i32x16);
-
     // 16 → 8
-    __m256i sum_a_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(merged_a_i32x16),
-                                           _mm512_extracti32x8_epi32(merged_a_i32x16, 1));
-    __m256i sum_b_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(merged_b_i32x16),
-                                           _mm512_extracti32x8_epi32(merged_b_i32x16, 1));
-    __m256i sum_c_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(merged_c_i32x16),
-                                           _mm512_extracti32x8_epi32(merged_c_i32x16, 1));
-    __m256i sum_d_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(merged_d_i32x16),
-                                           _mm512_extracti32x8_epi32(merged_d_i32x16, 1));
+    __m256i sum_a_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(state_a->sum_i32x16),
+                                           _mm512_extracti32x8_epi32(state_a->sum_i32x16, 1));
+    __m256i sum_b_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(state_b->sum_i32x16),
+                                           _mm512_extracti32x8_epi32(state_b->sum_i32x16, 1));
+    __m256i sum_c_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(state_c->sum_i32x16),
+                                           _mm512_extracti32x8_epi32(state_c->sum_i32x16, 1));
+    __m256i sum_d_i32x8 = _mm256_add_epi32(_mm512_castsi512_si256(state_d->sum_i32x16),
+                                           _mm512_extracti32x8_epi32(state_d->sum_i32x16, 1));
 
     // 8 → 4
     __m128i sum_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(sum_a_i32x8), _mm256_extracti128_si256(sum_a_i32x8, 1));

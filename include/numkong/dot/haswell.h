@@ -32,7 +32,7 @@
  *  - nk_dot_f32x4 state with double-precision numerics,
  *  - nk_dot_through_f32 state for 16-, 8-, and 6-bit float inputs with single-precision numerics,
  *  - nk_dot_through_i32 state for 8-bit signed and unsigned integer inputs,
- *  - nk_dot_i4x32 for 4-bit signed integer products with 2 correction terms,
+ *  - nk_dot_i4x32 for 4-bit signed integer products,
  *  - nk_dot_u4x32 for 4-bit unsigned integer products.
  *
  *  @code{.c}
@@ -362,6 +362,24 @@ NUMKONG_INLINE void nk_dot_through_f32_update_haswell_(nk_dot_through_f32_state_
     state->sum_f32x8 = _mm256_fmadd_ps(a.ymm_ps, b.ymm_ps, state->sum_f32x8);
 }
 
+/** Loads 8 E5M2 codes as F16, whose high byte each code matches, for a pack to store. */
+NUMKONG_INLINE void nk_load_e5m2x8_to_f16x8_haswell_(void const *src, nk_b128_vec_t *dst) {
+    dst->xmm = _mm_unpacklo_epi8(_mm_setzero_si128(), _mm_loadl_epi64((__m128i const *)src));
+}
+
+NUMKONG_INLINE void nk_partial_load_e5m2x8_to_f16x8_haswell_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+    nk_b128_vec_t codes_vec;
+    nk_partial_load_b8x16_haswell_(src, &codes_vec, n);
+    dst->xmm = _mm_unpacklo_epi8(_mm_setzero_si128(), codes_vec.xmm);
+}
+
+/** Loads 8 E5M2 codes as F32, through the same F16 bit pattern. */
+NUMKONG_INLINE void nk_load_e5m2x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst) {
+    nk_b128_vec_t codes_vec;
+    nk_load_e5m2x8_to_f16x8_haswell_(src, &codes_vec);
+    dst->ymm_ps = _mm256_cvtph_ps(codes_vec.xmm);
+}
+
 /** E5M2 byte-batched update: consumes 32 raw E5M2 bytes per call and widens inline. Two independent
  *  FMA chains (each 2-deep) merge into the single __m256 state accumulator. */
 NUMKONG_INLINE void nk_dot_e5m2x32_update_haswell_(nk_dot_through_f32_state_haswell_t_ *state, nk_b256_vec_t a_bytes,
@@ -640,119 +658,6 @@ NUMKONG_INLINE void nk_dot_e2m1x64_finalize_haswell(                            
     results->xmm = _mm_castps_si128(_mm_mul_ps(_mm_cvtepi32_ps(sum_i32x4), _mm_set1_ps(0.25f)));
 }
 
-/** Integer LUT batch state for e3m2 dot-products on Haswell (AVX2). Uses i16 widening via VPMADDWD
- *  (i16 × i16 → i32) with two accumulators for low and high halves. */
-typedef struct nk_dot_e3m2x32_state_haswell_t {
-    __m256i sum_a_i32x8;
-    __m256i sum_b_i32x8;
-} nk_dot_e3m2x32_state_haswell_t;
-
-NUMKONG_INLINE void nk_dot_e3m2x32_init_haswell(nk_dot_e3m2x32_state_haswell_t *state) {
-    state->sum_a_i32x8 = _mm256_setzero_si256();
-    state->sum_b_i32x8 = _mm256_setzero_si256();
-}
-
-NUMKONG_INLINE void nk_dot_e3m2x32_update_haswell(nk_dot_e3m2x32_state_haswell_t *state, nk_b256_vec_t a,
-                                                  nk_b256_vec_t b, nk_size_t depth_offset,
-                                                  nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
-    __m256i const lut_low_byte_first_u8x32 = _mm256_set_epi8( //
-        28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0, 28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0);
-    __m256i const lut_low_byte_second_u8x32 = _mm256_set_epi8(                                                    //
-        (char)192, (char)128, 64, 0, (char)224, (char)192, (char)160, (char)128, 112, 96, 80, 64, 56, 48, 40, 32, //
-        (char)192, (char)128, 64, 0, (char)224, (char)192, (char)160, (char)128, 112, 96, 80, 64, 56, 48, 40, 32);
-    __m256i const nibble_mask_u8x32 = _mm256_set1_epi8(0x0F);
-    __m256i const magnitude_mask_u8x32 = _mm256_set1_epi8(0x1F);
-    __m256i const half_select_u8x32 = _mm256_set1_epi8(0x10);
-    __m256i const sign_mask_u8x32 = _mm256_set1_epi8(0x20);
-    __m256i const high_threshold_u8x32 = _mm256_set1_epi8(27);
-    __m256i const ones_u8x32 = _mm256_set1_epi8(1);
-    __m256i const ones_i16x16 = _mm256_set1_epi16(1);
-
-    __m256i a_e3m2_u8x32 = a.ymm;
-    __m256i b_e3m2_u8x32 = b.ymm;
-
-    // Extract 5-bit magnitude, split into low 4 bits and bit 4
-    __m256i a_magnitude_u8x32 = _mm256_and_si256(a_e3m2_u8x32, magnitude_mask_u8x32);
-    __m256i b_magnitude_u8x32 = _mm256_and_si256(b_e3m2_u8x32, magnitude_mask_u8x32);
-    __m256i a_shuffle_index_u8x32 = _mm256_and_si256(a_magnitude_u8x32, nibble_mask_u8x32);
-    __m256i b_shuffle_index_u8x32 = _mm256_and_si256(b_magnitude_u8x32, nibble_mask_u8x32);
-    __m256i a_high_select_u8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(a_magnitude_u8x32, half_select_u8x32),
-                                                    half_select_u8x32);
-    __m256i b_high_select_u8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(b_magnitude_u8x32, half_select_u8x32),
-                                                    half_select_u8x32);
-
-    // Dual VPSHUFB for low bytes
-    __m256i a_low_byte_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_byte_first_u8x32, a_shuffle_index_u8x32),
-                                                  _mm256_shuffle_epi8(lut_low_byte_second_u8x32, a_shuffle_index_u8x32),
-                                                  a_high_select_u8x32);
-    __m256i b_low_byte_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_byte_first_u8x32, b_shuffle_index_u8x32),
-                                                  _mm256_shuffle_epi8(lut_low_byte_second_u8x32, b_shuffle_index_u8x32),
-                                                  b_high_select_u8x32);
-
-    // High byte: 1 iff magnitude >= 28
-    __m256i a_high_byte_u8x32 = _mm256_and_si256(_mm256_cmpgt_epi8(a_magnitude_u8x32, high_threshold_u8x32),
-                                                 ones_u8x32);
-    __m256i b_high_byte_u8x32 = _mm256_and_si256(_mm256_cmpgt_epi8(b_magnitude_u8x32, high_threshold_u8x32),
-                                                 ones_u8x32);
-
-    // Interleave low and high bytes into i16
-    __m256i a_low_i16x16 = _mm256_unpacklo_epi8(a_low_byte_u8x32, a_high_byte_u8x32);
-    __m256i a_high_i16x16 = _mm256_unpackhi_epi8(a_low_byte_u8x32, a_high_byte_u8x32);
-    __m256i b_low_i16x16 = _mm256_unpacklo_epi8(b_low_byte_u8x32, b_high_byte_u8x32);
-    __m256i b_high_i16x16 = _mm256_unpackhi_epi8(b_low_byte_u8x32, b_high_byte_u8x32);
-
-    // Combined sign: (a ^ b) & 0x20, widen to i16, create +1/-1 sign vector via VPSIGNW
-    __m256i sign_combined_u8x32 = _mm256_and_si256(_mm256_xor_si256(a_e3m2_u8x32, b_e3m2_u8x32), sign_mask_u8x32);
-    __m256i negate_mask_u8x32 = _mm256_cmpeq_epi8(sign_combined_u8x32, sign_mask_u8x32);
-    __m256i negate_low_i16x16 = _mm256_unpacklo_epi8(negate_mask_u8x32, negate_mask_u8x32);
-    __m256i negate_high_i16x16 = _mm256_unpackhi_epi8(negate_mask_u8x32, negate_mask_u8x32);
-    __m256i sign_low_i16x16 = _mm256_or_si256(negate_low_i16x16, ones_i16x16);
-    __m256i sign_high_i16x16 = _mm256_or_si256(negate_high_i16x16, ones_i16x16);
-    __m256i b_signed_low_i16x16 = _mm256_sign_epi16(b_low_i16x16, sign_low_i16x16);
-    __m256i b_signed_high_i16x16 = _mm256_sign_epi16(b_high_i16x16, sign_high_i16x16);
-
-    // VPMADDWD: a_unsigned_i16 × b_signed_i16 → i32 (two halves → two accumulators)
-    state->sum_a_i32x8 = _mm256_add_epi32(state->sum_a_i32x8, _mm256_madd_epi16(a_low_i16x16, b_signed_low_i16x16));
-    state->sum_b_i32x8 = _mm256_add_epi32(state->sum_b_i32x8, _mm256_madd_epi16(a_high_i16x16, b_signed_high_i16x16));
-}
-
-NUMKONG_INLINE void nk_dot_e3m2x32_finalize_haswell(                                              //
-    nk_dot_e3m2x32_state_haswell_t const *state_a, nk_dot_e3m2x32_state_haswell_t const *state_b, //
-    nk_dot_e3m2x32_state_haswell_t const *state_c, nk_dot_e3m2x32_state_haswell_t const *state_d, //
-    nk_size_t total_dimensions, nk_b128_vec_t *results) {
-    nk_unused_(total_dimensions);
-
-    // Merge two accumulators per state, then same 4-way transpose-reduce as Sierra
-    __m256i merged_a_i32x8 = _mm256_add_epi32(state_a->sum_a_i32x8, state_a->sum_b_i32x8);
-    __m256i merged_b_i32x8 = _mm256_add_epi32(state_b->sum_a_i32x8, state_b->sum_b_i32x8);
-    __m256i merged_c_i32x8 = _mm256_add_epi32(state_c->sum_a_i32x8, state_c->sum_b_i32x8);
-    __m256i merged_d_i32x8 = _mm256_add_epi32(state_d->sum_a_i32x8, state_d->sum_b_i32x8);
-
-    __m128i sum_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_a_i32x8),
-                                        _mm256_extracti128_si256(merged_a_i32x8, 1));
-    __m128i sum_b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_b_i32x8),
-                                        _mm256_extracti128_si256(merged_b_i32x8, 1));
-    __m128i sum_c_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_c_i32x8),
-                                        _mm256_extracti128_si256(merged_c_i32x8, 1));
-    __m128i sum_d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(merged_d_i32x8),
-                                        _mm256_extracti128_si256(merged_d_i32x8, 1));
-
-    __m128i transpose_ab_low_i32x4 = _mm_unpacklo_epi32(sum_a_i32x4, sum_b_i32x4);
-    __m128i transpose_cd_low_i32x4 = _mm_unpacklo_epi32(sum_c_i32x4, sum_d_i32x4);
-    __m128i transpose_ab_high_i32x4 = _mm_unpackhi_epi32(sum_a_i32x4, sum_b_i32x4);
-    __m128i transpose_cd_high_i32x4 = _mm_unpackhi_epi32(sum_c_i32x4, sum_d_i32x4);
-    __m128i lane0_i32x4 = _mm_unpacklo_epi64(transpose_ab_low_i32x4, transpose_cd_low_i32x4);
-    __m128i lane1_i32x4 = _mm_unpackhi_epi64(transpose_ab_low_i32x4, transpose_cd_low_i32x4);
-    __m128i lane2_i32x4 = _mm_unpacklo_epi64(transpose_ab_high_i32x4, transpose_cd_high_i32x4);
-    __m128i lane3_i32x4 = _mm_unpackhi_epi64(transpose_ab_high_i32x4, transpose_cd_high_i32x4);
-    __m128i sum_i32x4 = _mm_add_epi32(_mm_add_epi32(lane0_i32x4, lane1_i32x4), _mm_add_epi32(lane2_i32x4, lane3_i32x4));
-
-    __m128 sum_f32x4 = _mm_mul_ps(_mm_cvtepi32_ps(sum_i32x4), _mm_set1_ps(1.0f / 256.0f));
-    results->xmm = _mm_castps_si128(sum_f32x4);
-}
-
 #pragma endregion F16 and BF16 Floats
 
 #pragma region I8 and U8 Integers
@@ -860,96 +765,35 @@ NUMKONG_INLINE void nk_dot_u8x16_finalize_haswell(                              
     nk_dot_through_i32_finalize_haswell_(state_a, state_b, state_c, state_d, total_dimensions, result);
 }
 
-/** State for batched i4 dot products on Haswell. Processes 32 nibbles (16 bytes) per update
- *  iteration for optimal ILP. */
-typedef struct nk_dot_i4x32_state_haswell_t {
-
-    /** Products of both inputs biased by eight. */
-    __m256i biased_product_sum_i32x8;
-} nk_dot_i4x32_state_haswell_t;
+/**
+ *  @brief Running state for 32-nibble dot accumulation over i4 scalars on Haswell.
+ *  @note Alias of nk_dot_through_i32_state_haswell_t_
+ */
+typedef struct nk_dot_through_i32_state_haswell_t_ nk_dot_i4x32_state_haswell_t;
 
 NUMKONG_INLINE void nk_dot_i4x32_init_haswell(nk_dot_i4x32_state_haswell_t *state) {
-    state->biased_product_sum_i32x8 = _mm256_setzero_si256();
+    nk_dot_through_i32_init_haswell_(state);
 }
 
 NUMKONG_INLINE void nk_dot_i4x32_update_haswell(nk_dot_i4x32_state_haswell_t *state, nk_b128_vec_t a, nk_b128_vec_t b,
                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
-    // Process 32 nibbles (16 bytes) from the full 128-bit vector
-    // Algebraic transformation: a × b = (a^8) × (b^8) − 8 × (Σa + Σb) − 64 × n
-    // Correction applied at finalize time using precomputed sums.
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-
-    __m128i const nibble_mask_u8x16 = _mm_set1_epi8(0x0F);
-    __m128i const xor_mask_u8x16 = _mm_set1_epi8(0x08);
-
-    __m128i a_i4x32 = a.xmm;
-    __m128i b_i4x32 = b.xmm;
-
-    // Extract low and high nibbles
-    __m128i a_low_u8x16 = _mm_and_si128(a_i4x32, nibble_mask_u8x16);
-    __m128i a_high_u8x16 = _mm_and_si128(_mm_srli_epi16(a_i4x32, 4), nibble_mask_u8x16);
-    __m128i b_low_u8x16 = _mm_and_si128(b_i4x32, nibble_mask_u8x16);
-    __m128i b_high_u8x16 = _mm_and_si128(_mm_srli_epi16(b_i4x32, 4), nibble_mask_u8x16);
-
-    // XOR with 8 for algebraic transformation
-    __m128i c_low_u8x16 = _mm_xor_si128(a_low_u8x16, xor_mask_u8x16);
-    __m128i c_high_u8x16 = _mm_xor_si128(a_high_u8x16, xor_mask_u8x16);
-    __m128i d_low_u8x16 = _mm_xor_si128(b_low_u8x16, xor_mask_u8x16);
-    __m128i d_high_u8x16 = _mm_xor_si128(b_high_u8x16, xor_mask_u8x16);
-
-    // Widen u8 to i16 and multiply using MADD
-    __m256i c_low_i16x16 = _mm256_cvtepu8_epi16(c_low_u8x16);
-    __m256i c_high_i16x16 = _mm256_cvtepu8_epi16(c_high_u8x16);
-    __m256i d_low_i16x16 = _mm256_cvtepu8_epi16(d_low_u8x16);
-    __m256i d_high_i16x16 = _mm256_cvtepu8_epi16(d_high_u8x16);
-
-    // Multiply and accumulate (no SAD — correction deferred to finalize)
-    state->biased_product_sum_i32x8 = _mm256_add_epi32(state->biased_product_sum_i32x8,
-                                                       _mm256_madd_epi16(c_low_i16x16, d_low_i16x16));
-    state->biased_product_sum_i32x8 = _mm256_add_epi32(state->biased_product_sum_i32x8,
-                                                       _mm256_madd_epi16(c_high_i16x16, d_high_i16x16));
+    __m256i a_i16x16 = _mm256_cvtepi8_epi16(a.xmm);
+    __m256i b_i16x16 = _mm256_cvtepi8_epi16(b.xmm);
+    __m256i a_low_i16x16 = _mm256_srai_epi16(_mm256_slli_epi16(a_i16x16, 12), 12);
+    __m256i b_low_i16x16 = _mm256_srai_epi16(_mm256_slli_epi16(b_i16x16, 12), 12);
+    __m256i a_high_i16x16 = _mm256_srai_epi16(a_i16x16, 4);
+    __m256i b_high_i16x16 = _mm256_srai_epi16(b_i16x16, 4);
+    state->sum_i32x8 = _mm256_add_epi32(state->sum_i32x8, _mm256_madd_epi16(a_low_i16x16, b_low_i16x16));
+    state->sum_i32x8 = _mm256_add_epi32(state->sum_i32x8, _mm256_madd_epi16(a_high_i16x16, b_high_i16x16));
 }
 
 NUMKONG_INLINE void nk_dot_i4x32_finalize_haswell(                                            //
     nk_dot_i4x32_state_haswell_t const *state_a, nk_dot_i4x32_state_haswell_t const *state_b, //
     nk_dot_i4x32_state_haswell_t const *state_c, nk_dot_i4x32_state_haswell_t const *state_d, //
-    nk_size_t total_dimensions,                                                               //
-    nk_i32_t a_sum, /* A row sum (signed sum of i4 values) */                                 //
-    nk_b128_vec_t const *b_sums_vec, /* 4 × i32 B column sums */                              //
-    nk_b128_vec_t *result_vec) {
-
-    // Compensated 4-way reduction with external correction sums.
-    // Formula: result = biased_product − 8 × (Σa + Σb) − 64 × depth_padded
-    nk_size_t depth_nibbles = nk_size_round_up_to_multiple_(total_dimensions, 32);
-
-    // Reduce main products from ymm (i32x8) to xmm (i32x4)
-    __m128i product_a_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_a->biased_product_sum_i32x8),
-                                            _mm256_extracti128_si256(state_a->biased_product_sum_i32x8, 1));
-    __m128i product_b_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_b->biased_product_sum_i32x8),
-                                            _mm256_extracti128_si256(state_b->biased_product_sum_i32x8, 1));
-    __m128i product_c_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_c->biased_product_sum_i32x8),
-                                            _mm256_extracti128_si256(state_c->biased_product_sum_i32x8, 1));
-    __m128i product_d_i32x4 = _mm_add_epi32(_mm256_castsi256_si128(state_d->biased_product_sum_i32x8),
-                                            _mm256_extracti128_si256(state_d->biased_product_sum_i32x8, 1));
-
-    // 4-way transpose to get [a,b,c,d] in lanes
-    __m128i transpose_ab_low_i32x4 = _mm_unpacklo_epi32(product_a_i32x4, product_b_i32x4);
-    __m128i transpose_cd_low_i32x4 = _mm_unpacklo_epi32(product_c_i32x4, product_d_i32x4);
-    __m128i transpose_ab_high_i32x4 = _mm_unpackhi_epi32(product_a_i32x4, product_b_i32x4);
-    __m128i transpose_cd_high_i32x4 = _mm_unpackhi_epi32(product_c_i32x4, product_d_i32x4);
-    __m128i biased_i32x4 = _mm_add_epi32(
-        _mm_add_epi32(_mm_unpacklo_epi64(transpose_ab_low_i32x4, transpose_cd_low_i32x4),
-                      _mm_unpackhi_epi64(transpose_ab_low_i32x4, transpose_cd_low_i32x4)),
-        _mm_add_epi32(_mm_unpacklo_epi64(transpose_ab_high_i32x4, transpose_cd_high_i32x4),
-                      _mm_unpackhi_epi64(transpose_ab_high_i32x4, transpose_cd_high_i32x4)));
-
-    // Apply compensation: result = biased − 8 × (Σa + Σb) − 64 × depth_padded
-    __m128i a_sum_broadcast_i32x4 = _mm_set1_epi32(a_sum);
-    __m128i ab_sums_i32x4 = _mm_add_epi32(a_sum_broadcast_i32x4, b_sums_vec->xmm);
-    __m128i correction_i32x4 = _mm_slli_epi32(ab_sums_i32x4, 3); // × 8
-    __m128i offset_i32x4 = _mm_set1_epi32((nk_i32_t)(-64LL * (nk_i64_t)depth_nibbles));
-    result_vec->xmm = _mm_add_epi32(_mm_sub_epi32(biased_i32x4, correction_i32x4), offset_i32x4);
+    nk_size_t total_dimensions, nk_b128_vec_t *result) {
+    nk_dot_through_i32_finalize_haswell_(state_a, state_b, state_c, state_d, total_dimensions, result);
 }
 
 /** State for batched u4 dot products on Haswell. Processes 32 nibbles (16 bytes) per update
@@ -1023,6 +867,70 @@ NUMKONG_INLINE void nk_dot_u4x32_finalize_haswell(                              
     // Sum product lanes
     result->xmm = _mm_add_epi32(_mm_add_epi32(product_lane0_i32x4, product_lane1_i32x4),
                                 _mm_add_epi32(product_lane2_i32x4, product_lane3_i32x4));
+}
+
+/** E3M2 values times sixteen as signed halfwords, magnitudes up to 448: the low byte through dual
+ *  VPSHUFB, the high byte through a compare. */
+NUMKONG_INLINE void nk_e3m2x32_to_i16x16x2_haswell_(__m256i codes_u8x32, __m256i *low_i16x16, __m256i *high_i16x16) {
+    __m256i const lut_first_u8x32 = _mm256_set_epi8( //
+        28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0, 28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0);
+    __m256i const lut_second_u8x32 = _mm256_set_epi8(                                                             //
+        (char)192, (char)128, 64, 0, (char)224, (char)192, (char)160, (char)128, 112, 96, 80, 64, 56, 48, 40, 32, //
+        (char)192, (char)128, 64, 0, (char)224, (char)192, (char)160, (char)128, 112, 96, 80, 64, 56, 48, 40, 32);
+    __m256i magnitude_u8x32 = _mm256_and_si256(codes_u8x32, _mm256_set1_epi8(0x1F));
+    // Bit 4 of the magnitude moves to the top of its byte, where VPBLENDVB reads it
+    __m256i low_byte_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_first_u8x32, magnitude_u8x32),
+                                                _mm256_shuffle_epi8(lut_second_u8x32, magnitude_u8x32),
+                                                _mm256_slli_epi16(magnitude_u8x32, 3));
+    __m256i high_byte_u8x32 = _mm256_and_si256(_mm256_cmpgt_epi8(magnitude_u8x32, _mm256_set1_epi8(27)),
+                                               _mm256_set1_epi8(1));
+    __m256i sign_mask_u8x32 = _mm256_set1_epi8(0x20);
+    __m256i negate_u8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(codes_u8x32, sign_mask_u8x32), sign_mask_u8x32);
+    __m256i negate_low_i16x16 = _mm256_unpacklo_epi8(negate_u8x32, negate_u8x32);
+    __m256i negate_high_i16x16 = _mm256_unpackhi_epi8(negate_u8x32, negate_u8x32);
+    __m256i magnitude_low_i16x16 = _mm256_unpacklo_epi8(low_byte_u8x32, high_byte_u8x32);
+    __m256i magnitude_high_i16x16 = _mm256_unpackhi_epi8(low_byte_u8x32, high_byte_u8x32);
+    *low_i16x16 = _mm256_sub_epi16(_mm256_xor_si256(magnitude_low_i16x16, negate_low_i16x16), negate_low_i16x16);
+    *high_i16x16 = _mm256_sub_epi16(_mm256_xor_si256(magnitude_high_i16x16, negate_high_i16x16), negate_high_i16x16);
+}
+
+/** Loads 32 E3M2 codes as the signed halfwords @c nk_dot_e3m2x32_update_haswell multiplies. */
+NUMKONG_INLINE void nk_load_e3m2x32_to_i16x32_haswell_(void const *src, nk_b512_vec_t *dst) {
+    nk_e3m2x32_to_i16x16x2_haswell_(_mm256_loadu_si256((__m256i const *)src), &dst->ymms[0], &dst->ymms[1]);
+}
+
+NUMKONG_INLINE void nk_partial_load_e3m2x32_to_i16x32_haswell_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
+    nk_b256_vec_t codes_vec;
+    nk_partial_load_b8x32_haswell_(src, &codes_vec, n);
+    nk_e3m2x32_to_i16x16x2_haswell_(codes_vec.ymm, &dst->ymms[0], &dst->ymms[1]);
+}
+
+/**
+ *  @brief Running state for 32-value dot accumulation over decoded e3m2 scalars on Haswell.
+ *  @note Alias of nk_dot_through_i32_state_haswell_t_
+ */
+typedef struct nk_dot_through_i32_state_haswell_t_ nk_dot_e3m2x32_state_haswell_t;
+
+NUMKONG_INLINE void nk_dot_e3m2x32_init_haswell(nk_dot_e3m2x32_state_haswell_t *state) {
+    nk_dot_through_i32_init_haswell_(state);
+}
+
+NUMKONG_INLINE void nk_dot_e3m2x32_update_haswell(nk_dot_e3m2x32_state_haswell_t *state, nk_b512_vec_t a,
+                                                  nk_b512_vec_t b, nk_size_t depth_offset,
+                                                  nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    __m256i sum_i32x8 = _mm256_add_epi32(state->sum_i32x8, _mm256_madd_epi16(a.ymms[0], b.ymms[0]));
+    state->sum_i32x8 = _mm256_add_epi32(sum_i32x8, _mm256_madd_epi16(a.ymms[1], b.ymms[1]));
+}
+
+NUMKONG_INLINE void nk_dot_e3m2x32_finalize_haswell(                                              //
+    nk_dot_e3m2x32_state_haswell_t const *state_a, nk_dot_e3m2x32_state_haswell_t const *state_b, //
+    nk_dot_e3m2x32_state_haswell_t const *state_c, nk_dot_e3m2x32_state_haswell_t const *state_d, //
+    nk_size_t total_dimensions, nk_b128_vec_t *result) {
+    nk_dot_through_i32_finalize_haswell_(state_a, state_b, state_c, state_d, total_dimensions, result);
+    __m128 sum_f32x4 = _mm_mul_ps(_mm_cvtepi32_ps(result->xmm), _mm_set1_ps(1.0f / 256.0f));
+    result->xmm = _mm_castps_si128(sum_f32x4);
 }
 
 #pragma endregion I8 and U8 Integers

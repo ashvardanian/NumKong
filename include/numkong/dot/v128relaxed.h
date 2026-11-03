@@ -1095,9 +1095,12 @@ NUMKONG_INLINE void nk_dot_i4x32_update_v128relaxed(nk_dot_i4x32_state_v128relax
     v128_t a_high_u8x16 = wasm_v128_xor(wasm_v128_and(wasm_u16x8_shr(a.v128, 4), nibble_mask_u8x16), bias_mask_u8x16);
     v128_t b_low_u8x16 = wasm_v128_xor(wasm_v128_and(b.v128, nibble_mask_u8x16), bias_mask_u8x16);
     v128_t b_high_u8x16 = wasm_v128_xor(wasm_v128_and(wasm_u16x8_shr(b.v128, 4), nibble_mask_u8x16), bias_mask_u8x16);
-    state->biased_product_sum_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(a_low_u8x16, b_low_u8x16,
+    v128_t b_low_i8x16 = wasm_i8x16_sub(b_low_u8x16, bias_mask_u8x16);
+    v128_t b_high_i8x16 = wasm_i8x16_sub(b_high_u8x16, bias_mask_u8x16);
+    // The second operand of the relaxed dot must stay within 7 bits, so it takes the biased values
+    state->biased_product_sum_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(b_low_i8x16, a_low_u8x16,
                                                                              state->biased_product_sum_i32x4);
-    state->biased_product_sum_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(a_high_u8x16, b_high_u8x16,
+    state->biased_product_sum_i32x4 = wasm_i32x4_relaxed_dot_i8x16_i7x16_add(b_high_i8x16, a_high_u8x16,
                                                                              state->biased_product_sum_i32x4);
 }
 
@@ -1105,19 +1108,16 @@ NUMKONG_INLINE void nk_dot_i4x32_finalize_v128relaxed(                          
     nk_dot_i4x32_state_v128relaxed_t const *state_a, nk_dot_i4x32_state_v128relaxed_t const *state_b, //
     nk_dot_i4x32_state_v128relaxed_t const *state_c, nk_dot_i4x32_state_v128relaxed_t const *state_d, //
     nk_size_t total_dimensions,                                                                       //
-    nk_i32_t a_sum, /* Row sum of A (signed sum of i4 values) */                                      //
+    nk_i32_t a_sum, /* Row sum of A (unused for i4) */                                                //
     nk_b128_vec_t const *b_sums_vec, /* 4 × i32 column sums of B */                                   //
     nk_b128_vec_t *result_vec) {
-    // Match x86 compensated i4 finalizers: result = biased_dot - 8*(a_sum + b_sum) - 64*depth_padded
-    nk_i64_t depth_padded = (nk_i64_t)nk_size_round_up_to_multiple_(total_dimensions, 32);
-    result_vec->i32s[0] = nk_reduce_add_i32x4_v128_(state_a->biased_product_sum_i32x4) -
-                          8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums_vec->i32s[0]) - 64 * depth_padded;
-    result_vec->i32s[1] = nk_reduce_add_i32x4_v128_(state_b->biased_product_sum_i32x4) -
-                          8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums_vec->i32s[1]) - 64 * depth_padded;
-    result_vec->i32s[2] = nk_reduce_add_i32x4_v128_(state_c->biased_product_sum_i32x4) -
-                          8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums_vec->i32s[2]) - 64 * depth_padded;
-    result_vec->i32s[3] = nk_reduce_add_i32x4_v128_(state_d->biased_product_sum_i32x4) -
-                          8 * ((nk_i64_t)a_sum + (nk_i64_t)b_sums_vec->i32s[3]) - 64 * depth_padded;
+    nk_unused_(total_dimensions);
+    nk_unused_(a_sum);
+    // Only A carries the bias: result = biased_dot - 8*b_sum
+    result_vec->i32s[0] = nk_reduce_add_i32x4_v128_(state_a->biased_product_sum_i32x4) - 8 * b_sums_vec->i32s[0];
+    result_vec->i32s[1] = nk_reduce_add_i32x4_v128_(state_b->biased_product_sum_i32x4) - 8 * b_sums_vec->i32s[1];
+    result_vec->i32s[2] = nk_reduce_add_i32x4_v128_(state_c->biased_product_sum_i32x4) - 8 * b_sums_vec->i32s[2];
+    result_vec->i32s[3] = nk_reduce_add_i32x4_v128_(state_d->biased_product_sum_i32x4) - 8 * b_sums_vec->i32s[3];
 }
 
 NUMKONG_API nk_status_t nk_dot_f32c_v128relaxed(nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs,

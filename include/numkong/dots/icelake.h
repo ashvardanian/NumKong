@@ -145,7 +145,7 @@ nk_define_cross_compensated_packed_(dots, u8, icelake, u8, u8, u32,
                                     nk_partial_load_b32x4_skylake_, nk_dots_reduce_sum_stub_u8_serial_,
                                     /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
 
-/* I4 GEMM: depth_simd_dimensions=128 — compensated (A+B sums precomputed) */
+/* I4 GEMM: depth_simd_dimensions=128, compensated (B sums precomputed in pack) */
 nk_define_cross_packed_shape_(dots, i4, icelake)
 nk_define_cross_compensated_pack_size_(dots, i4, icelake, i4x2, i4x2,
                                        /*sum_value_type=*/i32, /*norm_value_type=*/u32,
@@ -172,7 +172,7 @@ nk_define_cross_compensated_packed_(dots, i4, icelake, i4x2, i4x2, i32,
                                     nk_partial_load_b4x128_skylake_, nk_dot_i4x128_update_icelake,
                                     nk_dot_i4x128_finalize_icelake, nk_store_b128_haswell_,
                                     nk_partial_store_b32x4_skylake_, nk_load_b128_haswell_,
-                                    nk_partial_load_b32x4_skylake_, nk_dots_reduce_sum_i4_serial_,
+                                    nk_partial_load_b32x4_skylake_, nk_dots_reduce_sum_stub_i4_serial_,
                                     /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
 
 /* U4 GEMM: depth_simd_dimensions=128 (128 nibbles = 64 bytes = full cache line) */
@@ -215,6 +215,50 @@ nk_define_cross_packed_(dots, u1, icelake, u1x8, u1x8, u32, nk_b512_vec_t, nk_do
                         nk_load_b512_skylake_, nk_partial_load_b1x512_skylake_, nk_dot_u1x512_update_icelake,
                         nk_dot_u1x512_finalize_icelake, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
                         /*depth_simd_dimensions=*/512, /*dimensions_per_value=*/8)
+
+/*  E2M3 GEMM via the integer LUT path: depth_simd_dimensions = 64, as 64 e2m3s span the 64 bytes of
+ *  an AVX-512 register. */
+nk_define_cross_pack_size_(dots, e2m3, icelake, e2m3, e2m3, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
+nk_define_cross_packed_shape_(dots, e2m3, icelake)
+nk_define_cross_pack_(dots, e2m3, icelake, e2m3, e2m3, nk_b512_vec_t, nk_load_b512_skylake_,
+                      nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
+                      /*simd_width=*/64, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m3_skylake_,
+                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
+                      /*scale_bytes=*/1)
+nk_define_cross_symmetric_(dots, e2m3, icelake, e2m3, f32, nk_b512_vec_t, nk_dot_e2m3x64_state_skylake_t, nk_b128_vec_t,
+                           nk_dot_e2m3x64_init_skylake, nk_load_e2m3x64_to_i8x64_icelake_,
+                           nk_partial_load_e2m3x64_to_i8x64_icelake_, nk_dot_e2m3x64_update_icelake,
+                           nk_dot_e2m3x64_finalize_skylake, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
+                           /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
+nk_define_cross_packed_(dots, e2m3, icelake, e2m3, e2m3, f32, nk_b512_vec_t, nk_dot_e2m3x64_state_skylake_t,
+                        nk_b128_vec_t, nk_dot_e2m3x64_init_skylake, nk_load_e2m3x64_to_i8x64_icelake_,
+                        nk_partial_load_e2m3x64_to_i8x64_icelake_, nk_load_e2m3x64_to_i8x64_icelake_,
+                        nk_partial_load_e2m3x64_to_i8x64_icelake_, nk_dot_e2m3x64_update_icelake,
+                        nk_dot_e2m3x64_finalize_skylake, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
+                        /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
+
+/*  E2M1 GEMM via the integer LUT path: depth_simd_dimensions = 128, as 128 nibbles span the 64
+ *  bytes of an AVX-512 register. */
+nk_define_cross_pack_size_(dots, e2m1, icelake, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/128,
+                           /*dimensions_per_value=*/2, /*scale_bytes=*/1)
+nk_define_cross_packed_shape_(dots, e2m1, icelake)
+nk_define_cross_pack_(dots, e2m1, icelake, e2m1x2, e2m1x2, nk_b512_vec_t, nk_load_b512_skylake_,
+                      nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
+                      /*simd_width=*/64, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_skylake_,
+                      /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2, nk_cross_pack_scales_bytes_serial_,
+                      /*scale_bytes=*/1)
+nk_define_cross_symmetric_(dots, e2m1, icelake, e2m1x2, f32, nk_b512_vec_t, nk_dot_e2m1x128_state_skylake_t,
+                           nk_b128_vec_t, nk_dot_e2m1x128_init_skylake, nk_load_b512_skylake_,
+                           nk_partial_load_b4x128_skylake_, nk_dot_e2m1x128_update_icelake,
+                           nk_dot_e2m1x128_finalize_skylake, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
+                           /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
+nk_define_cross_packed_(dots, e2m1, icelake, e2m1x2, e2m1x2, f32, nk_b512_vec_t, nk_dot_e2m1x128_state_skylake_t,
+                        nk_b128_vec_t, nk_dot_e2m1x128_init_skylake, nk_load_b512_skylake_,
+                        nk_partial_load_b4x128_skylake_, nk_load_b512_skylake_, nk_partial_load_b4x128_skylake_,
+                        nk_dot_e2m1x128_update_icelake, nk_dot_e2m1x128_finalize_skylake, nk_store_b128_haswell_,
+                        nk_partial_store_b32x4_skylake_,
+                        /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2)
 
 #endif // NUMKONG_TARGET_ICELAKE
 

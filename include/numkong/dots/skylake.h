@@ -295,14 +295,16 @@ nk_define_cross_packed_(dots, e4m3, skylake, e4m3, f16, f32, nk_b512_vec_t, nk_d
                         nk_dot_through_f32_finalize_skylake_, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
-/* E5M2 GEMM: depth_simd_dimensions=64 (byte-level batch; widen inside the update helper) */
-nk_define_cross_pack_size_(dots, e5m2, skylake, e5m2, f32, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
+/*  E5M2 GEMM: depth_simd_dimensions=16, as packing stores B as F16 and every load widens to F32 for
+ *  a plain FMA, one VCVTPH2PS per B read. Symmetric stays byte-batched, with no pack involved. */
+nk_define_cross_pack_size_(dots, e5m2, skylake, e5m2, f16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,
                            /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, e5m2, skylake)
-nk_define_cross_pack_(dots, e5m2, skylake, e5m2, f32, nk_b512_vec_t, nk_load_b512_skylake_,
-                      nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
-                      /*simd_width=*/64, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_skylake_,
-                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
+nk_define_cross_pack_(dots, e5m2, skylake, e5m2, f16, nk_b256_vec_t, nk_load_e5m2x16_to_f16x16_skylake_,
+                      nk_partial_load_e5m2x16_to_f16x16_skylake_, nk_store_b256_haswell_,
+                      nk_partial_store_b16x16_skylake_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_skylake_,
+                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e5m2, skylake, e5m2, f32, nk_b512_vec_t, nk_dot_through_f32_state_skylake_t_,
                            nk_b128_vec_t, nk_dot_through_f32_init_skylake_, nk_load_b512_skylake_,
@@ -310,12 +312,12 @@ nk_define_cross_symmetric_(dots, e5m2, skylake, e5m2, f32, nk_b512_vec_t, nk_dot
                            nk_dot_through_f32_finalize_skylake_, nk_store_b128_haswell_,
                            nk_partial_store_b32x4_skylake_,
                            /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_packed_(dots, e5m2, skylake, e5m2, f32, f32, nk_b512_vec_t, nk_dot_through_f32_state_skylake_t_,
-                        nk_b128_vec_t, nk_dot_through_f32_init_skylake_, nk_load_b512_skylake_,
-                        nk_partial_load_b8x64_skylake_, nk_load_b512_skylake_, nk_partial_load_b8x64_skylake_,
-                        nk_dot_e5m2x64_update_skylake_, nk_dot_through_f32_finalize_skylake_, nk_store_b128_haswell_,
-                        nk_partial_store_b32x4_skylake_,
-                        /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
+nk_define_cross_packed_(dots, e5m2, skylake, e5m2, f16, f32, nk_b512_vec_t, nk_dot_through_f32_state_skylake_t_,
+                        nk_b128_vec_t, nk_dot_through_f32_init_skylake_, nk_load_e5m2x16_to_f32x16_skylake_,
+                        nk_partial_load_e5m2x16_to_f32x16_skylake_, nk_load_f16x16_to_f32x16_skylake_,
+                        nk_partial_load_f16x16_to_f32x16_skylake_, nk_dot_through_f32_update_skylake_,
+                        nk_dot_through_f32_finalize_skylake_, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
+                        /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
 /*  E2M3 GEMM via the integer LUT path: depth_simd_dimensions = 64, as 64 e2m3s span the 64 bytes of
  *  an AVX-512 register. */
@@ -493,27 +495,27 @@ nk_define_cross_scaled_symmetric_(dots, mxfp8e5m2, skylake, e5m2, nk_dot_from_wi
                                   /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                   /*register_rows=*/2, /*register_columns=*/4)
 
-/*  E3M2 GEMM via the integer LUT path: depth_simd_dimensions = 64, as 64 e3m2s span the 64
- *  bytes of an AVX-512 register. */
-nk_define_cross_pack_size_(dots, e3m2, skylake, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
+/*  E3M2 GEMM via the integer LUT path: depth_simd_dimensions = 32, as 32 e3m2s decode into the 32
+ *  signed halfwords of an AVX-512 register. */
+nk_define_cross_pack_size_(dots, e3m2, skylake, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, e3m2, skylake)
 nk_define_cross_pack_(dots, e3m2, skylake, e3m2, e3m2, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
                       /*simd_width=*/64, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e3m2_skylake_,
-                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
-nk_define_cross_symmetric_(dots, e3m2, skylake, e3m2, f32, nk_b512_vec_t, nk_dot_e3m2x64_state_skylake_t, nk_b128_vec_t,
-                           nk_dot_e3m2x64_init_skylake, nk_load_b512_skylake_, nk_partial_load_b8x64_skylake_,
-                           nk_dot_e3m2x64_update_skylake, nk_dot_e3m2x64_finalize_skylake, nk_store_b128_haswell_,
-                           nk_partial_store_b32x4_skylake_,
-                           /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
-nk_define_cross_packed_(dots, e3m2, skylake, e3m2, e3m2, f32, nk_b512_vec_t, nk_dot_e3m2x64_state_skylake_t,
-                        nk_b128_vec_t, nk_dot_e3m2x64_init_skylake, nk_load_b512_skylake_,
-                        nk_partial_load_b8x64_skylake_, nk_load_b512_skylake_, nk_partial_load_b8x64_skylake_,
-                        nk_dot_e3m2x64_update_skylake, nk_dot_e3m2x64_finalize_skylake, nk_store_b128_haswell_,
-                        nk_partial_store_b32x4_skylake_,
-                        /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1)
+nk_define_cross_symmetric_(dots, e3m2, skylake, e3m2, f32, nk_b512_vec_t, nk_dot_e3m2x32_state_skylake_t, nk_b128_vec_t,
+                           nk_dot_e3m2x32_init_skylake, nk_load_e3m2x32_to_i16x32_skylake_,
+                           nk_partial_load_e3m2x32_to_i16x32_skylake_, nk_dot_e3m2x32_update_skylake,
+                           nk_dot_e3m2x32_finalize_skylake, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
+                           /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
+nk_define_cross_packed_(dots, e3m2, skylake, e3m2, e3m2, f32, nk_b512_vec_t, nk_dot_e3m2x32_state_skylake_t,
+                        nk_b128_vec_t, nk_dot_e3m2x32_init_skylake, nk_load_e3m2x32_to_i16x32_skylake_,
+                        nk_partial_load_e3m2x32_to_i16x32_skylake_, nk_load_e3m2x32_to_i16x32_skylake_,
+                        nk_partial_load_e3m2x32_to_i16x32_skylake_, nk_dot_e3m2x32_update_skylake,
+                        nk_dot_e3m2x32_finalize_skylake, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
+                        /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 
 #endif // NUMKONG_TARGET_SKYLAKE
 #if defined(__clang__)
