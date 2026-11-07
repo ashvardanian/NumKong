@@ -1,0 +1,105 @@
+{
+  "python": "3.12.7",
+  "numpy": "2.5.2",
+  "numkong": "7.8.5",
+  "cpu": "Apple M4 Max",
+  "platform": "macOS-27.0.1-arm64-arm-64bit",
+  "size": 1000000,
+  "repeats": 21,
+  "boundary": "Python call with allocation; native array_factory=numpy.empty; both single-threaded",
+  "source_sha256": {
+    "include/numkong/random.h": "925c7fd838cea40375e640a62df90515bc65b16991f6f4ade757e07e9182a2e9",
+    "include/numkong/random/ziggurat.h": "9313bf10faf403d90658cd89ca2860e43760b6220ba71c5fa607ebfaf6da8a04",
+    "python/random.c": "68bff9e50f7cb5dde7e2775c758bdae3ffed2754dd37bf637e82c419d64bc7c8"
+  },
+  "results": [
+    {
+      "workload": "random_f32",
+      "numkong_ms": 0.520667,
+      "numpy_ms": 1.667167,
+      "numpy_ms_over_numkong_ms": 3.201983225362852
+    },
+    {
+      "workload": "random_f64",
+      "numkong_ms": 0.683958,
+      "numpy_ms": 3.084583,
+      "numpy_ms_over_numkong_ms": 4.509901192763299
+    },
+    {
+      "workload": "uniform_f64",
+      "numkong_ms": 0.735292,
+      "numpy_ms": 3.258375,
+      "numpy_ms_over_numkong_ms": 4.431402762439956
+    },
+    {
+      "workload": "normal_f64",
+      "numkong_ms": 1.956875,
+      "numpy_ms": 4.061542,
+      "numpy_ms_over_numkong_ms": 2.075524496965826
+    },
+    {
+      "workload": "standard_normal_f32",
+      "numkong_ms": 1.674625,
+      "numpy_ms": 2.680625,
+      "numpy_ms_over_numkong_ms": 1.600731507053818
+    },
+    {
+      "workload": "standard_normal_f64",
+      "numkong_ms": 1.858625,
+      "numpy_ms": 3.971166,
+      "numpy_ms_over_numkong_ms": 2.136614970744502
+    },
+    {
+      "workload": "integers_u8",
+      "numkong_ms": 0.181625,
+      "numpy_ms": 0.473083,
+      "numpy_ms_over_numkong_ms": 2.6047240192704746
+    },
+    {
+      "workload": "integers_i32",
+      "numkong_ms": 1.376833,
+      "numpy_ms": 1.92075,
+      "numpy_ms_over_numkong_ms": 1.3950493632851624
+    },
+    {
+      "workload": "laplace_f64",
+      "numkong_ms": 5.674583,
+      "numpy_ms": 11.964,
+      "numpy_ms_over_numkong_ms": 2.10834875443711
+    },
+    {
+      "workload": "beta_f64",
+      "numkong_ms": 18.190583,
+      "numpy_ms": 18.730833,
+      "numpy_ms_over_numkong_ms": 1.0296994329428584
+    },
+    {
+      "workload": "poisson_small",
+      "numkong_ms": 19.513958,
+      "numpy_ms": 23.774333,
+      "numpy_ms_over_numkong_ms": 1.2183244936778075
+    },
+    {
+      "workload": "poisson_large",
+      "numkong_ms": 21.873625,
+      "numpy_ms": 24.67425,
+      "numpy_ms_over_numkong_ms": 1.1280366194446507
+    },
+    {
+      "workload": "choice_sparse",
+      "numkong_ms": 0.055917,
+      "numpy_ms": 0.097,
+      "numpy_ms_over_numkong_ms": 1.734713951034569
+    },
+    {
+      "workload": "shuffle_i64",
+      "numkong_ms": 5.265041,
+      "numpy_ms": 5.34275,
+      "numpy_ms_over_numkong_ms": 1.014759429223818
+    }
+  ],
+  "publication_formatting": {
+    "change": "clang-format whitespace only; non-whitespace content verified identical",
+    "python/random.c_sha256": "62b8688cb6df6940230d76d71735d2fc3605bd9655b762ddc09237a29d3b84f8"
+  }
+}
