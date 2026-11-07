@@ -1,4 +1,7 @@
+from collections.abc import Callable, Sequence
 from typing import Any, Literal, TypeAlias
+
+from numpy import dtype as _DType
 
 # Many annotation features depend on the Python version:
 # - `typing.TypeAlias` type aliases are supported in Python 3.10-3.11.
@@ -369,6 +372,90 @@ class Tensor(memoryview):
         """Return the index of the maximum element, or None if all elements are NaN."""
         ...
 
+class Generator:
+    """Native sampling with independent uint64 state and optional buffer allocation."""
+
+    def __init__(self, seed: int | None = None, *, array_factory: Callable[..., _BufferType] | None = None) -> None: ...
+    @property
+    def state(self) -> int: ...
+    @state.setter
+    def state(self, value: int) -> None: ...
+    def random(
+        self,
+        size: int | tuple[int, ...] | None = None,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def standard_normal(
+        self,
+        size: int | tuple[int, ...] | None = None,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def uniform(
+        self,
+        low: float | _BufferType = 0.0,
+        high: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def normal(
+        self,
+        loc: float | _BufferType = 0.0,
+        scale: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def laplace(
+        self,
+        loc: float | _BufferType = 0.0,
+        scale: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def beta(
+        self,
+        a: float | _BufferType,
+        b: float | _BufferType,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def poisson(
+        self,
+        lam: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        out: _BufferType | None = None,
+    ) -> int | Tensor | _BufferType | None: ...
+    def integers(
+        self,
+        low: int | _BufferType,
+        high: int | _BufferType | None = None,
+        size: int | tuple[int, ...] | None = None,
+        dtype: str | type | _DType = "int64",
+        endpoint: bool = False,
+        *,
+        out: _BufferType | None = None,
+    ) -> int | Tensor | _BufferType | None: ...
+    def choice(
+        self,
+        a: int | Sequence[object] | _BufferType,
+        size: int | tuple[int, ...] | None = None,
+        replace: bool = True,
+        p: Sequence[float] | _BufferType | None = None,
+        axis: int = 0,
+        shuffle: bool = True,
+    ) -> object: ...
+    def shuffle(self, x: list[object] | _BufferType, axis: int = 0) -> None: ...
+
 class PackedMatrix:
     """Opaque pre-packed matrix for repeated cross operations.
 
@@ -727,6 +814,7 @@ def from_dlpack(obj: Any, /) -> Tensor:
     ``jax.Array``). Only CPU tensors are supported.
     """
     ...
+
 def empty(
     shape: int | tuple[int, ...],
     /,
@@ -761,6 +849,7 @@ def iota(
 ) -> Tensor:
     """Tensor filled with ``seed, seed+1, seed+2, ...`` reshaped to ``shape``."""
     ...
+
 def diagonal(
     n: int,
     seed: int | float = 1,
@@ -770,6 +859,7 @@ def diagonal(
 ) -> Tensor:
     """Square ``n x n`` tensor with ``seed`` on the main diagonal and zeros elsewhere."""
     ...
+
 def hash(
     shape: int | tuple[int, ...],
     seed: int = 0,
@@ -779,6 +869,7 @@ def hash(
 ) -> Tensor:
     """Tensor filled with deterministic pseudo-random bits (shape, dtype, seed → reproducible bytes)."""
     ...
+
 def astype(
     a: _BufferType,
     dtype: _DtypeLike,

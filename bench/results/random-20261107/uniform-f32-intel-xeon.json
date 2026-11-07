@@ -1,0 +1,31 @@
+{
+  "python": "3.12.16",
+  "numpy": "2.5.2",
+  "numkong": "7.8.5",
+  "cpu": "Intel(R) Xeon(R) CPU @ 2.80GHz",
+  "platform": "Linux-6.8.0-1015-gcp-x86_64-with-glibc2.35",
+  "size": 1000000,
+  "repeats": 21,
+  "boundary": "Python call with allocation; native array_factory=numpy.empty; both single-threaded",
+  "source_sha256": {
+    "include/numkong/random.h": "925c7fd838cea40375e640a62df90515bc65b16991f6f4ade757e07e9182a2e9",
+    "include/numkong/random/ziggurat.h": "9313bf10faf403d90658cd89ca2860e43760b6220ba71c5fa607ebfaf6da8a04",
+    "python/random.c": "62b8688cb6df6940230d76d71735d2fc3605bd9655b762ddc09237a29d3b84f8"
+  },
+  "results": [
+    {
+      "workload": "uniform_f32_cast",
+      "numpy_baseline": "uniform(-1, 1, size).astype(float32)",
+      "numkong_ms": 2.132797,
+      "numpy_ms": 5.990012,
+      "numpy_ms_over_numkong_ms": 2.8085242055385486
+    },
+    {
+      "workload": "uniform_f32_inplace",
+      "numpy_baseline": "random(size, dtype=float32), multiply(out=), add(out=)",
+      "numkong_ms": 2.132797,
+      "numpy_ms": 3.327291,
+      "numpy_ms_over_numkong_ms": 1.5600598650504478
+    }
+  ]
+}

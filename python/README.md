@@ -35,6 +35,46 @@ dot = nk.dot(a, b)  # widened accumulation, not same-dtype
 print(dot)
 ```
 
+## Stateful Random Generation
+
+`nk.Generator` samples `random`, `uniform`, `normal`, `standard_normal`, `integers`, `laplace`, `beta`, and `poisson`, and provides `choice` and `shuffle`. Sampling, parameter broadcasting, and state management run inside NumKong. NumPy is optional.
+
+```python
+import copy
+import numkong as nk
+
+rng = nk.Generator(seed=137)
+noise = rng.normal(0.0, 0.1, size=(256, 256, 3), dtype="float32")
+label = rng.integers(10)
+clone = copy.deepcopy(rng)
+state = rng.state
+```
+
+Omitting `size` returns a Python scalar when parameters are scalar. Array parameters broadcast from the trailing dimensions; an omitted `size` uses their broadcast shape. Floating output defaults to `float64`; `float32` is available directly. Integer output defaults to `int64` and supports signed and unsigned 8-, 16-, 32-, and 64-bit dtypes, including their full ranges. `integers` uses an exclusive upper bound unless `endpoint=True`.
+
+For an existing NumPy consumer, pass an allocator once. NumKong fills the resulting arrays directly and does not call NumPy's random distributions:
+
+```python
+import numpy as np
+
+rng = nk.Generator(137, array_factory=np.empty)
+noise = rng.standard_normal((256, 256, 3), dtype=np.float32)
+assert isinstance(noise, np.ndarray)
+positions = rng.integers(0, np.array([64, 96]), size=(100, 2))
+selected = rng.choice(1_000_000, size=1000, replace=False)
+rng.shuffle(selected)
+```
+
+The allocator is called as `array_factory(shape, dtype="float32")` or with another supported dtype name. It must return a writable, aligned, C-contiguous buffer of the requested shape and dtype. Without an allocator, array results are NumKong `Tensor` objects. Sampling methods also accept `out=`; they fill that buffer and return `None`. `choice` allocates its result through the factory and does not accept `out=`.
+
+`choice` supports one-dimensional populations, including scalar selection of string labels, optional weights, and sampling without replacement. Array results from sequence populations currently support numeric values. Sparse unweighted selection uses memory proportional to the number of requested samples. `shuffle` mutates Python lists or C-contiguous arrays along their first axis.
+
+Each instance owns a SplitMix64 stream. Explicit uint64 seeds reproduce the same sequence of calls and shapes for a fixed NumKong version and platform; `None` obtains entropy from the operating system. These sequences differ from NumPy. Floating sampling uses host `libm`, so exact results can differ across platforms. State reads, writes, and complete fills are serialized per instance; independent instances can fill concurrently with the GIL released. Copies and pickle round trips preserve the stream position and allocator. This generator is for simulation and numerical workloads, not cryptography.
+
+Normal sampling uses a 256-strip Ziggurat, bounded integers use rejection sampling, beta uses Johnk and Marsaglia–Tsang sampling, and Poisson uses multiplication for small rates and transformed rejection for larger rates. The algorithms and lookup tables derived from NumPy retain its BSD notice in `include/numkong/random/ziggurat.h`.
+
+Run the Python-call comparison with `python bench/bench_random.py --size 1000000 --repeats 21`. It includes allocation on both paths and compares against NumPy's default PCG64 generator; different engines and small output sizes can produce different rankings.
+
 ## Installation
 
 From PyPI:
