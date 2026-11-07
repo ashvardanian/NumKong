@@ -32,3 +32,19 @@ Uniform, normal, and byte-array fills show the largest gains. Beta and shuffle a
 Reproduce with `python bench/bench_random.py --size 1000000 --repeats 21`. Raw results: [Apple M4 Max](apple-m4-max.json), [Intel Xeon](intel-xeon.json).
 
 Validation: 93 RNG tests passed on both platforms. Native headers also passed C99/C++20 compilation and a two-translation-unit link check; the C99 run passed AddressSanitizer and UndefinedBehaviorSanitizer. The implementation uses scalar kernels and host `libm`.
+
+## Bounded uniform float32
+
+The follow-up measures `rng.uniform(-1, 1, size=1_000_000, dtype=np.float32)` against two NumPy 2.5.2 routes. NumPy's `uniform` has no `dtype` parameter. Both comparison routes return float32 arrays: `uniform(...).astype(np.float32)`, and `random(..., dtype=np.float32)` followed by in-place multiply/add.
+
+Each result is the median of 21 calls after three warmups, including allocation. The three route orders rotate across iterations. RNG source hashes match across the two machines and match the published implementation; these are separate runs from the table above.
+
+| Route | M4 Max, ms | Intel Xeon, ms |
+| --- | ---: | ---: |
+| NumKong native float32 uniform | 0.607 | 2.133 |
+| NumPy float64 uniform + float32 cast | 3.934 | 5.990 |
+| NumPy float32 random + in-place scale | 1.892 | 3.327 |
+
+NumPy time / NumKong time is **3.12× on M4 Max** and **1.56× on Xeon** for the float32 in-place route. Against the float64-and-cast route, the ratios are 6.49× and 2.81×.
+
+Reproduce only this comparison with `python bench/bench_random.py --uniform-f32-only --size 1000000 --repeats 21`. Raw results: [M4 Max](uniform-f32-apple-m4-max.json), [Intel Xeon](uniform-f32-intel-xeon.json).
