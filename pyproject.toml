@@ -241,6 +241,7 @@ build.targets = ["numkong_python"]
 build-dir = "build_python/{wheel_tag}"
 install.components = ["numkong_python"]
 sdist.exclude = ["bench", "build*", "node_modules", "target", "test"]
+wheel.license-files = ["LICENSE", "c/numkong/random_ziggurat.LICENSE"]
 wheel.packages = ["python/numkong"]
 
 [tool.scikit-build.cmake.define]
