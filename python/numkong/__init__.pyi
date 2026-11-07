@@ -1,4 +1,7 @@
-from typing import Any, Literal, TypeAlias, overload
+from collections.abc import Callable, Sequence
+from typing import Any, Literal, TypeAlias
+
+from numpy import dtype as _DType
 
 # Many annotation features depend on the Python version:
 # - `typing.TypeAlias` type aliases are supported in Python 3.10-3.11.
@@ -370,116 +373,88 @@ class Tensor(memoryview):
         ...
 
 class Generator:
-    """Independent stateful pseudo-random number generator."""
+    """Native sampling with independent uint64 state and optional buffer allocation."""
 
-    def __init__(self, seed: int | None = None) -> None:
-        """Create a generator with an explicit integer seed."""
-        ...
-
+    def __init__(self, seed: int | None = None, *, array_factory: Callable[..., _BufferType] | None = None) -> None: ...
     @property
-    def state(self) -> int:
-        """Read or replace the generator's reproducible state."""
-        ...
-
+    def state(self) -> int: ...
     @state.setter
     def state(self, value: int) -> None: ...
     def random(
         self,
-        size: int | tuple[int, ...],
-        *,
-        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
+        size: int | tuple[int, ...] | None = None,
+        dtype: str | type | _DType = "float64",
         out: _BufferType | None = None,
-    ) -> Tensor | None:
-        """Generate uniform samples in [0, 1)."""
-        ...
-
-    @overload
-    def uniform(
-        self,
-        low: float,
-        high: float,
-        size: int | tuple[int, ...],
-        *,
-        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
-        out: _BufferType | None = None,
-    ) -> Tensor | None:
-        """Generate uniform samples in [low, high)."""
-        ...
-
-    @overload
-    def uniform(
-        self,
-        low: float = 0.0,
-        high: float = 1.0,
-        *,
-        size: int | tuple[int, ...],
-        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
-        out: _BufferType | None = None,
-    ) -> Tensor | None:
-        """Generate uniform samples in [low, high)."""
-        ...
-
-    @overload
-    def normal(
-        self,
-        loc: float,
-        scale: float,
-        size: int | tuple[int, ...],
-        *,
-        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
-        out: _BufferType | None = None,
-    ) -> Tensor | None:
-        """Generate normal samples with the requested location and scale."""
-        ...
-
-    @overload
-    def normal(
-        self,
-        loc: float = 0.0,
-        scale: float = 1.0,
-        *,
-        size: int | tuple[int, ...],
-        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
-        out: _BufferType | None = None,
-    ) -> Tensor | None:
-        """Generate normal samples with the requested location and scale."""
-        ...
-
+    ) -> float | Tensor | _BufferType | None: ...
     def standard_normal(
         self,
-        size: int | tuple[int, ...],
-        *,
-        dtype: Literal["f32", "float32", "f64", "float64"] = "float32",
+        size: int | tuple[int, ...] | None = None,
+        dtype: str | type | _DType = "float64",
         out: _BufferType | None = None,
-    ) -> Tensor | None:
-        """Generate standard normal samples."""
-        ...
-
-    @overload
+    ) -> float | Tensor | _BufferType | None: ...
+    def uniform(
+        self,
+        low: float | _BufferType = 0.0,
+        high: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def normal(
+        self,
+        loc: float | _BufferType = 0.0,
+        scale: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def laplace(
+        self,
+        loc: float | _BufferType = 0.0,
+        scale: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def beta(
+        self,
+        a: float | _BufferType,
+        b: float | _BufferType,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        dtype: str | type | _DType = "float64",
+        out: _BufferType | None = None,
+    ) -> float | Tensor | _BufferType | None: ...
+    def poisson(
+        self,
+        lam: float | _BufferType = 1.0,
+        size: int | tuple[int, ...] | None = None,
+        *,
+        out: _BufferType | None = None,
+    ) -> int | Tensor | _BufferType | None: ...
     def integers(
         self,
-        low: int,
-        high: int | None,
-        size: int | tuple[int, ...],
+        low: int | _BufferType,
+        high: int | _BufferType | None = None,
+        size: int | tuple[int, ...] | None = None,
+        dtype: str | type | _DType = "int64",
+        endpoint: bool = False,
         *,
-        dtype: Literal["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"] = "int64",
         out: _BufferType | None = None,
-    ) -> Tensor | None:
-        """Generate uniformly distributed integers in [low, high)."""
-        ...
-
-    @overload
-    def integers(
+    ) -> int | Tensor | _BufferType | None: ...
+    def choice(
         self,
-        low: int,
-        high: int | None = None,
-        *,
-        size: int | tuple[int, ...],
-        dtype: Literal["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"] = "int64",
-        out: _BufferType | None = None,
-    ) -> Tensor | None:
-        """Generate uniformly distributed integers in [low, high)."""
-        ...
+        a: int | Sequence[object] | _BufferType,
+        size: int | tuple[int, ...] | None = None,
+        replace: bool = True,
+        p: Sequence[float] | _BufferType | None = None,
+        axis: int = 0,
+        shuffle: bool = True,
+    ) -> object: ...
+    def shuffle(self, x: list[object] | _BufferType, axis: int = 0) -> None: ...
 
 class PackedMatrix:
     """Opaque pre-packed matrix for repeated cross operations.
@@ -839,6 +814,7 @@ def from_dlpack(obj: Any, /) -> Tensor:
     ``jax.Array``). Only CPU tensors are supported.
     """
     ...
+
 def empty(
     shape: int | tuple[int, ...],
     /,
@@ -873,6 +849,7 @@ def iota(
 ) -> Tensor:
     """Tensor filled with ``seed, seed+1, seed+2, ...`` reshaped to ``shape``."""
     ...
+
 def diagonal(
     n: int,
     seed: int | float = 1,
@@ -882,6 +859,7 @@ def diagonal(
 ) -> Tensor:
     """Square ``n x n`` tensor with ``seed`` on the main diagonal and zeros elsewhere."""
     ...
+
 def hash(
     shape: int | tuple[int, ...],
     seed: int = 0,
@@ -891,6 +869,7 @@ def hash(
 ) -> Tensor:
     """Tensor filled with deterministic pseudo-random bits (shape, dtype, seed → reproducible bytes)."""
     ...
+
 def astype(
     a: _BufferType,
     dtype: _DtypeLike,
