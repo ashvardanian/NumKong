@@ -35,6 +35,13 @@
 extern "C" {
 #endif
 
+#pragma region Warp Pack
+
+nk_define_shapes_pack_simt_(f32, f64, nk_assign_from_to_, nk_assign_from_to_, 0x1p-16, cuda)
+nk_define_shapes_pack_simt_(f16, f32, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_, 0x1p-7f, cuda)
+
+#pragma endregion Warp Pack
+
 #pragma region Chamfer and Hausdorff
 
 /** The Chamfer distances between two packs of F32 points under each of the 8 flips on a whole warp,

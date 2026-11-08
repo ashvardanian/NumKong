@@ -2291,6 +2291,330 @@ NUMKONG_DEVICE void nk_shapes_plan_fit_f16_simt_(nk_shapes_network_simt_t *netwo
 
 #pragma endregion Gromov Wasserstein
 
+#pragma region Pack
+
+NUMKONG_DEVICE void nk_cond_swap_f64_simt_(int condition, nk_f64_t *x, nk_f64_t *y) {
+    nk_f64_t const kept = *x;
+    *x = condition ? *y : *x;
+    *y = condition ? kept : *y;
+}
+
+NUMKONG_DEVICE void nk_cond_swap_f32_simt_(int condition, nk_f32_t *x, nk_f32_t *y) {
+    nk_f32_t const kept = *x;
+    *x = condition ? *y : *x;
+    *y = condition ? kept : *y;
+}
+
+#pragma endregion Pack
+
+#pragma region Pack F32
+
+/** The Jacobi eigenanalysis of the 6 lower-triangle entries of @p matrix , stopping once its
+ *  off-diagonal converges, as @c nk_jacobi_eigenanalysis_f64_serial_ does and
+ *  @c nk_jacobi_eigenanalysis_f64_simt_ does not. */
+NUMKONG_DEVICE void nk_shapes_eigenanalysis_f64_simt_(nk_f64_t *matrix, nk_f64_t *quaternion) {
+    quaternion[0] = 0, quaternion[1] = 0, quaternion[2] = 0, quaternion[3] = 1;
+    for (int sweep = 0; sweep != 16; ++sweep) {
+        nk_jacobi_conjugation_f64_simt_(0, 1, 2, matrix, matrix + 1, matrix + 2, matrix + 3, matrix + 4, matrix + 5,
+                                        quaternion);
+        nk_jacobi_conjugation_f64_simt_(1, 2, 0, matrix, matrix + 1, matrix + 2, matrix + 3, matrix + 4, matrix + 5,
+                                        quaternion);
+        nk_jacobi_conjugation_f64_simt_(2, 0, 1, matrix, matrix + 1, matrix + 2, matrix + 3, matrix + 4, matrix + 5,
+                                        quaternion);
+        nk_f64_t const off_diagonal = matrix[1] * matrix[1] + matrix[3] * matrix[3] + matrix[4] * matrix[4];
+        nk_f64_t const diagonal = matrix[0] * matrix[0] + matrix[2] * matrix[2] + matrix[5] * matrix[5];
+        if (off_diagonal <= 0x1p-53 * 0x1p-53 * diagonal) break;
+    }
+    nk_f64_t const inverse_length = nk_rsqrt_f64_simt_(
+        nk_sum_two_products_f64_simt_(quaternion[0], quaternion[0], quaternion[1], quaternion[1]) +
+        nk_sum_two_products_f64_simt_(quaternion[2], quaternion[2], quaternion[3], quaternion[3]));
+    quaternion[0] *= inverse_length, quaternion[1] *= inverse_length;
+    quaternion[2] *= inverse_length, quaternion[3] *= inverse_length;
+}
+
+/** The eigenvector basis rows and ties, as @c nk_shapes_sorted_basis_f64_serial_ sorts them. */
+NUMKONG_DEVICE void nk_shapes_sorted_basis_f64_simt_(nk_f64_t const *spreads, nk_f64_t const *quaternion,
+                                                     nk_f64_t tie_tolerance, nk_f64_t *basis, int *upper_tied,
+                                                     int *lower_tied) {
+    nk_f64_t axes[9];
+    nk_quaternion_to_mat3x3_f64_simt_(quaternion, axes);
+    nk_f64_t eigenvalue_0 = spreads[0], eigenvalue_1 = spreads[2], eigenvalue_2 = spreads[5];
+    int should_swap = eigenvalue_0 < eigenvalue_1;
+    for (int row = 0; row != 3; ++row) nk_negating_swap_f64_simt_(should_swap, &axes[row * 3 + 0], &axes[row * 3 + 1]);
+    nk_cond_swap_f64_simt_(should_swap, &eigenvalue_0, &eigenvalue_1);
+    should_swap = eigenvalue_0 < eigenvalue_2;
+    for (int row = 0; row != 3; ++row) nk_negating_swap_f64_simt_(should_swap, &axes[row * 3 + 0], &axes[row * 3 + 2]);
+    nk_cond_swap_f64_simt_(should_swap, &eigenvalue_0, &eigenvalue_2);
+    should_swap = eigenvalue_1 < eigenvalue_2;
+    for (int row = 0; row != 3; ++row) nk_negating_swap_f64_simt_(should_swap, &axes[row * 3 + 1], &axes[row * 3 + 2]);
+    nk_cond_swap_f64_simt_(should_swap, &eigenvalue_1, &eigenvalue_2);
+    nk_f64_t const tie = tie_tolerance * eigenvalue_0;
+    *upper_tied = eigenvalue_0 - eigenvalue_1 <= tie, *lower_tied = eigenvalue_1 - eigenvalue_2 <= tie;
+    int const first = *upper_tied ? 0 : 1;
+    for (int row = 0; row != 3; ++row)
+        for (int cell = 0; cell != 3; ++cell) basis[row * 3 + cell] = axes[cell * 3 + (first + row) % 3];
+}
+
+/** The frame quaternion and its matrix, as @c nk_shapes_frame_f64_serial_ derives them. */
+NUMKONG_DEVICE void nk_shapes_frame_f64_simt_(nk_f64_t const *basis, int upper_tied, nk_f64_t *frame, nk_f64_t *axes) {
+    int const first = upper_tied ? 0 : 1;
+    for (int row = 0; row != 3; ++row)
+        for (int cell = 0; cell != 3; ++cell) axes[cell * 3 + (first + row) % 3] = basis[row * 3 + cell];
+    nk_f64_t const trace = axes[0] + axes[4] + axes[8];
+    nk_f64_t quaternion[4], divisor;
+    if (trace > 0) {
+        divisor = 2 * nk_sqrt_f64_simt_(trace + 1);
+        quaternion[0] = (axes[7] - axes[5]) / divisor, quaternion[1] = (axes[2] - axes[6]) / divisor;
+        quaternion[2] = (axes[3] - axes[1]) / divisor, quaternion[3] = divisor / 4;
+    }
+    else if (axes[0] > axes[4] && axes[0] > axes[8]) {
+        divisor = 2 * nk_sqrt_f64_simt_(1 + axes[0] - axes[4] - axes[8]);
+        quaternion[0] = divisor / 4, quaternion[1] = (axes[1] + axes[3]) / divisor;
+        quaternion[2] = (axes[2] + axes[6]) / divisor, quaternion[3] = (axes[7] - axes[5]) / divisor;
+    }
+    else if (axes[4] > axes[8]) {
+        divisor = 2 * nk_sqrt_f64_simt_(1 + axes[4] - axes[0] - axes[8]);
+        quaternion[0] = (axes[1] + axes[3]) / divisor, quaternion[1] = divisor / 4;
+        quaternion[2] = (axes[5] + axes[7]) / divisor, quaternion[3] = (axes[2] - axes[6]) / divisor;
+    }
+    else {
+        divisor = 2 * nk_sqrt_f64_simt_(1 + axes[8] - axes[0] - axes[4]);
+        quaternion[0] = (axes[2] + axes[6]) / divisor, quaternion[1] = (axes[5] + axes[7]) / divisor;
+        quaternion[2] = divisor / 4, quaternion[3] = (axes[3] - axes[1]) / divisor;
+    }
+    nk_f64_t const inverse_norm = nk_rsqrt_f64_simt_(
+        nk_sum_two_products_f64_simt_(quaternion[0], quaternion[0], quaternion[1], quaternion[1]) +
+        nk_sum_two_products_f64_simt_(quaternion[2], quaternion[2], quaternion[3], quaternion[3]));
+    frame[0] = -quaternion[0] * inverse_norm, frame[1] = -quaternion[1] * inverse_norm;
+    frame[2] = -quaternion[2] * inverse_norm, frame[3] = quaternion[3] * inverse_norm;
+    nk_quaternion_to_mat3x3_f64_simt_(frame, axes);
+}
+
+/** The header from the stored points' moments, as @c nk_shapes_close_pack_f64_serial_ closes it. */
+NUMKONG_DEVICE void nk_shapes_close_pack_f64_simt_(nk_shapes_packed_header_f64_t *header, nk_size_t count,
+                                                   nk_f64_t const *centroid, nk_f64_t *moments, nk_f64_t max_radius) {
+    nk_cond_swap_f64_simt_(moments[0] < moments[2], &moments[0], &moments[2]);
+    nk_cond_swap_f64_simt_(moments[0] < moments[5], &moments[0], &moments[5]);
+    nk_cond_swap_f64_simt_(moments[2] < moments[5], &moments[2], &moments[5]);
+    header->points = (nk_u64_t)count;
+    header->centroid[0] = centroid[0], header->centroid[1] = centroid[1], header->centroid[2] = centroid[2];
+    header->spreads[0] = moments[0], header->spreads[1] = moments[2], header->spreads[2] = moments[5];
+    header->max_radius = max_radius;
+}
+
+nk_define_shapes_settle_(f32, f64, nk_assign_from_to_, nk_sqrt_f64_simt_, nk_rsqrt_f64_simt_, 0x1p-16, NUMKONG_DEVICE,
+                         simt)
+
+#pragma endregion Pack F32
+
+#pragma region Pack F16
+
+/** The Jacobi eigenanalysis of the 6 lower-triangle entries of @p matrix , stopping once its
+ *  off-diagonal converges, as @c nk_jacobi_eigenanalysis_f32_serial_ does and
+ *  @c nk_jacobi_eigenanalysis_f32_simt_ does not. */
+NUMKONG_DEVICE void nk_shapes_eigenanalysis_f32_simt_(nk_f32_t *matrix, nk_f32_t *quaternion) {
+    quaternion[0] = 0, quaternion[1] = 0, quaternion[2] = 0, quaternion[3] = 1;
+    for (int sweep = 0; sweep != 16; ++sweep) {
+        nk_jacobi_conjugation_f32_simt_(0, 1, 2, matrix, matrix + 1, matrix + 2, matrix + 3, matrix + 4, matrix + 5,
+                                        quaternion);
+        nk_jacobi_conjugation_f32_simt_(1, 2, 0, matrix, matrix + 1, matrix + 2, matrix + 3, matrix + 4, matrix + 5,
+                                        quaternion);
+        nk_jacobi_conjugation_f32_simt_(2, 0, 1, matrix, matrix + 1, matrix + 2, matrix + 3, matrix + 4, matrix + 5,
+                                        quaternion);
+        nk_f32_t const off_diagonal = matrix[1] * matrix[1] + matrix[3] * matrix[3] + matrix[4] * matrix[4];
+        nk_f32_t const diagonal = matrix[0] * matrix[0] + matrix[2] * matrix[2] + matrix[5] * matrix[5];
+        if (off_diagonal <= 0x1p-24f * 0x1p-24f * diagonal) break;
+    }
+    nk_f32_t const inverse_length = nk_rsqrt_f32_simt_(
+        nk_sum_two_products_f32_simt_(quaternion[0], quaternion[0], quaternion[1], quaternion[1]) +
+        nk_sum_two_products_f32_simt_(quaternion[2], quaternion[2], quaternion[3], quaternion[3]));
+    quaternion[0] *= inverse_length, quaternion[1] *= inverse_length;
+    quaternion[2] *= inverse_length, quaternion[3] *= inverse_length;
+}
+
+/** The eigenvector basis rows and ties, as @c nk_shapes_sorted_basis_f32_serial_ sorts them. */
+NUMKONG_DEVICE void nk_shapes_sorted_basis_f32_simt_(nk_f32_t const *spreads, nk_f32_t const *quaternion,
+                                                     nk_f32_t tie_tolerance, nk_f32_t *basis, int *upper_tied,
+                                                     int *lower_tied) {
+    nk_f32_t axes[9];
+    nk_quaternion_to_mat3x3_f32_simt_(quaternion, axes);
+    nk_f32_t eigenvalue_0 = spreads[0], eigenvalue_1 = spreads[2], eigenvalue_2 = spreads[5];
+    int should_swap = eigenvalue_0 < eigenvalue_1;
+    for (int row = 0; row != 3; ++row) nk_negating_swap_f32_simt_(should_swap, &axes[row * 3 + 0], &axes[row * 3 + 1]);
+    nk_cond_swap_f32_simt_(should_swap, &eigenvalue_0, &eigenvalue_1);
+    should_swap = eigenvalue_0 < eigenvalue_2;
+    for (int row = 0; row != 3; ++row) nk_negating_swap_f32_simt_(should_swap, &axes[row * 3 + 0], &axes[row * 3 + 2]);
+    nk_cond_swap_f32_simt_(should_swap, &eigenvalue_0, &eigenvalue_2);
+    should_swap = eigenvalue_1 < eigenvalue_2;
+    for (int row = 0; row != 3; ++row) nk_negating_swap_f32_simt_(should_swap, &axes[row * 3 + 1], &axes[row * 3 + 2]);
+    nk_cond_swap_f32_simt_(should_swap, &eigenvalue_1, &eigenvalue_2);
+    nk_f32_t const tie = tie_tolerance * eigenvalue_0;
+    *upper_tied = eigenvalue_0 - eigenvalue_1 <= tie, *lower_tied = eigenvalue_1 - eigenvalue_2 <= tie;
+    int const first = *upper_tied ? 0 : 1;
+    for (int row = 0; row != 3; ++row)
+        for (int cell = 0; cell != 3; ++cell) basis[row * 3 + cell] = axes[cell * 3 + (first + row) % 3];
+}
+
+/** The frame quaternion and its matrix, as @c nk_shapes_frame_f32_serial_ derives them. */
+NUMKONG_DEVICE void nk_shapes_frame_f32_simt_(nk_f32_t const *basis, int upper_tied, nk_f32_t *frame, nk_f32_t *axes) {
+    int const first = upper_tied ? 0 : 1;
+    for (int row = 0; row != 3; ++row)
+        for (int cell = 0; cell != 3; ++cell) axes[cell * 3 + (first + row) % 3] = basis[row * 3 + cell];
+    nk_f32_t const trace = axes[0] + axes[4] + axes[8];
+    nk_f32_t quaternion[4], divisor;
+    if (trace > 0) {
+        divisor = 2 * nk_sqrt_f32_simt_(trace + 1);
+        quaternion[0] = (axes[7] - axes[5]) / divisor, quaternion[1] = (axes[2] - axes[6]) / divisor;
+        quaternion[2] = (axes[3] - axes[1]) / divisor, quaternion[3] = divisor / 4;
+    }
+    else if (axes[0] > axes[4] && axes[0] > axes[8]) {
+        divisor = 2 * nk_sqrt_f32_simt_(1 + axes[0] - axes[4] - axes[8]);
+        quaternion[0] = divisor / 4, quaternion[1] = (axes[1] + axes[3]) / divisor;
+        quaternion[2] = (axes[2] + axes[6]) / divisor, quaternion[3] = (axes[7] - axes[5]) / divisor;
+    }
+    else if (axes[4] > axes[8]) {
+        divisor = 2 * nk_sqrt_f32_simt_(1 + axes[4] - axes[0] - axes[8]);
+        quaternion[0] = (axes[1] + axes[3]) / divisor, quaternion[1] = divisor / 4;
+        quaternion[2] = (axes[5] + axes[7]) / divisor, quaternion[3] = (axes[2] - axes[6]) / divisor;
+    }
+    else {
+        divisor = 2 * nk_sqrt_f32_simt_(1 + axes[8] - axes[0] - axes[4]);
+        quaternion[0] = (axes[2] + axes[6]) / divisor, quaternion[1] = (axes[5] + axes[7]) / divisor;
+        quaternion[2] = divisor / 4, quaternion[3] = (axes[3] - axes[1]) / divisor;
+    }
+    nk_f32_t const inverse_norm = nk_rsqrt_f32_simt_(
+        nk_sum_two_products_f32_simt_(quaternion[0], quaternion[0], quaternion[1], quaternion[1]) +
+        nk_sum_two_products_f32_simt_(quaternion[2], quaternion[2], quaternion[3], quaternion[3]));
+    frame[0] = -quaternion[0] * inverse_norm, frame[1] = -quaternion[1] * inverse_norm;
+    frame[2] = -quaternion[2] * inverse_norm, frame[3] = quaternion[3] * inverse_norm;
+    nk_quaternion_to_mat3x3_f32_simt_(frame, axes);
+}
+
+/** The header from the stored points' moments, as @c nk_shapes_close_pack_f32_serial_ closes it. */
+NUMKONG_DEVICE void nk_shapes_close_pack_f32_simt_(nk_shapes_packed_header_f32_t *header, nk_size_t count,
+                                                   nk_f32_t const *centroid, nk_f32_t *moments, nk_f32_t max_radius) {
+    nk_cond_swap_f32_simt_(moments[0] < moments[2], &moments[0], &moments[2]);
+    nk_cond_swap_f32_simt_(moments[0] < moments[5], &moments[0], &moments[5]);
+    nk_cond_swap_f32_simt_(moments[2] < moments[5], &moments[2], &moments[5]);
+    header->points = (nk_u32_t)count;
+    header->centroid[0] = centroid[0], header->centroid[1] = centroid[1], header->centroid[2] = centroid[2];
+    header->spreads[0] = moments[0], header->spreads[1] = moments[2], header->spreads[2] = moments[5];
+    header->max_radius = max_radius;
+}
+
+nk_define_shapes_settle_(f16, f32, nk_f16_to_f32_simt_, nk_sqrt_f32_simt_, nk_rsqrt_f32_simt_, 0x1p-7f, NUMKONG_DEVICE,
+                         simt)
+
+#pragma endregion Pack F16
+
+#pragma region Warp Pack
+
+/** Generates the pack of @p input_type points by a whole team of 32 lanes for @p vendor , @c cuda
+ *  or @c rocm , after @c nk_define_shapes_pack_ of the serial backend, laying points out as it
+ *  does: the moments by xor shuffles of the vendor, the frame on lane zero, the points by every
+ *  lane. Also the team's sums of @p math_type values, leaving every lane the same totals, as each
+ *  butterfly step adds the same two values in either order, and the broadcast of lane zero's
+ *  values, bit for bit with negative zeros, so each @p math_type takes a single instance. Tied
+ *  eigenvalues settle through the @c simt instance of @c nk_define_shapes_settle_ . */
+#define nk_define_shapes_pack_simt_(input_type, math_type, load_and_convert, convert_and_store, tie_tolerance, vendor) \
+    NUMKONG_DEVICE void nk_shapes_warp_sum_##math_type##_##vendor##_(nk_##math_type##_t *values, int count) {          \
+        for (unsigned offset = 16; offset; offset >>= 1)                                                               \
+            for (int index = 0; index != count; ++index)                                                               \
+                values[index] += nk_shuffle_xor_##math_type##_##vendor##_(values[index], offset);                      \
+    }                                                                                                                  \
+    NUMKONG_DEVICE void nk_shapes_warp_broadcast_##math_type##_##vendor##_(nk_##math_type##_t *values, int count,      \
+                                                                           unsigned lane) {                            \
+        for (unsigned offset = 16; offset; offset >>= 1)                                                               \
+            for (int index = 0; index != count; ++index) {                                                             \
+                nk_##math_type##_t const other = nk_shuffle_xor_##math_type##_##vendor##_(values[index], offset);      \
+                values[index] = lane & offset ? other : values[index];                                                 \
+            }                                                                                                          \
+    }                                                                                                                  \
+    NUMKONG_DEVICE void nk_shapes_pack_##input_type##_##vendor##_(nk_##input_type##_t const *points, nk_size_t count,  \
+                                                                  void *packed) {                                      \
+        unsigned const lane = threadIdx.x % 32;                                                                        \
+        nk_shapes_packed_header_##math_type##_t *header = (nk_shapes_packed_header_##math_type##_t *)packed;           \
+        nk_u64_t *header_words = (nk_u64_t *)packed;                                                                   \
+        nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_##math_type##_t),  \
+                                                                     nk_shapes_alignment_k_);                          \
+        nk_size_t const axis_stride = nk_size_round_up_to_multiple_(count * sizeof(nk_##input_type##_t),               \
+                                                                    nk_shapes_alignment_k_) /                          \
+                                      sizeof(nk_##input_type##_t);                                                     \
+        nk_##input_type##_t *packed_x = (nk_##input_type##_t *)((char *)packed + header_bytes);                        \
+        if (lane == 0) {                                                                                               \
+            for (nk_size_t word = 0; word != header_bytes / sizeof(nk_u64_t); ++word) header_words[word] = 0;          \
+            header->frame[3] = 1, header->scale = 1;                                                                   \
+        }                                                                                                              \
+        for (nk_size_t index = count + lane; index < axis_stride; index += 32)                                         \
+            for (int axis = 0; axis != 3; ++axis) packed_x[axis * axis_stride + index] = 0;                            \
+        if (!count) return;                                                                                            \
+        nk_##math_type##_t x, y, z, product, sums[3] = {0, 0, 0}, covariance[6] = {0, 0, 0, 0, 0, 0};                  \
+        for (nk_size_t index = lane; index < count; index += 32) {                                                     \
+            load_and_convert(points + index * 3 + 0, &x), load_and_convert(points + index * 3 + 1, &y);                \
+            load_and_convert(points + index * 3 + 2, &z);                                                              \
+            sums[0] += x, sums[1] += y, sums[2] += z;                                                                  \
+        }                                                                                                              \
+        nk_shapes_warp_sum_##math_type##_##vendor##_(sums, 3);                                                         \
+        nk_##math_type##_t const points_count = (nk_##math_type##_t)count;                                             \
+        nk_##math_type##_t const centroid[3] = {sums[0] / points_count, sums[1] / points_count,                        \
+                                                sums[2] / points_count};                                               \
+        for (nk_size_t index = lane; index < count; index += 32) {                                                     \
+            load_and_convert(points + index * 3 + 0, &x), load_and_convert(points + index * 3 + 1, &y);                \
+            load_and_convert(points + index * 3 + 2, &z);                                                              \
+            x -= centroid[0], y -= centroid[1], z -= centroid[2];                                                      \
+            product = x * x, covariance[0] += product, product = y * x, covariance[1] += product;                      \
+            product = y * y, covariance[2] += product, product = z * x, covariance[3] += product;                      \
+            product = z * y, covariance[4] += product, product = z * z, covariance[5] += product;                      \
+        }                                                                                                              \
+        nk_shapes_warp_sum_##math_type##_##vendor##_(covariance, 6);                                                   \
+        for (int entry = 0; entry != 6; ++entry) covariance[entry] /= points_count;                                    \
+        nk_##math_type##_t frame[4] = {0, 0, 0, 1}, quaternion[4], basis[9], axes[9];                                  \
+        if (lane == 0) {                                                                                               \
+            int upper_tied, lower_tied;                                                                                \
+            nk_shapes_eigenanalysis_##math_type##_simt_(covariance, quaternion);                                       \
+            nk_shapes_sorted_basis_##math_type##_simt_(covariance, quaternion, tie_tolerance, basis, &upper_tied,      \
+                                                       &lower_tied);                                                   \
+            if (upper_tied && lower_tied) nk_shapes_pick_axis_##input_type##_simt_(points, count, centroid, basis);    \
+            else if (upper_tied || lower_tied)                                                                         \
+                nk_shapes_turn_plane_##input_type##_simt_(points, count, centroid, basis);                             \
+            nk_shapes_frame_##math_type##_simt_(basis, upper_tied, frame, axes);                                       \
+        }                                                                                                              \
+        nk_shapes_warp_broadcast_##math_type##_##vendor##_(frame, 4, lane);                                            \
+        nk_quaternion_to_mat3x3_##math_type##_simt_(frame, axes);                                                      \
+        nk_##math_type##_t rotated[3], moments[6] = {0, 0, 0, 0, 0, 0}, max_norm_squared = 0;                          \
+        for (nk_size_t index = lane; index < count; index += 32) {                                                     \
+            load_and_convert(points + index * 3 + 0, &x), load_and_convert(points + index * 3 + 1, &y);                \
+            load_and_convert(points + index * 3 + 2, &z);                                                              \
+            x -= centroid[0], y -= centroid[1], z -= centroid[2];                                                      \
+            for (int axis = 0; axis != 3; ++axis) {                                                                    \
+                rotated[axis] = axes[axis * 3 + 0] * x;                                                                \
+                product = axes[axis * 3 + 1] * y, rotated[axis] += product;                                            \
+                product = axes[axis * 3 + 2] * z, rotated[axis] += product;                                            \
+                convert_and_store(&rotated[axis], packed_x + axis * axis_stride + index);                              \
+                load_and_convert(packed_x + axis * axis_stride + index, &rotated[axis]);                               \
+            }                                                                                                          \
+            x = rotated[0], y = rotated[1], z = rotated[2];                                                            \
+            nk_##math_type##_t const xx = x * x, yy = y * y, zz = z * z, norm_squared = xx + yy + zz;                  \
+            moments[0] += xx, moments[2] += yy, moments[5] += zz;                                                      \
+            product = y * x, moments[1] += product, product = z * x, moments[3] += product;                            \
+            product = z * y, moments[4] += product;                                                                    \
+            max_norm_squared = norm_squared > max_norm_squared ? norm_squared : max_norm_squared;                      \
+        }                                                                                                              \
+        nk_shapes_warp_sum_##math_type##_##vendor##_(moments, 6);                                                      \
+        for (unsigned offset = 16; offset; offset >>= 1) {                                                             \
+            nk_##math_type##_t const other = nk_shuffle_xor_##math_type##_##vendor##_(max_norm_squared, offset);       \
+            max_norm_squared = other > max_norm_squared ? other : max_norm_squared;                                    \
+        }                                                                                                              \
+        if (lane != 0) return;                                                                                         \
+        for (int entry = 0; entry != 6; ++entry) moments[entry] /= points_count;                                       \
+        nk_shapes_eigenanalysis_##math_type##_simt_(moments, quaternion);                                              \
+        for (int component = 0; component != 4; ++component) header->frame[component] = frame[component];              \
+        nk_shapes_close_pack_##math_type##_simt_(header, count, centroid, moments,                                     \
+                                                 nk_sqrt_##math_type##_simt_(max_norm_squared));                       \
+    }
+
+#pragma endregion Warp Pack
+
 #pragma region Chamfer and Hausdorff
 
 /** The x array of a pack of F32 points, with the elements from each axis to the next. */

@@ -824,22 +824,19 @@ NUMKONG_INLINE void nk_shapes_close_pack_f64_serial_(nk_shapes_packed_header_f64
     header->max_radius = max_radius;
 }
 
-/** The pack of one cloud from its moments: the header, then the x, y and z arrays of its points
- *  centered, rotated onto the principal axes and divided by @p scale. Then its inverse, which
- *  restores every packed point as scale × 𝑄ᵀ × x′ + centroid. Every product sits in a statement of
- *  its own, as the moments' do. Tied eigenvalues settle through the routines before them. */
-#define nk_define_shapes_pack_(input_type, math_type, points_type, load_and_convert, convert_and_store, compute_sqrt,  \
-                               compute_rsqrt, tie_tolerance)                                                           \
-    NUMKONG_INLINE void nk_shapes_centered_##input_type##_serial_(nk_##input_type##_t const *points, nk_size_t index,  \
-                                                                  nk_##math_type##_t const *centroid,                  \
-                                                                  nk_##math_type##_t *centered) {                      \
+/** The routines settling tied eigenvalues by higher moments, for the serial and SIMT packs. */
+#define nk_define_shapes_settle_(input_type, math_type, load_and_convert, compute_sqrt, compute_rsqrt, tie_tolerance,  \
+                                 qualifier, suffix)                                                                    \
+    qualifier void nk_shapes_centered_##input_type##_##suffix##_(nk_##input_type##_t const *points, nk_size_t index,   \
+                                                                 nk_##math_type##_t const *centroid,                   \
+                                                                 nk_##math_type##_t *centered) {                       \
         load_and_convert(points + index * 3 + 0, &centered[0]),                                                        \
             load_and_convert(points + index * 3 + 1, &centered[1]);                                                    \
         load_and_convert(points + index * 3 + 2, &centered[2]);                                                        \
         centered[0] -= centroid[0], centered[1] -= centroid[1], centered[2] -= centroid[2];                            \
     }                                                                                                                  \
-    NUMKONG_INLINE nk_##math_type##_t nk_shapes_dot_##input_type##_serial_(nk_##math_type##_t const *left,             \
-                                                                           nk_##math_type##_t const *right) {          \
+    qualifier nk_##math_type##_t nk_shapes_dot_##input_type##_##suffix##_(nk_##math_type##_t const *left,              \
+                                                                          nk_##math_type##_t const *right) {           \
         nk_##math_type##_t sum = left[0] * right[0], product;                                                          \
         product = left[1] * right[1], sum += product;                                                                  \
         product = left[2] * right[2], sum += product;                                                                  \
@@ -847,7 +844,7 @@ NUMKONG_INLINE void nk_shapes_close_pack_f64_serial_(nk_shapes_packed_header_f64
     }                                                                                                                  \
     /* The unit complex number at 1 / order of the angle of (real, imaginary) in (−π, π], as the                   \
      * product of the halvings of that angle that the binary digits of 1 / order pick */                               \
-    NUMKONG_INLINE void nk_shapes_unit_root_##input_type##_serial_(                                                    \
+    qualifier void nk_shapes_unit_root_##input_type##_##suffix##_(                                                     \
         nk_##math_type##_t real, nk_##math_type##_t imaginary, int order, nk_##math_type##_t *root) {                  \
         nk_##math_type##_t root_real = 1, root_imaginary = 0, half_real, half_imaginary, product;                      \
         if (order == 1) {                                                                                              \
@@ -874,15 +871,15 @@ NUMKONG_INLINE void nk_shapes_close_pack_f64_serial_(nk_shapes_packed_header_f64
     /* Turns basis rows a and b about row c until the first harmonic above the tolerance, a sum                        \
      * of wᵐ over w = x · a + i x · b, or of h × wᵐ over h = x · c, lies along a, and settles the              \
      * m choices of a by the next harmonic that tells them apart. First orients c by Σh³ */                          \
-    NUMKONG_INLINE void nk_shapes_turn_plane_##input_type##_serial_(                                                   \
-        nk_##input_type##_t const *points, nk_size_t count, nk_##math_type##_t const *centroid,                        \
-        nk_##math_type##_t *basis) {                                                                                   \
+    qualifier void nk_shapes_turn_plane_##input_type##_##suffix##_(nk_##input_type##_t const *points, nk_size_t count, \
+                                                                   nk_##math_type##_t const *centroid,                 \
+                                                                   nk_##math_type##_t *basis) {                        \
         nk_##math_type##_t centered[3], height, distance, product, cubes = 0, cube_magnitudes = 0;                     \
         for (nk_size_t index = 0; index != count; ++index) {                                                           \
-            nk_shapes_centered_##input_type##_serial_(points, index, centroid, centered);                              \
-            height = nk_shapes_dot_##input_type##_serial_(basis + 6, centered);                                        \
+            nk_shapes_centered_##input_type##_##suffix##_(points, index, centroid, centered);                          \
+            height = nk_shapes_dot_##input_type##_##suffix##_(basis + 6, centered);                                    \
             product = height * height, product *= height, cubes += product;                                            \
-            distance = compute_sqrt(nk_shapes_dot_##input_type##_serial_(centered, centered));                         \
+            distance = compute_sqrt(nk_shapes_dot_##input_type##_##suffix##_(centered, centered));                     \
             product = distance * distance, product *= distance, cube_magnitudes += product;                            \
         }                                                                                                              \
         int const oriented = (cubes < 0 ? -cubes : cubes) > tie_tolerance * cube_magnitudes;                           \
@@ -893,11 +890,11 @@ NUMKONG_INLINE void nk_shapes_close_pack_f64_serial_(nk_shapes_packed_header_f64
         for (int entry = 0; entry != 16; ++entry)                                                                      \
             harmonics[entry][0] = 0, harmonics[entry][1] = 0, magnitudes[entry] = 0;                                   \
         for (nk_size_t index = 0; index != count; ++index) {                                                           \
-            nk_shapes_centered_##input_type##_serial_(points, index, centroid, centered);                              \
-            nk_##math_type##_t const along = nk_shapes_dot_##input_type##_serial_(basis, centered),                    \
-                                     across = nk_shapes_dot_##input_type##_serial_(basis + 3, centered);               \
-            height = nk_shapes_dot_##input_type##_serial_(basis + 6, centered);                                        \
-            distance = compute_sqrt(nk_shapes_dot_##input_type##_serial_(centered, centered));                         \
+            nk_shapes_centered_##input_type##_##suffix##_(points, index, centroid, centered);                          \
+            nk_##math_type##_t const along = nk_shapes_dot_##input_type##_##suffix##_(basis, centered),                \
+                                     across = nk_shapes_dot_##input_type##_##suffix##_(basis + 3, centered);           \
+            height = nk_shapes_dot_##input_type##_##suffix##_(basis + 6, centered);                                    \
+            distance = compute_sqrt(nk_shapes_dot_##input_type##_##suffix##_(centered, centered));                     \
             nk_##math_type##_t radius = along * along, power_real = 1, power_imaginary = 0, power_radius = 1;          \
             nk_##math_type##_t power_distance = distance, next;                                                        \
             product = across * across, radius += product, radius = compute_sqrt(radius);                               \
@@ -930,11 +927,11 @@ NUMKONG_INLINE void nk_shapes_close_pack_f64_serial_(nk_shapes_packed_header_f64
         nk_##math_type##_t root[2], turn[2], candidate[2], power[2], next, score, best_score = 0;                      \
         product = harmonics[chosen][0] * harmonics[chosen][0], next = product;                                         \
         product = harmonics[chosen][1] * harmonics[chosen][1], next += product, next = compute_rsqrt(next);            \
-        nk_shapes_unit_root_##input_type##_serial_(harmonics[chosen][0] * next, harmonics[chosen][1] * next, order,    \
-                                                   root);                                                              \
+        nk_shapes_unit_root_##input_type##_##suffix##_(harmonics[chosen][0] * next, harmonics[chosen][1] * next,       \
+                                                       order, root);                                                   \
         if (settling >= 0) {                                                                                           \
             /* The m candidates for a step by e^(2πi / m), the square of the m-th root of −1 */                        \
-            nk_shapes_unit_root_##input_type##_serial_(-1, 0, order, turn);                                            \
+            nk_shapes_unit_root_##input_type##_##suffix##_(-1, 0, order, turn);                                        \
             next = turn[0] * turn[0], product = turn[1] * turn[1], next -= product;                                    \
             turn[1] *= turn[0], turn[1] *= 2, turn[0] = next;                                                          \
             candidate[0] = root[0], candidate[1] = root[1];                                                            \
@@ -963,21 +960,21 @@ NUMKONG_INLINE void nk_shapes_close_pack_f64_serial_(nk_shapes_packed_header_f64
     }                                                                                                                  \
     /* Points basis row c at the point whose direction u maximizes Σ(x · u)³, or Σ(x · u)⁴ when                 \
      * no cubic clears the tolerance, completes a proper basis and turns the plane about c */                          \
-    NUMKONG_INLINE void nk_shapes_pick_axis_##input_type##_serial_(nk_##input_type##_t const *points, nk_size_t count, \
-                                                                   nk_##math_type##_t const *centroid,                 \
-                                                                   nk_##math_type##_t *basis) {                        \
+    qualifier void nk_shapes_pick_axis_##input_type##_##suffix##_(nk_##input_type##_t const *points, nk_size_t count,  \
+                                                                  nk_##math_type##_t const *centroid,                  \
+                                                                  nk_##math_type##_t *basis) {                         \
         nk_##math_type##_t centered[3], candidate[3], product, cube_magnitudes = 0, best_cubes = 0, best_quartics = 0; \
         nk_size_t cubes_index = count, quartics_index = count;                                                         \
         for (nk_size_t candidate_index = 0; candidate_index != count; ++candidate_index) {                             \
-            nk_shapes_centered_##input_type##_serial_(points, candidate_index, centroid, candidate);                   \
-            nk_##math_type##_t const length_squared = nk_shapes_dot_##input_type##_serial_(candidate, candidate),      \
+            nk_shapes_centered_##input_type##_##suffix##_(points, candidate_index, centroid, candidate);               \
+            nk_##math_type##_t const length_squared = nk_shapes_dot_##input_type##_##suffix##_(candidate, candidate),  \
                                      length = compute_sqrt(length_squared);                                            \
             product = length_squared * length, cube_magnitudes += product;                                             \
             if (!(length_squared > 0)) continue;                                                                       \
             nk_##math_type##_t cubes = 0, quartics = 0;                                                                \
             for (nk_size_t index = 0; index != count; ++index) {                                                       \
-                nk_shapes_centered_##input_type##_serial_(points, index, centroid, centered);                          \
-                nk_##math_type##_t const projection = nk_shapes_dot_##input_type##_serial_(centered, candidate),       \
+                nk_shapes_centered_##input_type##_##suffix##_(points, index, centroid, centered);                      \
+                nk_##math_type##_t const projection = nk_shapes_dot_##input_type##_##suffix##_(centered, candidate),   \
                                          square = projection * projection;                                             \
                 product = square * projection, cubes += product, product = square * square, quartics += product;       \
             }                                                                                                          \
@@ -989,20 +986,20 @@ NUMKONG_INLINE void nk_shapes_close_pack_f64_serial_(nk_shapes_packed_header_f64
         nk_size_t const chosen = best_cubes > tie_tolerance * cube_magnitudes ? cubes_index : quartics_index;          \
         if (chosen == count) return;                                                                                   \
         nk_##math_type##_t axis[3], least_alignment = 2, alignment, inverse;                                           \
-        nk_shapes_centered_##input_type##_serial_(points, chosen, centroid, axis);                                     \
-        inverse = compute_rsqrt(nk_shapes_dot_##input_type##_serial_(axis, axis));                                     \
+        nk_shapes_centered_##input_type##_##suffix##_(points, chosen, centroid, axis);                                 \
+        inverse = compute_rsqrt(nk_shapes_dot_##input_type##_##suffix##_(axis, axis));                                 \
         axis[0] *= inverse, axis[1] *= inverse, axis[2] *= inverse;                                                    \
         /* a starts from the row least aligned with c, which keeps most of its length */                               \
         int start = 0;                                                                                                 \
         for (int row = 0; row != 3; ++row) {                                                                           \
-            alignment = nk_shapes_dot_##input_type##_serial_(basis + row * 3, axis);                                   \
+            alignment = nk_shapes_dot_##input_type##_##suffix##_(basis + row * 3, axis);                               \
             alignment = alignment < 0 ? -alignment : alignment;                                                        \
             if (alignment < least_alignment) least_alignment = alignment, start = row;                                 \
         }                                                                                                              \
-        alignment = nk_shapes_dot_##input_type##_serial_(basis + start * 3, axis);                                     \
+        alignment = nk_shapes_dot_##input_type##_##suffix##_(basis + start * 3, axis);                                 \
         for (int cell = 0; cell != 3; ++cell)                                                                          \
             product = alignment * axis[cell], candidate[cell] = basis[start * 3 + cell] - product;                     \
-        inverse = compute_rsqrt(nk_shapes_dot_##input_type##_serial_(candidate, candidate));                           \
+        inverse = compute_rsqrt(nk_shapes_dot_##input_type##_##suffix##_(candidate, candidate));                       \
         for (int cell = 0; cell != 3; ++cell) basis[cell] = candidate[cell] * inverse, basis[6 + cell] = axis[cell];   \
         /* b = c × a completes a proper basis */                                                                       \
         for (int cell = 0; cell != 3; ++cell) {                                                                        \
@@ -1010,76 +1007,85 @@ NUMKONG_INLINE void nk_shapes_close_pack_f64_serial_(nk_shapes_packed_header_f64
             nk_##math_type##_t cross = axis[next] * basis[after];                                                      \
             product = axis[after] * basis[next], cross -= product, basis[3 + cell] = cross;                            \
         }                                                                                                              \
-        nk_shapes_turn_plane_##input_type##_serial_(points, count, centroid, basis);                                   \
-    }                                                                                                                  \
-    NUMKONG_INLINE void nk_shapes_pack_##input_type##_serial_(                                                         \
-        nk_##input_type##_t const *points, nk_size_t count, nk_##math_type##_t const *centroid,                        \
-        nk_##math_type##_t const *covariance, nk_##math_type##_t scale, void *packed) {                                \
-        nk_shapes_packed_header_##math_type##_t *header = (nk_shapes_packed_header_##math_type##_t *)packed;           \
-        nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_##math_type##_t),  \
-                                                                     nk_shapes_alignment_k_);                          \
-        nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(count * sizeof(nk_##input_type##_t),                \
-                                                                   nk_shapes_alignment_k_);                            \
-        nk_u8_t *packed_bytes = (nk_u8_t *)packed;                                                                     \
-        for (nk_size_t byte_index = 0; byte_index != header_bytes + 3 * axis_bytes; ++byte_index)                      \
-            packed_bytes[byte_index] = 0;                                                                              \
-        header->frame[3] = 1, header->scale = scale;                                                                   \
-        if (!count) return;                                                                                            \
-        nk_size_t const axis_stride = axis_bytes / sizeof(nk_##input_type##_t);                                        \
-        nk_##input_type##_t *packed_x = (nk_##input_type##_t *)(packed_bytes + header_bytes);                          \
-        nk_##input_type##_t *packed_y = packed_x + axis_stride, *packed_z = packed_y + axis_stride;                    \
-        nk_##math_type##_t spreads[6] = {covariance[0], covariance[1], covariance[2],                                  \
-                                         covariance[3], covariance[4], covariance[5]};                                 \
-        nk_##math_type##_t x, y, z, product, quaternion[4], basis[9], axes[9];                                         \
-        int upper_tied, lower_tied;                                                                                    \
-        nk_jacobi_eigenanalysis_##math_type##_serial_(spreads, quaternion);                                            \
-        nk_shapes_sorted_basis_##math_type##_serial_(spreads, quaternion, tie_tolerance, basis, &upper_tied,           \
-                                                     &lower_tied);                                                     \
-        if (upper_tied && lower_tied) nk_shapes_pick_axis_##input_type##_serial_(points, count, centroid, basis);      \
-        else if (upper_tied || lower_tied)                                                                             \
-            nk_shapes_turn_plane_##input_type##_serial_(points, count, centroid, basis);                               \
-        nk_shapes_frame_##math_type##_serial_(basis, upper_tied, header->frame, axes);                                 \
-        /* Dividing 𝑄 by the scale divides every rotated point, and dividing by 1 changes no bit */                    \
-        for (int cell = 0; cell != 9; ++cell) axes[cell] /= scale;                                                     \
-        nk_##math_type##_t rotated[3], moments[6];                                                                     \
-        for (nk_size_t index = 0; index != count; ++index) {                                                           \
-            load_and_convert(points + index * 3 + 0, &x), load_and_convert(points + index * 3 + 1, &y);                \
-            load_and_convert(points + index * 3 + 2, &z);                                                              \
-            x -= centroid[0], y -= centroid[1], z -= centroid[2];                                                      \
-            for (int axis = 0; axis != 3; ++axis) {                                                                    \
-                rotated[axis] = axes[axis * 3 + 0] * x;                                                                \
-                product = axes[axis * 3 + 1] * y, rotated[axis] += product;                                            \
-                product = axes[axis * 3 + 2] * z, rotated[axis] += product;                                            \
-            }                                                                                                          \
-            convert_and_store(&rotated[0], packed_x + index), convert_and_store(&rotated[1], packed_y + index);        \
-            convert_and_store(&rotated[2], packed_z + index);                                                          \
-        }                                                                                                              \
-        nk_##math_type##_t const max_norm_squared = nk_shapes_packed_moments_##input_type##_serial_(                   \
-            packed_x, axis_stride, count, moments);                                                                    \
-        nk_jacobi_eigenanalysis_##math_type##_serial_(moments, quaternion);                                            \
-        nk_shapes_close_pack_##math_type##_serial_(header, count, centroid, moments, compute_sqrt(max_norm_squared));  \
-    }                                                                                                                  \
-    NUMKONG_INLINE void nk_shapes_unpack_##input_type##_serial_(void const *packed, nk_##input_type##_t *points) {     \
-        nk_shapes_packed_header_##math_type##_t const *header =                                                        \
-            (nk_shapes_packed_header_##math_type##_t const *)packed;                                                   \
-        nk_size_t axis_stride;                                                                                         \
-        nk_##input_type##_t const *packed_x = nk_shapes_packed_axes_##input_type##_serial_(packed, &axis_stride);      \
-        nk_size_t const count = (nk_size_t)header->points;                                                             \
-        nk_##math_type##_t axes[9], packed_point[3], restored, product;                                                \
-        nk_quaternion_to_mat3x3_##math_type##_serial_(header->frame, axes);                                            \
-        /* Scaling 𝑄 scales every restored offset, and scaling by 1 changes no bit */                                  \
-        for (int cell = 0; cell != 9; ++cell) axes[cell] *= header->scale;                                             \
-        for (nk_size_t index = 0; index != count; ++index) {                                                           \
-            for (int axis = 0; axis != 3; ++axis)                                                                      \
-                load_and_convert(packed_x + axis * axis_stride + index, &packed_point[axis]);                          \
-            for (int axis = 0; axis != 3; ++axis) {                                                                    \
-                restored = axes[axis] * packed_point[0];                                                               \
-                product = axes[3 + axis] * packed_point[1], restored += product;                                       \
-                product = axes[6 + axis] * packed_point[2], restored += product;                                       \
-                restored += header->centroid[axis];                                                                    \
-                convert_and_store(&restored, points + index * 3 + axis);                                               \
-            }                                                                                                          \
-        }                                                                                                              \
+        nk_shapes_turn_plane_##input_type##_##suffix##_(points, count, centroid, basis);                               \
+    }
+
+/** The pack of one cloud from its moments: the header, then the x, y and z arrays of its points
+ *  centered, rotated onto the principal axes and divided by @p scale. Then its inverse, which
+ *  restores every packed point as scale × 𝑄ᵀ × x′ + centroid. Every product sits in a statement of
+ *  its own, as the moments' do. Tied eigenvalues settle through @c nk_define_shapes_settle_ . */
+#define nk_define_shapes_pack_(input_type, math_type, points_type, load_and_convert, convert_and_store, compute_sqrt, \
+                               compute_rsqrt, tie_tolerance)                                                          \
+    nk_define_shapes_settle_(input_type, math_type, load_and_convert, compute_sqrt, compute_rsqrt, tie_tolerance,     \
+                             NUMKONG_INLINE, serial)                                                                  \
+    NUMKONG_INLINE void nk_shapes_pack_##input_type##_serial_(                                                        \
+        nk_##input_type##_t const *points, nk_size_t count, nk_##math_type##_t const *centroid,                       \
+        nk_##math_type##_t const *covariance, nk_##math_type##_t scale, void *packed) {                               \
+        nk_shapes_packed_header_##math_type##_t *header = (nk_shapes_packed_header_##math_type##_t *)packed;          \
+        nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_##math_type##_t), \
+                                                                     nk_shapes_alignment_k_);                         \
+        nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(count * sizeof(nk_##input_type##_t),               \
+                                                                   nk_shapes_alignment_k_);                           \
+        nk_u8_t *packed_bytes = (nk_u8_t *)packed;                                                                    \
+        for (nk_size_t byte_index = 0; byte_index != header_bytes + 3 * axis_bytes; ++byte_index)                     \
+            packed_bytes[byte_index] = 0;                                                                             \
+        header->frame[3] = 1, header->scale = scale;                                                                  \
+        if (!count) return;                                                                                           \
+        nk_size_t const axis_stride = axis_bytes / sizeof(nk_##input_type##_t);                                       \
+        nk_##input_type##_t *packed_x = (nk_##input_type##_t *)(packed_bytes + header_bytes);                         \
+        nk_##input_type##_t *packed_y = packed_x + axis_stride, *packed_z = packed_y + axis_stride;                   \
+        nk_##math_type##_t spreads[6] = {covariance[0], covariance[1], covariance[2],                                 \
+                                         covariance[3], covariance[4], covariance[5]};                                \
+        nk_##math_type##_t x, y, z, product, quaternion[4], basis[9], axes[9];                                        \
+        int upper_tied, lower_tied;                                                                                   \
+        nk_jacobi_eigenanalysis_##math_type##_serial_(spreads, quaternion);                                           \
+        nk_shapes_sorted_basis_##math_type##_serial_(spreads, quaternion, tie_tolerance, basis, &upper_tied,          \
+                                                     &lower_tied);                                                    \
+        if (upper_tied && lower_tied) nk_shapes_pick_axis_##input_type##_serial_(points, count, centroid, basis);     \
+        else if (upper_tied || lower_tied)                                                                            \
+            nk_shapes_turn_plane_##input_type##_serial_(points, count, centroid, basis);                              \
+        nk_shapes_frame_##math_type##_serial_(basis, upper_tied, header->frame, axes);                                \
+        /* Dividing 𝑄 by the scale divides every rotated point, and dividing by 1 changes no bit */                   \
+        for (int cell = 0; cell != 9; ++cell) axes[cell] /= scale;                                                    \
+        nk_##math_type##_t rotated[3], moments[6];                                                                    \
+        for (nk_size_t index = 0; index != count; ++index) {                                                          \
+            load_and_convert(points + index * 3 + 0, &x), load_and_convert(points + index * 3 + 1, &y);               \
+            load_and_convert(points + index * 3 + 2, &z);                                                             \
+            x -= centroid[0], y -= centroid[1], z -= centroid[2];                                                     \
+            for (int axis = 0; axis != 3; ++axis) {                                                                   \
+                rotated[axis] = axes[axis * 3 + 0] * x;                                                               \
+                product = axes[axis * 3 + 1] * y, rotated[axis] += product;                                           \
+                product = axes[axis * 3 + 2] * z, rotated[axis] += product;                                           \
+            }                                                                                                         \
+            convert_and_store(&rotated[0], packed_x + index), convert_and_store(&rotated[1], packed_y + index);       \
+            convert_and_store(&rotated[2], packed_z + index);                                                         \
+        }                                                                                                             \
+        nk_##math_type##_t const max_norm_squared = nk_shapes_packed_moments_##input_type##_serial_(                  \
+            packed_x, axis_stride, count, moments);                                                                   \
+        nk_jacobi_eigenanalysis_##math_type##_serial_(moments, quaternion);                                           \
+        nk_shapes_close_pack_##math_type##_serial_(header, count, centroid, moments, compute_sqrt(max_norm_squared)); \
+    }                                                                                                                 \
+    NUMKONG_INLINE void nk_shapes_unpack_##input_type##_serial_(void const *packed, nk_##input_type##_t *points) {    \
+        nk_shapes_packed_header_##math_type##_t const *header =                                                       \
+            (nk_shapes_packed_header_##math_type##_t const *)packed;                                                  \
+        nk_size_t axis_stride;                                                                                        \
+        nk_##input_type##_t const *packed_x = nk_shapes_packed_axes_##input_type##_serial_(packed, &axis_stride);     \
+        nk_size_t const count = (nk_size_t)header->points;                                                            \
+        nk_##math_type##_t axes[9], packed_point[3], restored, product;                                               \
+        nk_quaternion_to_mat3x3_##math_type##_serial_(header->frame, axes);                                           \
+        /* Scaling 𝑄 scales every restored offset, and scaling by 1 changes no bit */                                 \
+        for (int cell = 0; cell != 9; ++cell) axes[cell] *= header->scale;                                            \
+        for (nk_size_t index = 0; index != count; ++index) {                                                          \
+            for (int axis = 0; axis != 3; ++axis)                                                                     \
+                load_and_convert(packed_x + axis * axis_stride + index, &packed_point[axis]);                         \
+            for (int axis = 0; axis != 3; ++axis) {                                                                   \
+                restored = axes[axis] * packed_point[0];                                                              \
+                product = axes[3 + axis] * packed_point[1], restored += product;                                      \
+                product = axes[6 + axis] * packed_point[2], restored += product;                                      \
+                restored += header->centroid[axis];                                                                   \
+                convert_and_store(&restored, points + index * 3 + axis);                                              \
+            }                                                                                                         \
+        }                                                                                                             \
     }
 
 nk_define_shapes_pack_(f16, f32, u32, nk_f16_to_f32_serial_, nk_f32_to_f16_serial_, nk_sqrt_f32_serial_,

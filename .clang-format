@@ -115,7 +115,9 @@ StatementMacros:
   - nk_define_svd3x3_
   - nk_define_det3x3_
   - nk_define_sum_two_products_
+  - nk_define_shapes_settle_
   - nk_define_shapes_pack_
+  - nk_define_shapes_pack_simt_
   - nk_define_shapes_headers_
   - nk_define_shapes_nearest_
   - nk_define_shapes_workspace_
