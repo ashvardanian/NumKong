@@ -25,7 +25,7 @@
  *  workspace, where every sum is exact and a negative reduced cost is never rounding.
  */
 
-/** Byte boundary of a pack's points and of each of its axes, as @c nk_shapes_alignment_k_. */
+/** Byte boundary of a pack's points and of each of its axes, as @c nk_shapes_alignment_k. */
 constant uint nk_shapes_alignment_metal_k = 64;
 
 /** Most allocations the packs of one many-to-many launch may span. */

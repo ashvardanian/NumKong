@@ -34,10 +34,10 @@ extern "C" {
 enum {
 
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
-    nk_attention_panel_v128_k_ = 512,
+    nk_attention_panel_v128_k = 512,
 
     /** Deepest head this backend handles in scratch; deeper heads route to the serial kernel. */
-    nk_attention_max_depth_v128_k_ = 256,
+    nk_attention_max_depth_v128_k = 256,
 };
 
 NUMKONG_INLINE v128_t nk_attention_load_bf16x4_v128_(void const *plane_chunk) {

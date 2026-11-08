@@ -23,7 +23,7 @@
 
 #if NUMKONG_ARCH_METAL_
 #include "numkong/metal.h"         // `nk_metal_call_t`
-#include "numkong/shapes/serial.h" // `nk_shapes_packed_header_f32_t`, `nk_shapes_alignment_k_`
+#include "numkong/shapes/serial.h" // `nk_shapes_packed_header_f32_t`, `nk_shapes_alignment_k`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -81,14 +81,14 @@ NUMKONG_INLINE nk_status_t nk_shapes_resolve_packs_metal_(nk_metal_call_t *call,
                                                           nk_size_t count, nk_size_t points,
                                                           nk_shapes_arguments_metal_t *arguments) {
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
-                                                                 nk_shapes_alignment_k_);
+                                                                 nk_shapes_alignment_k);
     for (nk_size_t index = 0; index != count; ++index) {
         nk_size_t const address = (nk_size_t)table[index];
         if (address & (nk_default_alignment_k - 1)) return nk_misaligned_k;
         nk_size_t const pack_points = ((nk_shapes_packed_header_f32_t const *)table[index])->points;
         if (points != NUMKONG_SIZE_MAX && pack_points != points) return nk_unexpected_dimensions_k;
         nk_size_t const bytes = header_bytes + 3 * nk_size_round_up_to_multiple_(pack_points * sizeof(nk_f16_t),
-                                                                                 nk_shapes_alignment_k_);
+                                                                                 nk_shapes_alignment_k);
         nk_u32_t block = 0;
         while (block != arguments->blocks &&
                (address - arguments->block_list[block].host_begin >

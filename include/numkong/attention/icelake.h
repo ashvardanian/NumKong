@@ -78,10 +78,10 @@ extern "C" {
 enum {
 
     /** KV panel width in positions; the I32 score row (2 KB) stays L1-resident. */
-    nk_attention_panel_icelake_k_ = 512,
+    nk_attention_panel_icelake_k = 512,
 
     /** Channels of the biased queries held at once; deeper heads accumulate scores in chunks. */
-    nk_attention_depth_chunk_icelake_k_ = 256,
+    nk_attention_depth_chunk_icelake_k = 256,
 };
 
 /** Register 16×16 transpose of 32-bit elements (hierarchical unpack + lane shuffle). Given 16
@@ -182,23 +182,23 @@ NUMKONG_INLINE void nk_attention_score_block_icelake_(nk_u8_t const *queries_bia
         __m512i const correction_i32x16 = _mm512_slli_epi32(
             _mm512_loadu_si512(key_sums_plane + panel_start + tile_idx * 16), 7); // × 128
         for (nk_size_t query_idx = 0; query_idx < 16; query_idx++)
-            accumulator_i32x16[query_idx] =
-                group_begin == 0
-                    ? _mm512_sub_epi32(_mm512_setzero_si512(), correction_i32x16)
-                    : _mm512_loadu_si512(scores + query_idx * nk_attention_panel_icelake_k_ + tile_idx * 16);
+            accumulator_i32x16[query_idx] = group_begin == 0
+                                                ? _mm512_sub_epi32(_mm512_setzero_si512(), correction_i32x16)
+                                                : _mm512_loadu_si512(scores + query_idx * nk_attention_panel_icelake_k +
+                                                                     tile_idx * 16);
         nk_i8_t const *keys_tile = keys_plane + (tile_first + tile_idx) * depth_groups * 64;
         for (nk_size_t group_idx = 0; group_idx < group_count; group_idx++) {
             // 16 positions × 4 channels
             __m512i const k_i8x64 = _mm512_loadu_si512(keys_tile + (group_begin + group_idx) * 64);
             for (nk_size_t query_idx = 0; query_idx < 16; query_idx++) {
                 __m512i const query_quad_u8x64 = _mm512_broadcastd_epi32(
-                    _mm_loadu_si32(queries_biased + query_idx * nk_attention_depth_chunk_icelake_k_ + group_idx * 4));
+                    _mm_loadu_si32(queries_biased + query_idx * nk_attention_depth_chunk_icelake_k + group_idx * 4));
                 accumulator_i32x16[query_idx] = _mm512_dpbusd_epi32(accumulator_i32x16[query_idx], query_quad_u8x64,
                                                                     k_i8x64);
             }
         }
         for (nk_size_t query_idx = 0; query_idx < 16; query_idx++)
-            _mm512_storeu_si512(scores + query_idx * nk_attention_panel_icelake_k_ + tile_idx * 16,
+            _mm512_storeu_si512(scores + query_idx * nk_attention_panel_icelake_k + tile_idx * 16,
                                 accumulator_i32x16[query_idx]);
     }
 }
@@ -340,16 +340,16 @@ NUMKONG_INLINE void nk_attention_packed_i8_icelake_(                            
     nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
     nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t · 255 + 0.5 < 1)
         scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
-    nk_size_t const panel_width = nk_attention_panel_icelake_k_;
+    nk_size_t const panel_width = nk_attention_panel_icelake_k;
 
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
     if (tasks_begin < grid_begin) tasks_begin = grid_begin;
     if (tasks_end > grid_end) tasks_end = grid_end;
 
     // 16-query blocks share each K load; each query keeps its own running state and output.
-    nk_align_(64) nk_u8_t queries_biased[16 * nk_attention_depth_chunk_icelake_k_];
-    nk_align_(64) nk_i32_t scores[16 * nk_attention_panel_icelake_k_];
-    nk_align_(64) nk_u8_t weights[nk_attention_panel_icelake_k_];
+    nk_align_(64) nk_u8_t queries_biased[16 * nk_attention_depth_chunk_icelake_k];
+    nk_align_(64) nk_i32_t scores[16 * nk_attention_panel_icelake_k];
+    nk_align_(64) nk_u8_t weights[nk_attention_panel_icelake_k];
     nk_i32_t running_max[16];
     nk_f32_t running_sum[16];
     nk_size_t key_begins[16], key_ends[16];
@@ -413,10 +413,10 @@ NUMKONG_INLINE void nk_attention_packed_i8_icelake_(                            
                         band, block_position, block_rows, panel_start, panel_len);
                     if (coverage == nk_diagonal_band_outside_k) continue;
                     for (nk_size_t chunk_start = 0; chunk_start < depth_padded;
-                         chunk_start += nk_attention_depth_chunk_icelake_k_) {
-                        nk_size_t const chunk_padded = depth_padded - chunk_start < nk_attention_depth_chunk_icelake_k_
+                         chunk_start += nk_attention_depth_chunk_icelake_k) {
+                        nk_size_t const chunk_padded = depth_padded - chunk_start < nk_attention_depth_chunk_icelake_k
                                                            ? depth_padded - chunk_start
-                                                           : nk_attention_depth_chunk_icelake_k_;
+                                                           : nk_attention_depth_chunk_icelake_k;
                         // Bias each block query into the unsigned domain; padded channels become
                         // 0x80 and meet zero K bytes. Slots past the block load nothing, unread.
                         for (nk_size_t block_row = 0; block_row < 16; block_row++) {
@@ -434,7 +434,7 @@ NUMKONG_INLINE void nk_attention_packed_i8_icelake_(                            
                                                            : live >= 64 ? ~(__mmask64)0
                                                                         : (__mmask64)_bzhi_u64(~(nk_u64_t)0, live);
                                 _mm512_store_si512(
-                                    queries_biased + block_row * nk_attention_depth_chunk_icelake_k_ + channel_idx,
+                                    queries_biased + block_row * nk_attention_depth_chunk_icelake_k + channel_idx,
                                     _mm512_xor_si512(_mm512_maskz_loadu_epi8(load_m64, query_row + channel_idx),
                                                      xor_mask_u8x64));
                             }
@@ -453,7 +453,7 @@ NUMKONG_INLINE void nk_attention_packed_i8_icelake_(                            
                             if (range_begin >= range_end) continue; // no key of this panel: running state unchanged
                         }
                         nk_f32_t const correction = nk_attention_softmax_panel_icelake_(
-                            scores + block_row * nk_attention_panel_icelake_k_, weights, range_begin, range_end, scale2,
+                            scores + block_row * nk_attention_panel_icelake_k, weights, range_begin, range_end, scale2,
                             scale_fixed, delta_floor, &running_max[block_row], &running_sum[block_row]);
                         nk_attention_weighted_sum_panel_icelake_(
                             weights, values_plane, panel_start, range_begin, range_end, depth_padded, depth, correction,

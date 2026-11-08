@@ -45,10 +45,10 @@ extern "C" {
 enum {
 
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
-    nk_attention_panel_skylake_k_ = 512,
+    nk_attention_panel_skylake_k = 512,
 
     /** Channels of the query row widened at once; deeper heads accumulate scores across chunks. */
-    nk_attention_depth_chunk_skylake_k_ = 256,
+    nk_attention_depth_chunk_skylake_k = 256,
 };
 
 /** One panel of the streaming base-2 softmax: merges the panel maximum into the running
@@ -292,10 +292,10 @@ NUMKONG_INLINE void nk_attention_scores_panel_bf16_skylake_(                    
     nk_size_t position_index = 0;
     for (; position_index < panel_length; position_index += 16)
         _mm512_store_ps(scores + position_index, _mm512_setzero_ps());
-    for (nk_size_t chunk_start = 0; chunk_start < depth_padded; chunk_start += nk_attention_depth_chunk_skylake_k_) {
-        nk_size_t const chunk_padded = depth_padded - chunk_start < nk_attention_depth_chunk_skylake_k_
+    for (nk_size_t chunk_start = 0; chunk_start < depth_padded; chunk_start += nk_attention_depth_chunk_skylake_k) {
+        nk_size_t const chunk_padded = depth_padded - chunk_start < nk_attention_depth_chunk_skylake_k
                                            ? depth_padded - chunk_start
-                                           : nk_attention_depth_chunk_skylake_k_;
+                                           : nk_attention_depth_chunk_skylake_k;
         nk_attention_widen_bf16_skylake_(query_source + chunk_start * sizeof(nk_bf16_t), query_row,
                                          depth - chunk_start < chunk_padded ? depth - chunk_start : chunk_padded,
                                          chunk_padded);
@@ -335,10 +335,10 @@ NUMKONG_INLINE void nk_attention_scores_panel_e4m3_skylake_(                    
     nk_size_t position_index = 0;
     for (; position_index < panel_length; position_index += 16)
         _mm512_store_ps(scores + position_index, _mm512_setzero_ps());
-    for (nk_size_t chunk_start = 0; chunk_start < depth_padded; chunk_start += nk_attention_depth_chunk_skylake_k_) {
-        nk_size_t const chunk_padded = depth_padded - chunk_start < nk_attention_depth_chunk_skylake_k_
+    for (nk_size_t chunk_start = 0; chunk_start < depth_padded; chunk_start += nk_attention_depth_chunk_skylake_k) {
+        nk_size_t const chunk_padded = depth_padded - chunk_start < nk_attention_depth_chunk_skylake_k
                                            ? depth_padded - chunk_start
-                                           : nk_attention_depth_chunk_skylake_k_;
+                                           : nk_attention_depth_chunk_skylake_k;
         nk_attention_widen_e4m3_skylake_(query_source + chunk_start * sizeof(nk_e4m3_t), query_row,
                                          depth - chunk_start < chunk_padded ? depth - chunk_start : chunk_padded,
                                          chunk_padded);
@@ -427,14 +427,14 @@ NUMKONG_INLINE void nk_attention_packed_bf16_skylake_(                          
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
     nk_size_t const plane_row_bytes = depth_padded * sizeof(nk_bf16_t);
     nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
-    nk_size_t const panel_width = nk_attention_panel_skylake_k_;
+    nk_size_t const panel_width = nk_attention_panel_skylake_k;
 
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
     if (tasks_begin < grid_begin) tasks_begin = grid_begin;
     if (tasks_end > grid_end) tasks_end = grid_end;
 
-    nk_align_(64) nk_f32_t query_row[nk_attention_depth_chunk_skylake_k_];
-    nk_align_(64) nk_f32_t scores[nk_attention_panel_skylake_k_];
+    nk_align_(64) nk_f32_t query_row[nk_attention_depth_chunk_skylake_k];
+    nk_align_(64) nk_f32_t scores[nk_attention_panel_skylake_k];
 
     for (nk_size_t head_index = 0; head_index < head_count && tasks_begin < tasks_end; head_index++) {
         nk_size_t const token_first = (tasks_begin + head_count - 1 - head_index) / head_count;
@@ -507,14 +507,14 @@ NUMKONG_INLINE void nk_attention_packed_e4m3_skylake_(                          
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 16);
     nk_size_t const plane_row_bytes = depth_padded * sizeof(nk_f16_t);
     nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
-    nk_size_t const panel_width = nk_attention_panel_skylake_k_;
+    nk_size_t const panel_width = nk_attention_panel_skylake_k;
 
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
     if (tasks_begin < grid_begin) tasks_begin = grid_begin;
     if (tasks_end > grid_end) tasks_end = grid_end;
 
-    nk_align_(64) nk_f32_t query_row[nk_attention_depth_chunk_skylake_k_];
-    nk_align_(64) nk_f32_t scores[nk_attention_panel_skylake_k_];
+    nk_align_(64) nk_f32_t query_row[nk_attention_depth_chunk_skylake_k];
+    nk_align_(64) nk_f32_t scores[nk_attention_panel_skylake_k];
 
     for (nk_size_t head_index = 0; head_index < head_count && tasks_begin < tasks_end; head_index++) {
         nk_size_t const token_first = (tasks_begin + head_count - 1 - head_index) / head_count;

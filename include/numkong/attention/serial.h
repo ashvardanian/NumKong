@@ -288,10 +288,10 @@ enum {
 
     /** Widest span of block exponents an MX plane rebases across into F32: rebased E5M2 elements
      *  then lie within 2⁻⁷⁴ … 2⁴⁷, so their products with any query code stay normal and exact. */
-    nk_attention_plane_window_k_ = 89,
+    nk_attention_plane_window_k = 89,
 
     /** The plane-exponent entry of an MX plane kept as raw codes and scale codes. */
-    nk_attention_raw_plane_k_ = -128,
+    nk_attention_raw_plane_k = -128,
 };
 
 /** Bytes of an MX pack's plane-exponent table, 64-byte padded: one entry per K plane and per V
@@ -317,8 +317,8 @@ NUMKONG_INLINE nk_size_t nk_attention_plane_exponents_offset_serial_(nk_size_t k
 }
 
 /** The plane-exponent entry of @p rows rows of @p blocks UE8M0 scale codes, @p stride bytes apart:
- *  their largest finite exponent, 0 when none is, or @c nk_attention_raw_plane_k_ when they span
- *  more than @c nk_attention_plane_window_k_ binades. */
+ *  their largest finite exponent, 0 when none is, or @c nk_attention_raw_plane_k when they span
+ *  more than @c nk_attention_plane_window_k binades. */
 NUMKONG_INLINE nk_i8_t nk_attention_plane_exponent_ue8m0_serial_(nk_u8_t const *scales, nk_size_t stride,
                                                                  nk_size_t rows, nk_size_t blocks) NUMKONG_STREAMABLE_ {
     nk_i32_t low = 255, high = 0;
@@ -329,12 +329,12 @@ NUMKONG_INLINE nk_i8_t nk_attention_plane_exponent_ue8m0_serial_(nk_u8_t const *
             low = code < low ? code : low, high = code > high ? code : high;
         }
     if (low > high) return 0;
-    return (nk_i8_t)(high - low > nk_attention_plane_window_k_ ? nk_attention_raw_plane_k_ : high - 127);
+    return (nk_i8_t)(high - low > nk_attention_plane_window_k ? nk_attention_raw_plane_k : high - 127);
 }
 
 /** The power of two an MX plane's F32 values sit under: its entry less 31, or 0 for raw planes. */
 NUMKONG_INLINE nk_i32_t nk_attention_plane_base_serial_(nk_i8_t exponent) NUMKONG_STREAMABLE_ {
-    return exponent == nk_attention_raw_plane_k_ ? 0 : exponent - nk_cross_scaled_headroom_k;
+    return exponent == nk_attention_raw_plane_k ? 0 : exponent - nk_cross_scaled_headroom_k;
 }
 
 /** Fills a @p row_bytes long row of a raw plane with @p codes_bytes of @p codes, then @p blocks
@@ -364,8 +364,9 @@ NUMKONG_INLINE nk_f32_t nk_attention_load_mxfp4_serial_(nk_u8_t const *codes, nk
  *  plane's base. */
 NUMKONG_INLINE nk_f32_t nk_attention_plane_mxfp4_serial_(nk_u8_t const *row, nk_i8_t exponent, nk_size_t depth,
                                                          nk_size_t index) {
-    return exponent == nk_attention_raw_plane_k_ ? nk_attention_load_mxfp4_serial_(row, row + depth / 2, index, 0)
-                                                 : ((nk_f32_t const *)row)[index];
+    nk_f32_t const *raw_values = (nk_f32_t const *)row;
+    return exponent == nk_attention_raw_plane_k ? nk_attention_load_mxfp4_serial_(row, row + depth / 2, index, 0)
+                                                : raw_values[index];
 }
 
 /** The base-2 score of an MXFP4 query row against a packed key row in a plane at @p exponent:
@@ -375,7 +376,7 @@ NUMKONG_INLINE nk_f32_t nk_attention_score_mxfp4_serial_(nk_u8_t const *query_ro
                                                          nk_u8_t const *key_row, nk_i8_t exponent, nk_size_t depth,
                                                          nk_f32_t scale2) {
     nk_cross_wide_sum_t dot = {0, 0};
-    if (exponent == nk_attention_raw_plane_k_) {
+    if (exponent == nk_attention_raw_plane_k) {
         nk_cross_wide_sum_t query_sumsq, key_sumsq;
         dot = nk_cross_scaled_exact_wide_mxfp4_serial_(query_row, query_scales, key_row, key_row + depth / 2, depth,
                                                        &query_sumsq, &key_sumsq);
@@ -407,7 +408,7 @@ NUMKONG_INLINE nk_i8_t nk_attention_pack_plane_mxfp4_serial_(nk_mxfp4_cref_t con
     for (nk_size_t position_idx = 0; position_idx < positions; position_idx++) {
         nk_u8_t const *row_codes = codes + position_idx * stride, *row_scales = scales + position_idx * scales_stride;
         nk_f32_t *row = plane + position_idx * depth;
-        if (exponent == nk_attention_raw_plane_k_)
+        if (exponent == nk_attention_raw_plane_k)
             nk_attention_raw_row_serial_(row_codes, codes_bytes, row_scales, blocks, depth * sizeof(nk_f32_t), row);
         else
             for (nk_size_t index = 0; index < depth; index++)
@@ -427,8 +428,9 @@ NUMKONG_INLINE nk_f32_t nk_attention_load_mxfp6e2m3_serial_(nk_u8_t const *codes
 /** @c nk_attention_plane_mxfp4_serial_ for MXFP6 E2M3. */
 NUMKONG_INLINE nk_f32_t nk_attention_plane_mxfp6e2m3_serial_(nk_u8_t const *row, nk_i8_t exponent, nk_size_t depth,
                                                              nk_size_t index) {
-    return exponent == nk_attention_raw_plane_k_ ? nk_attention_load_mxfp6e2m3_serial_(row, row + depth, index, 0)
-                                                 : ((nk_f32_t const *)row)[index];
+    nk_f32_t const *raw_values = (nk_f32_t const *)row;
+    return exponent == nk_attention_raw_plane_k ? nk_attention_load_mxfp6e2m3_serial_(row, row + depth, index, 0)
+                                                : raw_values[index];
 }
 
 /** @c nk_attention_score_mxfp4_serial_ for MXFP6 E2M3. */
@@ -436,7 +438,7 @@ NUMKONG_INLINE nk_f32_t nk_attention_score_mxfp6e2m3_serial_(nk_u8_t const *quer
                                                              nk_u8_t const *key_row, nk_i8_t exponent, nk_size_t depth,
                                                              nk_f32_t scale2) {
     nk_cross_wide_sum_t dot = {0, 0};
-    if (exponent == nk_attention_raw_plane_k_) {
+    if (exponent == nk_attention_raw_plane_k) {
         nk_cross_wide_sum_t query_sumsq, key_sumsq;
         dot = nk_cross_scaled_exact_wide_mxfp6e2m3_serial_(query_row, query_scales, key_row, key_row + depth, depth,
                                                            &query_sumsq, &key_sumsq);
@@ -466,7 +468,7 @@ NUMKONG_INLINE nk_i8_t nk_attention_pack_plane_mxfp6e2m3_serial_(nk_mxfp6e2m3_cr
     for (nk_size_t position_idx = 0; position_idx < positions; position_idx++) {
         nk_u8_t const *row_codes = codes + position_idx * stride, *row_scales = scales + position_idx * scales_stride;
         nk_f32_t *row = plane + position_idx * depth;
-        if (exponent == nk_attention_raw_plane_k_)
+        if (exponent == nk_attention_raw_plane_k)
             nk_attention_raw_row_serial_(row_codes, codes_bytes, row_scales, blocks, depth * sizeof(nk_f32_t), row);
         else
             for (nk_size_t index = 0; index < depth; index++)
@@ -486,8 +488,9 @@ NUMKONG_INLINE nk_f32_t nk_attention_load_mxfp6e3m2_serial_(nk_u8_t const *codes
 /** @c nk_attention_plane_mxfp4_serial_ for MXFP6 E3M2. */
 NUMKONG_INLINE nk_f32_t nk_attention_plane_mxfp6e3m2_serial_(nk_u8_t const *row, nk_i8_t exponent, nk_size_t depth,
                                                              nk_size_t index) {
-    return exponent == nk_attention_raw_plane_k_ ? nk_attention_load_mxfp6e3m2_serial_(row, row + depth, index, 0)
-                                                 : ((nk_f32_t const *)row)[index];
+    nk_f32_t const *raw_values = (nk_f32_t const *)row;
+    return exponent == nk_attention_raw_plane_k ? nk_attention_load_mxfp6e3m2_serial_(row, row + depth, index, 0)
+                                                : raw_values[index];
 }
 
 /** @c nk_attention_score_mxfp4_serial_ for MXFP6 E3M2. */
@@ -495,7 +498,7 @@ NUMKONG_INLINE nk_f32_t nk_attention_score_mxfp6e3m2_serial_(nk_u8_t const *quer
                                                              nk_u8_t const *key_row, nk_i8_t exponent, nk_size_t depth,
                                                              nk_f32_t scale2) {
     nk_cross_wide_sum_t dot = {0, 0};
-    if (exponent == nk_attention_raw_plane_k_) {
+    if (exponent == nk_attention_raw_plane_k) {
         nk_cross_wide_sum_t query_sumsq, key_sumsq;
         dot = nk_cross_scaled_exact_wide_mxfp6e3m2_serial_(query_row, query_scales, key_row, key_row + depth, depth,
                                                            &query_sumsq, &key_sumsq);
@@ -525,7 +528,7 @@ NUMKONG_INLINE nk_i8_t nk_attention_pack_plane_mxfp6e3m2_serial_(nk_mxfp6e3m2_cr
     for (nk_size_t position_idx = 0; position_idx < positions; position_idx++) {
         nk_u8_t const *row_codes = codes + position_idx * stride, *row_scales = scales + position_idx * scales_stride;
         nk_f32_t *row = plane + position_idx * depth;
-        if (exponent == nk_attention_raw_plane_k_)
+        if (exponent == nk_attention_raw_plane_k)
             nk_attention_raw_row_serial_(row_codes, codes_bytes, row_scales, blocks, depth * sizeof(nk_f32_t), row);
         else
             for (nk_size_t index = 0; index < depth; index++)
@@ -545,8 +548,9 @@ NUMKONG_INLINE nk_f32_t nk_attention_load_mxfp8e4m3_serial_(nk_u8_t const *codes
 /** @c nk_attention_plane_mxfp4_serial_ for MXFP8 E4M3. */
 NUMKONG_INLINE nk_f32_t nk_attention_plane_mxfp8e4m3_serial_(nk_u8_t const *row, nk_i8_t exponent, nk_size_t depth,
                                                              nk_size_t index) {
-    return exponent == nk_attention_raw_plane_k_ ? nk_attention_load_mxfp8e4m3_serial_(row, row + depth, index, 0)
-                                                 : ((nk_f32_t const *)row)[index];
+    nk_f32_t const *raw_values = (nk_f32_t const *)row;
+    return exponent == nk_attention_raw_plane_k ? nk_attention_load_mxfp8e4m3_serial_(row, row + depth, index, 0)
+                                                : raw_values[index];
 }
 
 /** @c nk_attention_score_mxfp4_serial_ for MXFP8 E4M3. */
@@ -554,7 +558,7 @@ NUMKONG_INLINE nk_f32_t nk_attention_score_mxfp8e4m3_serial_(nk_u8_t const *quer
                                                              nk_u8_t const *key_row, nk_i8_t exponent, nk_size_t depth,
                                                              nk_f32_t scale2) {
     nk_cross_wide_sum_t dot = {0, 0};
-    if (exponent == nk_attention_raw_plane_k_) {
+    if (exponent == nk_attention_raw_plane_k) {
         nk_cross_wide_sum_t query_sumsq, key_sumsq;
         dot = nk_cross_scaled_exact_wide_mxfp8e4m3_serial_(query_row, query_scales, key_row, key_row + depth, depth,
                                                            &query_sumsq, &key_sumsq);
@@ -584,7 +588,7 @@ NUMKONG_INLINE nk_i8_t nk_attention_pack_plane_mxfp8e4m3_serial_(nk_mxfp8e4m3_cr
     for (nk_size_t position_idx = 0; position_idx < positions; position_idx++) {
         nk_u8_t const *row_codes = codes + position_idx * stride, *row_scales = scales + position_idx * scales_stride;
         nk_f32_t *row = plane + position_idx * depth;
-        if (exponent == nk_attention_raw_plane_k_)
+        if (exponent == nk_attention_raw_plane_k)
             nk_attention_raw_row_serial_(row_codes, codes_bytes, row_scales, blocks, depth * sizeof(nk_f32_t), row);
         else
             for (nk_size_t index = 0; index < depth; index++)
@@ -604,8 +608,9 @@ NUMKONG_INLINE nk_f32_t nk_attention_load_mxfp8e5m2_serial_(nk_u8_t const *codes
 /** @c nk_attention_plane_mxfp4_serial_ for MXFP8 E5M2. */
 NUMKONG_INLINE nk_f32_t nk_attention_plane_mxfp8e5m2_serial_(nk_u8_t const *row, nk_i8_t exponent, nk_size_t depth,
                                                              nk_size_t index) {
-    return exponent == nk_attention_raw_plane_k_ ? nk_attention_load_mxfp8e5m2_serial_(row, row + depth, index, 0)
-                                                 : ((nk_f32_t const *)row)[index];
+    nk_f32_t const *raw_values = (nk_f32_t const *)row;
+    return exponent == nk_attention_raw_plane_k ? nk_attention_load_mxfp8e5m2_serial_(row, row + depth, index, 0)
+                                                : raw_values[index];
 }
 
 /** @c nk_attention_score_mxfp4_serial_ for MXFP8 E5M2. */
@@ -613,7 +618,7 @@ NUMKONG_INLINE nk_f32_t nk_attention_score_mxfp8e5m2_serial_(nk_u8_t const *quer
                                                              nk_u8_t const *key_row, nk_i8_t exponent, nk_size_t depth,
                                                              nk_f32_t scale2) {
     nk_cross_wide_sum_t dot = {0, 0};
-    if (exponent == nk_attention_raw_plane_k_) {
+    if (exponent == nk_attention_raw_plane_k) {
         nk_cross_wide_sum_t query_sumsq, key_sumsq;
         dot = nk_cross_scaled_exact_wide_mxfp8e5m2_serial_(query_row, query_scales, key_row, key_row + depth, depth,
                                                            &query_sumsq, &key_sumsq);
@@ -643,7 +648,7 @@ NUMKONG_INLINE nk_i8_t nk_attention_pack_plane_mxfp8e5m2_serial_(nk_mxfp8e5m2_cr
     for (nk_size_t position_idx = 0; position_idx < positions; position_idx++) {
         nk_u8_t const *row_codes = codes + position_idx * stride, *row_scales = scales + position_idx * scales_stride;
         nk_f32_t *row = plane + position_idx * depth;
-        if (exponent == nk_attention_raw_plane_k_)
+        if (exponent == nk_attention_raw_plane_k)
             nk_attention_raw_row_serial_(row_codes, codes_bytes, row_scales, blocks, depth * sizeof(nk_f32_t), row);
         else
             for (nk_size_t index = 0; index < depth; index++)

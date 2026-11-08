@@ -344,15 +344,14 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_neonfhm(void const *const *a_packed,
     if (!nk_rmsds_same_points_f16_serial_(a_packed, rows, points) ||
         !nk_rmsds_same_points_f16_serial_(b_packed, columns, points))
         return nk_unexpected_dimensions_k;
-    nk_f32_t row_norms[nk_rmsds_tile_frames_k_], column_norms[nk_rmsds_tile_frames_k_];
-    for (nk_size_t row_begin = 0; row_begin < rows; row_begin += nk_rmsds_tile_frames_k_) {
-        nk_size_t const row_end = row_begin + nk_rmsds_tile_frames_k_ < rows ? row_begin + nk_rmsds_tile_frames_k_
-                                                                             : rows;
+    nk_f32_t row_norms[nk_rmsds_tile_frames_k], column_norms[nk_rmsds_tile_frames_k];
+    for (nk_size_t row_begin = 0; row_begin < rows; row_begin += nk_rmsds_tile_frames_k) {
+        nk_size_t const row_end = row_begin + nk_rmsds_tile_frames_k < rows ? row_begin + nk_rmsds_tile_frames_k : rows;
         for (nk_size_t row = row_begin; row != row_end; ++row)
             row_norms[row - row_begin] = nk_rmsds_norm_f16_neonfhm_(a_packed[row]);
-        for (nk_size_t column_begin = 0; column_begin < columns; column_begin += nk_rmsds_tile_frames_k_) {
-            nk_size_t const column_end = column_begin + nk_rmsds_tile_frames_k_ < columns
-                                             ? column_begin + nk_rmsds_tile_frames_k_
+        for (nk_size_t column_begin = 0; column_begin < columns; column_begin += nk_rmsds_tile_frames_k) {
+            nk_size_t const column_end = column_begin + nk_rmsds_tile_frames_k < columns
+                                             ? column_begin + nk_rmsds_tile_frames_k
                                              : columns;
             for (nk_size_t column = column_begin; column != column_end; ++column)
                 column_norms[column - column_begin] = nk_rmsds_norm_f16_neonfhm_(b_packed[column]);

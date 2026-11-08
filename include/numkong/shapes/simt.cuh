@@ -31,7 +31,7 @@
 
 #if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
 
-#include "numkong/shapes/serial.h" // `nk_shapes_packed_header_f64_t`, `nk_shapes_alignment_k_`
+#include "numkong/shapes/serial.h" // `nk_shapes_packed_header_f64_t`, `nk_shapes_alignment_k`
 #include "numkong/cast/simt.cuh"   // `nk_f16_to_f32_simt_`
 
 #if defined(__cplusplus)
@@ -2536,9 +2536,9 @@ nk_define_shapes_settle_(f16, f32, nk_f16_to_f32_simt_, nk_sqrt_f32_simt_, nk_rs
         nk_shapes_packed_header_##math_type##_t *header = (nk_shapes_packed_header_##math_type##_t *)packed;           \
         nk_u64_t *header_words = (nk_u64_t *)packed;                                                                   \
         nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_##math_type##_t),  \
-                                                                     nk_shapes_alignment_k_);                          \
+                                                                     nk_shapes_alignment_k);                           \
         nk_size_t const axis_stride = nk_size_round_up_to_multiple_(count * sizeof(nk_##input_type##_t),               \
-                                                                    nk_shapes_alignment_k_) /                          \
+                                                                    nk_shapes_alignment_k) /                           \
                                       sizeof(nk_##input_type##_t);                                                     \
         nk_##input_type##_t *packed_x = (nk_##input_type##_t *)((char *)packed + header_bytes);                        \
         if (lane == 0) {                                                                                               \
@@ -2621,8 +2621,8 @@ nk_define_shapes_settle_(f16, f32, nk_f16_to_f32_simt_, nk_sqrt_f32_simt_, nk_rs
 NUMKONG_DEVICE nk_f32_t const *nk_shapes_packed_axes_f32_simt_(void const *packed, nk_size_t *axis_stride) {
     nk_size_t const points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)packed)->points;
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
-                                                                 nk_shapes_alignment_k_);
-    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f32_t), nk_shapes_alignment_k_) / sizeof(nk_f32_t);
+                                                                 nk_shapes_alignment_k);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f32_t), nk_shapes_alignment_k) / sizeof(nk_f32_t);
     return (nk_f32_t const *)((char const *)packed + header_bytes);
 }
 
@@ -2630,8 +2630,8 @@ NUMKONG_DEVICE nk_f32_t const *nk_shapes_packed_axes_f32_simt_(void const *packe
 NUMKONG_DEVICE nk_f16_t const *nk_shapes_packed_axes_f16_simt_(void const *packed, nk_size_t *axis_stride) {
     nk_size_t const points = ((nk_shapes_packed_header_f32_t const *)packed)->points;
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
-                                                                 nk_shapes_alignment_k_);
-    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k_) / sizeof(nk_f16_t);
+                                                                 nk_shapes_alignment_k);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k) / sizeof(nk_f16_t);
     return (nk_f16_t const *)((char const *)packed + header_bytes);
 }
 
@@ -2639,8 +2639,8 @@ NUMKONG_DEVICE nk_f16_t const *nk_shapes_packed_axes_f16_simt_(void const *packe
 NUMKONG_DEVICE nk_f64_t const *nk_shapes_packed_axes_f64_simt_(void const *packed, nk_size_t *axis_stride) {
     nk_size_t const points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)packed)->points;
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
-                                                                 nk_shapes_alignment_k_);
-    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f64_t), nk_shapes_alignment_k_) / sizeof(nk_f64_t);
+                                                                 nk_shapes_alignment_k);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f64_t), nk_shapes_alignment_k) / sizeof(nk_f64_t);
     return (nk_f64_t const *)((char const *)packed + header_bytes);
 }
 
@@ -3015,9 +3015,9 @@ NUMKONG_DEVICE int nk_shapes_column_first_f32_simt_(void const *row_packed, void
             return column_header->spreads[axis] < row_header->spreads[axis];
     if (row_header->max_radius != column_header->max_radius) return column_header->max_radius < row_header->max_radius;
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
-                                                                 nk_shapes_alignment_k_);
+                                                                 nk_shapes_alignment_k);
     nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(row_header->points * sizeof(nk_f32_t),
-                                                               nk_shapes_alignment_k_);
+                                                               nk_shapes_alignment_k);
     nk_size_t const points_bytes = row_header->points * sizeof(nk_f32_t);
     nk_u8_t const *row_bytes = (nk_u8_t const *)row_packed + header_bytes;
     nk_u8_t const *column_bytes = (nk_u8_t const *)column_packed + header_bytes;
@@ -3037,9 +3037,9 @@ NUMKONG_DEVICE int nk_shapes_column_first_f16_simt_(void const *row_packed, void
             return column_header->spreads[axis] < row_header->spreads[axis];
     if (row_header->max_radius != column_header->max_radius) return column_header->max_radius < row_header->max_radius;
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
-                                                                 nk_shapes_alignment_k_);
+                                                                 nk_shapes_alignment_k);
     nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(row_header->points * sizeof(nk_f16_t),
-                                                               nk_shapes_alignment_k_);
+                                                               nk_shapes_alignment_k);
     nk_size_t const points_bytes = row_header->points * sizeof(nk_f16_t);
     nk_u8_t const *row_bytes = (nk_u8_t const *)row_packed + header_bytes;
     nk_u8_t const *column_bytes = (nk_u8_t const *)column_packed + header_bytes;

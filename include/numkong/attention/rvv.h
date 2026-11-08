@@ -53,7 +53,7 @@ extern "C" {
 enum {
 
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
-    nk_attention_panel_rvv_k_ = 512,
+    nk_attention_panel_rvv_k = 512,
 };
 
 /** Widens @p vector_length raw scalars (BF16 or E4M3) to an F32 (m2) register group. */
@@ -409,12 +409,12 @@ NUMKONG_INLINE void nk_attention_packed_bf16_rvv_(                              
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const plane_row_bytes = depth * sizeof(nk_bf16_t);
     nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
-    nk_size_t const panel_width = nk_attention_panel_rvv_k_;
+    nk_size_t const panel_width = nk_attention_panel_rvv_k;
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
     if (tasks_begin < grid_begin) tasks_begin = grid_begin;
     if (tasks_end > grid_end) tasks_end = grid_end;
 
-    nk_align_(64) nk_f32_t scores[nk_attention_panel_rvv_k_];
+    nk_align_(64) nk_f32_t scores[nk_attention_panel_rvv_k];
 
     for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
         nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
@@ -484,12 +484,12 @@ NUMKONG_INLINE void nk_attention_packed_e4m3_rvv_(                              
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const plane_row_bytes = depth * sizeof(nk_bf16_t);
     nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
-    nk_size_t const panel_width = nk_attention_panel_rvv_k_;
+    nk_size_t const panel_width = nk_attention_panel_rvv_k;
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
     if (tasks_begin < grid_begin) tasks_begin = grid_begin;
     if (tasks_end > grid_end) tasks_end = grid_end;
 
-    nk_align_(64) nk_f32_t scores[nk_attention_panel_rvv_k_];
+    nk_align_(64) nk_f32_t scores[nk_attention_panel_rvv_k];
 
     for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
         nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
@@ -555,13 +555,13 @@ NUMKONG_INLINE void nk_attention_packed_i8_rvv_(                                
     nk_size_t const output_stride_floats = output_stride / sizeof(nk_f32_t);
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
-    nk_size_t const panel_width = nk_attention_panel_rvv_k_;
+    nk_size_t const panel_width = nk_attention_panel_rvv_k;
     nk_size_t const vlmax4 = __riscv_vsetvlmax_e32m4();
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
     if (tasks_begin < grid_begin) tasks_begin = grid_begin;
     if (tasks_end > grid_end) tasks_end = grid_end;
 
-    nk_align_(64) nk_i32_t scores[nk_attention_panel_rvv_k_];
+    nk_align_(64) nk_i32_t scores[nk_attention_panel_rvv_k];
 
     for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
         nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;

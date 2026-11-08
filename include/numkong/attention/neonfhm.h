@@ -43,10 +43,10 @@ extern "C" {
 enum {
 
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
-    nk_attention_panel_neonfhm_k_ = 512,
+    nk_attention_panel_neonfhm_k = 512,
 
     /** Deepest head this backend handles in scratch; deeper heads route to the serial kernel. */
-    nk_attention_max_depth_neonfhm_k_ = 256,
+    nk_attention_max_depth_neonfhm_k = 256,
 };
 
 /** Scores of one panel of F16 keys against the F16 query, four KV rows in flight through widening
@@ -116,7 +116,7 @@ NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_neonfhm(nk_size_t key_value_
                                                             nk_size_t token_count, nk_size_t segment_count,
                                                             nk_size_t *bytes) {
     // Planes store the exact F16 widening of the E4M3 inputs, past the NEON depths in serial F32
-    *bytes = depth > nk_attention_max_depth_neonfhm_k_
+    *bytes = depth > nk_attention_max_depth_neonfhm_k
                  ? nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
                                                    depth * sizeof(nk_f32_t))
                  : nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
@@ -143,7 +143,7 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_neonfhm(nk_size_t key_value_head_
     nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
                                                                       key_lengths, segment_count);
     if (validation != nk_success_k) return validation;
-    if (depth > nk_attention_max_depth_neonfhm_k_) {
+    if (depth > nk_attention_max_depth_neonfhm_k) {
         nk_attention_pack_e4m3_serial_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
                                        segment_count, key_stride, value_stride, key_value_packed, tasks_begin,
                                        tasks_end, nk_cap_neonfhm_k);
@@ -200,7 +200,7 @@ NUMKONG_API nk_status_t nk_attention_packed_e4m3_neonfhm(
     if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_neonfhm_k)) return nk_pack_mismatch_k;
     nk_assert_(query_token_count == nk_attention_query_end_serial_(key_value_packed, query_offsets));
     nk_diagonal_band_t const band = {keys_before, keys_after};
-    if (depth > nk_attention_max_depth_neonfhm_k_) {
+    if (depth > nk_attention_max_depth_neonfhm_k) {
         nk_attention_packed_e4m3_serial_(queries, key_value_packed, output, log_sum_exp, head_count,
                                          key_value_head_count, depth, query_offsets, query_stride, output_stride, scale,
                                          band, tasks_begin, tasks_end);
@@ -219,14 +219,14 @@ NUMKONG_API nk_status_t nk_attention_packed_e4m3_neonfhm(
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const plane_row_bytes = depth_padded * sizeof(nk_f16_t);
     nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
-    nk_size_t const panel_width = nk_attention_panel_neonfhm_k_;
+    nk_size_t const panel_width = nk_attention_panel_neonfhm_k;
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
     if (tasks_begin < grid_begin) tasks_begin = grid_begin;
     if (tasks_end > grid_end) tasks_end = grid_end;
 
-    nk_align_(64) nk_u16_t query_row[nk_attention_max_depth_neonfhm_k_];
-    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_neonfhm_k_];
-    nk_align_(64) nk_f32_t scores[nk_attention_panel_neonfhm_k_];
+    nk_align_(64) nk_u16_t query_row[nk_attention_max_depth_neonfhm_k];
+    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_neonfhm_k];
+    nk_align_(64) nk_f32_t scores[nk_attention_panel_neonfhm_k];
 
     for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
         nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
@@ -285,7 +285,7 @@ NUMKONG_API nk_status_t nk_attention_pack_size_f16_neonfhm(nk_size_t key_value_h
                                                            nk_size_t token_count, nk_size_t segment_count,
                                                            nk_size_t *bytes) {
     // Planes keep the raw F16 encoding, past the NEON depths in serial F32
-    *bytes = depth > nk_attention_max_depth_neonfhm_k_
+    *bytes = depth > nk_attention_max_depth_neonfhm_k
                  ? nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
                                                    depth * sizeof(nk_f32_t))
                  : nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
@@ -312,7 +312,7 @@ NUMKONG_API nk_status_t nk_attention_pack_f16_neonfhm(nk_size_t key_value_head_c
     nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
                                                                       key_lengths, segment_count);
     if (validation != nk_success_k) return validation;
-    if (depth > nk_attention_max_depth_neonfhm_k_) {
+    if (depth > nk_attention_max_depth_neonfhm_k) {
         nk_attention_pack_f16_serial_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
                                       segment_count, key_stride, value_stride, key_value_packed, tasks_begin, tasks_end,
                                       nk_cap_neonfhm_k);
@@ -369,7 +369,7 @@ NUMKONG_API nk_status_t nk_attention_packed_f16_neonfhm(
     if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_neonfhm_k)) return nk_pack_mismatch_k;
     nk_assert_(query_token_count == nk_attention_query_end_serial_(key_value_packed, query_offsets));
     nk_diagonal_band_t const band = {keys_before, keys_after};
-    if (depth > nk_attention_max_depth_neonfhm_k_) {
+    if (depth > nk_attention_max_depth_neonfhm_k) {
         nk_attention_packed_f16_serial_(queries, key_value_packed, output, log_sum_exp, head_count,
                                         key_value_head_count, depth, query_offsets, query_stride, output_stride, scale,
                                         band, tasks_begin, tasks_end);
@@ -388,14 +388,14 @@ NUMKONG_API nk_status_t nk_attention_packed_f16_neonfhm(
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const plane_row_bytes = depth_padded * sizeof(nk_f16_t);
     nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
-    nk_size_t const panel_width = nk_attention_panel_neonfhm_k_;
+    nk_size_t const panel_width = nk_attention_panel_neonfhm_k;
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
     if (tasks_begin < grid_begin) tasks_begin = grid_begin;
     if (tasks_end > grid_end) tasks_end = grid_end;
 
-    nk_align_(64) nk_u16_t query_row[nk_attention_max_depth_neonfhm_k_];
-    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_neonfhm_k_];
-    nk_align_(64) nk_f32_t scores[nk_attention_panel_neonfhm_k_];
+    nk_align_(64) nk_u16_t query_row[nk_attention_max_depth_neonfhm_k];
+    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_neonfhm_k];
+    nk_align_(64) nk_f32_t scores[nk_attention_panel_neonfhm_k];
 
     for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
         nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
@@ -454,7 +454,7 @@ NUMKONG_API nk_status_t nk_attention_pack_size_nvfp4_neonfhm(nk_size_t key_value
                                                              nk_size_t token_count, nk_size_t segment_count,
                                                              nk_size_t *bytes) {
     // Exact F16 products of elements and block scales, past the NEON depths in serial F32
-    *bytes = depth > nk_attention_max_depth_neonfhm_k_
+    *bytes = depth > nk_attention_max_depth_neonfhm_k
                  ? nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
                                                    depth * sizeof(nk_f32_t))
                  : nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
@@ -480,7 +480,7 @@ NUMKONG_API nk_status_t nk_attention_pack_nvfp4_neonfhm(
     nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
                                                                       key_lengths, segment_count);
     if (validation != nk_success_k) return validation;
-    if (depth > nk_attention_max_depth_neonfhm_k_) {
+    if (depth > nk_attention_max_depth_neonfhm_k) {
         nk_attention_pack_nvfp4_serial_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
                                         segment_count, key_stride, value_stride, key_value_packed, tasks_begin,
                                         tasks_end, nk_cap_neonfhm_k);
@@ -502,7 +502,7 @@ NUMKONG_API nk_status_t nk_attention_packed_nvfp4_neonfhm(
     if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_neonfhm_k)) return nk_pack_mismatch_k;
     nk_assert_(query_token_count == nk_attention_query_end_serial_(key_value_packed, query_offsets));
     nk_diagonal_band_t const band = {keys_before, keys_after};
-    if (depth > nk_attention_max_depth_neonfhm_k_) {
+    if (depth > nk_attention_max_depth_neonfhm_k) {
         nk_attention_packed_nvfp4_serial_(queries, key_value_packed, output, log_sum_exp, head_count,
                                           key_value_head_count, depth, query_offsets, query_stride, output_stride,
                                           scale, band, tasks_begin, tasks_end);
@@ -526,14 +526,14 @@ NUMKONG_API nk_status_t nk_attention_packed_nvfp4_neonfhm(
         nk_cross_tensor_scale_serial_(queries->tensor_scale), header->key_tensor_scale);
     // The power of two folds in exactly, so scores round as serial ones do unless subnormal
     nk_f32_t const scale2 = nk_scale_f32_serial_(scale * NUMKONG_F32_LOG2E_ * factor.mantissa, factor.exponent);
-    nk_size_t const panel_width = nk_attention_panel_neonfhm_k_;
+    nk_size_t const panel_width = nk_attention_panel_neonfhm_k;
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
     if (tasks_begin < grid_begin) tasks_begin = grid_begin;
     if (tasks_end > grid_end) tasks_end = grid_end;
 
-    nk_align_(64) nk_u16_t query_row[nk_attention_max_depth_neonfhm_k_];
-    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_neonfhm_k_];
-    nk_align_(64) nk_f32_t scores[nk_attention_panel_neonfhm_k_];
+    nk_align_(64) nk_u16_t query_row[nk_attention_max_depth_neonfhm_k];
+    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_neonfhm_k];
+    nk_align_(64) nk_f32_t scores[nk_attention_panel_neonfhm_k];
 
     for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
         nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;

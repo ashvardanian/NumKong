@@ -30,7 +30,7 @@
 
 #include "numkong/dots/blackwell.cuh"
 #include "numkong/shapes/cuda.cuh" // `nk_shapes_accessible_cuda_`
-#include "numkong/shapes/serial.h" // `nk_shapes_packed_header_f32_t`, `nk_shapes_alignment_k_`
+#include "numkong/shapes/serial.h" // `nk_shapes_packed_header_f32_t`, `nk_shapes_alignment_k`
 #include "numkong/shapes/simt.cuh" // `nk_rmsds_folded_f32_simt_`, `nk_shapes_least_flip_f32_simt_`
 
 #if defined(__cplusplus)
@@ -158,8 +158,8 @@ NUMKONG_DEVICE float2 nk_f32x2_add_blackwell_(float2 first, float2 second) {
 NUMKONG_DEVICE nk_f16_t const *nk_shapes_packed_axes_f16_blackwell_(void const *packed, nk_size_t *axis_stride) {
     nk_size_t const points = ((nk_shapes_packed_header_f32_t const *)packed)->points;
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
-                                                                 nk_shapes_alignment_k_);
-    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k_) / sizeof(nk_f16_t);
+                                                                 nk_shapes_alignment_k);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k) / sizeof(nk_f16_t);
     return (nk_f16_t const *)((char const *)packed + header_bytes);
 }
 
@@ -223,7 +223,7 @@ NUMKONG_DEVICE void nk_rmsds_gather_f16_blackwell_(nk_rmsds_schedule_blackwell_t
 NUMKONG_DEVICE void nk_rmsds_stage_f16_blackwell_(nk_rmsds_shared_blackwell_t *shared, unsigned buffer, nk_size_t slab,
                                                   nk_size_t points, nk_size_t axis_stride, nk_f32_t *partials) {
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
-                                                                 nk_shapes_alignment_k_);
+                                                                 nk_shapes_alignment_k);
     unsigned const chunks_per_side = nk_rmsds_operand_rows_blackwell_k * 8;
 #pragma unroll
     for (unsigned slot = 0; slot != nk_rmsds_thread_chunks_blackwell_k; ++slot) {
@@ -345,7 +345,7 @@ static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k, 1)
         nk_rmsds_dynamic_shared_blackwell_, 1024);
     nk_u32_t const tensor_memory = nk_rmsds_initialize_blackwell_(shared);
     nk_size_t const points = ((nk_shapes_packed_header_f32_t const *)schedule.a_packed[0])->points;
-    nk_size_t const axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k_) /
+    nk_size_t const axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k) /
                                   sizeof(nk_f16_t);
     nk_size_t slabs_issued = 0;
     for (nk_size_t tile = blockIdx.x; tile < schedule.tiles; tile += gridDim.x) {

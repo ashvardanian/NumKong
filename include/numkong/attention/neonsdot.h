@@ -44,17 +44,17 @@ extern "C" {
 enum {
 
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
-    nk_attention_panel_neonsdot_k_ = 512,
+    nk_attention_panel_neonsdot_k = 512,
 
     /** Deepest head this backend handles in scratch; deeper heads route to the serial kernel. */
-    nk_attention_max_depth_neonsdot_k_ = 256,
+    nk_attention_max_depth_neonsdot_k = 256,
 };
 
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_neonsdot(nk_size_t key_value_head_count, nk_size_t depth,
                                                            nk_size_t token_count, nk_size_t segment_count,
                                                            nk_size_t *bytes) {
     // K rows plus quad-tiled V, positions padded to the UDOT quad
-    *bytes = depth > nk_attention_max_depth_neonsdot_k_
+    *bytes = depth > nk_attention_max_depth_neonsdot_k
                  ? nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1, depth)
                  : nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 4,
                                                    nk_size_round_up_to_multiple_(depth, 16));
@@ -80,7 +80,7 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_neonsdot(nk_size_t key_value_head_c
     nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
                                                                       key_lengths, segment_count);
     if (validation != nk_success_k) return validation;
-    if (depth > nk_attention_max_depth_neonsdot_k_) {
+    if (depth > nk_attention_max_depth_neonsdot_k) {
         nk_attention_pack_i8_serial_(keys, values, key_value_head_count, depth, key_offsets, key_lengths, segment_count,
                                      key_stride, value_stride, key_value_packed, tasks_begin, tasks_end,
                                      nk_cap_neonsdot_k);
@@ -176,7 +176,7 @@ NUMKONG_API nk_status_t nk_attention_packed_i8_neonsdot(
     if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_neonsdot_k)) return nk_pack_mismatch_k;
     nk_assert_(query_token_count == nk_attention_query_end_serial_(key_value_packed, query_offsets));
     nk_diagonal_band_t const band = {keys_before, keys_after};
-    if (depth > nk_attention_max_depth_neonsdot_k_) {
+    if (depth > nk_attention_max_depth_neonsdot_k) {
         nk_attention_packed_i8_serial_(queries, key_value_packed, output, log_sum_exp, head_count, key_value_head_count,
                                        depth, query_offsets, query_stride, output_stride, scale, band, tasks_begin,
                                        tasks_end);
@@ -197,17 +197,17 @@ NUMKONG_API nk_status_t nk_attention_packed_i8_neonsdot(
     nk_i32_t const scale_fixed = (nk_i32_t)(scale2 * 32768.0f + 0.5f); // Q15 scale for the integer exponential
     nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t · 255 + 0.5 < 1)
         scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
-    nk_size_t const panel_width = nk_attention_panel_neonsdot_k_;
+    nk_size_t const panel_width = nk_attention_panel_neonsdot_k;
     nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
     if (tasks_begin < grid_begin) tasks_begin = grid_begin;
     if (tasks_end > grid_end) tasks_end = grid_end;
 
-    nk_align_(64) nk_i8_t query_row[nk_attention_max_depth_neonsdot_k_];
-    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_neonsdot_k_];
-    nk_align_(64) nk_u32_t output_totals[nk_attention_max_depth_neonsdot_k_];
+    nk_align_(64) nk_i8_t query_row[nk_attention_max_depth_neonsdot_k];
+    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_neonsdot_k];
+    nk_align_(64) nk_u32_t output_totals[nk_attention_max_depth_neonsdot_k];
     // Raw I32 QK dots and U8 weights; 4 slack slots absorb the quad tail of a row starting mid-quad.
-    nk_align_(64) nk_i32_t scores[nk_attention_panel_neonsdot_k_ + 4];
-    nk_align_(64) nk_u8_t weights[nk_attention_panel_neonsdot_k_ + 4];
+    nk_align_(64) nk_i32_t scores[nk_attention_panel_neonsdot_k + 4];
+    nk_align_(64) nk_u8_t weights[nk_attention_panel_neonsdot_k + 4];
 
     for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
         nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;

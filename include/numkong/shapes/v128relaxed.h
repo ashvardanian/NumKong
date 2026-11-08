@@ -880,8 +880,8 @@ NUMKONG_INLINE void nk_shapes_pack_f16_v128relaxed_(nk_f16_t const *points, nk_s
                                                     nk_f32_t const *covariance, nk_f32_t scale, void *packed) {
     nk_shapes_packed_header_f32_t *header = (nk_shapes_packed_header_f32_t *)packed;
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
-                                                                 nk_shapes_alignment_k_);
-    nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(count * sizeof(nk_f16_t), nk_shapes_alignment_k_);
+                                                                 nk_shapes_alignment_k);
+    nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(count * sizeof(nk_f16_t), nk_shapes_alignment_k);
     nk_u8_t *packed_bytes = (nk_u8_t *)packed;
     for (nk_size_t byte_index = 0; byte_index != header_bytes; ++byte_index) packed_bytes[byte_index] = 0;
     header->frame[3] = 1, header->scale = scale;
@@ -1026,8 +1026,8 @@ NUMKONG_INLINE void nk_shapes_pack_f32_v128relaxed_(nk_f32_t const *points, nk_s
                                                     nk_f64_t const *covariance, nk_f64_t scale, void *packed) {
     nk_shapes_packed_header_f64_t *header = (nk_shapes_packed_header_f64_t *)packed;
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
-                                                                 nk_shapes_alignment_k_);
-    nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(count * sizeof(nk_f32_t), nk_shapes_alignment_k_);
+                                                                 nk_shapes_alignment_k);
+    nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(count * sizeof(nk_f32_t), nk_shapes_alignment_k);
     nk_u8_t *packed_bytes = (nk_u8_t *)packed;
     for (nk_size_t byte_index = 0; byte_index != header_bytes; ++byte_index) packed_bytes[byte_index] = 0;
     header->frame[3] = 1, header->scale = scale;
@@ -1508,15 +1508,14 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_v128relaxed(void const *const *a_pac
     if (!nk_rmsds_same_points_f16_serial_(a_packed, rows, points) ||
         !nk_rmsds_same_points_f16_serial_(b_packed, columns, points))
         return nk_unexpected_dimensions_k;
-    nk_f32_t row_norms[nk_rmsds_tile_frames_k_], column_norms[nk_rmsds_tile_frames_k_];
-    for (nk_size_t row_begin = 0; row_begin < rows; row_begin += nk_rmsds_tile_frames_k_) {
-        nk_size_t const row_end = row_begin + nk_rmsds_tile_frames_k_ < rows ? row_begin + nk_rmsds_tile_frames_k_
-                                                                             : rows;
+    nk_f32_t row_norms[nk_rmsds_tile_frames_k], column_norms[nk_rmsds_tile_frames_k];
+    for (nk_size_t row_begin = 0; row_begin < rows; row_begin += nk_rmsds_tile_frames_k) {
+        nk_size_t const row_end = row_begin + nk_rmsds_tile_frames_k < rows ? row_begin + nk_rmsds_tile_frames_k : rows;
         for (nk_size_t row = row_begin; row != row_end; ++row)
             row_norms[row - row_begin] = nk_rmsds_norm_f16_v128relaxed_(a_packed[row]);
-        for (nk_size_t column_begin = 0; column_begin < columns; column_begin += nk_rmsds_tile_frames_k_) {
-            nk_size_t const column_end = column_begin + nk_rmsds_tile_frames_k_ < columns
-                                             ? column_begin + nk_rmsds_tile_frames_k_
+        for (nk_size_t column_begin = 0; column_begin < columns; column_begin += nk_rmsds_tile_frames_k) {
+            nk_size_t const column_end = column_begin + nk_rmsds_tile_frames_k < columns
+                                             ? column_begin + nk_rmsds_tile_frames_k
                                              : columns;
             for (nk_size_t column = column_begin; column != column_end; ++column)
                 column_norms[column - column_begin] = nk_rmsds_norm_f16_v128relaxed_(b_packed[column]);

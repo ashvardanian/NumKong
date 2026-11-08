@@ -56,10 +56,10 @@ extern "C" {
 enum {
 
     /** KV panel width in positions; the F32 score row stays L1-resident. */
-    nk_attention_panel_diamondamx_k_ = 512,
+    nk_attention_panel_diamondamx_k = 512,
 
     /** Widest head this backend handles in registers; larger heads route to the serial kernel. */
-    nk_attention_max_depth_diamondamx_k_ = 256,
+    nk_attention_max_depth_diamondamx_k = 256,
 };
 
 /** Drains the four FP32 accumulator tiles (TDPBF16PS / TDPHF8PS) of one 2×2 register block to
@@ -118,7 +118,7 @@ NUMKONG_INLINE __m512 nk_attention_dequantize_e4m3x16_diamondamx_(__m128i weight
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_diamondamx(nk_size_t key_value_head_count, nk_size_t depth,
                                                                nk_size_t token_count, nk_size_t segment_count,
                                                                nk_size_t *bytes) {
-    *bytes = depth > nk_attention_max_depth_diamondamx_k_
+    *bytes = depth > nk_attention_max_depth_diamondamx_k
                  ? nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
                                                    depth * sizeof(nk_f32_t))
                  : nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 64,
@@ -246,7 +246,7 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_diamondamx(
     nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
                                                                       key_lengths, segment_count);
     if (validation != nk_success_k) return validation;
-    if (depth > nk_attention_max_depth_diamondamx_k_) {
+    if (depth > nk_attention_max_depth_diamondamx_k) {
         nk_attention_pack_e4m3_serial_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
                                        segment_count, key_stride, value_stride, key_value_packed, tasks_begin,
                                        tasks_end, nk_cap_diamondamx_k);
@@ -381,9 +381,9 @@ NUMKONG_INLINE void nk_attention_weighted_sum_panel_e4m3_diamondamx_(
 
 /** E4M3 native per-call scratch: FP32 scores, E4M3 weights, output accumulators, raw Q tiles. */
 typedef struct {
-    nk_align_(64) nk_f32_t scores_panel[32 * nk_attention_panel_diamondamx_k_];
-    nk_align_(64) nk_e4m3_t weights_panel[32 * nk_attention_panel_diamondamx_k_];
-    nk_align_(64) nk_f32_t o_acc[4][32 * nk_attention_max_depth_diamondamx_k_];
+    nk_align_(64) nk_f32_t scores_panel[32 * nk_attention_panel_diamondamx_k];
+    nk_align_(64) nk_e4m3_t weights_panel[32 * nk_attention_panel_diamondamx_k];
+    nk_align_(64) nk_f32_t o_acc[4][32 * nk_attention_max_depth_diamondamx_k];
     nk_dots_i8_a16x64_sapphireamx_t queries_tiles[4][2][4];
 } nk_attention_scratch_e4m3_diamondamx_t_;
 
@@ -397,7 +397,7 @@ NUMKONG_INLINE void nk_attention_task_e4m3_diamondamx_(
     nk_size_t position_count, nk_size_t position_count_padded, nk_size_t query_first, nk_size_t row_count,
     nk_i64_t first_position, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale2, nk_diagonal_band_t band,
     nk_attention_scratch_e4m3_diamondamx_t_ *scratch) {
-    nk_size_t const panel_width = nk_attention_panel_diamondamx_k_;
+    nk_size_t const panel_width = nk_attention_panel_diamondamx_k;
     nk_size_t const row_blocks = 4;
     nk_size_t const kv_padded = nk_size_round_up_to_multiple_(position_count, 64);
     nk_size_t const position_blocks_total = position_count_padded / 64;
@@ -575,7 +575,7 @@ NUMKONG_INLINE void nk_attention_packed_e4m3_diamondamx_(                       
     nk_attention_scratch_e4m3_diamondamx_t_ scratch;
     __m512 const zero_f32x16 = _mm512_setzero_ps();
     for (nk_size_t row_block_idx = 0; row_block_idx < 4; row_block_idx++)
-        for (nk_size_t i = 0; i < 32 * nk_attention_max_depth_diamondamx_k_; i += 16)
+        for (nk_size_t i = 0; i < 32 * nk_attention_max_depth_diamondamx_k; i += 16)
             _mm512_store_ps(&scratch.o_acc[row_block_idx][i], zero_f32x16);
 
     for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
@@ -618,7 +618,7 @@ NUMKONG_API nk_status_t nk_attention_packed_e4m3_diamondamx(
     if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_diamondamx_k)) return nk_pack_mismatch_k;
     nk_assert_(query_token_count == nk_attention_query_end_serial_(key_value_packed, query_offsets));
     nk_diagonal_band_t const band = {keys_before, keys_after};
-    if (depth > nk_attention_max_depth_diamondamx_k_)
+    if (depth > nk_attention_max_depth_diamondamx_k)
         nk_attention_packed_e4m3_serial_(queries, key_value_packed, output, log_sum_exp, head_count,
                                          key_value_head_count, depth, query_offsets, query_stride, output_stride, scale,
                                          band, tasks_begin, tasks_end);

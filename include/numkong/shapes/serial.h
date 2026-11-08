@@ -26,7 +26,7 @@ extern "C" {
 
 /** Byte boundary every axis of a pack and every array of a transport workspace starts on, within a
  *  buffer on an @c nk_default_alignment_k boundary. */
-enum { nk_shapes_alignment_k_ = 64 };
+enum { nk_shapes_alignment_k = 64 };
 
 /** Opens every pack of @c f16 points; the x, y and z arrays of @c f16 follow. */
 typedef struct nk_shapes_packed_header_f32_t {
@@ -76,8 +76,8 @@ typedef struct nk_shapes_packed_header_f64_t {
 NUMKONG_INLINE nk_f16_t const *nk_shapes_packed_axes_f16_serial_(void const *packed, nk_size_t *axis_stride) {
     nk_size_t const points = ((nk_shapes_packed_header_f32_t const *)packed)->points;
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f32_t),
-                                                                 nk_shapes_alignment_k_);
-    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k_) / sizeof(nk_f16_t);
+                                                                 nk_shapes_alignment_k);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k) / sizeof(nk_f16_t);
     return (nk_f16_t const *)((char const *)packed + header_bytes);
 }
 
@@ -85,8 +85,8 @@ NUMKONG_INLINE nk_f16_t const *nk_shapes_packed_axes_f16_serial_(void const *pac
 NUMKONG_INLINE nk_f32_t const *nk_shapes_packed_axes_f32_serial_(void const *packed, nk_size_t *axis_stride) {
     nk_size_t const points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)packed)->points;
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
-                                                                 nk_shapes_alignment_k_);
-    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f32_t), nk_shapes_alignment_k_) / sizeof(nk_f32_t);
+                                                                 nk_shapes_alignment_k);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f32_t), nk_shapes_alignment_k) / sizeof(nk_f32_t);
     return (nk_f32_t const *)((char const *)packed + header_bytes);
 }
 
@@ -94,8 +94,8 @@ NUMKONG_INLINE nk_f32_t const *nk_shapes_packed_axes_f32_serial_(void const *pac
 NUMKONG_INLINE nk_f64_t const *nk_shapes_packed_axes_f64_serial_(void const *packed, nk_size_t *axis_stride) {
     nk_size_t const points = (nk_size_t)((nk_shapes_packed_header_f64_t const *)packed)->points;
     nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_f64_t),
-                                                                 nk_shapes_alignment_k_);
-    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f64_t), nk_shapes_alignment_k_) / sizeof(nk_f64_t);
+                                                                 nk_shapes_alignment_k);
+    *axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f64_t), nk_shapes_alignment_k) / sizeof(nk_f64_t);
     return (nk_f64_t const *)((char const *)packed + header_bytes);
 }
 
@@ -1023,9 +1023,9 @@ NUMKONG_INLINE void nk_shapes_close_pack_f64_serial_(nk_shapes_packed_header_f64
         nk_##math_type##_t const *covariance, nk_##math_type##_t scale, void *packed) {                               \
         nk_shapes_packed_header_##math_type##_t *header = (nk_shapes_packed_header_##math_type##_t *)packed;          \
         nk_size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_##math_type##_t), \
-                                                                     nk_shapes_alignment_k_);                         \
+                                                                     nk_shapes_alignment_k);                          \
         nk_size_t const axis_bytes = nk_size_round_up_to_multiple_(count * sizeof(nk_##input_type##_t),               \
-                                                                   nk_shapes_alignment_k_);                           \
+                                                                   nk_shapes_alignment_k);                            \
         nk_u8_t *packed_bytes = (nk_u8_t *)packed;                                                                    \
         for (nk_size_t byte_index = 0; byte_index != header_bytes + 3 * axis_bytes; ++byte_index)                     \
             packed_bytes[byte_index] = 0;                                                                             \
@@ -1310,17 +1310,17 @@ NUMKONG_INLINE void nk_shapes_tree_arcs_serial_(nk_size_t rows, nk_size_t column
         nk_shapes_workspace_##math_type##_serial_t *views) {                                                          \
         nk_size_t const points = row_points > column_points ? row_points : column_points;                             \
         nk_size_t const points_bytes = nk_size_round_up_to_multiple_(3 * points * sizeof(nk_##math_type##_t),         \
-                                                                     nk_shapes_alignment_k_);                         \
+                                                                     nk_shapes_alignment_k);                          \
         nk_size_t const nodes_bytes = nk_size_round_up_to_multiple_(2 * points * sizeof(nk_u32_t),                    \
-                                                                    nk_shapes_alignment_k_);                          \
+                                                                    nk_shapes_alignment_k);                           \
         nk_size_t const potential_bytes = nk_size_round_up_to_multiple_(2 * points * sizeof(nk_f64_t),                \
-                                                                        nk_shapes_alignment_k_);                      \
+                                                                        nk_shapes_alignment_k);                       \
         nk_size_t const plan_bytes = nk_size_round_up_to_multiple_((points ? 2 * points - 1 : 0) * sizeof(nk_u32_t),  \
-                                                                   nk_shapes_alignment_k_);                           \
+                                                                   nk_shapes_alignment_k);                            \
         nk_size_t const matrix_bytes = nk_size_round_up_to_multiple_(row_points * column_points * sizeof(nk_f64_t),   \
-                                                                     nk_shapes_alignment_k_);                         \
+                                                                     nk_shapes_alignment_k);                          \
         nk_size_t const distances_bytes = nk_size_round_up_to_multiple_(                                              \
-            (row_points * row_points + column_points * column_points) * sizeof(nk_f64_t), nk_shapes_alignment_k_);    \
+            (row_points * row_points + column_points * column_points) * sizeof(nk_f64_t), nk_shapes_alignment_k);     \
         nk_size_t const transport_bytes = 3 * points_bytes + 6 * nodes_bytes + potential_bytes + 6 * plan_bytes;      \
         views->points_stride = points, views->tree_stride = nodes_bytes / sizeof(nk_u32_t);                           \
         views->plan_stride = plan_bytes / sizeof(nk_u32_t), views->matrix_stride = matrix_bytes / sizeof(nk_f64_t);   \
@@ -2028,10 +2028,10 @@ NUMKONG_INLINE void nk_shapes_distances_f64_serial_(nk_f64_t const *points, nk_s
 
 /** What a compensated Gromov-Wasserstein search waits for between calls of its @c next. */
 enum {
-    nk_shapes_gromov_opening_k_,
-    nk_shapes_gromov_start_gradient_k_,
-    nk_shapes_gromov_solve_k_,
-    nk_shapes_gromov_vertex_gradient_k_
+    nk_shapes_gromov_opening_k,
+    nk_shapes_gromov_start_gradient_k,
+    nk_shapes_gromov_solve_k,
+    nk_shapes_gromov_vertex_gradient_k
 };
 
 /** Gromov-Wasserstein of one canonically ordered pair over plain distances within each cloud:
@@ -2065,7 +2065,7 @@ NUMKONG_INLINE void nk_shapes_gromov_bind_f32_serial_(nk_shapes_gromov_serial_t 
     search->rows = rows, search->columns = columns, search->cells = rows * columns, search->arcs = rows + columns - 1;
     search->tree_stride = views->tree_stride, search->plan_stride = views->plan_stride;
     search->mass = (nk_f64_t)search->cells, search->best = NUMKONG_F64_INF, search->start = 0;
-    search->awaiting = nk_shapes_gromov_opening_k_;
+    search->awaiting = nk_shapes_gromov_opening_k;
 }
 
 NUMKONG_INLINE void nk_shapes_gromov_bind_f64_serial_(nk_shapes_gromov_serial_t *search,
@@ -2080,7 +2080,7 @@ NUMKONG_INLINE void nk_shapes_gromov_bind_f64_serial_(nk_shapes_gromov_serial_t 
     search->rows = rows, search->columns = columns, search->cells = rows * columns, search->arcs = rows + columns - 1;
     search->tree_stride = views->tree_stride, search->plan_stride = views->plan_stride;
     search->mass = (nk_f64_t)search->cells, search->best = NUMKONG_F64_INF, search->start = 0;
-    search->awaiting = nk_shapes_gromov_opening_k_;
+    search->awaiting = nk_shapes_gromov_opening_k;
 }
 
 /** Spreads a start's arcs into the dense plan. */
@@ -2360,27 +2360,27 @@ NUMKONG_INLINE void nk_shapes_gromov_close_compensated_f64_serial_(nk_shapes_gro
 NUMKONG_INLINE int nk_shapes_gromov_next_compensated_f64_serial_(nk_shapes_gromov_serial_t *search,
                                                                  nk_shapes_workspace_f64_serial_t const *views,
                                                                  nk_f64_t *rotation) {
-    if (search->awaiting == nk_shapes_gromov_solve_k_) {
+    if (search->awaiting == nk_shapes_gromov_solve_k) {
         nk_shapes_tree_arcs_serial_(search->rows, search->columns, search->tree, search->tree_stride, search->vertex,
                                     search->plan_stride);
         search->gradient_plan = search->vertex, search->gradient_output = search->vertex_gradient;
-        search->awaiting = nk_shapes_gromov_vertex_gradient_k_;
+        search->awaiting = nk_shapes_gromov_vertex_gradient_k;
         return 2;
     }
-    if (search->awaiting == nk_shapes_gromov_vertex_gradient_k_) {
-        search->awaiting = nk_shapes_gromov_solve_k_;
+    if (search->awaiting == nk_shapes_gromov_vertex_gradient_k) {
+        search->awaiting = nk_shapes_gromov_solve_k;
         if (nk_shapes_gromov_step_compensated_f64_serial_(search)) return 1;
         nk_shapes_gromov_close_compensated_f64_serial_(search, views, rotation);
         if (++search->start == 3) return 0;
-        search->awaiting = nk_shapes_gromov_opening_k_;
+        search->awaiting = nk_shapes_gromov_opening_k;
     }
-    if (search->awaiting == nk_shapes_gromov_opening_k_ && nk_shapes_gromov_open_compensated_f64_serial_(search)) {
-        search->awaiting = nk_shapes_gromov_start_gradient_k_;
+    if (search->awaiting == nk_shapes_gromov_opening_k && nk_shapes_gromov_open_compensated_f64_serial_(search)) {
+        search->awaiting = nk_shapes_gromov_start_gradient_k;
         return 2;
     }
     search->plan_score = nk_shapes_plan_score_compensated_f64_serial_(search->gradient, search->plan, search->cells,
                                                                       &search->gradient_scale);
-    search->step_index = 0, search->awaiting = nk_shapes_gromov_solve_k_;
+    search->step_index = 0, search->awaiting = nk_shapes_gromov_solve_k;
     nk_shapes_northwest_corner_serial_(search->rows, search->columns, search->tree, search->tree_stride);
     return 1;
 }
@@ -2497,8 +2497,8 @@ nk_define_shapes_transport_(f64, f64, nk_assign_from_to_)
 #define nk_define_shapes_(input_type, math_type)                                                                      \
     NUMKONG_API nk_status_t nk_shapes_pack_size_##input_type##_serial(nk_size_t points, nk_size_t *bytes) {           \
         *bytes = nk_size_round_up_to_multiple_(sizeof(nk_shapes_packed_header_##math_type##_t),                       \
-                                               nk_shapes_alignment_k_) +                                              \
-                 3 * nk_size_round_up_to_multiple_(points * sizeof(nk_##input_type##_t), nk_shapes_alignment_k_);     \
+                                               nk_shapes_alignment_k) +                                               \
+                 3 * nk_size_round_up_to_multiple_(points * sizeof(nk_##input_type##_t), nk_shapes_alignment_k);      \
         return nk_success_k;                                                                                          \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_shapes_pack_##input_type##_serial(nk_##input_type##_t const *points, nk_size_t count,  \
@@ -2544,7 +2544,7 @@ nk_define_shapes_transport_(f64, f64, nk_assign_from_to_)
     NUMKONG_API nk_status_t nk_chamfers_workspace_size_##input_type##_serial(                                         \
         nk_size_t row_points, nk_size_t column_points, nk_size_t *bytes) {                                            \
         nk_size_t const shorter = row_points < column_points ? row_points : column_points;                            \
-        *bytes = 11 * nk_size_round_up_to_multiple_(shorter * sizeof(nk_##math_type##_t), nk_shapes_alignment_k_);    \
+        *bytes = 11 * nk_size_round_up_to_multiple_(shorter * sizeof(nk_##math_type##_t), nk_shapes_alignment_k);     \
         return nk_success_k;                                                                                          \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_wassersteinprocrustes_workspace_size_##input_type##_serial(                            \
@@ -2792,7 +2792,7 @@ NUMKONG_INLINE nk_status_t nk_shapes_mutual_begin_f16_serial_(void const *row_pa
                *outer_packed = swapped ? row_packed : column_packed;
     nk_size_t const inner_count = swapped ? columns : rows;
     nk_size_t const reverse_bytes = nk_size_round_up_to_multiple_(inner_count * sizeof(nk_f32_t),
-                                                                  nk_shapes_alignment_k_);
+                                                                  nk_shapes_alignment_k);
     if ((nk_size_t)workspace % nk_default_alignment_k) return nk_misaligned_k;
     if (workspace_bytes < 8 * reverse_bytes) return nk_unexpected_dimensions_k;
     views->outer_axes = nk_shapes_packed_axes_f16_serial_(outer_packed, &views->outer_stride);
@@ -2827,7 +2827,7 @@ NUMKONG_INLINE nk_status_t nk_shapes_mutual_begin_f32_serial_(void const *row_pa
                *outer_packed = swapped ? row_packed : column_packed;
     nk_size_t const inner_count = swapped ? columns : rows;
     nk_size_t const reverse_bytes = nk_size_round_up_to_multiple_(inner_count * sizeof(nk_f64_t),
-                                                                  nk_shapes_alignment_k_);
+                                                                  nk_shapes_alignment_k);
     if ((nk_size_t)workspace % nk_default_alignment_k) return nk_misaligned_k;
     if (workspace_bytes < 8 * reverse_bytes) return nk_unexpected_dimensions_k;
     views->outer_axes = nk_shapes_packed_axes_f32_serial_(outer_packed, &views->outer_stride);
@@ -2997,7 +2997,7 @@ NUMKONG_INLINE void nk_rmsds_rotation_f64_serial_(nk_f64_t const *cross_covarian
 }
 
 /** Frames whose norms the RMSD kernels hold at once, one pass per frame and tile of pairs. */
-enum { nk_rmsds_tile_frames_k_ = 64 };
+enum { nk_rmsds_tile_frames_k = 64 };
 
 /** Whether every pack of @c f16 points in @p packs holds @p points points, as RMSD pairs need. */
 NUMKONG_INLINE int nk_rmsds_same_points_f16_serial_(void const *const *packs, nk_size_t count, nk_size_t points) {
@@ -3471,15 +3471,14 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_serial(void const *const *a_packed, 
     if (!nk_rmsds_same_points_f16_serial_(a_packed, rows, points) ||
         !nk_rmsds_same_points_f16_serial_(b_packed, columns, points))
         return nk_unexpected_dimensions_k;
-    nk_f32_t row_norms[nk_rmsds_tile_frames_k_], column_norms[nk_rmsds_tile_frames_k_];
-    for (nk_size_t row_begin = 0; row_begin < rows; row_begin += nk_rmsds_tile_frames_k_) {
-        nk_size_t const row_end = row_begin + nk_rmsds_tile_frames_k_ < rows ? row_begin + nk_rmsds_tile_frames_k_
-                                                                             : rows;
+    nk_f32_t row_norms[nk_rmsds_tile_frames_k], column_norms[nk_rmsds_tile_frames_k];
+    for (nk_size_t row_begin = 0; row_begin < rows; row_begin += nk_rmsds_tile_frames_k) {
+        nk_size_t const row_end = row_begin + nk_rmsds_tile_frames_k < rows ? row_begin + nk_rmsds_tile_frames_k : rows;
         for (nk_size_t row = row_begin; row != row_end; ++row)
             row_norms[row - row_begin] = nk_rmsds_norm_f16_serial_(a_packed[row]);
-        for (nk_size_t column_begin = 0; column_begin < columns; column_begin += nk_rmsds_tile_frames_k_) {
-            nk_size_t const column_end = column_begin + nk_rmsds_tile_frames_k_ < columns
-                                             ? column_begin + nk_rmsds_tile_frames_k_
+        for (nk_size_t column_begin = 0; column_begin < columns; column_begin += nk_rmsds_tile_frames_k) {
+            nk_size_t const column_end = column_begin + nk_rmsds_tile_frames_k < columns
+                                             ? column_begin + nk_rmsds_tile_frames_k
                                              : columns;
             for (nk_size_t column = column_begin; column != column_end; ++column)
                 column_norms[column - column_begin] = nk_rmsds_norm_f16_serial_(b_packed[column]);

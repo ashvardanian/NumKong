@@ -359,8 +359,8 @@ struct shapes_cloud_ {
 /** Bytes a pack of @p points takes, by the layout of @c shapes/serial.h. */
 template <typename in_type_>
 constexpr std::size_t shapes_pack_bytes_(std::size_t points) noexcept {
-    return nk_size_round_up_to_multiple_(sizeof(shapes_header_<in_type_>), nk_shapes_alignment_k_) +
-           3 * nk_size_round_up_to_multiple_(points * sizeof(typename in_type_::raw_t), nk_shapes_alignment_k_);
+    return nk_size_round_up_to_multiple_(sizeof(shapes_header_<in_type_>), nk_shapes_alignment_k) +
+           3 * nk_size_round_up_to_multiple_(points * sizeof(typename in_type_::raw_t), nk_shapes_alignment_k);
 }
 
 /** The type the transport duals and the Gromov-Wasserstein line search run in: at least @c f64. */
@@ -453,8 +453,8 @@ void shapes_pack_reference_(typename in_type_::raw_t const *points, std::size_t 
         mat3x3_to_quaternion_(frame, quaternion);
         quaternion_to_mat3x3_(quaternion, frame);
 
-        std::size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(header_t), nk_shapes_alignment_k_);
-        std::size_t const axis_stride = nk_size_round_up_to_multiple_(count * sizeof(raw_t), nk_shapes_alignment_k_) /
+        std::size_t const header_bytes = nk_size_round_up_to_multiple_(sizeof(header_t), nk_shapes_alignment_k);
+        std::size_t const axis_stride = nk_size_round_up_to_multiple_(count * sizeof(raw_t), nk_shapes_alignment_k) /
                                         sizeof(raw_t);
         raw_t *axes = reinterpret_cast<raw_t *>(static_cast<char *>(packed) + header_bytes);
         math_t moments[6] {}, max_norm {};
@@ -759,7 +759,7 @@ struct shapes_simplex_ {
     }
 };
 
-/** The transport templates' workspace arrays, each on an @c nk_shapes_alignment_k_ boundary. */
+/** The transport templates' workspace arrays, each on an @c nk_shapes_alignment_k boundary. */
 template <typename math_type_>
 struct shapes_transport_workspace_ {
     math_type_ *row_points = nullptr, *column_points = nullptr, *rotated_columns = nullptr;
@@ -777,7 +777,7 @@ struct shapes_transport_workspace_ {
 template <typename value_type_>
 value_type_ *shapes_carve_(char *base, std::size_t &offset, std::size_t count) noexcept {
     value_type_ *carved = base ? reinterpret_cast<value_type_ *>(base + offset) : nullptr;
-    offset += nk_size_round_up_to_multiple_(count * sizeof(value_type_), nk_shapes_alignment_k_);
+    offset += nk_size_round_up_to_multiple_(count * sizeof(value_type_), nk_shapes_alignment_k);
     return carved;
 }
 
