@@ -12,6 +12,13 @@ import NumKongC
 /// A type that can compute SIMD-accelerated great-circle Haversine distances from every point of
 /// one set to every point of another, row-major with one row per `a` point.
 public protocol NumKongHaversines: BinaryFloatingPoint {
+    /// Writes Haversine distances from every `a` point to every `b` point into `results`.
+    ///
+    /// Coordinates are in radians, with as many longitudes as latitudes in each set.
+    /// `results` receives meters, row-major with one row per `a` point.
+    ///
+    /// - Returns: `false` if a set is empty or its coordinate counts differ, if `results`
+    ///   does not hold one value per pair, or if a kernel reports an error.
     static func haversines(
         aLatitudes: UnsafeBufferPointer<Self>,
         aLongitudes: UnsafeBufferPointer<Self>,
@@ -20,6 +27,12 @@ public protocol NumKongHaversines: BinaryFloatingPoint {
         results: UnsafeMutableBufferPointer<Self>
     ) -> Bool
 
+    /// Computes Haversine distances from every `a` point to every `b` point.
+    ///
+    /// Coordinates are in radians, with as many longitudes as latitudes in each set.
+    ///
+    /// - Returns: The distances in meters, row-major with one row per `a` point, or `nil` if
+    ///   a set is empty or its coordinate counts differ, or if a kernel reports an error.
     static func haversines<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
         aLatitudes: A, aLongitudes: B, bLatitudes: C, bLongitudes: D
     ) -> [Self]?
@@ -29,6 +42,13 @@ public protocol NumKongHaversines: BinaryFloatingPoint {
 /// A type that can compute SIMD-accelerated Vincenty ellipsoidal geodesic distances from every
 /// point of one set to every point of another, row-major with one row per `a` point.
 public protocol NumKongVincentys: BinaryFloatingPoint {
+    /// Writes Vincenty geodesic distances from every `a` point to every `b` point into `results`.
+    ///
+    /// Coordinates are in radians, with as many longitudes as latitudes in each set.
+    /// `results` receives meters, row-major with one row per `a` point.
+    ///
+    /// - Returns: `false` if a set is empty or its coordinate counts differ, if `results`
+    ///   does not hold one value per pair, or if a kernel reports an error.
     static func vincentys(
         aLatitudes: UnsafeBufferPointer<Self>,
         aLongitudes: UnsafeBufferPointer<Self>,
@@ -37,6 +57,12 @@ public protocol NumKongVincentys: BinaryFloatingPoint {
         results: UnsafeMutableBufferPointer<Self>
     ) -> Bool
 
+    /// Computes Vincenty geodesic distances from every `a` point to every `b` point.
+    ///
+    /// Coordinates are in radians, with as many longitudes as latitudes in each set.
+    ///
+    /// - Returns: The distances in meters, row-major with one row per `a` point, or `nil` if
+    ///   a set is empty or its coordinate counts differ, or if a kernel reports an error.
     static func vincentys<A: Sequence, B: Sequence, C: Sequence, D: Sequence>(
         aLatitudes: A, aLongitudes: B, bLatitudes: C, bLongitudes: D
     ) -> [Self]?

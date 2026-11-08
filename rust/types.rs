@@ -1,7 +1,7 @@
 //! Scalar types and conversion trait for mixed-precision computing.
 //!
-//! This module defines __15+ numeric types__ spanning 1-bit packed storage to 128-bit complex. All
-//! of them implement [`StorageElement`] for containers and [`NumberLike`] for conversion to / from
+//! This module defines __numeric types__ spanning 1-bit packed storage to 128-bit complex. All of
+//! them implement [`StorageElement`] for containers and [`NumberLike`] for conversion to / from
 //! `f32` / `f64`, so generic code can treat them uniformly.
 //!
 //! ## IEEE / Brain Floats

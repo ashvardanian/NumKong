@@ -107,6 +107,7 @@ func _nkValidateMatrixSpan<Element>(_ matrix: MatrixSpan<Element>) throws {
 
 /// Element type that supports batch dot-product matrix operations.
 public protocol NumKongDotsMatrixElement {
+    /// The element type of the result matrices that `dotsPacked` and `dotsSymmetric` write.
     associatedtype DotsOutput
 
     static func _nkDotsPackSize(_ n: Int, _ k: Int) throws -> Int
@@ -139,6 +140,7 @@ public protocol NumKongDotsMatrixElement {
 
 /// Element type that supports batch angular and Euclidean matrix operations.
 public protocol NumKongSpatialsMatrixElement: NumKongDotsMatrixElement {
+    /// The element type of the result matrices of the angular and Euclidean batch functions.
     associatedtype SpatialOutput
 
     static func _nkAngularsPacked(
@@ -187,7 +189,9 @@ public protocol NumKongSpatialsMatrixElement: NumKongDotsMatrixElement {
 
 /// Element type that supports batch Hamming and Jaccard matrix operations.
 public protocol NumKongSetsMatrixElement: NumKongDotsMatrixElement {
+    /// The element type of the result matrices that `hammingsPacked` and `hammingsSymmetric` write.
     associatedtype HammingOutput
+    /// The element type of the result matrices that `jaccardsPacked` and `jaccardsSymmetric` write.
     associatedtype JaccardOutput
 
     static func _nkHammingsPacked(

@@ -11,6 +11,7 @@ import NumKongC
 
 /// Element type that supports late-interaction MaxSim scoring with packed representations.
 public protocol NumKongMaxSimElement {
+    /// The type of the score that `MaxSimPackedMatrix.score(_:)` returns.
     associatedtype MaxSimOutput
     static func _nkMaxsimPackSize(_ vectors: Int, _ depth: Int) throws -> Int
     static func _nkMaxsimPackedShape(_ packed: UnsafeRawPointer, _ vectors: inout Int, _ depth: inout Int) throws

@@ -101,7 +101,10 @@ nk_define_sqeuclidean_(u8, u32, u32, nk_assign_from_to_)       // nk_sqeuclidean
 /** Squared Euclidean distance between @p n F64 values, summed in Dot2. */
 NUMKONG_INLINE void nk_sqeuclidean_f64_serial_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_f64_t sum = 0, compensation = 0;
-    for (nk_size_t i = 0; i != n; ++i) nk_dot2_f64_serial_(&sum, &compensation, a[i] - b[i], a[i] - b[i]);
+    for (nk_size_t i = 0; i != n; ++i) {
+        nk_f64_t difference = a[i] - b[i];
+        nk_dot2_f64_serial_(&sum, &compensation, difference, difference);
+    }
     *result = sum + compensation;
 }
 

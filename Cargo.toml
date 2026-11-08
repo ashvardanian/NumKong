@@ -7,7 +7,7 @@ categories = [
   "wasm",
   "external-ffi-bindings",
 ]
-description = "Portable mixed-precision math, linear-algebra, & retrieval library with 2000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly"
+description = "Portable mixed-precision math, linear-algebra, & retrieval library with 4000+ kernel symbols for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly, covering numeric types from 4-bit integers & floats to 128-bit complex numbers"
 documentation = "https://docs.rs/numkong"
 edition = "2021"
 homepage = "https://ashvardanian.com/posts/numkong-faster-scipy"
@@ -59,7 +59,7 @@ parallel = ["dep:forkunion", "std"]
 std = ["alloc"]
 
 [dependencies]
-forkunion = { version = "4.0.0-rc.1", optional = true }
+forkunion = { version = "4.0.0-rc.1", git = "https://github.com/ashvardanian/ForkUnion", optional = true }
 
 [dev-dependencies]
 half = { version = "2.6.0" }

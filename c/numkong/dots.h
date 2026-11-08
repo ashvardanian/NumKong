@@ -486,7 +486,7 @@ NUMKONG_API nk_status_t nk_dots_packed_workspace_size_bf16_best(nk_size_t rows, 
                                                                 nk_capability_t capabilities, nk_size_t *bytes);
 
 /**
- *  @brief Computes C = A × Bᵀ using packed second multiplier matrix (B), accumulating into C.
+ *  @brief Computes C = A × Bᵀ using packed second multiplier matrix (B), overwriting C.
  *  @param[in] a The input A matrix in row-major order.
  *  @param[in] b_packed The packed B matrix produced.
  *  @param[out] c The output C matrix in row-major order.

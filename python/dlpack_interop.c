@@ -539,7 +539,7 @@ char const doc_from_dlpack[] =                                                  
     "  - kDLROCMHost   — AMD ROCm pinned host equivalent.\n"                                              //
     "  - kDLCUDAManaged — cudaMallocManaged unified memory, where the first CPU touch migrates pages.\n"  //
     "  - kDLOneAPI     — Intel oneAPI USM (host / shared variants only).\n"                               //
-    "  - kDLMetal      — Apple Silicon unified memory, as used by MLX.\n"                                 //
+    "  - kDLMetal      — Apple Silicon unified memory, as used by MLX.\n\n"                               //
     "Accepts kDLCUDA and kDLROCM device memory as a GPU tensor, which keeps its device. Only the\n"       //
     "GPU paths of the dots, attention and shape functions take it; element access, NumPy\n"               //
     "conversion and every CPU kernel raise BufferError. No stream is synchronized: order the\n"           //

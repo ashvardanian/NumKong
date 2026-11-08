@@ -3380,7 +3380,6 @@ stage_release_fixture() { # stage_release_fixture <version> [<relative-path> <se
             done
             printf '  }\n}\n'
         } > package.json
-        printf 'cff-version: 1.2.0\nversion: %s\n' "$version" > CITATION.cff
         printf '#define NUMKONG_VERSION_MAJOR %s\n#define NUMKONG_VERSION_MINOR %s\n#define NUMKONG_VERSION_PATCH %s\n' \
             "$major" "$minor" "$patch" > c/numkong/types.h
         printf 'let release = "https://github.com/ashvardanian/NumKong/releases/download/v%s"\n' "$version" > Package.swift

@@ -1,4 +1,4 @@
-# NumKong Built-in Benchmarks
+# NumKong Benchmarks
 
 Internal profiling suite comparing NumKong's SIMD backends against each other and optionally against BLAS libraries.
 For broader comparisons — Rust, Python, etc. — see [NumWars](https://github.com/ashvardanian/NumWars).

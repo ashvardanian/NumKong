@@ -13,6 +13,7 @@
 # Bypass knowingly, which you almost never should, with: git commit --no-verify
 
 set -u
+
 export LC_ALL=C
 
 approved_verbs='Add|Break|Chore|Docs|Fix|Improve|Make'
@@ -41,7 +42,6 @@ Release:*)
             git show ":javascript/@numkong-$platform/package.json" 2>/dev/null | grep -qxF "  \"version\": \"$version\"," ||
                 stale="$stale javascript/@numkong-$platform/package.json"
         done
-        git show :CITATION.cff 2>/dev/null | grep -qxF "version: $version" || stale="$stale CITATION.cff"
         # The C macros take numbers only, so a candidate keeps its core there.
         for field in "MAJOR $major" "MINOR $minor" "PATCH $patch"; do
             git show :c/numkong/types.h 2>/dev/null | grep -qxF "#define NUMKONG_VERSION_$field" || stale="$stale c/numkong/types.h:${field% *}"

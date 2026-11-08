@@ -116,7 +116,7 @@ jobs:
 
   test_windows_msvc:
     name: Test on Windows x64 with Visual Studio 2026
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     timeout-minutes: 60
 
     steps:

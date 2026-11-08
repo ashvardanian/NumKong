@@ -1,4 +1,4 @@
-# Contributing
+# Contributing to NumKong
 
 To keep the quality of the code high, we follow the [coding style and conventions](https://github.com/ashvardanian/ashvardanian/blob/master/CONTRIBUTING.md) shared across multiple projects — covering Git history, C++ and Python formatting, dependency management, and documentation.
 
@@ -490,7 +490,7 @@ sudo docker run --rm -v "$PWD:/workspace" -w /workspace swift:6.4 /bin/bash -cl 
     NUMKONG_SWIFT_ARTIFACT=build_swift_linux/NumKongC.artifactbundle swift test -c release"
 ```
 
-## GoLang
+## Go
 
 ```sh
 go test ./golang/ # To test

@@ -11,7 +11,7 @@
  *
  *  Every signature matches the @c blackwell capability's, with an @c id<MTLCommandQueue> as the
  *  stream. The pack tables, the packs, the distances, the rotations and the workspace are unified
- *  memory from @ref nk_memory_allocate_unified_metal, and the packs of one launch may span at most
+ *  memory from @c nk_memory_allocate_unified_metal, and the packs of one launch may span at most
  *  64 of its allocations. The launcher reads every pack's header on the host to resolve its
  *  allocation, and the kernels translate the host addresses of the tables through them.
  *

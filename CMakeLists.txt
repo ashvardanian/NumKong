@@ -125,7 +125,8 @@ project(
     numkong
     VERSION ${numkong_version_}
     LANGUAGES C CXX
-    DESCRIPTION "Portable mixed-precision BLAS-like vector math library for x86 and ARM"
+    DESCRIPTION
+        "Portable mixed-precision math, linear-algebra, & retrieval library with 4000+ kernel symbols for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly, covering numeric types from 4-bit integers & floats to 128-bit complex numbers"
     HOMEPAGE_URL "https://github.com/ashvardanian/NumKong"
 )
 

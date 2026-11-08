@@ -97,12 +97,18 @@
       }
     },
     {
-      "name": "msvc2022_arm64",
+      "name": "msvc2026_arm64",
       "inherits": ["base", "windows"],
-      "generator": "Visual Studio 17 2022",
+      "generator": "Visual Studio 18 2026",
       "architecture": "ARM64",
       "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_SHARED": "ON" },
-      "displayName": "Windows ARM64 - Visual Studio 2022"
+      "displayName": "Windows ARM64 - Visual Studio 2026"
+    },
+    {
+      "name": "msvc2022_arm64",
+      "inherits": "msvc2026_arm64",
+      "displayName": "Windows ARM64 - Visual Studio 2022",
+      "generator": "Visual Studio 17 2022"
     },
     {
       "name": "cross",
@@ -337,6 +343,7 @@
     { "name": "msvc2026_x64", "configurePreset": "msvc2026_x64", "configuration": "Release" },
     { "name": "msvc2022_x64", "configurePreset": "msvc2022_x64", "configuration": "Release" },
     { "name": "msvc_cuda", "configurePreset": "msvc_cuda" },
+    { "name": "msvc2026_arm64", "configurePreset": "msvc2026_arm64", "configuration": "Release" },
     { "name": "msvc2022_arm64", "configurePreset": "msvc2022_arm64", "configuration": "Release" },
     { "name": "linux_arm64", "configurePreset": "linux_arm64" },
     { "name": "linux_loongarch64", "configurePreset": "linux_loongarch64" },

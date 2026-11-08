@@ -21,7 +21,7 @@ jobs:
       matrix:
         # Architecture comes from the runner label, not a matrix axis.
         os: [ubuntu-26.04, ubuntu-26.04-arm, macos-26, windows-2025]
-        python-version: ["3.15", "3.12"]
+        python-version: ["3.15t", "3.15", "3.12"]
 
     steps:
       - name: Checkout Repository
@@ -63,6 +63,10 @@ jobs:
 
       - name: Build Locally
         run: python -m pip install .
+
+      - name: Assert the GIL Stays Disabled
+        if: ${{ endsWith(matrix.python-version, 't') }}
+        run: python -c "import sys, numkong; assert not sys._is_gil_enabled(), 'importing numkong re-enabled the GIL'"
 
       - name: Test with PyTest
         run: python -X faulthandler -m pytest -x

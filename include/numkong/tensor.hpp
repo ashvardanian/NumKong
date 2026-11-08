@@ -221,20 +221,6 @@ constexpr std::array<std::size_t, sizeof...(indices_)> resolve_tensor_indices_(s
     return coords;
 }
 
-template <typename value_type_, std::size_t max_rank_, std::size_t extent_>
-constexpr decltype(auto) tensor_lookup_resolved_(tensor_view<value_type_, max_rank_> input,
-                                                 std::span<std::size_t const, extent_> coords) noexcept;
-
-template <typename value_type_, std::size_t max_rank_, std::size_t extent_>
-constexpr decltype(auto) tensor_lookup_resolved_(tensor_span<value_type_, max_rank_> input,
-                                                 std::span<std::size_t const, extent_> coords) noexcept;
-
-template <typename value_type_, std::size_t max_rank_, typename index_type_>
-constexpr decltype(auto) tensor_flat_lookup_(tensor_view<value_type_, max_rank_> input, index_type_ idx) noexcept;
-
-template <typename value_type_, std::size_t max_rank_, typename index_type_>
-constexpr decltype(auto) tensor_flat_lookup_(tensor_span<value_type_, max_rank_> input, index_type_ idx) noexcept;
-
 template <typename tensor_type_>
 constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, tensor_slice_t) noexcept;
 

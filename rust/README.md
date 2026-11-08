@@ -64,19 +64,19 @@ Minimal:
 
 ```toml
 [dependencies]
-numkong = "7"
+numkong = "8"
 ```
 
 With host-side parallel helpers:
 
 ```toml
 [dependencies]
-numkong = { version = "7", features = ["parallel", "std"] }
+numkong = { version = "8", features = ["parallel", "std"] }
 ```
 
 ## Compilation and Backend Selection
 
-The crate builds the C library through CMake, which probes the compiler for every backend of the target architecture, so the build machine needs CMake 3.21 or newer.
+The crate builds the C library through CMake, which probes the compiler for every backend of the target architecture, so the build machine needs CMake 3.28 or newer.
 All supported backends are compiled into a single binary and selected at runtime.
 Setting `NUMKONG_LIBRARY_DIR` to the exact directory holding a `numkong_static` archive CMake already built skips the build and links that archive. For Visual Studio build trees, include the configuration directory, such as `build_msvc2022_x64/Release`. Cargo-managed builds use CMake's install target and link from its installed `lib` directory.
 
@@ -87,7 +87,7 @@ They need `nvcc` or `hipcc` on the build machine, and the binary then links `lib
 
 ```toml
 [dependencies]
-numkong = { version = "7", features = ["cuda"] }
+numkong = { version = "8", features = ["cuda"] }
 ```
 
 Backend selection follows the target architecture.

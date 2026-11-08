@@ -323,11 +323,23 @@ NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_best(void const *const *a_packe
  *  @brief Chamfer distances between every row and every column cloud, the best of 8 axis flips.
  *
  *  Each is ½ × (meanᵢ minⱼ ‖aᵢ − S × bⱼ‖ + meanⱼ minᵢ ‖aᵢ − S × bⱼ‖), with the same empty-cloud
- *  convention and parameters as @c nk_hausdorffs_packed_f64_best, plus the workspace.
+ *  convention as @c nk_hausdorffs_packed_f64_best.
  *
+ *  @param[in] a_packed The row packs, @p rows pointers.
+ *  @param[in] rows The number of row clouds.
+ *  @param[in] b_packed The column packs, @p columns pointers.
+ *  @param[in] columns The number of column clouds.
+ *  @param[out] results The @b [rows,columns] distances.
+ *  @param[in] results_stride The bytes between consecutive rows of @p results.
+ *  @param[out] rotations Null, or the @b [rows,columns,3,3] rotations taking each column cloud onto
+ *      each row cloud.
+ *  @param[in] limit Distances up to it are exact; past it, a pair may stop early and report a lower
+ *      bound that also lies past it, with that bound's flip in @p rotations. Infinity scores all.
  *  @param[in,out] workspace Scratch of @p workspace_bytes on an @c nk_default_alignment_k boundary,
  *      as @c nk_chamfers_workspace_size_f64_best reports for the largest clouds.
  *  @param[in] workspace_bytes The bytes of @p workspace.
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
  *  - @c nk_missing_kernel_k No capability in @p capabilities has it.

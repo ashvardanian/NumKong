@@ -690,40 +690,75 @@ class Capability(IntFlag):
     """CPU SIMD capabilities, one bit each, as the `capabilities_*` functions report and set them."""
 
     SERIAL = ...
+    """Serial code without SIMD, available on every CPU."""
     NEON = ...
+    """Arm NEON, the AArch64 Advanced SIMD baseline."""
     NEONHALF = ...
+    """NEON with half-precision arithmetic, FEAT_FP16."""
     NEONBFDOT = ...
+    """NEON with BFloat16 dot products, FEAT_BF16."""
     NEONFHM = ...
+    """NEON with half-precision multiply-accumulate into single precision, FEAT_FHM."""
     NEONSDOT = ...
+    """NEON with 8-bit integer dot products, FEAT_DotProd."""
     NEONFP8 = ...
+    """NEON with FP8 dot products, FEAT_FP8DOT4."""
     SVE = ...
+    """Arm Scalable Vector Extension."""
     SVEHALF = ...
+    """SVE with half-precision arithmetic."""
     SVESDOT = ...
+    """SVE with 8-bit integer matrix multiplies, FEAT_I8MM."""
     SVEBFDOT = ...
+    """SVE with BFloat16 dot products."""
     SVE2 = ...
+    """Arm SVE2."""
     SME = ...
+    """Arm Scalable Matrix Extension."""
     SMEF64 = ...
+    """SME with double-precision outer products, FEAT_SME_F64F64."""
     SMEBI32 = ...
+    """SME with binary outer products into 32-bit integers, SME_BI32I32."""
     HASWELL = ...
+    """x86 AVX2, FMA, F16C, BMI1 and BMI2, as on Intel Haswell."""
     ALDER = ...
+    """`HASWELL` plus AVX-VNNI, as on Intel Alder Lake."""
     SIERRA = ...
+    """`ALDER` plus AVX-VNNI-INT8, as on Intel Sierra Forest."""
     SKYLAKE = ...
+    """`HASWELL` plus AVX-512 F, DQ, BW and VL, as on Intel Skylake-X."""
     ICELAKE = ...
+    """`SKYLAKE` plus AVX-512 VNNI, IFMA, BITALG, VBMI, VBMI2 and VPOPCNTDQ, as on Ice Lake."""
     GENOA = ...
+    """`SKYLAKE` plus AVX-512 BF16 and VNNI, as on AMD Genoa."""
     TURIN = ...
+    """`GENOA` plus AVX-512 VBMI2 and VP2INTERSECT, as on AMD Turin."""
     SAPPHIRE = ...
+    """`SKYLAKE` plus AVX-512 FP16, as on Intel Sapphire Rapids."""
     DIAMOND = ...
+    """`SAPPHIRE` plus AVX10.2, as on Intel Diamond Rapids."""
     SAPPHIREAMX = ...
+    """`SAPPHIRE` and `GENOA` plus AMX tiles with BF16 and INT8, as on Intel Sapphire Rapids."""
     GRANITEAMX = ...
+    """`SAPPHIREAMX` plus AMX-FP16, as on Intel Granite Rapids."""
     DIAMONDAMX = ...
+    """`SAPPHIREAMX` plus AMX-FP8 and AMX-AVX512, as on Intel Diamond Rapids."""
     RVV = ...
+    """RISC-V Vector extension."""
     RVVBF16 = ...
+    """RVV with BFloat16 widening multiply-accumulate, Zvfbfwma."""
     RVVHALF = ...
+    """RVV with half-precision arithmetic, Zvfh."""
     RVVBB = ...
+    """RVV with basic bit manipulation, Zvbb."""
     V128 = ...
+    """WebAssembly 128-bit SIMD."""
     V128RELAXED = ...
+    """WebAssembly Relaxed SIMD."""
     POWERVSX = ...
+    """IBM Power VSX at ISA 3.0, as on POWER9."""
     LOONGSONASX = ...
+    """LoongArch LASX 256-bit SIMD."""
 
 class _Dispatch(TypedDict, total=False):
     """Keywords every function that runs kernels accepts, after its own."""
@@ -828,21 +863,42 @@ def synchronize(capabilities: Capability | int, /, stream: int | None = None) ->
 
 # Kernel pointer accessors, to the CPU's enabled capabilities.
 # Each takes a trailing `nk_stream_t stream`, null on the CPU, and returns an `nk_status_t`.
-def pointer_to_euclidean(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int: ...
-def pointer_to_sqeuclidean(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int: ...
-def pointer_to_angular(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int: ...
-def pointer_to_inner(dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType, /) -> int: ...
-def pointer_to_dot(dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType, /) -> int: ...
-def pointer_to_vdot(dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType, /) -> int: ...
-def pointer_to_jensenshannon(dtype: _FloatTypeName | _MiniFloatType, /) -> int: ...
-def pointer_to_kullbackleibler(dtype: _FloatTypeName | _MiniFloatType, /) -> int: ...
+def pointer_to_euclidean(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int:
+    """Return the address of the `euclidean` kernel for `dtype`, as an integer."""
+    ...
+
+def pointer_to_sqeuclidean(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int:
+    """Return the address of the `sqeuclidean` kernel for `dtype`, as an integer."""
+    ...
+
+def pointer_to_angular(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int:
+    """Return the address of the `angular` kernel for `dtype`, as an integer."""
+    ...
+
+def pointer_to_inner(dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType, /) -> int:
+    """Return the address of the `inner` kernel for `dtype`, as an integer."""
+    ...
+
+def pointer_to_dot(dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType, /) -> int:
+    """Return the address of the `dot` kernel for `dtype`, as an integer."""
+    ...
+
+def pointer_to_vdot(dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType, /) -> int:
+    """Return the address of the `vdot` kernel for `dtype`, as an integer."""
+    ...
+
+def pointer_to_jensenshannon(dtype: _FloatTypeName | _MiniFloatType, /) -> int:
+    """Return the address of the `jensenshannon` kernel for `dtype`, as an integer."""
+    ...
+
+def pointer_to_kullbackleibler(dtype: _FloatTypeName | _MiniFloatType, /) -> int:
+    """Return the address of the `kullbackleibler` kernel for `dtype`, as an integer."""
+    ...
 
 # endregion Capabilities
 
 # region Pairwise Distances
 
-# Pairwise distances, similar to `scipy.spatial.distance.cdist`.
-# https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.cdist.html
 def cdist(
     a: _BufferType,
     b: _BufferType,
@@ -854,15 +910,30 @@ def cdist(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | complex | Tensor | None: ...
+) -> float | complex | Tensor | None:
+    """Compute distances between every row of `a` and every row of `b`.
+
+    Similar to `scipy.spatial.distance.cdist`. Two vectors give a scalar. Matrices give a
+    [rows,columns] Tensor with a row per row of `a` and a column per row of `b`, or fill `out` and
+    return None. GPU tensors raise BufferError; pack `b` with dots_pack() and call the `_packed`
+    functions instead.
+
+    Args:
+      a: First vector or matrix.
+      b: Second vector or matrix, of the dtype of `a`.
+      metric: Name of the distance, 'euclidean' by default.
+      threads: Worker threads.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      out: Output matrix for the distances.
+      out_dtype: Result dtype, by default that of `out`, else float64, complex128 for complex input.
+    """
+    ...
 
 # endregion Pairwise Distances
 
 # region Vector Dot Products
 # Vector-vector dot products for real and complex numbers.
 
-# Inner product, similar to: `numpy.inner`.
-# https://numpy.org/doc/stable/reference/generated/numpy.inner.html
 def inner(
     a: _BufferType,
     b: _BufferType,
@@ -872,10 +943,22 @@ def inner(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | complex | Tensor | None: ...
+) -> float | complex | Tensor | None:
+    """Compute the inner product of two real or complex vectors.
 
-# Dot product, similar to: `numpy.dot`.
-# https://numpy.org/doc/stable/reference/generated/numpy.dot.html
+    Similar to `numpy.inner`. Two vectors give a scalar. Matrices pair row i of `a` with row i of
+    `b`, a single row pairing with every row of the other, into a new Tensor of one result per pair,
+    or into `out`, returning None.
+
+    Args:
+      a: First real or complex vector or matrix.
+      b: Second real or complex vector or matrix, of the dtype of `a`.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      out: Output vector for the results.
+      out_dtype: Result dtype, by default that of `out`, else float64, complex128 for complex input.
+    """
+    ...
+
 def dot(
     a: _BufferType,
     b: _BufferType,
@@ -885,10 +968,22 @@ def dot(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | complex | Tensor | None: ...
+) -> float | complex | Tensor | None:
+    """Compute the dot product of two real or complex vectors.
 
-# Vector-vector dot product for complex conjugates, similar to: `numpy.vdot`.
-# https://numpy.org/doc/stable/reference/generated/numpy.vdot.html
+    Similar to `numpy.dot`. Two vectors give a scalar. Matrices pair row i of `a` with row i of `b`,
+    a single row pairing with every row of the other, into a new Tensor of one result per pair, or
+    into `out`, returning None.
+
+    Args:
+      a: First real or complex vector or matrix.
+      b: Second real or complex vector or matrix, of the dtype of `a`.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      out: Output vector for the results.
+      out_dtype: Result dtype, by default that of `out`, else float64, complex128 for complex input.
+    """
+    ...
+
 def vdot(
     a: _BufferType,
     b: _BufferType,
@@ -898,16 +993,27 @@ def vdot(
     out: _BufferType | None = None,
     out_dtype: _ComplexTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> complex | Tensor | None: ...
+) -> complex | Tensor | None:
+    """Compute the dot product of two complex vectors, conjugating the first.
+
+    Similar to `numpy.vdot`. Two vectors give a scalar. Matrices pair row i of `a` with row i of
+    `b`, a single row pairing with every row of the other, into a new Tensor of one result per pair,
+    or into `out`, returning None.
+
+    Args:
+      a: First complex vector or matrix.
+      b: Second complex vector or matrix, of the dtype of `a`.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      out: Output vector for the results.
+      out_dtype: Result dtype, by default that of `out`, else complex128.
+    """
+    ...
 
 # endregion Vector Dot Products
 
 # region Spatial Distance Metrics
 # Vector-vector spatial distance metrics for real and integer numbers.
 
-# Vector-vector squared Euclidean distance, similar to: `scipy.spatial.distance.sqeuclidean`.
-# https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.sqeuclidean.html
-# https://numpy.org/doc/stable/reference/generated/numpy.linalg.norm.html
 def sqeuclidean(
     a: _BufferType,
     b: _BufferType,
@@ -917,11 +1023,22 @@ def sqeuclidean(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | Tensor | None: ...
+) -> float | Tensor | None:
+    """Compute the squared Euclidean distance between two vectors.
 
-# Vector-vector angular distance, also known as cosine distance, similar to:
-# `scipy.spatial.distance.cosine`.
-# https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.cosine.html
+    Similar to `scipy.spatial.distance.sqeuclidean`. Two vectors give a scalar. Matrices pair row i
+    of `a` with row i of `b`, a single row pairing with every row of the other, into a new Tensor of
+    one result per pair, or into `out`, returning None.
+
+    Args:
+      a: First real or integer vector or matrix.
+      b: Second real or integer vector or matrix, of the dtype of `a`.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      out: Output vector for the results.
+      out_dtype: Result dtype, by default that of `out`, else float64.
+    """
+    ...
+
 def angular(
     a: _BufferType,
     b: _BufferType,
@@ -931,10 +1048,22 @@ def angular(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | Tensor | None: ...
+) -> float | Tensor | None:
+    """Compute the angular distance, also known as cosine distance, between two vectors.
 
-# Vector-vector Euclidean distance, similar to: `scipy.spatial.distance.euclidean`.
-# https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.euclidean.html
+    Similar to `scipy.spatial.distance.cosine`. Two vectors give a scalar. Matrices pair row i of
+    `a` with row i of `b`, a single row pairing with every row of the other, into a new Tensor of
+    one result per pair, or into `out`, returning None.
+
+    Args:
+      a: First real or integer vector or matrix.
+      b: Second real or integer vector or matrix, of the dtype of `a`.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      out: Output vector for the results.
+      out_dtype: Result dtype, by default that of `out`, else float64.
+    """
+    ...
+
 def euclidean(
     a: _BufferType,
     b: _BufferType,
@@ -944,15 +1073,27 @@ def euclidean(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | Tensor | None: ...
+) -> float | Tensor | None:
+    """Compute the Euclidean distance between two vectors.
+
+    Similar to `scipy.spatial.distance.euclidean`. Two vectors give a scalar. Matrices pair row i of
+    `a` with row i of `b`, a single row pairing with every row of the other, into a new Tensor of
+    one result per pair, or into `out`, returning None.
+
+    Args:
+      a: First real or integer vector or matrix.
+      b: Second real or integer vector or matrix, of the dtype of `a`.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      out: Output vector for the results.
+      out_dtype: Result dtype, by default that of `out`, else float64.
+    """
+    ...
 
 # endregion Spatial Distance Metrics
 
 # region Binary Similarity
 # Vector-vector similarity functions for binary vectors.
 
-# Vector-vector Hamming distance, similar to: `scipy.spatial.distance.hamming`.
-# https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.hamming.html
 def hamming(
     a: _BufferType,
     b: _BufferType,
@@ -962,10 +1103,22 @@ def hamming(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | Tensor | None: ...
+) -> float | Tensor | None:
+    """Compute the Hamming distance between two binary vectors.
 
-# Vector-vector Jaccard distance, similar to: `scipy.spatial.distance.jaccard`.
-# https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.jaccard.html
+    Similar to `scipy.spatial.distance.hamming`. Two vectors give a scalar. Matrices pair row i of
+    `a` with row i of `b`, a single row pairing with every row of the other, into a new Tensor of
+    one result per pair, or into `out`, returning None.
+
+    Args:
+      a: First binary vector or matrix.
+      b: Second binary vector or matrix, of the dtype of `a`.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      out: Output vector for the results.
+      out_dtype: Result dtype, by default that of `out`, else float64.
+    """
+    ...
+
 def jaccard(
     a: _BufferType,
     b: _BufferType,
@@ -975,15 +1128,27 @@ def jaccard(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | Tensor | None: ...
+) -> float | Tensor | None:
+    """Compute the Jaccard distance, the bitwise Tanimoto metric, between two binary vectors.
+
+    Similar to `scipy.spatial.distance.jaccard`. Two vectors give a scalar. Matrices pair row i of
+    `a` with row i of `b`, a single row pairing with every row of the other, into a new Tensor of
+    one result per pair, or into `out`, returning None.
+
+    Args:
+      a: First binary vector or matrix.
+      b: Second binary vector or matrix, of the dtype of `a`.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      out: Output vector for the results.
+      out_dtype: Result dtype, by default that of `out`, else float64.
+    """
+    ...
 
 # endregion Binary Similarity
 
 # region Probability Distances
 # Vector-vector similarity between probability distributions.
 
-# Vector-vector Jensen-Shannon distance, similar to: `scipy.spatial.distance.jensenshannon`.
-# https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.jensenshannon.html
 def jensenshannon(
     a: _BufferType,
     b: _BufferType,
@@ -993,7 +1158,22 @@ def jensenshannon(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | Tensor | None: ...
+) -> float | Tensor | None:
+    """Compute the Jensen-Shannon distance between two probability distributions.
+
+    Similar to `scipy.spatial.distance.jensenshannon`. Two vectors give a scalar. Matrices pair row
+    i of `a` with row i of `b`, a single row pairing with every row of the other, into a new Tensor
+    of one result per pair, or into `out`, returning None.
+
+    Args:
+      a: First probability vector or matrix.
+      b: Second probability vector or matrix, of the dtype of `a`.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      out: Output vector for the results.
+      out_dtype: Result dtype, by default that of `out`, else float64.
+    """
+    ...
+
 def jsd(
     a: _BufferType,
     b: _BufferType,
@@ -1003,10 +1183,10 @@ def jsd(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | Tensor | None: ...
+) -> float | Tensor | None:
+    """Alias of `jensenshannon`."""
+    ...
 
-# Vector-vector Kullback-Leibler divergence, similar to: `scipy.spatial.distance.kullback_leibler`.
-# https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.kullback_leibler.html
 def kullbackleibler(
     a: _BufferType,
     b: _BufferType,
@@ -1016,7 +1196,22 @@ def kullbackleibler(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | Tensor | None: ...
+) -> float | Tensor | None:
+    """Compute the Kullback-Leibler divergence between two probability distributions.
+
+    Similar to `scipy.special.kl_div`. Two vectors give a scalar. Matrices pair row i of `a` with
+    row i of `b`, a single row pairing with every row of the other, into a new Tensor of one result
+    per pair, or into `out`, returning None.
+
+    Args:
+      a: First probability vector or matrix.
+      b: Second probability vector or matrix, of the dtype of `a`.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      out: Output vector for the results.
+      out_dtype: Result dtype, by default that of `out`, else float64.
+    """
+    ...
+
 def kld(
     a: _BufferType,
     b: _BufferType,
@@ -1026,15 +1221,15 @@ def kld(
     out: _BufferType | None = None,
     out_dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | Tensor | None: ...
+) -> float | Tensor | None:
+    """Alias of `kullbackleibler`."""
+    ...
 
 # endregion Probability Distances
 
 # region Curved Space Metrics
 # Vector-vector similarity between vectors in curved spaces.
 
-# Vector-vector bilinear distance, similar to: `numpy.dot(a, metric_tensor @ vector2)`.
-# https://numpy.org/doc/stable/reference/generated/numpy.dot.html
 def bilinear(
     a: _BufferType,
     b: _BufferType,
@@ -1042,10 +1237,19 @@ def bilinear(
     /,
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float: ...
+) -> float:
+    """Compute the bilinear form aᵀ × M × b of two vectors under a metric tensor M.
 
-# Vector-vector Mahalanobis distance, similar to: `scipy.spatial.distance.mahalanobis`.
-# https://docs.scipy.org/doc/scipy-1.11.4/reference/generated/scipy.spatial.distance.mahalanobis.html
+    Similar to `numpy.dot(a, metric_tensor @ b)`.
+
+    Args:
+      a: First vector.
+      b: Second vector.
+      metric_tensor: Matrix M defining the bilinear form.
+      dtype: Input dtype to read every buffer as, overriding the one they report.
+    """
+    ...
+
 def mahalanobis(
     a: _BufferType,
     b: _BufferType,
@@ -1053,7 +1257,18 @@ def mahalanobis(
     /,
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float: ...
+) -> float:
+    """Compute the Mahalanobis distance between two vectors given an inverse covariance matrix.
+
+    Similar to `scipy.spatial.distance.mahalanobis`.
+
+    Args:
+      a: First vector.
+      b: Second vector.
+      inverse_covariance: Inverse of the covariance matrix.
+      dtype: Input dtype to read every buffer as, overriding the one they report.
+    """
+    ...
 
 # endregion Curved Space Metrics
 
@@ -1162,9 +1377,13 @@ def vincentys_packed(a: VincentysPackedMatrix, b: VincentysPackedMatrix, /, **di
 # region Sparse Similarity
 # Vector-vector similarity between sparse vectors.
 
-# Vector-vector intersection similarity, similar to: `numpy.intersect1d`.
-# https://numpy.org/doc/stable/reference/generated/numpy.intersect1d.html
-def intersect(a: _BufferType, b: _BufferType, /, **dispatch: Unpack[_Dispatch]) -> int: ...
+def intersect(a: _BufferType, b: _BufferType, /, **dispatch: Unpack[_Dispatch]) -> int:
+    """Count the elements two sorted integer arrays share.
+
+    Similar to `numpy.intersect1d`, returning the size of the intersection rather than its elements.
+    """
+    ...
+
 def sparse_dot(
     a_indices: _BufferType,
     a_values: _BufferType,
@@ -1172,7 +1391,16 @@ def sparse_dot(
     b_values: _BufferType,
     /,
     **dispatch: Unpack[_Dispatch],
-) -> float: ...
+) -> float:
+    """Compute the weighted dot product of two sparse vectors over their shared indices.
+
+    Args:
+      a_indices: First sorted index array, uint16 or uint32.
+      a_values: Weights of `a_indices`, bfloat16 or float32.
+      b_indices: Second sorted index array, of the dtype of `a_indices`.
+      b_values: Weights of `b_indices`, of the dtype of `a_values`.
+    """
+    ...
 
 # endregion Sparse Similarity
 
@@ -1187,7 +1415,18 @@ def from_pointer(
     *,
     strides: tuple[int, ...] | None = None,
     owner: Any = None,
-) -> Tensor: ...
+) -> Tensor:
+    """Create a zero-copy Tensor view over memory at a raw address.
+
+    Args:
+      address: Integer address of the data buffer.
+      shape: Shape of the view, an int or a tuple of ints.
+      dtype: Element dtype, like 'float32' or 'bf16'.
+      strides: Byte strides, C-contiguous when None.
+      owner: Object the view keeps alive, so the memory it owns is not collected.
+    """
+    ...
+
 def from_dlpack(obj: Any, /) -> Tensor:
     """Zero-copy import a tensor from any DLPack-compatible producer.
 
@@ -1202,26 +1441,38 @@ def empty(
     /,
     *,
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType = "float32",
-) -> Tensor: ...
+) -> Tensor:
+    """Create an uninitialized Tensor of the given shape and dtype."""
+    ...
+
 def zeros(
     shape: int | tuple[int, ...],
     /,
     *,
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType = "float32",
-) -> Tensor: ...
+) -> Tensor:
+    """Create a Tensor of the given shape and dtype filled with zeros."""
+    ...
+
 def ones(
     shape: int | tuple[int, ...],
     /,
     *,
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType = "float32",
-) -> Tensor: ...
+) -> Tensor:
+    """Create a Tensor of the given shape and dtype filled with ones."""
+    ...
+
 def full(
     shape: int | tuple[int, ...],
     fill_value: int | float,
     /,
     *,
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType = "float32",
-) -> Tensor: ...
+) -> Tensor:
+    """Create a Tensor of the given shape and dtype filled with `fill_value`."""
+    ...
+
 def iota(
     shape: int | tuple[int, ...],
     /,
@@ -1277,14 +1528,23 @@ def moments(
     *,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> tuple[float, float]: ...
+) -> tuple[float, float]:
+    """Compute the sum and the sum of squares of all elements, returned as a pair."""
+    ...
+
 def minmax(
     a: _BufferType,
     /,
     *,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> tuple[float, int, float, int] | None: ...
+) -> tuple[float, int, float, int] | None:
+    """Find the smallest and largest elements with their indices.
+
+    Returns `(min_value, min_index, max_value, max_index)`, or None when every element is NaN.
+    """
+    ...
+
 def sum(
     a: _BufferType,
     /,
@@ -1294,7 +1554,18 @@ def sum(
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | int | Tensor: ...
+) -> float | int | Tensor:
+    """Return the sum of all elements, or per-slice sums along one or more axes.
+
+    Args:
+      a: Input Tensor, NumPy array or any buffer-protocol object.
+      axis: Axis or axes to reduce along, or None to reduce every element to a scalar.
+      keepdims: Keep each reduced axis as a size-1 dimension.
+      out: Preallocated output Tensor for the result.
+      dtype: Input dtype to read `a` as, overriding the one it reports.
+    """
+    ...
+
 def norm(
     a: _BufferType,
     /,
@@ -1304,7 +1575,18 @@ def norm(
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | Tensor: ...
+) -> float | Tensor:
+    """Return the L2 norm of all elements, or per-slice norms along one or more axes.
+
+    Args:
+      a: Input Tensor, NumPy array or any buffer-protocol object.
+      axis: Axis or axes to reduce along, or None to reduce every element to a scalar.
+      keepdims: Keep each reduced axis as a size-1 dimension.
+      out: Preallocated output Tensor for the result.
+      dtype: Input dtype to read `a` as, overriding the one it reports.
+    """
+    ...
+
 def min(
     a: _BufferType,
     /,
@@ -1314,7 +1596,20 @@ def min(
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | int | Tensor | None: ...
+) -> float | int | Tensor | None:
+    """Return the minimum element, or per-slice minimums along one or more axes.
+
+    The scalar result is None when every element is NaN.
+
+    Args:
+      a: Input Tensor, NumPy array or any buffer-protocol object.
+      axis: Axis or axes to reduce along, or None to reduce every element to a scalar.
+      keepdims: Keep each reduced axis as a size-1 dimension.
+      out: Preallocated output Tensor for the result.
+      dtype: Input dtype to read `a` as, overriding the one it reports.
+    """
+    ...
+
 def max(
     a: _BufferType,
     /,
@@ -1324,7 +1619,20 @@ def max(
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float | int | Tensor | None: ...
+) -> float | int | Tensor | None:
+    """Return the maximum element, or per-slice maximums along one or more axes.
+
+    The scalar result is None when every element is NaN.
+
+    Args:
+      a: Input Tensor, NumPy array or any buffer-protocol object.
+      axis: Axis or axes to reduce along, or None to reduce every element to a scalar.
+      keepdims: Keep each reduced axis as a size-1 dimension.
+      out: Preallocated output Tensor for the result.
+      dtype: Input dtype to read `a` as, overriding the one it reports.
+    """
+    ...
+
 def argmin(
     a: _BufferType,
     /,
@@ -1334,7 +1642,20 @@ def argmin(
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> int | Tensor | None: ...
+) -> int | Tensor | None:
+    """Return the index of the minimum element, or per-slice indices along one axis.
+
+    The scalar result is None when every element is NaN.
+
+    Args:
+      a: Input Tensor, NumPy array or any buffer-protocol object.
+      axis: Axis to reduce along, or None to reduce every element to a scalar.
+      keepdims: Keep each reduced axis as a size-1 dimension.
+      out: Preallocated output Tensor for the result.
+      dtype: Input dtype to read `a` as, overriding the one it reports.
+    """
+    ...
+
 def argmax(
     a: _BufferType,
     /,
@@ -1344,13 +1665,24 @@ def argmax(
     out: Tensor | None = None,
     dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> int | Tensor | None: ...
+) -> int | Tensor | None:
+    """Return the index of the maximum element, or per-slice indices along one axis.
+
+    The scalar result is None when every element is NaN.
+
+    Args:
+      a: Input Tensor, NumPy array or any buffer-protocol object.
+      axis: Axis to reduce along, or None to reduce every element to a scalar.
+      keepdims: Keep each reduced axis as a size-1 dimension.
+      out: Preallocated output Tensor for the result.
+      dtype: Input dtype to read `a` as, overriding the one it reports.
+    """
+    ...
 
 # endregion Reductions
 
 # region Vector Math
 
-# Vector-vector element-wise fused multiply-add.
 def fma(
     a: _BufferType,
     b: _BufferType,
@@ -1362,9 +1694,22 @@ def fma(
     beta: float = 1,
     out: _BufferType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor | None: ...
+) -> Tensor | None:
+    """Compute alpha × a × b + beta × c element-wise over three tensors of one shape.
 
-# Vector-vector element-wise blend.
+    Returns a new Tensor, or None after writing into `out`.
+
+    Args:
+      a: First tensor, of any rank.
+      b: Second tensor, of the shape of `a`.
+      c: Third tensor, of the shape of `a`.
+      dtype: Input dtype to read every buffer as, overriding the one they report.
+      alpha: Scale of the product of `a` and `b`.
+      beta: Scale of `c`.
+      out: Output tensor for the result.
+    """
+    ...
+
 def blend(
     a: _BufferType,
     b: _BufferType,
@@ -1375,13 +1720,25 @@ def blend(
     beta: float = 1,
     out: _BufferType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor | None: ...
+) -> Tensor | None:
+    """Compute alpha × a + beta × b element-wise over two tensors of one shape.
+
+    Returns a new Tensor, or None after writing into `out`.
+
+    Args:
+      a: First tensor, of any rank.
+      b: Second tensor, of the shape of `a`.
+      dtype: Input dtype to read both buffers as, overriding the one they report.
+      alpha: Scale of `a`.
+      beta: Scale of `b`.
+      out: Output tensor for the result.
+    """
+    ...
 
 # endregion Vector Math
 
 # region Trigonometry
 
-# Element-wise trigonometric sine.
 def sin(
     a: _BufferType,
     /,
@@ -1389,9 +1746,18 @@ def sin(
     *,
     out: _BufferType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor | None: ...
+) -> Tensor | None:
+    """Compute the sine of every element.
 
-# Element-wise trigonometric cosine.
+    Returns a new Tensor, or None after writing into `out`.
+
+    Args:
+      a: Input tensor of any rank, angles in radians.
+      dtype: Input dtype to read `a` as, overriding the one it reports.
+      out: Output tensor for the result.
+    """
+    ...
+
 def cos(
     a: _BufferType,
     /,
@@ -1399,9 +1765,18 @@ def cos(
     *,
     out: _BufferType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor | None: ...
+) -> Tensor | None:
+    """Compute the cosine of every element.
 
-# Element-wise trigonometric arctangent.
+    Returns a new Tensor, or None after writing into `out`.
+
+    Args:
+      a: Input tensor of any rank, angles in radians.
+      dtype: Input dtype to read `a` as, overriding the one it reports.
+      out: Output tensor for the result.
+    """
+    ...
+
 def atan(
     a: _BufferType,
     /,
@@ -1409,13 +1784,22 @@ def atan(
     *,
     out: _BufferType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor | None: ...
+) -> Tensor | None:
+    """Compute the arctangent of every element, in radians.
+
+    Returns a new Tensor, or None after writing into `out`.
+
+    Args:
+      a: Input tensor of any rank.
+      dtype: Input dtype to read `a` as, overriding the one it reports.
+      out: Output tensor for the result.
+    """
+    ...
 
 # endregion Trigonometry
 
 # region Elementwise Arithmetic
 
-# Element-wise scale operation.
 def scale(
     a: _BufferType,
     /,
@@ -1425,9 +1809,20 @@ def scale(
     beta: float = 0,
     out: _BufferType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor | None: ...
+) -> Tensor | None:
+    """Compute alpha × a + beta element-wise over a tensor of any rank.
 
-# Element-wise add, NumPy-compatible with broadcasting.
+    Returns a new Tensor, or None after writing into `out`.
+
+    Args:
+      a: Input tensor of any rank.
+      dtype: Input dtype to read `a` as, overriding the one it reports.
+      alpha: Multiplicative scale.
+      beta: Additive offset.
+      out: Output tensor for the result.
+    """
+    ...
+
 def add(
     a: _BufferType | float | int,
     b: _BufferType | float | int,
@@ -1438,9 +1833,21 @@ def add(
     b_dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     out_dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor | None: ...
+) -> Tensor | None:
+    """Add two tensors, or a tensor and a scalar, element-wise with NumPy broadcasting.
 
-# Element-wise multiply, NumPy-compatible with broadcasting.
+    Equivalent to `a + b`. Returns a new Tensor, or None after writing into `out`.
+
+    Args:
+      a: First operand, a tensor or a scalar.
+      b: Second operand, a tensor or a scalar.
+      out: Output buffer for the result.
+      a_dtype: Override of the dtype of `a`.
+      b_dtype: Override of the dtype of `b`.
+      out_dtype: Override of the dtype of the result.
+    """
+    ...
+
 def multiply(
     a: _BufferType | float | int,
     b: _BufferType | float | int,
@@ -1451,7 +1858,20 @@ def multiply(
     b_dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     out_dtype: _FloatTypeName | _IntegralTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor | None: ...
+) -> Tensor | None:
+    """Multiply two tensors, or a tensor and a scalar, element-wise with NumPy broadcasting.
+
+    Equivalent to `a * b`. Returns a new Tensor, or None after writing into `out`.
+
+    Args:
+      a: First operand, a tensor or a scalar.
+      b: Second operand, a tensor or a scalar.
+      out: Output buffer for the result.
+      a_dtype: Override of the dtype of `a`.
+      b_dtype: Override of the dtype of `b`.
+      out_dtype: Override of the dtype of the result.
+    """
+    ...
 
 # endregion Elementwise Arithmetic
 
@@ -1548,7 +1968,24 @@ def dots_symmetric(
     rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor: ...
+) -> Tensor:
+    """Compute the Gram matrix, the symmetric all-pairs dot products, of the rows of `vectors`.
+
+    Only the upper triangle of the [count,count] result is guaranteed to be initialized. Returns a
+    new Tensor, or `out` when given. On a GPU the call returns before the kernel finishes.
+
+    Args:
+      vectors: Input matrix of shape [count,depth], or a CUDA or ROCm Tensor from from_dlpack() to
+        run on that GPU.
+      dtype: Input dtype to read `vectors` as, overriding the one it reports.
+      out: C-contiguous [count,count] output, required on the same GPU for GPU `vectors`.
+      rows_begin: First row to compute, 0 when None.
+      rows_end: One past the last row to compute, `count` when None; only the upper triangle
+        overlapping the rows in range is filled.
+      threads: Worker threads, ignored on a GPU.
+    """
+    ...
+
 def hammings_symmetric(
     vectors: _BufferType,
     /,
@@ -1559,7 +1996,23 @@ def hammings_symmetric(
     rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor: ...
+) -> Tensor:
+    """Compute the symmetric all-pairs Hamming-distance matrix of the rows of `vectors`.
+
+    Only the upper triangle of the [count,count] uint32 result is guaranteed to be initialized.
+    Returns a new Tensor, or `out` when given.
+
+    Args:
+      vectors: Input matrix of shape [count,depth], with 'uint1' bits packed into uint8 bytes.
+      dtype: Input dtype to read `vectors` as, overriding the one it reports.
+      out: C-contiguous [count,count] output of dtype uint32.
+      rows_begin: First row to compute, 0 when None.
+      rows_end: One past the last row to compute, `count` when None; only the upper triangle
+        overlapping the rows in range is filled.
+      threads: Worker threads.
+    """
+    ...
+
 def jaccards_symmetric(
     vectors: _BufferType,
     /,
@@ -1570,7 +2023,23 @@ def jaccards_symmetric(
     rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor: ...
+) -> Tensor:
+    """Compute the symmetric all-pairs Jaccard-distance matrix of the rows of `vectors`.
+
+    Only the upper triangle of the [count,count] result is guaranteed to be initialized. Returns a
+    new Tensor, or `out` when given.
+
+    Args:
+      vectors: Input matrix of shape [count,depth], with 'uint1' bits packed into uint8 bytes.
+      dtype: Input dtype to read `vectors` as, overriding the one it reports.
+      out: C-contiguous [count,count] output.
+      rows_begin: First row to compute, 0 when None.
+      rows_end: One past the last row to compute, `count` when None; only the upper triangle
+        overlapping the rows in range is filled.
+      threads: Worker threads.
+    """
+    ...
+
 def angulars_symmetric(
     vectors: _BufferType,
     /,
@@ -1581,7 +2050,24 @@ def angulars_symmetric(
     rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor: ...
+) -> Tensor:
+    """Compute the symmetric all-pairs angular-distance matrix of the rows of `vectors`.
+
+    Only the upper triangle of the [count,count] result is guaranteed to be initialized. Returns a
+    new Tensor, or `out` when given. On a GPU the call returns before the kernel finishes.
+
+    Args:
+      vectors: Input matrix of shape [count,depth], or a CUDA or ROCm Tensor from from_dlpack() to
+        run on that GPU.
+      dtype: Input dtype to read `vectors` as, overriding the one it reports.
+      out: C-contiguous [count,count] output, required on the same GPU for GPU `vectors`.
+      rows_begin: First row to compute, 0 when None.
+      rows_end: One past the last row to compute, `count` when None; only the upper triangle
+        overlapping the rows in range is filled.
+      threads: Worker threads, ignored on a GPU.
+    """
+    ...
+
 def euclideans_symmetric(
     vectors: _BufferType,
     /,
@@ -1592,13 +2078,28 @@ def euclideans_symmetric(
     rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor: ...
+) -> Tensor:
+    """Compute the symmetric all-pairs Euclidean-distance matrix of the rows of `vectors`.
+
+    Only the upper triangle of the [count,count] result is guaranteed to be initialized. Returns a
+    new Tensor, or `out` when given. On a GPU the call returns before the kernel finishes.
+
+    Args:
+      vectors: Input matrix of shape [count,depth], or a CUDA or ROCm Tensor from from_dlpack() to
+        run on that GPU.
+      dtype: Input dtype to read `vectors` as, overriding the one it reports.
+      out: C-contiguous [count,count] output, required on the same GPU for GPU `vectors`.
+      rows_begin: First row to compute, 0 when None.
+      rows_end: One past the last row to compute, `count` when None; only the upper triangle
+        overlapping the rows in range is filled.
+      threads: Worker threads, ignored on a GPU.
+    """
+    ...
 
 # endregion Symmetric Pairwise Operations
 
 # region Packed Matrix Operations
 
-# Pack a matrix with contiguous rows for repeated dot-product matmul; transpose `w.T` first.
 def dots_pack(
     b: _BufferType,
     /,
@@ -1607,9 +2108,22 @@ def dots_pack(
     out: _BufferType | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> PackedMatrix: ...
+) -> PackedMatrix:
+    """Pack a matrix with contiguous rows for repeated dot-product cross operations.
 
-# Dot-product matrix multiplication with a pre-packed B matrix.
+    Packing fuses no transposition, so transpose `w.T` into a contiguous copy first. The pack serves
+    dots_packed(), angulars_packed(), euclideans_packed() and the `@` operator of Tensor.
+
+    Args:
+      b: Source matrix of shape [columns,depth], or a CUDA or ROCm Tensor from from_dlpack() to pack
+        on that GPU.
+      dtype: Packing dtype, inferred from `b` when None.
+      out: C-contiguous Tensor on the GPU of `b` holding the pack, required for a GPU `b`, of at
+        least PackedMatrix.pack_size() bytes.
+      threads: Worker threads, ignored on a GPU.
+    """
+    ...
+
 def dots_packed(
     a: _BufferType,
     b: PackedMatrix,
@@ -1620,9 +2134,22 @@ def dots_packed(
     rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor: ...
+) -> Tensor:
+    """Compute dot products between rows of `a` and a matrix packed by dots_pack(), like `a @ b.T`.
 
-# Pack a matrix for repeated Hamming distance computation.
+    Returns a [rows,columns] Tensor, or `out` when given. On a GPU the call returns before the
+    kernel finishes.
+
+    Args:
+      a: Query matrix of shape [rows,depth], on the device of `b`.
+      b: Matrix packed by dots_pack(), of shape [columns,depth].
+      out: C-contiguous [rows,columns] output, required on the same GPU for a GPU-packed `b`.
+      rows_begin: First row of `a` to process, 0 when None.
+      rows_end: One past the last row of `a` to process, every row when None.
+      threads: Worker threads, ignored on a GPU.
+    """
+    ...
+
 def hammings_pack(
     b: _BufferType,
     /,
@@ -1630,9 +2157,18 @@ def hammings_pack(
     *,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> PackedMatrix: ...
+) -> PackedMatrix:
+    """Pack a matrix for repeated Hamming and Jaccard cross operations.
 
-# Hamming distance computation with a pre-packed B matrix.
+    The pack serves hammings_packed() and jaccards_packed().
+
+    Args:
+      b: Source matrix of shape [columns,depth], with 'uint1' bits packed into uint8 bytes.
+      dtype: Packing dtype, 'uint1' when None.
+      threads: Worker threads.
+    """
+    ...
+
 def hammings_packed(
     a: _BufferType,
     b: PackedMatrix,
@@ -1643,9 +2179,21 @@ def hammings_packed(
     rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor: ...
+) -> Tensor:
+    """Compute Hamming distances between rows of `a` and a matrix packed by hammings_pack().
 
-# Jaccard distance computation with a pre-packed B matrix.
+    Returns a [rows,columns] uint32 Tensor, or `out` when given.
+
+    Args:
+      a: Query matrix of shape [rows,depth].
+      b: Matrix packed by hammings_pack(), of shape [columns,depth].
+      out: C-contiguous [rows,columns] output of dtype uint32.
+      rows_begin: First row of `a` to process, 0 when None.
+      rows_end: One past the last row of `a` to process, every row when None.
+      threads: Worker threads.
+    """
+    ...
+
 def jaccards_packed(
     a: _BufferType,
     b: PackedMatrix,
@@ -1656,9 +2204,21 @@ def jaccards_packed(
     rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor: ...
+) -> Tensor:
+    """Compute Jaccard distances between rows of `a` and a matrix packed by hammings_pack().
 
-# Angular distance computation with a pre-packed B matrix.
+    Returns a [rows,columns] Tensor, or `out` when given.
+
+    Args:
+      a: Query matrix of shape [rows,depth].
+      b: Matrix packed by hammings_pack(), of shape [columns,depth].
+      out: C-contiguous [rows,columns] output.
+      rows_begin: First row of `a` to process, 0 when None.
+      rows_end: One past the last row of `a` to process, every row when None.
+      threads: Worker threads.
+    """
+    ...
+
 def angulars_packed(
     a: _BufferType,
     b: PackedMatrix,
@@ -1669,9 +2229,22 @@ def angulars_packed(
     rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor: ...
+) -> Tensor:
+    """Compute angular distances between rows of `a` and a matrix packed by dots_pack().
 
-# Euclidean distance computation with a pre-packed B matrix.
+    Returns a [rows,columns] Tensor, or `out` when given. On a GPU the call returns before the
+    kernel finishes.
+
+    Args:
+      a: Query matrix of shape [rows,depth], on the device of `b`.
+      b: Matrix packed by dots_pack(), of shape [columns,depth].
+      out: C-contiguous [rows,columns] output, required on the same GPU for a GPU-packed `b`.
+      rows_begin: First row of `a` to process, 0 when None.
+      rows_end: One past the last row of `a` to process, every row when None.
+      threads: Worker threads, ignored on a GPU.
+    """
+    ...
+
 def euclideans_packed(
     a: _BufferType,
     b: PackedMatrix,
@@ -1682,17 +2255,51 @@ def euclideans_packed(
     rows_end: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor: ...
+) -> Tensor:
+    """Compute Euclidean distances between rows of `a` and a matrix packed by dots_pack().
+
+    Returns a [rows,columns] Tensor, or `out` when given. On a GPU the call returns before the
+    kernel finishes.
+
+    Args:
+      a: Query matrix of shape [rows,depth], on the device of `b`.
+      b: Matrix packed by dots_pack(), of shape [columns,depth].
+      out: C-contiguous [rows,columns] output, required on the same GPU for a GPU-packed `b`.
+      rows_begin: First row of `a` to process, 0 when None.
+      rows_end: One past the last row of `a` to process, every row when None.
+      threads: Worker threads, ignored on a GPU.
+    """
+    ...
 
 # endregion Packed Matrix Operations
 
 # region MaxSim
 def maxsim_pack(
     b: _BufferType, /, dtype: _FloatTypeName | _MiniFloatType | None = None, **dispatch: Unpack[_Dispatch]
-) -> MaxSimPackedMatrix: ...
+) -> MaxSimPackedMatrix:
+    """Pack a matrix for MaxSim late-interaction scoring with maxsim_packed().
+
+    Packing fuses no transposition, so transpose a depth-major matrix into a contiguous copy first.
+
+    Args:
+      b: Source matrix of shape [vectors,depth] with contiguous rows.
+      dtype: Packing dtype, inferred from `b` when None.
+    """
+    ...
+
 def maxsim_packed(
     queries: MaxSimPackedMatrix, documents: MaxSimPackedMatrix, /, **dispatch: Unpack[_Dispatch]
-) -> float: ...
+) -> float:
+    """Compute the MaxSim late-interaction score of two packed matrices.
+
+    Returns the sum of per-query minimum angular distances.
+
+    Args:
+      queries: Query vectors packed by maxsim_pack().
+      documents: Document vectors packed by maxsim_pack().
+    """
+    ...
+
 def attention_pack(
     k: _BufferType,
     v: _BufferType,
@@ -1779,7 +2386,17 @@ def maxsim(
     /,
     dtype: _FloatTypeName | _MiniFloatType | None = None,
     **dispatch: Unpack[_Dispatch],
-) -> float: ...
+) -> float:
+    """Pack both matrices and compute their MaxSim late-interaction score in one call.
+
+    Returns the sum of per-query minimum angular distances.
+
+    Args:
+      queries: Query matrix of shape [query_count,depth].
+      documents: Document matrix of shape [document_count,depth].
+      dtype: Packing dtype, inferred from the inputs when None.
+    """
+    ...
 
 # endregion MaxSim
 

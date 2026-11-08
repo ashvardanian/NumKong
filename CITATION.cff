@@ -1,22 +1,29 @@
 cff-version: 1.2.0
-title: "NumKong: Portable mixed-precision math, linear-algebra, & retrieval library with 2000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly"
+title: "NumKong: Mixed-Precision Kernels for SIMD and Matrix Units, from 4-Bit Integers to 128-Bit Complex Numbers"
 message: "If you use this software, please cite it as below."
 type: software
 license: Apache-2.0
-version: 8.0.0-rc.1
 repository-code: https://github.com/ashvardanian/NumKong
 url: https://ashvardanian.com/posts/numkong/
 doi: 10.5281/zenodo.21480519
 abstract: >-
-  Portable mixed-precision math, linear-algebra, & retrieval library with 2'000+ SIMD kernels for
+  Portable mixed-precision math, linear-algebra, & retrieval library with 4'000+ kernel symbols for
   x86, Arm, RISC-V, LoongArch, Power, & WebAssembly, leveraging rare algebraic transforms with
-  both 1D & 2D registers like AMX & SME, covering 15+ numeric types from 4-bit integers & 6-bit
+  both 1D & 2D registers like AMX & SME, covering numeric types from 4-bit integers & 6-bit
   floats through block-scaled MXFP & NVFP4 micro-formats up to 128-bit complex numbers, spanning
   dot products, spatial, sparse, & curved-space similarity, scaled dot-product attention,
   late-interaction MaxSim retrieval, and fused RMSNorm, SwiGLU, & RoPE kernels, validated against
   118-bit extended-precision baselines with saturation, casting, & rounding edge-case coverage, in
   a 5-100x smaller binary than other BLAS-like alternatives, co-designed with Tensor abstractions
   in C++, Python, Rust, JavaScript, GoLang, & Swift.
+keywords:
+  - mixed-precision arithmetic
+  - simd
+  - linear algebra
+  - numerical stability
+  - matrix multiplication
+  - information retrieval
+  - gpu
 
 authors:
   - family-names: Vardanian
@@ -28,56 +35,48 @@ references:
   - type: article
     title: "SciPy Distances up to 200x Faster with AVX-512 & SVE"
     url: https://ashvardanian.com/posts/simsimd-faster-scipy/
-    date-published: 2023-10-07
     authors:
       - family-names: Vardanian
         given-names: Ash
   - type: article
     title: "GCC Compiler vs Human - 119x Faster Assembly"
     url: https://ashvardanian.com/posts/gcc-12-vs-avx512fp16/
-    date-published: 2023-10-23
     authors:
       - family-names: Vardanian
         given-names: Ash
   - type: article
     title: "Accelerating JavaScript Arrays by 10x for Vector Search"
     url: https://ashvardanian.com/posts/javascript-ai-vector-search/
-    date-published: 2023-10-21
     authors:
       - family-names: Vardanian
         given-names: Ash
   - type: article
     title: "Python, C, Assembly - 2'500x Faster Cosine Similarity"
     url: https://ashvardanian.com/posts/python-c-assembly-comparison/
-    date-published: 2023-10-30
     authors:
       - family-names: Vardanian
         given-names: Ash
   - type: article
     title: "NumPy vs BLAS: Losing 90% of Throughput"
     url: https://ashvardanian.com/posts/numpy-vs-blas-costs/
-    date-published: 2024-03-12
     authors:
       - family-names: Vardanian
         given-names: Ash
   - type: article
     title: "5x Faster Set Intersections: SVE2, AVX-512, & NEON"
     url: https://ashvardanian.com/posts/simd-set-intersections-sve2-avx512/
-    date-published: 2024-09-16
     authors:
       - family-names: Vardanian
         given-names: Ash
   - type: article
     title: "Understanding SIMD: Infinite Complexity of Trivial Problems"
     url: https://ashvardanian.com/posts/understanding-simd-complexity/
-    date-published: 2024-11-25
     authors:
       - family-names: Vardanian
         given-names: Ash
   - type: article
     title: "Hiding x86 Port Latency for 330 GB/s/core Reductions"
     url: https://ashvardanian.com/posts/cpu-ports/
-    date-published: 2025-01-19
     authors:
       - family-names: Vardanian
         given-names: Ash

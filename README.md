@@ -1,10 +1,13 @@
 # NumKong: Mixed Precision for All
 
-Portable mixed-precision math, linear-algebra, & retrieval library with 2'000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly, leveraging rare algebraic transforms with both 1D & 2D registers like AMX & SME, covering 15+ numeric types from 4-bit integers & floats to 128-bit complex numbers, validated against 118-bit extended-precision baselines with saturation, casting, & rounding edge-case coverage, in a 5-100x smaller binary than other BLAS-like alternatives, co-designed with Tensor abstractions in C++, Python, Rust, JavaScript, GoLang, & Swift.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/ashvardanian/ashvardanian/blob/master/repositories/NumKong-v8-dark.jpg?raw=true">
+  <img alt="NumKong banner" src="https://github.com/ashvardanian/ashvardanian/blob/master/repositories/NumKong-v8.jpg?raw=true">
+</picture>
 
-![NumKong banner](https://github.com/ashvardanian/ashvardanian/blob/master/repositories/NumKong-v7.png?raw=true)
+Portable mixed-precision math, linear-algebra, & retrieval library with 4'000+ kernel symbols for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly, leveraging rare algebraic transforms with both 1D & 2D registers like AMX & SME, covering numeric types from 4-bit integers & floats to 128-bit complex numbers, validated against 118-bit extended-precision baselines with saturation, casting, & rounding edge-case coverage, in a 5-100x smaller binary than other BLAS-like alternatives, co-designed with Tensor abstractions in C++, Python, Rust, JavaScript, GoLang, & Swift.
 
-## Latency, Throughput, & Numerical Stability
+## Performance
 
 Most libraries return dot products in the __same type as the input__ — Float16 × Float16 → Float16, Int8 × Int8 → Int8.
 This leads to quiet overflow: a 2048-dimensional `i8` dot product can reach ±10 million, but `i8` maxes out at 127.
@@ -55,25 +58,25 @@ The library ships as a relatively small binary:
 | mathjs           |   9 MB | No SIMD, No Threads, Many Allocs                  | JS                |
 | NumKong          |   5 MB | Vector & Tile SIMD, Your Threads, Your Allocs     | 7 languages       |
 
-Every kernel is validated against 118-bit extended-precision baselines with per-type ULP budgets across log-normal, uniform, and Cauchy input distributions.
+Every kernel is validated against exact integer or widened floating-point baselines, up to 118-bit double-double, with per-type ULP budgets across log-normal, uniform, and Cauchy input distributions.
 Tests check triangle inequality, Cauchy-Schwarz bounds, NaN propagation, overflow detection, and probability-simplex constraints for each ISA variant.
 Results are cross-validated against OpenBLAS, Intel MKL, and Apple Accelerate.
 A broader throughput comparison is maintained in [NumWars](https://github.com/ashvardanian/NumWars).
 
-## Quick Start
+## Quickstart
 
-| Language | Install                    | Compatible with                | Guide                                        |
-| :------- | :------------------------- | :----------------------------- | :------------------------------------------- |
-| C / C++  | CMake, headers, & prebuilt | Linux, macOS, Windows, Android | [c/README.md](c/README.md)                   |
-| Python   | `pip install`              | Linux, macOS, Windows          | [python/README.md](python/README.md)         |
-| Rust     | `cargo add`                | Linux, macOS, Windows          | [rust/README.md](rust/README.md)             |
-| JS       | `npm install` & `import`   | Node.js, Bun, Deno & browsers  | [javascript/README.md](javascript/README.md) |
-| Swift    | Swift Package Manager      | Apple platforms & Linux        | [swift/README.md](swift/README.md)           |
-| Go       | `go get`                   | Linux, macOS, Windows via cGo  | [golang/README.md](golang/README.md)         |
+| Language | Install                    | Compatible with                | Guide                                                                                          |
+| :------- | :------------------------- | :----------------------------- | :--------------------------------------------------------------------------------------------- |
+| C / C++  | CMake, headers, & prebuilt | Linux, macOS, Windows, Android | [c/README.md](https://github.com/ashvardanian/NumKong/blob/main/c/README.md)                   |
+| Python   | `pip install`              | Linux, macOS, Windows          | [python/README.md](https://github.com/ashvardanian/NumKong/blob/main/python/README.md)         |
+| Rust     | `cargo add`                | Linux, macOS, Windows          | [rust/README.md](https://github.com/ashvardanian/NumKong/blob/main/rust/README.md)             |
+| JS       | `npm install` & `import`   | Node.js, Bun, Deno & browsers  | [javascript/README.md](https://github.com/ashvardanian/NumKong/blob/main/javascript/README.md) |
+| Swift    | Swift Package Manager      | Apple platforms & Linux        | [swift/README.md](https://github.com/ashvardanian/NumKong/blob/main/swift/README.md)           |
+| Go       | `go get`                   | Linux, macOS, Windows via cGo  | [golang/README.md](https://github.com/ashvardanian/NumKong/blob/main/golang/README.md)         |
 
 ## What's Inside
 
-NumKong covers 18 numeric types — from 4-bit floats to 128-bit complex numbers — across dozens of operations, 30+ SIMD backends, and NVIDIA, AMD, & Apple GPUs, with hardware-aware defaults: Arm prioritizes `f16`, x86 prioritizes `bf16`.
+NumKong covers numeric types — from 4-bit floats to 128-bit complex numbers — across dozens of operations, 30+ SIMD backends, and NVIDIA, AMD, & Apple GPUs, with hardware-aware defaults: Arm prioritizes `f16`, x86 prioritizes `bf16`.
 
 ### Language Bindings
 
@@ -100,29 +103,29 @@ NumKong covers 18 numeric types — from 4-bit floats to 128-bit complex numbers
 | [Each]                      |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
 | [Trigonometry]              |         ●          |      ●       |     ●      |        ·         |       ·        |      ·       |
 
-[Dot]: include/numkong/dot/README.md
-[Dots]: include/numkong/dots/README.md
-[Spatial]: include/numkong/spatial/README.md
-[Spatials]: include/numkong/spatials/README.md
-[Set]: include/numkong/set/README.md
-[Sets]: include/numkong/sets/README.md
-[Cast]: include/numkong/cast/README.md
-[Reduce]: include/numkong/reduce/README.md
-[Trigonometry]: include/numkong/trigonometry/README.md
-[MaxSim]: include/numkong/maxsim/README.md
-[Attention]: include/numkong/attention/README.md
-[Shapes]: include/numkong/shapes/README.md
-[Each]: include/numkong/each/README.md
-[Sparse]: include/numkong/sparse/README.md
-[Probability]: include/numkong/probability/README.md
-[Curved]: include/numkong/curved/README.md
-[Geo]: include/numkong/geospatial/README.md
-[c]: c/README.md
-[py]: python/README.md
-[js]: javascript/README.md
-[rs]: rust/README.md
-[swift]: swift/README.md
-[go]: golang/README.md
+[Dot]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/dot/README.md
+[Dots]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/dots/README.md
+[Spatial]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/spatial/README.md
+[Spatials]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/spatials/README.md
+[Set]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/set/README.md
+[Sets]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/sets/README.md
+[Cast]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/cast/README.md
+[Reduce]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/reduce/README.md
+[Trigonometry]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/trigonometry/README.md
+[MaxSim]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/maxsim/README.md
+[Attention]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/attention/README.md
+[Shapes]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/shapes/README.md
+[Each]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/each/README.md
+[Sparse]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/sparse/README.md
+[Probability]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/probability/README.md
+[Curved]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/curved/README.md
+[Geo]: https://github.com/ashvardanian/NumKong/blob/main/include/numkong/geospatial/README.md
+[c]: https://github.com/ashvardanian/NumKong/blob/main/c/README.md
+[py]: https://github.com/ashvardanian/NumKong/blob/main/python/README.md
+[js]: https://github.com/ashvardanian/NumKong/blob/main/javascript/README.md
+[rs]: https://github.com/ashvardanian/NumKong/blob/main/rust/README.md
+[swift]: https://github.com/ashvardanian/NumKong/blob/main/swift/README.md
+[go]: https://github.com/ashvardanian/NumKong/blob/main/golang/README.md
 
 ## Design Decisions
 
@@ -262,7 +265,7 @@ right_packed = nk.dots_pack(right_matrix, dtype=nk.float16)                     
 for query_batch in stream: results = nk.dots_packed(query_batch, right_packed)    # reuse many times
 ```
 
-### Why Not Just GEMM? The Evolution of Matrix Multiplication APIs
+### Why Not GEMM
 
 The classic BLAS GEMM computes $C = \alpha A B + \beta C$ for Float32/Float64 matrices.
 It covers many use cases, but LLM inference, vector search, and quantum simulation expose three ways in which the traditional interface falls short.
@@ -297,7 +300,7 @@ NumKong implements several GEMM-shaped operations where the "epilogue" is too co
 
 NumKong treats these as first-class operations — `dots_packed`, `euclideans_packed`, `angulars_packed`, typed `nk_bilinear_*` kernels, and typed `nk_maxsim_packed_*` kernels — rather than decomposing everything into GEMM + postprocessing.
 
-### Precision by Design: Saturation, Rounding, & Float6 Over Float8
+### Precision by Design
 
 Floating-point arithmetic on computers [is not associative](https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html): $(a + b) + c \neq a + (b + c)$ in general, and upcasting to wider types is not always sufficient.
 NumKong makes operation-specific decisions about where to spend precision and where to economize, rather than applying one rule uniformly.
@@ -318,9 +321,9 @@ NumKong selects the iteration count per platform so the final ULP bound is consi
 __E2M3 and E3M2 can outperform E4M3 and E5M2.__
 6-bit [MX formats](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf) can be scaled to exact integers, enabling integer accumulation that avoids E5M2's catastrophic cancellation risk.
 This works because E2M3's narrower exponent range means every representable value maps to an integer after a fixed shift — no rounding, no cancellation.
-See [Mini-Floats](#mini-floats-e4m3-e5m2-e3m2-e2m3--e2m1) for a worked example.
+See [Mini-Floats](#mini-floats) for a worked example.
 
-Every such decision — saturation thresholds, Newton-Raphson iteration counts, integer vs floating-point paths — is documented per operation and per type in the [module-specific READMEs](include/numkong/).
+Every such decision — saturation thresholds, Newton-Raphson iteration counts, integer vs floating-point paths — is documented per operation and per type in the [module-specific READMEs](https://github.com/ashvardanian/NumKong/tree/main/include/numkong).
 
 ### Calling Convention & Error Handling
 
@@ -369,7 +372,7 @@ Narrowing the mask narrows the choice: `cpu & ~nk_cap_sapphireamx_k` skips AMX, 
 Header-only builds, with `NUMKONG_HEADER_ONLY=1`, inline the capability kernels their compiler flags enable, and their dispatch points report `nk_missing_library_k`.
 Library builds, the default, compile every capability the toolchain builds into one binary and export the dispatch points, so a single binary runs everywhere — the model of DBMS products (ClickHouse), web browsers (Chromium), and other projects that ship to heterogeneous fleets.
 A compile probe per capability, `probes/<capability>.c`, decides what the toolchain builds, and `-D NUMKONG_TARGET_<CAPABILITY>=0` leaves a capability out.
-Distributed artifacts (Rust crate, Python wheels, JS native modules, shared libs from the default CMake build) pin the translation-unit baseline to each architecture's ABI floor so the library runs on any CPU matching the ABI, not just the build host — see [CONTRIBUTING.md](CONTRIBUTING.md#target-baseline-policy) for the per-arch table and the `NUMKONG_MARCH` override used for host-tuned local builds.
+Distributed artifacts (Rust crate, Python wheels, JS native modules, shared libs from the default CMake build) pin the translation-unit baseline to each architecture's ABI floor so the library runs on any CPU matching the ABI, not just the build host — see [CONTRIBUTING.md](https://github.com/ashvardanian/NumKong/blob/main/CONTRIBUTING.md#target-baseline-policy) for the per-arch table and the `NUMKONG_MARCH` override used for host-tuned local builds.
 
 To resolve a kernel once and call it many times, library builds provide `nk_find_kernel_punned` over a kernel kind, an input type, and a mask:
 
@@ -391,7 +394,7 @@ __Float64__ — Kernels that read and write Float64 use __compensated summation_
 On serial paths, we use __[Neumaier's algorithm](https://en.wikipedia.org/wiki/Kahan_summation_algorithm#Further_enhancements)__ (1974), an improvement over Kahan-Babuška that correctly handles cases where added terms are larger than the running sum, achieving $O(1)$ error growth instead of $O(n)$.
 On SIMD paths with FMA support, we implement the __Dot2 algorithm__ (Ogita-Rump-Oishi, 2005), maintaining separate error compensators for both multiplication and accumulation via `TwoProd` and `TwoSum` operations.
 The same compensated accumulation strategy applies to Mahalanobis distance, bilinear forms, and KL/JS divergences.
-The accuracy differences are visible in the [benchmark tables above](#latency-throughput--numerical-stability) — compensated Float64 suits scientific computing where numerical stability matters more than raw speed.
+The accuracy differences are visible in the [benchmark tables above](#performance) — compensated Float64 suits scientific computing where numerical stability matters more than raw speed.
 
 __Float32__ — SIMD implementations load Float32 values, upcast to Float64 for full-precision multiplication and accumulation, then downcast only during finalization.
 This avoids catastrophic cancellation at minimal cost since modern CPUs have dedicated Float64 vector units operating at nearly the same throughput as Float32.
@@ -446,7 +449,7 @@ On Arm, ARMv8.4-A adds __FMLAL/FMLAL2__ instructions for fused Float16 → Float
 > The table above covers only vector dot-product paths - GEMMs also leverage Arm SME and Intel AMX instructions.
 > Beyond x86, Arm, and RISC-V, NumKong also ships LoongArch and PowerPC backends, and two WebAssembly capabilities — strict SIMD128 as `v128` and Relaxed SIMD as `v128relaxed` — all excluded from the table.
 
-### Mini-Floats: E4M3, E5M2, E3M2, E2M3, & E2M1
+### Mini-Floats
 
 | Format       |  Bits |  Range | NumKong Promotion Rules               | Support in GPUs   |
 | :----------- | ----: | -----: | ------------------------------------- | ----------------- |
@@ -455,8 +458,8 @@ On Arm, ARMv8.4-A adds __FMLAL/FMLAL2__ instructions for fused Float16 → Float
 | E3M2FN       | 6 → 8 |    ±28 | B- & Float16 → Float32, Int16 → Int32 | only block-scaled |
 | E2M3FN       | 6 → 8 |   ±7.5 | B- & Float16 → Float32, Int8 → Int32  | only block-scaled |
 | E2M1FN       |     4 |     ±6 | Int8 → Int32                          | only block-scaled |
-| Scaled NVFP4 |     4 |     ±6 | cast only                             | B200+             |
-| Scaled MXFP4 |     4 |     ±6 | cast only                             | B200+, MI325+     |
+| Scaled NVFP4 |     4 |     ±6 | Float32 per block, scaled             | B200+             |
+| Scaled MXFP4 |     4 |     ±6 | Float32 per block, scaled             | B200+, MI325+     |
 
 > __Block scaling.__
 > NumKong's kernels treat each element independently, so E2M1, E3M2, and E2M3 inputs carry no block scale into dot products or distances.
@@ -603,15 +606,16 @@ If NumKong helps your research or product, please cite it:
 ```bibtex
 @software{Vardanian_NumKong,
   author = {Vardanian, Ash},
-  title = {{NumKong: Portable mixed-precision math, linear-algebra, \& retrieval library with 2000+ SIMD kernels for x86, Arm, RISC-V, LoongArch, Power, \& WebAssembly}},
+  title = {{NumKong: Mixed-Precision Kernels for SIMD and Matrix Units, from 4-Bit Integers to 128-Bit Complex Numbers}},
   doi = {10.5281/zenodo.21480519},
   url = {https://github.com/ashvardanian/NumKong},
   license = {Apache-2.0}
 }
 ```
 
-A machine-readable [`CITATION.cff`](CITATION.cff) is provided at the repository root.
+A machine-readable [`CITATION.cff`](https://github.com/ashvardanian/NumKong/blob/main/CITATION.cff) is provided at the repository root.
 
 ## License
 
-Feel free to use the project under Apache 2.0 or the Three-clause BSD license at your preference.
+Licensed under the Apache License, Version 2.0.
+See `LICENSE` for details.

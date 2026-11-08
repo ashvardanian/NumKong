@@ -1218,7 +1218,7 @@ PyObject *api_angulars_symmetric( //
 }
 
 char const doc_euclideans_symmetric[] =                                                                  //
-    "euclideans_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None, rows_end=None,\n"        //
+    "euclideans_symmetric(vectors, /, *, dtype=None, out=None, rows_begin=None, rows_end=None, "         //
     "threads=1) -> Tensor\n\n"                                                                           //
     "Compute the symmetric all-pairs Euclidean-distance matrix. Only the upper triangle of the output\n" //
     "is guaranteed to be initialized.\n\n"                                                               //

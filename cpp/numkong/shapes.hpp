@@ -1346,10 +1346,21 @@ status_t hausdorffs_packed(void const *const *a_packed, std::size_t rows, void c
 }
 
 /**
- *  @brief Chamfer distances between every row pack and every column pack, the best of 8 axis flips,
- *      taking what @c hausdorffs_packed takes and the workspace.
+ *  @brief Chamfer distances between every row pack and every column pack, the best of 8 axis flips.
+ *  @param[in] a_packed The row packs, one per row cloud.
+ *  @param[in] rows Number of row packs.
+ *  @param[in] b_packed The column packs, one per column cloud.
+ *  @param[in] columns Number of column packs.
+ *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
+ *  @param[in] results_stride Bytes between the rows of @p results.
+ *  @param[out] rotations Null, or the @b [rows,columns,3,3] rotations taking each column cloud onto
+ *      each row cloud through the centroids.
+ *  @param[in] limit Distances up to it are exact; past it, a pair may stop early and report a lower
+ *      bound that also lies past it, with that bound's flip in @p rotations. Infinity scores all.
  *  @param[in,out] workspace Scratch of @p workspace_bytes, as @c chamfers_workspace_size reports.
  *  @param[in] workspace_bytes The bytes of @p workspace.
+ *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  */
 template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t,
           typename rotation_type_ = f32_t>

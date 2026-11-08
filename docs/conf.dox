@@ -1,6 +1,7 @@
 PROJECT_NAME           = NumKong
 OUTPUT_DIRECTORY       = ../build/
 INPUT                  = ../c/numkong ../include/numkong ../cpp/numkong
+STRIP_FROM_PATH        = ..
 RECURSIVE              = YES
 FILE_PATTERNS          = *.h *.hpp
 EXTENSION_MAPPING      = cuh=C++
@@ -21,7 +22,9 @@ EXCLUDE_SYMBOLS        = *_ nk_cast_serial nk_f32_fma_serial nk_f32_rsqrt_serial
                          nk_shapes_*_serial nk_sparse_*_serial nk_sqeuclidean_*_serial \
                          nk_sqeuclideans3d_*_serial nk_terrain_*_serial nk_trig_*_serial nk_u16_*_serial \
                          nk_u32_*_serial nk_u4x2_*_serial nk_u64_*_serial nk_u8_*_serial nk_vdot_*_serial \
-                         nk_vincentys_*_serial nk_wassersteinprocrustes_*_serial
+                         nk_vincentys_*_serial nk_wassersteinprocrustes_*_serial \
+                         nk_*_to_f32x32_serial nk_f32x32_to_*_serial \
+                         type_for sub_byte_ref numeric_limits raw_pod_type is_memset_zero_safe* fdsa
 ENABLE_PREPROCESSING   = YES
 MACRO_EXPANSION        = YES
 EXPAND_ONLY_PREDEF     = YES
@@ -53,6 +56,8 @@ EXTRACT_STATIC         = YES
 GENERATE_HTML          = NO
 GENERATE_LATEX         = NO
 GENERATE_XML           = YES
+XML_PROGRAMLISTING     = NO
+INPUT_FILTER           = "sed -E 's/^( [*]  )@(author|date) .*/\1/'"
 HAVE_DOT               = NO
 QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = NO

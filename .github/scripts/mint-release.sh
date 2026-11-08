@@ -7,7 +7,8 @@
 set -euo pipefail
 version=$1 core=${1%%-*}
 branch=$(git branch --show-current)
-previous=$(git describe --tags --abbrev=0)
+# The first release has no tag before it, so its notes start at the root commit.
+previous=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
 git diff --quiet HEAD || { echo "mint-release: commit or stash your changes first"; exit 1; }
 
 # The Swift binaries `Package.swift` names by checksum are built from this pushed head, stamped with the version
@@ -25,7 +26,6 @@ echo "$version" > VERSION
 perl -pi -e 's/^(version = ")[^"]+/$1$ENV{version}/' Cargo.toml
 perl -pi -e 's/^(  "version": ")[^"]+/$1$ENV{version}/' package.json javascript/@numkong-*/package.json
 perl -pi -e 's/("\@numkong\/[a-z0-9-]+": ")[^"]+/$1$ENV{version}/' package.json
-perl -pi -e 's/^version: .+$/version: $ENV{version}/' CITATION.cff
 perl -pi -e 's/^(#define NUMKONG_VERSION_MAJOR )[0-9]+$/$1$ENV{major}/; s/^(#define NUMKONG_VERSION_MINOR )[0-9]+$/$1$ENV{minor}/; s/^(#define NUMKONG_VERSION_PATCH )[0-9]+$/$1$ENV{patch}/' c/numkong/types.h
 perl -pi -e 's#(releases/download/v)[^"]+#$1$ENV{version}#' Package.swift
 apple=$(sha256sum "$assets"/*/*.xcframework.zip | cut -c -64) portable=$(sha256sum "$assets"/*/*.artifactbundle.zip | cut -c -64)

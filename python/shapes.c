@@ -1020,8 +1020,8 @@ PyObject *api_rmsds_packed(PyObject *self, PyObject *const *args, Py_ssize_t nar
 }
 
 char const doc_hausdorffs_packed[] =                                                      //
-    "hausdorffs_packed(a, b, /, *, rotations=None, limit=None, out=None,\n"               //
-    "    threads=1) -> Tensor\n\n"                                                        //
+    "hausdorffs_packed(a, b, /, *, rotations=None, limit=None, out=None, "                //
+    "threads=1) -> Tensor\n\n"                                                            //
     "Hausdorff distances between every cloud of a and every cloud of b.\n\n"              //
     "Each is max(maxᵢ minⱼ ‖aᵢ − S·bⱼ‖, maxⱼ minᵢ ‖aᵢ − S·bⱼ‖), the best of the 8\n"      //
     "sign flips S of the principal axes, zero between two empty clouds and infinite\n"    //
@@ -1050,8 +1050,8 @@ PyObject *api_hausdorffs_packed(PyObject *self, PyObject *const *args, Py_ssize_
 }
 
 char const doc_chamfers_packed[] =                                                        //
-    "chamfers_packed(a, b, /, *, rotations=None, limit=None, workspace=None, out=None,\n" //
-    "                threads=1) -> Tensor\n\n"                                            //
+    "chamfers_packed(a, b, /, *, rotations=None, limit=None, workspace=None, out=None, "  //
+    "threads=1) -> Tensor\n\n"                                                            //
     "Chamfer distances between every cloud of a and every cloud of b.\n\n"                //
     "Each is ½ × (meanᵢ minⱼ ‖aᵢ − S·bⱼ‖ + meanⱼ minᵢ ‖aᵢ − S·bⱼ‖), the best of the 8\n"  //
     "sign flips S of the principal axes, with the empty-cloud convention of\n"            //
@@ -1078,8 +1078,8 @@ PyObject *api_chamfers_packed(PyObject *self, PyObject *const *args, Py_ssize_t 
 }
 
 char const doc_wassersteinprocrustes_packed[] =                                            //
-    "wassersteinprocrustes_packed(a, b, /, *, rotations=None, workspace=None,\n"           //
-    "    out=None, threads=1) -> Tensor\n\n"                                               //
+    "wassersteinprocrustes_packed(a, b, /, *, rotations=None, workspace=None, "            //
+    "out=None, threads=1) -> Tensor\n\n"                                                   //
     "Wasserstein-Procrustes distances between every cloud of a and every cloud of b.\n\n"  //
     "Each is the root mean squared distance of the exact optimal transport plan\n"         //
     "between uniform weights, after the rotation or reflection minimizing it,\n"           //
@@ -1109,8 +1109,8 @@ PyObject *api_wassersteinprocrustes_packed(PyObject *self, PyObject *const *args
 }
 
 char const doc_gromovwassersteins_packed[] =                                             //
-    "gromovwassersteins_packed(a, b, /, *, rotations=None, workspace=None,\n"            //
-    "    out=None, threads=1) -> Tensor\n\n"                                             //
+    "gromovwassersteins_packed(a, b, /, *, rotations=None, workspace=None, "             //
+    "out=None, threads=1) -> Tensor\n\n"                                                 //
     "Gromov-Wasserstein distances between every cloud of a and every cloud of b.\n\n"    //
     "Each compares the two clouds' own distance matrices under the best transport\n"     //
     "plan a fixed budget of Frank-Wolfe steps finds from the Wasserstein-Procrustes\n"   //

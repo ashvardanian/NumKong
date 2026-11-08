@@ -11,28 +11,60 @@ import NumKongC
 
 /// A type that can compute SIMD-accelerated dot products with output type widening.
 public protocol NumKongDot {
+    /// The type the dot product is returned in, at least as wide as `Self`.
     associatedtype DotOutput
+    /// Computes the dot product of two vectors.
+    ///
+    /// - Parameters:
+    ///   - a: The first vector.
+    ///   - b: The second vector, as long as `a`.
+    /// - Returns: The dot product, or `nil` if the sequences are empty,
+    ///   differ in length, or the kernel reports an error.
     static func dot<A, B>(_ a: A, _ b: B) -> DotOutput?
     where A: Sequence, B: Sequence, A.Element == Self, B.Element == Self
 }
 
 /// A type that can compute SIMD-accelerated angular distances, also known as cosine distances.
 public protocol NumKongAngular {
+    /// The type the angular distance is returned in.
     associatedtype AngularOutput
+    /// Computes the angular distance between two vectors.
+    ///
+    /// - Parameters:
+    ///   - a: The first vector.
+    ///   - b: The second vector, as long as `a`.
+    /// - Returns: The angular distance, or `nil` if the sequences are empty,
+    ///   differ in length, or the kernel reports an error.
     static func angular<A, B>(_ a: A, _ b: B) -> AngularOutput?
     where A: Sequence, B: Sequence, A.Element == Self, B.Element == Self
 }
 
 /// A type that can compute SIMD-accelerated squared Euclidean distances.
 public protocol NumKongSqEuclidean {
+    /// The type the squared Euclidean distance is returned in.
     associatedtype SqEuclideanOutput
+    /// Computes the squared Euclidean distance between two vectors.
+    ///
+    /// - Parameters:
+    ///   - a: The first vector.
+    ///   - b: The second vector, as long as `a`.
+    /// - Returns: The squared Euclidean distance, or `nil` if the sequences are empty,
+    ///   differ in length, or the kernel reports an error.
     static func sqeuclidean<A, B>(_ a: A, _ b: B) -> SqEuclideanOutput?
     where A: Sequence, B: Sequence, A.Element == Self, B.Element == Self
 }
 
 /// A type that can compute SIMD-accelerated Euclidean distances.
 public protocol NumKongEuclidean {
+    /// The type the Euclidean distance is returned in.
     associatedtype EuclideanOutput
+    /// Computes the Euclidean distance between two vectors.
+    ///
+    /// - Parameters:
+    ///   - a: The first vector.
+    ///   - b: The second vector, as long as `a`.
+    /// - Returns: The Euclidean distance, or `nil` if the sequences are empty,
+    ///   differ in length, or the kernel reports an error.
     static func euclidean<A, B>(_ a: A, _ b: B) -> EuclideanOutput?
     where A: Sequence, B: Sequence, A.Element == Self, B.Element == Self
 }
@@ -776,14 +808,30 @@ extension U1x8: NumKongDot {
 
 /// A type that can compute SIMD-accelerated Hamming distances over bit sets.
 public protocol NumKongHamming {
+    /// The type the Hamming distance is returned in.
     associatedtype HammingOutput
+    /// Computes the Hamming distance between two bit sets.
+    ///
+    /// - Parameters:
+    ///   - a: The first bit set.
+    ///   - b: The second bit set, as long as `a`.
+    /// - Returns: The number of differing bits, or `nil` if the sequences are empty,
+    ///   differ in length, or the kernel reports an error.
     static func hamming<A, B>(_ a: A, _ b: B) -> HammingOutput?
     where A: Sequence, B: Sequence, A.Element == Self, B.Element == Self
 }
 
 /// A type that can compute SIMD-accelerated Jaccard distances over bit sets.
 public protocol NumKongJaccard {
+    /// The type the Jaccard distance is returned in.
     associatedtype JaccardOutput
+    /// Computes the Jaccard distance between two bit sets.
+    ///
+    /// - Parameters:
+    ///   - a: The first bit set.
+    ///   - b: The second bit set, as long as `a`.
+    /// - Returns: The Jaccard distance, or `nil` if the sequences are empty,
+    ///   differ in length, or the kernel reports an error.
     static func jaccard<A, B>(_ a: A, _ b: B) -> JaccardOutput?
     where A: Sequence, B: Sequence, A.Element == Self, B.Element == Self
 }

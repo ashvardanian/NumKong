@@ -62,7 +62,8 @@ function loadNativeAddon(): any {
   return null;
 }
 
-let addon: any = loadNativeAddon();
+/** The compiled module, typing the casts `types.ts` installs and leaving the kernels open. */
+let addon: Parameters<typeof setConversionFunctions>[0] & { [member: string]: any } = loadNativeAddon();
 
 if (addon) {
   setConversionFunctions({

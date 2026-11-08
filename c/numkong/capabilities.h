@@ -193,60 +193,156 @@ typedef nk_u64_t nk_capability_t;
 /** Mask representing any capability. */
 #define nk_cap_any_k ((nk_capability_t)NUMKONG_U64_MAX)
 
-/** CPU capabilities, each architecture's in a contiguous run of bits ascending by preference, so
+/*  CPU capabilities, each architecture's in a contiguous run of bits ascending by preference, so
  *  the highest bit a mask shares with a dispatch point's capabilities names the one to run. */
-#define nk_cap_neon_k        ((nk_capability_t)1 << 1)
-#define nk_cap_neonhalf_k    ((nk_capability_t)1 << 2)
-#define nk_cap_neonbfdot_k   ((nk_capability_t)1 << 3)
-#define nk_cap_neonfhm_k     ((nk_capability_t)1 << 4)
-#define nk_cap_neonsdot_k    ((nk_capability_t)1 << 5)
-#define nk_cap_neonfp8_k     ((nk_capability_t)1 << 6)
-#define nk_cap_sve_k         ((nk_capability_t)1 << 7)
-#define nk_cap_svehalf_k     ((nk_capability_t)1 << 8)
-#define nk_cap_svesdot_k     ((nk_capability_t)1 << 9)
-#define nk_cap_svebfdot_k    ((nk_capability_t)1 << 10)
-#define nk_cap_sve2_k        ((nk_capability_t)1 << 11)
-#define nk_cap_sme_k         ((nk_capability_t)1 << 12)
-#define nk_cap_smef64_k      ((nk_capability_t)1 << 13)
-#define nk_cap_smebi32_k     ((nk_capability_t)1 << 14)
-#define nk_cap_haswell_k     ((nk_capability_t)1 << 15)
-#define nk_cap_alder_k       ((nk_capability_t)1 << 16)
-#define nk_cap_sierra_k      ((nk_capability_t)1 << 17)
-#define nk_cap_skylake_k     ((nk_capability_t)1 << 18)
-#define nk_cap_icelake_k     ((nk_capability_t)1 << 19)
-#define nk_cap_genoa_k       ((nk_capability_t)1 << 20)
-#define nk_cap_turin_k       ((nk_capability_t)1 << 21)
-#define nk_cap_sapphire_k    ((nk_capability_t)1 << 22)
-#define nk_cap_diamond_k     ((nk_capability_t)1 << 23)
+
+/** Arm NEON, the AArch64 Advanced SIMD baseline. */
+#define nk_cap_neon_k ((nk_capability_t)1 << 1)
+
+/** NEON with half-precision arithmetic, FEAT_FP16. */
+#define nk_cap_neonhalf_k ((nk_capability_t)1 << 2)
+
+/** NEON with BFloat16 dot products, FEAT_BF16. */
+#define nk_cap_neonbfdot_k ((nk_capability_t)1 << 3)
+
+/** NEON with half-precision multiply-accumulate into single precision, FEAT_FHM. */
+#define nk_cap_neonfhm_k ((nk_capability_t)1 << 4)
+
+/** NEON with 8-bit integer dot products, FEAT_DotProd. */
+#define nk_cap_neonsdot_k ((nk_capability_t)1 << 5)
+
+/** NEON with FP8 dot products, FEAT_FP8DOT4. */
+#define nk_cap_neonfp8_k ((nk_capability_t)1 << 6)
+
+/** Arm Scalable Vector Extension. */
+#define nk_cap_sve_k ((nk_capability_t)1 << 7)
+
+/** SVE with half-precision arithmetic. */
+#define nk_cap_svehalf_k ((nk_capability_t)1 << 8)
+
+/** SVE with 8-bit integer matrix multiplies, FEAT_I8MM. */
+#define nk_cap_svesdot_k ((nk_capability_t)1 << 9)
+
+/** SVE with BFloat16 dot products. */
+#define nk_cap_svebfdot_k ((nk_capability_t)1 << 10)
+
+/** Arm SVE2. */
+#define nk_cap_sve2_k ((nk_capability_t)1 << 11)
+
+/** Arm Scalable Matrix Extension. */
+#define nk_cap_sme_k ((nk_capability_t)1 << 12)
+
+/** SME with double-precision outer products, FEAT_SME_F64F64. */
+#define nk_cap_smef64_k ((nk_capability_t)1 << 13)
+
+/** SME with binary outer products into 32-bit integers, SME_BI32I32. */
+#define nk_cap_smebi32_k ((nk_capability_t)1 << 14)
+
+/** x86 AVX2, FMA, F16C, BMI1 and BMI2, as on Intel Haswell. */
+#define nk_cap_haswell_k ((nk_capability_t)1 << 15)
+
+/** @c nk_cap_haswell_k plus AVX-VNNI, as on Intel Alder Lake. */
+#define nk_cap_alder_k ((nk_capability_t)1 << 16)
+
+/** @c nk_cap_alder_k plus AVX-VNNI-INT8, as on Intel Sierra Forest. */
+#define nk_cap_sierra_k ((nk_capability_t)1 << 17)
+
+/** @c nk_cap_haswell_k plus AVX-512 F, DQ, BW and VL, as on Intel Skylake-X. */
+#define nk_cap_skylake_k ((nk_capability_t)1 << 18)
+
+/** @c nk_cap_skylake_k plus AVX-512 VNNI, IFMA, BITALG, VBMI, VBMI2 and VPOPCNTDQ. */
+#define nk_cap_icelake_k ((nk_capability_t)1 << 19)
+
+/** @c nk_cap_skylake_k plus AVX-512 BF16 and VNNI, as on AMD Genoa. */
+#define nk_cap_genoa_k ((nk_capability_t)1 << 20)
+
+/** @c nk_cap_genoa_k plus AVX-512 VBMI2 and VP2INTERSECT, as on AMD Turin. */
+#define nk_cap_turin_k ((nk_capability_t)1 << 21)
+
+/** @c nk_cap_skylake_k plus AVX-512 FP16, as on Intel Sapphire Rapids. */
+#define nk_cap_sapphire_k ((nk_capability_t)1 << 22)
+
+/** @c nk_cap_sapphire_k plus AVX10.2, as on Intel Diamond Rapids. */
+#define nk_cap_diamond_k ((nk_capability_t)1 << 23)
+
+/** @c nk_cap_sapphire_k and @c nk_cap_genoa_k plus AMX tiles with BF16 and INT8. */
 #define nk_cap_sapphireamx_k ((nk_capability_t)1 << 24)
-#define nk_cap_graniteamx_k  ((nk_capability_t)1 << 25)
-#define nk_cap_diamondamx_k  ((nk_capability_t)1 << 26)
-#define nk_cap_rvv_k         ((nk_capability_t)1 << 27)
-#define nk_cap_rvvbf16_k     ((nk_capability_t)1 << 28)
-#define nk_cap_rvvhalf_k     ((nk_capability_t)1 << 29)
-#define nk_cap_rvvbb_k       ((nk_capability_t)1 << 30)
-#define nk_cap_v128_k        ((nk_capability_t)1 << 31)
+
+/** @c nk_cap_sapphireamx_k plus AMX-FP16, as on Intel Granite Rapids. */
+#define nk_cap_graniteamx_k ((nk_capability_t)1 << 25)
+
+/** @c nk_cap_sapphireamx_k plus AMX-FP8 and AMX-AVX512, as on Intel Diamond Rapids. */
+#define nk_cap_diamondamx_k ((nk_capability_t)1 << 26)
+
+/** RISC-V Vector extension. */
+#define nk_cap_rvv_k ((nk_capability_t)1 << 27)
+
+/** RVV with BFloat16 widening multiply-accumulate, Zvfbfwma. */
+#define nk_cap_rvvbf16_k ((nk_capability_t)1 << 28)
+
+/** RVV with half-precision arithmetic, Zvfh. */
+#define nk_cap_rvvhalf_k ((nk_capability_t)1 << 29)
+
+/** RVV with basic bit manipulation, Zvbb. */
+#define nk_cap_rvvbb_k ((nk_capability_t)1 << 30)
+
+/** WebAssembly 128-bit SIMD. */
+#define nk_cap_v128_k ((nk_capability_t)1 << 31)
+
+/** WebAssembly Relaxed SIMD. */
 #define nk_cap_v128relaxed_k ((nk_capability_t)1 << 32)
-#define nk_cap_powervsx_k    ((nk_capability_t)1 << 33)
+
+/** IBM Power VSX at ISA 3.0, as on POWER9. */
+#define nk_cap_powervsx_k ((nk_capability_t)1 << 33)
+
+/** LoongArch LASX 256-bit SIMD. */
 #define nk_cap_loongsonasx_k ((nk_capability_t)1 << 34)
 
-/** GPU capabilities, as each vendor's <tt>nk_\<vendor\>_capabilities_*</tt> functions report them for one
+/*  GPU capabilities, as each vendor's <tt>nk_\<vendor\>_capabilities_*</tt> functions report them for one
  *  device, grouped by vendor above bit 47 to leave room for more CPU capabilities and more per
  *  vendor. Each vendor's baseline runs on all its devices, as @c serial runs on every CPU. */
-#define nk_cap_cuda_k           ((nk_capability_t)1 << 48)
-#define nk_cap_ampere_k         ((nk_capability_t)1 << 49)
-#define nk_cap_ada_k            ((nk_capability_t)1 << 50)
-#define nk_cap_hopper_k         ((nk_capability_t)1 << 51)
-#define nk_cap_blackwell_k      ((nk_capability_t)1 << 52)
-#define nk_cap_blackwellrtx_k   ((nk_capability_t)1 << 53)
+
+/** NVIDIA baseline, which runs on every CUDA device. */
+#define nk_cap_cuda_k ((nk_capability_t)1 << 48)
+
+/** NVIDIA @c mma.sync tensor cores, as on A100, RTX 30 and every later GPU. */
+#define nk_cap_ampere_k ((nk_capability_t)1 << 49)
+
+/** NVIDIA FP8 @c mma.sync, as on L4, L40S, RTX 40 and every later GPU. */
+#define nk_cap_ada_k ((nk_capability_t)1 << 50)
+
+/** NVIDIA Hopper @c wgmma, as on H100, H200 and GH200. */
+#define nk_cap_hopper_k ((nk_capability_t)1 << 51)
+
+/** NVIDIA datacenter Blackwell @c tcgen05, as on B200, GB200, B300 and GB300. */
+#define nk_cap_blackwell_k ((nk_capability_t)1 << 52)
+
+/** NVIDIA FP6 and FP4 @c mma.sync of compute capability 12.x, as on RTX 50 and DGX Spark. */
+#define nk_cap_blackwellrtx_k ((nk_capability_t)1 << 53)
+
+/** NVIDIA Blackwell Ultra @c tcgen05.ld.red, as on B300 and GB300. */
 #define nk_cap_blackwellultra_k ((nk_capability_t)1 << 54)
-#define nk_cap_rocm_k           ((nk_capability_t)1 << 56)
-#define nk_cap_cdna3_k          ((nk_capability_t)1 << 57)
-#define nk_cap_cdna4_k          ((nk_capability_t)1 << 58)
-#define nk_cap_cdna5_k          ((nk_capability_t)1 << 59)
-#define nk_cap_metal_k          ((nk_capability_t)1 << 60)
-#define nk_cap_apple9_k         ((nk_capability_t)1 << 61)
-#define nk_cap_apple10_k        ((nk_capability_t)1 << 62)
+
+/** AMD baseline, which runs on every ROCm device. */
+#define nk_cap_rocm_k ((nk_capability_t)1 << 56)
+
+/** AMD MFMA over BF16, F16 and I8, as on MI300X, MI300A and MI325X. */
+#define nk_cap_cdna3_k ((nk_capability_t)1 << 57)
+
+/** AMD MFMA over FP8, FP6 and FP4, as on MI350X and MI355X. */
+#define nk_cap_cdna4_k ((nk_capability_t)1 << 58)
+
+/** AMD WMMA over FP8, FP6 and FP4, as on MI450X, MI455X and MI430X. */
+#define nk_cap_cdna5_k ((nk_capability_t)1 << 59)
+
+/** Apple baseline, which runs on every Metal device. */
+#define nk_cap_metal_k ((nk_capability_t)1 << 60)
+
+/** Apple GPU family 9, as on M3 and M4. */
+#define nk_cap_apple9_k ((nk_capability_t)1 << 61)
+
+/** Apple GPU family 10, as on M5. */
+#define nk_cap_apple10_k ((nk_capability_t)1 << 62)
 
 /** Every GPU capability above, which the CPU dispatch never detects, compiles or enables. */
 #define nk_cap_gpus_k                                                                                                \
@@ -1258,14 +1354,14 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
 
 #elif NUMKONG_OS_LINUX_ || NUMKONG_OS_FREEBSD_
 
+    unsigned long const hwcap_cpuid = 1ul << 11; // HWCAP_CPUID: the kernel emulates EL0 reads of the ID registers
 #if NUMKONG_OS_LINUX_
     unsigned long hwcap = getauxval(AT_HWCAP);
 #else
     unsigned long hwcap = 0;
     elf_aux_info(AT_HWCAP, &hwcap, sizeof(hwcap));
 #endif
-    // HWCAP_CPUID, bit 11: the kernel emulates EL0 reads of the ID registers, which trap otherwise.
-    if (!(hwcap & (1UL << 11))) return nk_cpu_capabilities_implied_();
+    if (!(hwcap & hwcap_cpuid)) return nk_cpu_capabilities_implied_();
 
     unsigned long id_aa64isar0_el1 = 0, id_aa64isar1_el1 = 0, id_aa64pfr0_el1 = 0, id_aa64zfr0_el1 = 0,
                   id_aa64fpfr0_el1 = 0;
@@ -1375,29 +1471,36 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
 
 NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) {
 #if NUMKONG_OS_LINUX_
+    unsigned long const hwcap_isa_v = 1ul << ('V' - 'A');   // COMPAT_HWCAP_ISA_V, RVV 1.0
+    long const riscv_hwprobe = 258;                         // __NR_riscv_hwprobe, from Linux 6.4
+    long const hwprobe_extensions_key = 4;                  // RISCV_HWPROBE_KEY_IMA_EXT_0
+    unsigned long long const hwprobe_zvfh = 1ull << 30;     // RISCV_HWPROBE_EXT_ZVFH
+    unsigned long long const hwprobe_zvfbfwma = 1ull << 54; // RISCV_HWPROBE_EXT_ZVFBFWMA
+    unsigned long long const hwprobe_zvbb = 1ull << 17;     // RISCV_HWPROBE_EXT_ZVBB
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
-    if (hwcap & (1UL << 21)) {
+    if (hwcap & hwcap_isa_v) {
         caps |= nk_cap_rvv_k;
         struct {
             long key;
             unsigned long value;
-        } pairs[1] = {{4, 0}};
-        if (syscall(258, pairs, 1, 0, (void *)0, 0) == 0) {
-            if (pairs[0].value & (1ULL << 30)) caps |= nk_cap_rvvhalf_k;
-            if (pairs[0].value & (1ULL << 54)) caps |= nk_cap_rvvbf16_k;
-            if (pairs[0].value & (1ULL << 17)) caps |= nk_cap_rvvbb_k; // Zvbb
+        } pairs[1] = {{hwprobe_extensions_key, 0}};
+        if (syscall(riscv_hwprobe, pairs, 1, 0, (void *)0, 0) == 0) {
+            if (pairs[0].value & hwprobe_zvfh) caps |= nk_cap_rvvhalf_k;
+            if (pairs[0].value & hwprobe_zvfbfwma) caps |= nk_cap_rvvbf16_k;
+            if (pairs[0].value & hwprobe_zvbb) caps |= nk_cap_rvvbb_k;
         }
     }
     return caps;
 #elif NUMKONG_OS_FREEBSD_
+    unsigned long const hwcap_isa_v = 1ul << ('V' - 'A'); // COMPAT_HWCAP_ISA_V, RVV 1.0
     unsigned long hwcap = 0;
     elf_aux_info(AT_HWCAP, &hwcap, sizeof(hwcap));
     nk_capability_t caps = nk_cap_serial_k;
-    if (hwcap & (1UL << 21)) {
+    if (hwcap & hwcap_isa_v) {
         caps |= nk_cap_rvv_k;
-        // FreeBSD lacks the Linux hwprobe syscall (258),
-        // so zvfh/zvfbfwma/zvbb are compile-time only.
+        // FreeBSD lacks the Linux hwprobe syscall, so
+        // zvfh/zvfbfwma/zvbb are compile-time only.
     }
     return caps;
 #else
@@ -1411,10 +1514,10 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) {
 
 NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_loongarch64_(void) {
 #if NUMKONG_OS_LINUX_
+    unsigned long const hwcap_loongarch_lasx = 1ul << 5; // HWCAP_LOONGARCH_LASX, 256-bit SIMD
     unsigned long hwcap = getauxval(AT_HWCAP);
     nk_capability_t caps = nk_cap_serial_k;
-    // LoongArch HWCAP bit 5 = LASX (256-bit SIMD)
-    if (hwcap & (1UL << 5)) caps |= nk_cap_loongsonasx_k;
+    if (hwcap & hwcap_loongarch_lasx) caps |= nk_cap_loongsonasx_k;
     return caps;
 #else
     return nk_cpu_capabilities_implied_();
@@ -1427,11 +1530,12 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_loongarch64_(void) {
 
 NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
 #if NUMKONG_OS_LINUX_
+    unsigned long const hwcap_ppc_vsx = 0x00000080ul;        // PPC_FEATURE_HAS_VSX, in AT_HWCAP
+    unsigned long const hwcap2_ppc_arch_3_00 = 0x00800000ul; // PPC_FEATURE2_ARCH_3_00, in AT_HWCAP2: POWER9
     unsigned long hwcap = getauxval(AT_HWCAP);
     unsigned long hwcap2 = getauxval(AT_HWCAP2);
     nk_capability_t caps = nk_cap_serial_k;
-    // PPC_FEATURE_HAS_VSX = 0x00000080, and PPC_FEATURE2_ARCH_3_00 = 0x00800000 for POWER9
-    if ((hwcap & 0x00000080) && (hwcap2 & 0x00800000)) caps |= nk_cap_powervsx_k;
+    if ((hwcap & hwcap_ppc_vsx) && (hwcap2 & hwcap2_ppc_arch_3_00)) caps |= nk_cap_powervsx_k;
     return caps;
 #else
     return nk_cpu_capabilities_implied_();
@@ -1548,8 +1652,13 @@ NUMKONG_CONSTEXPR nk_capability_t nk_cpu_capabilities_compiled_(void) {
  *  mask while containing no SIMD kernels at all. Dispatch clamps every CPU mask to @b enabled(),
  *  so @b nk_cap_cpus_k runs the best kernel, and a narrower mask narrows dispatch. */
 
+/** Writes the CPU capabilities this machine can execute. */
 NUMKONG_API nk_status_t nk_cpu_capabilities_detected(nk_capability_t *capabilities);
+
+/** Writes the CPU capabilities this binary holds kernels for. */
 NUMKONG_API nk_status_t nk_cpu_capabilities_compiled(nk_capability_t *capabilities);
+
+/** Writes the CPU capabilities dispatch runs within: detected and compiled together. */
 NUMKONG_API nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilities);
 
 /**
