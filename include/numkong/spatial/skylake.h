@@ -109,7 +109,7 @@ NUMKONG_INLINE nk_f64_t nk_angular_normalize_f64_skylake_(nk_f64_t ab, nk_f64_t 
     nk_f64_t a_sqrt = _mm_cvtsd_f64(_mm_unpackhi_pd(sqrts_f64x2, sqrts_f64x2));
     nk_f64_t b_sqrt = _mm_cvtsd_f64(sqrts_f64x2);
     nk_f64_t result = 1 - ab / (a_sqrt * b_sqrt);
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 /** Squared Euclidean distance between two f64 vectors, summed in Dot2. */
@@ -146,8 +146,8 @@ NUMKONG_INLINE void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots
     __m256d const zeros_f64x4 = _mm256_setzero_pd(), ones_f64x4 = _mm256_set1_pd(1.0), dots_f64x4 = dots_vec->ymm_pd;
     __m256d const query_sumsq_f64x4 = _mm256_set1_pd(query_sumsq), target_sumsqs_f64x4 = target_sumsqs_vec->ymm_pd;
     __m256d const norm_f64x4 = _mm256_mul_pd(_mm256_sqrt_pd(query_sumsq_f64x4), _mm256_sqrt_pd(target_sumsqs_f64x4));
-    __m256d angular_f64x4 = _mm256_max_pd(_mm256_sub_pd(ones_f64x4, _mm256_div_pd(dots_f64x4, norm_f64x4)),
-                                          zeros_f64x4);
+    __m256d angular_f64x4 = _mm256_max_pd(zeros_f64x4,
+                                          _mm256_sub_pd(ones_f64x4, _mm256_div_pd(dots_f64x4, norm_f64x4)));
     __mmask8 const query_zero_m8 = _mm256_cmp_pd_mask(query_sumsq_f64x4, zeros_f64x4, _CMP_EQ_OQ);
     __mmask8 const target_zero_m8 = _mm256_cmp_pd_mask(target_sumsqs_f64x4, zeros_f64x4, _CMP_EQ_OQ);
     __mmask8 const unit_m8 = query_zero_m8 | target_zero_m8 | _mm256_cmp_pd_mask(dots_f64x4, zeros_f64x4, _CMP_EQ_OQ);

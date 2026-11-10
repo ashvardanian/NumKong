@@ -174,7 +174,7 @@ nk_jsd_f16_haswell_cycle:
     nk_f32_t log2_normalizer = NUMKONG_F32_LN2_;
     nk_f32_t sum = nk_reduce_add_f32x8_haswell_(sum_f32x8);
     sum *= log2_normalizer / 2;
-    *result = sum > 0 ? _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum))) : 0;
+    *result = sum < 0 ? 0 : _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum)));
     return nk_success_k;
 }
 
@@ -242,7 +242,7 @@ nk_jsd_f32_haswell_cycle:
     if (n) goto nk_jsd_f32_haswell_cycle;
 
     nk_f64_t sum = nk_reduce_add_f64x4_haswell_(_mm256_add_pd(sum_low_f64x4, sum_high_f64x4)) * NUMKONG_F64_LN2_ / 2;
-    *result = sum > 0 ? _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum))) : 0;
+    *result = sum < 0 ? 0 : _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum)));
     return nk_success_k;
 }
 
@@ -276,6 +276,10 @@ nk_kld_f64_haswell_cycle:
     __m256d compensated_f64x4 = _mm256_sub_pd(contribution_f64x4, compensation_f64x4);
     __m256d tentative_f64x4 = _mm256_add_pd(sum_f64x4, compensated_f64x4);
     compensation_f64x4 = _mm256_sub_pd(_mm256_sub_pd(tentative_f64x4, sum_f64x4), compensated_f64x4);
+    // Overflow leaves an infinite compensation, which turns the next corrected term NaN
+    compensation_f64x4 = _mm256_and_pd(
+        compensation_f64x4,
+        _mm256_cmp_pd(_mm256_sub_pd(compensation_f64x4, compensation_f64x4), _mm256_setzero_pd(), _CMP_EQ_OQ));
     sum_f64x4 = tentative_f64x4;
     if (n) goto nk_kld_f64_haswell_cycle;
 
@@ -320,18 +324,26 @@ nk_jsd_f64_haswell_cycle:
     __m256d compensated_a_f64x4 = _mm256_sub_pd(contribution_a_f64x4, compensation_f64x4);
     __m256d tentative_a_f64x4 = _mm256_add_pd(sum_f64x4, compensated_a_f64x4);
     compensation_f64x4 = _mm256_sub_pd(_mm256_sub_pd(tentative_a_f64x4, sum_f64x4), compensated_a_f64x4);
+    // Overflow leaves an infinite compensation, which turns the next corrected term NaN
+    compensation_f64x4 = _mm256_and_pd(
+        compensation_f64x4,
+        _mm256_cmp_pd(_mm256_sub_pd(compensation_f64x4, compensation_f64x4), _mm256_setzero_pd(), _CMP_EQ_OQ));
     sum_f64x4 = tentative_a_f64x4;
     // Kahan compensated summation for contribution b
     __m256d compensated_b_f64x4 = _mm256_sub_pd(contribution_b_f64x4, compensation_f64x4);
     __m256d tentative_b_f64x4 = _mm256_add_pd(sum_f64x4, compensated_b_f64x4);
     compensation_f64x4 = _mm256_sub_pd(_mm256_sub_pd(tentative_b_f64x4, sum_f64x4), compensated_b_f64x4);
+    // Overflow leaves an infinite compensation, which turns the next corrected term NaN
+    compensation_f64x4 = _mm256_and_pd(
+        compensation_f64x4,
+        _mm256_cmp_pd(_mm256_sub_pd(compensation_f64x4, compensation_f64x4), _mm256_setzero_pd(), _CMP_EQ_OQ));
     sum_f64x4 = tentative_b_f64x4;
     if (n) goto nk_jsd_f64_haswell_cycle;
 
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     nk_f64_t sum = nk_reduce_add_f64x4_haswell_(sum_f64x4);
     sum *= log2_normalizer / 2;
-    *result = sum > 0 ? _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum))) : 0;
+    *result = sum < 0 ? 0 : _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum)));
     return nk_success_k;
 }
 

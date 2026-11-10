@@ -188,6 +188,21 @@ error_stats_t test_vincentys(settings_t const &settings, geodesics_packed_kernel
                 stats.accumulate_bounded(f64_t(results[cell]), static_cast<double>(reference[cell]),
                                          stats.term_error_bound * NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
         }
+    // The poles are antipodes, half a meridian apart, which no kernel may zero as coincident.
+    std::vector<f64_t> const north {f64_t(3.14159265358979323846 / 2)}, south {f64_t(-3.14159265358979323846 / 2)},
+        meridian {f64_t(0.0)};
+    nk::vector<f64_t> const north_packed = geodesic_pack(stats, nk_vincentys_pack_size_f64_serial,
+                                                         nk_vincentys_pack_f64_serial, north, meridian);
+    nk::vector<f64_t> const south_packed = geodesic_pack(stats, nk_vincentys_pack_size_f64_serial,
+                                                         nk_vincentys_pack_f64_serial, south, meridian);
+    nk_f64_t pole_to_pole = 0;
+    f64_t expected_pole_to_pole;
+    nk::vincentys<f118_t>(north.data(), meridian.data(), 1, south.data(), meridian.data(), 1, &expected_pole_to_pole,
+                          sizeof(f64_t));
+    if (stats.expect(kernel(north_packed.raw_values_data(), south_packed.raw_values_data(), &pole_to_pole,
+                            sizeof(nk_f64_t), nullptr)))
+        stats.accumulate_bounded(f64_t(pole_to_pole), static_cast<double>(expected_pole_to_pole),
+                                 stats.term_error_bound * NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
     return stats;
 }
 

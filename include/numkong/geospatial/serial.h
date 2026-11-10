@@ -228,7 +228,7 @@ NUMKONG_API nk_status_t nk_sqeuclideans3d_f64_serial(nk_f64_t const *a, nk_size_
                 nk_f64_t const difference = a[row * 3 + axis] - b[column * 3 + axis];
                 nk_dot2_f64_serial_(&sum, &compensation, difference, difference);
             }
-            output[column] = sum + compensation;
+            output[column] = nk_f64_compensated_sum_(sum, compensation);
         }
     }
     return nk_success_k;

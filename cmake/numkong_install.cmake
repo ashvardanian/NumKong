@@ -110,4 +110,27 @@ if (NUMKONG_INSTALL)
                   "${CMAKE_CURRENT_BINARY_DIR}/numkongConfigVersion.cmake"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/numkong
     )
+
+    # A prefix spelled against `${pcfiledir}` follows `cmake --install --prefix`, while absolute dirs stay as given.
+    if (TARGET numkong_shared AND NOT CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+        file(RELATIVE_PATH numkong_pc_relative_prefix_ "${CMAKE_INSTALL_FULL_LIBDIR}/pkgconfig"
+             "${CMAKE_INSTALL_PREFIX}"
+        )
+        string(REGEX REPLACE "/+$" "" numkong_pc_trimmed_prefix_ "${numkong_pc_relative_prefix_}")
+        set(numkong_pc_prefix_ "\${pcfiledir}/${numkong_pc_trimmed_prefix_}")
+
+        if (IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}")
+            set(numkong_pc_libdir_ "${CMAKE_INSTALL_LIBDIR}")
+        else ()
+            set(numkong_pc_libdir_ "\${exec_prefix}/${CMAKE_INSTALL_LIBDIR}")
+        endif ()
+        if (IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}")
+            set(numkong_pc_includedir_ "${CMAKE_INSTALL_INCLUDEDIR}")
+        else ()
+            set(numkong_pc_includedir_ "\${prefix}/${CMAKE_INSTALL_INCLUDEDIR}")
+        endif ()
+
+        configure_file(cmake/numkong.pc.in "${CMAKE_CURRENT_BINARY_DIR}/numkong.pc" @ONLY)
+        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/numkong.pc" DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+    endif ()
 endif ()

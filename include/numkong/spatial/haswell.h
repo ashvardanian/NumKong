@@ -69,7 +69,7 @@ NUMKONG_INLINE void nk_angular_through_f32_from_dot_haswell_(nk_b128_vec_t const
     __m128 const query_sumsq_f32x4 = _mm_set1_ps(query_sumsq), target_sumsqs_f32x4 = target_sumsqs_vec->xmm_ps;
     __m128 const rsqrt_f32x4 = _mm_mul_ps(nk_rsqrt_f32x4_haswell_(query_sumsq_f32x4),
                                           nk_rsqrt_f32x4_haswell_(target_sumsqs_f32x4));
-    __m128 angular_f32x4 = _mm_max_ps(_mm_sub_ps(ones_f32x4, _mm_mul_ps(dots_f32x4, rsqrt_f32x4)), zeros_f32x4);
+    __m128 angular_f32x4 = _mm_max_ps(zeros_f32x4, _mm_sub_ps(ones_f32x4, _mm_mul_ps(dots_f32x4, rsqrt_f32x4)));
     __m128 const unit_f32x4 = _mm_or_ps(
         _mm_cmpeq_ps(dots_f32x4, zeros_f32x4),
         _mm_or_ps(_mm_cmpeq_ps(query_sumsq_f32x4, zeros_f32x4), _mm_cmpeq_ps(target_sumsqs_f32x4, zeros_f32x4)));
@@ -101,8 +101,8 @@ NUMKONG_INLINE void nk_angular_through_f64_from_dot_haswell_(nk_b256_vec_t const
     __m256d const zeros_f64x4 = _mm256_setzero_pd(), ones_f64x4 = _mm256_set1_pd(1.0), dots_f64x4 = dots_vec->ymm_pd;
     __m256d const query_sumsq_f64x4 = _mm256_set1_pd(query_sumsq), target_sumsqs_f64x4 = target_sumsqs_vec->ymm_pd;
     __m256d const norm_f64x4 = _mm256_mul_pd(_mm256_sqrt_pd(query_sumsq_f64x4), _mm256_sqrt_pd(target_sumsqs_f64x4));
-    __m256d angular_f64x4 = _mm256_max_pd(_mm256_sub_pd(ones_f64x4, _mm256_div_pd(dots_f64x4, norm_f64x4)),
-                                          zeros_f64x4);
+    __m256d angular_f64x4 = _mm256_max_pd(zeros_f64x4,
+                                          _mm256_sub_pd(ones_f64x4, _mm256_div_pd(dots_f64x4, norm_f64x4)));
     __m256d const unit_f64x4 = _mm256_or_pd(_mm256_cmp_pd(dots_f64x4, zeros_f64x4, _CMP_EQ_OQ),
                                             _mm256_or_pd(_mm256_cmp_pd(query_sumsq_f64x4, zeros_f64x4, _CMP_EQ_OQ),
                                                          _mm256_cmp_pd(target_sumsqs_f64x4, zeros_f64x4, _CMP_EQ_OQ)));
@@ -246,7 +246,7 @@ NUMKONG_INLINE nk_f64_t nk_angular_normalize_f64_haswell_(nk_f64_t ab, nk_f64_t 
     nk_f64_t a_sqrt = _mm_cvtsd_f64(_mm_unpackhi_pd(sqrts_f64x2, sqrts_f64x2));
     nk_f64_t b_sqrt = _mm_cvtsd_f64(sqrts_f64x2);
     nk_f64_t result = 1 - ab / (a_sqrt * b_sqrt);
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 NUMKONG_INLINE nk_f32_t nk_angular_normalize_f32_haswell_(nk_f32_t ab, nk_f32_t a2, nk_f32_t b2) {
@@ -278,7 +278,7 @@ NUMKONG_INLINE nk_f32_t nk_angular_normalize_f32_haswell_(nk_f32_t ab, nk_f32_t 
 
     // Calculate the angular distance: 1 - dot_product × a2_reciprocal × b2_reciprocal
     nk_f32_t result = 1.0f - ab * a2_reciprocal * b2_reciprocal;
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 #pragma region F16 and BF16 Floats

@@ -181,7 +181,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_smef64( //
     nk_start_sme_streaming_();
     nk_f64_t quadratic = nk_mahalanobis_f32_smef64_streaming_(a, b, c, dimensions);
     nk_stop_sme_streaming_();
-    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(quadratic > 0 ? quadratic : 0)), 0);
+    *result = nk_sqrt_f64_serial_(quadratic);
     return nk_success_k;
 }
 
@@ -248,7 +248,7 @@ NUMKONG_OUTLINED_ void nk_bilinear_f64_smef64_streaming_( //
         nk_dot2_pair_f64_smef64_(&outer_sum, &outer_comp, a[row], inner_high, inner_low);
     }
 
-    *result = outer_sum + outer_comp;
+    *result = nk_f64_compensated_sum_(outer_sum, outer_comp);
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f64_smef64( //
@@ -365,7 +365,7 @@ NUMKONG_OUTLINED_ nk_f64_t nk_mahalanobis_f64_smef64_streaming_( //
         nk_mahalanobis_row_f64_smef64_(a[row], b[row], sum_f64x, compensation_f64x, &outer_sum, &outer_comp);
     }
 
-    return outer_sum + outer_comp;
+    return nk_f64_compensated_sum_(outer_sum, outer_comp);
 }
 
 NUMKONG_API nk_status_t nk_mahalanobis_f64_smef64( //
@@ -375,7 +375,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_smef64( //
     nk_start_sme_streaming_();
     nk_f64_t quadratic = nk_mahalanobis_f64_smef64_streaming_(a, b, c, dimensions);
     nk_stop_sme_streaming_();
-    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(quadratic > 0 ? quadratic : 0)), 0);
+    *result = nk_sqrt_f64_serial_(quadratic);
     return nk_success_k;
 }
 
@@ -526,8 +526,8 @@ NUMKONG_OUTLINED_ void nk_bilinear_f64c_smef64_streaming_( //
         nk_dot2_pair_f64_smef64_(&outer_sum_imag, &outer_comp_imag, a_imag, inner_real_high, inner_real_low);
     }
 
-    results->real = outer_sum_real + outer_comp_real;
-    results->imag = outer_sum_imag + outer_comp_imag;
+    results->real = nk_f64_compensated_sum_(outer_sum_real, outer_comp_real);
+    results->imag = nk_f64_compensated_sum_(outer_sum_imag, outer_comp_imag);
 }
 
 NUMKONG_API nk_status_t nk_bilinear_f64c_smef64( //

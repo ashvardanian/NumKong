@@ -46,7 +46,7 @@ NUMKONG_INLINE nk_f64_t nk_angular_normalize_f64_loongsonasx_(nk_f64_t ab, nk_f6
     if (a2 == 0 && b2 == 0) return 0;
     else if (ab == 0) return 1;
     nk_f64_t result = 1 - ab / (nk_sqrt_f64_loongsonasx_(a2) * nk_sqrt_f64_loongsonasx_(b2));
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 NUMKONG_INLINE nk_f32_t nk_angular_normalize_i32_loongsonasx_(nk_i32_t ab, nk_i32_t a2, nk_i32_t b2) {
@@ -54,7 +54,7 @@ NUMKONG_INLINE nk_f32_t nk_angular_normalize_i32_loongsonasx_(nk_i32_t ab, nk_i3
     else if (ab == 0) return 1;
     nk_f32_t result = 1.0f -
                       (nk_f32_t)ab * nk_rsqrt_f32_loongsonasx_((nk_f32_t)a2) * nk_rsqrt_f32_loongsonasx_((nk_f32_t)b2);
-    return result > 0 ? result : 0;
+    return result < 0 ? 0 : result;
 }
 
 #pragma endregion Angular Normalize Helpers
@@ -82,8 +82,10 @@ NUMKONG_INLINE void nk_angular_through_f32_from_dot_loongsonasx_(nk_b128_vec_t c
     __m128 const dots_f32x4 = dots_vec->xmm_ps, target_sumsqs_f32x4 = target_sumsqs_vec->xmm_ps;
     __m128 const query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_loongsonasx_(query_sumsq);
     __m128 const rsqrt_f32x4 = __lsx_vfmul_s(__lsx_vfrsqrt_s(query_sumsq_f32x4), __lsx_vfrsqrt_s(target_sumsqs_f32x4));
-    __m128 const angular_f32x4 = __lsx_vfmax_s(__lsx_vfsub_s(one_f32x4, __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4)),
-                                               zero_f32x4);
+    __m128 const unclipped_f32x4 = __lsx_vfsub_s(one_f32x4, __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4));
+    // Unlike `__lsx_vfmax_s`, the compare keeps NaN
+    __m128 const angular_f32x4 = (__m128)__lsx_vandn_v(__lsx_vfcmp_clt_s(unclipped_f32x4, zero_f32x4),
+                                                       (__m128i)unclipped_f32x4);
     __m128i const unit_i32x4 = __lsx_vor_v(__lsx_vfcmp_ceq_s(dots_f32x4, zero_f32x4),
                                            __lsx_vor_v(__lsx_vfcmp_ceq_s(query_sumsq_f32x4, zero_f32x4),
                                                        __lsx_vfcmp_ceq_s(target_sumsqs_f32x4, zero_f32x4)));
@@ -130,8 +132,10 @@ NUMKONG_INLINE void nk_angular_through_f64_from_dot_loongsonasx_(nk_b256_vec_t c
     __m256d const query_sumsq_f64x4 = nk_xvfreplgr2vr_d_loongsonasx_(query_sumsq);
     __m256d const norm_f64x4 = __lasx_xvfmul_d(__lasx_xvfsqrt_d(query_sumsq_f64x4),
                                                __lasx_xvfsqrt_d(target_sumsqs_f64x4));
-    __m256d const angular_f64x4 = __lasx_xvfmax_d(__lasx_xvfsub_d(one_f64x4, __lasx_xvfdiv_d(dots_f64x4, norm_f64x4)),
-                                                  zero_f64x4);
+    __m256d const unclipped_f64x4 = __lasx_xvfsub_d(one_f64x4, __lasx_xvfdiv_d(dots_f64x4, norm_f64x4));
+    // Unlike `__lasx_xvfmax_d`, the compare keeps NaN
+    __m256d const angular_f64x4 = (__m256d)__lasx_xvandn_v(__lasx_xvfcmp_clt_d(unclipped_f64x4, zero_f64x4),
+                                                           (__m256i)unclipped_f64x4);
     __m256i const unit_i64x4 = __lasx_xvor_v(__lasx_xvfcmp_ceq_d(dots_f64x4, zero_f64x4),
                                              __lasx_xvor_v(__lasx_xvfcmp_ceq_d(query_sumsq_f64x4, zero_f64x4),
                                                            __lasx_xvfcmp_ceq_d(target_sumsqs_f64x4, zero_f64x4)));
@@ -305,7 +309,7 @@ NUMKONG_API nk_status_t nk_euclidean_i8_loongsonasx(nk_i8_t const *a, nk_i8_t co
     nk_u32_t distance_sq_u32;
     nk_squared_distance_i8_loongsonasx_(a, b, n, &distance_sq_u32);
     nk_f32_t distance_sq = (nk_f32_t)distance_sq_u32;
-    *result = distance_sq > 0 ? nk_sqrt_f32_loongsonasx_(distance_sq) : 0;
+    *result = distance_sq < 0 ? 0 : nk_sqrt_f32_loongsonasx_(distance_sq);
     return nk_success_k;
 }
 
@@ -389,7 +393,7 @@ NUMKONG_API nk_status_t nk_euclidean_u8_loongsonasx(nk_u8_t const *a, nk_u8_t co
     nk_u32_t distance_sq_u32;
     nk_squared_distance_u8_loongsonasx_(a, b, n, &distance_sq_u32);
     nk_f32_t distance_sq = (nk_f32_t)distance_sq_u32;
-    *result = distance_sq > 0 ? nk_sqrt_f32_loongsonasx_(distance_sq) : 0;
+    *result = distance_sq < 0 ? 0 : nk_sqrt_f32_loongsonasx_(distance_sq);
     return nk_success_k;
 }
 
@@ -537,7 +541,7 @@ NUMKONG_INLINE void nk_squared_distance_f64_loongsonasx_(nk_f64_t const *a, nk_f
     }
     nk_f64_t sum = nk_dot_stable_sum_f64x4_loongsonasx_(sum_f64x4, compensation_f64x4), compensation = 0;
     for (; i < n; ++i) nk_dot2_f64_serial_(&sum, &compensation, a[i] - b[i], a[i] - b[i]);
-    *result = sum + compensation;
+    *result = nk_f64_compensated_sum_(sum, compensation);
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
@@ -591,7 +595,7 @@ NUMKONG_INLINE nk_f32_t nk_angular_normalize_f32_loongsonasx_(nk_f32_t ab, nk_f3
     if (a2 == 0.0f && b2 == 0.0f) return 0.0f;
     else if (ab == 0.0f) return 1.0f;
     nk_f32_t result = 1.0f - ab * nk_rsqrt_f32_loongsonasx_(a2) * nk_rsqrt_f32_loongsonasx_(b2);
-    return result > 0.0f ? result : 0.0f;
+    return result < 0.0f ? 0.0f : result;
 }
 
 /** Horizontal sum of 8 × f32 lanes in a 256-bit LASX register. */
@@ -647,7 +651,7 @@ NUMKONG_API nk_status_t nk_euclidean_bf16_loongsonasx(nk_bf16_t const *a, nk_bf1
                                                       nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_loongsonasx_(a, b, n, result);
-    *result = *result > 0 ? nk_sqrt_f32_loongsonasx_(*result) : 0;
+    *result = *result < 0 ? 0 : nk_sqrt_f32_loongsonasx_(*result);
     return nk_success_k;
 }
 
@@ -722,7 +726,7 @@ NUMKONG_API nk_status_t nk_euclidean_f16_loongsonasx(nk_f16_t const *a, nk_f16_t
                                                      nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_f16_loongsonasx_(a, b, n, result);
-    *result = *result > 0 ? nk_sqrt_f32_loongsonasx_(*result) : 0;
+    *result = *result < 0 ? 0 : nk_sqrt_f32_loongsonasx_(*result);
     return nk_success_k;
 }
 

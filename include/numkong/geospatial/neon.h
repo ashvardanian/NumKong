@@ -243,10 +243,11 @@ NUMKONG_INLINE float64x2_t nk_vincenty_f64x2_neon_(                             
                                                         vmulq_f64(vdivq_f64(series_b_f64x2, four_f64x2),
                                                                   vsubq_f64(cosine_term_f64x2, series_term_f64x2)))));
 
-    // s = b × A × (σ - Δσ), and zero for coincident points
+    // s = b × A × (σ - Δσ), zero where sin σ = 0 and cos σ > 0: coincident points, not antipodes
     float64x2_t distances_f64x2 = vmulq_f64(vmulq_f64(polar_radius_f64x2, series_a_f64x2),
                                             vsubq_f64(angular_distance_f64x2, angular_correction_f64x2));
-    return vbslq_f64(coincident_mask_u64x2, vdupq_n_f64(0.0), distances_f64x2);
+    return vbslq_f64(vandq_u64(coincident_mask_u64x2, vcgtzq_f64(cos_angular_distance_f64x2)), vdupq_n_f64(0.0),
+                     distances_f64x2);
 }
 
 #if NUMKONG_TARGET_NEON

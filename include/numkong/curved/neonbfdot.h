@@ -131,7 +131,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf1
         outer_sum_f32x4 = vfmaq_f32(outer_sum_f32x4, diff_row_f32x4, inner_sum_f32x4);
     }
     nk_f32_t quadratic = vaddvq_f32(outer_sum_f32x4);
-    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(quadratic > 0 ? quadratic : 0)), 0);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(quadratic < 0 ? 0 : quadratic)), 0);
     return nk_success_k;
 }
 

@@ -32,6 +32,8 @@ extern "C" {
 #endif
 
 NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x2_v128_(v128_t sum_f64x2, v128_t compensation_f64x2) {
+    // Zero NaN compensation lanes, which overflow leaves beside infinite sums
+    compensation_f64x2 = wasm_v128_and(compensation_f64x2, wasm_f64x2_eq(compensation_f64x2, compensation_f64x2));
     v128_t tentative_sum_f64x2 = wasm_f64x2_add(sum_f64x2, compensation_f64x2);
     v128_t virtual_addend_f64x2 = wasm_f64x2_sub(tentative_sum_f64x2, sum_f64x2);
     v128_t rounding_error_f64x2 = wasm_f64x2_add(
@@ -44,7 +46,7 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x2_v128_(v128_t sum_f64x2, v128_t c
     nk_f64_t tentative_sum = lower_sum + upper_sum;
     nk_f64_t virtual_addend = tentative_sum - lower_sum;
     nk_f64_t rounding_error = (lower_sum - (tentative_sum - virtual_addend)) + (upper_sum - virtual_addend);
-    return tentative_sum + (lower_error + upper_error + rounding_error);
+    return nk_f64_compensated_sum_(tentative_sum, lower_error + upper_error + rounding_error);
 }
 
 /** Dot2 step, sum += a × b, mirroring @c nk_dot2_f64_serial_. TwoProd uses Veltkamp splitting,

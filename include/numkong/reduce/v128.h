@@ -146,8 +146,10 @@ NUMKONG_INLINE void nk_reduce_moments_contiguous_f64_v128_( //
         sumsq_comp_f64x2 = wasm_f64x2_add(sumsq_comp_f64x2, corr_sq_f64x2);
         sumsq_f64x2 = tentative_sq_f64x2;
     }
-    nk_f64_t sum = nk_reduce_add_f64x2_v128_(wasm_f64x2_add(sum_f64x2, sum_comp_f64x2));
-    nk_f64_t sumsq = nk_reduce_add_f64x2_v128_(wasm_f64x2_add(sumsq_f64x2, sumsq_comp_f64x2));
+    nk_f64_t sum = nk_f64_compensated_sum_(nk_reduce_add_f64x2_v128_(sum_f64x2),
+                                           nk_reduce_add_f64x2_v128_(sum_comp_f64x2));
+    nk_f64_t sumsq = nk_f64_compensated_sum_(nk_reduce_add_f64x2_v128_(sumsq_f64x2),
+                                             nk_reduce_add_f64x2_v128_(sumsq_comp_f64x2));
     for (; index < count; ++index) {
         nk_f64_t value = data[index];
         sum += value;

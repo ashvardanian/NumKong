@@ -267,10 +267,12 @@ NUMKONG_INLINE __m256d nk_vincenty_f64x4_haswell_(                              
                                     _mm256_mul_pd(_mm256_div_pd(series_b_f64x4, four_f64x4),
                                                   _mm256_sub_pd(cosine_term_f64x4, series_term_f64x4)))));
 
-    // s = b × A × (σ - Δσ), and zero for coincident points
+    // s = b × A × (σ - Δσ), zero where sin σ = 0 and cos σ > 0: coincident points, not antipodes
     __m256d distances_f64x4 = _mm256_mul_pd(_mm256_mul_pd(polar_radius_f64x4, series_a_f64x4),
                                             _mm256_sub_pd(angular_distance_f64x4, angular_correction_f64x4));
-    return _mm256_blendv_pd(distances_f64x4, _mm256_setzero_pd(), coincident_mask_f64x4);
+    return _mm256_blendv_pd(distances_f64x4, _mm256_setzero_pd(),
+                            _mm256_and_pd(coincident_mask_f64x4,
+                                          _mm256_cmp_pd(cos_angular_distance_f64x4, _mm256_setzero_pd(), _CMP_GT_OQ)));
 }
 
 #if NUMKONG_TARGET_HASWELL

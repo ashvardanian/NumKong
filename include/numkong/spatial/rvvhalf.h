@@ -111,7 +111,7 @@ NUMKONG_API nk_status_t nk_angular_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16
     else if (dot == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot * nk_rsqrt_f32_rvv_(a_sq) * nk_rsqrt_f32_rvv_(b_sq);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
     return nk_success_k;
 }

@@ -49,6 +49,10 @@ extern "C" {
  */
 NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64m1_rvv_(vfloat64m1_t sum_f64m1, vfloat64m1_t compensation_f64m1) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
+    // Zero NaN compensation lanes, which overflow leaves beside infinite sums
+    compensation_f64m1 = __riscv_vfmerge_vfm_f64m1(
+        compensation_f64m1, 0.0, __riscv_vmfne_vv_f64m1_b64(compensation_f64m1, compensation_f64m1, max_vector_length),
+        max_vector_length);
     // Stage 0: TwoSum merge of sum + compensation
     vfloat64m1_t tentative_sum_f64m1 = __riscv_vfadd_vv_f64m1(sum_f64m1, compensation_f64m1, max_vector_length);
     vfloat64m1_t virtual_addend_f64m1 = __riscv_vfsub_vv_f64m1(tentative_sum_f64m1, sum_f64m1, max_vector_length);
@@ -76,7 +80,8 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64m1_rvv_(vfloat64m1_t sum_f64m1, vfl
             __riscv_vfadd_vv_f64m1(accumulated_error_f64m1, upper_error_f64m1, max_vector_length), rounding_error_f64m1,
             max_vector_length);
     }
-    return __riscv_vfmv_f_s_f64m1_f64(tentative_sum_f64m1) + __riscv_vfmv_f_s_f64m1_f64(accumulated_error_f64m1);
+    return nk_f64_compensated_sum_(__riscv_vfmv_f_s_f64m1_f64(tentative_sum_f64m1),
+                                   __riscv_vfmv_f_s_f64m1_f64(accumulated_error_f64m1));
 }
 
 /** Dot2 step over the first @p vector_length lanes, sum += a × b, mirroring @c nk_dot2_f64_serial_:

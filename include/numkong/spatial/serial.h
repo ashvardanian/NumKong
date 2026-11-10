@@ -74,7 +74,7 @@ extern "C" {
             nk_##output_type##_t unclipped_distance = (nk_##output_type##_t)(                                    \
                 1 - (nk_##output_type##_t)dot_product * compute_rsqrt((nk_##output_type##_t)a_norm_sq) *         \
                         compute_rsqrt((nk_##output_type##_t)b_norm_sq));                                         \
-            *result = unclipped_distance > 0 ? unclipped_distance : 0;                                           \
+            *result = unclipped_distance < 0 ? 0 : unclipped_distance;                                           \
         }                                                                                                        \
         return nk_success_k;                                                                                     \
     }
@@ -105,7 +105,7 @@ NUMKONG_INLINE void nk_sqeuclidean_f64_serial_(nk_f64_t const *a, nk_f64_t const
         nk_f64_t difference = a[i] - b[i];
         nk_dot2_f64_serial_(&sum, &compensation, difference, difference);
     }
-    *result = sum + compensation;
+    *result = nk_f64_compensated_sum_(sum, compensation);
 }
 
 /** Squared Euclidean distance between @p n packed I4 values, exact in I32. */
@@ -165,13 +165,15 @@ NUMKONG_API nk_status_t nk_angular_f64_serial(nk_f64_t const *a, nk_f64_t const 
         nk_dot2_f64_serial_(&a_norm_sq, &a_compensation, a[i], a[i]);
         nk_dot2_f64_serial_(&b_norm_sq, &b_compensation, b[i], b[i]);
     }
-    dot_product += dot_compensation, a_norm_sq += a_compensation, b_norm_sq += b_compensation;
+    dot_product = nk_f64_compensated_sum_(dot_product, dot_compensation);
+    a_norm_sq = nk_f64_compensated_sum_(a_norm_sq, a_compensation);
+    b_norm_sq = nk_f64_compensated_sum_(b_norm_sq, b_compensation);
     if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }
     else if (dot_product == 0) { *result = 1; }
     else {
         nk_f64_t unclipped_distance = 1 -
                                       dot_product * nk_rsqrt_f64_serial_(a_norm_sq) * nk_rsqrt_f64_serial_(b_norm_sq);
-        *result = unclipped_distance > 0 ? unclipped_distance : 0;
+        *result = unclipped_distance < 0 ? 0 : unclipped_distance;
     }
     return nk_success_k;
 }
@@ -250,7 +252,7 @@ NUMKONG_API nk_status_t nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const
     else {
         nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_sum * nk_rsqrt_f32_serial_((nk_f32_t)a_norm_sq) *
                                         nk_rsqrt_f32_serial_((nk_f32_t)b_norm_sq);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
     return nk_success_k;
 }
@@ -291,7 +293,7 @@ NUMKONG_API nk_status_t nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const
     else {
         nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_sum * nk_rsqrt_f32_serial_((nk_f32_t)a_norm_sq) *
                                         nk_rsqrt_f32_serial_((nk_f32_t)b_norm_sq);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
     return nk_success_k;
 }
@@ -333,8 +335,7 @@ NUMKONG_INLINE void nk_euclidean_through_f32_from_dot_serial_(nk_b128_vec_t cons
                                                               nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
         nk_f32_t dist_sq = query_sumsq + target_sumsqs_vec->f32s[i] - 2.0f * dots_vec->f32s[i];
-        // `nk_sqrt_f32_serial_` maps NaN to 0 like any other non-positive input
-        result_vec->f32s[i] = dist_sq != dist_sq ? dist_sq : nk_sqrt_f32_serial_(dist_sq);
+        result_vec->f32s[i] = nk_sqrt_f32_serial_(dist_sq);
     }
 }
 
@@ -359,7 +360,7 @@ NUMKONG_INLINE void nk_euclidean_through_f64_from_dot_serial_(nk_b256_vec_t cons
                                                               nk_b256_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
         nk_f64_t dist_sq = query_sumsq + target_sumsqs_vec->f64s[i] - 2.0 * dots_vec->f64s[i];
-        result_vec->f64s[i] = dist_sq != dist_sq ? dist_sq : nk_sqrt_f64_serial_(dist_sq);
+        result_vec->f64s[i] = nk_sqrt_f64_serial_(dist_sq);
     }
 }
 

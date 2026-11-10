@@ -131,7 +131,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_neon(nk_f64_t const *a, nk_f64_t cons
                             vaddq_f64(inner_sum_f64x2, inner_compensation_f64x2));
     }
     nk_f64_t quadratic = nk_dot_stable_sum_f64x2_neon_(outer_sum_f64x2, outer_compensation_f64x2);
-    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(quadratic > 0 ? quadratic : 0)), 0);
+    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(quadratic < 0 ? 0 : quadratic)), 0);
     return nk_success_k;
 }
 
@@ -203,7 +203,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_neon(nk_f32_t const *a, nk_f32_t cons
         outer_high_f64x2 = vfmaq_n_f64(outer_high_f64x2, inner_high_f64x2, diff_row_f64);
     }
     nk_f64_t quadratic = vaddvq_f64(vaddq_f64(outer_low_f64x2, outer_high_f64x2));
-    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(quadratic > 0 ? quadratic : 0)), 0);
+    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(quadratic < 0 ? 0 : quadratic)), 0);
     return nk_success_k;
 }
 
@@ -345,7 +345,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t cons
         outer_high_f32x4 = vfmaq_f32(outer_high_f32x4, inner_high_f32x4, diff_row_f32x4);
     }
     nk_f32_t quadratic = vaddvq_f32(vaddq_f32(outer_low_f32x4, outer_high_f32x4));
-    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(quadratic > 0 ? quadratic : 0)), 0);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(quadratic < 0 ? 0 : quadratic)), 0);
     return nk_success_k;
 }
 

@@ -164,7 +164,7 @@ nk_jsd_f32_neon_cycle:
 
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     nk_f64_t sum = vaddvq_f64(vaddq_f64(sum_low_f64x2, sum_high_f64x2)) * log2_normalizer / 2.0;
-    *result = sum > 0 ? vget_lane_f64(vsqrt_f64(vdup_n_f64(sum)), 0) : 0;
+    *result = sum < 0 ? 0 : vget_lane_f64(vsqrt_f64(vdup_n_f64(sum)), 0);
     return nk_success_k;
 }
 
@@ -243,7 +243,7 @@ nk_jsd_f64_neon_cycle:
     if (n != 0) goto nk_jsd_f64_neon_cycle;
 
     nk_f64_t sum = vaddvq_f64(vsubq_f64(sum_f64x2, compensation_f64x2)) * NUMKONG_F64_LN2_ / 2.0;
-    *result = sum > 0 ? vget_lane_f64(vsqrt_f64(vdup_n_f64(sum)), 0) : 0;
+    *result = sum < 0 ? 0 : vget_lane_f64(vsqrt_f64(vdup_n_f64(sum)), 0);
     return nk_success_k;
 }
 
@@ -347,7 +347,7 @@ nk_jsd_f16_neon_cycle:
 
     nk_f32_t log2_normalizer = NUMKONG_F32_LN2_;
     nk_f32_t sum = vaddvq_f32(sum_f32x4) * log2_normalizer / 2;
-    *result = sum > 0 ? vget_lane_f32(vsqrt_f32(vdup_n_f32(sum)), 0) : 0;
+    *result = sum < 0 ? 0 : vget_lane_f32(vsqrt_f32(vdup_n_f32(sum)), 0);
     return nk_success_k;
 }
 

@@ -770,8 +770,9 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_SAPPHIRE) || ...
 
 #if !defined(NUMKONG_TARGET_SAPPHIREAMX) || (NUMKONG_TARGET_SAPPHIREAMX && !NUMKONG_ARCH_X8664_)
-#if NUMKONG_ARCH_X8664_ && ((defined(__AMX_TILE__) && defined(__AMX_BF16__) && defined(__AMX_INT8__)) || \
-                            (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944))
+#if NUMKONG_ARCH_X8664_ &&                                                                                   \
+    ((defined(__AMX_TILE__) && defined(__AMX_BF16__) && defined(__AMX_INT8__) && defined(__AVX512FP16__)) || \
+     (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944))
 #define NUMKONG_TARGET_SAPPHIREAMX 1
 #else
 #undef NUMKONG_TARGET_SAPPHIREAMX
@@ -800,8 +801,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_DIAMONDAMX) || ...
 
 #if !defined(NUMKONG_TARGET_TURIN) || (NUMKONG_TARGET_TURIN && !NUMKONG_ARCH_X8664_)
-#if NUMKONG_ARCH_X8664_ && \
-    (defined(__AVX512VP2INTERSECT__) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944))
+#if NUMKONG_ARCH_X8664_ && ((defined(__AVX512VP2INTERSECT__) && defined(__AVX512BF16__)) || \
+                            (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944))
 #define NUMKONG_TARGET_TURIN 1
 #else
 #undef NUMKONG_TARGET_TURIN
@@ -2548,6 +2549,18 @@ NUMKONG_CONSTEXPR nk_f32_t nk_f32_abs_(nk_f32_t x) { return x < 0 ? -x : x; }
 NUMKONG_CONSTEXPR nk_f64_t nk_f64_abs_(nk_f64_t x) { return x < 0 ? -x : x; }
 NUMKONG_CONSTEXPR nk_i64_t nk_i32_abs_(nk_i32_t x) { return x < 0 ? -x : x; }
 NUMKONG_CONSTEXPR nk_u32_t nk_u32_abs_(nk_u32_t x) { return x; }
+
+/** Adds @p compensation to @p sum, or returns @p sum when overflow turned the compensation NaN. */
+NUMKONG_CONSTEXPR nk_f32_t nk_f32_compensated_sum_(nk_f32_t sum, nk_f32_t compensation) NUMKONG_STREAMABLE_ {
+    nk_f32_t total = sum + compensation;
+    return total == total ? total : sum;
+}
+
+/** Adds @p compensation to @p sum, or returns @p sum when overflow turned the compensation NaN. */
+NUMKONG_CONSTEXPR nk_f64_t nk_f64_compensated_sum_(nk_f64_t sum, nk_f64_t compensation) NUMKONG_STREAMABLE_ {
+    nk_f64_t total = sum + compensation;
+    return total == total ? total : sum;
+}
 
 /** Extract low (bits 0-3) unsigned nibble from packed u4x2 byte. */
 NUMKONG_CONSTEXPR nk_u8_t nk_u4x2_low_(nk_u4x2_t byte_val) { return byte_val & 0x0F; }

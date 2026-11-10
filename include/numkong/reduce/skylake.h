@@ -744,8 +744,10 @@ NUMKONG_INLINE void nk_reduce_moments_contiguous_f64_skylake_( //
         sumsq_comp_f64x8 = _mm512_add_pd(sumsq_comp_f64x8, corr_sq_f64x8);
         sumsq_f64x8 = tentative_sq_f64x8;
     }
-    *sum_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sum_f64x8, sum_comp_f64x8));
-    *sumsq_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sumsq_f64x8, sumsq_comp_f64x8));
+    *sum_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sum_f64x8),
+                                       nk_reduce_add_f64x8_skylake_(sum_comp_f64x8));
+    *sumsq_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sumsq_f64x8),
+                                         nk_reduce_add_f64x8_skylake_(sumsq_comp_f64x8));
 }
 
 NUMKONG_INLINE void nk_reduce_moments_strided_f64_skylake_(               //
@@ -798,8 +800,10 @@ NUMKONG_INLINE void nk_reduce_moments_strided_f64_skylake_(               //
         sumsq_comp_f64x8 = _mm512_add_pd(sumsq_comp_f64x8, corr_sq_f64x8);
         sumsq_f64x8 = tentative_sq_f64x8;
     }
-    *sum_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sum_f64x8, sum_comp_f64x8));
-    *sumsq_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sumsq_f64x8, sumsq_comp_f64x8));
+    *sum_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sum_f64x8),
+                                       nk_reduce_add_f64x8_skylake_(sum_comp_f64x8));
+    *sumsq_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sumsq_f64x8),
+                                         nk_reduce_add_f64x8_skylake_(sumsq_comp_f64x8));
 }
 
 NUMKONG_INLINE void nk_reduce_moments_gather_f64_skylake_(       //
@@ -834,8 +838,10 @@ NUMKONG_INLINE void nk_reduce_moments_gather_f64_skylake_(       //
         sumsq_comp_f64x8 = _mm512_add_pd(sumsq_comp_f64x8, corr_sq_f64x8);
         sumsq_f64x8 = tentative_sq_f64x8;
     }
-    *sum_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sum_f64x8, sum_comp_f64x8));
-    *sumsq_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sumsq_f64x8, sumsq_comp_f64x8));
+    *sum_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sum_f64x8),
+                                       nk_reduce_add_f64x8_skylake_(sum_comp_f64x8));
+    *sumsq_ptr = nk_f64_compensated_sum_(nk_reduce_add_f64x8_skylake_(sumsq_f64x8),
+                                         nk_reduce_add_f64x8_skylake_(sumsq_comp_f64x8));
 }
 
 NUMKONG_INLINE void nk_reduce_moments_contiguous_i8_skylake_( //

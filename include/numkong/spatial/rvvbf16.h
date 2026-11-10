@@ -73,8 +73,9 @@ NUMKONG_API nk_status_t nk_euclidean_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk
     nk_assert_(stream == NUMKONG_NULL);
     nk_squared_distance_bf16_rvvbf16_(a_scalars, b_scalars, count_scalars, result);
     // Handle potential negative values from floating point errors
-    *result = *result > 0.0f ? __riscv_vfmv_f_s_f32m1_f32(__riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1(*result, 1), 1))
-                             : 0.0f;
+    *result = *result < 0.0f
+                  ? 0.0f
+                  : __riscv_vfmv_f_s_f32m1_f32(__riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1(*result, 1), 1));
     return nk_success_k;
 }
 
@@ -117,7 +118,7 @@ NUMKONG_API nk_status_t nk_angular_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_b
     else if (dot == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot * nk_rsqrt_f32_rvv_(a_sq) * nk_rsqrt_f32_rvv_(b_sq);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
     return nk_success_k;
 }

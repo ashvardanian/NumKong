@@ -299,7 +299,7 @@ NUMKONG_API nk_status_t nk_dot_f64_serial(nk_f64_t const *a, nk_f64_t const *b, 
     nk_assert_(stream == NUMKONG_NULL);
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) nk_dot2_f64_serial_(&sum, &compensation, a[i], b[i]);
-    *result = sum + compensation;
+    *result = nk_f64_compensated_sum_(sum, compensation);
     return nk_success_k;
 }
 
@@ -315,8 +315,8 @@ NUMKONG_API nk_status_t nk_dot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t c
         nk_dot2_f64_serial_(&sum_imag, &compensation_imag, a_real, b_imag);
         nk_dot2_f64_serial_(&sum_imag, &compensation_imag, a_imag, b_real);
     }
-    result->real = sum_real + compensation_real;
-    result->imag = sum_imag + compensation_imag;
+    result->real = nk_f64_compensated_sum_(sum_real, compensation_real);
+    result->imag = nk_f64_compensated_sum_(sum_imag, compensation_imag);
     return nk_success_k;
 }
 
@@ -332,8 +332,8 @@ NUMKONG_API nk_status_t nk_vdot_f64c_serial(nk_f64c_t const *a_pairs, nk_f64c_t 
         nk_dot2_f64_serial_(&sum_imag, &compensation_imag, a_real, b_imag);
         nk_dot2_f64_serial_(&sum_imag, &compensation_imag, -a_imag, b_real);
     }
-    result->real = sum_real + compensation_real;
-    result->imag = sum_imag + compensation_imag;
+    result->real = nk_f64_compensated_sum_(sum_real, compensation_real);
+    result->imag = nk_f64_compensated_sum_(sum_imag, compensation_imag);
     return nk_success_k;
 }
 

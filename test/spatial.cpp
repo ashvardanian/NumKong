@@ -25,6 +25,14 @@ error_stats_t test_sqeuclidean(settings_t const &settings, typename scalar_type_
     std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
+    if constexpr (std::is_same_v<scalar_t, f64_t> || std::is_same_v<scalar_t, bf16_t>) {
+        std::fill_n(a.raw_values_data(), n, scalar_t(std::is_same_v<scalar_t, f64_t> ? 1e154 : 1e19).raw_);
+        std::fill_n(b.raw_values_data(), n, scalar_t(0.0).raw_);
+        result_t result;
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
+        stats.expect(std::isinf(result.raw_) && result.raw_ > 0, "overflowing squares give +inf");
+    }
+
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
@@ -56,6 +64,15 @@ error_stats_t test_angular(settings_t const &settings, typename scalar_type_::an
     std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
+    if constexpr (std::is_same_v<scalar_t, f32_t> || std::is_same_v<scalar_t, f64_t>) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
+        a.raw_values_data()[0] = std::numeric_limits<raw_t>::quiet_NaN();
+        result_t result;
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
+        stats.expect(std::isnan(result.raw_), "a NaN input gives NaN");
+    }
+
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
@@ -85,6 +102,22 @@ error_stats_t test_euclidean(settings_t const &settings, typename scalar_type_::
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
+
+    if constexpr (std::is_same_v<scalar_t, f64_t> || std::is_same_v<scalar_t, bf16_t>) {
+        std::fill_n(a.raw_values_data(), n, scalar_t(std::is_same_v<scalar_t, f64_t> ? 1e154 : 1e19).raw_);
+        std::fill_n(b.raw_values_data(), n, scalar_t(0.0).raw_);
+        result_t result;
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
+        stats.expect(std::isinf(result.raw_) && result.raw_ > 0, "overflowing squares give +inf");
+    }
+    if constexpr (std::is_same_v<scalar_t, f32_t> || std::is_same_v<scalar_t, f64_t>) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
+        a.raw_values_data()[0] = std::numeric_limits<raw_t>::quiet_NaN();
+        result_t result;
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
+        stats.expect(std::isnan(result.raw_), "a NaN input gives NaN");
+    }
 
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);

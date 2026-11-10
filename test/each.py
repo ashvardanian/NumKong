@@ -878,6 +878,19 @@ def test_scale_identity(capabilities, ndim: int, dtype: str):
         assert abs(result[i] - 7.5) < NUMKONG_ATOL, f"scale(7.5, 1, 0)[{i}] = {result[i]}"
 
 
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("dtype", [pytest.param("float16", id="f16"), pytest.param("float32", id="f32")])
+def test_scale_rejects_mismatched_output_dtype(dtype: str):
+    """nk.scale() refuses an `out` of another dtype before writing a byte of it."""
+    values = np.array([0.0, 0.5, 1.0, 1.5], dtype=dtype)
+    storage = np.full(values.nbytes, 0xA5, dtype=np.uint8)
+
+    with pytest.raises(TypeError, match="out dtype"):
+        nk.scale(values, alpha=2.0, out=storage[: values.size])
+
+    np.testing.assert_array_equal(storage, np.full_like(storage, 0xA5))
+
+
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
 def test_blend_known(capabilities, ndim: int, dtype: str):

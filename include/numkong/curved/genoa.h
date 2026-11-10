@@ -110,7 +110,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t 
     }
 
     nk_f32_t quadratic = _mm512_reduce_add_ps(sum_f32x16);
-    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(quadratic > 0 ? quadratic : 0)));
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(quadratic < 0 ? 0 : quadratic)));
     return nk_success_k;
 }
 

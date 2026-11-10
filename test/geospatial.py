@@ -170,6 +170,15 @@ def test_vincentys_flinders_peak_to_buninyong(capabilities):
 
 
 @requires_numpy
+def test_vincentys_pole_to_pole(capabilities):
+    """The poles are antipodes half a WGS-84 meridian apart, 20,003,931.4586 m, which no kernel may zero."""
+    north = nk.vincentys_pack(np.radians([90.0]), np.zeros(1))
+    south = nk.vincentys_pack(np.radians([-90.0]), np.zeros(1))
+    result = np.asarray(nk.vincentys_packed(north, south, capabilities=capabilities))
+    assert_allclose(result, [[20003931.4586]], atol=1e-3, rtol=0)
+
+
+@requires_numpy
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("dtype", ["int32", "float64"])
 def test_sqeuclideans3d(stats, capabilities, dtype: str, np_rng: np.random.Generator):

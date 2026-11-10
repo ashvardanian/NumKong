@@ -525,7 +525,7 @@ NUMKONG_API nk_status_t nk_angular_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t cons
     else {
         nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_i32 * nk_rsqrt_f32_rvv_((nk_f32_t)a_norm_sq_i32) *
                                         nk_rsqrt_f32_rvv_((nk_f32_t)b_norm_sq_i32);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
     return nk_success_k;
 }
@@ -571,7 +571,7 @@ NUMKONG_API nk_status_t nk_angular_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t cons
     else {
         nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_u32 * nk_rsqrt_f32_rvv_((nk_f32_t)a_norm_sq_u32) *
                                         nk_rsqrt_f32_rvv_((nk_f32_t)b_norm_sq_u32);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
     return nk_success_k;
 }
@@ -614,7 +614,7 @@ NUMKONG_API nk_status_t nk_angular_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t c
     else if (dot_f64 == 0.0) { *result = 1.0; }
     else {
         nk_f64_t unclipped = 1.0 - dot_f64 * nk_rsqrt_f64_rvv_(a_norm_sq_f64) * nk_rsqrt_f64_rvv_(b_norm_sq_f64);
-        *result = unclipped > 0 ? unclipped : 0.0;
+        *result = unclipped < 0 ? 0.0 : unclipped;
     }
     return nk_success_k;
 }
@@ -649,7 +649,7 @@ NUMKONG_API nk_status_t nk_angular_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t c
     else if (dot_f64 == 0.0) { *result = 1.0; }
     else {
         nk_f64_t unclipped = 1.0 - dot_f64 * nk_rsqrt_f64_rvv_(a_norm_sq_f64) * nk_rsqrt_f64_rvv_(b_norm_sq_f64);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
     return nk_success_k;
 }
@@ -710,7 +710,7 @@ NUMKONG_API nk_status_t nk_angular_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t c
     else if (dot_f32 == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot_f32 * nk_rsqrt_f32_rvv_(a_norm_sq_f32) * nk_rsqrt_f32_rvv_(b_norm_sq_f32);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
     return nk_success_k;
 }
@@ -767,7 +767,7 @@ NUMKONG_API nk_status_t nk_angular_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_
     else if (dot_f32 == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot_f32 * nk_rsqrt_f32_rvv_(a_norm_sq_f32) * nk_rsqrt_f32_rvv_(b_norm_sq_f32);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
     return nk_success_k;
 }
@@ -824,7 +824,7 @@ NUMKONG_API nk_status_t nk_angular_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_
     else if (dot_f32 == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot_f32 * nk_rsqrt_f32_rvv_(a_norm_sq_f32) * nk_rsqrt_f32_rvv_(b_norm_sq_f32);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
     return nk_success_k;
 }
@@ -881,7 +881,7 @@ NUMKONG_API nk_status_t nk_angular_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_
     else if (dot_f32 == 0.0f) { *result = 1.0f; }
     else {
         nk_f32_t unclipped = 1.0f - dot_f32 * nk_rsqrt_f32_rvv_(a_norm_sq_f32) * nk_rsqrt_f32_rvv_(b_norm_sq_f32);
-        *result = unclipped > 0.0f ? unclipped : 0.0f;
+        *result = unclipped < 0.0f ? 0.0f : unclipped;
     }
     return nk_success_k;
 }
@@ -986,7 +986,7 @@ NUMKONG_API nk_status_t nk_angular_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t 
     else {
         nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_i32 * nk_rsqrt_f32_rvv_((nk_f32_t)a_norm_sq_u32) *
                                         nk_rsqrt_f32_rvv_((nk_f32_t)b_norm_sq_u32);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
     return nk_success_k;
 }
@@ -1086,7 +1086,7 @@ NUMKONG_API nk_status_t nk_angular_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t 
     else {
         nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_u32 * nk_rsqrt_f32_rvv_((nk_f32_t)a_norm_sq_u32) *
                                         nk_rsqrt_f32_rvv_((nk_f32_t)b_norm_sq_u32);
-        *result = unclipped > 0 ? unclipped : 0;
+        *result = unclipped < 0 ? 0 : unclipped;
     }
     return nk_success_k;
 }

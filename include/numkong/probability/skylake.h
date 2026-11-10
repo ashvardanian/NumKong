@@ -155,7 +155,7 @@ nk_jsd_f32_skylake_cycle:
     if (n) goto nk_jsd_f32_skylake_cycle;
 
     nk_f64_t sum = _mm512_reduce_add_pd(_mm512_add_pd(sum_low_f64x8, sum_high_f64x8)) * NUMKONG_F64_LN2_ / 2.0;
-    *result = sum > 0 ? _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum))) : 0;
+    *result = sum < 0 ? 0 : _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum)));
     return nk_success_k;
 }
 
@@ -187,6 +187,10 @@ nk_kld_f64_skylake_cycle:
     __m512d compensated_f64x8 = _mm512_sub_pd(contribution_f64x8, compensation_f64x8);
     __m512d tentative_f64x8 = _mm512_add_pd(sum_f64x8, compensated_f64x8);
     compensation_f64x8 = _mm512_sub_pd(_mm512_sub_pd(tentative_f64x8, sum_f64x8), compensated_f64x8);
+    // Overflow leaves an infinite compensation, which turns the next corrected term NaN
+    compensation_f64x8 = _mm512_maskz_mov_pd(
+        _mm512_cmp_pd_mask(_mm512_sub_pd(compensation_f64x8, compensation_f64x8), _mm512_setzero_pd(), _CMP_EQ_OQ),
+        compensation_f64x8);
     sum_f64x8 = tentative_f64x8;
     if (n) goto nk_kld_f64_skylake_cycle;
 
@@ -228,18 +232,26 @@ nk_jsd_f64_skylake_cycle:
     __m512d compensated_a_f64x8 = _mm512_sub_pd(contribution_a_f64x8, compensation_f64x8);
     __m512d tentative_a_f64x8 = _mm512_add_pd(sum_f64x8, compensated_a_f64x8);
     compensation_f64x8 = _mm512_sub_pd(_mm512_sub_pd(tentative_a_f64x8, sum_f64x8), compensated_a_f64x8);
+    // Overflow leaves an infinite compensation, which turns the next corrected term NaN
+    compensation_f64x8 = _mm512_maskz_mov_pd(
+        _mm512_cmp_pd_mask(_mm512_sub_pd(compensation_f64x8, compensation_f64x8), _mm512_setzero_pd(), _CMP_EQ_OQ),
+        compensation_f64x8);
     sum_f64x8 = tentative_a_f64x8;
     // Kahan compensated summation for contribution b
     __m512d compensated_b_f64x8 = _mm512_sub_pd(contribution_b_f64x8, compensation_f64x8);
     __m512d tentative_b_f64x8 = _mm512_add_pd(sum_f64x8, compensated_b_f64x8);
     compensation_f64x8 = _mm512_sub_pd(_mm512_sub_pd(tentative_b_f64x8, sum_f64x8), compensated_b_f64x8);
+    // Overflow leaves an infinite compensation, which turns the next corrected term NaN
+    compensation_f64x8 = _mm512_maskz_mov_pd(
+        _mm512_cmp_pd_mask(_mm512_sub_pd(compensation_f64x8, compensation_f64x8), _mm512_setzero_pd(), _CMP_EQ_OQ),
+        compensation_f64x8);
     sum_f64x8 = tentative_b_f64x8;
     if (n) goto nk_jsd_f64_skylake_cycle;
 
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
     nk_f64_t sum = _mm512_reduce_add_pd(_mm512_sub_pd(sum_f64x8, compensation_f64x8));
     sum *= log2_normalizer / 2;
-    *result = sum > 0 ? _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum))) : 0;
+    *result = sum < 0 ? 0 : _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum)));
     return nk_success_k;
 }
 
@@ -308,7 +320,7 @@ nk_jsd_f16_skylake_cycle:
     nk_f32_t log2_normalizer = NUMKONG_F32_LN2_;
     nk_f32_t sum = _mm512_reduce_add_ps(_mm512_add_ps(sum_a_f32x16, sum_b_f32x16));
     sum *= log2_normalizer / 2;
-    *result = sum > 0 ? _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum))) : 0;
+    *result = sum < 0 ? 0 : _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum)));
     return nk_success_k;
 }
 

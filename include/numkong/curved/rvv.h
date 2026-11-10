@@ -81,6 +81,12 @@ NUMKONG_API nk_status_t nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const *b
             compensation_f64m4 = __riscv_vfsub_vv_f64m4_tu(
                 compensation_f64m4, __riscv_vfsub_vv_f64m4(running_sum_f64m4, inner_f64m4, vector_length),
                 corrected_term_f64m4, vector_length);
+            // Overflow leaves an infinite compensation, which turns the next corrected term NaN
+            compensation_f64m4 = __riscv_vfmerge_vfm_f64m4_tu(
+                compensation_f64m4, compensation_f64m4, 0.0,
+                __riscv_vmfne_vf_f64m4_b16(
+                    __riscv_vfsub_vv_f64m4(compensation_f64m4, compensation_f64m4, vector_length), 0.0, vector_length),
+                vector_length);
             inner_f64m4 = running_sum_f64m4;
         }
         vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
@@ -94,7 +100,7 @@ NUMKONG_API nk_status_t nk_bilinear_f64_rvv(nk_f64_t const *a, nk_f64_t const *b
         else outer_compensation += (product_outer - new_sum) + old_sum;
         sum_f64m1 = __riscv_vfmv_v_f_f64m1(new_sum, 1);
     }
-    *result = __riscv_vfmv_f_s_f64m1_f64(sum_f64m1) + outer_compensation;
+    *result = nk_f64_compensated_sum_(__riscv_vfmv_f_s_f64m1_f64(sum_f64m1), outer_compensation);
     return nk_success_k;
 }
 
@@ -184,7 +190,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_rvv(nk_f32_t const *a, nk_f32_t const
         outer_sum += diff_i * inner_value;
     }
     *result = __riscv_vfmv_f_s_f64m1_f64(
-        __riscv_vfsqrt_v_f64m1(__riscv_vfmv_s_f_f64m1(outer_sum > 0 ? outer_sum : 0, 1), 1));
+        __riscv_vfsqrt_v_f64m1(__riscv_vfmv_s_f_f64m1(outer_sum < 0 ? 0 : outer_sum, 1), 1));
     return nk_success_k;
 }
 
@@ -215,6 +221,12 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t const
             compensation_f64m4 = __riscv_vfsub_vv_f64m4_tu(
                 compensation_f64m4, __riscv_vfsub_vv_f64m4(running_sum_f64m4, inner_f64m4, vector_length),
                 corrected_term_f64m4, vector_length);
+            // Overflow leaves an infinite compensation, which turns the next corrected term NaN
+            compensation_f64m4 = __riscv_vfmerge_vfm_f64m4_tu(
+                compensation_f64m4, compensation_f64m4, 0.0,
+                __riscv_vmfne_vf_f64m4_b16(
+                    __riscv_vfsub_vv_f64m4(compensation_f64m4, compensation_f64m4, vector_length), 0.0, vector_length),
+                vector_length);
             inner_f64m4 = running_sum_f64m4;
         }
         vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
@@ -228,9 +240,9 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_rvv(nk_f64_t const *a, nk_f64_t const
         else outer_compensation += (product_outer - new_sum) + old_sum;
         sum_f64m1 = __riscv_vfmv_v_f_f64m1(new_sum, 1);
     }
-    nk_f64_t quadratic = __riscv_vfmv_f_s_f64m1_f64(sum_f64m1) + outer_compensation;
+    nk_f64_t quadratic = nk_f64_compensated_sum_(__riscv_vfmv_f_s_f64m1_f64(sum_f64m1), outer_compensation);
     *result = __riscv_vfmv_f_s_f64m1_f64(
-        __riscv_vfsqrt_v_f64m1(__riscv_vfmv_s_f_f64m1(quadratic > 0 ? quadratic : 0, 1), 1));
+        __riscv_vfsqrt_v_f64m1(__riscv_vfmv_s_f_f64m1(quadratic < 0 ? 0 : quadratic, 1), 1));
     return nk_success_k;
 }
 
@@ -266,7 +278,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f16_rvv(nk_f16_t const *a, nk_f16_t const
     }
     nk_f32_t quadratic_f16 = __riscv_vfmv_f_s_f32m1_f32(sum_f32m1);
     *result = __riscv_vfmv_f_s_f32m1_f32(
-        __riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1(quadratic_f16 > 0 ? quadratic_f16 : 0, 1), 1));
+        __riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1(quadratic_f16 < 0 ? 0 : quadratic_f16, 1), 1));
     return nk_success_k;
 }
 
@@ -302,7 +314,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t co
     }
     nk_f32_t quadratic_bf16 = __riscv_vfmv_f_s_f32m1_f32(sum_f32m1);
     *result = __riscv_vfmv_f_s_f32m1_f32(
-        __riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1(quadratic_bf16 > 0 ? quadratic_bf16 : 0, 1), 1));
+        __riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1(quadratic_bf16 < 0 ? 0 : quadratic_bf16, 1), 1));
     return nk_success_k;
 }
 

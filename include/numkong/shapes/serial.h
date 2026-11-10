@@ -402,7 +402,7 @@ NUMKONG_INLINE nk_f64_t nk_sum_three_products_f64_serial_(nk_f64_t left_0, nk_f6
     nk_dot2_f64_serial_(&sum, &compensation, left_0, right_0);
     nk_dot2_f64_serial_(&sum, &compensation, left_1, right_1);
     nk_dot2_f64_serial_(&sum, &compensation, left_2, right_2);
-    return sum + compensation;
+    return nk_f64_compensated_sum_(sum, compensation);
 }
 
 NUMKONG_INLINE nk_f32_t nk_sum_three_squares_f32_serial_(nk_f32_t value_0, nk_f32_t value_1, nk_f32_t value_2) {
@@ -413,7 +413,7 @@ NUMKONG_INLINE nk_f64_t nk_sum_three_squares_f64_serial_(nk_f64_t value_0, nk_f6
     nk_dot2_f64_serial_(&sum, &compensation, value_0, value_0);
     nk_dot2_f64_serial_(&sum, &compensation, value_1, value_1);
     nk_dot2_f64_serial_(&sum, &compensation, value_2, value_2);
-    return sum + compensation;
+    return nk_f64_compensated_sum_(sum, compensation);
 }
 
 NUMKONG_INLINE void nk_rotation_from_svd_f32_serial_(nk_f32_t const *svd_left, nk_f32_t const *svd_right,
@@ -3107,7 +3107,7 @@ NUMKONG_INLINE nk_f64_t nk_rmsds_pair_f64_serial_(void const *row_packed, void c
                 product = rotation[axis * 3 + column] * b_axes[column * axis_stride + index], residual -= product;
             nk_dot2_f64_serial_(&sum, &compensation, residual, residual);
         }
-    return nk_sqrt_f64_serial_((sum + compensation) / (nk_f64_t)count);
+    return nk_sqrt_f64_serial_(nk_f64_compensated_sum_(sum, compensation) / (nk_f64_t)count);
 }
 
 #if NUMKONG_TARGET_SERIAL

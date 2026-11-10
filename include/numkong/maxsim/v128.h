@@ -110,7 +110,7 @@ NUMKONG_INLINE void nk_maxsim_pack_bf16_v128_( //
                                                         wasm_i32x4_shl(wasm_u32x4_extend_high_u16x8(second_u16x8), 16),
                                                         scale_f32x4, quantized_row + depth_index, sum_i32x4);
         }
-        metadata[vector_index].inverse_norm_f64 = norm_squared > 0.0 ? nk_rsqrt_f64_serial_(norm_squared) : 0.0;
+        metadata[vector_index].inverse_norm_f64 = norm_squared <= 0.0 ? 0.0 : nk_rsqrt_f64_serial_(norm_squared);
         metadata[vector_index].screen_weight_f32 = scale * (nk_f32_t)metadata[vector_index].inverse_norm_f64;
         metadata[vector_index].sum_i8_i32 = nk_reduce_add_i32x4_v128_(sum_i32x4);
     }
@@ -152,7 +152,7 @@ NUMKONG_INLINE void nk_maxsim_pack_f32_v128_( //
                 wasm_v128_load(original_row + depth_index), wasm_v128_load(original_row + depth_index + 4),
                 wasm_v128_load(original_row + depth_index + 8), wasm_v128_load(original_row + depth_index + 12),
                 scale_f32x4, quantized_row + depth_index, sum_i32x4);
-        metadata[vector_index].inverse_norm_f64 = norm_squared > 0.0 ? nk_rsqrt_f64_serial_(norm_squared) : 0.0;
+        metadata[vector_index].inverse_norm_f64 = norm_squared <= 0.0 ? 0.0 : nk_rsqrt_f64_serial_(norm_squared);
         metadata[vector_index].screen_weight_f32 = scale * (nk_f32_t)metadata[vector_index].inverse_norm_f64;
         metadata[vector_index].sum_i8_i32 = nk_reduce_add_i32x4_v128_(sum_i32x4);
     }
@@ -203,7 +203,7 @@ NUMKONG_INLINE void nk_maxsim_pack_f16_v128_( //
                 nk_f16x4_to_f32x4_v128_(third_vec).v128, nk_f16x4_to_f32x4_v128_(fourth_vec).v128, scale_f32x4,
                 quantized_row + depth_index, sum_i32x4);
         }
-        metadata[vector_index].inverse_norm_f64 = norm_squared > 0.0 ? nk_rsqrt_f64_serial_(norm_squared) : 0.0;
+        metadata[vector_index].inverse_norm_f64 = norm_squared <= 0.0 ? 0.0 : nk_rsqrt_f64_serial_(norm_squared);
         metadata[vector_index].screen_weight_f32 = scale * (nk_f32_t)metadata[vector_index].inverse_norm_f64;
         metadata[vector_index].sum_i8_i32 = nk_reduce_add_i32x4_v128_(sum_i32x4);
     }

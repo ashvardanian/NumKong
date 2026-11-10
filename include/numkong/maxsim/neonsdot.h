@@ -97,7 +97,7 @@ NUMKONG_INLINE int8x16_t nk_maxsim_narrow_i32x4x4_neonsdot_(int32x4_t first_i32x
  *  @c nk_maxsim_vector_metadata_serial_ does. */
 NUMKONG_INLINE void nk_maxsim_metadata_neonsdot_(nk_f32_t scale, nk_f64_t sumsq, nk_i32_t codes_sum,
                                                  nk_maxsim_vector_metadata_t *metadata) {
-    metadata->inverse_norm_f64 = sumsq > 0.0 ? nk_rsqrt_f64_serial_(sumsq) : 0.0;
+    metadata->inverse_norm_f64 = sumsq <= 0.0 ? 0.0 : nk_rsqrt_f64_serial_(sumsq);
     metadata->screen_weight_f32 = scale * (nk_f32_t)metadata->inverse_norm_f64;
     metadata->sum_i8_i32 = codes_sum;
 }

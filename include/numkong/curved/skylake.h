@@ -102,7 +102,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_skylake(nk_f32_t const *a, nk_f32_t c
     }
 
     nk_f64_t quadratic = _mm512_reduce_add_pd(sum_f64x8);
-    *result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(quadratic > 0 ? quadratic : 0)));
+    *result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(quadratic < 0 ? 0 : quadratic)));
     return nk_success_k;
 }
 
@@ -235,8 +235,7 @@ NUMKONG_API nk_status_t nk_bilinear_f64_skylake(nk_f64_t const *a, nk_f64_t cons
         }
     }
 
-    // Final: combine sum + compensation before reduce
-    *result = _mm512_reduce_add_pd(_mm512_add_pd(sum_f64x8, compensation_f64x8));
+    *result = nk_f64_compensated_sum_(_mm512_reduce_add_pd(sum_f64x8), _mm512_reduce_add_pd(compensation_f64x8));
     return nk_success_k;
 }
 
@@ -308,9 +307,9 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_skylake(nk_f64_t const *a, nk_f64_t c
         }
     }
 
-    // Final: combine sum + compensation before reduce
-    nk_f64_t quadratic = _mm512_reduce_add_pd(_mm512_add_pd(sum_f64x8, compensation_f64x8));
-    *result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(quadratic > 0 ? quadratic : 0)));
+    nk_f64_t quadratic = nk_f64_compensated_sum_(_mm512_reduce_add_pd(sum_f64x8),
+                                                 _mm512_reduce_add_pd(compensation_f64x8));
+    *result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(quadratic < 0 ? 0 : quadratic)));
     return nk_success_k;
 }
 
@@ -449,9 +448,8 @@ NUMKONG_API nk_status_t nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t c
         }
     }
 
-    // Final: combine sum + compensation
-    results->real = sum_real + compensation_real;
-    results->imag = sum_imag + compensation_imag;
+    results->real = nk_f64_compensated_sum_(sum_real, compensation_real);
+    results->imag = nk_f64_compensated_sum_(sum_imag, compensation_imag);
     return nk_success_k;
 }
 

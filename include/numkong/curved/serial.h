@@ -124,7 +124,7 @@ extern "C" {
             outer_sum += difference_row * inner_sum;                                                           \
         }                                                                                                      \
         nk_##accumulator_type##_t quadratic = outer_sum;                                                       \
-        *result = nk_sqrt_##accumulator_type##_serial_(quadratic > 0 ? quadratic : 0);                         \
+        *result = nk_sqrt_##accumulator_type##_serial_(quadratic);                                             \
         return nk_success_k;                                                                                   \
     }
 
@@ -157,10 +157,10 @@ NUMKONG_API nk_status_t nk_bilinear_f64_serial(nk_f64_t const *a, nk_f64_t const
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f64_t inner_sum = 0, inner_comp = 0;
         for (nk_size_t col = 0; col != n; ++col) nk_dot2_f64_serial_(&inner_sum, &inner_comp, c[row * n + col], b[col]);
-        nk_f64_t cb_j = inner_sum + inner_comp;
+        nk_f64_t cb_j = nk_f64_compensated_sum_(inner_sum, inner_comp);
         nk_dot2_f64_serial_(&outer_sum, &outer_comp, a[row], cb_j);
     }
-    *result = outer_sum + outer_comp;
+    *result = nk_f64_compensated_sum_(outer_sum, outer_comp);
     return nk_success_k;
 }
 
@@ -186,16 +186,16 @@ NUMKONG_API nk_status_t nk_bilinear_f64c_serial(nk_f64c_t const *a_pairs, nk_f64
             nk_dot2_f64_serial_(&sum_ri, &comp_ri, c_real, b_imag);
             nk_dot2_f64_serial_(&sum_ir, &comp_ir, c_imag, b_real);
         }
-        nk_f64_t inner_real = (sum_rr + comp_rr) - (sum_ii + comp_ii);
-        nk_f64_t inner_imag = (sum_ri + comp_ri) + (sum_ir + comp_ir);
+        nk_f64_t inner_real = nk_f64_compensated_sum_(sum_rr, comp_rr) - nk_f64_compensated_sum_(sum_ii, comp_ii);
+        nk_f64_t inner_imag = nk_f64_compensated_sum_(sum_ri, comp_ri) + nk_f64_compensated_sum_(sum_ir, comp_ir);
         // Outer Dot2 complex multiply: a × inner
         nk_dot2_f64_serial_(&outer_sum_real, &outer_comp_real, a_real, inner_real);
         nk_dot2_f64_serial_(&outer_sum_real, &outer_comp_real, -a_imag, inner_imag);
         nk_dot2_f64_serial_(&outer_sum_imag, &outer_comp_imag, a_real, inner_imag);
         nk_dot2_f64_serial_(&outer_sum_imag, &outer_comp_imag, a_imag, inner_real);
     }
-    results->real = outer_sum_real + outer_comp_real;
-    results->imag = outer_sum_imag + outer_comp_imag;
+    results->real = nk_f64_compensated_sum_(outer_sum_real, outer_comp_real);
+    results->imag = nk_f64_compensated_sum_(outer_sum_imag, outer_comp_imag);
     return nk_success_k;
 }
 
@@ -208,11 +208,11 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_serial(nk_f64_t const *a, nk_f64_t co
         nk_f64_t inner_sum = 0, inner_comp = 0;
         for (nk_size_t col = 0; col != n; ++col)
             nk_dot2_f64_serial_(&inner_sum, &inner_comp, c[row * n + col], a[col] - b[col]);
-        nk_f64_t cb_j = inner_sum + inner_comp;
+        nk_f64_t cb_j = nk_f64_compensated_sum_(inner_sum, inner_comp);
         nk_dot2_f64_serial_(&outer_sum, &outer_comp, diff_row, cb_j);
     }
-    nk_f64_t quadratic = outer_sum + outer_comp;
-    *result = nk_sqrt_f64_serial_(quadratic > 0 ? quadratic : 0);
+    nk_f64_t quadratic = nk_f64_compensated_sum_(outer_sum, outer_comp);
+    *result = nk_sqrt_f64_serial_(quadratic);
     return nk_success_k;
 }
 #endif // NUMKONG_TARGET_SERIAL

@@ -64,6 +64,8 @@ extern "C" {
  */
 NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64_sve_(svbool_t predicate_b64x, svfloat64_t sum_f64x,
                                                    svfloat64_t compensation) {
+    // Zero NaN compensation lanes, which overflow leaves beside infinite sums
+    compensation = svsel_f64(svcmpuo_f64(predicate_b64x, compensation, compensation), svdup_n_f64(0.0), compensation);
     // Stage 0: TwoSum merge of sum + compensation (parallel across all active lanes)
     svfloat64_t tentative_sum_f64x = svadd_f64_x(predicate_b64x, sum_f64x, compensation);
     svfloat64_t virtual_addend_f64x = svsub_f64_x(predicate_b64x, tentative_sum_f64x, sum_f64x);
@@ -97,8 +99,8 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64_sve_(svbool_t predicate_b64x, svfl
     }
     // Result is in lane 0
     svbool_t predicate_first_b64x = svwhilelt_b64_u64(0u, 1);
-    return svlastb_f64(predicate_first_b64x, tentative_sum_f64x) +
-           svlastb_f64(predicate_first_b64x, accumulated_error_f64x);
+    return nk_f64_compensated_sum_(svlastb_f64(predicate_first_b64x, tentative_sum_f64x),
+                                   svlastb_f64(predicate_first_b64x, accumulated_error_f64x));
 }
 
 #if NUMKONG_TARGET_SVE

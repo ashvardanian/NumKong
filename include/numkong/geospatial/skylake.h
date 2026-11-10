@@ -268,10 +268,12 @@ NUMKONG_INLINE __m512d nk_vincenty_f64x8_skylake_(                              
                                     _mm512_mul_pd(_mm512_div_pd(series_b_f64x8, four_f64x8),
                                                   _mm512_sub_pd(cosine_term_f64x8, series_term_f64x8)))));
 
-    // s = b × A × (σ - Δσ), and zero for coincident points
+    // s = b × A × (σ - Δσ), zero where sin σ = 0 and cos σ > 0: coincident points, not antipodes
     __m512d distances_f64x8 = _mm512_mul_pd(_mm512_mul_pd(polar_radius_f64x8, series_a_f64x8),
                                             _mm512_sub_pd(angular_distance_f64x8, angular_correction_f64x8));
-    return _mm512_mask_blend_pd(coincident_m8, distances_f64x8, _mm512_setzero_pd());
+    __mmask8 const zeroed_m8 = _mm512_mask_cmp_pd_mask(coincident_m8, cos_angular_distance_f64x8, _mm512_setzero_pd(),
+                                                       _CMP_GT_OQ);
+    return _mm512_mask_blend_pd(zeroed_m8, distances_f64x8, _mm512_setzero_pd());
 }
 
 #if NUMKONG_TARGET_SKYLAKE

@@ -84,7 +84,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_haswell(nk_f64_t const *a, nk_f64_t c
                                _mm256_add_pd(inner_sum_f64x4, inner_compensation_f64x4));
     }
     nk_f64_t quadratic = nk_dot_stable_sum_f64x4_haswell_(outer_sum_f64x4, outer_compensation_f64x4);
-    *result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(quadratic > 0 ? quadratic : 0)));
+    *result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(quadratic < 0 ? 0 : quadratic)));
     return nk_success_k;
 }
 
@@ -158,7 +158,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_haswell(nk_f32_t const *a, nk_f32_t c
         }
     }
 
-    *result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum > 0 ? sum : 0)));
+    *result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum < 0 ? 0 : sum)));
     return nk_success_k;
 }
 
@@ -236,7 +236,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f16_haswell(nk_f16_t const *a, nk_f16_t c
         }
     }
 
-    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum > 0 ? sum : 0)));
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum < 0 ? 0 : sum)));
     return nk_success_k;
 }
 
@@ -322,7 +322,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_haswell(nk_bf16_t const *a, nk_bf16_
         }
     }
 
-    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum > 0 ? sum : 0)));
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum < 0 ? 0 : sum)));
     return nk_success_k;
 }
 

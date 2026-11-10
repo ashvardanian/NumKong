@@ -263,10 +263,12 @@ NUMKONG_INLINE v128_t nk_vincenty_f64x2_v128relaxed_(                           
                                       wasm_f64x2_mul(wasm_f64x2_div(series_b_f64x2, four_f64x2),
                                                      wasm_f64x2_sub(cosine_term_f64x2, series_term_f64x2)))));
 
-    // s = b × A × (σ - Δσ), and zero for coincident points
+    // s = b × A × (σ - Δσ), zero where sin σ = 0 and cos σ > 0: coincident points, not antipodes
     v128_t distances_f64x2 = wasm_f64x2_mul(wasm_f64x2_mul(polar_radius_f64x2, series_a_f64x2),
                                             wasm_f64x2_sub(angular_distance_f64x2, angular_correction_f64x2));
-    return wasm_i64x2_relaxed_laneselect(wasm_f64x2_splat(0.0), distances_f64x2, coincident_mask_i64x2);
+    v128_t zeroed_mask_i64x2 = wasm_v128_and(coincident_mask_i64x2,
+                                             wasm_f64x2_gt(cos_angular_distance_f64x2, zero_f64x2));
+    return wasm_i64x2_relaxed_laneselect(zero_f64x2, distances_f64x2, zeroed_mask_i64x2);
 }
 
 NUMKONG_API nk_status_t nk_sqeuclideans3d_i32_v128relaxed(nk_i32_t const *a, nk_size_t rows, nk_i32_t const *b,

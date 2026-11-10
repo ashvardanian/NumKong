@@ -289,11 +289,13 @@ NUMKONG_INLINE void nk_vincenty_f64_rvv_kernel_(                                
             vector_length),
         vector_length);
 
-    // s = b × A × (σ - Δσ), and zero for coincident points
+    // s = b × A × (σ - Δσ), zero where sin σ = 0 and cos σ > 0: coincident points, not antipodes
     vfloat64m4_t distances_f64m4 = __riscv_vfmul_vv_f64m4(
         __riscv_vfmul_vf_f64m4(series_a_f64m4, polar_radius, vector_length),
         __riscv_vfsub_vv_f64m4(angular_distance_f64m4, angular_correction_f64m4, vector_length), vector_length);
-    distances_f64m4 = __riscv_vfmerge_vfm_f64m4(distances_f64m4, 0.0, coincident_mask_b16, vector_length);
+    vbool16_t const zeroed_mask_b16 = __riscv_vmand_mm_b16(
+        coincident_mask_b16, __riscv_vmfgt_vf_f64m4_b16(cos_angular_distance_f64m4, 0.0, vector_length), vector_length);
+    distances_f64m4 = __riscv_vfmerge_vfm_f64m4(distances_f64m4, 0.0, zeroed_mask_b16, vector_length);
     __riscv_vse64_v_f64m4(results, distances_f64m4, vector_length);
 }
 

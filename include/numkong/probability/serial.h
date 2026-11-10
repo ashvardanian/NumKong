@@ -56,7 +56,7 @@ extern "C" {
             sum += b_value * compute_log(nk_max_of_two(b_value, epsilon) / midpoint_value);                          \
         }                                                                                                            \
         output_type sum_half = ((output_type)sum / 2);                                                               \
-        *result = sum_half > 0 ? compute_sqrt(sum_half) : 0;                                                         \
+        *result = compute_sqrt(sum_half);                                                                            \
         return nk_success_k;                                                                                         \
     }
 
@@ -160,7 +160,7 @@ NUMKONG_API nk_status_t nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, 
                                                                 : ((term - provisional_sum) + sum);
         sum = provisional_sum;
     }
-    *result = sum + compensation;
+    *result = nk_f64_compensated_sum_(sum, compensation);
     return nk_success_k;
 }
 
@@ -183,8 +183,8 @@ NUMKONG_API nk_status_t nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, 
                                                                   : ((term_b - provisional_sum) + sum);
         sum = provisional_sum;
     }
-    nk_f64_t sum_half = (sum + compensation) / 2;
-    *result = sum_half > 0 ? nk_sqrt_f64_serial_(sum_half) : 0;
+    nk_f64_t sum_half = nk_f64_compensated_sum_(sum, compensation) / 2;
+    *result = nk_sqrt_f64_serial_(sum_half);
     return nk_success_k;
 }
 #endif // NUMKONG_TARGET_SERIAL
