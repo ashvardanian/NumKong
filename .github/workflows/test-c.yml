@@ -180,7 +180,7 @@ jobs:
           rustup target add aarch64-linux-android
 
       - name: Build via Cargo
-        run: cargo ndk -t arm64-v8a build --release
+        run: cargo ndk -t arm64-v8a --platform 28 build --release
 
   # 32-bit ARM Android — catches AArch64-only intrinsics leaking into
   # NEON code paths, like float64x2_t which doesn't exist on ARMv7.
@@ -218,7 +218,7 @@ jobs:
           rustup target add armv7-linux-androideabi
 
       - name: Build via Cargo
-        run: cargo ndk -t armeabi-v7a build --release
+        run: cargo ndk -t armeabi-v7a --platform 28 build --release
 
   # 32-bit ARM Linux — validates the same AArch32 code paths as Android ARMv7
   # but with the GNU toolchain instead of the NDK's Clang.
