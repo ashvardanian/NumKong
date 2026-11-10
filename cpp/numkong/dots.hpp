@@ -189,7 +189,7 @@ expected<std::size_t> dots_packed_workspace_size(std::size_t rows, std::size_t c
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
 expected<std::size_t> dots_symmetric_workspace_size(std::size_t vector_count, std::size_t depth,
                                                     std::size_t rows_begin = 0,
-                                                    std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+                                                    std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
                                                     nk_capability_t capabilities = default_capabilities()) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::dot_result_t>;
     if (rows_end > vector_count) rows_end = vector_count;
@@ -360,7 +360,7 @@ status_t dots_packed(operand_pointer<in_type_> a, void const *b_packed, result_t
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
 status_t dots_symmetric(operand_pointer<in_type_> a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
                         result_type_ *c, std::size_t c_stride, std::size_t rows_begin = 0,
-                        std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+                        std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
                         std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                         nk_stream_t stream = nullptr) noexcept {
     if (rows_end > vector_count) rows_end = vector_count;
@@ -457,7 +457,7 @@ expected<std::size_t> hammings_packed_workspace_size(std::size_t rows, std::size
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
 expected<std::size_t> hammings_symmetric_workspace_size(
     std::size_t vector_count, std::size_t depth, std::size_t rows_begin = 0,
-    std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+    std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
     nk_capability_t capabilities = default_capabilities()) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::hamming_result_t>;
     if (rows_end > vector_count) rows_end = vector_count;
@@ -489,7 +489,7 @@ expected<std::size_t> jaccards_packed_workspace_size(std::size_t rows, std::size
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
 expected<std::size_t> jaccards_symmetric_workspace_size(
     std::size_t vector_count, std::size_t depth, std::size_t rows_begin = 0,
-    std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+    std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
     nk_capability_t capabilities = default_capabilities()) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::jaccard_result_t>;
     if (rows_end > vector_count) rows_end = vector_count;
@@ -527,7 +527,7 @@ expected<std::size_t> jaccards_symmetric_workspace_size(
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
 status_t hammings_symmetric(in_type_ const *a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
                             result_type_ *c, std::size_t c_stride, std::size_t rows_begin = 0,
-                            std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+                            std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
                             std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                             nk_stream_t stream = nullptr) noexcept {
     if (rows_end > vector_count) rows_end = vector_count;
@@ -637,7 +637,7 @@ status_t hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
 status_t jaccards_symmetric(in_type_ const *a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
                             result_type_ *c, std::size_t c_stride, std::size_t rows_begin = 0,
-                            std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+                            std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
                             std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                             nk_stream_t stream = nullptr) noexcept {
     if (rows_end > vector_count) rows_end = vector_count;
@@ -734,7 +734,7 @@ namespace ashvardanian::numkong {
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::dot_result_t> output_matrix_>
 status_t dots_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t rows_begin = 0,
-                        std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+                        std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
                         std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                         nk_stream_t stream = nullptr) noexcept {
     std::size_t num_vectors = input.extent(0);
@@ -778,7 +778,7 @@ expected<matrix<typename value_type_::dot_result_t, allocator_type_>> dots_symme
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::hamming_result_t> output_matrix_>
 status_t hammings_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t rows_begin = 0,
-                            std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+                            std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
                             std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                             nk_stream_t stream = nullptr) noexcept {
     std::size_t num_vectors = input.extent(0);
@@ -822,7 +822,7 @@ expected<matrix<typename value_type_::hamming_result_t, allocator_type_>> hammin
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::jaccard_result_t> output_matrix_>
 status_t jaccards_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t rows_begin = 0,
-                            std::size_t rows_end = std::numeric_limits<std::size_t>::max(),
+                            std::size_t rows_end = (std::numeric_limits<std::size_t>::max)(),
                             std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                             nk_stream_t stream = nullptr) noexcept {
     std::size_t num_vectors = input.extent(0);

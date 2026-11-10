@@ -220,8 +220,10 @@ template <typename backend_type_ = host_backend_t>
 error_stats_t test_cast_block_scaled(settings_t const &settings, cast_t kernel) {
     constexpr int pairs_count = 17;
     settings_t pair_settings = settings;
-    pair_settings.time_limit_per_kernel = std::max(settings.time_limit_per_kernel / pairs_count,
-                                                   std::chrono::milliseconds(1));
+    auto const time_limit_per_pair = settings.time_limit_per_kernel / pairs_count;
+    pair_settings.time_limit_per_kernel = time_limit_per_pair < std::chrono::milliseconds(1)
+                                              ? std::chrono::milliseconds(1)
+                                              : time_limit_per_pair;
     error_stats_t stats(comparison_family_t::exact_k);
     auto pair = [&]<typename from_type_, typename to_type_>() {
         static std::string const name = fmt::format("{} → {}", from_type_::dtype_name(), to_type_::dtype_name());

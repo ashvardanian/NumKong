@@ -46,7 +46,7 @@
 #include <cstdlib> // `std::abort`, `std::exit`, `std::getenv`, `std::strtod`
 #include <cstring> // `std::memcpy`, `std::strcmp`
 
-#include <algorithm>    // `std::min`, `std::max`
+#include <algorithm>    // `std::equal`
 #include <array>        // `std::array`
 #include <charconv>     // `std::from_chars`
 #include <chrono>       // `std::chrono::steady_clock`, `std::chrono::milliseconds`
@@ -233,7 +233,7 @@ inline std::optional<bytes_t> parse_size(std::string_view text) noexcept {
     };
     for (std::string_view const known : std::array<std::string_view, 5> {"", "kb", "mb", "gb", "tb"}) {
         if (std::equal(unit.begin(), unit.end(), known.begin(), known.end(), same_letter)) return bytes_t {bytes};
-        if (bytes > std::numeric_limits<std::size_t>::max() / 1024) return std::nullopt;
+        if (bytes > (std::numeric_limits<std::size_t>::max)() / 1024) return std::nullopt;
         bytes *= 1024;
     }
     return std::nullopt;
@@ -566,11 +566,11 @@ inline settings_t read_settings(char const *program) noexcept {
     // Shrink dimensions for QEMU — divides whatever value is currently stored,
     // so explicit env-var overrides are proportionally reduced too.
     if (settings.emulation == emulation_t::emulated_k) {
-        settings.dense_dimensions = std::max<std::size_t>(1, settings.dense_dimensions / 4);
-        settings.matrix_height = std::max<std::size_t>(1, settings.matrix_height / 4);
-        settings.matrix_width = std::max<std::size_t>(1, settings.matrix_width / 4);
-        settings.matrix_depth = std::max<std::size_t>(1, settings.matrix_depth / 4);
-        settings.shape_points = std::max<std::size_t>(1, settings.shape_points / 4);
+        settings.dense_dimensions = nk::max_of<std::size_t>(1, settings.dense_dimensions / 4);
+        settings.matrix_height = nk::max_of<std::size_t>(1, settings.matrix_height / 4);
+        settings.matrix_width = nk::max_of<std::size_t>(1, settings.matrix_width / 4);
+        settings.matrix_depth = nk::max_of<std::size_t>(1, settings.matrix_depth / 4);
+        settings.shape_points = nk::max_of<std::size_t>(1, settings.shape_points / 4);
     }
     return settings;
 }
@@ -757,7 +757,7 @@ std::uint64_t ulp_distance(scalar_type_ a, scalar_type_ b) noexcept {
     // Handle special cases - skip float checks for integer types
     if constexpr (!nk::is_integral_dtype<scalar_type_>()) {
         if (std::isnan(static_cast<double>(a)) || std::isnan(static_cast<double>(b)))
-            return std::numeric_limits<std::uint64_t>::max();
+            return (std::numeric_limits<std::uint64_t>::max)();
     }
     if (a == b) return 0; // Also handles +0 == -0
 
@@ -850,12 +850,12 @@ struct tracked {
         : value(static_cast<value_type_>(input)), magnitude(static_cast<double>(value.abs())) {}
 
     friend tracked operator+(tracked const &a, tracked const &b) noexcept {
-        return {a.value + b.value, a.magnitude + b.magnitude, std::max(a.term_roundings, b.term_roundings),
-                std::max(a.sum_roundings, b.sum_roundings) + 1};
+        return {a.value + b.value, a.magnitude + b.magnitude, nk::max_of(a.term_roundings, b.term_roundings),
+                nk::max_of(a.sum_roundings, b.sum_roundings) + 1};
     }
     friend tracked operator-(tracked const &a, tracked const &b) noexcept {
-        return {a.value - b.value, a.magnitude + b.magnitude, std::max(a.term_roundings, b.term_roundings),
-                std::max(a.sum_roundings, b.sum_roundings) + 1};
+        return {a.value - b.value, a.magnitude + b.magnitude, nk::max_of(a.term_roundings, b.term_roundings),
+                nk::max_of(a.sum_roundings, b.sum_roundings) + 1};
     }
     friend tracked operator*(tracked const &a, tracked const &b) noexcept {
         // Each part of a complex product also adds two real products
@@ -880,14 +880,14 @@ struct tracked {
     tracked sqrt() const noexcept {
         value_type_ const root = value.sqrt();
         double const root_magnitude = static_cast<double>(root);
-        return {root, std::max(magnitude / (2 * root_magnitude), root_magnitude), term_roundings + 1, sum_roundings};
+        return {root, nk::max_of(magnitude / (2 * root_magnitude), root_magnitude), term_roundings + 1, sum_roundings};
     }
 
     /** The argument's error shrinks by the derivative 1 / v, and the logarithm rounds once more. */
     tracked log() const noexcept {
         value_type_ const logarithm = value.log();
         double const argument = static_cast<double>(value.abs());
-        return {logarithm, std::max(magnitude / argument, static_cast<double>(logarithm.abs())), term_roundings + 1,
+        return {logarithm, nk::max_of(magnitude / argument, static_cast<double>(logarithm.abs())), term_roundings + 1,
                 sum_roundings};
     }
 };
@@ -906,7 +906,7 @@ double half_ulp(double value) noexcept {
     else {
         using component_t = typename scalar_type_::component_t;
         int const smallest_normal_exponent = std::ilogb(static_cast<double>(component_t::positive_min()));
-        int const exponent = std::max(std::ilogb(value), smallest_normal_exponent);
+        int const exponent = nk::max_of(std::ilogb(value), smallest_normal_exponent);
         return std::ldexp(1.0, exponent - static_cast<int>(component_t::mantissa_bits()) - 1);
     }
 }
@@ -922,16 +922,16 @@ struct error_stats_t {
     /** The type of the results recorded, which picks their ULP threshold. */
     nk_dtype_t result_dtype = nk_dtype_unknown_k;
 
-    nk_f64_t min_abs_err = std::numeric_limits<nk_f64_t>::max();
+    nk_f64_t min_abs_err = (std::numeric_limits<nk_f64_t>::max)();
     nk_f64_t max_abs_err = 0;
     nk_f64_t max_reference = 0;
     nk_f64_t sum_abs_err = 0;
 
-    nk_f64_t min_rel_err = std::numeric_limits<nk_f64_t>::max();
+    nk_f64_t min_rel_err = (std::numeric_limits<nk_f64_t>::max)();
     nk_f64_t max_rel_err = 0;
     nk_f64_t sum_rel_err = 0;
 
-    std::uint64_t min_ulp = std::numeric_limits<std::uint64_t>::max();
+    std::uint64_t min_ulp = (std::numeric_limits<std::uint64_t>::max)();
     std::uint64_t max_ulp = 0;
     f118_t sum_ulp = f118_t();
 
@@ -986,7 +986,7 @@ struct error_stats_t {
         nk_f64_t const error = saturated || result == reference ? 0 : std::fabs(result - reference);
         nk_f64_t const ratio = error == 0 ? 0 : error / (bound + half_ulp<actual_type_>(reference));
         max_bound_ratio = std::isnan(ratio) ? std::numeric_limits<nk_f64_t>::infinity()
-                                            : std::max(max_bound_ratio, ratio);
+                                            : nk::max_of(max_bound_ratio, ratio);
         accumulate_scalar(actual, reference);
     }
 
@@ -1033,7 +1033,7 @@ struct error_stats_t {
 
         // A NaN reference makes the distance meaningless; a NaN result against a number fails
         if constexpr (!nk::is_integral_dtype<actual_type_>())
-            if (ulps == std::numeric_limits<std::uint64_t>::max()) {
+            if (ulps == (std::numeric_limits<std::uint64_t>::max)()) {
                 if (!std::isnan(static_cast<double>(expected_as_actual))) expect(false, "NaN result for a number");
                 return;
             }
@@ -1048,18 +1048,18 @@ struct error_stats_t {
             nk_f64_t abs_err = std::fabs(exp_f64 - act_f64);
             nk_f64_t rel_err = exp_f64 != 0 ? abs_err / std::fabs(exp_f64) : abs_err;
 
-            min_abs_err = std::min(min_abs_err, abs_err);
-            max_abs_err = std::max(max_abs_err, abs_err);
-            max_reference = std::max(max_reference, std::fabs(exp_f64));
+            min_abs_err = nk::min_of(min_abs_err, abs_err);
+            max_abs_err = nk::max_of(max_abs_err, abs_err);
+            max_reference = nk::max_of(max_reference, std::fabs(exp_f64));
             sum_abs_err += abs_err;
-            min_rel_err = std::min(min_rel_err, rel_err);
-            max_rel_err = std::max(max_rel_err, rel_err);
+            min_rel_err = nk::min_of(min_rel_err, rel_err);
+            max_rel_err = nk::max_of(max_rel_err, rel_err);
             sum_rel_err += rel_err;
         }
 
         // Always update ULP metrics (works for both integer and float)
-        min_ulp = std::min(min_ulp, ulps);
-        max_ulp = std::max(max_ulp, ulps);
+        min_ulp = nk::min_of(min_ulp, ulps);
+        max_ulp = nk::max_of(max_ulp, ulps);
         sum_ulp += f118_t(ulps);
 
         count++;
@@ -1084,17 +1084,17 @@ struct error_stats_t {
         if (other.count == 0) return;
         if (count == 0) family = other.family, term_error_bound = other.term_error_bound;
         else assert(family == other.family && "Can't merge stats from different comparison families");
-        min_abs_err = std::min(min_abs_err, other.min_abs_err);
-        max_abs_err = std::max(max_abs_err, other.max_abs_err);
-        max_reference = std::max(max_reference, other.max_reference);
+        min_abs_err = nk::min_of(min_abs_err, other.min_abs_err);
+        max_abs_err = nk::max_of(max_abs_err, other.max_abs_err);
+        max_reference = nk::max_of(max_reference, other.max_reference);
         sum_abs_err += other.sum_abs_err;
-        min_rel_err = std::min(min_rel_err, other.min_rel_err);
-        max_rel_err = std::max(max_rel_err, other.max_rel_err);
+        min_rel_err = nk::min_of(min_rel_err, other.min_rel_err);
+        max_rel_err = nk::max_of(max_rel_err, other.max_rel_err);
         sum_rel_err += other.sum_rel_err;
-        min_ulp = std::min(min_ulp, other.min_ulp);
-        max_ulp = std::max(max_ulp, other.max_ulp);
+        min_ulp = nk::min_of(min_ulp, other.min_ulp);
+        max_ulp = nk::max_of(max_ulp, other.max_ulp);
         sum_ulp += other.sum_ulp;
-        max_bound_ratio = std::max(max_bound_ratio, other.max_bound_ratio);
+        max_bound_ratio = nk::max_of(max_bound_ratio, other.max_bound_ratio);
         count += other.count;
         exact_matches += other.exact_matches;
         failed_expectations += other.failed_expectations;

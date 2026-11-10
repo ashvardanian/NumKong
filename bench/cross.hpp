@@ -26,7 +26,6 @@
 #include <cstdint> // `std::int64_t`, `std::uint64_t`
 #include <cstring> // `std::memcpy`, `std::memset`
 
-#include <algorithm>        // `std::min`, `std::max`
 #include <array>            // `std::array`
 #include <initializer_list> // `std::initializer_list`
 #include <random>           // `std::uniform_int_distribution`
@@ -185,14 +184,14 @@ inline double angular_compensated_f64(double const *first, double const *second,
     double const first_norm = dot_compensated_f64(first, first, count);
     double const second_norm = dot_compensated_f64(second, second, count);
     if (!(first_norm > 0 && second_norm > 0)) return dot == 0 ? 0 : 1;
-    return std::max(0.0, 1 - dot / std::sqrt(first_norm) / std::sqrt(second_norm));
+    return nk::max_of(0.0, 1 - dot / std::sqrt(first_norm) / std::sqrt(second_norm));
 }
 
 inline double euclidean_compensated_f64(double const *first, double const *second, std::size_t count) noexcept {
     double const dot = dot_compensated_f64(first, second, count);
     double const first_norm = dot_compensated_f64(first, first, count);
     double const second_norm = dot_compensated_f64(second, second, count);
-    return std::sqrt(std::max(0.0, first_norm + second_norm - 2 * dot));
+    return std::sqrt(nk::max_of(0.0, first_norm + second_norm - 2 * dot));
 }
 
 /** Random A of @p rows and B of @p columns rows of @p depth dimensions under @p seed: A at @p
@@ -229,7 +228,7 @@ nk::expected<double> sampled_accuracy(
     nk::tensor_view<typename nk::type_for<input_dtype_>::type, 2> second, std::size_t depth,
     expected_metric_t compute_expected, written_entries_t written, seed_t seed) {
     using output_raw_t = typename output_type_::raw_t;
-    std::size_t const entries = first.extent(0) * second.extent(0), samples = std::min(entries, std::size_t(4096));
+    std::size_t const entries = first.extent(0) * second.extent(0), samples = nk::min_of(entries, std::size_t(4096));
     std::vector<output_raw_t> result(entries);
     if (nk_status_t const status = backend.copy(result.data(), c.raw_values_data(), entries * sizeof(output_raw_t));
         status != nk_success_k)
@@ -255,7 +254,7 @@ nk::expected<double> sampled_accuracy(
         else score_sum += double(ulp_distance_f32(result[entry], float(expected)));
         ++measured;
     }
-    return {score_sum / double(std::max(measured, std::size_t(1))), nk::status_t::success_k};
+    return {score_sum / double(nk::max_of(measured, std::size_t(1))), nk::status_t::success_k};
 }
 
 /** Fills `scalar-ops`, and @c exact for integer outputs or @c ulp for floats. */
@@ -541,12 +540,12 @@ inline std::string attention_row_name(std::string const &name, attention_visibil
 inline double attention_visible_pairs(attention_visibility_t visibility, attention_shape_t shape) noexcept {
     if (visibility == attention_visibility_t::bidirectional_k) return double(shape.queries) * double(shape.keys);
     std::int64_t const first_position = std::int64_t(shape.keys) - std::int64_t(shape.queries);
-    std::int64_t const before = std::int64_t(std::min<nk_size_t>(attention_keys_before(visibility), shape.keys));
+    std::int64_t const before = std::int64_t(nk::min_of<nk_size_t>(attention_keys_before(visibility), shape.keys));
     double pairs = 0;
     for (std::size_t row = 0; row != shape.queries; ++row) {
         std::int64_t const position = std::int64_t(row) + first_position;
-        std::int64_t const first = std::max<std::int64_t>(0, position - before);
-        pairs += double(std::max<std::int64_t>(0, std::min<std::int64_t>(position, shape.keys - 1) - first + 1));
+        std::int64_t const first = nk::max_of<std::int64_t>(0, position - before);
+        pairs += double(nk::max_of<std::int64_t>(0, nk::min_of<std::int64_t>(position, shape.keys - 1) - first + 1));
     }
     return pairs;
 }
@@ -1296,7 +1295,7 @@ void measure_shapes_packed(loop_t &loop, environment_t const &env, backend_type_
         return loop.skip("allocation failed");
 
     nk::vector<std::byte> staged = make_vector<std::byte>(set_bytes);
-    nk::vector<input_t> cloud = make_vector<input_t>(std::max(tile.row_points, tile.column_points) * 3);
+    nk::vector<input_t> cloud = make_vector<input_t>(nk::max_of(tile.row_points, tile.column_points) * 3);
     void const **staged_table = reinterpret_cast<void const **>(staged.raw_values_data() + table_offset);
     std::mt19937 generator(env.settings.seed.value);
     for (std::size_t set = 0; set != sets_count; ++set) {

@@ -1618,7 +1618,7 @@ NUMKONG_DEVICE nk_f64_t nk_cross_reconstruct_f64_ampere_(nk_cross_moduli_f64_amp
     }
     *zero = magnitude[5] == 0;
     if (*zero) return 0;
-    unsigned const leading_zeros = __clz(magnitude[5]);
+    unsigned const leading_zeros = (unsigned)nk_u32_clz_simt_(magnitude[5]);
     nk_u64_t const top = ((nk_u64_t)magnitude[5] << 32) | magnitude[4];
     nk_u64_t const third = (nk_u64_t)magnitude[3] << leading_zeros;
     nk_u64_t const window = (top << leading_zeros) | (third >> 32);

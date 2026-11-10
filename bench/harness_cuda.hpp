@@ -35,9 +35,10 @@ struct cuda_backend_t : device_backend_t {
     /** Rotation sets of @p per_set each: enough to cover twice the L2, at most
      *  @c input_sets_count. */
     std::size_t input_sets(bytes_t per_set) const noexcept {
-        std::size_t const set_bytes = std::max(per_set.value, std::size_t(1));
-        std::size_t const wanted = std::max(nk::divide_round_up(2 * std::size_t(l2_bytes), set_bytes), std::size_t(1));
-        return std::min(std::bit_ceil(wanted), input_sets_count(per_set));
+        std::size_t const set_bytes = nk::max_of(per_set.value, std::size_t(1));
+        std::size_t const wanted = nk::max_of(nk::divide_round_up(2 * std::size_t(l2_bytes), set_bytes),
+                                              std::size_t(1));
+        return nk::min_of(std::bit_ceil(wanted), input_sets_count(per_set));
     }
 
     /** Rows a token-row benchmark batches: a 4096-token prefill. */

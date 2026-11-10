@@ -150,7 +150,7 @@ void accumulate_spatial(error_stats_t &stats, result_type_ result, reference_typ
     if constexpr (kind_ == nk_kernel_angular_k) stats.accumulate_bounded(result, expected, tolerance);
     else {
         double const scale = static_cast<double>(squared_norms) > 0 ? static_cast<double>(squared_norms) : 1;
-        double const sum = std::max(static_cast<double>(result) + expected, std::numeric_limits<double>::min());
+        double const sum = nk::max_of(static_cast<double>(result) + expected, (std::numeric_limits<double>::min)());
         stats.accumulate_bounded(result, expected, tolerance * scale / sum);
     }
 }
@@ -179,11 +179,11 @@ void accumulate_attention(settings_t const &settings, error_stats_t &stats, outp
     else {
         double largest_value = 0, largest_reference = 0;
         for (double value : decode_rows(values, 1, values.size(), 0))
-            largest_value = std::max(largest_value, std::fabs(value));
+            largest_value = nk::max_of(largest_value, std::fabs(value));
         for (std::size_t index = 0; index < reference.size_values(); index++)
-            largest_reference = std::max(largest_reference, std::fabs(static_cast<double>(reference[index])));
-        double const bound = std::max(settings.scale_threshold * largest_reference,
-                                      std::ldexp(largest_value, -static_cast<int>(weights_) - 1));
+            largest_reference = nk::max_of(largest_reference, std::fabs(static_cast<double>(reference[index])));
+        double const bound = nk::max_of(settings.scale_threshold * largest_reference,
+                                        std::ldexp(largest_value, -static_cast<int>(weights_) - 1));
         for (std::size_t index = 0; index < output.size_values(); index++)
             stats.accumulate_bounded(output[index], static_cast<double>(reference[index]), bound);
     }
@@ -347,7 +347,7 @@ struct attention_layout_t {
 constexpr std::size_t attention_key_value_heads_k = 2;
 
 /** Keys a query sees before and after its own position: every key, the default. */
-constexpr std::size_t attention_all_keys_k = std::numeric_limits<std::size_t>::max();
+constexpr std::size_t attention_all_keys_k = (std::numeric_limits<std::size_t>::max)();
 
 /** One attention case: the long segment's key count, the GQA group, the head depth, and the band
  *  of keys each query sees around its position. */
@@ -377,7 +377,7 @@ struct attention_case_t {
 
 /** Queries of the long segment: about half its keys, capped to keep the per-row reference cheap. */
 inline nk_u32_t attention_main_queries(nk_u32_t main_length) noexcept {
-    return std::min<nk_u32_t>(main_length / 2 + 2, 24);
+    return nk::min_of<nk_u32_t>(main_length / 2 + 2, 24);
 }
 
 /** Bidirectional cases at depths on both sides of every panel edge and GQA 1:1, 4:1 and 8:1; then
@@ -438,8 +438,8 @@ inline attention_key_range_t attention_visible_keys(std::size_t row, std::size_t
     // No position is more than every query and key away from another, so wider bands reach all keys
     std::size_t const reach = query_count + key_count;
     std::int64_t const position = static_cast<std::int64_t>(row + key_count) - static_cast<std::int64_t>(query_count);
-    std::int64_t const before = static_cast<std::int64_t>(std::min(keys_before, reach)),
-                       after = static_cast<std::int64_t>(std::min(keys_after, reach)),
+    std::int64_t const before = static_cast<std::int64_t>(nk::min_of(keys_before, reach)),
+                       after = static_cast<std::int64_t>(nk::min_of(keys_after, reach)),
                        length = static_cast<std::int64_t>(key_count);
     return {static_cast<std::size_t>(std::clamp<std::int64_t>(position - before, 0, length)),
             static_cast<std::size_t>(std::clamp<std::int64_t>(position + after + 1, 0, length))};
@@ -656,7 +656,7 @@ struct cref_of_<scalar_type_> {
 /** Bytes a padded row stride adds: 16, or a whole block of codes when that is more, keeping scale
  *  rows a whole number of blocks apart. */
 template <typename scalar_type_>
-constexpr std::size_t stride_padding_v = std::max<std::size_t>(
+constexpr std::size_t stride_padding_v = nk::max_of<std::size_t>(
     16, nk_block_scaled_format_of_dtype(scalar_type_::dtype()).block_bytes);
 
 /** Bytes an odd row stride adds: one value, or a whole block of codes for block-scaled formats. */
@@ -835,7 +835,7 @@ double worst_error_ulps(computed_type_ computed, reference_vector_type_ const &r
         for (std::size_t column = 0; column < columns; column++) {
             double const expected = static_cast<double>(reference[row * columns + column].value);
             double const absolute = std::fabs(expected), ulp = std::nextafter(absolute, INFINITY) - absolute;
-            worst = std::max(worst, std::fabs(computed(row, column) - expected) / ulp);
+            worst = nk::max_of(worst, std::fabs(computed(row, column) - expected) / ulp);
         }
     return worst;
 }
@@ -913,7 +913,7 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
     }
     std::mt19937 generator(settings.seed.value);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
+    std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
     std::vector<dots_packed_case_t> const cases = dots_packed_cases<scalar_type_>(settings);
 
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
@@ -1030,7 +1030,7 @@ error_stats_t test_dots_pack_layout(settings_t const &settings, backend_type_ ba
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
+    std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
     std::vector<dots_packed_case_t> const cases = dots_packed_cases<scalar_type_>(settings);
 
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
@@ -1119,13 +1119,13 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
     error_stats_t stats(term_error_bound);
     std::mt19937 generator(settings.seed.value);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
+    std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
     std::vector<dots_symmetric_case_t> const cases = dots_symmetric_cases(settings);
 
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         for (dots_symmetric_case_t const &test_case : cases) {
             std::size_t const count = test_case.count, rows_begin = test_case.rows_begin;
-            std::size_t const rows_end = std::min(count, test_case.rows_end);
+            std::size_t const rows_end = nk::min_of(count, test_case.rows_end);
             std::size_t const depth = nk::divide_round_up(test_case.depth, depth_multiple) * depth_multiple;
             std::size_t const row_bytes = depth / dimensions_per_value * sizeof(scalar_t);
             bool const padded = test_case.strides == dots_strides_t::padded_k;
@@ -1205,7 +1205,7 @@ error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type
 
     error_stats_t stats(comparison_family_t::exact_k);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
+    std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
 
     for (dots_packed_case_t const &test_case : dots_packed_cases<scalar_type_>(settings)) {
         std::size_t const columns = test_case.columns;
@@ -1490,7 +1490,7 @@ void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, std::mt1
     using result_t = typename scalar_type_::angular_result_t;
     constexpr std::size_t rows = format.block_size || nk::nan_capable_dtype<scalar_t> ? 4 : 3;
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
+    std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
     std::size_t const depth = nk::divide_round_up(64, depth_multiple) * depth_multiple;
     std::size_t const stride = backend.row_stride(nk::divide_round_up(depth, dimensions_per_value) * sizeof(scalar_t));
     std::size_t const stride_values = stride / sizeof(scalar_t);
@@ -1571,7 +1571,7 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
     if constexpr (nk::is_integral_dtype<scalar_type_>())
         expect_near_parallel_integers<scalar_type_, packed_kind>(stats, backend, launch);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
+    std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
 
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
         for (matrix_shape_t const &shape : matrix_shapes(settings)) {
@@ -1665,7 +1665,7 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
     if constexpr (nk::is_integral_dtype<scalar_type_>())
         expect_near_parallel_integers<scalar_type_, symmetric_kind>(stats, backend, launch);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
+    std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, dimensions_per_value);
 
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
         for (matrix_shape_t const &shape : matrix_shapes(settings)) {
@@ -1753,7 +1753,7 @@ void expect_log_sum_exp(settings_t const &settings, error_stats_t &stats, actual
     bool held = true;
     for (std::size_t index = 0; index < actual.size_values(); index++) {
         double const result = static_cast<double>(actual[index]), reference = static_cast<double>(expected[index]);
-        double const bound = std::max(settings.scale_threshold * std::max(1.0, std::fabs(reference)), rounding);
+        double const bound = nk::max_of(settings.scale_threshold * nk::max_of(1.0, std::fabs(reference)), rounding);
         held = held && (std::isinf(reference) ? result == reference : std::fabs(result - reference) <= bound);
     }
     stats.expect(held, "log-sum-exp");
@@ -1779,7 +1779,7 @@ error_stats_t test_attention_packed(settings_t const &settings, pack_size_kernel
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
     using result_t = typename scalar_type_::attention_result_t;
-    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, 1);
+    std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, 1);
 
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(attention_family(weights_));
@@ -1905,7 +1905,7 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                                               pack_kernel_type_ pack_fn, gradients_kernel_type_ gradients_fn) {
     constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
     using scalar_t = typename nk::type_for<format.element_dtype>::type;
-    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, 1);
+    std::size_t const depth_multiple = nk::max_of<std::size_t>(format.block_size, 1);
 
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(comparison_family_t::bounded_k);
@@ -1976,7 +1976,7 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                                                                test_case.keys_after);
             expect_log_sum_exp(settings, stats, serial.log_sum_exp, reference.log_sum_exp);
             double largest_output = 0;
-            for (double value : reference.output) largest_output = std::max(largest_output, std::fabs(value));
+            for (double value : reference.output) largest_output = nk::max_of(largest_output, std::fabs(value));
             for (std::size_t index = 0; index < reference.output.size(); index++)
                 stats.accumulate_bounded(serial.output[index], reference.output[index],
                                          settings.scale_threshold * largest_output);
@@ -2010,7 +2010,7 @@ error_stats_t test_attention_packed_gradients(settings_t const &settings, pack_s
                                                  std::size_t actual_width, std::vector<double> const &expected,
                                                  std::vector<double> const &magnitudes, std::size_t width) {
                 double largest = 0;
-                for (double magnitude : magnitudes) largest = std::max(largest, magnitude);
+                for (double magnitude : magnitudes) largest = nk::max_of(largest, magnitude);
                 for (std::size_t index = 0; index < expected.size(); index++)
                     stats.accumulate_bounded(actual[index / width * actual_width + index % width], expected[index],
                                              settings.scale_threshold * largest);

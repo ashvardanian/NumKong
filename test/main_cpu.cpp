@@ -373,9 +373,9 @@ static error_stats_t test_best_sqrt(settings_t const &) {
     auto const sqrt_serial = capabilities[0].sqrt, rsqrt_serial = capabilities[0].rsqrt;
     using limits = std::numeric_limits<scalar_type_>;
     scalar_type_ const tolerance = 4 * limits::epsilon();
-    scalar_type_ const tiny = limits::denorm_min(), normal = limits::min();
-    scalar_type_ const inputs[] = {0, tiny, 3 * tiny,      normal - tiny,     normal, normal + tiny, 0.5,
-                                   2, 3,    limits::max(), limits::infinity()};
+    scalar_type_ const tiny = limits::denorm_min(), normal = (limits::min)();
+    scalar_type_ const inputs[] = {0, tiny, 3 * tiny,        normal - tiny,     normal, normal + tiny, 0.5,
+                                   2, 3,    (limits::max)(), limits::infinity()};
     error_stats_t stats(comparison_family_t::exact_k);
     nk_capability_t const runnable = runnable_capabilities();
     for (auto const &[capability, sqrt, rsqrt] : capabilities) {

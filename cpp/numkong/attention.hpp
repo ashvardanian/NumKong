@@ -11,7 +11,7 @@
  *  @code{.cpp}
  *  auto [packed, packed_status] = nk::packed_attention<nk::bf16_t>::make(keys, values, offsets, lengths);
  *  if (nk::failed(packed_status)) return packed_status;
- *  std::size_t const all_keys = std::numeric_limits<std::size_t>::max(), causal = 0;
+ *  std::size_t const all_keys = (std::numeric_limits<std::size_t>::max)(), causal = 0;
  *  nk::status_t status = nk::attention_packed<nk::bf16_t>(queries, packed, output, scale, all_keys, causal);
  *  auto [fresh, fresh_status] = nk::attention_packed<nk::bf16_t>(queries, packed, scale);
  *  @endcode
@@ -65,7 +65,7 @@ status_t attention_packed(std::size_t head_count, std::size_t key_value_head_cou
                           std::size_t keys_before, std::size_t keys_after, operand_pointer<in_type_> queries,
                           std::size_t queries_stride, void const *key_value_packed, result_type_ *output,
                           std::size_t output_stride, f32_t *log_sum_exp, std::size_t tasks_begin = 0,
-                          std::size_t tasks_end = std::numeric_limits<std::size_t>::max(),
+                          std::size_t tasks_end = (std::numeric_limits<std::size_t>::max)(),
                           std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                           nk_stream_t stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
@@ -279,7 +279,7 @@ status_t attention_packed_gradients(
     f32_t const *output_gradient, std::size_t output_stride, f32_t const *log_sum_exp, f32_t *query_gradient,
     std::size_t query_gradient_stride, f32_t *key_gradient, f32_t *value_gradient,
     std::size_t key_value_gradient_stride, std::size_t tasks_begin = 0,
-    std::size_t tasks_end = std::numeric_limits<std::size_t>::max(), std::span<std::byte> workspace = {},
+    std::size_t tasks_end = (std::numeric_limits<std::size_t>::max)(), std::span<std::byte> workspace = {},
     nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) {
     auto const *output_raw = reinterpret_cast<nk_f32_t const *>(output);
     auto const *output_gradient_raw = reinterpret_cast<nk_f32_t const *>(output_gradient);
@@ -522,8 +522,8 @@ template <numeric_dtype value_type_, std::size_t max_rank_, typename allocator_t
 status_t attention_packed(tensor_view<value_type_, max_rank_> queries,
                           packed_attention<value_type_, allocator_type_> const &key_value_packed,
                           tensor_span<typename value_type_::attention_result_t, max_rank_> output, f32_t scale,
-                          std::size_t keys_before = std::numeric_limits<std::size_t>::max(),
-                          std::size_t keys_after = std::numeric_limits<std::size_t>::max(),
+                          std::size_t keys_before = (std::numeric_limits<std::size_t>::max)(),
+                          std::size_t keys_after = (std::numeric_limits<std::size_t>::max)(),
                           std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                           nk_stream_t stream = nullptr) noexcept {
     if (status_t status = attention_shapes_(queries, key_value_packed, output); failed(status)) return status;
@@ -532,7 +532,7 @@ status_t attention_packed(tensor_view<value_type_, max_rank_> queries,
         key_value_packed.key_offsets().data(), key_value_packed.key_offsets()[key_value_packed.segment_count()], scale,
         keys_before, keys_after, queries.data(), static_cast<std::size_t>(queries.stride_bytes(0)),
         key_value_packed.data(), output.data(), static_cast<std::size_t>(output.stride_bytes(0)), nullptr, 0,
-        std::numeric_limits<std::size_t>::max(), workspace, capabilities, stream);
+        (std::numeric_limits<std::size_t>::max)(), workspace, capabilities, stream);
 }
 
 /** Allocating self-attention returning a fresh @b [tokens,heads,depth] tensor, with any workspace
@@ -543,8 +543,8 @@ template <numeric_dtype value_type_, std::size_t max_rank_, typename packed_allo
 expected<tensor<typename value_type_::attention_result_t, allocator_type_, max_rank_>> attention_packed(
     tensor_view<value_type_, max_rank_> queries,
     packed_attention<value_type_, packed_allocator_type_> const &key_value_packed, f32_t scale,
-    std::size_t keys_before = std::numeric_limits<std::size_t>::max(),
-    std::size_t keys_after = std::numeric_limits<std::size_t>::max(), allocator_type_ alloc = {},
+    std::size_t keys_before = (std::numeric_limits<std::size_t>::max)(),
+    std::size_t keys_after = (std::numeric_limits<std::size_t>::max)(), allocator_type_ alloc = {},
     nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
     using out_tensor_t = tensor<typename value_type_::attention_result_t, allocator_type_, max_rank_>;
     if (key_value_packed.empty() || !attention_rows_supported_(queries))

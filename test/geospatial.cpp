@@ -97,7 +97,7 @@ static void fill_geodesic_points(std::mt19937 &generator, double cap_radians, do
                                  std::vector<f64_t> &b_latitudes, std::vector<f64_t> &b_longitudes) {
     f64_t centre_latitude, centre_longitude;
     nk::fill_coordinates(generator, &centre_latitude, &centre_longitude, 1);
-    std::vector<f64_t> centre_latitudes(std::max(a_latitudes.size(), b_latitudes.size()), centre_latitude),
+    std::vector<f64_t> centre_latitudes(nk::max_of(a_latitudes.size(), b_latitudes.size()), centre_latitude),
         centre_longitudes(centre_latitudes.size(), centre_longitude);
     if (cap_radians < 3.14159265358979323846) {
         nk::fill_nearby_coordinates(generator, centre_latitudes.data(), centre_longitudes.data(), a_latitudes.data(),
@@ -110,7 +110,7 @@ static void fill_geodesic_points(std::mt19937 &generator, double cap_radians, do
         nk::fill_coordinates(generator, b_latitudes.data(), b_longitudes.data(), b_latitudes.size());
     }
     nk::fill_nearby_coordinates(generator, a_latitudes.data(), a_longitudes.data(), b_latitudes.data(),
-                                b_longitudes.data(), std::min(a_latitudes.size(), b_latitudes.size()),
+                                b_longitudes.data(), nk::min_of(a_latitudes.size(), b_latitudes.size()),
                                 max_separation_radians);
 }
 
@@ -165,7 +165,7 @@ error_stats_t test_haversines(settings_t const &settings, geodesics_packed_kerne
 error_stats_t test_vincentys(settings_t const &settings, geodesics_packed_kernel_t kernel) {
     error_stats_t stats(nk_vincentys_error_bound(nk_f64_k));
     std::mt19937 generator(settings.seed.value);
-    double const cap_radians = std::min(double(settings.max_coord_angle_degrees), 90.0) * 3.14159265358979323846 /
+    double const cap_radians = nk::min_of(double(settings.max_coord_angle_degrees), 90.0) * 3.14159265358979323846 /
                                360.0;
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();)
         for (geospatial_shape_t const &shape : geospatial_shapes(settings)) {
@@ -241,7 +241,7 @@ static nk_f32_t clearance_unpyramided(terrain_fixture_t const &terrain, nk_f32_t
         if (ground != ground) return;
         nk_f64_t const along = u * distance;
         nk_f64_t const gap = height_start + u * height_delta - (ground - drop_scale * along * along);
-        clearance = std::min(clearance, gap);
+        clearance = nk::min_of(clearance, gap);
     };
     auto clamp = [](nk_f64_t value, nk_f64_t last) { return value < 0 ? 0 : (value > last ? last : value); };
     for (std::size_t column = 0; column != terrain.columns && column_delta != 0; ++column) {
@@ -249,7 +249,7 @@ static nk_f32_t clearance_unpyramided(terrain_fixture_t const &terrain, nk_f32_t
         if (!(u > 0 && u < 1)) continue;
         nk_f64_t const row = clamp(row_start + u * row_delta, last_row);
         std::size_t const row_first = std::size_t(row);
-        std::size_t const row_second = std::min(row_first + 1, terrain.rows - 1);
+        std::size_t const row_second = nk::min_of(row_first + 1, terrain.rows - 1);
         fold(u, terrain.at(row_first, column), terrain.at(row_second, column), row - (nk_f64_t)row_first);
     }
     for (std::size_t row = 0; row != terrain.rows && row_delta != 0; ++row) {
@@ -257,7 +257,7 @@ static nk_f32_t clearance_unpyramided(terrain_fixture_t const &terrain, nk_f32_t
         if (!(u > 0 && u < 1)) continue;
         nk_f64_t const column = clamp(column_start + u * column_delta, last_column);
         std::size_t const column_first = std::size_t(column);
-        std::size_t const column_second = std::min(column_first + 1, terrain.columns - 1);
+        std::size_t const column_second = nk::min_of(column_first + 1, terrain.columns - 1);
         fold(u, terrain.at(row, column_first), terrain.at(row, column_second), column - (nk_f64_t)column_first);
     }
     return (nk_f32_t)clearance;
@@ -289,8 +289,9 @@ error_stats_t test_clearances(settings_t const &settings, clearances_packed_kern
             // A few points fall off the grid, the rest land on it, 2 to 60 metres above the ground.
             point[0] = unit(generator) * float(rough.columns + 1) - 1.0f;
             point[1] = unit(generator) * float(rough.rows + 1) - 1.0f;
-            std::size_t const row = std::min<std::size_t>(rough.rows - 1, std::size_t(std::max(point[1], 0.0f)));
-            std::size_t const column = std::min<std::size_t>(rough.columns - 1, std::size_t(std::max(point[0], 0.0f)));
+            std::size_t const row = nk::min_of<std::size_t>(rough.rows - 1, std::size_t(nk::max_of(point[1], 0.0f)));
+            std::size_t const column = nk::min_of<std::size_t>(rough.columns - 1,
+                                                               std::size_t(nk::max_of(point[0], 0.0f)));
             float const ground = rough.at(row, column);
             point[2] = (ground == ground ? ground : 100.0f) + 2.0f + unit(generator) * 58.0f;
         };

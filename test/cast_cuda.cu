@@ -233,7 +233,7 @@ static bool sweep_fp32_to_fp8_(char const *label, nk_dtype_t destination_dtype,
     std::size_t mismatches = 0;
     constexpr std::uint64_t total = 1ull << 32;
     for (std::uint64_t base = 0; base < total; base += batch_size_) {
-        std::size_t this_batch = static_cast<std::size_t>(std::min<std::uint64_t>(batch_size_, total - base));
+        std::size_t this_batch = static_cast<std::size_t>(nk::min_of<std::uint64_t>(batch_size_, total - base));
         for (std::size_t i = 0; i < this_batch; ++i) {
             std::uint32_t bits = static_cast<std::uint32_t>(base + i);
             std::memcpy(&host_source[i], &bits, sizeof(float));
@@ -270,7 +270,7 @@ static bool sweep_fp32_to_fp6_(char const *label, nk_dtype_t destination_dtype,
     std::size_t mismatches = 0;
     constexpr std::uint64_t total = 1ull << 32;
     for (std::uint64_t base = 0; base < total; base += batch_size_) {
-        std::size_t this_batch = static_cast<std::size_t>(std::min<std::uint64_t>(batch_size_, total - base));
+        std::size_t this_batch = static_cast<std::size_t>(nk::min_of<std::uint64_t>(batch_size_, total - base));
         for (std::size_t i = 0; i < this_batch; ++i) {
             std::uint32_t bits = static_cast<std::uint32_t>(base + i);
             std::memcpy(&host_source[i], &bits, sizeof(float));

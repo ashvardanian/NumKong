@@ -21,6 +21,9 @@ extern "C" {
 
 #pragma region Addressing
 
+/** The zero bits above the highest set bit of @p word, 32 for zero. */
+NUMKONG_DEVICE int nk_u32_clz_simt_(nk_u32_t word) { return __clz((int)word); }
+
 /** Byte @p byte of row @p row of an operand in the 32, 64 or 128-byte swizzle that @p swizzle_bytes
  *  names, rows that wide: each 16-byte chunk XORs with the row's 128-byte line, modulo the chunks
  *  of a row, as the NVIDIA tensor cores and copy engines lay operands out. */

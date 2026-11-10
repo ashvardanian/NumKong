@@ -114,7 +114,7 @@ error_stats_t test_rmsds_packed_f16(settings_t const &settings, kernel_type_ ker
             nk_f64_t const spread = radius(row_packs[row]) + radius(column_packs[column]);
             nk_f64_t const reference = expected[row * columns + column];
             nk_f64_t const squares = points * nk_accumulation_error_bound(nk_f32_k) * spread * spread;
-            nk_f64_t const bound = reference > 0 ? std::min(std::sqrt(squares), squares / reference)
+            nk_f64_t const bound = reference > 0 ? nk::min_of(std::sqrt(squares), squares / reference)
                                                  : std::sqrt(squares);
             stats.accumulate_bounded(f32_t::from_raw(results.raw_values_data()[row * columns + column]),
                                      f64_t(reference), bound);

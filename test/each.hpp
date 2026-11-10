@@ -67,7 +67,7 @@ error_stats_t test_scale(settings_t const &settings, typename scalar_type_::scal
         };
         score(count);
         // A short prefix too, so the partial loads and stores run
-        score(std::min<std::size_t>(1 + generator() % 31, count));
+        score(nk::min_of<std::size_t>(1 + generator() % 31, count));
     }
     return stats;
 }
@@ -103,7 +103,7 @@ error_stats_t test_blend(settings_t const &settings, typename scalar_type_::blen
         };
         score(count);
         // A short prefix too, so the partial loads and stores run
-        score(std::min<std::size_t>(1 + generator() % 31, count));
+        score(nk::min_of<std::size_t>(1 + generator() % 31, count));
     }
     return stats;
 }
@@ -141,7 +141,7 @@ error_stats_t test_fma(settings_t const &settings, typename scalar_type_::fma_ke
         };
         score(count);
         // A short prefix too, so the partial loads and stores run
-        score(std::min<std::size_t>(1 + generator() % 31, count));
+        score(nk::min_of<std::size_t>(1 + generator() % 31, count));
     }
     return stats;
 }
@@ -173,7 +173,7 @@ error_stats_t test_sum(settings_t const &settings, typename scalar_type_::sum_ke
         };
         score(count);
         // A short prefix too, so the partial loads and stores run
-        score(std::min<std::size_t>(1 + generator() % 31, count));
+        score(nk::min_of<std::size_t>(1 + generator() % 31, count));
     }
     return stats;
 }

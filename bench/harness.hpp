@@ -39,7 +39,7 @@
 #include <cstdint> // `std::uint32_t`
 #include <cstdlib> // `std::abort`, `std::exit`, `std::getenv`, `std::strtod`
 
-#include <algorithm>    // `std::min`, `std::max`
+#include <algorithm>    // `std::clamp`, `std::equal`
 #include <array>        // `std::array`
 #include <bit>          // `std::bit_floor`
 #include <charconv>     // `std::from_chars`
@@ -159,7 +159,7 @@ inline std::optional<bytes_t> parse_size(std::string_view text) noexcept {
     };
     for (std::string_view const known : std::array<std::string_view, 5> {"", "kb", "mb", "gb", "tb"}) {
         if (std::equal(unit.begin(), unit.end(), known.begin(), known.end(), same_letter)) return bytes_t {bytes};
-        if (bytes > std::numeric_limits<std::size_t>::max() / 1024) return std::nullopt;
+        if (bytes > (std::numeric_limits<std::size_t>::max)() / 1024) return std::nullopt;
         bytes *= 1024;
     }
     return std::nullopt;
@@ -664,7 +664,7 @@ inline constexpr std::size_t input_sets_limit_k = 1024;
 inline std::size_t input_sets_count(bytes_t per_set) {
     constexpr std::size_t footprint_bytes = sizeof(std::size_t) == 4 ? std::size_t(32) << 20 : std::size_t(1) << 30;
     return std::bit_floor(
-        std::clamp(footprint_bytes / std::max(per_set.value, std::size_t(1)), std::size_t(1), input_sets_limit_k));
+        std::clamp(footprint_bytes / nk::max_of(per_set.value, std::size_t(1)), std::size_t(1), input_sets_limit_k));
 }
 
 /** Runs @p measure over @p arguments when @p name passes the filter, then prints its row. */

@@ -104,11 +104,11 @@ nk_f64_t shapes_distance_bound(std::size_t a_points, std::size_t b_points, nk_f6
     else if constexpr (kind_ == hausdorffs_k) return 8 * roundoff * reference;
     else if constexpr (kind_ == wassersteinprocrustes_k) {
         nk_f64_t const squared = (terms + 32) * roundoff * scale + tolerance;
-        return std::min(std::sqrt(squared), squared / reference);
+        return nk::min_of(std::sqrt(squared), squared / reference);
     }
     else {
         nk_f64_t const loss = 4 * ((terms + 64) * roundoff * scale + tolerance);
-        return std::min(0.5 * std::sqrt(loss), loss / (8 * reference));
+        return nk::min_of(0.5 * std::sqrt(loss), loss / (8 * reference));
     }
 }
 
@@ -209,7 +209,7 @@ nk::status_t shapes_oracle(nk::shapes_packed<scalar_type_> const &rows, nk::shap
         std::size_t const bytes = nk::wassersteinprocrustes_workspace_size<scalar_type_, reference_type_>(
                                       rows.max_points(), columns.max_points(), no_tiers_k)
                                       .value;
-        auto workspace = make_vector<std::byte>(std::max<std::size_t>(bytes, 1));
+        auto workspace = make_vector<std::byte>(nk::max_of<std::size_t>(bytes, 1));
         return nk::wassersteinprocrustes_packed<scalar_type_, reference_type_, reference_type_>(
             a, rows.size(), b, columns.size(), results, stride, rotations,
             std::span<std::byte>(reinterpret_cast<std::byte *>(workspace.raw_values_data()), bytes), no_tiers_k);
@@ -218,7 +218,7 @@ nk::status_t shapes_oracle(nk::shapes_packed<scalar_type_> const &rows, nk::shap
         std::size_t const bytes = nk::gromovwassersteins_workspace_size<scalar_type_, reference_type_>(
                                       rows.max_points(), columns.max_points(), no_tiers_k)
                                       .value;
-        auto workspace = make_vector<std::byte>(std::max<std::size_t>(bytes, 1));
+        auto workspace = make_vector<std::byte>(nk::max_of<std::size_t>(bytes, 1));
         return nk::gromovwassersteins_packed<scalar_type_, reference_type_, reference_type_>(
             a, rows.size(), b, columns.size(), results, stride, rotations,
             std::span<std::byte>(reinterpret_cast<std::byte *>(workspace.raw_values_data()), bytes), no_tiers_k);
@@ -269,7 +269,7 @@ error_stats_t test_shapes_kind(settings_t const &settings, typename scalar_type_
                 nk_f64_t dot = 0;
                 for (std::size_t k = 0; k != 3; ++k)
                     dot += static_cast<nk_f64_t>(rotation[k * 3 + i]) * rotation[k * 3 + j];
-                worst = std::max(worst, std::fabs(dot - (i == j)));
+                worst = nk::max_of(worst, std::fabs(dot - (i == j)));
             }
         return worst;
     };
@@ -358,8 +358,8 @@ error_stats_t test_shapes_kind(settings_t const &settings, typename scalar_type_
         });
         nk_f64_t largest_input = 0;
         for (std::size_t i = 0; i != column_clouds[0].size_values(); ++i)
-            largest_input = std::max(largest_input,
-                                     std::fabs(static_cast<nk_f64_t>(column_clouds[0].values_data()[i])));
+            largest_input = nk::max_of(largest_input,
+                                       std::fabs(static_cast<nk_f64_t>(column_clouds[0].values_data()[i])));
         auto const pack_normalized = shapes_pack_normalized_serial<scalar_t>();
         auto const rows = pack_clouds(row_clouds, pack_size, pack_normalized, stats);
         auto const columns = pack_clouds(column_clouds, pack_size, pack_normalized, stats);
@@ -372,7 +372,7 @@ error_stats_t test_shapes_kind(settings_t const &settings, typename scalar_type_
             nk_f64_t const displacement = std::sqrt(3.0) * half_ulp<scalar_t>(largest_input) / b_scale +
                                           2 * std::sqrt(3.0) * half_ulp<scalar_t>(a_radius) +
                                           64 * roundoff * (a_radius + 10);
-            nk_f64_t const gap = std::min(spreads[0] - spreads[1], spreads[1] - spreads[2]);
+            nk_f64_t const gap = nk::min_of(spreads[0] - spreads[1], spreads[1] - spreads[2]);
             nk_f64_t const turned = kind_ == chamfers_k || kind_ == hausdorffs_k ? 2 * a_radius * displacement / gap
                                                                                  : 0;
             nk_f64_t const rounding = (kind_ == gromovwassersteins_k ? 2 : 1) * displacement +
@@ -478,7 +478,7 @@ error_stats_t test_shapes_packed(
         std::size_t const stride = columns_count * sizeof(raw_distance_t);
         if constexpr (kind_ == chamfers_k) {
             std::size_t const bytes = nk::chamfers_workspace_size<scalar_type_>(row_points, column_points).value;
-            auto workspace = make_vector<std::byte>(std::max<std::size_t>(bytes, 1));
+            auto workspace = make_vector<std::byte>(nk::max_of<std::size_t>(bytes, 1));
             return kernel(rows, rows_count, columns, columns_count, results, stride, rotations, &limit,
                           workspace.raw_values_data(), bytes, nullptr);
         }
@@ -584,7 +584,7 @@ error_stats_t test_shapes_packed_workspace(settings_t const &settings,
         if (nk_status_t const status = workspace_size(rows.max_points(), columns.max_points(), &bytes);
             status != nk_success_k)
             return status;
-        auto workspace = make_vector<std::byte>(std::max<nk_size_t>(bytes, 1));
+        auto workspace = make_vector<std::byte>(nk::max_of<nk_size_t>(bytes, 1));
         return call_with(rows, columns, results, rotations, workspace.raw_values_data(), bytes);
     };
     error_stats_t stats = test_shapes_kind<scalar_t, kind_>(settings, pack_size, pack, call);
@@ -694,9 +694,9 @@ error_stats_t test_shapes_pack(settings_t const &settings, typename scalar_type_
 
         nk_f64_t largest_input = 0, largest_centroid = 0;
         for (std::size_t i = 0; i != cloud.size_values(); ++i)
-            largest_input = std::max(largest_input, std::fabs(static_cast<nk_f64_t>(cloud.values_data()[i])));
+            largest_input = nk::max_of(largest_input, std::fabs(static_cast<nk_f64_t>(cloud.values_data()[i])));
         for (std::size_t axis = 0; axis != 3; ++axis)
-            largest_centroid = std::max<nk_f64_t>(largest_centroid, std::fabs(centroid[axis]));
+            largest_centroid = nk::max_of<nk_f64_t>(largest_centroid, std::fabs(centroid[axis]));
         nk_f64_t const radius = static_cast<nk_f64_t>(oracle_pack.header->max_radius);
         nk_f64_t const storage = half_ulp<scalar_t>(radius);
 
@@ -731,7 +731,7 @@ error_stats_t test_shapes_pack(settings_t const &settings, typename scalar_type_
             for (std::size_t j = 0; j != 3; ++j) {
                 reference_t dot = rotation[0 * 3 + i] * rotation[0 * 3 + j] +
                                   rotation[1 * 3 + i] * rotation[1 * 3 + j] + rotation[2 * 3 + i] * rotation[2 * 3 + j];
-                orthogonality = std::max(orthogonality, std::fabs(static_cast<nk_f64_t>(dot) - (i == j)));
+                orthogonality = nk::max_of(orthogonality, std::fabs(static_cast<nk_f64_t>(dot) - (i == j)));
             }
         // Normalizing and storing round each component a few times, leaving |q|² within 8 roundings
         // of 1, and the Gram matrix and determinant of its matrix within four times that
@@ -748,8 +748,8 @@ error_stats_t test_shapes_pack(settings_t const &settings, typename scalar_type_
         stats.expect(unpack(packed.raw_values_data(), restored.raw_values_data(), nullptr));
         nk_f64_t trip_error = 0;
         for (std::size_t i = 0; i != cloud.size_values(); ++i)
-            trip_error = std::max(trip_error, std::fabs(static_cast<nk_f64_t>(restored.values_data()[i]) -
-                                                        static_cast<nk_f64_t>(cloud.values_data()[i])));
+            trip_error = nk::max_of(trip_error, std::fabs(static_cast<nk_f64_t>(restored.values_data()[i]) -
+                                                          static_cast<nk_f64_t>(cloud.values_data()[i])));
         stats.expect(trip_error <= trip_bound, "an unpacked point lands off its input");
 
         bool padded = true;
@@ -832,14 +832,14 @@ error_stats_t test_shapes_kabsch(settings_t const &settings, typename scalar_typ
                                                 static_cast<nk_f64_t>(cloud.values_data()[k * 3 + axis]);
                     squared += difference * difference;
                 }
-                closest = std::min(closest, squared);
+                closest = nk::min_of(closest, squared);
             }
         return std::sqrt(closest);
     };
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         nk::vector<scalar_t> clouds[2];
         clouds[0] = stretched_cloud<scalar_t>(generator, n);
-        nk_f64_t const noise = std::min(std::ldexp(1.0, -7), closest_pair_distance(clouds[0]) / 32);
+        nk_f64_t const noise = nk::min_of(std::ldexp(1.0, -7), closest_pair_distance(clouds[0]) / 32);
         nk::f64_t quaternion[4], rotation_matrix[9], length = 0;
         for (nk::f64_t &value : quaternion) value = normal(generator), length = length + value * value;
         for (nk::f64_t &value : quaternion) value = value / length.sqrt();
@@ -883,8 +883,8 @@ error_stats_t test_shapes_kabsch(settings_t const &settings, typename scalar_typ
                                         shapes_rotation_bound<scalar_t, wassersteinprocrustes_k>();
         nk_f64_t rotation_error = 0;
         for (std::size_t i = 0; i != 9; ++i)
-            rotation_error = std::max(rotation_error,
-                                      std::fabs(rotation[i] - static_cast<nk_f64_t>(reference_rotation[i])));
+            rotation_error = nk::max_of(rotation_error,
+                                        std::fabs(rotation[i] - static_cast<nk_f64_t>(reference_rotation[i])));
         stats.expect(rotation_error <= rotation_bound, "the rotation differs from Kabsch's");
     }
     return stats;
@@ -914,7 +914,7 @@ template <typename scalar_type_>
 nk_f64_t largest_coordinate(nk::vector<scalar_type_> const &frame) noexcept {
     nk_f64_t largest = 0;
     for (std::size_t i = 0; i != frame.size_values(); ++i)
-        largest = std::max(largest, std::fabs(static_cast<nk_f64_t>(frame.values_data()[i])));
+        largest = nk::max_of(largest, std::fabs(static_cast<nk_f64_t>(frame.values_data()[i])));
     return largest;
 }
 
@@ -934,7 +934,8 @@ nk_f64_t rmsd_error_bound(std::size_t n, nk_f64_t rmsd, nk_f64_t spread, nk_f64_
     nk_f64_t const input_roundoff = std::ldexp(1.0, -static_cast<int>(scalar_type_::mantissa_bits()) - 1);
     if constexpr (std::is_same_v<scalar_type_, f16_t>) {
         nk_f64_t const ssd_error = n * nk_accumulation_error_bound(nk_f32_k) * spread * spread;
-        nk_f64_t const root_error = rmsd > 0 ? std::min(std::sqrt(ssd_error), ssd_error / rmsd) : std::sqrt(ssd_error);
+        nk_f64_t const root_error = rmsd > 0 ? nk::min_of(std::sqrt(ssd_error), ssd_error / rmsd)
+                                             : std::sqrt(ssd_error);
         return input_roundoff * spread + root_error;
     }
     else {
@@ -1162,11 +1163,11 @@ error_stats_t test_shapes_ties(settings_t const &settings, typename scalar_type_
                                                                   packed_point(a, j, axis);
                             squared += difference * difference;
                         }
-                        nearest = std::min(nearest, squared);
+                        nearest = nk::min_of(nearest, squared);
                     }
-                    sum += std::sqrt(nearest), maximum = std::max(maximum, std::sqrt(nearest));
+                    sum += std::sqrt(nearest), maximum = nk::max_of(maximum, std::sqrt(nearest));
                 }
-            least = std::min(least, std::max(sum / (2 * points), maximum));
+            least = nk::min_of(least, nk::max_of(sum / (2 * points), maximum));
         }
         return least;
     };

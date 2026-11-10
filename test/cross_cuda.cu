@@ -106,11 +106,11 @@ error_stats_t test_transport_packed_cuda(settings_t const &settings, pack_size_t
                 nk_f64_t bound;
                 if constexpr (kind_ == nk_kernel_wassersteinprocrustes_packed_k) {
                     nk_f64_t const squared = (terms + 32) * roundoff * scale + tolerance;
-                    bound = std::min(std::sqrt(squared), squared / reference);
+                    bound = nk::min_of(std::sqrt(squared), squared / reference);
                 }
                 else {
                     nk_f64_t const loss = 4 * ((terms + 64) * roundoff * scale + tolerance);
-                    bound = std::min(0.5 * std::sqrt(loss), loss / (8 * reference));
+                    bound = nk::min_of(0.5 * std::sqrt(loss), loss / (8 * reference));
                 }
                 stats.accumulate_bounded(distance_t::from_raw(results.raw_values_data()[row * columns + column]),
                                          f64_t(reference), bound);
@@ -129,11 +129,11 @@ static void fill_geodesics_case(std::mt19937 &generator, geodesics_case_t kind, 
                                 f64_t *a_latitudes, f64_t *a_longitudes, std::size_t rows, f64_t *b_latitudes,
                                 f64_t *b_longitudes, std::size_t columns) {
     double const pi = 3.14159265358979323846;
-    std::size_t const paired = std::min(rows, columns);
+    std::size_t const paired = nk::min_of(rows, columns);
     if (cap < pi) {
         f64_t centre_latitude, centre_longitude;
         nk::fill_coordinates(generator, &centre_latitude, &centre_longitude, 1);
-        std::vector<f64_t> centre_latitudes(std::max(rows, columns), centre_latitude),
+        std::vector<f64_t> centre_latitudes(nk::max_of(rows, columns), centre_latitude),
             centre_longitudes(centre_latitudes.size(), centre_longitude);
         nk::fill_nearby_coordinates(generator, centre_latitudes.data(), centre_longitudes.data(), a_latitudes,
                                     a_longitudes, rows, cap);
@@ -191,7 +191,7 @@ error_stats_t test_geodesics_cuda(settings_t const &settings) {
     auto backend = make_backend<cuda_backend_t>(settings);
     std::mt19937 generator(settings.seed.value);
     double const pi = 3.14159265358979323846, angle = double(settings.max_coord_angle_degrees) * pi / 180;
-    double const cap = spherical ? pi : std::min(angle, pi / 2) / 2;
+    double const cap = spherical ? pi : nk::min_of(angle, pi / 2) / 2;
     struct case_t {
         geodesics_case_t kind;
         double separation;
@@ -291,8 +291,8 @@ error_stats_t test_terrain_cuda(settings_t const &settings) {
             point[1] = unit(generator) * float(rows + 1) - 1.0f;
             if (index % 5 == 1) point[0] = float(columns - 1);
             if (index % 7 == 2) point[1] = 0.0f;
-            std::size_t const row = std::min<std::size_t>(rows - 1, std::size_t(std::max(point[1], 0.0f)));
-            std::size_t const column = std::min<std::size_t>(columns - 1, std::size_t(std::max(point[0], 0.0f)));
+            std::size_t const row = nk::min_of<std::size_t>(rows - 1, std::size_t(nk::max_of(point[1], 0.0f)));
+            std::size_t const column = nk::min_of<std::size_t>(columns - 1, std::size_t(nk::max_of(point[0], 0.0f)));
             float const ground = terrain[row * padded + column];
             point[2] = (ground == ground ? ground : 100.0f) + 2.0f + unit(generator) * 58.0f;
         };
@@ -308,7 +308,7 @@ error_stats_t test_terrain_cuda(settings_t const &settings) {
             coordinates[1] = unit(generator) * float(rows + 1) - 1.0f;
             if (point % 5 == 1) coordinates[0] = float(columns - 1);
             if (point % 7 == 2) coordinates[1] = float(rows - 1);
-            if (point % 11 == 3) coordinates[0] = std::floor(std::max(coordinates[0], 0.0f));
+            if (point % 11 == 3) coordinates[0] = std::floor(nk::max_of(coordinates[0], 0.0f));
             if (point % 13 == 4) coordinates[1] = not_a_number;
         }
         for (std::size_t viewpoint = 0; viewpoint != viewpoints_count; ++viewpoint) {

@@ -31,8 +31,15 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
     if (NUMKONG_WERROR)
         target_compile_options(numkong_warnings INTERFACE "$<$<COMPILE_LANGUAGE:C,CXX>:-Werror>")
     endif ()
-elseif (MSVC AND NUMKONG_WERROR)
-    target_compile_options(numkong_warnings INTERFACE "$<$<COMPILE_LANGUAGE:C,CXX>:/WX>")
+elseif (MSVC)
+    # The conformance switches MSVC leaves off by default, which every other supported compiler behaves as.
+    target_compile_options(
+        numkong_warnings INTERFACE "$<$<COMPILE_LANGUAGE:C,CXX>:/Zc:preprocessor;/utf-8;/bigobj>"
+                                   "$<$<COMPILE_LANGUAGE:CXX>:/permissive-;/Zc:__cplusplus>"
+    )
+    if (NUMKONG_WERROR)
+        target_compile_options(numkong_warnings INTERFACE "$<$<COMPILE_LANGUAGE:C,CXX>:/WX>")
+    endif ()
 endif ()
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "^(Clang|AppleClang|IntelLLVM)$")

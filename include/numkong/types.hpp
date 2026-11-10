@@ -100,16 +100,18 @@
 #ifndef NUMKONG_TYPES_HPP
 #define NUMKONG_TYPES_HPP
 
-#include <bit>      // `std::bit_cast`
-#include <compare>  // `std::strong_ordering`
-#include <concepts> // `std::integral`
-#include <cmath>    // `std::sqrt`
-#include <complex>  // `std::complex`
-#include <cstdint>  // `nk_u32_t`
-#include <iterator> // `std::data`, `std::size`
-#include <limits>   // `std::numeric_limits`
-#include <span>     // `std::span`
-#include <utility>  // `std::swap`
+#include <cmath>   // `std::sqrt`
+#include <cstdint> // `nk_u32_t`
+
+#include <bit>         // `std::bit_cast`
+#include <compare>     // `std::strong_ordering`
+#include <concepts>    // `std::integral`
+#include <complex>     // `std::complex`
+#include <iterator>    // `std::data`, `std::size`
+#include <limits>      // `std::numeric_limits`
+#include <span>        // `std::span`
+#include <type_traits> // `std::is_arithmetic_v`
+#include <utility>     // `std::swap`
 
 #include "numkong/types.h"
 #include "numkong/scalar.h"
@@ -122,6 +124,21 @@
 #endif
 
 namespace ashvardanian::numkong {
+
+/** The smaller of @p first and @p second; arithmetic only, so a caller's own @c min_of never
+ *  meets this one by argument-dependent lookup. */
+template <typename value_type_>
+    requires std::is_arithmetic_v<value_type_>
+constexpr value_type_ min_of(value_type_ first, value_type_ second) noexcept {
+    return second < first ? second : first;
+}
+
+/** The larger of @p first and @p second, the @c max twin of @ref min_of. */
+template <typename value_type_>
+    requires std::is_arithmetic_v<value_type_>
+constexpr value_type_ max_of(value_type_ first, value_type_ second) noexcept {
+    return first < second ? second : first;
+}
 
 #pragma region Status
 
@@ -406,18 +423,18 @@ constexpr raw_integral_type_ nk_f64_to_integer_(double value) noexcept {
     if (value != value) return 0;
     if constexpr (std::is_unsigned_v<raw_integral_type_>) {
         if (value <= 0.0) return 0;
-        double max_value = static_cast<double>(limits_t::max());
-        if (value >= max_value) return limits_t::max();
+        double max_value = static_cast<double>((limits_t::max)());
+        if (value >= max_value) return (limits_t::max)();
         std::uint64_t integer_part = static_cast<std::uint64_t>(value);
         double fractional_part = value - static_cast<double>(integer_part);
         if (fractional_part > 0.5 || (fractional_part == 0.5 && (integer_part & 1))) ++integer_part;
         return static_cast<raw_integral_type_>(integer_part);
     }
     else {
-        double min_value = static_cast<double>(limits_t::min());
-        double max_value = static_cast<double>(limits_t::max());
-        if (value <= min_value) return limits_t::min();
-        if (value >= max_value) return limits_t::max();
+        double min_value = static_cast<double>((limits_t::min)());
+        double max_value = static_cast<double>((limits_t::max)());
+        if (value <= min_value) return (limits_t::min)();
+        if (value >= max_value) return (limits_t::max)();
         std::int64_t integer_part = static_cast<std::int64_t>(value);
         double fractional_part = value - static_cast<double>(integer_part);
         if (fractional_part > 0.5 || (fractional_part == 0.5 && (integer_part & 1))) ++integer_part;
@@ -719,9 +736,9 @@ struct f32_t {
     NUMKONG_CMATH_CONSTEXPR_ f32_t acosh() const noexcept { return f32_t {std::acosh(raw_)}; }
     NUMKONG_CMATH_CONSTEXPR_ f32_t atanh() const noexcept { return f32_t {std::atanh(raw_)}; }
 
-    NUMKONG_CMATH_CONSTEXPR_ f32_t min(f32_t o) const noexcept { return f32_t {std::fmin(raw_, o.raw_)}; }
-    NUMKONG_CMATH_CONSTEXPR_ f32_t max(f32_t o) const noexcept { return f32_t {std::fmax(raw_, o.raw_)}; }
-    inline f32_t clamp(f32_t lo, f32_t hi) const noexcept { return max(lo).min(hi); }
+    NUMKONG_CMATH_CONSTEXPR_ f32_t(min)(f32_t o) const noexcept { return f32_t {std::fmin(raw_, o.raw_)}; }
+    NUMKONG_CMATH_CONSTEXPR_ f32_t(max)(f32_t o) const noexcept { return f32_t {std::fmax(raw_, o.raw_)}; }
+    inline f32_t clamp(f32_t lo, f32_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     static constexpr f32_t clamped_to_finite_(float x) noexcept {
         f32_t const value {x};
@@ -1014,9 +1031,9 @@ struct f64_t {
     NUMKONG_CMATH_CONSTEXPR_ f64_t acosh() const noexcept { return f64_t {std::acosh(raw_)}; }
     NUMKONG_CMATH_CONSTEXPR_ f64_t atanh() const noexcept { return f64_t {std::atanh(raw_)}; }
 
-    NUMKONG_CMATH_CONSTEXPR_ f64_t min(f64_t o) const noexcept { return f64_t {std::fmin(raw_, o.raw_)}; }
-    NUMKONG_CMATH_CONSTEXPR_ f64_t max(f64_t o) const noexcept { return f64_t {std::fmax(raw_, o.raw_)}; }
-    inline f64_t clamp(f64_t lo, f64_t hi) const noexcept { return max(lo).min(hi); }
+    NUMKONG_CMATH_CONSTEXPR_ f64_t(min)(f64_t o) const noexcept { return f64_t {std::fmin(raw_, o.raw_)}; }
+    NUMKONG_CMATH_CONSTEXPR_ f64_t(max)(f64_t o) const noexcept { return f64_t {std::fmax(raw_, o.raw_)}; }
+    inline f64_t clamp(f64_t lo, f64_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     static constexpr f64_t clamped_to_finite_(double x) noexcept {
         f64_t const value {x};
@@ -1800,9 +1817,9 @@ struct f16_t {
     NUMKONG_CMATH_CONSTEXPR_ f16_t acosh() const noexcept { return from_f32(std::acosh(to_f32())); }
     NUMKONG_CMATH_CONSTEXPR_ f16_t atanh() const noexcept { return from_f32(std::atanh(to_f32())); }
 
-    NUMKONG_CMATH_CONSTEXPR_ f16_t min(f16_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ f16_t max(f16_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline f16_t clamp(f16_t lo, f16_t hi) const noexcept { return max(lo).min(hi); }
+    NUMKONG_CMATH_CONSTEXPR_ f16_t(min)(f16_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
+    NUMKONG_CMATH_CONSTEXPR_ f16_t(max)(f16_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
+    inline f16_t clamp(f16_t lo, f16_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     /** Saturating addition: clamps to finite range on overflow. */
     inline f16_t saturating_add(f16_t o) const noexcept {
@@ -2093,9 +2110,9 @@ struct bf16_t {
     NUMKONG_CMATH_CONSTEXPR_ bf16_t acosh() const noexcept { return from_f32(std::acosh(to_f32())); }
     NUMKONG_CMATH_CONSTEXPR_ bf16_t atanh() const noexcept { return from_f32(std::atanh(to_f32())); }
 
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t min(bf16_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ bf16_t max(bf16_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline bf16_t clamp(bf16_t lo, bf16_t hi) const noexcept { return max(lo).min(hi); }
+    NUMKONG_CMATH_CONSTEXPR_ bf16_t(min)(bf16_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
+    NUMKONG_CMATH_CONSTEXPR_ bf16_t(max)(bf16_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
+    inline bf16_t clamp(bf16_t lo, bf16_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     /** Saturating addition: clamps to finite range on overflow. */
     inline bf16_t saturating_add(bf16_t o) const noexcept {
@@ -2541,9 +2558,9 @@ struct e4m3_t {
     NUMKONG_CMATH_CONSTEXPR_ e4m3_t tan() const noexcept { return from_f32(std::tan(to_f32())); }
     NUMKONG_CMATH_CONSTEXPR_ e4m3_t tanh() const noexcept { return from_f32(std::tanh(to_f32())); }
 
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t min(e4m3_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e4m3_t max(e4m3_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline e4m3_t clamp(e4m3_t lo, e4m3_t hi) const noexcept { return max(lo).min(hi); }
+    NUMKONG_CMATH_CONSTEXPR_ e4m3_t(min)(e4m3_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
+    NUMKONG_CMATH_CONSTEXPR_ e4m3_t(max)(e4m3_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
+    inline e4m3_t clamp(e4m3_t lo, e4m3_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     /** Saturating addition: clamps to finite range on overflow. */
     inline e4m3_t saturating_add(e4m3_t o) const noexcept {
@@ -2787,9 +2804,9 @@ struct e5m2_t {
     NUMKONG_CMATH_CONSTEXPR_ e5m2_t tan() const noexcept { return from_f32(std::tan(to_f32())); }
     NUMKONG_CMATH_CONSTEXPR_ e5m2_t tanh() const noexcept { return from_f32(std::tanh(to_f32())); }
 
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t min(e5m2_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e5m2_t max(e5m2_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline e5m2_t clamp(e5m2_t lo, e5m2_t hi) const noexcept { return max(lo).min(hi); }
+    NUMKONG_CMATH_CONSTEXPR_ e5m2_t(min)(e5m2_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
+    NUMKONG_CMATH_CONSTEXPR_ e5m2_t(max)(e5m2_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
+    inline e5m2_t clamp(e5m2_t lo, e5m2_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     /** Saturating addition: clamps to finite range on overflow. */
     inline e5m2_t saturating_add(e5m2_t o) const noexcept {
@@ -2997,9 +3014,9 @@ struct e2m3_t {
     constexpr e2m3_t copysign(e2m3_t sign) const noexcept { return from_bits((raw_ & 0x1F) | (sign.raw_ & 0x20)); }
 
     inline e2m3_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
-    NUMKONG_CMATH_CONSTEXPR_ e2m3_t min(e2m3_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e2m3_t max(e2m3_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline e2m3_t clamp(e2m3_t lo, e2m3_t hi) const noexcept { return max(lo).min(hi); }
+    NUMKONG_CMATH_CONSTEXPR_ e2m3_t(min)(e2m3_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
+    NUMKONG_CMATH_CONSTEXPR_ e2m3_t(max)(e2m3_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
+    inline e2m3_t clamp(e2m3_t lo, e2m3_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     inline e2m3_t saturating_add(e2m3_t o) const noexcept {
         float result = to_f32() + o.to_f32();
@@ -3205,9 +3222,9 @@ struct e3m2_t {
     constexpr e3m2_t copysign(e3m2_t sign) const noexcept { return from_bits((raw_ & 0x1F) | (sign.raw_ & 0x20)); }
 
     inline e3m2_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
-    NUMKONG_CMATH_CONSTEXPR_ e3m2_t min(e3m2_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
-    NUMKONG_CMATH_CONSTEXPR_ e3m2_t max(e3m2_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
-    inline e3m2_t clamp(e3m2_t lo, e3m2_t hi) const noexcept { return max(lo).min(hi); }
+    NUMKONG_CMATH_CONSTEXPR_ e3m2_t(min)(e3m2_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
+    NUMKONG_CMATH_CONSTEXPR_ e3m2_t(max)(e3m2_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
+    inline e3m2_t clamp(e3m2_t lo, e3m2_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     inline e3m2_t saturating_add(e3m2_t o) const noexcept {
         float result = to_f32() + o.to_f32();
@@ -3748,13 +3765,13 @@ struct f118_t {
     NUMKONG_CMATH_CONSTEXPR_ f118_t fract() const noexcept { return *this - trunc(); }
 
     /** Returns the minimum of self and other. */
-    constexpr f118_t min(f118_t o) const noexcept { return *this < o ? *this : o; }
+    constexpr f118_t(min)(f118_t o) const noexcept { return *this < o ? *this : o; }
 
     /** Returns the maximum of self and other. */
-    constexpr f118_t max(f118_t o) const noexcept { return *this > o ? *this : o; }
+    constexpr f118_t(max)(f118_t o) const noexcept { return *this > o ? *this : o; }
 
     /** Clamps self to the range [lower, upper]. */
-    constexpr f118_t clamp(f118_t lower, f118_t upper) const noexcept { return max(lower).min(upper); }
+    constexpr f118_t clamp(f118_t lower, f118_t upper) const noexcept { return ((max)(lower).min)(upper); }
 
     /** Total ordering: -NaN < -Inf < ... < -0 < +0 < ... < +Inf < +NaN. Returns -1, 0, or 1. */
     NUMKONG_CMATH_CONSTEXPR_ int order(f118_t o) const noexcept {
@@ -4220,14 +4237,14 @@ constexpr raw_integral_type_ nk_f118_to_integer_(double high, double low) noexce
 
     if constexpr (std::is_unsigned_v<raw_integral_type_>) {
         if (value <= f118_t(0.0)) return 0;
-        f118_t max_value(limits_t::max());
-        if (value >= max_value) return limits_t::max();
+        f118_t max_value((limits_t::max)());
+        if (value >= max_value) return (limits_t::max)();
     }
     else {
-        f118_t min_value(limits_t::min());
-        f118_t max_value(limits_t::max());
-        if (value <= min_value) return limits_t::min();
-        if (value >= max_value) return limits_t::max();
+        f118_t min_value((limits_t::min)());
+        f118_t max_value((limits_t::max)());
+        if (value <= min_value) return (limits_t::min)();
+        if (value >= max_value) return (limits_t::max)();
     }
 
     f118_t truncated = value.trunc();
@@ -4237,7 +4254,7 @@ constexpr raw_integral_type_ nk_f118_to_integer_(double high, double low) noexce
             constexpr double two_to_64 = 18446744073709551616.0;
             if (truncated.high_ == two_to_64) {
                 std::int64_t negative_offset = static_cast<std::int64_t>(truncated.low_ + 1.0);
-                integer_part = limits_t::max() - static_cast<raw_integral_type_>(-negative_offset);
+                integer_part = (limits_t::max)() - static_cast<raw_integral_type_>(-negative_offset);
             }
             else {
                 integer_part = static_cast<raw_integral_type_>(static_cast<std::uint64_t>(truncated.high_) +
@@ -4254,7 +4271,7 @@ constexpr raw_integral_type_ nk_f118_to_integer_(double high, double low) noexce
             constexpr double two_to_63 = 9223372036854775808.0;
             if (truncated.high_ == two_to_63) {
                 std::int64_t negative_offset = static_cast<std::int64_t>(truncated.low_ + 1.0);
-                integer_part = static_cast<raw_integral_type_>(limits_t::max() + negative_offset);
+                integer_part = static_cast<raw_integral_type_>((limits_t::max)() + negative_offset);
             }
             else {
                 integer_part = static_cast<raw_integral_type_>(static_cast<std::int64_t>(truncated.high_) +
@@ -4542,9 +4559,9 @@ struct i8_t {
     }
     constexpr int order(i8_t o) const noexcept { return (raw_ > o.raw_) - (raw_ < o.raw_); }
     constexpr int total_cmp(i8_t o) const noexcept { return order(o); }
-    constexpr i8_t min(i8_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
-    constexpr i8_t max(i8_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
-    constexpr i8_t clamp(i8_t lo, i8_t hi) const noexcept { return max(lo).min(hi); }
+    constexpr i8_t(min)(i8_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
+    constexpr i8_t(max)(i8_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
+    constexpr i8_t clamp(i8_t lo, i8_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     constexpr i8_t saturating_add(i8_t o) const noexcept {
         nk_i32_t result = nk_i32_t(raw_) + nk_i32_t(o.raw_);
@@ -4713,9 +4730,9 @@ struct u8_t {
 
     constexpr int order(u8_t o) const noexcept { return (raw_ > o.raw_) - (raw_ < o.raw_); }
     constexpr int total_cmp(u8_t o) const noexcept { return order(o); }
-    constexpr u8_t min(u8_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
-    constexpr u8_t max(u8_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
-    constexpr u8_t clamp(u8_t lo, u8_t hi) const noexcept { return max(lo).min(hi); }
+    constexpr u8_t(min)(u8_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
+    constexpr u8_t(max)(u8_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
+    constexpr u8_t clamp(u8_t lo, u8_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     constexpr u8_t saturating_add(u8_t o) const noexcept {
         nk_u32_t result = nk_u32_t(raw_) + nk_u32_t(o.raw_);
@@ -4856,9 +4873,9 @@ struct i32_t {
     }
     constexpr int order(i32_t o) const noexcept { return (raw_ > o.raw_) - (raw_ < o.raw_); }
     constexpr int total_cmp(i32_t o) const noexcept { return order(o); }
-    constexpr i32_t min(i32_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
-    constexpr i32_t max(i32_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
-    constexpr i32_t clamp(i32_t lo, i32_t hi) const noexcept { return max(lo).min(hi); }
+    constexpr i32_t(min)(i32_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
+    constexpr i32_t(max)(i32_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
+    constexpr i32_t clamp(i32_t lo, i32_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     constexpr i32_t saturating_add(i32_t o) const noexcept {
         nk_i64_t result = nk_i64_t(raw_) + nk_i64_t(o.raw_);
@@ -4996,9 +5013,9 @@ struct u32_t {
 
     constexpr int order(u32_t o) const noexcept { return (raw_ > o.raw_) - (raw_ < o.raw_); }
     constexpr int total_cmp(u32_t o) const noexcept { return order(o); }
-    constexpr u32_t min(u32_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
-    constexpr u32_t max(u32_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
-    constexpr u32_t clamp(u32_t lo, u32_t hi) const noexcept { return max(lo).min(hi); }
+    constexpr u32_t(min)(u32_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
+    constexpr u32_t(max)(u32_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
+    constexpr u32_t clamp(u32_t lo, u32_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     constexpr u32_t saturating_add(u32_t o) const noexcept {
         nk_u64_t result = nk_u64_t(raw_) + nk_u64_t(o.raw_);
@@ -5139,9 +5156,9 @@ struct i64_t {
     }
     constexpr int order(i64_t o) const noexcept { return (raw_ > o.raw_) - (raw_ < o.raw_); }
     constexpr int total_cmp(i64_t o) const noexcept { return order(o); }
-    constexpr i64_t min(i64_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
-    constexpr i64_t max(i64_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
-    constexpr i64_t clamp(i64_t lo, i64_t hi) const noexcept { return max(lo).min(hi); }
+    constexpr i64_t(min)(i64_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
+    constexpr i64_t(max)(i64_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
+    constexpr i64_t clamp(i64_t lo, i64_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     constexpr i64_t saturating_add(i64_t o) const noexcept {
         // Check for overflow: if signs match and result has different sign
@@ -5278,9 +5295,9 @@ struct u64_t {
 
     constexpr int order(u64_t o) const noexcept { return (raw_ > o.raw_) - (raw_ < o.raw_); }
     constexpr int total_cmp(u64_t o) const noexcept { return order(o); }
-    constexpr u64_t min(u64_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
-    constexpr u64_t max(u64_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
-    constexpr u64_t clamp(u64_t lo, u64_t hi) const noexcept { return max(lo).min(hi); }
+    constexpr u64_t(min)(u64_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
+    constexpr u64_t(max)(u64_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
+    constexpr u64_t clamp(u64_t lo, u64_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     constexpr u64_t saturating_add(u64_t o) const noexcept {
         nk_u64_t result = raw_ + o.raw_;
@@ -5416,9 +5433,9 @@ struct i16_t {
     }
     constexpr int order(i16_t o) const noexcept { return (raw_ > o.raw_) - (raw_ < o.raw_); }
     constexpr int total_cmp(i16_t o) const noexcept { return order(o); }
-    constexpr i16_t min(i16_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
-    constexpr i16_t max(i16_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
-    constexpr i16_t clamp(i16_t lo, i16_t hi) const noexcept { return max(lo).min(hi); }
+    constexpr i16_t(min)(i16_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
+    constexpr i16_t(max)(i16_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
+    constexpr i16_t clamp(i16_t lo, i16_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     constexpr i16_t saturating_add(i16_t o) const noexcept {
         nk_i32_t result = nk_i32_t(raw_) + nk_i32_t(o.raw_);
@@ -5556,9 +5573,9 @@ struct u16_t {
 
     constexpr int order(u16_t o) const noexcept { return (raw_ > o.raw_) - (raw_ < o.raw_); }
     constexpr int total_cmp(u16_t o) const noexcept { return order(o); }
-    constexpr u16_t min(u16_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
-    constexpr u16_t max(u16_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
-    constexpr u16_t clamp(u16_t lo, u16_t hi) const noexcept { return max(lo).min(hi); }
+    constexpr u16_t(min)(u16_t o) const noexcept { return raw_ < o.raw_ ? *this : o; }
+    constexpr u16_t(max)(u16_t o) const noexcept { return raw_ > o.raw_ ? *this : o; }
+    constexpr u16_t clamp(u16_t lo, u16_t hi) const noexcept { return ((max)(lo).min)(hi); }
 
     constexpr u16_t saturating_add(u16_t o) const noexcept {
         nk_u32_t result = nk_u32_t(raw_) + nk_u32_t(o.raw_);
@@ -6722,14 +6739,14 @@ template <> struct type_for<nk_mxint8_k> { using type = mxint8_t; };
 template <typename scalar_type_>
 constexpr scalar_type_ finite_max() noexcept {
     if constexpr (is_numeric_dtype<scalar_type_>()) return scalar_type_::finite_max();
-    else return std::numeric_limits<scalar_type_>::max();
+    else return (std::numeric_limits<scalar_type_>::max)();
 }
 
 /** Get the lowest representable value for a type. */
 template <typename scalar_type_>
 constexpr scalar_type_ finite_min() noexcept {
     if constexpr (is_numeric_dtype<scalar_type_>()) return scalar_type_::finite_min();
-    return std::numeric_limits<scalar_type_>::lowest();
+    else return std::numeric_limits<scalar_type_>::lowest();
 }
 
 /** What @c std::numeric_limits reports for a real NumKong scalar: every member of the primary
@@ -6759,8 +6776,8 @@ struct numeric_limits_of {
     static constexpr bool traps = false;
     static constexpr bool tinyness_before = false;
 
-    static constexpr scalar_type_ min() noexcept { return scalar_type_::positive_min(); }
-    static constexpr scalar_type_ max() noexcept { return scalar_type_::finite_max(); }
+    static constexpr scalar_type_(min)() noexcept { return scalar_type_::positive_min(); }
+    static constexpr scalar_type_(max)() noexcept { return scalar_type_::finite_max(); }
     static constexpr scalar_type_ lowest() noexcept { return scalar_type_::finite_min(); }
     static constexpr scalar_type_ epsilon() noexcept { return scalar_type_::epsilon(); }
     static constexpr scalar_type_ round_error() noexcept { return scalar_type_::round_error(); }
@@ -6778,7 +6795,7 @@ struct numeric_limits_of {
     }
     static constexpr scalar_type_ denorm_min() noexcept {
         if constexpr (requires { scalar_type_::subnormal_min(); }) return scalar_type_::subnormal_min();
-        else return min();
+        else return (min)();
     }
 };
 
@@ -6810,8 +6827,8 @@ struct numeric_limits_of<scalar_type_> {
     static constexpr bool traps = raw_limits_t::traps;
     static constexpr bool tinyness_before = raw_limits_t::tinyness_before;
 
-    static constexpr scalar_type_ min() noexcept { return scalar_type_::from_raw(raw_limits_t::min()); }
-    static constexpr scalar_type_ max() noexcept { return scalar_type_::from_raw(raw_limits_t::max()); }
+    static constexpr scalar_type_(min)() noexcept { return scalar_type_::from_raw((raw_limits_t::min)()); }
+    static constexpr scalar_type_(max)() noexcept { return scalar_type_::from_raw((raw_limits_t::max)()); }
     static constexpr scalar_type_ lowest() noexcept { return scalar_type_::from_raw(raw_limits_t::lowest()); }
     static constexpr scalar_type_ epsilon() noexcept { return scalar_type_::from_raw(raw_limits_t::epsilon()); }
     static constexpr scalar_type_ round_error() noexcept { return scalar_type_::from_raw(raw_limits_t::round_error()); }

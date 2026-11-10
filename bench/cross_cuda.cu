@@ -20,7 +20,6 @@
 #include <cstdint> // `std::int32_t`, `std::int64_t`
 #include <cstring> // `std::memcpy`
 
-#include <algorithm>   // `std::min`, `std::max`
 #include <array>       // `std::array`
 #include <memory>      // `std::shared_ptr`, `std::make_shared`
 #include <string>      // `std::string`
@@ -973,7 +972,7 @@ struct cublaslt_plan_t {
         // Unit scales - UE8M0 code 127 is 2⁰, UE4M3 code 0x38 is 1.0 - so the product is the unscaled one.
         if (std::size_t const block = cublaslt_scale_block(dtype)) {
             scales = cuda_device_vector<char>::uninitialized(
-                         nk::divide_round_up(std::max(rows, columns), std::size_t(128)) * 128 *
+                         nk::divide_round_up(nk::max_of(rows, columns), std::size_t(128)) * 128 *
                              nk::divide_round_up(depth, block * 4) * 4,
                          allocator_of<std::byte>(backend))
                          .value;
@@ -1000,7 +999,7 @@ struct cublaslt_plan_t {
                                                 output_layout, preference, 1, &heuristic, &found);
         cublasLtMatmulPreferenceDestroy(preference);
         if (status || !found) return status ? status : CUBLAS_STATUS_NOT_SUPPORTED;
-        workspace = cuda_device_vector<char>::uninitialized(std::max<std::size_t>(heuristic.workspaceSize, 1),
+        workspace = cuda_device_vector<char>::uninitialized(nk::max_of<std::size_t>(heuristic.workspaceSize, 1),
                                                             allocator_of<std::byte>(backend))
                         .value;
         return workspace.empty() ? CUBLAS_STATUS_ALLOC_FAILED : CUBLAS_STATUS_SUCCESS;
@@ -1223,7 +1222,7 @@ struct cudnn_attention_plan_t {
                            queries = shape.queries, keys = shape.keys;
         cudnnDataType_t const io_type = cudnn_data_type(dtype);
         scale = 1.0f / std::sqrt(float(depth)),
-        window = std::int32_t(std::min<nk_size_t>(attention_keys_before(visibility), shape.keys - 1) + 1);
+        window = std::int32_t(nk::min_of<nk_size_t>(attention_keys_before(visibility), shape.keys - 1) + 1);
         key_bytes = std::size_t(keys * key_value_heads * depth) * nk_dtype_bits(dtype) / 8;
         uids = {std::int64_t(cudnn_uid_t::queries_k), std::int64_t(cudnn_uid_t::keys_k),
                 std::int64_t(cudnn_uid_t::values_k), std::int64_t(cudnn_uid_t::output_k)};
@@ -1356,7 +1355,7 @@ struct cudnn_attention_plan_t {
         if (!status)
             status = cudnnBackendGetAttribute(plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1,
                                               nullptr, &workspace_bytes);
-        workspace = cuda_device_vector<char>::uninitialized(std::size_t(std::max<std::int64_t>(workspace_bytes, 1)),
+        workspace = cuda_device_vector<char>::uninitialized(std::size_t(nk::max_of<std::int64_t>(workspace_bytes, 1)),
                                                             allocator_of<std::byte>(backend))
                         .value;
         if (!status && workspace.empty()) status = CUDNN_STATUS_ALLOC_FAILED;
@@ -1522,7 +1521,7 @@ nk::status_t bench_cross_cuda([[maybe_unused]] environment_t const &env,
     nk_capability_t const capabilities = runtime.capabilities;
     fmt::println("- CUDA baselines: cuBLAS {}, cuDNN {}, cuVS {}", NUMKONG_COMPARE_TO_CUBLAS ? "on" : "off",
                  NUMKONG_COMPARE_TO_CUDNN ? "on" : "off", NUMKONG_COMPARE_TO_CUVS ? "on" : "off");
-    cuda_backend_t const backend {runtime, std::size_t(std::max(l2_bytes, 0))};
+    cuda_backend_t const backend {runtime, std::size_t(nk::max_of(l2_bytes, 0))};
     bench_cross_cuda(env, backend, capabilities);
     bench_each_cuda(env, backend, capabilities);
     bench_cast_cuda(env, backend, capabilities);

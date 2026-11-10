@@ -169,8 +169,13 @@
 
 #if defined(_MSC_VER)
 #define NUMKONG_INLINE __forceinline static
-#else
+#elif defined(__clang__)
 #define NUMKONG_INLINE NUMKONG_MAYBE_UNUSED_ __attribute__((always_inline)) NUMKONG_C_INLINE_
+#else
+
+/** GCC checks @c always_inline at the call as written, so a generic caller outside a target region
+ *  needs plain inline. */
+#define NUMKONG_INLINE NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_
 #endif
 
 /** The C++ standard in effect, or zero in C. MSVC reports it in @c _MSVC_LANG and leaves
@@ -208,8 +213,12 @@
  *  library. Windows DLLs export every symbol through CMake, so no import or export spelling. */
 #if NUMKONG_HEADER_ONLY
 #define NUMKONG_API NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_
-#elif defined(__GNUC__) || defined(__clang__)
+#elif defined(__clang__)
 #define NUMKONG_API __attribute__((visibility("default")))
+#elif defined(__GNUC__)
+
+/** GCC inlines the plain-inline helpers into an exported kernel only when told to. */
+#define NUMKONG_API __attribute__((visibility("default"), flatten))
 #else
 #define NUMKONG_API
 #endif

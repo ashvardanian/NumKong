@@ -171,7 +171,7 @@ error_stats_t test_shapes_limits_metal(settings_t const &settings, nk_capability
     error_stats_t stats(comparison_family_t::bounded_k);
     auto backend = make_backend<metal_backend_t>(settings);
     std::mt19937 generator(settings.seed.value);
-    std::size_t const rows = 3, columns = 3, points = std::max<std::size_t>(settings.shape_points, 97);
+    std::size_t const rows = 3, columns = 3, points = nk::max_of<std::size_t>(settings.shape_points, 97);
     auto const row_packs = device_random_packed(settings, backend, generator, rows, points, stats);
     auto const column_packs = device_random_packed(settings, backend, generator, columns, points + 3, stats);
     auto score = make_vector<f32_t>(backend, 1);
@@ -331,7 +331,7 @@ error_stats_t test_transport_packed_metal(settings_t const &settings) {
         // A workspace of 6 slots walks the 35 pairs in launches that reuse them
         nk_size_t const slot_bytes = procrustes_k ? nk_wassersteinprocrustes_slot_bytes_metal_(largest)
                                                   : nk_gromovwassersteins_slot_bytes_metal_(largest);
-        nk_size_t const memory_bytes = std::min(bytes, 6 * slot_bytes);
+        nk_size_t const memory_bytes = nk::min_of(bytes, 6 * slot_bytes);
         stats.expect(launch(row_packs, rows, column_packs, columns, distances, turns, memory, memory_bytes));
         if (!stats.expect(backend.synchronize())) return stats;
         stats.expect(
@@ -356,11 +356,11 @@ error_stats_t test_transport_packed_metal(settings_t const &settings) {
                 nk_f64_t bound;
                 if constexpr (procrustes_k) {
                     nk_f64_t const squared = (terms + 32) * roundoff * scale + tolerance;
-                    bound = std::min(std::sqrt(squared), squared / reference);
+                    bound = nk::min_of(std::sqrt(squared), squared / reference);
                 }
                 else {
                     nk_f64_t const loss = 4 * ((terms + 64) * roundoff * scale + tolerance);
-                    bound = std::min(0.5 * std::sqrt(loss), loss / (8 * reference));
+                    bound = nk::min_of(0.5 * std::sqrt(loss), loss / (8 * reference));
                 }
                 nk_f32_t const distance = distances[row * columns + column];
                 stats.accumulate_bounded(f32_t::from_raw(distance), f64_t(reference), bound);

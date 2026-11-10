@@ -618,13 +618,13 @@ typename value_type_::reduce_moments_sum_t sum(tensor_view<value_type_, max_rank
 
 /** Find the minimum element value. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
-typename value_type_::reduce_minmax_value_t min(tensor_view<value_type_, max_rank_> input) noexcept {
+typename value_type_::reduce_minmax_value_t(min)(tensor_view<value_type_, max_rank_> input) noexcept {
     return minmax(input).min_value;
 }
 
 /** Find the maximum element value. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8>
-typename value_type_::reduce_minmax_value_t max(tensor_view<value_type_, max_rank_> input) noexcept {
+typename value_type_::reduce_minmax_value_t(max)(tensor_view<value_type_, max_rank_> input) noexcept {
     return minmax(input).max_value;
 }
 
@@ -707,13 +707,13 @@ typename value_type_::reduce_moments_sum_t sum(vector_view<value_type_> input) n
 
 /** Find the minimum element value in a vector view. */
 template <numeric_dtype value_type_>
-typename value_type_::reduce_minmax_value_t min(vector_view<value_type_> input) noexcept {
+typename value_type_::reduce_minmax_value_t(min)(vector_view<value_type_> input) noexcept {
     return minmax(input).min_value;
 }
 
 /** Find the maximum element value in a vector view. */
 template <numeric_dtype value_type_>
-typename value_type_::reduce_minmax_value_t max(vector_view<value_type_> input) noexcept {
+typename value_type_::reduce_minmax_value_t(max)(vector_view<value_type_> input) noexcept {
     return minmax(input).max_value;
 }
 
@@ -922,7 +922,7 @@ expected<tensor<std::size_t, allocator_type_, max_rank_>> argmax(tensor_view<val
 /** Min along an axis; fails like the axis @c minmax. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_minmax_value_t>>
-expected<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>> min(
+expected<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>>(min)(
     tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
     allocator_type_ alloc = {}) noexcept {
     auto result = minmax<value_type_, max_rank_, allocator_type_>(input, axis, keep_dims, alloc);
@@ -932,7 +932,7 @@ expected<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, ma
 /** Max along an axis; fails like the axis @c minmax. */
 template <numeric_dtype value_type_, std::size_t max_rank_ = 8,
           typename allocator_type_ = aligned_allocator<typename value_type_::reduce_minmax_value_t>>
-expected<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>> max(
+expected<tensor<typename value_type_::reduce_minmax_value_t, allocator_type_, max_rank_>>(max)(
     tensor_view<value_type_, max_rank_> input, std::size_t axis, keep_dims_t keep_dims = collapse_dims_k,
     allocator_type_ alloc = {}) noexcept {
     auto result = minmax<value_type_, max_rank_, allocator_type_>(input, axis, keep_dims, alloc);

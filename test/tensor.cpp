@@ -1019,8 +1019,8 @@ error_stats_t test_vector_reductions_for_type(settings_t const &settings) {
     stats.expect(!(mm.max_value < mm.min_value), "minmax inverted");
     stats.expect(mm.min_index < v.size(), "argmin out of range");
     stats.expect(mm.max_index < v.size(), "argmax out of range");
-    stats.expect(nk::min(view) == mm.min_value, "min disagrees with minmax");
-    stats.expect(nk::max(view) == mm.max_value, "max disagrees with minmax");
+    stats.expect((nk::min)(view) == mm.min_value, "min disagrees with minmax");
+    stats.expect((nk::max)(view) == mm.max_value, "max disagrees with minmax");
     stats.expect(nk::argmin(view) == mm.min_index, "argmin disagrees with minmax");
     stats.expect(nk::argmax(view) == mm.max_index, "argmax disagrees with minmax");
     stats.expect(nk::sum(view) == nk::moments(view).sum, "sum disagrees with moments");

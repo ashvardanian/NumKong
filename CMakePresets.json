@@ -80,12 +80,6 @@
       "displayName": "Windows x64 - Visual Studio 2026"
     },
     {
-      "name": "msvc2022_x64",
-      "inherits": "msvc2026_x64",
-      "displayName": "Windows x64 - Visual Studio 2022",
-      "generator": "Visual Studio 17 2022"
-    },
-    {
       "name": "msvc_cuda",
       "inherits": ["base", "windows"],
       "displayName": "Windows CUDA - MSVC and Ninja",
@@ -103,12 +97,6 @@
       "architecture": "ARM64",
       "cacheVariables": { "NUMKONG_BUILD_TEST": "OFF", "NUMKONG_BUILD_SHARED": "ON" },
       "displayName": "Windows ARM64 - Visual Studio 2026"
-    },
-    {
-      "name": "msvc2022_arm64",
-      "inherits": "msvc2026_arm64",
-      "displayName": "Windows ARM64 - Visual Studio 2022",
-      "generator": "Visual Studio 17 2022"
     },
     {
       "name": "cross",
@@ -341,10 +329,8 @@
     { "name": "release_shared", "configurePreset": "release_shared" },
     { "name": "swift", "configurePreset": "swift", "configuration": "Release" },
     { "name": "msvc2026_x64", "configurePreset": "msvc2026_x64", "configuration": "Release" },
-    { "name": "msvc2022_x64", "configurePreset": "msvc2022_x64", "configuration": "Release" },
     { "name": "msvc_cuda", "configurePreset": "msvc_cuda" },
     { "name": "msvc2026_arm64", "configurePreset": "msvc2026_arm64", "configuration": "Release" },
-    { "name": "msvc2022_arm64", "configurePreset": "msvc2022_arm64", "configuration": "Release" },
     { "name": "linux_arm64", "configurePreset": "linux_arm64" },
     { "name": "linux_loongarch64", "configurePreset": "linux_loongarch64" },
     { "name": "linux_ppc64le", "configurePreset": "linux_ppc64le" },
@@ -396,7 +382,6 @@
     },
     { "name": "release", "inherits": "base", "configurePreset": "release" },
     { "name": "msvc2026_x64", "inherits": "base", "configurePreset": "msvc2026_x64", "configuration": "Release" },
-    { "name": "msvc2022_x64", "inherits": "base", "configurePreset": "msvc2022_x64", "configuration": "Release" },
     { "name": "msvc_cuda", "inherits": "base", "configurePreset": "msvc_cuda" },
     { "name": "linux_arm64", "inherits": "emulated", "configurePreset": "linux_arm64" },
     { "name": "linux_loongarch64", "inherits": "emulated", "configurePreset": "linux_loongarch64" },

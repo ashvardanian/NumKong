@@ -326,7 +326,7 @@ status_t attention_pack(std::size_t key_value_head_count, std::size_t depth, std
                         std::uint32_t const *key_lengths, std::size_t segment_count, operand_pointer<in_type_> keys,
                         std::size_t key_stride, operand_pointer<in_type_> values, std::size_t value_stride,
                         void *key_value_packed, std::size_t tasks_begin = 0,
-                        std::size_t tasks_end = std::numeric_limits<std::size_t>::max(),
+                        std::size_t tasks_end = (std::numeric_limits<std::size_t>::max)(),
                         nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     raw_t const *keys_raw = reinterpret_cast<raw_t const *>(keys);

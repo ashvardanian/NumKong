@@ -54,8 +54,8 @@ void measure_sparse(loop_t &loop, environment_t const &env, kernel_type_ kernel,
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
 void run_sparse(environment_t const &env, std::string name, kernel_type_ *kernel) {
-    std::size_t const intersection_size = std::max<std::size_t>(
-        1, static_cast<std::size_t>(std::min(env.settings.sparse_first_count, env.settings.sparse_second_count) *
+    std::size_t const intersection_size = nk::max_of<std::size_t>(
+        1, static_cast<std::size_t>(nk::min_of(env.settings.sparse_first_count, env.settings.sparse_second_count) *
                                     env.settings.sparse_intersection_share));
     std::string bench_name = name + "<|A|=" + std::to_string(env.settings.sparse_first_count) +
                              ",|B|=" + std::to_string(env.settings.sparse_second_count) +
@@ -170,8 +170,8 @@ void measure_sparse_dot(loop_t &loop, environment_t const &env, kernel_type_ ker
 
 template <nk_dtype_t index_dtype_, nk_dtype_t weight_dtype_, typename kernel_type_ = void>
 void run_sparse_dot(environment_t const &env, std::string name, kernel_type_ *kernel) {
-    std::size_t const intersection_size = std::max<std::size_t>(
-        1, static_cast<std::size_t>(std::min(env.settings.sparse_first_count, env.settings.sparse_second_count) *
+    std::size_t const intersection_size = nk::max_of<std::size_t>(
+        1, static_cast<std::size_t>(nk::min_of(env.settings.sparse_first_count, env.settings.sparse_second_count) *
                                     env.settings.sparse_intersection_share));
     std::string bench_name = name + "<|A|=" + std::to_string(env.settings.sparse_first_count) +
                              ",|B|=" + std::to_string(env.settings.sparse_second_count) +

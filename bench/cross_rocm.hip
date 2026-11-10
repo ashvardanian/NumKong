@@ -4,7 +4,6 @@
  *  @date October 4, 2026
  *  @brief ROCm batch benchmarks using the shared cross-operation drivers.
  */
-#include <algorithm> // `std::max`
 
 #include "numkong/numkong.h"
 #include "cross.hpp"
@@ -447,7 +446,7 @@ nk::status_t bench_cross_rocm([[maybe_unused]] environment_t const &env,
         hipSuccess)
         return nk::status_t::device_code_mismatch_k;
     nk_capability_t const capabilities = runtime.capabilities;
-    rocm_backend_t const backend {runtime, std::size_t(std::max(l2_bytes, 0))};
+    rocm_backend_t const backend {runtime, std::size_t(nk::max_of(l2_bytes, 0))};
     bench_cross_rocm(env, backend, capabilities);
     bench_each_rocm(env, backend, capabilities);
     bench_cross_cdna3(env, backend, capabilities);

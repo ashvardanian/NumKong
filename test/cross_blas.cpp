@@ -226,7 +226,7 @@ nk_status_t dots_symmetric_with_blas(scalar_type_ const *a, nk_size_t n, nk_size
     else
         cblas_dsyrk(CblasRowMajor, CblasUpper, CblasNoTrans, size, depth, 1, a, leading_dimension_a, 0, full.data(),
                     size);
-    rows_end = std::min(n, rows_end);
+    rows_end = nk::min_of(n, rows_end);
     for (nk_size_t row = rows_begin; row < rows_end; row++)
         std::copy(&full[row * n + row], &full[row * n] + n, c + row * (c_stride / sizeof(nk_f64_t)) + row);
     return nk_success_k;

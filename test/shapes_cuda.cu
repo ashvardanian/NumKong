@@ -256,7 +256,7 @@ error_stats_t test_rmsds_pairs(settings_t const &settings) {
         nk_f64_t bound = 2 * (points + 16) * std::ldexp(1.0, -53) * spread;
         if constexpr (is_f16) {
             nk_f64_t const squares = points * nk_accumulation_error_bound(nk_f32_k) * spread * spread;
-            bound = reference > 0 ? std::min(std::sqrt(squares), squares / reference) : std::sqrt(squares);
+            bound = reference > 0 ? nk::min_of(std::sqrt(squares), squares / reference) : std::sqrt(squares);
         }
         stats.accumulate_bounded(distance_t::from_raw(results.raw_values_data()[pair]), f64_t(reference), bound);
     }

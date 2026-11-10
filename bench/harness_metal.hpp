@@ -14,10 +14,9 @@
 
 #include <cstring> // `std::memcpy`, `std::memset`
 
-#include <algorithm> // `std::min`, `std::max`
-#include <bit>       // `std::bit_ceil`
-#include <chrono>    // `std::chrono::steady_clock`
-#include <vector>    // `std::vector`
+#include <bit>    // `std::bit_ceil`
+#include <chrono> // `std::chrono::steady_clock`
+#include <vector> // `std::vector`
 
 #include "numkong/numkong.h" // `nk_stream_synchronize_metal`
 
@@ -37,9 +36,9 @@ struct metal_backend_t : device_backend_t {
      *  at most @c input_sets_count. */
     std::size_t input_sets(bytes_t per_set) const noexcept {
         std::size_t const cache_bytes = std::size_t(32) << 20;
-        std::size_t const set_bytes = std::max(per_set.value, std::size_t(1));
-        std::size_t const wanted = std::max(nk::divide_round_up(2 * cache_bytes, set_bytes), std::size_t(1));
-        return std::min(std::bit_ceil(wanted), input_sets_count(per_set));
+        std::size_t const set_bytes = nk::max_of(per_set.value, std::size_t(1));
+        std::size_t const wanted = nk::max_of(nk::divide_round_up(2 * cache_bytes, set_bytes), std::size_t(1));
+        return nk::min_of(std::bit_ceil(wanted), input_sets_count(per_set));
     }
 
     nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {

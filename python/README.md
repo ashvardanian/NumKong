@@ -63,7 +63,7 @@ Every wheel compiles each capability the toolchain supports and picks among them
 When building from source, the compiler requirements depend on the platform.
 On macOS x86 only AVX2 is available; on macOS ARM NEON is always present, but SME requires Apple M4+ with Xcode 16+ (AppleClang 16+).
 RISC-V builds require Clang and LLD because GCC lacks `zvfh`, `zvfbfwma`, and `zvbb` support.
-On Windows, MSVC 19.44+ (Visual Studio 2022 17.14+) is recommended for full AVX-512 with FP16/BF16/VNNI.
+On Windows, MSVC 19.50+ (Visual Studio 2026) is recommended for full AVX-512 with FP16/BF16/VNNI.
 Build parallelism is controlled by `CMAKE_BUILD_PARALLEL_LEVEL`, which should be lowered in memory-constrained containers.
 There is no OpenMP dependency.
 Python-side parallelism uses the `threads=` argument on the GIL-free kernels, or `concurrent.futures` around them.

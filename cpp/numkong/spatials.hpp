@@ -28,9 +28,9 @@ namespace ashvardanian::numkong {
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t>
 expected<std::size_t> angulars_symmetric_workspace_size(
     std::size_t vector_count, std::size_t depth, std::size_t row_start = 0,
-    std::size_t row_count = std::numeric_limits<std::size_t>::max(),
+    std::size_t row_count = (std::numeric_limits<std::size_t>::max)(),
     nk_capability_t capabilities = default_capabilities()) noexcept {
-    if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vector_count;
+    if (row_count == (std::numeric_limits<std::size_t>::max)()) row_count = vector_count;
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::angular_result_t>;
     nk_size_t bytes = 0;
     nk_status_t status = nk_success_k;
@@ -82,9 +82,9 @@ expected<std::size_t> angulars_symmetric_workspace_size(
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t>
 expected<std::size_t> euclideans_symmetric_workspace_size(
     std::size_t vector_count, std::size_t depth, std::size_t row_start = 0,
-    std::size_t row_count = std::numeric_limits<std::size_t>::max(),
+    std::size_t row_count = (std::numeric_limits<std::size_t>::max)(),
     nk_capability_t capabilities = default_capabilities()) noexcept {
-    if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vector_count;
+    if (row_count == (std::numeric_limits<std::size_t>::max)()) row_count = vector_count;
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::euclidean_result_t>;
     nk_size_t bytes = 0;
     nk_status_t status = nk_success_k;
@@ -237,10 +237,10 @@ expected<std::size_t> euclideans_packed_workspace_size(std::size_t row_count, st
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::angular_result_t>
 status_t angulars_symmetric(in_type_ const *a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
                             result_type_ *c, std::size_t c_stride, std::size_t row_start = 0,
-                            std::size_t row_count = std::numeric_limits<std::size_t>::max(),
+                            std::size_t row_count = (std::numeric_limits<std::size_t>::max)(),
                             std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                             nk_stream_t stream = nullptr) noexcept {
-    if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vector_count;
+    if (row_count == (std::numeric_limits<std::size_t>::max)()) row_count = vector_count;
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::angular_result_t>;
 
     if (capabilities) {
@@ -343,11 +343,11 @@ status_t angulars_symmetric(in_type_ const *a, std::size_t vector_count, std::si
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::euclidean_result_t>
 status_t euclideans_symmetric(in_type_ const *a, std::size_t vector_count, std::size_t depth, std::size_t a_stride,
                               result_type_ *c, std::size_t c_stride, std::size_t row_start = 0,
-                              std::size_t row_count = std::numeric_limits<std::size_t>::max(),
+                              std::size_t row_count = (std::numeric_limits<std::size_t>::max)(),
                               std::span<std::byte> workspace = {},
                               nk_capability_t capabilities = default_capabilities(),
                               nk_stream_t stream = nullptr) noexcept {
-    if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vector_count;
+    if (row_count == (std::numeric_limits<std::size_t>::max)()) row_count = vector_count;
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::euclidean_result_t>;
 
     if (capabilities) {
@@ -649,7 +649,7 @@ namespace ashvardanian::numkong {
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::angular_result_t> output_matrix_>
 status_t angulars_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t row_start = 0,
-                            std::size_t row_count = std::numeric_limits<std::size_t>::max(),
+                            std::size_t row_count = (std::numeric_limits<std::size_t>::max)(),
                             std::span<std::byte> workspace = {}, nk_capability_t capabilities = default_capabilities(),
                             nk_stream_t stream = nullptr) noexcept {
     std::size_t num_vectors = input.extent(0);
@@ -693,7 +693,7 @@ expected<matrix<typename value_type_::angular_result_t, allocator_type_>> angula
 template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
           mutable_matrix_of<typename value_type_::euclidean_result_t> output_matrix_>
 status_t euclideans_symmetric(input_matrix_ const &input, output_matrix_ &&output, std::size_t row_start = 0,
-                              std::size_t row_count = std::numeric_limits<std::size_t>::max(),
+                              std::size_t row_count = (std::numeric_limits<std::size_t>::max)(),
                               std::span<std::byte> workspace = {},
                               nk_capability_t capabilities = default_capabilities(),
                               nk_stream_t stream = nullptr) noexcept {
