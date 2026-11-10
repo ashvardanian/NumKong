@@ -25,7 +25,7 @@ add_library(numkong_warnings INTERFACE)
 if (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
     target_compile_options(
         numkong_warnings
-        INTERFACE "$<$<COMPILE_LANGUAGE:C,CXX>:-pedantic>"
+        INTERFACE "$<$<COMPILE_LANGUAGE:C,CXX>:-pedantic;-Wundef>"
                   "$<$<AND:$<COMPILE_LANGUAGE:C,CXX>,$<CXX_COMPILER_ID:Clang,AppleClang>>:-Wdocumentation>"
     )
     if (NUMKONG_WERROR)

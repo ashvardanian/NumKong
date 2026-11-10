@@ -53,6 +53,11 @@ cmake_third_party_variables="EMSCRIPTEN_SYSTEM_PROCESSOR WASI_SDK_PATH LLVM_ROOT
 approved_codegen_macros=$({ git show :.clang-format 2>/dev/null || cat "$(dirname "$0")/../.clang-format"; } |
     awk '/^StatementMacros:/ { listed = 1; next } /^[^ ]/ { listed = 0 } listed { sub(/^ *- */, ""); print }')
 codegen_macro_prefix="nk_define_"
+# Its macro prefix, the headers that alone read the operating-system predefines, and the predefines beyond
+# the operating systems that its identity also answers.
+macro_prefix="NUMKONG"
+identity_headers="c/numkong/types.h"
+platform_predefines_refused=''
 
 # endregion Project Settings
 
@@ -2461,6 +2466,62 @@ check_memcpy_qualified() {
         "            assignment or std::bit_cast where the types should survive:"
 }
 
+# Rejects a raw operating-system predefine outside `identity_headers`, because each is read there once into the
+# `_OS_*_` identity. Compiler predefines like `__clang__` are read raw wherever they matter.
+check_platform_identity_once() {
+    case " $identity_headers " in *" $staged_path "*) return 0 ;; esac
+    case "$staged_path" in probes/*) return 0 ;; esac
+    local raw
+    raw=$(predefines="__linux__ __APPLE__ _WIN32 _WIN64 WIN32 \
+        __FreeBSD__ __CYGWIN__ __ANDROID__ __wasi__ __EMSCRIPTEN__ __MACH__ \
+        $platform_predefines_refused" scan_staged_file_marking_added_lines '
+        BEGIN {
+            names = ENVIRON["predefines"]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", names); gsub(/[[:space:]]+/, "|", names)
+            names = "(^|[^A-Za-z0-9_])(" names ")([^A-Za-z0-9_]|$)"
+        }
+        (FNR in added) && $0 ~ names { printf "line %d: %s\n", FNR, $0 }' "$staged_code_path")
+    [ -z "$raw" ] || reject_with_reason "$raw" \
+        "$staged_path reads a raw platform predefine; test the ${macro_prefix}_OS_*_" \
+        "            identity $identity_headers derives:"
+}
+
+# Rejects `#ifdef` or a positive `defined` of an `_OS_`, `_ARCH_`, `_HAS_`, `_WITH_`, `_ALLOW_` or `_TARGET_`
+# switch or of `_DEBUG`, because each holds 0 or 1 and `defined` is true either way. A `!defined` default passes,
+# and so does a guard an `#error` follows, as the identity region's override guard.
+check_switches_tested_by_value() {
+    local switches="${macro_prefix}_((OS|ARCH|HAS|WITH|ALLOW|TARGET)_|DEBUG([^A-Za-z0-9_]|$))" tested
+    tested=$(pattern="(^|[^A-Za-z0-9_])defined[[:space:]]*[(]?[[:space:]]*$switches|#[[:space:]]*ifdef[[:space:]]+$switches" \
+        defaulted="![[:space:]]*defined[[:space:]]*[(]?[[:space:]]*$switches" scan_staged_file_marking_added_lines '
+        {
+            first = FNR; fresh = (FNR in added); text = $0
+            while (text ~ /\\[[:space:]]*$/ && (getline continuation) > 0) {
+                if (FNR in added) fresh = 1
+                sub(/\\[[:space:]]*$/, " ", text); text = text continuation
+            }
+        }
+        text ~ /^[[:space:]]*$/ { next }
+        text ~ /^[[:space:]]*#[[:space:]]*error/ { held = ""; next }
+        {
+            if (held != "") print held
+            held = ""; probe = text; gsub(ENVIRON["defaulted"], "", probe)
+            if (fresh && probe ~ ENVIRON["pattern"]) held = "line " first ": " text
+        }
+        END { if (held != "") print held }' "$staged_code_path")
+    [ -z "$tested" ] || reject_with_reason "$tested" \
+        "$staged_path tests a ${macro_prefix}_ switch with defined or #ifdef, which is true at 0 too; test it with #if:"
+}
+
+# Rejects a `_USE_`, `_IS_`, `_ON_`, `_DETECT_`, `_DEFINED_` or `_AVOID_` macro, because a build choice is a
+# `_WITH_`, `_ALLOW_` or `_TARGET_` switch and a platform fact an `_OS_`, `_ARCH_` or `_HAS_` one.
+check_macro_families() {
+    local outside
+    outside=$(printf '%s\n' "$staged_added_text" |
+        grep -E "(^|[^A-Za-z0-9_]|-D)${macro_prefix}_(USE|IS|ON|DETECT|DEFINED|AVOID)_" || true)
+    [ -z "$outside" ] || reject_with_reason "$outside" \
+        "$staged_path names a macro family outside the vocabulary; use a _WITH_, _ALLOW_ or _TARGET_ switch," \
+        "            or an _OS_, _ARCH_ or _HAS_ fact:"
+}
+
 # endregion C and C++ Idioms
 
 # region Formatters
@@ -2895,6 +2956,9 @@ run_shared_checks() {
         check_string_fragments_one_per_line
         check_codegen_macros_are_approved
         check_no_cast_indexing
+        check_platform_identity_once
+        check_switches_tested_by_value
+        check_macro_families
         ;;
     esac
     case "$staged_path" in
@@ -2946,6 +3010,7 @@ run_shared_checks() {
     CMakeLists.txt | *.cmake)
         check_cmake_variable_written_once
         check_cmake_rpath_derived
+        check_macro_families
         ;;
     *.rs)
         check_rust_macros_absent
@@ -3599,16 +3664,6 @@ check_retired_prefix_absent() {
         "$staged_path spells the retired NK_ prefix; write the full NUMKONG_:"
 }
 
-# Rejects a positive `defined(...)` or `#ifdef` of an architecture, OS or toolchain fact or of a
-# capability's `NUMKONG_ARCH_<ARCH>_<NAME>_` closure, because each is always defined as 0 or 1 and
-# `defined` is true on every platform; `!defined` and `#ifndef` guards pass.
-check_facts_tested_by_value() {
-    local tested
-    tested=$(grep -E '(^|[^!A-Za-z0-9_])defined[[:space:]]*\(?[[:space:]]*NUMKONG_(ARCH|OS|HAS)_|#[[:space:]]*ifdef[[:space:]]+NUMKONG_(ARCH|OS|HAS)_' "$staged_added_code_path" || true)
-    [ -z "$tested" ] || reject_with_reason "$tested" \
-        "$staged_path tests an always-defined closure or NUMKONG_ARCH_, _OS_ or _HAS_ fact with defined; use #if:"
-}
-
 # Rejects a `NUMKONG_TARGET_<NAME>_` closure, because `NUMKONG_TARGET_<NAME>` alone is a capability's
 # switch, a base capability's helpers test its `NUMKONG_ARCH_<ARCH>_<NAME>_` closure, and a vendor
 # floor's its `NUMKONG_ARCH_<VENDOR>_`.
@@ -3684,7 +3739,6 @@ run_project_checks() {
     esac
     case "$staged_path" in
     *.c | *.h | *.cpp | *.hpp | *.cc | *.cu | *.cuh | *.metal)
-        check_facts_tested_by_value
         check_all_caps_macros_object_like
         ;;
     esac

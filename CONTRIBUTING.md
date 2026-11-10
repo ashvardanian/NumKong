@@ -694,15 +694,17 @@ Every all-caps name starts with the full project name, `NUMKONG_`.
 A trailing `_` marks a name as internal: it may change in any release, and nothing outside this repository may define or test it.
 A name without it is a public contract, either a switch you may set or a value you may read.
 
-| Family                           | Form                          | Example                                   |
-| :------------------------------- | :---------------------------- | :---------------------------------------- |
-| Capability whose kernels compile | `NUMKONG_TARGET_<NAME>`       | `NUMKONG_TARGET_HASWELL`                  |
-| Capability whose helpers compile | `NUMKONG_ARCH_<ARCH>_<NAME>_` | `NUMKONG_ARCH_X8664_HASWELL_`             |
-| Header-only build                | `NUMKONG_HEADER_ONLY`         |                                           |
-| Permission for a liberty         | `NUMKONG_ALLOW_<LIBERTY>`     | `NUMKONG_ALLOW_ISA_REDIRECT`              |
-| Architecture or GPU runtime      | `NUMKONG_ARCH_<ARCH>_`        | `NUMKONG_ARCH_X8664_`                     |
-| Operating-system fact            | `NUMKONG_OS_<OS>_`            | `NUMKONG_OS_LINUX_`                       |
-| Toolchain fact                   | `NUMKONG_HAS_<FEATURE>_`      | `NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_` |
+| Family                                      | Form                             | Example                                   |
+| :------------------------------------------ | :------------------------------- | :---------------------------------------- |
+| Capability whose kernels compile            | `NUMKONG_TARGET_<NAME>`          | `NUMKONG_TARGET_HASWELL`                  |
+| Capability whose helpers compile            | `NUMKONG_ARCH_<ARCH>_<NAME>_`    | `NUMKONG_ARCH_X8664_HASWELL_`             |
+| Header-only build, without runtime dispatch | `NUMKONG_HEADER_ONLY`            |                                           |
+| Debug-only checks                           | `NUMKONG_DEBUG`                  |                                           |
+| Optional facility                           | `NUMKONG_WITH_[<OS>_]<FACILITY>` |                                           |
+| Permission for a liberty                    | `NUMKONG_ALLOW_<LIBERTY>`        | `NUMKONG_ALLOW_ISA_REDIRECT`              |
+| Architecture or GPU runtime                 | `NUMKONG_ARCH_<ARCH>_`           | `NUMKONG_ARCH_X8664_`                     |
+| Operating-system fact                       | `NUMKONG_OS_<OS>_`               | `NUMKONG_OS_LINUX_`                       |
+| Toolchain fact                              | `NUMKONG_HAS_<FEATURE>_`         | `NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_` |
 
 Architectures are spelled as one token each, `X8664`, `X8632`, `ARM64`, `RISCV64`, `PPC64`, `LOONGARCH64`, `S390X` and `WASM`, and GPU architectures `CUDA` and `ROCM`.
 A GPU architecture holds beside the host's architecture in both compiler passes, so it never follows a CPU architecture in an `#elif` chain.
@@ -711,7 +713,10 @@ The library also sets `NUMKONG_ARCH_CUDA_` or `NUMKONG_ARCH_ROCM_` for its host-
 The build passes every unit the same `NUMKONG_TARGET_*` verdicts, so a unit turns off each capability its headers include besides its own, like `src/capabilities/genoa.c` turning off Haswell, Skylake and Icelake, and each kernel is defined in exactly one unit.
 A new cross-capability include needs the same line in the unit, or the link reports the kernels defined twice.
 Each GPU unit compiles only the codes its generation runs.
-Every name in these families is always defined, as 0 or 1, and tested with `#if`, never with `defined(...)`.
+Every name in these families is always defined, as 0 or 1, and tested with `#if`.
+`defined(...)` appears only in a `!defined` default and in a guard that an `#error` follows.
+Only the Platform Identity region of `c/numkong/types.h` reads operating-system predefines like `__linux__`.
+Compiler predefines like `__clang__`, `__GNUC__` and `_MSC_VER` are read raw where they matter.
 
 Three families guard platform code, each with its own job:
 

@@ -87,37 +87,73 @@
 #define nk_unpoison_(ptr, size) (void)(ptr), (void)(size)
 #endif
 
-/** Inferring target OS: Windows, macOS, Linux, FreeBSD, WASI, or Emscripten. */
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
-#define NUMKONG_OS_WINDOWS_ 1
-#else
-#define NUMKONG_OS_WINDOWS_ 0
+#pragma region Platform Identity
+
+/*  Derived once from the OS predefines, which no other file reads and no build sets. */
+#if defined(NUMKONG_OS_LINUX_) || defined(NUMKONG_OS_APPLE_) || defined(NUMKONG_OS_WINDOWS_) ||     \
+    defined(NUMKONG_OS_FREEBSD_) || defined(NUMKONG_OS_WASI_) || defined(NUMKONG_OS_EMSCRIPTEN_) || \
+    defined(NUMKONG_OS_POSIX_)
+#error "NUMKONG_OS_*_ are identity, derived from the compiler; no build sets them"
 #endif
-#if defined(__APPLE__) && defined(__MACH__)
-#define NUMKONG_OS_APPLE_ 1
-#else
-#define NUMKONG_OS_APPLE_ 0
-#endif
+
+/** Whether the kernel is Linux, Android included, as 1 or 0. */
 #if defined(__linux__)
 #define NUMKONG_OS_LINUX_ 1
 #else
 #define NUMKONG_OS_LINUX_ 0
 #endif
+
+/** Whether the kernel is Darwin: macOS, iOS, tvOS, watchOS or visionOS, as 1 or 0. */
+#if defined(__APPLE__)
+#define NUMKONG_OS_APPLE_ 1
+#else
+#define NUMKONG_OS_APPLE_ 0
+#endif
+
+/** Whether the target is Windows, MinGW included and Cygwin not, as 1 or 0. */
+#if defined(_WIN32)
+#define NUMKONG_OS_WINDOWS_ 1
+#else
+#define NUMKONG_OS_WINDOWS_ 0
+#endif
+
+/** Whether the kernel is FreeBSD, as 1 or 0. */
 #if defined(__FreeBSD__)
 #define NUMKONG_OS_FREEBSD_ 1
 #else
 #define NUMKONG_OS_FREEBSD_ 0
 #endif
+
+/** Whether the target is a WASI sandbox, with files but no kernel, as 1 or 0. */
 #if defined(__wasi__)
 #define NUMKONG_OS_WASI_ 1
 #else
 #define NUMKONG_OS_WASI_ 0
 #endif
+
+/** Whether the target is Emscripten's browser or Node runtime, as 1 or 0. */
 #if defined(__EMSCRIPTEN__)
 #define NUMKONG_OS_EMSCRIPTEN_ 1
 #else
 #define NUMKONG_OS_EMSCRIPTEN_ 0
 #endif
+
+/** Whether the POSIX interfaces exist: Linux, Darwin, FreeBSD or Cygwin, as 1 or 0. */
+#if NUMKONG_OS_LINUX_ || NUMKONG_OS_APPLE_ || NUMKONG_OS_FREEBSD_ || defined(__CYGWIN__)
+#define NUMKONG_OS_POSIX_ 1
+#else
+#define NUMKONG_OS_POSIX_ 0
+#endif
+
+#if (NUMKONG_OS_LINUX_ + NUMKONG_OS_APPLE_ + NUMKONG_OS_WINDOWS_ + NUMKONG_OS_FREEBSD_ + NUMKONG_OS_WASI_ + \
+     NUMKONG_OS_EMSCRIPTEN_) > 1
+#error "Two operating-system identities hold at once"
+#endif
+#if NUMKONG_OS_POSIX_ && NUMKONG_OS_WINDOWS_
+#error "POSIX and Windows identities hold at once"
+#endif
+
+#pragma endregion Platform Identity
 
 /** Base of function annotations:
  *  - @c NUMKONG_API every public function, a kernel of one capability or a dispatch point.

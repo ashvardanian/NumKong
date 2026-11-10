@@ -81,7 +81,7 @@ static void crash_handler(int sig) {
     case SIGABRT: sig_name = "SIGABRT (abort)"; break;
     }
     auto const emit = [](std::string_view text) noexcept {
-#if defined(_WIN32)
+#if NUMKONG_OS_WINDOWS_
         _write(2, text.data(), static_cast<unsigned>(text.size()));
 #else
         [[maybe_unused]] auto const written = write(2, text.data(), text.size());
