@@ -2,7 +2,7 @@
  *  @file test/cross_ppc64.cpp
  *  @author Ash Vardanian
  *  @date March 24, 2026
- *  @brief Batch operation tests - Power ISA family, VSX.
+ *  @brief Batch operation tests - Power ISA family, VSX and MMA.
  */
 #include "harness.hpp"
 #include "cross.hpp"
@@ -90,6 +90,74 @@ void test_cross_ppc64([[maybe_unused]] error_stats_section_t &check) {
           nk_dots_pack_u1_powervsx, nk_jaccards_packed_u1_powervsx);
     check("jaccards_symmetric_u1_powervsx", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_powervsx);
 #endif // NUMKONG_TARGET_POWERVSX
+
+#if NUMKONG_TARGET_POWERMMA
+    check.section("Cross Power MMA", nk_cap_powermma_k);
+    check("dots_packed_f32_powermma", test_dots_packed<f32_t>, nk_dots_pack_size_f32_powermma,
+          nk_dots_pack_f32_powermma, nk_dots_packed_f32_powermma);
+    check("dots_pack_f32_powermma",
+          test_dots_pack_layout<f32_t, host_backend_t, nk_dots_pack_size_f32_powermma,
+                                nk_dots_packed_shape_f32_powermma, nk_dots_pack_f32_powermma>);
+    check("dots_packed_bf16_powermma", test_dots_packed<bf16_t>, nk_dots_pack_size_bf16_powermma,
+          nk_dots_pack_bf16_powermma, nk_dots_packed_bf16_powermma);
+    check("dots_pack_bf16_powermma",
+          test_dots_pack_layout<bf16_t, host_backend_t, nk_dots_pack_size_bf16_powermma,
+                                nk_dots_packed_shape_bf16_powermma, nk_dots_pack_bf16_powermma>);
+    check("dots_packed_f16_powermma", test_dots_packed<f16_t>, nk_dots_pack_size_f16_powermma,
+          nk_dots_pack_f16_powermma, nk_dots_packed_f16_powermma);
+    check("dots_pack_f16_powermma",
+          test_dots_pack_layout<f16_t, host_backend_t, nk_dots_pack_size_f16_powermma,
+                                nk_dots_packed_shape_f16_powermma, nk_dots_pack_f16_powermma>);
+    check("dots_packed_i8_powermma", test_dots_packed<i8_t>, nk_dots_pack_size_i8_powermma, nk_dots_pack_i8_powermma,
+          nk_dots_packed_i8_powermma);
+    check("dots_pack_i8_powermma", test_dots_pack_layout<i8_t, host_backend_t, nk_dots_pack_size_i8_powermma,
+                                                         nk_dots_packed_shape_i8_powermma, nk_dots_pack_i8_powermma>);
+    check("dots_packed_u8_powermma", test_dots_packed<u8_t>, nk_dots_pack_size_u8_powermma, nk_dots_pack_u8_powermma,
+          nk_dots_packed_u8_powermma);
+    check("dots_pack_u8_powermma", test_dots_pack_layout<u8_t, host_backend_t, nk_dots_pack_size_u8_powermma,
+                                                         nk_dots_packed_shape_u8_powermma, nk_dots_pack_u8_powermma>);
+
+    check("dots_symmetric_f32_powermma", test_dots_symmetric<f32_t>, nk_dots_symmetric_f32_powermma);
+    check("dots_symmetric_bf16_powermma", test_dots_symmetric<bf16_t>, nk_dots_symmetric_bf16_powermma);
+    check("dots_symmetric_f16_powermma", test_dots_symmetric<f16_t>, nk_dots_symmetric_f16_powermma);
+    check("dots_symmetric_i8_powermma", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_powermma);
+    check("dots_symmetric_u8_powermma", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_powermma);
+
+    check("angulars_packed_f32_powermma", test_angulars_packed<f32_t>, nk_dots_pack_size_f32_powermma,
+          nk_dots_pack_f32_powermma, nk_angulars_packed_f32_powermma);
+    check("angulars_packed_bf16_powermma", test_angulars_packed<bf16_t>, nk_dots_pack_size_bf16_powermma,
+          nk_dots_pack_bf16_powermma, nk_angulars_packed_bf16_powermma);
+    check("angulars_packed_f16_powermma", test_angulars_packed<f16_t>, nk_dots_pack_size_f16_powermma,
+          nk_dots_pack_f16_powermma, nk_angulars_packed_f16_powermma);
+    check("angulars_packed_i8_powermma", test_angulars_packed<i8_t>, nk_dots_pack_size_i8_powermma,
+          nk_dots_pack_i8_powermma, nk_angulars_packed_i8_powermma);
+    check("angulars_packed_u8_powermma", test_angulars_packed<u8_t>, nk_dots_pack_size_u8_powermma,
+          nk_dots_pack_u8_powermma, nk_angulars_packed_u8_powermma);
+
+    check("angulars_symmetric_f32_powermma", test_angulars_symmetric<f32_t>, nk_angulars_symmetric_f32_powermma);
+    check("angulars_symmetric_bf16_powermma", test_angulars_symmetric<bf16_t>, nk_angulars_symmetric_bf16_powermma);
+    check("angulars_symmetric_f16_powermma", test_angulars_symmetric<f16_t>, nk_angulars_symmetric_f16_powermma);
+    check("angulars_symmetric_i8_powermma", test_angulars_symmetric<i8_t>, nk_angulars_symmetric_i8_powermma);
+    check("angulars_symmetric_u8_powermma", test_angulars_symmetric<u8_t>, nk_angulars_symmetric_u8_powermma);
+
+    check("euclideans_packed_f32_powermma", test_euclideans_packed<f32_t>, nk_dots_pack_size_f32_powermma,
+          nk_dots_pack_f32_powermma, nk_euclideans_packed_f32_powermma);
+    check("euclideans_packed_bf16_powermma", test_euclideans_packed<bf16_t>, nk_dots_pack_size_bf16_powermma,
+          nk_dots_pack_bf16_powermma, nk_euclideans_packed_bf16_powermma);
+    check("euclideans_packed_f16_powermma", test_euclideans_packed<f16_t>, nk_dots_pack_size_f16_powermma,
+          nk_dots_pack_f16_powermma, nk_euclideans_packed_f16_powermma);
+    check("euclideans_packed_i8_powermma", test_euclideans_packed<i8_t>, nk_dots_pack_size_i8_powermma,
+          nk_dots_pack_i8_powermma, nk_euclideans_packed_i8_powermma);
+    check("euclideans_packed_u8_powermma", test_euclideans_packed<u8_t>, nk_dots_pack_size_u8_powermma,
+          nk_dots_pack_u8_powermma, nk_euclideans_packed_u8_powermma);
+
+    check("euclideans_symmetric_f32_powermma", test_euclideans_symmetric<f32_t>, nk_euclideans_symmetric_f32_powermma);
+    check("euclideans_symmetric_bf16_powermma", test_euclideans_symmetric<bf16_t>,
+          nk_euclideans_symmetric_bf16_powermma);
+    check("euclideans_symmetric_f16_powermma", test_euclideans_symmetric<f16_t>, nk_euclideans_symmetric_f16_powermma);
+    check("euclideans_symmetric_i8_powermma", test_euclideans_symmetric<i8_t>, nk_euclideans_symmetric_i8_powermma);
+    check("euclideans_symmetric_u8_powermma", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_powermma);
+#endif // NUMKONG_TARGET_POWERMMA
 }
 
 } // namespace ashvardanian::numkong::test

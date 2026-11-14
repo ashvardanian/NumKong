@@ -1,10 +1,9 @@
-//
-//  test/swift/Test.swift
-//  Swift Testing correctness tests for the NumKong Swift bindings.
-//
-//  - Author: Ash Vardanian
-//  - Date: March 14, 2026
-//
+/**
+ *  @file test/swift/Test.swift
+ *  @author Ash Vardanian
+ *  @date March 14, 2026
+ *  @brief Swift Testing correctness tests for the NumKong Swift bindings.
+ */
 
 import NumKong
 import Testing
@@ -133,7 +132,8 @@ let kernels: [Kernel] = {
         (.genoa, "genoa"), (.turin, "turin"), (.sapphire, "sapphire"), (.diamond, "diamond"),
         (.sapphireAMX, "sapphireamx"), (.graniteAMX, "graniteamx"), (.diamondAMX, "diamondamx"), (.rvv, "rvv"),
         (.rvvBF16, "rvvbf16"), (.rvvHalf, "rvvhalf"), (.rvvBB, "rvvbb"), (.v128, "v128"),
-        (.v128Relaxed, "v128relaxed"), (.powerVSX, "powervsx"), (.loongsonASX, "loongsonasx"), (.cuda, "cuda"),
+        (.v128Relaxed, "v128relaxed"), (.powerVSX, "powervsx"), (.loongsonASX, "loongsonasx"), (.powerMMA, "powermma"),
+        (.cuda, "cuda"),
         (.ampere, "ampere"), (.ada, "ada"), (.hopper, "hopper"), (.blackwell, "blackwell"),
         (.blackwellRTX, "blackwellrtx"), (.blackwellUltra, "blackwellultra"), (.rocm, "rocm"), (.cdna3, "cdna3"),
         (.cdna4, "cdna4"), (.cdna5, "cdna5"), (.metal, "metal"), (.apple9, "apple9"), (.apple10, "apple10"),

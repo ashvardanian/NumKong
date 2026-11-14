@@ -446,7 +446,7 @@ On Arm, ARMv8.4-A adds __FMLAL/FMLAL2__ instructions for fused Float16 → Float
 > Widening dot products (`VDPBF16PS`, `BFDOT`, `FMLAL`) fuse the conversion and multiply-accumulate into one instruction.
 > Sapphire Rapids has native `VFMADDPH` for Float16 arithmetic, but NumKong does not use it for general dot products — Float16 accumulation loses precision.
 > It is only used for mini-float (E2M3/E3M2) paths where periodic flush-to-Float32 windows keep error bounded.
-> The table above covers only vector dot-product paths - GEMMs also leverage Arm SME and Intel AMX instructions.
+> The table above covers only vector dot-product paths - GEMMs also leverage Arm SME, Intel AMX and IBM Power MMA instructions.
 > Beyond x86, Arm, and RISC-V, NumKong also ships LoongArch and PowerPC backends, and two WebAssembly capabilities — strict SIMD128 as `v128` and Relaxed SIMD as `v128relaxed` — all excluded from the table.
 
 ### Mini-Floats

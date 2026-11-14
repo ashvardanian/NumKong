@@ -271,6 +271,8 @@ pub enum Capability {
     PowerVsx = 1 << 33,
     /// LoongArch LASX 256-bit SIMD.
     LoongsonAsx = 1 << 34,
+    /// Power VSX plus the ISA 3.1 Matrix-Multiply Assist, as on POWER10.
+    PowerMma = 1 << 35,
     /// NVIDIA baseline, running on every CUDA device.
     Cuda = 1 << 48,
     /// NVIDIA SM 8.0.
@@ -302,7 +304,7 @@ pub enum Capability {
 }
 
 /// Every [`Capability`], in bit order.
-const CAPABILITIES: [Capability; 49] = [
+const CAPABILITIES: [Capability; 50] = [
     Capability::Serial,
     Capability::Neon,
     Capability::NeonHalf,
@@ -338,6 +340,7 @@ const CAPABILITIES: [Capability; 49] = [
     Capability::V128Relaxed,
     Capability::PowerVsx,
     Capability::LoongsonAsx,
+    Capability::PowerMma,
     Capability::Cuda,
     Capability::Ampere,
     Capability::Ada,
@@ -915,6 +918,7 @@ mod tests {
             "v128relaxed",
             "powervsx",
             "loongsonasx",
+            "powermma",
             "cuda",
             "ampere",
             "ada",

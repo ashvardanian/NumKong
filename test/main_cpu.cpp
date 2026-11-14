@@ -209,6 +209,9 @@ static error_stats_t test_best_dots_packed_bf16(settings_t const &settings) {
         {nk_cap_loongsonasx_k, nk_dots_pack_size_bf16_loongsonasx, nk_dots_pack_bf16_loongsonasx,
          nk_dots_packed_bf16_loongsonasx},
 #endif // NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_TARGET_POWERMMA
+        {nk_cap_powermma_k, nk_dots_pack_size_bf16_powermma, nk_dots_pack_bf16_powermma, nk_dots_packed_bf16_powermma},
+#endif // NUMKONG_TARGET_POWERMMA
     };
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);

@@ -759,6 +759,8 @@ class Capability(IntFlag):
     """IBM Power VSX at ISA 3.0, as on POWER9."""
     LOONGSONASX = ...
     """LoongArch LASX 256-bit SIMD."""
+    POWERMMA = ...
+    """IBM Power VSX plus the ISA 3.1 Matrix-Multiply Assist, as on POWER10."""
 
 class _Dispatch(TypedDict, total=False):
     """Keywords every function that runs kernels accepts, after its own."""

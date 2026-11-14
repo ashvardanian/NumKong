@@ -273,6 +273,7 @@ public struct Capabilities: OptionSet, Sendable, CustomStringConvertible {
     public static let v128Relaxed = Capabilities(rawValue: 1 << 32)
     public static let powerVSX = Capabilities(rawValue: 1 << 33)
     public static let loongsonASX = Capabilities(rawValue: 1 << 34)
+    public static let powerMMA = Capabilities(rawValue: 1 << 35)
 
     public static let cuda = Capabilities(rawValue: 1 << 48)
     public static let ampere = Capabilities(rawValue: 1 << 49)

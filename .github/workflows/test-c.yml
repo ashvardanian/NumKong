@@ -307,8 +307,8 @@ jobs:
   test_qemu:
     name: Test on Linux ${{ matrix.name }} under QEMU
     runs-on: ubuntu-26.04
-    # LASX and POWER9 scope per function only from GCC 15 on, and Ubuntu 26.04 ships GCC 15 cross compilers for every leg,
-    # unlike Trixie, which stops at GCC 14.
+    # LASX, POWER9 and POWER10 scope per function only from GCC 15 on, and Ubuntu 26.04 ships GCC 15 cross compilers for
+    # every leg, unlike Trixie, which stops at GCC 14.
     container: ubuntu:26.04
     timeout-minutes: 60
 

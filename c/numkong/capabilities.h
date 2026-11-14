@@ -400,6 +400,7 @@ static struct {
     {"v128relaxed", nk_cap_v128relaxed_k},
     {"powervsx", nk_cap_powervsx_k},
     {"loongsonasx", nk_cap_loongsonasx_k},
+    {"powermma", nk_cap_powermma_k},
     {"cuda", nk_cap_cuda_k},
     {"ampere", nk_cap_ampere_k},
     {"ada", nk_cap_ada_k},
@@ -1535,10 +1536,14 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long const hwcap_ppc_vsx = 0x00000080ul;        // PPC_FEATURE_HAS_VSX, in AT_HWCAP
     unsigned long const hwcap2_ppc_arch_3_00 = 0x00800000ul; // PPC_FEATURE2_ARCH_3_00, in AT_HWCAP2: POWER9
+    unsigned long const hwcap2_ppc_arch_3_1 = 0x00040000ul;  // PPC_FEATURE2_ARCH_3_1, in AT_HWCAP2: POWER10
+    unsigned long const hwcap2_ppc_mma = 0x00020000ul;       // PPC_FEATURE2_MMA, in AT_HWCAP2
     unsigned long hwcap = getauxval(AT_HWCAP);
     unsigned long hwcap2 = getauxval(AT_HWCAP2);
     nk_capability_t caps = nk_cap_serial_k;
-    if ((hwcap & hwcap_ppc_vsx) && (hwcap2 & hwcap2_ppc_arch_3_00)) caps |= nk_cap_powervsx_k;
+    unsigned supports_powervsx = (hwcap & hwcap_ppc_vsx) && (hwcap2 & hwcap2_ppc_arch_3_00);
+    unsigned supports_powermma = supports_powervsx && (hwcap2 & hwcap2_ppc_arch_3_1) && (hwcap2 & hwcap2_ppc_mma);
+    caps |= (nk_cap_powervsx_k * supports_powervsx) | (nk_cap_powermma_k * supports_powermma);
     return caps;
 #else
     return nk_cpu_capabilities_implied_();
@@ -1633,6 +1638,7 @@ NUMKONG_CONSTEXPR nk_capability_t nk_cpu_capabilities_compiled_(void) {
 #endif
 #if NUMKONG_ARCH_PPC64_
     caps |= nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX;
+    caps |= nk_cap_powermma_k * NUMKONG_TARGET_POWERMMA;
 #endif
 #if NUMKONG_ARCH_WASM_
     caps |= nk_cap_v128_k * NUMKONG_TARGET_V128;

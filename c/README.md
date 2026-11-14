@@ -763,7 +763,7 @@ The build enforces C99 for the C layer and C++20 for the C++ layer.
 [CONTRIBUTING.md](../CONTRIBUTING.md#building) lists the CMake presets and options, and [its cross-compilation section](../CONTRIBUTING.md#cross-compilation) the toolchain files in `cmake/` with a recipe for each target.
 A translation unit linking `numkong::static` or `numkong::shared` sees declarations only, while `numkong::header` defines `NUMKONG_HEADER_ONLY=1` and compiles the kernels inline.
 The library compiles every capability whose probe in `probes/` compiles, each scoped to its kernels by target pragmas, and dispatches between them by runtime detection.
-LASX and POWER9 scope that way only under GCC 15 or newer; Clang's intrinsics headers stay closed without `-mlasx` or `-mcpu=power9`.
+LASX, POWER9 and POWER10 scope that way only under GCC 15 or newer; Clang's intrinsics headers stay closed without `-mlasx`, `-mcpu=power9` or `-mcpu=power10`.
 Header-only units enable the capabilities their own flags name.
 
 ## Threading Model

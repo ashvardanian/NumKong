@@ -2,7 +2,7 @@
  *  @file bench/cross_ppc64.cpp
  *  @author Ash Vardanian
  *  @date March 24, 2026
- *  @brief Batch operation benchmarks, Power ISA family, VSX.
+ *  @brief Batch operation benchmarks, Power ISA family, VSX and MMA.
  */
 
 #include "numkong/dot.h"
@@ -85,7 +85,63 @@ void bench_cross_ppc64(environment_t const &env) {
                                   nk_dots_pack_u1_powervsx, nk_jaccards_packed_u1_powervsx);
         run_jaccards_symmetric<u1_k>(env, "jaccards_symmetric_u1_powervsx", nk_jaccards_symmetric_u1_powervsx);
     }
-#endif
+#endif // NUMKONG_TARGET_POWERVSX
+
+#if NUMKONG_TARGET_POWERMMA
+    if (section(env, "Cross Power MMA", nk_cap_powermma_k)) {
+        run_dots_packed<f32_k>(env, "dots_packed_f32_powermma", nk_dots_pack_size_f32_powermma,
+                               nk_dots_pack_f32_powermma, nk_dots_packed_f32_powermma);
+        run_dots_packed<bf16_k>(env, "dots_packed_bf16_powermma", nk_dots_pack_size_bf16_powermma,
+                                nk_dots_pack_bf16_powermma, nk_dots_packed_bf16_powermma);
+        run_dots_packed<f16_k>(env, "dots_packed_f16_powermma", nk_dots_pack_size_f16_powermma,
+                               nk_dots_pack_f16_powermma, nk_dots_packed_f16_powermma);
+        run_dots_packed<i8_k>(env, "dots_packed_i8_powermma", nk_dots_pack_size_i8_powermma, nk_dots_pack_i8_powermma,
+                              nk_dots_packed_i8_powermma);
+        run_dots_packed<u8_k>(env, "dots_packed_u8_powermma", nk_dots_pack_size_u8_powermma, nk_dots_pack_u8_powermma,
+                              nk_dots_packed_u8_powermma);
+
+        run_dots_symmetric<f32_k>(env, "dots_symmetric_f32_powermma", nk_dots_symmetric_f32_powermma);
+        run_dots_symmetric<bf16_k>(env, "dots_symmetric_bf16_powermma", nk_dots_symmetric_bf16_powermma);
+        run_dots_symmetric<f16_k>(env, "dots_symmetric_f16_powermma", nk_dots_symmetric_f16_powermma);
+        run_dots_symmetric<i8_k>(env, "dots_symmetric_i8_powermma", nk_dots_symmetric_i8_powermma);
+        run_dots_symmetric<u8_k>(env, "dots_symmetric_u8_powermma", nk_dots_symmetric_u8_powermma);
+
+        run_angulars_packed<f32_k>(env, "angulars_packed_f32_powermma", nk_dots_pack_size_f32_powermma,
+                                   nk_dots_pack_f32_powermma, nk_angulars_packed_f32_powermma);
+        run_angulars_packed<bf16_k>(env, "angulars_packed_bf16_powermma", nk_dots_pack_size_bf16_powermma,
+                                    nk_dots_pack_bf16_powermma, nk_angulars_packed_bf16_powermma);
+        run_angulars_packed<f16_k>(env, "angulars_packed_f16_powermma", nk_dots_pack_size_f16_powermma,
+                                   nk_dots_pack_f16_powermma, nk_angulars_packed_f16_powermma);
+        run_angulars_packed<i8_k>(env, "angulars_packed_i8_powermma", nk_dots_pack_size_i8_powermma,
+                                  nk_dots_pack_i8_powermma, nk_angulars_packed_i8_powermma);
+        run_angulars_packed<u8_k>(env, "angulars_packed_u8_powermma", nk_dots_pack_size_u8_powermma,
+                                  nk_dots_pack_u8_powermma, nk_angulars_packed_u8_powermma);
+
+        run_angulars_symmetric<f32_k>(env, "angulars_symmetric_f32_powermma", nk_angulars_symmetric_f32_powermma);
+        run_angulars_symmetric<bf16_k>(env, "angulars_symmetric_bf16_powermma", nk_angulars_symmetric_bf16_powermma);
+        run_angulars_symmetric<f16_k>(env, "angulars_symmetric_f16_powermma", nk_angulars_symmetric_f16_powermma);
+        run_angulars_symmetric<i8_k>(env, "angulars_symmetric_i8_powermma", nk_angulars_symmetric_i8_powermma);
+        run_angulars_symmetric<u8_k>(env, "angulars_symmetric_u8_powermma", nk_angulars_symmetric_u8_powermma);
+
+        run_euclideans_packed<f32_k>(env, "euclideans_packed_f32_powermma", nk_dots_pack_size_f32_powermma,
+                                     nk_dots_pack_f32_powermma, nk_euclideans_packed_f32_powermma);
+        run_euclideans_packed<bf16_k>(env, "euclideans_packed_bf16_powermma", nk_dots_pack_size_bf16_powermma,
+                                      nk_dots_pack_bf16_powermma, nk_euclideans_packed_bf16_powermma);
+        run_euclideans_packed<f16_k>(env, "euclideans_packed_f16_powermma", nk_dots_pack_size_f16_powermma,
+                                     nk_dots_pack_f16_powermma, nk_euclideans_packed_f16_powermma);
+        run_euclideans_packed<i8_k>(env, "euclideans_packed_i8_powermma", nk_dots_pack_size_i8_powermma,
+                                    nk_dots_pack_i8_powermma, nk_euclideans_packed_i8_powermma);
+        run_euclideans_packed<u8_k>(env, "euclideans_packed_u8_powermma", nk_dots_pack_size_u8_powermma,
+                                    nk_dots_pack_u8_powermma, nk_euclideans_packed_u8_powermma);
+
+        run_euclideans_symmetric<f32_k>(env, "euclideans_symmetric_f32_powermma", nk_euclideans_symmetric_f32_powermma);
+        run_euclideans_symmetric<bf16_k>(env, "euclideans_symmetric_bf16_powermma",
+                                         nk_euclideans_symmetric_bf16_powermma);
+        run_euclideans_symmetric<f16_k>(env, "euclideans_symmetric_f16_powermma", nk_euclideans_symmetric_f16_powermma);
+        run_euclideans_symmetric<i8_k>(env, "euclideans_symmetric_i8_powermma", nk_euclideans_symmetric_i8_powermma);
+        run_euclideans_symmetric<u8_k>(env, "euclideans_symmetric_u8_powermma", nk_euclideans_symmetric_u8_powermma);
+    }
+#endif // NUMKONG_TARGET_POWERMMA
 }
 
 } // namespace ashvardanian::numkong::bench

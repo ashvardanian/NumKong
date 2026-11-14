@@ -62,7 +62,7 @@ Machine-specific settings, like a compiler path, belong in an untracked `CMakeUs
 
 Every binding builds the static library through this `CMakeLists.txt`, or links one it built, so CMake is the one place that probes which capabilities the toolchain builds.
 Each capability's probe, `probes/<capability>.c`, calls one of its kernels, compiled header-only at the baseline flags as the library compiles it.
-Capabilities are scoped per function by target pragmas on every platform; LASX and POWER9 need GCC 15 or newer for that, and other toolchains leave them off.
+Capabilities are scoped per function by target pragmas on every platform; LASX, POWER9 and POWER10 need GCC 15 or newer for that, and other toolchains leave them off.
 The library compiles every capability the toolchain builds and dispatches between them by runtime detection, and `-D NUMKONG_TARGET_<CAPABILITY>=0` leaves a capability out.
 A monoversioned build, `-D NUMKONG_MULTIVERSIONED=OFF`, keeps only the capabilities whose predefined macros `NUMKONG_MARCH` implies, as `probes/implied.c` reads them through `types.h`, and folds each dispatch table to its best kernel.
 There `-D NUMKONG_TARGET_<CAPABILITY>=1` vouches for a capability no compiler macro reports, as MSVC reports none of the AVX-512 subsets.
@@ -103,14 +103,14 @@ SIMD kernels live inside `#pragma GCC target(...)` regions and run only when the
 | `x86_64`      | `-march=x86-64`      | `/arch:SSE2`    | System V psABI / Microsoft x64 ABI floor; SSE2 is mandatory |
 | `aarch64`     | `-march=armv8-a`     | `/arch:armv8.0` | ARMv8-A ABI floor; NEON is mandatory                        |
 | `riscv64`     | `-march=rv64gc`      | …               | V extension is runtime-probed and dispatched                |
-| `powerpc64le` | `-mcpu=power8`       | …               | ELFv2 ABI floor (VSX is mandatory); POWER9 is dispatched    |
+| `powerpc64le` | `-mcpu=power8`       | …               | ELFv2 ABI floor; POWER9 VSX and POWER10 MMA are dispatched  |
 | `loongarch64` | `-march=loongarch64` | …               | LASX is runtime-probed and dispatched                       |
 
 GCC/Clang builds also pass `-fno-tree-vectorize -fno-tree-slp-vectorize` so the auto-vectorizer cannot promote serial fallbacks to baseline SIMD (NEON, SSE2, VSX, …).
 That keeps the capability dispatch design intact: "serial" kernels stay actually serial, and the per-pragma SIMD kernels — which use explicit intrinsics, not vectorized scalar code — are the sole source of SIMD emission.
 MSVC has no per-function target pragma and no command-line vectorizer toggle, so the explicit `/arch:` flags above match defaults and document intent only; NumKong's MSVC strategy is compile-time gating via `_MSC_VER` version checks (see `c/numkong/types.h`).
-LASX and POWER9 scope per function only under GCC 15 or newer, whose target pragma defines `__loongarch_asx` and `__POWER9_VECTOR__` inside the region, so `types.h` opens `lasxintrin.h` and `altivec.h` there.
-Clang's headers stay closed without `-mlasx` or `-mcpu=power9`, so a Clang build leaves both capabilities off, and the cross toolchains drive GCC 15.
+LASX, POWER9 and POWER10 scope per function only under GCC 15 or newer, whose target pragma defines `__loongarch_asx` and `__POWER9_VECTOR__` inside the region, so `types.h` opens `lasxintrin.h` and `altivec.h` there.
+Clang's headers stay closed without `-mlasx`, `-mcpu=power9` or `-mcpu=power10`, so a Clang build leaves these capabilities off, and the cross toolchains drive GCC 15.
 
 For host-tuned local builds, set `NUMKONG_MARCH=native`, either as the CMake option `-DNUMKONG_MARCH=native` or as an environment variable.
 `pip install` reads the variable on every build, while `cargo build` and `npm run build-native` read it when they first configure their build directory.
@@ -730,14 +730,14 @@ Three families guard platform code, each with its own job:
   It gates kernel definitions and declarations, dispatch-table entries and compiled masks.
 
 The base capabilities are Haswell, Skylake, Icelake and SapphireAMX on `X8664`.
-On `ARM64` they are NEON, SVE and SME, then RVV on `RISCV64` and V128 on `WASM`.
+On `ARM64` they are NEON, SVE and SME, then RVV on `RISCV64`, PowerVSX on `PPC64` and V128 on `WASM`.
 On the GPUs they are Ampere, Ada and Blackwell on `CUDA`, and CDNA3 and CDNA4 on `ROCM`.
 Every other capability is a leaf, and CUDA, ROCm and Metal name their vendors' floors.
 A capability header opens its guards right after its include guard, in one of five shapes:
 
 - A __base__, like `dots/haswell.h`, opens `NUMKONG_ARCH_X8664_` and `NUMKONG_ARCH_X8664_HASWELL_`.
   Its public kernels and codegen stamps sit in one inner `#if NUMKONG_TARGET_HASWELL`.
-- A __leaf__, like `dots/powervsx.h`, opens `NUMKONG_ARCH_PPC64_` and `NUMKONG_TARGET_POWERVSX`.
+- A __leaf__, like `dots/powermma.h`, opens `NUMKONG_ARCH_PPC64_` and `NUMKONG_TARGET_POWERMMA`.
   Its includes, helpers and kernels all sit inside.
 - A __vendor floor__, like `dots/cuda.cuh`, opens `NUMKONG_ARCH_CUDA_` alone.
   Its public kernels sit in one inner `#if NUMKONG_TARGET_CUDA`.

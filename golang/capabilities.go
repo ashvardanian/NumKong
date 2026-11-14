@@ -53,6 +53,7 @@ const (
 	CapV128Relaxed Capability = C.nk_cap_v128relaxed_k // 2022: WASM Relaxed SIMD
 	CapPowerVSX    Capability = C.nk_cap_powervsx_k    // Power VSX 128-bit SIMD
 	CapLoongsonASX Capability = C.nk_cap_loongsonasx_k // LoongArch LASX 256-bit SIMD
+	CapPowerMMA    Capability = C.nk_cap_powermma_k    // 2021: Power ISA 3.1 Matrix-Multiply Assist
 
 	CapCUDA           Capability = C.nk_cap_cuda_k           // Any CUDA device
 	CapAmpere         Capability = C.nk_cap_ampere_k         // 2020: NVIDIA SM 8.0

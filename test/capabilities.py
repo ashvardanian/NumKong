@@ -57,7 +57,7 @@ def test_capability_members_are_the_cpu_capabilities():
         "haswell", "alder", "sierra", "skylake", "icelake", "genoa", "turin", "sapphire", "diamond",
         "sapphireamx", "graniteamx", "diamondamx",
         "rvv", "rvvbf16", "rvvhalf", "rvvbb",
-        "v128", "v128relaxed", "powervsx", "loongsonasx",
+        "v128", "v128relaxed", "powervsx", "loongsonasx", "powermma",
     ]
     # fmt: on
     assert list(nk.Capability.__members__) == [name.upper() for name in expected], "members follow the bit order"

@@ -2,6 +2,7 @@
 //
 // File: golang/capabilities_test.go
 // Author: Ash Vardanian
+// Date: September 26, 2026
 
 package numkong_test
 
@@ -48,6 +49,7 @@ func TestCapabilityNames(t *testing.T) {
 		numkong.CapV128Relaxed:    "v128relaxed",
 		numkong.CapPowerVSX:       "powervsx",
 		numkong.CapLoongsonASX:    "loongsonasx",
+		numkong.CapPowerMMA:       "powermma",
 		numkong.CapCUDA:           "cuda",
 		numkong.CapAmpere:         "ampere",
 		numkong.CapAda:            "ada",
