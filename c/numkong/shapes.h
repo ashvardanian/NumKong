@@ -1061,6 +1061,81 @@ NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f32_rvv(void const *const *
                                                              nk_size_t workspace_bytes, nk_stream_t stream);
 #endif // NUMKONG_TARGET_RVV
 
+#if NUMKONG_TARGET_POWERVSX
+/** @copydoc nk_shapes_pack_f64_best */
+NUMKONG_API nk_status_t nk_shapes_pack_f16_powervsx(nk_f16_t const *points, nk_size_t count, void *packed,
+                                                    nk_stream_t stream);
+/** @copydoc nk_shapes_pack_f64_best */
+NUMKONG_API nk_status_t nk_shapes_pack_f32_powervsx(nk_f32_t const *points, nk_size_t count, void *packed,
+                                                    nk_stream_t stream);
+/** @copydoc nk_shapes_pack_normalized_f64_best */
+NUMKONG_API nk_status_t nk_shapes_pack_normalized_f16_powervsx(nk_f16_t const *points, nk_size_t count, void *packed,
+                                                               nk_stream_t stream);
+/** @copydoc nk_shapes_pack_normalized_f64_best */
+NUMKONG_API nk_status_t nk_shapes_pack_normalized_f32_powervsx(nk_f32_t const *points, nk_size_t count, void *packed,
+                                                               nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f64_powervsx(void const *const *a_packed, nk_size_t rows,
+                                                     void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                     nk_size_t results_stride, nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f32_powervsx(void const *const *a_packed, nk_size_t rows,
+                                                     void const *const *b_packed, nk_size_t columns, nk_f64_t *results,
+                                                     nk_size_t results_stride, nk_stream_t stream);
+/** @copydoc nk_rmsds_packed_f64_best */
+NUMKONG_API nk_status_t nk_rmsds_packed_f16_powervsx(void const *const *a_packed, nk_size_t rows,
+                                                     void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
+                                                     nk_size_t results_stride, nk_stream_t stream);
+/** @copydoc nk_hausdorffs_packed_f64_best */
+NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_powervsx(void const *const *a_packed, nk_size_t rows,
+                                                          void const *const *b_packed, nk_size_t columns,
+                                                          nk_f32_t *results, nk_size_t results_stride,
+                                                          nk_f32_t *rotations, nk_f32_t const *limit,
+                                                          nk_stream_t stream);
+/** @copydoc nk_hausdorffs_packed_f64_best */
+NUMKONG_API nk_status_t nk_hausdorffs_packed_f32_powervsx(void const *const *a_packed, nk_size_t rows,
+                                                          void const *const *b_packed, nk_size_t columns,
+                                                          nk_f64_t *results, nk_size_t results_stride,
+                                                          nk_f32_t *rotations, nk_f64_t const *limit,
+                                                          nk_stream_t stream);
+/** @copydoc nk_chamfers_packed_f64_best */
+NUMKONG_API nk_status_t nk_chamfers_packed_f16_powervsx(void const *const *a_packed, nk_size_t rows,
+                                                        void const *const *b_packed, nk_size_t columns,
+                                                        nk_f32_t *results, nk_size_t results_stride,
+                                                        nk_f32_t *rotations, nk_f32_t const *limit, void *workspace,
+                                                        nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_chamfers_packed_f64_best */
+NUMKONG_API nk_status_t nk_chamfers_packed_f32_powervsx(void const *const *a_packed, nk_size_t rows,
+                                                        void const *const *b_packed, nk_size_t columns,
+                                                        nk_f64_t *results, nk_size_t results_stride,
+                                                        nk_f32_t *rotations, nk_f64_t const *limit, void *workspace,
+                                                        nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_wassersteinprocrustes_packed_f64_best */
+NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_f16_powervsx(void const *const *a_packed, nk_size_t rows,
+                                                                     void const *const *b_packed, nk_size_t columns,
+                                                                     nk_f32_t *results, nk_size_t results_stride,
+                                                                     nk_f32_t *rotations, void *workspace,
+                                                                     nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_wassersteinprocrustes_packed_f64_best */
+NUMKONG_API nk_status_t nk_wassersteinprocrustes_packed_f32_powervsx(void const *const *a_packed, nk_size_t rows,
+                                                                     void const *const *b_packed, nk_size_t columns,
+                                                                     nk_f64_t *results, nk_size_t results_stride,
+                                                                     nk_f32_t *rotations, void *workspace,
+                                                                     nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_gromovwassersteins_packed_f64_best */
+NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f16_powervsx(void const *const *a_packed, nk_size_t rows,
+                                                                  void const *const *b_packed, nk_size_t columns,
+                                                                  nk_f32_t *results, nk_size_t results_stride,
+                                                                  nk_f32_t *rotations, void *workspace,
+                                                                  nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_gromovwassersteins_packed_f64_best */
+NUMKONG_API nk_status_t nk_gromovwassersteins_packed_f32_powervsx(void const *const *a_packed, nk_size_t rows,
+                                                                  void const *const *b_packed, nk_size_t columns,
+                                                                  nk_f64_t *results, nk_size_t results_stride,
+                                                                  nk_f32_t *rotations, void *workspace,
+                                                                  nk_size_t workspace_bytes, nk_stream_t stream);
+#endif // NUMKONG_TARGET_POWERVSX
+
 /*  NVIDIA backends for the compute capability 10.x family, with F16 tensor-core products. */
 #if NUMKONG_TARGET_BLACKWELL
 /** @copydoc nk_rmsds_packed_f64_best */
@@ -1361,6 +1436,7 @@ NUMKONG_API nk_status_t nk_shapes_find_kernel(nk_kernel_kind_t kind, nk_dtype_t 
 #include "numkong/shapes/skylake.h"
 #include "numkong/shapes/rvv.h"
 #include "numkong/shapes/v128relaxed.h"
+#include "numkong/shapes/powervsx.h"
 
 #if defined(__cplusplus)
 extern "C" {

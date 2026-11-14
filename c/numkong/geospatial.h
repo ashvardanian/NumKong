@@ -463,6 +463,17 @@ NUMKONG_API nk_status_t nk_vincentys_packed_f64_rvv(void const *a_packed, void c
                                                     nk_size_t results_stride, nk_stream_t stream);
 #endif // NUMKONG_TARGET_RVV
 
+#if NUMKONG_TARGET_POWERVSX
+/** @copydoc nk_sqeuclideans3d_i32_best */
+NUMKONG_API nk_status_t nk_sqeuclideans3d_i32_powervsx(nk_i32_t const *a, nk_size_t rows, nk_i32_t const *b,
+                                                       nk_size_t columns, nk_u64_t *results, nk_size_t results_stride,
+                                                       nk_stream_t stream);
+/** @copydoc nk_sqeuclideans3d_i32_best */
+NUMKONG_API nk_status_t nk_sqeuclideans3d_f64_powervsx(nk_f64_t const *a, nk_size_t rows, nk_f64_t const *b,
+                                                       nk_size_t columns, nk_f64_t *results, nk_size_t results_stride,
+                                                       nk_stream_t stream);
+#endif // NUMKONG_TARGET_POWERVSX
+
 /*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device;
  *  every operand is device memory of the vendor their capability names. Packs keep the serial
  *  layout and bytes, and terrain packs cover grids up to 2³² + 1 rows and columns. */
@@ -556,6 +567,7 @@ NUMKONG_API nk_status_t nk_geospatial_find_kernel(nk_kernel_kind_t kind, nk_dtyp
 #include "numkong/geospatial/skylake.h"
 #include "numkong/geospatial/v128relaxed.h"
 #include "numkong/geospatial/rvv.h"
+#include "numkong/geospatial/powervsx.h"
 #include "numkong/geospatial/cuda.cuh"
 
 #if defined(__cplusplus)

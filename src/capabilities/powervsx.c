@@ -11,6 +11,8 @@
 #include "numkong/dot/powervsx.h"
 #include "numkong/set/powervsx.h"
 #include "numkong/spatial/powervsx.h"
+#include "numkong/geospatial/powervsx.h"
+#include "numkong/shapes/powervsx.h"
 #include "numkong/dots/powervsx.h"
 #include "numkong/sets/powervsx.h"
 #include "numkong/spatials/powervsx.h"
