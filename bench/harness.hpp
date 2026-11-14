@@ -51,6 +51,7 @@
 #include <string>       // `std::string`, `std::to_string`
 #include <string_view>  // `std::string_view`
 #include <system_error> // `std::errc`
+#include <type_traits>  // `std::is_function_v`, `std::is_null_pointer_v`
 #include <utility>      // `std::move`
 #include <vector>       // `std::vector`
 
@@ -667,11 +668,20 @@ inline std::size_t input_sets_count(bytes_t per_set) {
         std::clamp(footprint_bytes / nk::max_of(per_set.value, std::size_t(1)), std::size_t(1), input_sets_limit_k));
 }
 
-/** Runs @p measure over @p arguments when @p name passes the filter, then prints its row. */
+/** Whether @p argument is a kernel this capability lacks: a null function pointer. */
+template <typename argument_type_>
+constexpr bool is_missing_kernel(argument_type_ const &argument) noexcept {
+    if constexpr (std::is_pointer_v<argument_type_> && std::is_function_v<std::remove_pointer_t<argument_type_>>)
+        return argument == nullptr;
+    else return std::is_null_pointer_v<argument_type_>;
+}
+
+/** Runs @p measure over @p arguments when @p name passes the filter and no kernel among them is
+ *  missing, then prints its row. */
 template <typename measure_type_, typename... arguments_types_>
 void run_benchmark(environment_t const &env, std::string const &name, measure_type_ measure,
                    arguments_types_... arguments) {
-    if (!env.settings.selects(name)) return;
+    if (!env.settings.selects(name) || (is_missing_kernel(arguments) || ...)) return;
     loop_t loop(env.settings.warmup, env.settings.time_limit);
     measure(loop, env, arguments...);
     print(loop.row(name));

@@ -70,7 +70,7 @@ Every CPU capability packs through the serial routine and CUDA through its twin,
 ### Exact 3D Squares
 
 `nk_sqeuclideans3d_i32` subtracts 32-bit coordinates and squares the differences into 64-bit lanes, which stays exact for Earth-fixed centimetres below 4,359 km of altitude.
-NEON de-interleaves rows with `LD3` and squares with `SMULL` and `SMLAL`, x86 with `VPMULDQ` after a permute, WASM with `i64x2.extmul`, and RVV with segmented loads and `vwmul`.
+NEON de-interleaves rows with `LD3` and squares with `SMULL` and `SMLAL`, x86 with `VPMULDQ` after a permute, WASM with `i64x2.extmul`, RVV with segmented loads and `vwmul`, and Power VSX with `VPERM` and `VMULESW`.
 The library build turns auto-vectorization off, so every capability carries its own explicit SIMD body.
 
 ### Trigonometric Polynomial Approximations

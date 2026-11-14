@@ -442,6 +442,12 @@ void test_geospatial(error_stats_section_t &check) {
     check("haversines_packed_f64_v128relaxed", test_haversines, nk_haversines_packed_f64_v128relaxed);
     check("vincentys_packed_f64_v128relaxed", test_vincentys, nk_vincentys_packed_f64_v128relaxed);
 #endif // NUMKONG_TARGET_V128RELAXED
+
+#if NUMKONG_TARGET_POWERVSX
+    check.section("Geospatial Functions Power VSX", nk_cap_powervsx_k);
+    check("sqeuclideans3d_i32_powervsx", test_sqeuclideans3d_i32, nk_sqeuclideans3d_i32_powervsx);
+    check("sqeuclideans3d_f64_powervsx", test_sqeuclideans3d_f64, nk_sqeuclideans3d_f64_powervsx);
+#endif // NUMKONG_TARGET_POWERVSX
 }
 
 } // namespace ashvardanian::numkong::test

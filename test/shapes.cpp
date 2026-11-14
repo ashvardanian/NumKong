@@ -1607,6 +1607,52 @@ void test_shapes(error_stats_section_t &check) {
           nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_serial,
           nk_gromovwassersteins_packed_f16_v128relaxed);
 #endif
+
+#if NUMKONG_TARGET_POWERVSX
+    check.section("Shapes Power VSX", nk_cap_powervsx_k);
+    check("shapes_pack_f32_powervsx", test_shapes_pack<f32_t, pack_k>, nk_shapes_pack_size_f32_serial,
+          nk_shapes_pack_f32_powervsx, nk_shapes_packed_shape_f32_serial, nk_shapes_unpack_f32_serial);
+    check("shapes_pack_f16_powervsx", test_shapes_pack<f16_t, pack_k>, nk_shapes_pack_size_f16_serial,
+          nk_shapes_pack_f16_powervsx, nk_shapes_packed_shape_f16_serial, nk_shapes_unpack_f16_serial);
+    check("shapes_pack_normalized_f32_powervsx", test_shapes_pack<f32_t, pack_normalized_k>,
+          nk_shapes_pack_size_f32_serial, nk_shapes_pack_normalized_f32_powervsx, nk_shapes_packed_shape_f32_serial,
+          nk_shapes_unpack_f32_serial);
+    check("shapes_pack_normalized_f16_powervsx", test_shapes_pack<f16_t, pack_normalized_k>,
+          nk_shapes_pack_size_f16_serial, nk_shapes_pack_normalized_f16_powervsx, nk_shapes_packed_shape_f16_serial,
+          nk_shapes_unpack_f16_serial);
+    check("rmsds_packed_f64_powervsx", test_rmsds_packed<f64_t>, nk_shapes_pack_size_f64_serial,
+          nk_shapes_pack_f64_serial, nk_rmsds_packed_f64_powervsx);
+    check("rmsds_packed_f32_powervsx", test_rmsds_packed<f32_t>, nk_shapes_pack_size_f32_serial,
+          nk_shapes_pack_f32_serial, nk_rmsds_packed_f32_powervsx);
+    check("rmsds_packed_f16_powervsx", test_rmsds_packed<f16_t>, nk_shapes_pack_size_f16_serial,
+          nk_shapes_pack_f16_serial, nk_rmsds_packed_f16_powervsx);
+    check("hausdorffs_packed_f32_powervsx", test_shapes_packed<f32_t, hausdorffs_k>, nk_shapes_pack_size_f32_serial,
+          nk_shapes_pack_f32_serial, nk_hausdorffs_packed_f32_powervsx);
+    check("hausdorffs_packed_f16_powervsx", test_shapes_packed<f16_t, hausdorffs_k>, nk_shapes_pack_size_f16_serial,
+          nk_shapes_pack_f16_serial, nk_hausdorffs_packed_f16_powervsx);
+    check("chamfers_packed_f32_powervsx", test_chamfers_packed_workspace<f32_t>, nk_shapes_pack_size_f32_serial,
+          nk_shapes_pack_f32_serial, nk_chamfers_packed_f32_powervsx);
+    check("chamfers_packed_f16_powervsx", test_chamfers_packed_workspace<f16_t>, nk_shapes_pack_size_f16_serial,
+          nk_shapes_pack_f16_serial, nk_chamfers_packed_f16_powervsx);
+    check("wassersteinprocrustes_packed_f32_powervsx", test_shapes_packed_workspace<f32_t, wassersteinprocrustes_k>,
+          nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_wassersteinprocrustes_workspace_size_f32_serial,
+          nk_wassersteinprocrustes_packed_f32_powervsx);
+    check("wassersteinprocrustes_packed_f16_powervsx", test_shapes_packed_workspace<f16_t, wassersteinprocrustes_k>,
+          nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_wassersteinprocrustes_workspace_size_f16_serial,
+          nk_wassersteinprocrustes_packed_f16_powervsx);
+    check("wassersteinprocrustes_kabsch_f32_powervsx", test_shapes_kabsch<f32_t>, nk_shapes_pack_size_f32_serial,
+          nk_shapes_pack_f32_serial, nk_wassersteinprocrustes_workspace_size_f32_serial,
+          nk_wassersteinprocrustes_packed_f32_powervsx);
+    check("wassersteinprocrustes_kabsch_f16_powervsx", test_shapes_kabsch<f16_t>, nk_shapes_pack_size_f16_serial,
+          nk_shapes_pack_f16_serial, nk_wassersteinprocrustes_workspace_size_f16_serial,
+          nk_wassersteinprocrustes_packed_f16_powervsx);
+    check("gromovwassersteins_packed_f32_powervsx", test_shapes_packed_workspace<f32_t, gromovwassersteins_k>,
+          nk_shapes_pack_size_f32_serial, nk_shapes_pack_f32_serial, nk_gromovwassersteins_workspace_size_f32_serial,
+          nk_gromovwassersteins_packed_f32_powervsx);
+    check("gromovwassersteins_packed_f16_powervsx", test_shapes_packed_workspace<f16_t, gromovwassersteins_k>,
+          nk_shapes_pack_size_f16_serial, nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_serial,
+          nk_gromovwassersteins_packed_f16_powervsx);
+#endif
 }
 
 } // namespace ashvardanian::numkong::test

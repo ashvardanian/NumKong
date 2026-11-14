@@ -153,6 +153,11 @@ void bench_geospatial(environment_t const &env) {
         run_geospatial(env, "v128relaxed", nk_sqeuclideans3d_i32_v128relaxed, nk_sqeuclideans3d_f64_v128relaxed,
                        nk_haversines_packed_f64_v128relaxed, nk_vincentys_packed_f64_v128relaxed);
 #endif
+#if NUMKONG_TARGET_POWERVSX
+    if (section(env, "Geospatial Functions Power VSX", nk_cap_powervsx_k))
+        run_geospatial(env, "powervsx", nk_sqeuclideans3d_i32_powervsx, nk_sqeuclideans3d_f64_powervsx, nullptr,
+                       nullptr);
+#endif
 
     section(env, "Geospatial Functions Serial", nk_cap_serial_k);
     run_geospatial(env, "serial", nk_sqeuclideans3d_i32_serial, nk_sqeuclideans3d_f64_serial,

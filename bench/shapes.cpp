@@ -203,6 +203,34 @@ void bench_shapes(environment_t const &env) {
                                                    nk_gromovwassersteins_workspace_size_f16_serial));
     }
 #endif
+
+#if NUMKONG_TARGET_POWERVSX
+    if (section(env, "Shapes Power VSX", nk_cap_powervsx_k)) {
+        run_shapes_packed<nk_f64_k>(env, "rmsds_packed_f64_powervsx", backend, nk_rmsds_packed_f64_powervsx);
+        run_shapes_packed<nk_f32_k>(env, "rmsds_packed_f32_powervsx", backend, nk_rmsds_packed_f32_powervsx);
+        run_shapes_packed<nk_f16_k>(env, "rmsds_packed_f16_powervsx", backend, nk_rmsds_packed_f16_powervsx);
+        run_shapes_packed<nk_f32_k>(env, "hausdorffs_packed_f32_powervsx", backend, nk_hausdorffs_packed_f32_powervsx);
+        run_shapes_packed<nk_f16_k>(env, "hausdorffs_packed_f16_powervsx", backend, nk_hausdorffs_packed_f16_powervsx);
+        run_shapes_packed<nk_f32_k>(
+            env, "chamfers_packed_f32_powervsx", backend,
+            with_workspace(nk_chamfers_packed_f32_powervsx, nk_chamfers_workspace_size_f32_serial));
+        run_shapes_packed<nk_f16_k>(
+            env, "chamfers_packed_f16_powervsx", backend,
+            with_workspace(nk_chamfers_packed_f16_powervsx, nk_chamfers_workspace_size_f16_serial));
+        run_shapes_packed<nk_f32_k>(env, "wassersteinprocrustes_packed_f32_powervsx", backend,
+                                    with_workspace(nk_wassersteinprocrustes_packed_f32_powervsx,
+                                                   nk_wassersteinprocrustes_workspace_size_f32_serial));
+        run_shapes_packed<nk_f16_k>(env, "wassersteinprocrustes_packed_f16_powervsx", backend,
+                                    with_workspace(nk_wassersteinprocrustes_packed_f16_powervsx,
+                                                   nk_wassersteinprocrustes_workspace_size_f16_serial));
+        run_shapes_packed<nk_f32_k>(
+            env, "gromovwassersteins_packed_f32_powervsx", backend,
+            with_workspace(nk_gromovwassersteins_packed_f32_powervsx, nk_gromovwassersteins_workspace_size_f32_serial));
+        run_shapes_packed<nk_f16_k>(
+            env, "gromovwassersteins_packed_f16_powervsx", backend,
+            with_workspace(nk_gromovwassersteins_packed_f16_powervsx, nk_gromovwassersteins_workspace_size_f16_serial));
+    }
+#endif
 }
 
 } // namespace ashvardanian::numkong::bench
