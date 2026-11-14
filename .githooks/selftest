@@ -3214,15 +3214,15 @@ NUMKONG_API int nk_probe_haswell(int value) { return value; }
 #endif // NUMKONG_ARCH_X8664_
 FIXTURE
 
-assert_accepts "leaf capability guards" include/numkong/probe/powervsx.h <<'FIXTURE'
+assert_accepts "leaf capability guards" include/numkong/probe/powermma.h <<'FIXTURE'
 #if NUMKONG_ARCH_PPC64_
-#if NUMKONG_TARGET_POWERVSX
+#if NUMKONG_TARGET_POWERMMA
 
 #include "numkong/types.h"
 
-NUMKONG_API int nk_probe_powervsx(int value) { return value; }
+NUMKONG_API int nk_probe_powermma(int value) { return value; }
 
-#endif // NUMKONG_TARGET_POWERVSX
+#endif // NUMKONG_TARGET_POWERMMA
 #endif // NUMKONG_ARCH_PPC64_
 FIXTURE
 

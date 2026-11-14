@@ -121,8 +121,8 @@ function (numkong_add_cpu_capability capability_name_ capability_macro_)
     target_compile_definitions(numkong_cpu_capabilities_disabled_ INTERFACE ${capability_macro_}=0)
 endfunction ()
 
-# Flags are the union of each capability's target pragmas. LASX and POWER9 scope per function from GCC 15 on, which
-# opens `lasxintrin.h` and `altivec.h` inside their target regions; Clang never does, so its builds leave both off.
+# Flags are the union of each capability's target pragmas. LASX, POWER9 and POWER10 scope per function from GCC 15 on, which
+# opens `lasxintrin.h` and `altivec.h` inside their target regions; Clang never does, so its builds leave them off.
 if (numkong_arch_x8664_)
     numkong_add_cpu_capability(
         haswell NUMKONG_TARGET_HASWELL GCC_FLAGS -mavx2 -mf16c -mfma -mbmi -mbmi2 -mpopcnt MSVC_FLAGS /arch:AVX2
@@ -207,6 +207,7 @@ elseif (numkong_arch_loongarch64_)
     numkong_add_cpu_capability(loongsonasx NUMKONG_TARGET_LOONGSONASX GCC_FLAGS -mlasx)
 elseif (numkong_arch_ppc64_)
     numkong_add_cpu_capability(powervsx NUMKONG_TARGET_POWERVSX GCC_FLAGS -mcpu=power9)
+    numkong_add_cpu_capability(powermma NUMKONG_TARGET_POWERMMA GCC_FLAGS -mcpu=power10)
 endif ()
 
 # Linked by the units that call one GPU vendor's capability kernels: each macro is 1 where some architecture the

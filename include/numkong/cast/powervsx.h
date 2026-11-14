@@ -82,7 +82,7 @@
 #define NUMKONG_CAST_POWERVSX_H
 
 #if NUMKONG_ARCH_PPC64_
-#if NUMKONG_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_POWERVSX_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_cast_elementwise_serial_`, `nk_dtype_bits`
@@ -97,16 +97,6 @@ extern "C" {
 #pragma GCC push_options
 #pragma GCC target("power9-vector")
 #endif
-
-NUMKONG_API void nk_f16_to_f32_powervsx(nk_f16_t const *source, nk_f32_t *destination) {
-    nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_xl_len((nk_u8_t *)source, 2);
-    *destination = vec_extract(vec_extract_fp32_from_shorth(values_u16x8), 0);
-}
-
-NUMKONG_API void nk_f32_to_f16_powervsx(nk_f32_t const *source, nk_f16_t *destination) {
-    nk_vu16x8_t packed_u16x8 = vec_pack_to_short_fp32(vec_splats(*source), vec_splats(*source));
-    *destination = vec_extract(packed_u16x8, 0);
-}
 
 /** Type-agnostic 128-bit full load (Power VSX). */
 NUMKONG_INLINE void nk_load_b128_powervsx_(void const *source, nk_b128_vec_t *destination) {
@@ -206,6 +196,11 @@ NUMKONG_INLINE void nk_partial_store_b8x16_powervsx_(nk_b128_vec_t const *source
     vec_xst_len(source->vu8x16, (nk_u8_t *)destination, n);
 }
 
+/** Loads four f16 values and widens them to f32 lanes with @c xvcvhpsp. */
+NUMKONG_INLINE nk_vf32x4_t nk_load_f16x4_as_f32_powervsx_(nk_f16_t const *source) {
+    return vec_extract_fp32_from_shorth((nk_vu16x8_t)vec_xl_len((nk_u16_t *)source, 8));
+}
+
 /** Convert f32x4 → bf16 packed in u16x8 with RNE rounding (Power VSX). Round-to-nearest-even: add
  *  (0x7FFF + lsb) before truncation. Uses vec_sr by 16, then vec_pack to narrow u32x4 → u16x8.
  *  Result is in low 4 lanes of the returned u16x8. */
@@ -225,6 +220,18 @@ NUMKONG_INLINE nk_vu16x8_t nk_f32x4_to_bf16_pack_powervsx_(nk_vf32x4_t values_f3
     rounded_u32x4 = vec_sel(quiet_nan_u32x4, rounded_u32x4, (nk_vu32x4_t)vec_cmpeq(values_f32x4, values_f32x4));
     rounded_u32x4 = vec_sr(rounded_u32x4, shift_u32x4);
     return vec_pack(rounded_u32x4, rounded_u32x4);
+}
+
+#if NUMKONG_TARGET_POWERVSX
+
+NUMKONG_API void nk_f16_to_f32_powervsx(nk_f16_t const *source, nk_f32_t *destination) {
+    nk_vu16x8_t values_u16x8 = (nk_vu16x8_t)vec_xl_len((nk_u8_t *)source, 2);
+    *destination = vec_extract(vec_extract_fp32_from_shorth(values_u16x8), 0);
+}
+
+NUMKONG_API void nk_f32_to_f16_powervsx(nk_f32_t const *source, nk_f16_t *destination) {
+    nk_vu16x8_t packed_u16x8 = vec_pack_to_short_fp32(vec_splats(*source), vec_splats(*source));
+    *destination = vec_extract(packed_u16x8, 0);
 }
 
 NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
@@ -336,6 +343,8 @@ NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_dtype
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_POWERVSX
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -346,6 +355,6 @@ NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_dtype
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_POWERVSX
+#endif // NUMKONG_ARCH_PPC64_POWERVSX_
 #endif // NUMKONG_ARCH_PPC64_
 #endif // NUMKONG_CAST_POWERVSX_H

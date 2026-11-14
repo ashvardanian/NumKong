@@ -51,7 +51,7 @@
 #define NUMKONG_DOT_POWERVSX_H
 
 #if NUMKONG_ARCH_PPC64_
-#if NUMKONG_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_POWERVSX_
 
 #if defined(__cplusplus)
 extern "C" {
@@ -141,270 +141,6 @@ NUMKONG_INLINE void nk_dot2_f64x2_powervsx_(nk_vf64x2_t *sum_f64x2, nk_vf64x2_t 
     *sum_f64x2 = tentative_sum_f64x2;
     *compensation_f64x2 = vec_add(*compensation_f64x2, vec_add(sum_error_f64x2, product_error_f64x2));
 }
-
-#pragma region F32 and F64 Floats
-
-NUMKONG_API nk_status_t nk_dot_f32_powervsx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    // Upcast f32 → f64 for accumulation via vec_doublee (even lanes) and vec_doubleo (odd lanes)
-    nk_vf64x2_t sum_even_f64x2 = vec_splats((nk_f64_t)0);
-    nk_vf64x2_t sum_odd_f64x2 = vec_splats((nk_f64_t)0);
-    nk_vf32x4_t a_f32x4, b_f32x4;
-    nk_size_t tail_bytes;
-
-nk_dot_f32_powervsx_cycle:
-    if (count_scalars < 4) {
-        tail_bytes = count_scalars * sizeof(nk_f32_t);
-        a_f32x4 = vec_xl_len((nk_f32_t *)a_scalars, tail_bytes);
-        b_f32x4 = vec_xl_len((nk_f32_t *)b_scalars, tail_bytes);
-        count_scalars = 0;
-    }
-    else {
-        a_f32x4 = vec_xl(0, a_scalars);
-        b_f32x4 = vec_xl(0, b_scalars);
-        a_scalars += 4, b_scalars += 4, count_scalars -= 4;
-    }
-
-    // Widen even/odd f32 lanes → f64x2, then FMA
-    nk_vf64x2_t a_even_f64x2 = vec_doublee(a_f32x4);
-    nk_vf64x2_t b_even_f64x2 = vec_doublee(b_f32x4);
-    nk_vf64x2_t a_odd_f64x2 = vec_doubleo(a_f32x4);
-    nk_vf64x2_t b_odd_f64x2 = vec_doubleo(b_f32x4);
-    sum_even_f64x2 = vec_madd(a_even_f64x2, b_even_f64x2, sum_even_f64x2);
-    sum_odd_f64x2 = vec_madd(a_odd_f64x2, b_odd_f64x2, sum_odd_f64x2);
-
-    if (count_scalars) goto nk_dot_f32_powervsx_cycle;
-    // Combine even and odd accumulators → final scalar
-    nk_vf64x2_t total_f64x2 = vec_add(sum_even_f64x2, sum_odd_f64x2);
-    *result = nk_hsum_f64x2_powervsx_(total_f64x2);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dot_f64_powervsx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
-    nk_vf64x2_t sum_f64x2 = vec_splats((nk_f64_t)0);
-    nk_vf64x2_t compensation_f64x2 = vec_splats((nk_f64_t)0);
-    nk_vf64x2_t a_f64x2, b_f64x2;
-    nk_size_t tail_bytes;
-
-nk_dot_f64_powervsx_cycle:
-    if (count_scalars < 2) {
-        tail_bytes = count_scalars * sizeof(nk_f64_t);
-        a_f64x2 = vec_xl_len((nk_f64_t *)a_scalars, tail_bytes);
-        b_f64x2 = vec_xl_len((nk_f64_t *)b_scalars, tail_bytes);
-        count_scalars = 0;
-    }
-    else {
-        a_f64x2 = vec_xl(0, a_scalars);
-        b_f64x2 = vec_xl(0, b_scalars);
-        a_scalars += 2, b_scalars += 2, count_scalars -= 2;
-    }
-
-    // TwoProd: product = a * b, error = msub(a, b, product) captures rounding error
-    nk_vf64x2_t product_f64x2 = vec_mul(a_f64x2, b_f64x2);
-    nk_vf64x2_t product_error_f64x2 = vec_msub(a_f64x2, b_f64x2, product_f64x2);
-    // TwoSum: (t, q) = TwoSum(sum, product) where t = sum + product rounded, q = error
-    nk_vf64x2_t tentative_sum_f64x2 = vec_add(sum_f64x2, product_f64x2);
-    nk_vf64x2_t virtual_addend_f64x2 = vec_sub(tentative_sum_f64x2, sum_f64x2);
-    nk_vf64x2_t sum_error_f64x2 = vec_add(vec_sub(sum_f64x2, vec_sub(tentative_sum_f64x2, virtual_addend_f64x2)),
-                                          vec_sub(product_f64x2, virtual_addend_f64x2));
-    // Update: sum = t, compensation += q + r
-    sum_f64x2 = tentative_sum_f64x2;
-    compensation_f64x2 = vec_add(compensation_f64x2, vec_add(sum_error_f64x2, product_error_f64x2));
-
-    if (count_scalars) goto nk_dot_f64_powervsx_cycle;
-    // Compensated horizontal reduction preserving Dot2 error tracking
-    *result = nk_dot_stable_sum_f64x2_powervsx_(sum_f64x2, compensation_f64x2);
-    return nk_success_k;
-}
-
-#pragma endregion F32 and F64 Floats
-#pragma region F16 and BF16 Floats
-
-NUMKONG_API nk_status_t nk_dot_bf16_powervsx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    // bf16 → f32 via mergeh/mergel with zero: shift 16 bits into f32 upper half
-    nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
-    nk_vf32x4_t sum_f32x4 = vec_splats((nk_f32_t)0);
-    nk_vu16x8_t a_u16x8, b_u16x8;
-    nk_size_t tail_bytes;
-
-nk_dot_bf16_powervsx_cycle:
-    if (count_scalars < 8) {
-        tail_bytes = count_scalars * sizeof(nk_bf16_t);
-        a_u16x8 = vec_xl_len((nk_u16_t *)a_scalars, tail_bytes);
-        b_u16x8 = vec_xl_len((nk_u16_t *)b_scalars, tail_bytes);
-        count_scalars = 0;
-    }
-    else {
-        a_u16x8 = vec_xl(0, (nk_u16_t const *)a_scalars);
-        b_u16x8 = vec_xl(0, (nk_u16_t const *)b_scalars);
-        a_scalars += 8, b_scalars += 8, count_scalars -= 8;
-    }
-
-    // Convert bf16 → f32: merge with zero puts bf16 bits in upper 16 of each f32
-    nk_vf32x4_t a_high_f32x4 = (nk_vf32x4_t)vec_mergeh(zero_u16x8, a_u16x8);
-    nk_vf32x4_t a_low_f32x4 = (nk_vf32x4_t)vec_mergel(zero_u16x8, a_u16x8);
-    nk_vf32x4_t b_high_f32x4 = (nk_vf32x4_t)vec_mergeh(zero_u16x8, b_u16x8);
-    nk_vf32x4_t b_low_f32x4 = (nk_vf32x4_t)vec_mergel(zero_u16x8, b_u16x8);
-    sum_f32x4 = vec_madd(a_high_f32x4, b_high_f32x4, sum_f32x4);
-    sum_f32x4 = vec_madd(a_low_f32x4, b_low_f32x4, sum_f32x4);
-
-    if (count_scalars) goto nk_dot_bf16_powervsx_cycle;
-    *result = nk_hsum_f32x4_powervsx_(sum_f32x4);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dot_f16_powervsx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    // f16 → f32 via vec_extract_fp32_from_shorth/shortl (Power9 XVCVHPSP)
-    nk_vf32x4_t sum_f32x4 = vec_splats((nk_f32_t)0);
-    nk_vu16x8_t a_u16x8, b_u16x8;
-    nk_size_t tail_bytes;
-
-nk_dot_f16_powervsx_cycle:
-    if (count_scalars < 8) {
-        tail_bytes = count_scalars * sizeof(nk_f16_t);
-        a_u16x8 = vec_xl_len((nk_u16_t *)a_scalars, tail_bytes);
-        b_u16x8 = vec_xl_len((nk_u16_t *)b_scalars, tail_bytes);
-        count_scalars = 0;
-    }
-    else {
-        a_u16x8 = vec_xl(0, (nk_u16_t const *)a_scalars);
-        b_u16x8 = vec_xl(0, (nk_u16_t const *)b_scalars);
-        a_scalars += 8, b_scalars += 8, count_scalars -= 8;
-    }
-
-    // Convert f16 → f32 via hardware XVCVHPSP
-    nk_vf32x4_t a_high_f32x4 = vec_extract_fp32_from_shorth(a_u16x8);
-    nk_vf32x4_t a_low_f32x4 = vec_extract_fp32_from_shortl(a_u16x8);
-    nk_vf32x4_t b_high_f32x4 = vec_extract_fp32_from_shorth(b_u16x8);
-    nk_vf32x4_t b_low_f32x4 = vec_extract_fp32_from_shortl(b_u16x8);
-    sum_f32x4 = vec_madd(a_high_f32x4, b_high_f32x4, sum_f32x4);
-    sum_f32x4 = vec_madd(a_low_f32x4, b_low_f32x4, sum_f32x4);
-
-    if (count_scalars) goto nk_dot_f16_powervsx_cycle;
-    *result = nk_hsum_f32x4_powervsx_(sum_f32x4);
-    return nk_success_k;
-}
-
-#pragma endregion F16 and BF16 Floats
-#pragma region I8 and U8 Integers
-
-NUMKONG_API nk_status_t nk_dot_i8_powervsx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                           nk_i32_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    // Algebraic transform for i8 × i8 using VMSUMMBM (i8 × u8 → i32):
-    //     b' = b ⊕ 0x80  (reinterpret signed as unsigned)
-    //     a · b = a · b' − 128 · Σa
-    // Σ(a+128) accumulated via VSUM4UBS; correction applied after loop.
-    // Tail handling is free: vec_xl_len zero-fills unused lanes.
-    //   - Product: 0 × (0⊕0x80) = 0 → no spurious contribution
-    //   - Correction: (0⊕0x80) = 128 in sum_a_biased, compensated by count_padded
-    nk_vu8x16_t const bias_u8x16 = vec_splats((nk_u8_t)0x80);
-    nk_vi32x4_t accumulator_i32x4 = vec_splats((nk_i32_t)0);
-    nk_vu32x4_t sum_a_biased_u32x4 = vec_splats((nk_u32_t)0);
-    nk_size_t count_padded = ((count_scalars + 15) / 16) * 16;
-    nk_vi8x16_t a_i8x16;
-    nk_vu8x16_t b_biased_u8x16;
-    nk_size_t tail_bytes;
-
-nk_dot_i8_powervsx_cycle:
-    if (count_scalars < 16) {
-        tail_bytes = count_scalars * sizeof(nk_i8_t);
-        a_i8x16 = vec_xl_len((nk_i8_t *)a_scalars, tail_bytes);
-        b_biased_u8x16 = vec_xor(vec_xl_len((nk_u8_t *)b_scalars, tail_bytes), bias_u8x16);
-        count_scalars = 0;
-    }
-    else {
-        a_i8x16 = vec_xl(0, a_scalars);
-        b_biased_u8x16 = vec_xor(vec_xl(0, (nk_u8_t *)b_scalars), bias_u8x16);
-        a_scalars += 16, b_scalars += 16, count_scalars -= 16;
-    }
-
-    // VMSUMMBM: i8 × u8 → i32 (16 products per instruction)
-    accumulator_i32x4 = vec_msum(a_i8x16, b_biased_u8x16, accumulator_i32x4);
-    // VSUM4UBS: accumulate Σ(a+128) as unsigned (independent chain, good ILP)
-    sum_a_biased_u32x4 = vec_sum4s(vec_xor((nk_vu8x16_t)a_i8x16, bias_u8x16), sum_a_biased_u32x4);
-
-    if (count_scalars) goto nk_dot_i8_powervsx_cycle;
-
-    // Correction: a · b = biased_dot − 128 · Σa, which expands to
-    // biased_dot − 128 · (Σ(a+128) − 128 · count_padded).
-    nk_i32_t biased_dot = nk_hsum_i32x4_powervsx_(accumulator_i32x4);
-    nk_i64_t correction = 128LL * (nk_i64_t)nk_hsum_u32x4_powervsx_(sum_a_biased_u32x4) -
-                          16384LL * (nk_i64_t)count_padded;
-    *result = (nk_i32_t)((nk_i64_t)biased_dot - correction);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dot_u8_powervsx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                           nk_u32_t *result, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    // vec_msum: multiply u8 × u8 pairs and accumulate 16 products → 4 u32 lanes per call
-    nk_vu32x4_t accumulator_u32x4 = vec_splats((nk_u32_t)0);
-    nk_vu8x16_t a_u8x16, b_u8x16;
-    nk_size_t tail_bytes;
-
-nk_dot_u8_powervsx_cycle:
-    if (count_scalars < 16) {
-        tail_bytes = count_scalars * sizeof(nk_u8_t);
-        a_u8x16 = vec_xl_len((nk_u8_t *)a_scalars, tail_bytes);
-        b_u8x16 = vec_xl_len((nk_u8_t *)b_scalars, tail_bytes);
-        count_scalars = 0;
-    }
-    else {
-        a_u8x16 = vec_xl(0, a_scalars);
-        b_u8x16 = vec_xl(0, b_scalars);
-        a_scalars += 16, b_scalars += 16, count_scalars -= 16;
-    }
-
-    // Unsigned × unsigned multiply-sum: 16 u8 products accumulated into 4 u32 lanes
-    accumulator_u32x4 = vec_msum(a_u8x16, b_u8x16, accumulator_u32x4);
-
-    if (count_scalars) goto nk_dot_u8_powervsx_cycle;
-    *result = nk_hsum_u32x4_powervsx_(accumulator_u32x4);
-    return nk_success_k;
-}
-
-#pragma endregion I8 and U8 Integers
-#pragma region Binary
-
-NUMKONG_API nk_status_t nk_dot_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
-                                           nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
-    nk_vu64x2_t accumulator_u64x2 = vec_splats((nk_u64_t)0);
-    nk_vu8x16_t a_u8x16, b_u8x16;
-
-nk_dot_u1_powervsx_cycle:
-    if (n_bytes < 16) {
-        a_u8x16 = vec_xl_len((nk_u8_t *)a, n_bytes);
-        b_u8x16 = vec_xl_len((nk_u8_t *)b, n_bytes);
-        n_bytes = 0;
-    }
-    else {
-        a_u8x16 = vec_xl(0, (nk_u8_t const *)a);
-        b_u8x16 = vec_xl(0, (nk_u8_t const *)b);
-        a += 16, b += 16, n_bytes -= 16;
-    }
-
-    // AND → doubleword popcount (vpopcntd) → accumulate u64 lanes
-    nk_vu8x16_t and_u8x16 = vec_and(a_u8x16, b_u8x16);
-    nk_vu64x2_t popcnt_u64x2 = vec_popcnt((nk_vu64x2_t)and_u8x16);
-    accumulator_u64x2 = vec_add(accumulator_u64x2, popcnt_u64x2);
-
-    if (n_bytes) goto nk_dot_u1_powervsx_cycle;
-    *result = (nk_u32_t)nk_hsum_u64x2_powervsx_(accumulator_u64x2);
-    return nk_success_k;
-}
-
-#pragma endregion Binary
 
 /**
  *  @brief Running state for 128-bit dot accumulation over f32 scalars on Power VSX.
@@ -748,8 +484,8 @@ NUMKONG_INLINE void nk_dot_u1x128_update_powervsx(nk_dot_u1x128_state_powervsx_t
                                                   nk_size_t active_dimensions) {
     nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    // AND → doubleword popcount (vpopcntd, 3cy ALU) → vec_add (7cy DP)
-    // Simpler data flow than vpopcntb + vec_sum4s, and u64 accumulator holds larger counts
+    // AND → doubleword popcount (vpopcntd, 3cy ALU) → vec_add (7cy DP). Simpler data flow than
+    // vpopcntb + vec_sum4s, and u64 accumulator holds larger counts
     nk_vu8x16_t a_u8x16 = a.vu8x16;
     nk_vu8x16_t b_u8x16 = b.vu8x16;
     nk_vu8x16_t and_u8x16 = vec_and(a_u8x16, b_u8x16);
@@ -775,6 +511,274 @@ NUMKONG_INLINE void nk_dot_u1x128_finalize_powervsx(                            
     result->vu32x4 = vec_pack(ab_u64x2, cd_u64x2);
 }
 
+#if NUMKONG_TARGET_POWERVSX
+
+#pragma region F32 and F64 Floats
+
+NUMKONG_API nk_status_t nk_dot_f32_powervsx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // Upcast f32 → f64 for accumulation via vec_doublee (even lanes) and vec_doubleo (odd lanes)
+    nk_vf64x2_t sum_even_f64x2 = vec_splats((nk_f64_t)0);
+    nk_vf64x2_t sum_odd_f64x2 = vec_splats((nk_f64_t)0);
+    nk_vf32x4_t a_f32x4, b_f32x4;
+    nk_size_t tail_bytes;
+
+nk_dot_f32_powervsx_cycle:
+    if (count_scalars < 4) {
+        tail_bytes = count_scalars * sizeof(nk_f32_t);
+        a_f32x4 = vec_xl_len((nk_f32_t *)a_scalars, tail_bytes);
+        b_f32x4 = vec_xl_len((nk_f32_t *)b_scalars, tail_bytes);
+        count_scalars = 0;
+    }
+    else {
+        a_f32x4 = vec_xl(0, a_scalars);
+        b_f32x4 = vec_xl(0, b_scalars);
+        a_scalars += 4, b_scalars += 4, count_scalars -= 4;
+    }
+
+    // Widen even/odd f32 lanes → f64x2, then FMA
+    nk_vf64x2_t a_even_f64x2 = vec_doublee(a_f32x4);
+    nk_vf64x2_t b_even_f64x2 = vec_doublee(b_f32x4);
+    nk_vf64x2_t a_odd_f64x2 = vec_doubleo(a_f32x4);
+    nk_vf64x2_t b_odd_f64x2 = vec_doubleo(b_f32x4);
+    sum_even_f64x2 = vec_madd(a_even_f64x2, b_even_f64x2, sum_even_f64x2);
+    sum_odd_f64x2 = vec_madd(a_odd_f64x2, b_odd_f64x2, sum_odd_f64x2);
+
+    if (count_scalars) goto nk_dot_f32_powervsx_cycle;
+    // Combine even and odd accumulators → final scalar
+    nk_vf64x2_t total_f64x2 = vec_add(sum_even_f64x2, sum_odd_f64x2);
+    *result = nk_hsum_f64x2_powervsx_(total_f64x2);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dot_f64_powervsx(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // Dot2 algorithm (Ogita-Rump-Oishi 2005) for compensated dot product
+    nk_vf64x2_t sum_f64x2 = vec_splats((nk_f64_t)0);
+    nk_vf64x2_t compensation_f64x2 = vec_splats((nk_f64_t)0);
+    nk_vf64x2_t a_f64x2, b_f64x2;
+    nk_size_t tail_bytes;
+
+nk_dot_f64_powervsx_cycle:
+    if (count_scalars < 2) {
+        tail_bytes = count_scalars * sizeof(nk_f64_t);
+        a_f64x2 = vec_xl_len((nk_f64_t *)a_scalars, tail_bytes);
+        b_f64x2 = vec_xl_len((nk_f64_t *)b_scalars, tail_bytes);
+        count_scalars = 0;
+    }
+    else {
+        a_f64x2 = vec_xl(0, a_scalars);
+        b_f64x2 = vec_xl(0, b_scalars);
+        a_scalars += 2, b_scalars += 2, count_scalars -= 2;
+    }
+
+    // TwoProd: product = a * b, error = msub(a, b, product) captures rounding error
+    nk_vf64x2_t product_f64x2 = vec_mul(a_f64x2, b_f64x2);
+    nk_vf64x2_t product_error_f64x2 = vec_msub(a_f64x2, b_f64x2, product_f64x2);
+    // TwoSum: (t, q) = TwoSum(sum, product) where t = sum + product rounded, q = error
+    nk_vf64x2_t tentative_sum_f64x2 = vec_add(sum_f64x2, product_f64x2);
+    nk_vf64x2_t virtual_addend_f64x2 = vec_sub(tentative_sum_f64x2, sum_f64x2);
+    nk_vf64x2_t sum_error_f64x2 = vec_add(vec_sub(sum_f64x2, vec_sub(tentative_sum_f64x2, virtual_addend_f64x2)),
+                                          vec_sub(product_f64x2, virtual_addend_f64x2));
+    // Update: sum = t, compensation += q + r
+    sum_f64x2 = tentative_sum_f64x2;
+    compensation_f64x2 = vec_add(compensation_f64x2, vec_add(sum_error_f64x2, product_error_f64x2));
+
+    if (count_scalars) goto nk_dot_f64_powervsx_cycle;
+    // Compensated horizontal reduction preserving Dot2 error tracking
+    *result = nk_dot_stable_sum_f64x2_powervsx_(sum_f64x2, compensation_f64x2);
+    return nk_success_k;
+}
+
+#pragma endregion F32 and F64 Floats
+#pragma region F16 and BF16 Floats
+
+NUMKONG_API nk_status_t nk_dot_bf16_powervsx(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                             nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // bf16 → f32 via mergeh/mergel with zero: shift 16 bits into f32 upper half
+    nk_vu16x8_t zero_u16x8 = vec_splats((nk_u16_t)0);
+    nk_vf32x4_t sum_f32x4 = vec_splats((nk_f32_t)0);
+    nk_vu16x8_t a_u16x8, b_u16x8;
+    nk_size_t tail_bytes;
+
+nk_dot_bf16_powervsx_cycle:
+    if (count_scalars < 8) {
+        tail_bytes = count_scalars * sizeof(nk_bf16_t);
+        a_u16x8 = vec_xl_len((nk_u16_t *)a_scalars, tail_bytes);
+        b_u16x8 = vec_xl_len((nk_u16_t *)b_scalars, tail_bytes);
+        count_scalars = 0;
+    }
+    else {
+        a_u16x8 = vec_xl(0, (nk_u16_t const *)a_scalars);
+        b_u16x8 = vec_xl(0, (nk_u16_t const *)b_scalars);
+        a_scalars += 8, b_scalars += 8, count_scalars -= 8;
+    }
+
+    // Convert bf16 → f32: merge with zero puts bf16 bits in upper 16 of each f32
+    nk_vf32x4_t a_high_f32x4 = (nk_vf32x4_t)vec_mergeh(zero_u16x8, a_u16x8);
+    nk_vf32x4_t a_low_f32x4 = (nk_vf32x4_t)vec_mergel(zero_u16x8, a_u16x8);
+    nk_vf32x4_t b_high_f32x4 = (nk_vf32x4_t)vec_mergeh(zero_u16x8, b_u16x8);
+    nk_vf32x4_t b_low_f32x4 = (nk_vf32x4_t)vec_mergel(zero_u16x8, b_u16x8);
+    sum_f32x4 = vec_madd(a_high_f32x4, b_high_f32x4, sum_f32x4);
+    sum_f32x4 = vec_madd(a_low_f32x4, b_low_f32x4, sum_f32x4);
+
+    if (count_scalars) goto nk_dot_bf16_powervsx_cycle;
+    *result = nk_hsum_f32x4_powervsx_(sum_f32x4);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dot_f16_powervsx(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                            nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // f16 → f32 via vec_extract_fp32_from_shorth/shortl (Power9 XVCVHPSP)
+    nk_vf32x4_t sum_f32x4 = vec_splats((nk_f32_t)0);
+    nk_vu16x8_t a_u16x8, b_u16x8;
+    nk_size_t tail_bytes;
+
+nk_dot_f16_powervsx_cycle:
+    if (count_scalars < 8) {
+        tail_bytes = count_scalars * sizeof(nk_f16_t);
+        a_u16x8 = vec_xl_len((nk_u16_t *)a_scalars, tail_bytes);
+        b_u16x8 = vec_xl_len((nk_u16_t *)b_scalars, tail_bytes);
+        count_scalars = 0;
+    }
+    else {
+        a_u16x8 = vec_xl(0, (nk_u16_t const *)a_scalars);
+        b_u16x8 = vec_xl(0, (nk_u16_t const *)b_scalars);
+        a_scalars += 8, b_scalars += 8, count_scalars -= 8;
+    }
+
+    // Convert f16 → f32 via hardware XVCVHPSP
+    nk_vf32x4_t a_high_f32x4 = vec_extract_fp32_from_shorth(a_u16x8);
+    nk_vf32x4_t a_low_f32x4 = vec_extract_fp32_from_shortl(a_u16x8);
+    nk_vf32x4_t b_high_f32x4 = vec_extract_fp32_from_shorth(b_u16x8);
+    nk_vf32x4_t b_low_f32x4 = vec_extract_fp32_from_shortl(b_u16x8);
+    sum_f32x4 = vec_madd(a_high_f32x4, b_high_f32x4, sum_f32x4);
+    sum_f32x4 = vec_madd(a_low_f32x4, b_low_f32x4, sum_f32x4);
+
+    if (count_scalars) goto nk_dot_f16_powervsx_cycle;
+    *result = nk_hsum_f32x4_powervsx_(sum_f32x4);
+    return nk_success_k;
+}
+
+#pragma endregion F16 and BF16 Floats
+#pragma region I8 and U8 Integers
+
+NUMKONG_API nk_status_t nk_dot_i8_powervsx(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                           nk_i32_t *result, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // Algebraic transform for i8 × i8 using VMSUMMBM (i8 × u8 → i32):
+    //     b' = b ⊕ 0x80  (reinterpret signed as unsigned)
+    //     a · b = a · b' − 128 · Σa
+    // Σ(a+128) accumulated via VSUM4UBS; correction applied after loop.
+    // Tail handling is free: vec_xl_len zero-fills unused lanes.
+    //   - Product: 0 × (0⊕0x80) = 0 → no spurious contribution
+    //   - Correction: (0⊕0x80) = 128 in sum_a_biased, compensated by count_padded
+    nk_vu8x16_t const bias_u8x16 = vec_splats((nk_u8_t)0x80);
+    nk_vi32x4_t accumulator_i32x4 = vec_splats((nk_i32_t)0);
+    nk_vu32x4_t sum_a_biased_u32x4 = vec_splats((nk_u32_t)0);
+    nk_size_t count_padded = nk_size_round_up_to_multiple_(count_scalars, 16);
+    nk_vi8x16_t a_i8x16;
+    nk_vu8x16_t b_biased_u8x16;
+    nk_size_t tail_bytes;
+
+nk_dot_i8_powervsx_cycle:
+    if (count_scalars < 16) {
+        tail_bytes = count_scalars * sizeof(nk_i8_t);
+        a_i8x16 = vec_xl_len((nk_i8_t *)a_scalars, tail_bytes);
+        b_biased_u8x16 = vec_xor(vec_xl_len((nk_u8_t *)b_scalars, tail_bytes), bias_u8x16);
+        count_scalars = 0;
+    }
+    else {
+        a_i8x16 = vec_xl(0, a_scalars);
+        b_biased_u8x16 = vec_xor(vec_xl(0, (nk_u8_t *)b_scalars), bias_u8x16);
+        a_scalars += 16, b_scalars += 16, count_scalars -= 16;
+    }
+
+    // VMSUMMBM: i8 × u8 → i32 (16 products per instruction)
+    accumulator_i32x4 = vec_msum(a_i8x16, b_biased_u8x16, accumulator_i32x4);
+    // VSUM4UBS: accumulate Σ(a+128) as unsigned (independent chain, good ILP)
+    sum_a_biased_u32x4 = vec_sum4s(vec_xor((nk_vu8x16_t)a_i8x16, bias_u8x16), sum_a_biased_u32x4);
+
+    if (count_scalars) goto nk_dot_i8_powervsx_cycle;
+
+    // Correction: a · b = biased_dot − 128 · Σa, which expands to
+    // biased_dot − 128 · (Σ(a+128) − 128 · count_padded).
+    nk_i32_t biased_dot = nk_hsum_i32x4_powervsx_(accumulator_i32x4);
+    nk_i64_t correction = 128LL * (nk_i64_t)nk_hsum_u32x4_powervsx_(sum_a_biased_u32x4) -
+                          16384LL * (nk_i64_t)count_padded;
+    *result = (nk_i32_t)((nk_i64_t)biased_dot - correction);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dot_u8_powervsx(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                           nk_u32_t *result, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // vec_msum: multiply u8 × u8 pairs and accumulate 16 products → 4 u32 lanes per call
+    nk_vu32x4_t accumulator_u32x4 = vec_splats((nk_u32_t)0);
+    nk_vu8x16_t a_u8x16, b_u8x16;
+    nk_size_t tail_bytes;
+
+nk_dot_u8_powervsx_cycle:
+    if (count_scalars < 16) {
+        tail_bytes = count_scalars * sizeof(nk_u8_t);
+        a_u8x16 = vec_xl_len((nk_u8_t *)a_scalars, tail_bytes);
+        b_u8x16 = vec_xl_len((nk_u8_t *)b_scalars, tail_bytes);
+        count_scalars = 0;
+    }
+    else {
+        a_u8x16 = vec_xl(0, a_scalars);
+        b_u8x16 = vec_xl(0, b_scalars);
+        a_scalars += 16, b_scalars += 16, count_scalars -= 16;
+    }
+
+    // Unsigned × unsigned multiply-sum: 16 u8 products accumulated into 4 u32 lanes
+    accumulator_u32x4 = vec_msum(a_u8x16, b_u8x16, accumulator_u32x4);
+
+    if (count_scalars) goto nk_dot_u8_powervsx_cycle;
+    *result = nk_hsum_u32x4_powervsx_(accumulator_u32x4);
+    return nk_success_k;
+}
+
+#pragma endregion I8 and U8 Integers
+#pragma region Binary
+
+NUMKONG_API nk_status_t nk_dot_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
+                                           nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
+    nk_vu64x2_t accumulator_u64x2 = vec_splats((nk_u64_t)0);
+    nk_vu8x16_t a_u8x16, b_u8x16;
+
+nk_dot_u1_powervsx_cycle:
+    if (n_bytes < 16) {
+        a_u8x16 = vec_xl_len((nk_u8_t *)a, n_bytes);
+        b_u8x16 = vec_xl_len((nk_u8_t *)b, n_bytes);
+        n_bytes = 0;
+    }
+    else {
+        a_u8x16 = vec_xl(0, (nk_u8_t const *)a);
+        b_u8x16 = vec_xl(0, (nk_u8_t const *)b);
+        a += 16, b += 16, n_bytes -= 16;
+    }
+
+    // AND → doubleword popcount (vpopcntd) → accumulate u64 lanes
+    nk_vu8x16_t and_u8x16 = vec_and(a_u8x16, b_u8x16);
+    nk_vu64x2_t popcnt_u64x2 = vec_popcnt((nk_vu64x2_t)and_u8x16);
+    accumulator_u64x2 = vec_add(accumulator_u64x2, popcnt_u64x2);
+
+    if (n_bytes) goto nk_dot_u1_powervsx_cycle;
+    *result = (nk_u32_t)nk_hsum_u64x2_powervsx_(accumulator_u64x2);
+    return nk_success_k;
+}
+
+#pragma endregion Binary
+
+#endif // NUMKONG_TARGET_POWERVSX
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -785,6 +789,6 @@ NUMKONG_INLINE void nk_dot_u1x128_finalize_powervsx(                            
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_POWERVSX
+#endif // NUMKONG_ARCH_PPC64_POWERVSX_
 #endif // NUMKONG_ARCH_PPC64_
 #endif // NUMKONG_DOT_POWERVSX_H

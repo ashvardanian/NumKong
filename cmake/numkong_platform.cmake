@@ -92,9 +92,10 @@ elseif (NUMKONG_MARCH AND NOT numkong_arch_wasm_)
             FATAL_ERROR "MSVC takes NUMKONG_MARCH=native only; pass an /arch: value such as AVX2, AVX512 or AVX10.2 "
                         "through CMAKE_C_FLAGS instead of `${NUMKONG_MARCH}`"
         )
-    elseif (numkong_arch_arm64_)
+    elseif (numkong_arch_arm64_ OR numkong_arch_ppc64_)
         # AArch64 names CPUs through `-mcpu`, like `neoverse-v2`, as `-march` takes only architecture versions; Apple
         # Clang's `-march=native` also advertises just a subset of host features, without SME, SME2 or FP16_FML.
+        # Power compilers have no `-march`.
         set(numkong_unit_arch_flags_ -mcpu=${NUMKONG_MARCH})
     else ()
         set(numkong_unit_arch_flags_ -march=${NUMKONG_MARCH})

@@ -7385,6 +7385,191 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_loongsonasx(nk_u8_t const *ve
                                                                nk_size_t workspace_bytes, nk_stream_t stream);
 #endif // NUMKONG_TARGET_LOONGSONASX
 
+/*  Power MMA backends, POWER10 and newer. */
+#if NUMKONG_TARGET_POWERMMA
+/** @copydoc nk_angulars_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_f32_powermma(nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_angulars_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_f32_powermma(nk_size_t vector_count, nk_size_t depth,
+                                                                          nk_size_t rows_begin, nk_size_t rows_end,
+                                                                          nk_size_t *bytes);
+/** @copydoc nk_euclideans_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_f32_powermma(nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_euclideans_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_f32_powermma(nk_size_t vector_count, nk_size_t depth,
+                                                                            nk_size_t rows_begin, nk_size_t rows_end,
+                                                                            nk_size_t *bytes);
+/** @copydoc nk_angulars_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_f16_powermma(nk_size_t rows, nk_size_t columns,
+                                                                       nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_angulars_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_f16_powermma(nk_size_t vector_count, nk_size_t depth,
+                                                                          nk_size_t rows_begin, nk_size_t rows_end,
+                                                                          nk_size_t *bytes);
+/** @copydoc nk_euclideans_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_f16_powermma(nk_size_t rows, nk_size_t columns,
+                                                                         nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_euclideans_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_f16_powermma(nk_size_t vector_count, nk_size_t depth,
+                                                                            nk_size_t rows_begin, nk_size_t rows_end,
+                                                                            nk_size_t *bytes);
+/** @copydoc nk_angulars_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_bf16_powermma(nk_size_t rows, nk_size_t columns,
+                                                                        nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_angulars_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_bf16_powermma(nk_size_t vector_count, nk_size_t depth,
+                                                                           nk_size_t rows_begin, nk_size_t rows_end,
+                                                                           nk_size_t *bytes);
+/** @copydoc nk_euclideans_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_bf16_powermma(nk_size_t rows, nk_size_t columns,
+                                                                          nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_euclideans_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_bf16_powermma(nk_size_t vector_count, nk_size_t depth,
+                                                                             nk_size_t rows_begin, nk_size_t rows_end,
+                                                                             nk_size_t *bytes);
+/** @copydoc nk_angulars_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_i8_powermma(nk_size_t rows, nk_size_t columns,
+                                                                      nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_angulars_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_i8_powermma(nk_size_t vector_count, nk_size_t depth,
+                                                                         nk_size_t rows_begin, nk_size_t rows_end,
+                                                                         nk_size_t *bytes);
+/** @copydoc nk_euclideans_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_i8_powermma(nk_size_t rows, nk_size_t columns,
+                                                                        nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_euclideans_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_i8_powermma(nk_size_t vector_count, nk_size_t depth,
+                                                                           nk_size_t rows_begin, nk_size_t rows_end,
+                                                                           nk_size_t *bytes);
+/** @copydoc nk_angulars_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_u8_powermma(nk_size_t rows, nk_size_t columns,
+                                                                      nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_angulars_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_u8_powermma(nk_size_t vector_count, nk_size_t depth,
+                                                                         nk_size_t rows_begin, nk_size_t rows_end,
+                                                                         nk_size_t *bytes);
+/** @copydoc nk_euclideans_packed_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_u8_powermma(nk_size_t rows, nk_size_t columns,
+                                                                        nk_size_t depth, nk_size_t *bytes);
+/** @copydoc nk_euclideans_symmetric_workspace_size_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_u8_powermma(nk_size_t vector_count, nk_size_t depth,
+                                                                           nk_size_t rows_begin, nk_size_t rows_end,
+                                                                           nk_size_t *bytes);
+
+/** @copydoc nk_angulars_packed_f32_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f32_powermma(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                        nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f32_powermma(nk_f32_t const *vectors, nk_size_t vector_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                           nk_size_t result_stride, nk_size_t rows_begin,
+                                                           nk_size_t rows_end, void *workspace,
+                                                           nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_packed_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f32_powermma(nk_f32_t const *a, void const *b_packed, nk_f64_t *result,
+                                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                          nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_symmetric_f32_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_powermma(nk_f32_t const *vectors, nk_size_t vector_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+                                                             nk_size_t result_stride, nk_size_t rows_begin,
+                                                             nk_size_t rows_end, void *workspace,
+                                                             nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_packed_f16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_f16_powermma(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                        nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_f16_powermma(nk_f16_t const *vectors, nk_size_t vector_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t rows_begin,
+                                                           nk_size_t rows_end, void *workspace,
+                                                           nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_packed_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_f16_powermma(nk_f16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                          nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_symmetric_f16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_powermma(nk_f16_t const *vectors, nk_size_t vector_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t rows_begin,
+                                                             nk_size_t rows_end, void *workspace,
+                                                             nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_packed_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_powermma(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                         nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_powermma(nk_bf16_t const *vectors, nk_size_t vector_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t rows_begin,
+                                                            nk_size_t rows_end, void *workspace,
+                                                            nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_packed_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_powermma(nk_bf16_t const *a, void const *b_packed, nk_f32_t *result,
+                                                           nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                           nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                           nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_symmetric_bf16_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_powermma(nk_bf16_t const *vectors, nk_size_t vector_count,
+                                                              nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                              nk_size_t result_stride, nk_size_t rows_begin,
+                                                              nk_size_t rows_end, void *workspace,
+                                                              nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_powermma(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                       nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_powermma(nk_i8_t const *vectors, nk_size_t vector_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t rows_begin,
+                                                          nk_size_t rows_end, void *workspace,
+                                                          nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_powermma(nk_i8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                         nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_powermma(nk_i8_t const *vectors, nk_size_t vector_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t rows_begin,
+                                                            nk_size_t rows_end, void *workspace,
+                                                            nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_powermma(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                       nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                       nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                       nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_powermma(nk_u8_t const *vectors, nk_size_t vector_count,
+                                                          nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                          nk_size_t result_stride, nk_size_t rows_begin,
+                                                          nk_size_t rows_end, void *workspace,
+                                                          nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_powermma(nk_u8_t const *a, void const *b_packed, nk_f32_t *result,
+                                                         nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                         nk_size_t a_stride, nk_size_t r_stride, void *workspace,
+                                                         nk_size_t workspace_bytes, nk_stream_t stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_powermma(nk_u8_t const *vectors, nk_size_t vector_count,
+                                                            nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                            nk_size_t result_stride, nk_size_t rows_begin,
+                                                            nk_size_t rows_end, void *workspace,
+                                                            nk_size_t workspace_bytes, nk_stream_t stream);
+#endif // NUMKONG_TARGET_POWERMMA
+
 /*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device,
  *  each reading a B packed by its own capability's `nk_dots_pack_*`. Apple GPUs have none.
  *
@@ -12972,6 +13157,7 @@ NUMKONG_API nk_status_t nk_spatials_find_kernel(nk_kernel_kind_t kind, nk_dtype_
 #include "numkong/spatials/smef64.h"
 #include "numkong/spatials/powervsx.h"
 #include "numkong/spatials/loongsonasx.h"
+#include "numkong/spatials/powermma.h"
 #include "numkong/spatials/cuda.cuh"
 #include "numkong/spatials/rocm.cuh"
 #include "numkong/spatials/ampere.cuh"

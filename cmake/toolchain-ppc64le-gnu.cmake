@@ -24,7 +24,7 @@
 #
 # Testing with QEMU:
 #   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR, on `power10` by
-#   default, which runs the POWER9 kernels, or on the POWER8 baseline with `-D PPC_QEMU_CPU=power8`.
+#   default, which runs the POWER9 and POWER10 kernels, or on the POWER8 baseline with `-D PPC_QEMU_CPU=power8`.
 
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR ppc64le)
@@ -86,8 +86,8 @@ endif ()
 set(PPC_QEMU_LD_PREFIX "${PPC_QEMU_LD_PREFIX}" CACHE PATH "Guest loader prefix for `qemu-ppc64le -L`")
 set(ENV{PPC_QEMU_LD_PREFIX} "${PPC_QEMU_LD_PREFIX}")
 
-# Older QEMU lacks `-cpu max` for ppc64le, so the emulated core is named. `power10` is a superset
-# of the POWER9 floor the `powervsx` kernels are probed against, so it exercises strictly more.
+# Older QEMU lacks `-cpu max` for ppc64le, so the emulated core is named. `power10` runs both the
+# POWER9 `powervsx` kernels and the POWER10 `powermma` ones, so it exercises strictly more.
 if (NOT DEFINED PPC_QEMU_CPU)
     if (DEFINED ENV{PPC_QEMU_CPU})
         set(PPC_QEMU_CPU "$ENV{PPC_QEMU_CPU}")

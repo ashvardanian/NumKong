@@ -298,6 +298,9 @@ typedef nk_u64_t nk_capability_t;
 /** LoongArch LASX 256-bit SIMD. */
 #define nk_cap_loongsonasx_k ((nk_capability_t)1 << 34)
 
+/** @c nk_cap_powervsx_k plus the ISA 3.1 Matrix-Multiply Assist accumulators, as on POWER10. */
+#define nk_cap_powermma_k ((nk_capability_t)1 << 35)
+
 /*  GPU capabilities, as each vendor's <tt>nk_\<vendor\>_capabilities_*</tt> functions report them for one
  *  device, grouped by vendor above bit 47 to leave room for more CPU capabilities and more per
  *  vendor. Each vendor's baseline runs on all its devices, as @c serial runs on every CPU. */

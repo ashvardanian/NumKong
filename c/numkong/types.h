@@ -525,6 +525,20 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // defined(__VSX__)
 #endif // !defined(NUMKONG_TARGET_POWERVSX) || ...
 
+/*  Compiling for Power MMA, the ISA 3.1 Matrix-Multiply Assist of POWER10, NUMKONG_TARGET_POWERMMA:
+ *  eight 512-bit accumulators, each 4 × 4 of 32-bit lanes or 4 × 2 of F64, updated by rank-1 to
+ *  rank-4 outer products over VSX registers, on top of the POWER9 VSX of NUMKONG_TARGET_POWERVSX.
+ *  Its kernels scope it per function under GCC 15, while Clang's `altivec.h` needs `-mcpu=power10`
+ *  across the whole unit. */
+#if !defined(NUMKONG_TARGET_POWERMMA) || (NUMKONG_TARGET_POWERMMA && !NUMKONG_ARCH_PPC64_)
+#if NUMKONG_ARCH_PPC64_ && (defined(__MMA__) && defined(__POWER9_VECTOR__))
+#define NUMKONG_TARGET_POWERMMA 1
+#else
+#undef NUMKONG_TARGET_POWERMMA
+#define NUMKONG_TARGET_POWERMMA 0
+#endif // defined(__MMA__)
+#endif // !defined(NUMKONG_TARGET_POWERMMA) || ...
+
 /* Compiling for Arm: NUMKONG_TARGET_NEON, AArch64 only — AArch32 NEON is not supported. */
 #if !defined(NUMKONG_TARGET_NEON) || (NUMKONG_TARGET_NEON && !NUMKONG_ARCH_ARM64_)
 #if NUMKONG_ARCH_ARM64_ && ((defined(__ARM_NEON) && defined(__aarch64__)) || (defined(_MSC_VER) && defined(_M_ARM64)))
@@ -928,7 +942,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_METAL) || ...
 
 /** Whether a capability's helpers compile here: its own target, or any capability built on it. Each
- *  architecture's base, Haswell, NEON, RVV and V128, covers every capability of that architecture.
+ *  architecture's base, Haswell, NEON, RVV, PowerVSX and V128, covers every capability built on it.
  *  @c NUMKONG_TARGET_* alone decides where its kernels are defined. */
 #define NUMKONG_ARCH_X8664_SAPPHIREAMX_ \
     (NUMKONG_TARGET_SAPPHIREAMX || NUMKONG_TARGET_GRANITEAMX || NUMKONG_TARGET_DIAMONDAMX)
@@ -947,6 +961,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
      NUMKONG_TARGET_NEONSDOT || NUMKONG_TARGET_NEONFP8 || NUMKONG_ARCH_ARM64_SVE_)
 #define NUMKONG_ARCH_RISCV64_RVV_ \
     (NUMKONG_TARGET_RVV || NUMKONG_TARGET_RVVHALF || NUMKONG_TARGET_RVVBF16 || NUMKONG_TARGET_RVVBB)
+#define NUMKONG_ARCH_PPC64_POWERVSX_ (NUMKONG_TARGET_POWERVSX || NUMKONG_TARGET_POWERMMA)
 #define NUMKONG_ARCH_WASM_V128_      (NUMKONG_TARGET_V128 || NUMKONG_TARGET_V128RELAXED)
 #define NUMKONG_ARCH_CUDA_BLACKWELL_ (NUMKONG_TARGET_BLACKWELL || NUMKONG_TARGET_BLACKWELLULTRA)
 #define NUMKONG_ARCH_CUDA_AMPERE_                                                                            \
@@ -990,7 +1005,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #pragma GCC pop_options
 #endif
 #endif
-#if NUMKONG_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_POWERVSX_
 #if !defined(__clang__)
 #pragma GCC push_options
 #pragma GCC target("power9-vector")
@@ -1086,7 +1101,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /*  AltiVec defines @c bool, @c vector, and @c pixel as macros, which conflict with C++. We use
  *  @c __vector directly in our code, so undef the problematic macros. */
-#if NUMKONG_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_POWERVSX_
 #ifdef __cplusplus
 #undef bool
 #undef vector
@@ -1102,7 +1117,7 @@ typedef __vector signed int nk_vi32x4_t;
 typedef __vector signed long long nk_vi64x2_t;
 typedef __vector float nk_vf32x4_t;
 typedef __vector double nk_vf64x2_t;
-#endif // NUMKONG_TARGET_POWERVSX
+#endif // NUMKONG_ARCH_PPC64_POWERVSX_
 
 /** Copy 16 bits (2 bytes) from source to destination */
 #if defined(__GNUC__) || defined(__clang__)
@@ -2338,7 +2353,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
     float64x2_t f64x2;
     float16x8_t f16x8;
 #endif
-#if NUMKONG_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_POWERVSX_
     nk_vu8x16_t vu8x16;
     nk_vu16x8_t vu16x8;
     nk_vu32x4_t vu32x4;
@@ -2392,7 +2407,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b256_vec_t {
     float32x4_t f32x4s[2];
     float64x2_t f64x2s[2];
 #endif
-#if NUMKONG_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_POWERVSX_
     nk_vu8x16_t vu8x16s[2];
     nk_vu16x8_t vu16x8s[2];
     nk_vu32x4_t vu32x4s[2];

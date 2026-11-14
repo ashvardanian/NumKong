@@ -27,7 +27,7 @@
 #define NUMKONG_SET_POWERVSX_H
 
 #if NUMKONG_ARCH_PPC64_
-#if NUMKONG_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_POWERVSX_
 
 #include "numkong/types.h"
 #include "numkong/set/serial.h"   // `nk_u1x8_popcount_`
@@ -43,6 +43,8 @@ extern "C" {
 #pragma GCC push_options
 #pragma GCC target("power9-vector")
 #endif
+
+#if NUMKONG_TARGET_POWERVSX
 
 NUMKONG_API nk_status_t nk_hamming_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
                                                nk_stream_t stream) {
@@ -123,6 +125,8 @@ NUMKONG_API nk_status_t nk_hamming_u8_powervsx(nk_u8_t const *a, nk_u8_t const *
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_POWERVSX
+
 /** Hamming from_dot: computes pop_a + pop_b - 2 × dot for 4 pairs (Power VSX). */
 NUMKONG_INLINE void nk_hamming_u32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
                                                         nk_b128_vec_t const *target_pops_vec,
@@ -164,6 +168,6 @@ NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_powervsx_(nk_b128_vec_t const *dot
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_POWERVSX
+#endif // NUMKONG_ARCH_PPC64_POWERVSX_
 #endif // NUMKONG_ARCH_PPC64_
 #endif // NUMKONG_SET_POWERVSX_H

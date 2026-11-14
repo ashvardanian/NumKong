@@ -26,7 +26,7 @@
 #define NUMKONG_DOTS_POWERVSX_H
 
 #if NUMKONG_ARCH_PPC64_
-#if NUMKONG_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_POWERVSX_
 
 #include "numkong/cast/powervsx.h" // `nk_load_b128_powervsx_`, `nk_partial_load_b32x4_powervsx_`
 #include "numkong/dot/powervsx.h"
@@ -42,6 +42,8 @@ extern "C" {
 #pragma GCC push_options
 #pragma GCC target("power9-vector")
 #endif
+
+#if NUMKONG_TARGET_POWERVSX
 
 /* F32 GEMM: depth_simd_dimensions=4 (4 f32s = 16 bytes = VSX register width, f64 accumulation) */
 nk_define_cross_pack_size_(dots, f32, powervsx, f32, f32, /*norm_value_type=*/f64, /*depth_simd_dimensions=*/2,
@@ -196,6 +198,8 @@ nk_define_cross_packed_(dots, f64, powervsx, f64, f64, f64, nk_b128_vec_t, nk_do
                         nk_dot_f64x2_finalize_powervsx, nk_store_b256_powervsx_, nk_partial_store_b64x4_powervsx_,
                         /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
 
+#endif // NUMKONG_TARGET_POWERVSX
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -206,6 +210,6 @@ nk_define_cross_packed_(dots, f64, powervsx, f64, f64, f64, nk_b128_vec_t, nk_do
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_POWERVSX
+#endif // NUMKONG_ARCH_PPC64_POWERVSX_
 #endif // NUMKONG_ARCH_PPC64_
 #endif // NUMKONG_DOTS_POWERVSX_H

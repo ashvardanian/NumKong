@@ -525,6 +525,7 @@ set(numkong_library_units_
     $<$<BOOL:${numkong_arch_wasm_}>:src/capabilities/v128relaxed.c>
     $<$<BOOL:${numkong_target_powervsx_enabled}>:src/capabilities/powervsx.c>
     $<$<BOOL:${numkong_target_loongsonasx_enabled}>:src/capabilities/loongsonasx.c>
+    $<$<BOOL:${numkong_target_powermma_enabled}>:src/capabilities/powermma.c>
 )
 # Dispatch calls kernels through `void *` signatures on purpose, which every supported ABI passes alike
 set_source_files_properties(

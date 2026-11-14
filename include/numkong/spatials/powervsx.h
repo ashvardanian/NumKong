@@ -10,10 +10,14 @@
 #define NUMKONG_SPATIALS_POWERVSX_H
 
 #if NUMKONG_ARCH_PPC64_
-#if NUMKONG_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_POWERVSX_
 
 #include "numkong/spatial/powervsx.h"
 #include "numkong/dots/powervsx.h"
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("power9-vector"))), apply_to = function)
@@ -22,9 +26,7 @@
 #pragma GCC target("power9-vector")
 #endif
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
+#if NUMKONG_TARGET_POWERVSX
 
 nk_define_cross_normalized_packed_(angular, f32, powervsx, f32, f32, f64, /*norm_value_type=*/f64, f64, nk_b256_vec_t,
                                    nk_dots_packed_f32_powervsx, nk_angular_through_f64_from_dot_powervsx_,
@@ -152,9 +154,7 @@ nk_define_cross_normalized_symmetric_(euclidean, f64, powervsx, f64, f64, /*norm
                                       nk_partial_load_b64x4_powervsx_, nk_store_b256_powervsx_,
                                       nk_partial_store_b64x4_powervsx_, 1)
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
+#endif // NUMKONG_TARGET_POWERVSX
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -162,6 +162,10 @@ nk_define_cross_normalized_symmetric_(euclidean, f64, powervsx, f64, f64, /*norm
 #pragma GCC pop_options
 #endif
 
-#endif // NUMKONG_TARGET_POWERVSX
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_PPC64_POWERVSX_
 #endif // NUMKONG_ARCH_PPC64_
 #endif // NUMKONG_SPATIALS_POWERVSX_H

@@ -22,7 +22,7 @@
 #define NUMKONG_SCALAR_POWERVSX_H
 
 #if NUMKONG_ARCH_PPC64_
-#if NUMKONG_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_POWERVSX_
 
 #include "numkong/types.h"
 
@@ -37,17 +37,20 @@ extern "C" {
 #pragma GCC target("power9-vector")
 #endif
 
-NUMKONG_API nk_f32_t nk_f32_sqrt_powervsx(nk_f32_t x) {
+NUMKONG_INLINE nk_f32_t nk_sqrt_f32_powervsx_(nk_f32_t x) {
     nk_f32_t result;
     __asm__("xssqrtsp %0, %1" : "=f"(result) : "f"(x));
     return result;
 }
-NUMKONG_API nk_f64_t nk_f64_sqrt_powervsx(nk_f64_t x) {
+
+NUMKONG_INLINE nk_f64_t nk_sqrt_f64_powervsx_(nk_f64_t x) {
     nk_f64_t result;
     __asm__("xssqrtdp %0, %1" : "=d"(result) : "d"(x));
     return result;
 }
-NUMKONG_API nk_f32_t nk_f32_rsqrt_powervsx(nk_f32_t x) {
+
+/** Reciprocal square root: the hardware estimate refined by two Newton steps. */
+NUMKONG_INLINE nk_f32_t nk_rsqrt_f32_powervsx_(nk_f32_t x) {
     nk_fui32_t conv;
     conv.f = x;
     nk_u32_t const result_mask = (nk_u32_t)0 - (conv.u != 0x7F800000u);
@@ -65,7 +68,9 @@ NUMKONG_API nk_f32_t nk_f32_rsqrt_powervsx(nk_f32_t x) {
     conv.u &= result_mask;
     return r * conv.f;
 }
-NUMKONG_API nk_f64_t nk_f64_rsqrt_powervsx(nk_f64_t x) {
+
+/** Reciprocal square root: the hardware estimate refined by three Newton steps. */
+NUMKONG_INLINE nk_f64_t nk_rsqrt_f64_powervsx_(nk_f64_t x) {
     nk_fui64_t conv;
     conv.f = x;
     nk_u64_t const result_mask = (nk_u64_t)0 - (conv.u != 0x7FF0000000000000ULL);
@@ -84,6 +89,13 @@ NUMKONG_API nk_f64_t nk_f64_rsqrt_powervsx(nk_f64_t x) {
     conv.u &= result_mask;
     return r * conv.f;
 }
+
+#if NUMKONG_TARGET_POWERVSX
+
+NUMKONG_API nk_f32_t nk_f32_sqrt_powervsx(nk_f32_t x) { return nk_sqrt_f32_powervsx_(x); }
+NUMKONG_API nk_f64_t nk_f64_sqrt_powervsx(nk_f64_t x) { return nk_sqrt_f64_powervsx_(x); }
+NUMKONG_API nk_f32_t nk_f32_rsqrt_powervsx(nk_f32_t x) { return nk_rsqrt_f32_powervsx_(x); }
+NUMKONG_API nk_f64_t nk_f64_rsqrt_powervsx(nk_f64_t x) { return nk_rsqrt_f64_powervsx_(x); }
 NUMKONG_API nk_f32_t nk_f32_fma_powervsx(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
     // xsmaddasp: result = a * b + c (scalar f32 FMA)
     nk_f32_t r = c;
@@ -97,6 +109,8 @@ NUMKONG_API nk_f64_t nk_f64_fma_powervsx(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
     return r;
 }
 
+#endif // NUMKONG_TARGET_POWERVSX
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -107,6 +121,6 @@ NUMKONG_API nk_f64_t nk_f64_fma_powervsx(nk_f64_t a, nk_f64_t b, nk_f64_t c) {
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_POWERVSX
+#endif // NUMKONG_ARCH_PPC64_POWERVSX_
 #endif // NUMKONG_ARCH_PPC64_
 #endif // NUMKONG_SCALAR_POWERVSX_H
