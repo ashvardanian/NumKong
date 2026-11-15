@@ -226,6 +226,10 @@ file(GLOB numkong_header_sources_ c/numkong/*.h include/numkong/*.h include/numk
 add_library(numkong_header INTERFACE)
 add_library(numkong::header ALIAS numkong_header)
 set_target_properties(numkong_header PROPERTIES EXPORT_NAME header)
+# MSVC reads BOM-less UTF-8 in the system code page, so consumers of these Unicode-commented headers need `/utf-8`.
+target_compile_options(
+    numkong_header INTERFACE "$<$<OR:$<COMPILE_LANG_AND_ID:C,MSVC>,$<COMPILE_LANG_AND_ID:CXX,MSVC>>:/utf-8>"
+)
 target_sources(numkong_header INTERFACE "$<BUILD_INTERFACE:${numkong_header_sources_}>")
 target_include_directories(
     numkong_header
@@ -641,6 +645,9 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
         # The library, unlike the headers, may use C11: `src/numkong.c` caches detection in <stdatomic.h> atomics.
         target_compile_features(${library_} PRIVATE c_std_11)
         target_link_libraries(${library_} PRIVATE $<BUILD_INTERFACE:numkong_warnings>)
+        target_compile_options(
+            ${library_} INTERFACE "$<$<OR:$<COMPILE_LANG_AND_ID:C,MSVC>,$<COMPILE_LANG_AND_ID:CXX,MSVC>>:/utf-8>"
+        )
         target_include_directories(
             ${library_}
             PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/c> $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
@@ -698,6 +705,9 @@ else ()
         # which MSVC gates behind a flag.
         target_compile_features(${library_} PRIVATE c_std_11)
         target_link_libraries(${library_} PRIVATE $<BUILD_INTERFACE:numkong_warnings>)
+        target_compile_options(
+            ${library_} INTERFACE "$<$<OR:$<COMPILE_LANG_AND_ID:C,MSVC>,$<COMPILE_LANG_AND_ID:CXX,MSVC>>:/utf-8>"
+        )
         target_compile_options(${library_} PRIVATE $<$<C_COMPILER_ID:MSVC>:/experimental:c11atomics>)
         target_include_directories(
             ${library_}
