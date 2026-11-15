@@ -66,12 +66,27 @@ Capabilities are scoped per function by target pragmas on every platform; LASX, 
 The library compiles every capability the toolchain builds and dispatches between them by runtime detection, and `-D NUMKONG_TARGET_<CAPABILITY>=0` leaves a capability out.
 A monoversioned build, `-D NUMKONG_MULTIVERSIONED=OFF`, keeps only the capabilities whose predefined macros `NUMKONG_MARCH` implies, as `probes/implied.c` reads them through `types.h`, and folds each dispatch table to its best kernel.
 There `-D NUMKONG_TARGET_<CAPABILITY>=1` vouches for a capability no compiler macro reports, as MSVC reports none of the AVX-512 subsets.
+A monoversioned build names one machine: one CPU, and at most one GPU architecture per vendor that every GPU in it shares.
+It compiles the best capability that machine runs and folds every dispatch row to it, and CMake refuses two CUDA or two ROCm architectures with `NUMKONG_MULTIVERSIONED=OFF`.
+On any other machine, or under a mask narrowed below the folded capability, a dispatch point answers `nk_missing_kernel_k`, never a crash or a slower kernel.
+The scalar math and element conversions, like `nk_f32_sqrt_best` and `nk_f16_to_f32_best`, return values rather than statuses, so their rows keep every kernel.
 The `xeon4_hopper`, `xeon6_blackwell`, `venice_mi450`, `grace_hopper` and `vera_rubin` presets build that way for one machine and its one GPU code, spelling every capability as 1 or 0 rather than trusting the macros.
 A multiversioned `NUMKONG_CUDA_ARCH=all` compiles each GPU unit once, at the lowest code its capability needs: PTX for the CUDA baseline at `compute_75`, for Ampere at `compute_80` and for Ada at `compute_89`, and family SASS for `90a`, `100f`, `103f` and `120f`.
 A named or `native` code compiles as SASS alone.
-Units calling capability kernels link `numkong::cpu_capabilities_compiled`, the build-tree twin of `nk_cpu_capabilities_compiled()`: every CPU capability the toolchain compiles.
+Units calling capability kernels link `numkong::cpu_capabilities_compiled`, the build-tree twin of `nk_capabilities_compiled_cpu()`: every CPU capability the toolchain compiles.
 `numkong::header` carries no verdict, so a header-only consumer enables what its own flags name, and the runtime mask picks the compiled capabilities the CPU runs.
 Each CPU capability's flags for a unit compiled whole for it are cached as `numkong_target_<capability>_flags`, and each GPU capability's architectures as `numkong_target_<capability>_architectures`.
+Six words name what the build and the runtime know of a capability:
+
+| Word       | Question                                                      | When                                                                  | Scope                         |
+| :--------- | :------------------------------------------------------------ | :-------------------------------------------------------------------- | :---------------------------- |
+| `probe`    | Can the toolchain build this capability?                      | Configure, as CMake compiles `probes/<capability>.c`                  | The build                     |
+| `target`   | Is this capability's unit in the build?                       | Compile, as `NUMKONG_TARGET_<CAPABILITY>`                             | The build                     |
+| `implied`  | What do the floor's flags already guarantee?                  | Compile, from predefined macros, and at runtime where no OS is asked  | The build                     |
+| `compiled` | Does the binary carry this capability's code for this device? | Runtime, as `nk_capabilities_compiled_cpu` or `_cuda(ordinal)` report | The build, or each GPU's code |
+| `detected` | Does this device offer the capability?                        | Runtime, as `nk_capabilities_detected_cpu` or `_cuda(ordinal)` report | The device                    |
+| `enabled`  | What may dispatch pick?                                       | Runtime, `detected` and `compiled` at once, less a refused AMX grant  | The device                    |
+
 Each binding hands CMake its options its own way:
 
 | Binding | Builds                                            | Passing another option                                           |
@@ -331,7 +346,7 @@ pip install --group test-oracles                    # optional reference librari
 python -X faulthandler -m pytest -x                 # to run tests
 
 # to check supported SIMD instructions:
-python -c "import numkong; print(repr(numkong.cpu_capabilities_enabled()))"
+python -c "import numkong; print(repr(numkong.capabilities_enabled_cpu()))"
 ```
 
 Alternatively, use `uv` to create the virtual environment.
@@ -667,7 +682,7 @@ Each word names its group's baseline bit, like `nk_cap_cuda_k`, its functions an
 A function that touches a device is either a producer or a consumer:
 
 - A __producer__ reports a device's capabilities or opens a stream on it.
-  It starts with its group, and it is the only kind of function that takes a device's `ordinal`: `nk_cuda_count_devices(&count)`, `nk_cuda_capabilities_enabled(ordinal, &capabilities)` and `nk_stream_init_cuda(ordinal, &stream)`.
+  It ends with its group, and it is the only kind of function that takes a device's `ordinal`: `nk_count_devices_cuda(&count)`, `nk_capabilities_enabled_cuda(ordinal, &capabilities)` and `nk_stream_init_cuda(ordinal, &stream)`.
 - A __consumer__ takes the `capabilities` it picks from and a trailing `nk_stream_t stream`, but never an ordinal, since the stream names its device: `nk_memory_allocate_unified_best(bytes, &pointer, capabilities, stream)`.
   It ends in `best` like any dispatch point, and its twins end in their capability, like `nk_memory_allocate_unified_cuda(bytes, &pointer, stream)`.
 
@@ -677,11 +692,11 @@ Each of these words has one meaning across the library:
 
 | Word                                             | Meaning                                                                          | Appears as                                                                        |
 | :----------------------------------------------- | :------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------- |
-| `cpu`, `cuda`, `rocm`, `metal`                   | A capability group and its baseline bit                                          | Producer prefix, twin and kernel suffix, `c/<group>/`                             |
+| `cpu`, `cuda`, `rocm`, `metal`                   | A capability group and its baseline bit                                          | Producer, twin and kernel suffix, `c/<group>/`                                    |
 | `simt`                                           | The portable C source CUDA and HIP both compile                                  | `<family>/simt.cuh`, the suffixes `_simt_`, `_simt_t`, `_simt_k`                  |
 | `metal`, as a layer                              | What every Metal tier shares                                                     | `<family>/metal.h`, `<family>/metal.metal`, the suffix `_metal_`                  |
 | `gpu`                                            | Adjective for every GPU group                                                    | `nk_cap_gpus_k`, `nk_missing_gpu_k`                                               |
-| `device`                                         | A processor kernels run on, which a stream belongs to                            | `nk_cuda_count_devices`, `nk_device_memory_mismatch_k`, `nk_device_current_simt_` |
+| `device`                                         | A processor kernels run on, which a stream belongs to                            | `nk_count_devices_cuda`, `nk_device_memory_mismatch_k`, `nk_device_current_simt_` |
 | `ordinal`                                        | A device's index within its group, as its runtime numbers it                     | Producer parameters only                                                          |
 | `stream`                                         | A `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>`, which names its device | The trailing `nk_stream_t stream` of every consumer                               |
 | `unified`                                        | Memory both the host and the stream's device address                             | `nk_memory_allocate_unified_best`                                                 |
@@ -696,8 +711,8 @@ A name without it is a public contract, either a switch you may set or a value y
 
 | Family                                      | Form                             | Example                                   |
 | :------------------------------------------ | :------------------------------- | :---------------------------------------- |
-| Capability whose kernels compile            | `NUMKONG_TARGET_<NAME>`          | `NUMKONG_TARGET_HASWELL`                  |
-| Capability whose helpers compile            | `NUMKONG_ARCH_<ARCH>_<NAME>_`    | `NUMKONG_ARCH_X8664_HASWELL_`             |
+| Capability whose kernels this unit has      | `NUMKONG_TARGET_<NAME>`          | `NUMKONG_TARGET_HASWELL`                  |
+| Capability whose code compiles              | `NUMKONG_ARCH_<ARCH>_<NAME>_`    | `NUMKONG_ARCH_X8664_HASWELL_`             |
 | Header-only build, without runtime dispatch | `NUMKONG_HEADER_ONLY`            |                                           |
 | Debug-only checks                           | `NUMKONG_DEBUG`                  |                                           |
 | Optional facility                           | `NUMKONG_WITH_[<OS>_]<FACILITY>` |                                           |
@@ -723,29 +738,32 @@ Three families guard platform code, each with its own job:
 - `NUMKONG_ARCH_<ARCH>_` holds where the platform or its runtime is present.
   It gates runtime services, detection, intrinsic includes and vendor primitives.
   Runtime services are the allocators, memory, streams, events, device counts and enabled masks.
-- `NUMKONG_ARCH_<ARCH>_<NAME>_` holds where a base capability's helpers compile.
-  That is wherever the capability, or one built on it, is enabled.
-  Only `c/numkong/types.h` defines these closures, one per base capability.
-- `NUMKONG_TARGET_<NAME>` holds where a capability's kernels compile.
+- `NUMKONG_ARCH_<ARCH>_<NAME>_` holds where a capability's code compiles.
+  The unit's flags or its GPU vendor say so, or the build's probe did; it never reads a target.
+  Only `c/numkong/types.h` detects these, one per capability, and they gate building blocks, intrinsic includes and union members.
+  A capability's flag also holds wherever the flag of one built on it holds, like Haswell's under Skylake's.
+- `NUMKONG_TARGET_<NAME>` holds where this unit has a capability's kernels.
   It gates kernel definitions and declarations, dispatch-table entries and compiled masks.
+  It defaults to its own detection, captured before any flag is raised, and a GPU generation's to 0.
+  It is never capped by its flag: a unit with the target and without the flag declares the kernels it links from the library.
 
-The base capabilities are Haswell, Skylake, Icelake and SapphireAMX on `X8664`.
-On `ARM64` they are NEON, SVE and SME, then RVV on `RISCV64`, PowerVSX on `PPC64` and V128 on `WASM`.
-On the GPUs they are Ampere, Ada and Blackwell on `CUDA`, and CDNA3 and CDNA4 on `ROCM`.
-Every other capability is a leaf, and CUDA, ROCm and Metal name their vendors' floors.
-A capability header opens its guards right after its include guard, in one of five shapes:
+The library's build raises or zeroes every CPU flag with its probe's verdict, and its targets with the verdict after `-D NUMKONG_TARGET_<NAME>=0` and the build kind.
+A GPU generation's flag holds wherever its vendor's compiler does, since its building blocks are `static __device__ __forceinline__` and emitted only where a kernel compiled for that generation calls them.
+Which generations a device runs is the runtime's answer, as `nk_capabilities_compiled_cuda` asks `cudaFuncGetAttributes` to load one kernel of each unit.
+A capability header opens its guards right after its include guard, in one of three shapes:
 
-- A __base__, like `dots/haswell.h`, opens `NUMKONG_ARCH_X8664_` and `NUMKONG_ARCH_X8664_HASWELL_`.
-  Its public kernels and codegen stamps sit in one inner `#if NUMKONG_TARGET_HASWELL`.
-- A __leaf__, like `dots/powermma.h`, opens `NUMKONG_ARCH_PPC64_` and `NUMKONG_TARGET_POWERMMA`.
-  Its includes, helpers and kernels all sit inside.
-- A __vendor floor__, like `dots/cuda.cuh`, opens `NUMKONG_ARCH_CUDA_` alone.
-  Its public kernels sit in one inner `#if NUMKONG_TARGET_CUDA`.
-- The __CPU floor__, `serial.h`, leaves its includes and helpers unguarded.
-  Its public kernels sit in `#if NUMKONG_TARGET_SERIAL`.
+- A __capability__, CPU or GPU, like `dots/haswell.h` or `dots/ampere.cuh`, opens its architecture and its flag, `NUMKONG_ARCH_X8664_` and `NUMKONG_ARCH_X8664_HASWELL_`.
+  Its building blocks sit at that scope, and its public kernels and codegen stamps in one inner `#if NUMKONG_TARGET_HASWELL` after them.
+  A GPU header ends in that region, which holds what a launch reaches: kernels, tables only they read, launchers and entry points.
+  No kernel sits under an `||` of targets: a body several generations launch is a building block, and each generation's file wraps it in its own kernel, like `nk_attention_pack_directory_ampere_kernel_` over `nk_attention_pack_directory_cuda_`.
+  `extern "C"` opens after the includes, before the pragma push, which wraps the building blocks and the target region.
+  A header of kernels alone pushes the pragma first inside its target region instead, with a comment on that `#if`, as an empty push region fails under -Werror.
+  A GPU building block compiles at every code its vendor targets, so it takes inline PTX or builtins, never intrinsics CUDA declares only for newer `__CUDA_ARCH__`.
+- A __floor__, like `dots/cuda.cuh`, `dots/metal.h` or `serial.h`, opens its vendor alone, or nothing for `serial.h`.
+  Its public kernels sit in one inner `#if NUMKONG_TARGET_CUDA`, or its vendor's or `NUMKONG_TARGET_SERIAL`.
 - The __portable GPU__ layer, `simt.cuh`, opens `NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_`.
 
-Every `#endif` names its guard, and no other condition in a capability header tests a platform.
+Every `#endif` names its guard, or its first names and `...` where the whole guard would not fit, and no other condition in a capability header tests a platform.
 The one exception is a compiler workaround in `serial.h`, like `defined(__GNUC__)` on `ARM64`.
 The top-level headers and `src/` guard runtime services by `NUMKONG_ARCH_<VENDOR>_`.
 They guard kernel declarations and dispatch entries by `NUMKONG_TARGET_<NAME>`.

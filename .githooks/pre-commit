@@ -56,6 +56,7 @@ codegen_macro_prefix="nk_define_"
 # Its macro prefix, the headers that alone read the operating-system predefines, and the predefines beyond
 # the operating systems that its identity also answers.
 macro_prefix="NUMKONG"
+include_root="include/numkong"
 identity_headers="c/numkong/types.h"
 platform_predefines_refused=''
 # The helpers that replace `std::min` and `std::max`, which spell no name `<windows.h>` takes as a macro.
@@ -2224,13 +2225,13 @@ check_type_suffixes() {
         }' "$staged_code_path" || true)
     [ -z "$templates" ] || reject_with_reason "$templates" \
         "$staged_path suffixes a class template with '_t' - the template stays bare and the alias that materializes it carries the suffix:"
-    variables=$(printf '%s\n' "$staged_added_text" | "$fastest_awk" '
+    variables=$(scan_staged_file_marking_added_lines '
         function suffixed(line) { return line ~ /constexpr[[:space:]][^=(]*[[:space:]][A-Za-z0-9_]*_[kt][[:space:]]*=/ }
-        /^\+[[:space:]]*template[[:space:]]*</ { if (suffixed($0)) print; else pending = 1; next }
-        pending && suffixed($0) { print; pending = 0; next }
+        /^[[:space:]]*template[[:space:]]*</ { opened = FNR in added; if (suffixed($0)) { if (opened) printf "line %d: %s\n", FNR, $0 } else pending = 1; next }
+        pending && suffixed($0) { if (opened || FNR in added) printf "line %d: %s\n", FNR, $0; pending = 0; next }
         pending && /\{[[:space:]]*$/ { pending = 0; next }
-        pending && /^\+[[:space:]]*(typename|class |std::|requires|[A-Za-z_]+ [A-Za-z_]+_|>)/ { next }
-        { pending = 0 }')
+        pending && /^[[:space:]]*(typename|class |std::|requires|[A-Za-z_]+ [A-Za-z_]+_|>)/ { next }
+        { pending = 0 }' "$staged_code_path")
     [ -z "$variables" ] || reject_with_reason "$variables" \
         "$staged_path suffixes a variable template with '_k' or '_t' - the template stays bare, like \`template <typename type_> constexpr bool bounded\`:"
 }
@@ -3394,21 +3395,16 @@ check_scaled_kernels_avoid_f64() {
         "            block-scaled kernels rebase into F32 and fall back to the exact F32 path, F64 belongs only in test oracles:"
 }
 
-# Every capability c/numkong/types.h detects, as `<capability> <ARCH> [<closure>]` lines: its
-# detection clause names the architecture, and a `NUMKONG_ARCH_<ARCH>_<CAPABILITY>_` closure marks a
-# base capability. Read from the staged copy, else the one beside this hook, as fixtures have none.
+# Every capability c/numkong/types.h detects, as `<capability> <ARCH>` lines: the clause forcing its
+# target off names the architecture. Read from the staged copy, else the one beside this hook, as
+# fixtures have none.
 capability_architectures=$({ git show :c/numkong/types.h 2>/dev/null || cat "$(dirname "$0")/../c/numkong/types.h"; } |
     "$fastest_awk" '
         match($0, /NUMKONG_TARGET_[A-Z0-9]+ && !\(?NUMKONG_ARCH_[A-Z0-9]+_/) {
             split(substr($0, RSTART + 15, RLENGTH - 16), names, / && !\(?NUMKONG_ARCH_/)
             architecture[tolower(names[1])] = names[2]
         }
-        match($0, /^#define NUMKONG_ARCH_[A-Z0-9]+_[A-Z0-9]+_[[:space:]]/) {
-            name = substr($0, 9, RLENGTH - 9)
-            split(name, parts, "_")
-            closure[tolower(parts[4])] = name
-        }
-        END { for (capability in architecture) print capability, architecture[capability], closure[capability] }')
+        END { for (capability in architecture) print capability, architecture[capability] }')
 
 # The code-generation macros whose stamps define public kernels: a `#define nk_define_*(` body that
 # emits `NUMKONG_API` or `NUMKONG_PUBLIC`, or stamps a macro that does. Read once from the staged tree.
@@ -3554,50 +3550,60 @@ check_sme_kernels_avoid_neon() {
         "            streaming kernels stay in predicated SVE, including their tails and finishing passes:"
 }
 
-# Rejects a capability header whose platform guards break its shape, because they decide where
-# its helpers and kernels compile. Right after the include guard a base capability opens its
-# architecture and closure, a leaf its architecture and target, a vendor floor its vendor, and
-# simt.cuh both GPU vendors. Base and floor keep public kernels, stamps of kernel-emitting macros
-# included, in one `#if NUMKONG_TARGET_<CAPABILITY>`, serial.h in `#if NUMKONG_TARGET_SERIAL`, each
-# guard's #endif names it, and no other condition tests a platform but serial.h's compiler fixes.
+# Rejects a capability header whose platform guards break its shape, because they decide where its building blocks and
+# kernels compile. Right after the include guard a capability, CPU or GPU, opens its architecture and its
+# `<PREFIX>_ARCH_<ARCH>_<CAPABILITY>_` flag and a vendor floor its vendor; portable simt.cuh and kernels.cuh test no
+# platform but both GPU vendors at once, wherever their device code starts.
+# Each keeps public kernels, stamps of kernel-emitting macros included, in one `#if <PREFIX>_TARGET_<CAPABILITY>` after
+# its building blocks, serial.h in `#if <PREFIX>_TARGET_SERIAL`, and no other condition tests a platform but serial.h's
+# compiler fixes; each guard's #endif names it, in full or as a prefix and `...`. `extern "C"` opens before the pragma
+# push and the target region and closes after both; the push wraps the building blocks and the target region, or, in a
+# header of kernels only, sits first inside it, as an empty push region fails under -Werror, with a comment on that
+# `#if` saying so. A GPU header ends in its target region.
 check_capability_guards_shaped() {
-    local capability upper architecture closure shape opening="" inner="" layout violations
+    local capability upper architecture shape opening="" inner="" layout violations
     capability=${staged_path##*/}
     capability=${capability%.*}
     upper=$(printf '%s' "$capability" | tr '[:lower:]' '[:upper:]')
     case "$capability" in
-    serial) shape=serial inner=NUMKONG_TARGET_SERIAL ;;
-    simt) shape=simt opening="NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_" ;;
+    serial) shape=serial inner=${macro_prefix}_TARGET_SERIAL ;;
+    simt | kernels) shape=portable ;;
     *)
-        read -r architecture closure <<< "$(printf '%s\n' "$capability_architectures" |
-            "$fastest_awk" -v name="$capability" '$1 == name { print $2, $3 }')"
+        architecture=$(printf '%s\n' "$capability_architectures" |
+            "$fastest_awk" -v name="$capability" '$1 == name { print $2 }')
         if [ -z "$architecture" ]; then
-            reject_with_reason "$staged_path" "$staged_path is named after no capability c/numkong/types.h detects:"
+            reject_with_reason "$staged_path" \
+                "$staged_path is named after no capability c/${include_root#include/}/types.h detects:"
             return
         elif [ "$architecture" = "$upper" ]; then
-            shape=floor opening=NUMKONG_ARCH_${upper}_ inner=NUMKONG_TARGET_$upper
-        elif [ -n "$closure" ]; then
-            shape=base opening=NUMKONG_ARCH_${architecture}_$'\n'$closure inner=NUMKONG_TARGET_$upper
+            shape=floor opening=${macro_prefix}_ARCH_${upper}_ inner=${macro_prefix}_TARGET_$upper
         else
-            shape=leaf opening=NUMKONG_ARCH_${architecture}_$'\n'NUMKONG_TARGET_$upper
+            shape=capability inner=${macro_prefix}_TARGET_$upper
+            [ "$architecture" != CUDA ] && [ "$architecture" != ROCM ] || shape=gpu
+            opening=${macro_prefix}_ARCH_${architecture}_$'\n'${macro_prefix}_ARCH_${architecture}_${upper}_
         fi
         ;;
     esac
     layout="opens #if ${opening//$'\n'/, then #if } right after its include guard"
     [ -n "$opening" ] || layout="opens no guard"
     [ -z "$inner" ] || layout="$layout, with its public kernels in #if $inner"
-    violations=$(shape=$shape opening=$opening inner=$inner raw_path=$staged_text_path \
-        kernel_macros=$kernel_codegen_macros "$fastest_awk" '
+    violations=$(shape=$shape opening=$opening inner=$inner prefix=$macro_prefix raw_path=$staged_text_path \
+        kernel_macros=${kernel_codegen_macros:-} "$fastest_awk" '
         BEGIN {
             opening_count = split(ENVIRON["opening"], opening, "\n"); inner = ENVIRON["inner"]; shape = ENVIRON["shape"]
+            prefix = ENVIRON["prefix"]
             count = split(ENVIRON["kernel_macros"], names, "\n"); for (index_ = 1; index_ <= count; ++index_) kernel_macros[names[index_]]
         }
-        function stamped_macro(text) { return match(text, /^nk_define_[A-Za-z0-9_]*\(/) ? substr(text, 1, RLENGTH - 1) : "" }
+        function stamped_macro(text) { return match(text, /^[a-z]+_define_[A-Za-z0-9_]*\(/) ? substr(text, 1, RLENGTH - 1) : "" }
         function condition(text) {
             sub(/^[[:space:]]*#[[:space:]]*[a-z]+[[:space:]]*/, "", text); gsub(/[[:space:]]+/, " ", text); sub(/ $/, "", text)
             return text
         }
         function report(problem) { printf "line %d: %s\n", line, problem }
+        function closes(comment, condition_) {
+            return comment == condition_ ||
+                (comment ~ / \.\.\.$/ && index(condition_, substr(comment, 1, length(comment) - 3)) == 1)
+        }
         {
             line = FNR; text = $0
             getline raw < ENVIRON["raw_path"]
@@ -3608,61 +3614,207 @@ check_capability_guards_shaped() {
             if (text ~ /^[[:space:]]*$/) next
             directive = ""
             if (match(text, /^[[:space:]]*#[[:space:]]*[a-z]+/)) { directive = substr(text, RSTART, RLENGTH); gsub(/[[:space:]#]/, "", directive) }
-            platform = directive ~ /^(if|ifdef|ifndef|elif)$/ && text ~ /NUMKONG_(ARCH|TARGET)_/
+            platform = directive ~ /^(if|ifdef|ifndef|elif)$/ && text ~ (prefix "_(ARCH|TARGET)_") &&
+                text !~ (prefix "_ARCH_(BIG_ENDIAN|64BIT)_")
         }
         stage == 0 && directive == "ifndef" && !platform { kind[++depth] = "include"; outer_depth = depth; stage = 1; next }
         stage == 0 && directive == "pragma" && text ~ /once/ { stage = 2; next }
         stage == 1 && directive == "define" { stage = 2; next }
         { stage = 2 }
         directive == "if" && opened < opening_count && depth == outer_depth + opened && condition(text) == opening[opened + 1] {
-            kind[++depth] = "open"; guard[depth] = opening[++opened]; ++open_alive
+            kind[++depth] = "open"; guard[depth] = opening[++opened]; ++open_alive; group[depth] = ++groups
             next
         }
         directive ~ /^if(def|ndef)?$/ {
-            guard[++depth] = condition(text); kind[depth] = "plain"
+            guard[++depth] = condition(text); kind[depth] = "plain"; group[depth] = ++groups
             if (!platform) next
             directly_inside = open_alive == opening_count &&
                 (opening_count ? kind[depth - 1] == "open" : kind[depth - 1] ~ /^(include)?$/)
             if (directive == "if" && inner != "" && guard[depth] == inner && directly_inside) {
-                kind[depth] = "inner"; inner_open = 1
+                kind[depth] = "inner"; inner_open = 1; targets_seen = 1; inner_code = 0; inner_raw = raw
                 if (++inner_count > 1 && shape != "serial")
                     report("repeats #if " inner "; group the helpers ahead of one block of kernels")
+                if (shape != "serial" && push_open && !push_in_inner && !code_since_push)
+                    report("pushes its pragma over no building block; a header of kernels only pushes it first inside #if " inner)
                 next
             }
-            compiler_workaround = guard[depth] !~ /NUMKONG_TARGET_/ && guard[depth] ~ /defined\((__GNUC__|__clang__|_MSC_VER)\)/
+            if (shape == "portable" && guard[depth] == prefix "_ARCH_CUDA_ || " prefix "_ARCH_ROCM_") next
+            compiler_workaround = guard[depth] !~ (prefix "_TARGET_") && guard[depth] ~ /defined\((__GNUC__|__clang__|_MSC_VER)\)/
             if (shape == "serial" && compiler_workaround) next
             report("tests " guard[depth] ", which its shape does not allow")
             next
         }
         directive ~ /^el(if|se)$/ {
             if (platform) report("tests " condition(text) ", which its shape does not allow")
-            else if (kind[depth] == "open" || kind[depth] == "inner") report("branches its guard " guard[depth] " with #" directive)
+            else if (kind[depth] ~ /^(open|inner)$/) report("branches its guard " guard[depth] " with #" directive)
             next
         }
         directive == "endif" {
-            if (kind[depth] == "open" || kind[depth] == "inner") {
+            if (kind[depth] ~ /^(open|inner)$/) {
                 comment = raw
                 if (!sub(/^[^\/]*\/\/[[:space:]]*/, "", comment)) comment = ""
                 gsub(/[[:space:]]+/, " ", comment); sub(/ $/, "", comment)
-                if (comment != guard[depth]) report("closes " guard[depth] " without naming it in a // comment")
+                if (!closes(comment, guard[depth])) report("closes " guard[depth] " without naming it in a // comment")
                 if (kind[depth] == "open") --open_alive
                 else inner_open = 0
             }
             kind[depth--] = ""
             next
         }
-        open_alive < opening_count && !outside_reported {
+        shape != "serial" && directive == "pragma" && text ~ /attribute[[:space:]]+push|GCC[[:space:]]+push_options/ && !pushed[group[depth]]++ {
+            push_open = 1; push_in_inner = inner_open; code_since_push = 0; ++pushes
+            if (inner_open && inner_code) report("pushes its pragma after code in #if " inner "; a header of kernels only pushes it first")
+            if (inner_open && inner_raw !~ /\/\//) report("opens #if " inner " over its pragma without the one-line comment saying why")
+        }
+        shape != "serial" && directive == "pragma" && text ~ /attribute[[:space:]]+pop|GCC[[:space:]]+pop_options/ && !popped[group[depth]]++ {
+            if (push_in_inner != inner_open) report("pops its pragma on the other side of #endif " inner " from its push")
+            push_open = 0
+        }
+        directive == "" && text ~ /^[[:space:]]*extern[[:space:]]+"C"[[:space:]]*\{/ {
+            extern_open = 1
+            if (open_alive < opening_count) report("opens extern \"C\" outside its guards, which enclose it")
+            if (targets_seen) report("opens extern \"C\" in or after #if " inner ", which it encloses")
+            if (pushes) report("opens extern \"C\" after its pragma push, which it encloses")
+            next
+        }
+        directive == "" && extern_open && text ~ /^[[:space:]]*}[[:space:]]*$/ && raw ~ /extern "C"/ {
+            extern_open = 0
+            if (inner_open || push_open) report("closes extern \"C\" before #endif " inner " and its pragma pop, which it encloses")
+            if (open_alive < opening_count) report("closes extern \"C\" outside its guards, which enclose it")
+            next
+        }
+        directive == "" && text !~ /^[[:space:]]*$/ { code_since_push = 1; if (inner_open) inner_code = 1 }
+        open_alive < opening_count && directive != "include" && !outside_reported {
             report("sits outside its guards, which open right after the include guard and hold everything")
             outside_reported = 1
         }
-        inner != "" && !inner_open && (text ~ /^(NUMKONG_API|NUMKONG_PUBLIC)[[:space:]]/ || (stamped_macro(text) in kernel_macros)) {
+        shape == "gpu" && targets_seen && !inner_open && directive == "" && text !~ /^[[:space:]]*}[[:space:]]*$/ &&
+            !after_reported {
+            report("follows the kernels; building blocks sit above the first #if " prefix "_TARGET_ region")
+            after_reported = 1
+        }
+        inner != "" && !inner_open && (text ~ ("^(" prefix "_API|" prefix "_PUBLIC)[[:space:]]") || (stamped_macro(text) in kernel_macros)) {
             report("defines a public kernel outside #if " inner)
         }
         END { if (opened < opening_count) { line = FNR; report("never opens #if " opening[opened + 1]) } }
         ' "$staged_code_path")
     [ -z "$violations" ] || reject_with_reason "$violations" \
         "$staged_path breaks the guards of a $shape capability header, which $layout;" \
-        "            no other condition tests NUMKONG_ARCH_ or NUMKONG_TARGET_, and each guard's #endif names it:"
+        "            extern \"C\" encloses the pragma, which encloses the building blocks and the target region or opens" \
+        "            first inside it; no other condition tests ${macro_prefix}_ARCH_ or ${macro_prefix}_TARGET_, and each" \
+        "            guard's #endif names it:"
+}
+
+# Rejects a `#define <PREFIX>_ARCH_` in c/<project>/types.h that reads, or sits under a condition that reads, a
+# `<PREFIX>_TARGET_`, because an ARCH flag says what compiles and a target only what the unit keeps: a flag following
+# a target opens a base's building blocks only where its kernels are kept.
+check_architecture_flags_read_no_target() {
+    local readers
+    readers=$(prefix=$macro_prefix raw_path=$staged_text_path "$fastest_awk" '
+        BEGIN { prefix = ENVIRON["prefix"] }
+        {
+            line = FNR; text = $0
+            getline raw < ENVIRON["raw_path"]
+            while (raw ~ /\\[[:space:]]*$/ && (getline continuation) > 0) {
+                getline raw < ENVIRON["raw_path"]
+                sub(/\\[[:space:]]*$/, " ", text); text = text " " continuation
+            }
+        }
+        text ~ /^[[:space:]]*#[[:space:]]*if/ { guard[++depth] = text; next }
+        text ~ /^[[:space:]]*#[[:space:]]*el(if|se)/ { guard[depth] = guard[depth] " " text; next }
+        text ~ /^[[:space:]]*#[[:space:]]*endif/ { --depth; next }
+        text ~ ("^[[:space:]]*#[[:space:]]*define[[:space:]]+" prefix "_ARCH_") {
+            read = text ~ (prefix "_TARGET_")
+            for (level = 1; level <= depth; ++level) if (guard[level] ~ (prefix "_TARGET_")) read = 1
+            if (read) printf "line %d: %s\n", line, text
+        }' "$staged_code_path")
+    [ -z "$readers" ] || reject_with_reason "$readers" \
+        "$staged_path defines a ${macro_prefix}_ARCH_ flag from a ${macro_prefix}_TARGET_; detect it from the unit's" \
+        "            flags or its vendor, and raise a base's flag from the flags built on it:"
+}
+
+# Rejects a GPU kernel or `__device__` table outside every target, because a device keeps every kernel a unit defines:
+# one under its vendor alone ships in every unit including its header. Each generation's file wraps the shared device
+# bodies in its own kernels and tables under its own target, which `check_capability_guards_shaped` holds it to; a
+# header beside the families takes at most one target, never an `||` of them. Bodies of `#define` generators are their
+# stamps' business.
+check_gpu_kernels_under_their_own_target() {
+    local own="" misplaced
+    case "$staged_path" in "$include_root"/*/*)
+        own=${staged_path##*/}
+        own=${macro_prefix}_TARGET_$(printf '%s' "${own%.*}" | tr '[:lower:]' '[:upper:]') ;;
+    esac
+    misplaced=$(own=$own prefix=$macro_prefix raw_path=$staged_text_path "$fastest_awk" '
+        BEGIN { own = ENVIRON["own"]; prefix = ENVIRON["prefix"] }
+        {
+            line = FNR; text = $0
+            getline raw < ENVIRON["raw_path"]
+            while (raw ~ /\\[[:space:]]*$/ && (getline continuation) > 0) {
+                getline raw < ENVIRON["raw_path"]
+                sub(/\\[[:space:]]*$/, " ", text); text = text " " continuation
+            }
+        }
+        text ~ /^[[:space:]]*#[[:space:]]*define/ { next }
+        text ~ /^[[:space:]]*#[[:space:]]*if/ { sub(/^[[:space:]]*#[[:space:]]*if(n?def)?[[:space:]]*/, "", text); guard[++depth] = text; next }
+        text ~ /^[[:space:]]*#[[:space:]]*elif/ { sub(/^[[:space:]]*#[[:space:]]*elif[[:space:]]*/, "", text); guard[depth] = text; next }
+        text ~ /^[[:space:]]*#[[:space:]]*else/ { guard[depth] = "!(" guard[depth] ")"; next }
+        text ~ /^[[:space:]]*#[[:space:]]*endif/ { --depth; next }
+        text ~ /^[[:space:]]*#/ { next }
+        text ~ /(^|[^A-Za-z0-9_])__global__([^A-Za-z0-9_]|$)/ ||
+            (text ~ /(^|[^A-Za-z0-9_])(__device__|__constant__)([^A-Za-z0-9_]|$)/ && text !~ /__(force|no)inline__/ &&
+             text ~ /^[^(]*(\[|=)/) {
+            targets = 0; target = ""
+            for (level = 1; level <= depth; ++level) {
+                if (guard[level] !~ (prefix "_TARGET_")) continue
+                ++targets
+                target = guard[level]; gsub(/[[:space:]]+/, " ", target); sub(/ $/, "", target)
+            }
+            misplaced = own != "" ? !targets : targets > 1 || (targets && target !~ ("^" prefix "_TARGET_[A-Z0-9]+$"))
+            if (misplaced) printf "line %d: under %s: %s\n", line, (targets ? target : "no target"), text
+        }' "$staged_code_path")
+    [ -z "$misplaced" ] || reject_with_reason "$misplaced" \
+        "$staged_path defines a GPU kernel or table outside its own #if ${own:-${macro_prefix}_TARGET_<CAPABILITY>};" \
+        "            each generation file wraps the shared device bodies in its own kernels and tables, under its target alone:"
+}
+
+# Rejects a GPU kernel under no guard built only from `NUMKONG_TARGET_` names, and a `NUMKONG_DEVICE` building
+# block under any guard testing one, because a GPU kernel never drops out unused: every unit that includes the
+# header for its building blocks would define the kernel too, and a building block a target hides is missing
+# from the other units that call it. Bodies of `#define` generators are their stamps' business.
+check_gpu_targets_hold_launches_only() {
+    local misplaced
+    misplaced=$(raw_path=$staged_text_path "$fastest_awk" '
+        function targets_only(text) {
+            if (text ~ /!/) return 0
+            gsub(/[()|&[:space:]]+/, " ", text); sub(/^ /, "", text); sub(/ $/, "", text)
+            return text != "" && text ~ /^NUMKONG_TARGET_[A-Z0-9]+( NUMKONG_TARGET_[A-Z0-9]+)*$/
+        }
+        {
+            line = FNR; text = $0
+            getline raw < ENVIRON["raw_path"]
+            while (text ~ /^[[:space:]]*#/ && raw ~ /\\[[:space:]]*$/ && (getline continuation) > 0) {
+                getline raw < ENVIRON["raw_path"]
+                sub(/\\[[:space:]]*$/, " ", text); text = text " " continuation
+            }
+        }
+        text ~ /^[[:space:]]*#[[:space:]]*if/ { sub(/^[[:space:]]*#[[:space:]]*if(n?def)?[[:space:]]*/, "", text); guard[++depth] = text; next }
+        text ~ /^[[:space:]]*#[[:space:]]*elif/ { sub(/^[[:space:]]*#[[:space:]]*elif[[:space:]]*/, "", text); guard[depth] = text; next }
+        text ~ /^[[:space:]]*#[[:space:]]*else/ { guard[depth] = "!(" guard[depth] ")"; next }
+        text ~ /^[[:space:]]*#[[:space:]]*endif/ { --depth; next }
+        text ~ /^[[:space:]]*#/ { next }
+        {
+            gated = 0; tested = 0
+            for (level = 1; level <= depth; ++level) {
+                if (guard[level] ~ /NUMKONG_TARGET_/) tested = 1
+                if (targets_only(guard[level])) gated = 1
+            }
+        }
+        text ~ /^[[:space:]]*NUMKONG_DEVICE[[:space:]]/ && tested { printf "line %d: building block inside a target: %s\n", line, text }
+        ' "$staged_code_path")
+    [ -z "$misplaced" ] || reject_with_reason "$misplaced" \
+        "$staged_path puts a GPU kernel outside every #if NUMKONG_TARGET_ region or a building block inside one;" \
+        "            kernels, the tables only they read and their launchers go under the targets that launch them," \
+        "            NUMKONG_DEVICE helpers at the vendor's scope above:"
 }
 
 # Rejects a top-level `numkong/<name>.h` include other than `numkong/types.h` in a backend header, because
@@ -3735,7 +3887,7 @@ check_vendor_tested_only_in_kernels() {
 # Rejects a runtime service guarded by a vendor's `NUMKONG_TARGET_` floor, or a GPU kernel declaration
 # guarded by its vendor's `NUMKONG_ARCH_`, because the runtime exists wherever its vendor compiles and a
 # kernel only where its capability does. A service names an allocator, memory, a stream, an event, a
-# device count or an enabled mask.
+# device count or a capability mask.
 check_runtime_guards_match_declarations() {
     local gpu_capabilities misguarded
     gpu_capabilities=$(printf '%s\n' "$capability_architectures" |
@@ -3747,7 +3899,7 @@ check_runtime_guards_match_declarations() {
         depth > 0 && match($0, /^(extern[[:space:]]+"C"[[:space:]]+)?(NUMKONG_[A-Z_]+|static|inline)[[:space:]][^(=;]*[^A-Za-z0-9_]nk_[a-z0-9_]+[[:space:]]*\(/) {
             if (!((FNR in added) || (guard_line[depth] in added))) next
             name = substr($0, RSTART, RLENGTH); sub(/[[:space:]]*\($/, "", name); sub(/.*[^a-z0-9_]/, "", name)
-            service = name ~ /allocator|memory_|stream_|event|count_devices|capabilities_enabled/
+            service = name ~ /allocator|memory_|stream_|event|count_devices|capabilities_(detected|compiled|enabled)/
             if (service && guard[depth] ~ /NUMKONG_TARGET_(CUDA|ROCM|METAL)([^A-Za-z0-9_]|$)/)
                 printf "line %d: service %s under %s\n", FNR, name, guard[depth]
             else if (!service && name ~ "_(" ENVIRON["gpu_capabilities"] ")$" && guard[depth] ~ /NUMKONG_ARCH_(CUDA|ROCM|METAL)_/)
@@ -3778,15 +3930,15 @@ check_full_prefix() {
         "$staged_path spells an all-caps name with NK_; write NUMKONG_ in full:"
 }
 
-# Rejects a `NUMKONG_TARGET_<NAME>_` closure, because `NUMKONG_TARGET_<NAME>` alone is a capability's
-# switch, a base capability's helpers test its `NUMKONG_ARCH_<ARCH>_<NAME>_` closure, and a vendor
+# Rejects a `NUMKONG_TARGET_<NAME>_` name, because `NUMKONG_TARGET_<NAME>` alone is a capability's
+# switch, a capability's building blocks test its `NUMKONG_ARCH_<ARCH>_<NAME>_` flag, and a vendor
 # floor's its `NUMKONG_ARCH_<VENDOR>_`.
 check_target_closures_absent() {
     local closures
     closures=$(grep -nE 'NUMKONG_TARGET_[A-Z0-9]+_([^A-Za-z0-9_]|$)' "$staged_text_path" || true)
     [ -z "$closures" ] || reject_with_reason "$closures" \
-        "$staged_path spells a NUMKONG_TARGET_<NAME>_ closure; test NUMKONG_ARCH_<ARCH>_<NAME>_ for a base capability's" \
-        "            helpers, NUMKONG_ARCH_<VENDOR>_ for a GPU vendor's, and NUMKONG_TARGET_<NAME> for kernels:"
+        "$staged_path spells a NUMKONG_TARGET_<NAME>_ name; test NUMKONG_ARCH_<ARCH>_<NAME>_ for a capability's" \
+        "            building blocks, NUMKONG_ARCH_<VENDOR>_ for a GPU vendor's, and NUMKONG_TARGET_<NAME> for kernels:"
 }
 
 # Rejects a function-like ALL_CAPS macro, because preprocessor codegen hides the very lines a reader greps for.
@@ -3857,6 +4009,9 @@ run_project_checks() {
         ;;
     esac
     case "$staged_path" in
+    c/numkong/types.h) check_architecture_flags_read_no_target ;;
+    esac
+    case "$staged_path" in
     *.c | *.h | *.cpp | *.hpp | *.cc | *.cu | *.cuh | *.hip | *.metal)
         check_ceiling_divisions_use_helpers
         ;;
@@ -3879,6 +4034,12 @@ run_project_checks() {
     case "$staged_path" in
     include/numkong/*/serial.h) ;;
     include/numkong/*/*.h | include/numkong/*/*.cuh) check_backend_includes_no_dispatch_umbrella ;;
+    esac
+    case "$staged_path" in
+    include/numkong/*/*.cuh) check_gpu_targets_hold_launches_only ;;
+    esac
+    case "$staged_path" in
+    include/numkong/*.cuh | include/numkong/*/*.cuh) check_gpu_kernels_under_their_own_target ;;
     esac
     case "$staged_path" in
     include/numkong/*.cuh | include/numkong/*/*.cuh)

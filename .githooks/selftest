@@ -1693,6 +1693,23 @@ git -C "$fixture_directory" add -- include/probe.hpp
 run_precommit
 expect_rejection "changed template header with unchanged class name" "suffixes a class template"
 
+stage_fixture_with_header include/probe.hpp <<'FIXTURE'
+template <typename type_>
+struct hip_warp {
+    inline static constexpr u32_t width_k = hip_wave_lanes(type_::value);
+};
+FIXTURE
+git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
+sed -e 's/typename type_/typename value_type_/' -e 's/type_::value/value_type_::value/' -e 's/width_k = /width_k = 1 + /' "$fixture_directory/include/probe.hpp" > "$fixture_directory/edited"
+mv "$fixture_directory/edited" "$fixture_directory/include/probe.hpp"
+git -C "$fixture_directory" add -- include/probe.hpp
+run_precommit
+expect_acceptance "static member edited below an unchanged class template brace"
+
+assert_rejects "new one-line suffixed variable template" "suffixes a variable template" include/probe.hpp <<'FIXTURE'
+template <typename type_> constexpr bool bounded_k = true;
+FIXTURE
+
 assert_accepts "qualified memcpy, and prose naming the bare forms" include/probe.hpp <<'FIXTURE'
 /** Copies eight bytes with @c std::memcpy, never an unqualified memcpy or a pragma mark. */
 inline void probe(char *to, char const *from) { std::memcpy(to, from, 8); }
@@ -2951,11 +2968,9 @@ capability_guards() { # capability_guards <relative-path>
     case "$capability" in
     serial) echo NUMKONG_TARGET_SERIAL ;;
     simt) echo 'NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_' ;;
-    haswell | skylake) printf '%s\n' NUMKONG_ARCH_X8664_ "NUMKONG_ARCH_X8664_${upper}_" "NUMKONG_TARGET_$upper" ;;
-    neon | sme) printf '%s\n' NUMKONG_ARCH_ARM64_ "NUMKONG_ARCH_ARM64_${upper}_" "NUMKONG_TARGET_$upper" ;;
-    diamondamx) printf '%s\n' NUMKONG_ARCH_X8664_ "NUMKONG_TARGET_$upper" ;;
-    smef64 | sve2) printf '%s\n' NUMKONG_ARCH_ARM64_ "NUMKONG_TARGET_$upper" ;;
-    rvvhalf) printf '%s\n' NUMKONG_ARCH_RISCV64_ "NUMKONG_TARGET_$upper" ;;
+    haswell | skylake | diamondamx) printf '%s\n' NUMKONG_ARCH_X8664_ "NUMKONG_ARCH_X8664_${upper}_" "NUMKONG_TARGET_$upper" ;;
+    neon | sme | smef64 | sve2) printf '%s\n' NUMKONG_ARCH_ARM64_ "NUMKONG_ARCH_ARM64_${upper}_" "NUMKONG_TARGET_$upper" ;;
+    rvvhalf) printf '%s\n' NUMKONG_ARCH_RISCV64_ "NUMKONG_ARCH_RISCV64_${upper}_" "NUMKONG_TARGET_$upper" ;;
     esac
 }
 
@@ -3184,7 +3199,7 @@ struct probe {
 };
 FIXTURE
 
-assert_accepts "base capability guards" include/numkong/probe/haswell.h <<'FIXTURE'
+assert_accepts "capability guards" include/numkong/probe/haswell.h <<'FIXTURE'
 #if NUMKONG_ARCH_X8664_
 #if NUMKONG_ARCH_X8664_HASWELL_
 
@@ -3200,38 +3215,18 @@ NUMKONG_API int nk_probe_haswell(int value) { return nk_probe_haswell_(value); }
 #endif // NUMKONG_ARCH_X8664_
 FIXTURE
 
-assert_rejects "base capability without its closure" "breaks the guards of a base" include/numkong/probe/haswell.h <<'FIXTURE'
-#if NUMKONG_ARCH_X8664_
-#include "numkong/types.h"
-#endif // NUMKONG_ARCH_X8664_
-FIXTURE
-
-assert_rejects "base kernel outside its target" "breaks the guards of a base" include/numkong/probe/haswell.h <<'FIXTURE'
-#if NUMKONG_ARCH_X8664_
-#if NUMKONG_ARCH_X8664_HASWELL_
-NUMKONG_API int nk_probe_haswell(int value) { return value; }
-#endif // NUMKONG_ARCH_X8664_HASWELL_
-#endif // NUMKONG_ARCH_X8664_
-FIXTURE
-
-assert_accepts "leaf capability guards" include/numkong/probe/powermma.h <<'FIXTURE'
+assert_accepts "capability nothing builds on, under its own flag" include/numkong/probe/powermma.h <<'FIXTURE'
 #if NUMKONG_ARCH_PPC64_
-#if NUMKONG_TARGET_POWERMMA
+#if NUMKONG_ARCH_PPC64_POWERMMA_
 
 #include "numkong/types.h"
 
+#if NUMKONG_TARGET_POWERMMA
 NUMKONG_API int nk_probe_powermma(int value) { return value; }
-
 #endif // NUMKONG_TARGET_POWERMMA
-#endif // NUMKONG_ARCH_PPC64_
-FIXTURE
 
-assert_rejects "leaf capability under a closure" "breaks the guards of a leaf" include/numkong/probe/alder.h <<'FIXTURE'
-#if NUMKONG_ARCH_X8664_
-#if NUMKONG_ARCH_X8664_HASWELL_
-NUMKONG_API int nk_probe_alder(int value) { return value; }
-#endif // NUMKONG_ARCH_X8664_HASWELL_
-#endif // NUMKONG_ARCH_X8664_
+#endif // NUMKONG_ARCH_PPC64_POWERMMA_
+#endif // NUMKONG_ARCH_PPC64_
 FIXTURE
 
 assert_accepts "vendor floor guards" include/numkong/probe/cuda.cuh <<'FIXTURE'
@@ -3259,7 +3254,7 @@ nk_define_dot_(f32)
 #endif // NUMKONG_ARCH_CUDA_
 FIXTURE
 
-assert_accepts "helper stamp in a base closure outside the target" include/numkong/probe/haswell.h <<'FIXTURE'
+assert_accepts "helper stamp under the flag outside the target" include/numkong/probe/haswell.h <<'FIXTURE'
 #if NUMKONG_ARCH_X8664_
 #if NUMKONG_ARCH_X8664_HASWELL_
 
@@ -3272,7 +3267,7 @@ nk_define_dot_(f32)
 #endif // NUMKONG_ARCH_X8664_
 FIXTURE
 
-assert_rejects "kernel stamp in a base closure outside the target" "breaks the guards of a base" include/numkong/probe/haswell.h <<'FIXTURE'
+assert_rejects "kernel stamp under the flag outside the target" "breaks the guards of a capability" include/numkong/probe/haswell.h <<'FIXTURE'
 #if NUMKONG_ARCH_X8664_
 #if NUMKONG_ARCH_X8664_HASWELL_
 
@@ -3285,30 +3280,16 @@ nk_define_dot_(f32)
 #endif // NUMKONG_ARCH_X8664_
 FIXTURE
 
-assert_rejects "capability under another architecture" "breaks the guards of a leaf" include/numkong/probe/neonsdot.h <<'FIXTURE'
-#if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_NEONSDOT
-NUMKONG_API int nk_probe_neonsdot(int value) { return value; }
-#endif // NUMKONG_TARGET_NEONSDOT
-#endif // NUMKONG_ARCH_X8664_
-FIXTURE
-
-assert_rejects "extra platform condition in a capability header" "breaks the guards of a leaf" include/numkong/probe/hopper.cuh <<'FIXTURE'
+assert_rejects "GPU building block inside its target" "puts a GPU kernel outside" include/numkong/probe/ampere.cuh <<'FIXTURE'
 #if NUMKONG_ARCH_CUDA_
-#if NUMKONG_TARGET_HOPPER
-#if NUMKONG_TARGET_BLACKWELL
-NUMKONG_API int nk_probe_hopper(int value) { return value; }
-#endif // NUMKONG_TARGET_BLACKWELL
-#endif // NUMKONG_TARGET_HOPPER
-#endif // NUMKONG_ARCH_CUDA_
-FIXTURE
+#if NUMKONG_ARCH_CUDA_AMPERE_
 
-assert_rejects "guard closed without its name" "breaks the guards of a floor" include/numkong/probe/rocm.cuh <<'FIXTURE'
-#if NUMKONG_ARCH_ROCM_
-#if NUMKONG_TARGET_ROCM
-NUMKONG_API int nk_probe_rocm(int value) { return value; }
-#endif // NUMKONG_TARGET_CUDA
-#endif
+#if NUMKONG_TARGET_AMPERE
+NUMKONG_DEVICE int nk_probe_ampere_(int value) { return value; }
+#endif // NUMKONG_TARGET_AMPERE
+
+#endif // NUMKONG_ARCH_CUDA_AMPERE_
+#endif // NUMKONG_ARCH_CUDA_
 FIXTURE
 
 assert_accepts "compiler workaround on an architecture in serial.h" include/numkong/probe/serial.h <<'FIXTURE'
@@ -3320,12 +3301,6 @@ assert_accepts "compiler workaround on an architecture in serial.h" include/numk
 #if NUMKONG_TARGET_SERIAL
 NUMKONG_API int nk_probe_serial(int value) { return value; }
 #endif // NUMKONG_TARGET_SERIAL
-FIXTURE
-
-assert_rejects "bare architecture test in serial.h" "breaks the guards of a serial" include/numkong/probe/serial.h <<'FIXTURE'
-#if NUMKONG_ARCH_ARM64_
-static int nk_probe_arm64_(int value) { return value; }
-#endif
 FIXTURE
 
 assert_rejects "runtime service under a vendor target" "guards a declaration by the wrong family" c/numkong/probe.h <<'FIXTURE'
@@ -3350,7 +3325,7 @@ NUMKONG_API int nk_probe_f32_hopper(int value);
 #endif
 FIXTURE
 
-assert_rejects "target closure" "spells a NUMKONG_TARGET_<NAME>_ closure" include/numkong/probe.h <<'FIXTURE'
+assert_rejects "target closure" "spells a NUMKONG_TARGET_<NAME>_ name" include/numkong/probe.h <<'FIXTURE'
 #if NUMKONG_TARGET_HASWELL_
 static int probe(void) { return 1; }
 #endif
@@ -3503,6 +3478,323 @@ assert_accepts "CPython tuple packed by hand, and prose naming Py_BuildValue" py
 /* Built by hand rather than with Py_BuildValue("(nn)", ...). */
 static PyObject *probe(PyObject *type, PyObject *width) { return PyObject_CallFunctionObjArgs(type, width, NULL); }
 FIXTURE
+
+assert_rejects "bare architecture test in serial.h" "breaks the guards of a serial" include/numkong/probe/serial.h <<'FIXTURE'
+#if NUMKONG_ARCH_ARM64_
+static int nk_probe_arm64_(int value) { return value; }
+#endif
+FIXTURE
+
+# region Shared Guard Fixtures
+
+assert_accepts "GPU building blocks above the own target region" include/numkong/probe/ampere.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_ARCH_CUDA_AMPERE_
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+NUMKONG_DEVICE int nk_probe_ampere_(int value) { return value; }
+
+#if NUMKONG_TARGET_AMPERE
+static __global__ void __launch_bounds__(nk_probe_threads_ampere_k, 1) nk_probe_ampere_kernel_(int *value) {
+    *value = nk_probe_ampere_(*value);
+}
+#endif // NUMKONG_TARGET_AMPERE
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_CUDA_AMPERE_
+#endif // NUMKONG_ARCH_CUDA_
+FIXTURE
+
+assert_accepts "CPU building blocks inside the pragma, ahead of the target" include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((target("avx2"))), apply_to = function)
+#endif
+
+NUMKONG_INLINE int nk_probe_haswell_(int value) { return value; }
+
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_INLINE int nk_probe_twice_haswell_(int value) { return nk_probe_haswell_(value) * 2; }
+#endif // NUMKONG_TARGET_HASWELL
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_accepts "CPU kernels only, the pragma inside the target" include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#if NUMKONG_TARGET_HASWELL // Kernels only: an empty pragma region would fail under -Werror
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((target("avx2"))), apply_to = function)
+#endif
+
+NUMKONG_INLINE int nk_probe_haswell_(int value) { return value; }
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#endif
+#endif // NUMKONG_TARGET_HASWELL
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_rejects "CPU pragma pushed before extern C" "breaks the guards of a capability" include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((target("avx2"))), apply_to = function)
+#endif
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+NUMKONG_INLINE int nk_probe_haswell_(int value) { return value; }
+
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_INLINE int nk_probe_twice_haswell_(int value) { return nk_probe_haswell_(value) * 2; }
+#endif // NUMKONG_TARGET_HASWELL
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#endif
+
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_rejects "CPU kernels only under a pragma pushed outside the target" "breaks the guards of a capability" \
+    include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((target("avx2"))), apply_to = function)
+#endif
+
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_INLINE int nk_probe_haswell_(int value) { return value; }
+#endif // NUMKONG_TARGET_HASWELL
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_rejects "CPU extern C opened outside the guards" "breaks the guards of a capability" include/numkong/probe/haswell.h <<'FIXTURE'
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_INLINE int nk_probe_haswell_(int value) { return value; }
+#endif // NUMKONG_TARGET_HASWELL
+
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+FIXTURE
+
+assert_rejects "capability without its flag" "breaks the guards of a capability" include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#include "numkong/types.h"
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_rejects "kernel outside its target" "breaks the guards of a capability" include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+NUMKONG_API int nk_probe_haswell(int value) { return value; }
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_rejects "capability under its base's flag" "breaks the guards of a capability" include/numkong/probe/skylake.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+NUMKONG_INLINE int nk_probe_skylake_(int value) { return value; }
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_rejects "extra platform condition in a capability header" "breaks the guards of a gpu" include/numkong/probe/hopper.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_ARCH_CUDA_HOPPER_
+#if NUMKONG_TARGET_HOPPER
+#if NUMKONG_TARGET_BLACKWELL
+NUMKONG_INLINE int nk_probe_hopper_(int value) { return value; }
+#endif // NUMKONG_TARGET_BLACKWELL
+#endif // NUMKONG_TARGET_HOPPER
+#endif // NUMKONG_ARCH_CUDA_HOPPER_
+#endif // NUMKONG_ARCH_CUDA_
+FIXTURE
+
+assert_rejects "capability under another architecture" "breaks the guards of a capability" include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_ARM64_
+#if NUMKONG_ARCH_ARM64_HASWELL_
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_INLINE int nk_probe_haswell_(int value) { return value; }
+#endif // NUMKONG_TARGET_HASWELL
+#endif // NUMKONG_ARCH_ARM64_HASWELL_
+#endif // NUMKONG_ARCH_ARM64_
+FIXTURE
+
+assert_rejects "GPU kernel under an OR of targets" "breaks the guards of a gpu" include/numkong/probe/ampere.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_ARCH_CUDA_AMPERE_
+
+#if NUMKONG_TARGET_AMPERE || NUMKONG_TARGET_HOPPER
+static __global__ void __launch_bounds__(nk_probe_threads_ampere_k, 1) nk_probe_ampere_kernel_(int *value) {}
+#endif // NUMKONG_TARGET_AMPERE || NUMKONG_TARGET_HOPPER
+
+#endif // NUMKONG_ARCH_CUDA_AMPERE_
+#endif // NUMKONG_ARCH_CUDA_
+FIXTURE
+
+assert_rejects "GPU kernel under a foreign target" "breaks the guards of a gpu" include/numkong/probe/ampere.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_ARCH_CUDA_AMPERE_
+
+#if NUMKONG_TARGET_HOPPER
+static __global__ void __launch_bounds__(nk_probe_threads_ampere_k, 1) nk_probe_ampere_kernel_(int *value) {}
+#endif // NUMKONG_TARGET_HOPPER
+
+#endif // NUMKONG_ARCH_CUDA_AMPERE_
+#endif // NUMKONG_ARCH_CUDA_
+FIXTURE
+
+assert_rejects "GPU building block after the kernels" "breaks the guards of a gpu" include/numkong/probe/cdna3.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_ROCM_
+#if NUMKONG_ARCH_ROCM_CDNA3_
+
+#if NUMKONG_TARGET_CDNA3
+static __global__ void __launch_bounds__(nk_probe_threads_cdna3_k, 1) nk_probe_cdna3_kernel_(int *value) {}
+#endif // NUMKONG_TARGET_CDNA3
+
+NUMKONG_DEVICE int nk_probe_cdna3_(int value) { return value; }
+
+#endif // NUMKONG_ARCH_ROCM_CDNA3_
+#endif // NUMKONG_ARCH_ROCM_
+FIXTURE
+
+assert_rejects "guard closed without its name" "breaks the guards of a floor" include/numkong/probe/rocm.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_ROCM_
+#if NUMKONG_TARGET_ROCM
+static __global__ void __launch_bounds__(nk_probe_threads_rocm_k, 1) nk_probe_rocm_kernel_(int *value) {}
+#endif // NUMKONG_TARGET_CUDA
+#endif
+FIXTURE
+
+assert_rejects "portable header testing a target" "breaks the guards of a portable" include/numkong/probe/simt.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
+#if NUMKONG_TARGET_CUDA
+NUMKONG_INLINE int nk_probe_simt_(int value) { return value; }
+#endif // NUMKONG_TARGET_CUDA
+#endif // NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
+FIXTURE
+
+assert_rejects "shared kernel under the vendors alone" "defines a GPU kernel or table outside its own" \
+    include/numkong/probe/simt.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
+static __global__ void __launch_bounds__(nk_probe_threads_simt_k, 1) nk_probe_simt_kernel_(int *value) {}
+#endif // NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
+FIXTURE
+
+assert_rejects "vendor-wide kernel under an OR of targets" "defines a GPU kernel or table outside its own" \
+    include/numkong/cuda.cuh <<'FIXTURE'
+#if NUMKONG_TARGET_CUDA || NUMKONG_TARGET_AMPERE
+static __global__ void __launch_bounds__(nk_probe_threads_cuda_k, 1) nk_probe_cuda_kernel_(int *value) {}
+#endif // NUMKONG_TARGET_CUDA || NUMKONG_TARGET_AMPERE
+FIXTURE
+
+assert_rejects "vendor-wide table under two targets" "defines a GPU kernel or table outside its own" \
+    include/numkong/cuda.cuh <<'FIXTURE'
+#if NUMKONG_TARGET_CUDA
+#if NUMKONG_TARGET_AMPERE
+static __device__ int nk_probe_table_cuda_[4] = {1, 2, 3, 4};
+#endif // NUMKONG_TARGET_AMPERE
+#endif // NUMKONG_TARGET_CUDA
+FIXTURE
+
+assert_accepts "vendor-wide kernel and table under the own target" include/numkong/cuda.cuh <<'FIXTURE'
+#if NUMKONG_TARGET_CUDA
+static __device__ int nk_probe_table_cuda_[4] = {1, 2, 3, 4};
+static __global__ void __launch_bounds__(nk_probe_threads_cuda_k, 1) nk_probe_cuda_kernel_(int *value) {}
+#endif // NUMKONG_TARGET_CUDA
+FIXTURE
+
+assert_rejects "ARCH flag read from a target" "defines a NUMKONG_ARCH_ flag from a NUMKONG_TARGET_" c/numkong/types.h <<'FIXTURE'
+#define NUMKONG_ARCH_CUDA_AMPERE_ (NUMKONG_TARGET_AMPERE || NUMKONG_TARGET_HOPPER)
+FIXTURE
+
+assert_rejects "ARCH flag raised under a target" "defines a NUMKONG_ARCH_ flag from a NUMKONG_TARGET_" c/numkong/types.h <<'FIXTURE'
+#if NUMKONG_TARGET_SKYLAKE
+#undef NUMKONG_ARCH_X8664_HASWELL_
+#define NUMKONG_ARCH_X8664_HASWELL_ 1
+#endif
+FIXTURE
+
+assert_accepts "ARCH flag raised by the flags built on it" c/numkong/types.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_SKYLAKE_
+#undef NUMKONG_ARCH_X8664_HASWELL_
+#define NUMKONG_ARCH_X8664_HASWELL_ 1
+#endif
+FIXTURE
+
+# endregion Shared Guard Fixtures
 
 # endregion NumKong Fixtures
 
