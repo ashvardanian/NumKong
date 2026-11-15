@@ -21,10 +21,10 @@ extern "C" {
 #endif
 
 #if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("arch=armv8.2-a+simd"))), apply_to = function)
+#pragma clang attribute push(__attribute__((target("arch=armv8-a+simd"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
-#pragma GCC target("arch=armv8.2-a+simd")
+#pragma GCC target("arch=armv8-a+simd")
 #endif
 
 NUMKONG_INLINE float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {

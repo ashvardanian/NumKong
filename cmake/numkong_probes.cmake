@@ -176,7 +176,7 @@ if (numkong_arch_x8664_)
         MSVC_FLAGS /arch:AVX2
     )
 elseif (numkong_arch_arm64_)
-    numkong_add_cpu_capability(neon NUMKONG_TARGET_NEON GCC_FLAGS -march=armv8.2-a+simd)
+    numkong_add_cpu_capability(neon NUMKONG_TARGET_NEON GCC_FLAGS -march=armv8-a+simd)
     numkong_add_cpu_capability(
         neonhalf NUMKONG_TARGET_NEONHALF GCC_FLAGS -march=armv8.2-a+simd+fp16 MSVC_FLAGS /arch:armv8.2
     )
@@ -184,7 +184,7 @@ elseif (numkong_arch_arm64_)
         neonsdot NUMKONG_TARGET_NEONSDOT GCC_FLAGS -march=armv8.2-a+dotprod MSVC_FLAGS /arch:armv8.4
     )
     numkong_add_cpu_capability(
-        neonbfdot NUMKONG_TARGET_NEONBFDOT GCC_FLAGS -march=armv8.6-a+simd+bf16 MSVC_FLAGS /arch:armv8.6
+        neonbfdot NUMKONG_TARGET_NEONBFDOT GCC_FLAGS -march=armv8.2-a+simd+bf16 MSVC_FLAGS /arch:armv8.6
     )
     numkong_add_cpu_capability(
         neonfhm NUMKONG_TARGET_NEONFHM GCC_FLAGS -march=armv8.2-a+simd+fp16+fp16fml MSVC_FLAGS /arch:armv8.4

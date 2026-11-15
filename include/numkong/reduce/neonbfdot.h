@@ -22,10 +22,10 @@ extern "C" {
 #endif
 
 #if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("arch=armv8.6-a+simd+bf16"))), apply_to = function)
+#pragma clang attribute push(__attribute__((target("arch=armv8.2-a+simd+bf16"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
-#pragma GCC target("arch=armv8.6-a+simd+bf16")
+#pragma GCC target("arch=armv8.2-a+simd+bf16")
 #endif
 
 NUMKONG_INLINE void nk_reduce_moments_contiguous_bf16_neonbfdot_( //

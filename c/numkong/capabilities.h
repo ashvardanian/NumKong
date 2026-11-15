@@ -1260,7 +1260,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_x8664_(void) {
     unsigned supports_sapphireamx = supports_sapphire && supports_genoa && supports_avx512vbmi && supports_amx_os &&
                                     supports_amx_tile && supports_amx_bf16 && supports_amx_int8;
     unsigned supports_graniteamx = supports_sapphireamx && supports_amx_fp16;
-    unsigned supports_diamondamx = supports_sapphireamx && supports_amx_fp8 && supports_amx_avx512;
+    unsigned supports_diamondamx = supports_sapphireamx && supports_diamond && supports_amx_fp8 && supports_amx_avx512;
 
     return (nk_capability_t)((nk_cap_haswell_k * supports_haswell) | (nk_cap_skylake_k * supports_skylake) |
                              (nk_cap_icelake_k * supports_icelake) | (nk_cap_genoa_k * supports_genoa) |
@@ -1350,7 +1350,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
     // macOS exposes no sysctl for FP8 dot-products, so `neonfp8` stays unset here on purpose.
     return (nk_capability_t)((nk_cap_neon_k * (supports_neon)) |
                              (nk_cap_neonhalf_k * (supports_neon && supports_fp16)) |
-                             (nk_cap_neonfhm_k * (supports_neon && supports_fhm)) |
+                             (nk_cap_neonfhm_k * (supports_neon && supports_fp16 && supports_fhm)) |
                              (nk_cap_neonbfdot_k * (supports_neon && supports_bf16)) |
                              (nk_cap_neonsdot_k * (supports_neon && supports_dotprod)) |
                              (nk_cap_sme_k * (supports_sme)) | (nk_cap_smef64_k * (supports_smef64)) |
@@ -1384,7 +1384,6 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
 
     if (supports_sve)
         __asm__ __volatile__(".inst 0xD5380480\n\tmov %0, x0" : "=r"(id_aa64zfr0_el1) : : "x0"); // ID_AA64ZFR0_EL1
-    unsigned supports_svesdotmm = ((id_aa64zfr0_el1 >> 44) & 0xF) >= 1;
     unsigned supports_svebfdot = ((id_aa64zfr0_el1 >> 20) & 0xF) >= 1;
     unsigned supports_sve2 = ((id_aa64zfr0_el1) & 0xF) >= 1;
 
@@ -1405,21 +1404,22 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
         supports_smebi32 = (id_aa64smfr0_el1 >> 33) & 0x1;
     }
 
-    return (
-        nk_capability_t)((nk_cap_neon_k * (supports_neon)) | (nk_cap_neonhalf_k * (supports_neon && supports_fp16)) |
-                         (nk_cap_neonfhm_k * (supports_neon && supports_fhm)) |
-                         (nk_cap_neonbfdot_k * (supports_neon && supports_bf16)) |
-                         (nk_cap_neonsdot_k * (supports_neon && supports_integer_dot_products)) |
-                         (nk_cap_neonfp8_k * (supports_neon && supports_fp8dot4)) | //
-                         (nk_cap_sve_k * (supports_sve)) | (nk_cap_svehalf_k * (supports_sve && supports_fp16)) |
-                         (nk_cap_svebfdot_k * (supports_sve && supports_svebfdot)) |
-                         (nk_cap_svesdot_k * (supports_sve && supports_svesdotmm)) | (nk_cap_sve2_k * (supports_sve2)) |
-                         (nk_cap_sme_k * (supports_sme)) | (nk_cap_smef64_k * (supports_smef64)) |
-                         (nk_cap_smebi32_k * (supports_smebi32)) | (nk_cap_serial_k));
+    return (nk_capability_t)((nk_cap_neon_k * (supports_neon)) |
+                             (nk_cap_neonhalf_k * (supports_neon && supports_fp16)) |
+                             (nk_cap_neonfhm_k * (supports_neon && supports_fp16 && supports_fhm)) |
+                             (nk_cap_neonbfdot_k * (supports_neon && supports_bf16)) |
+                             (nk_cap_neonsdot_k * (supports_neon && supports_integer_dot_products)) |
+                             (nk_cap_neonfp8_k * (supports_neon && supports_fp8dot4)) | //
+                             (nk_cap_sve_k * (supports_sve)) | (nk_cap_svehalf_k * (supports_sve && supports_fp16)) |
+                             (nk_cap_svebfdot_k * (supports_sve && supports_svebfdot)) |
+                             (nk_cap_svesdot_k * (supports_sve && supports_integer_dot_products)) |
+                             (nk_cap_sve2_k * (supports_sve2)) | (nk_cap_sme_k * (supports_sme)) |
+                             (nk_cap_smef64_k * (supports_smef64)) | (nk_cap_smebi32_k * (supports_smebi32)) |
+                             (nk_cap_serial_k));
 #elif NUMKONG_OS_WINDOWS_
 
     unsigned supports_neon = 0, supports_dp = 0, supports_fp16 = 0, supports_bf16 = 0;
-    unsigned supports_sve = 0, supports_sve2 = 0, supports_svebfdot = 0, supports_svei8mm = 0;
+    unsigned supports_sve = 0, supports_sve2 = 0, supports_svebfdot = 0;
     unsigned supports_sme = 0, supports_smef64 = 0;
 
 #if defined(PF_ARM_V8_INSTRUCTIONS_AVAILABLE)
@@ -1443,9 +1443,6 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
 #if defined(PF_ARM_SVE_BF16_INSTRUCTIONS_AVAILABLE)
     supports_svebfdot = IsProcessorFeaturePresent(PF_ARM_SVE_BF16_INSTRUCTIONS_AVAILABLE);
 #endif
-#if defined(PF_ARM_SVE_I8MM_INSTRUCTIONS_AVAILABLE)
-    supports_svei8mm = IsProcessorFeaturePresent(PF_ARM_SVE_I8MM_INSTRUCTIONS_AVAILABLE);
-#endif
 #if defined(PF_ARM_SME_INSTRUCTIONS_AVAILABLE)
     supports_sme = IsProcessorFeaturePresent(PF_ARM_SME_INSTRUCTIONS_AVAILABLE);
 #endif
@@ -1460,7 +1457,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
                              (nk_cap_neonsdot_k * (supports_neon && supports_dp)) | (nk_cap_sve_k * supports_sve) |
                              (nk_cap_svehalf_k * (supports_sve && supports_fp16)) |
                              (nk_cap_svebfdot_k * (supports_sve && supports_svebfdot)) |
-                             (nk_cap_svesdot_k * (supports_sve && supports_svei8mm)) |
+                             (nk_cap_svesdot_k * (supports_sve && supports_dp)) |
                              (nk_cap_sve2_k * (supports_sve && supports_sve2)) | (nk_cap_sme_k * supports_sme) |
                              (nk_cap_smef64_k * (supports_sme && supports_smef64)) | nk_cap_serial_k);
 
@@ -1757,7 +1754,8 @@ NUMKONG_INLINE nk_size_t nk_count_devices_metal_(void) {
 #endif
 }
 
-/** The capabilities Metal device @p ordinal runs, in the order the system lists them. */
+/** The capabilities Metal device @p ordinal runs, in the order the system lists them. The baseline
+ *  needs Apple7, the oldest family the build embeds. */
 NUMKONG_INLINE nk_status_t nk_capabilities_detected_metal_(nk_size_t ordinal, nk_capability_t *capabilities) {
     *capabilities = 0;
     if (ordinal >= nk_count_devices_metal_()) return nk_missing_gpu_k;
@@ -1765,8 +1763,10 @@ NUMKONG_INLINE nk_status_t nk_capabilities_detected_metal_(nk_size_t ordinal, nk
     void *const metal_device = nk_device_metal_(ordinal);
     if (!metal_device) return nk_device_code_mismatch_k;
     SEL const supports = sel_registerName("supportsFamily:");
-    nk_size_t const apple9 = 1009, apple10 = 1010; // `MTLGPUFamilyApple9` and `MTLGPUFamilyApple10`
-    nk_capability_t detected = nk_cap_metal_k;
+    nk_size_t const apple7 = 1007, apple9 = 1009, apple10 = 1010; // `MTLGPUFamilyApple7`, `9` and `10`
+    nk_capability_t detected = 0;
+    if (((signed char (*)(void *, SEL, nk_size_t))objc_msgSend)(metal_device, supports, apple7))
+        detected |= nk_cap_metal_k;
     if (((signed char (*)(void *, SEL, nk_size_t))objc_msgSend)(metal_device, supports, apple9))
         detected |= nk_cap_apple9_k;
     if (((signed char (*)(void *, SEL, nk_size_t))objc_msgSend)(metal_device, supports, apple10))
