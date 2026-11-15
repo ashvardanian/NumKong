@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the NEON kernels, the AArch64 baseline SIMD extension.
  */
-#define NUMKONG_HEADER_ONLY 1
-#define NUMKONG_TARGET_NEON 1
+#define NUMKONG_HEADER_ONLY      1
+#define NUMKONG_ARCH_ARM64_NEON_ 1
 #include "numkong/types.h"
 #include "numkong/each/neon.h"
 #include "numkong/dot/neon.h" // `nk_dot_f32_neon`

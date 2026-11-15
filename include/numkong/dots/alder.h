@@ -13,7 +13,7 @@
 #define NUMKONG_DOTS_ALDER_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_ALDER
+#if NUMKONG_ARCH_X8664_ALDER_
 
 #include "numkong/dot/alder.h"      // Alder-specific dot product helpers
 #include "numkong/dot/haswell.h"    // Haswell partial load functions
@@ -106,6 +106,7 @@ NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_alder_(nk_e2m1x2_t const *data
 
 #pragma endregion Norms
 
+#if NUMKONG_TARGET_ALDER
 /* I8 GEMM: depth_simd_dimensions=32 — compensated (B sums precomputed in pack) */
 nk_define_cross_packed_shape_(dots, i8, alder)
 nk_define_cross_compensated_pack_size_(dots, i8, alder, i8, i8,
@@ -209,6 +210,8 @@ nk_define_cross_packed_(dots, e2m1, alder, e2m1x2, e2m1x2, f32, nk_b256_vec_t, n
                         nk_dot_e2m1x64_finalize_alder, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
 
+#endif // NUMKONG_TARGET_ALDER
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -219,6 +222,6 @@ nk_define_cross_packed_(dots, e2m1, alder, e2m1x2, e2m1x2, f32, nk_b256_vec_t, n
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_ALDER
+#endif // NUMKONG_ARCH_X8664_ALDER_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_ALDER_H

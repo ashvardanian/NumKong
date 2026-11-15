@@ -73,148 +73,6 @@ NUMKONG_INLINE void nk_dot2_f64x2_v128_(v128_t *sum_f64x2, v128_t *compensation_
     *compensation_f64x2 = wasm_f64x2_add(*compensation_f64x2, wasm_f64x2_add(sum_error_f64x2, product_error_f64x2));
 }
 
-#if NUMKONG_TARGET_V128
-NUMKONG_API nk_status_t nk_dot_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                         nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
-    v128_t mask_high_u32x4 = wasm_i32x4_splat((int)0xFFFF0000);
-    nk_bf16_t const *a_scalars = a, *b_scalars = b;
-    nk_size_t count_scalars = n;
-    nk_b128_vec_t a_bf16_vec, b_bf16_vec;
-
-nk_dot_bf16_v128_cycle:
-    if (count_scalars < 8) {
-        nk_partial_load_b16x8_serial_(a_scalars, &a_bf16_vec, count_scalars);
-        nk_partial_load_b16x8_serial_(b_scalars, &b_bf16_vec, count_scalars);
-        count_scalars = 0;
-    }
-    else {
-        nk_load_b128_v128_(a_scalars, &a_bf16_vec);
-        nk_load_b128_v128_(b_scalars, &b_bf16_vec);
-        a_scalars += 8, b_scalars += 8, count_scalars -= 8;
-    }
-    v128_t a_even_f32x4 = wasm_i32x4_shl(a_bf16_vec.v128, 16); // even bf16 lanes into the f32 high half
-    v128_t b_even_f32x4 = wasm_i32x4_shl(b_bf16_vec.v128, 16);
-    sum_f32x4 = wasm_f32x4_add(sum_f32x4, wasm_f32x4_mul(a_even_f32x4, b_even_f32x4));
-    v128_t a_odd_f32x4 = wasm_v128_and(a_bf16_vec.v128, mask_high_u32x4); // odd lanes already sit there
-    v128_t b_odd_f32x4 = wasm_v128_and(b_bf16_vec.v128, mask_high_u32x4);
-    sum_f32x4 = wasm_f32x4_add(sum_f32x4, wasm_f32x4_mul(a_odd_f32x4, b_odd_f32x4));
-    if (count_scalars) goto nk_dot_bf16_v128_cycle;
-
-    *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dot_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result,
-                                       nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_i64_t sum_total = 0;
-    nk_size_t i = 0;
-
-    // Windowed accumulation loop
-    while (i + 16 <= n) {
-        v128_t sum_i32x4 = wasm_i32x4_splat(0);
-
-        nk_size_t cycle = 0;
-        // Two pairwise dots add at most 65536 per lane, so 32767 iterations fit i32
-        for (; cycle < 32767 && i + 16 <= n; ++cycle, i += 16) {
-            v128_t a_i8x16 = wasm_v128_load(a + i);
-            v128_t b_i8x16 = wasm_v128_load(b + i);
-
-            v128_t a_low_i16x8 = wasm_i16x8_extend_low_i8x16(a_i8x16);
-            v128_t a_high_i16x8 = wasm_i16x8_extend_high_i8x16(a_i8x16);
-            v128_t b_low_i16x8 = wasm_i16x8_extend_low_i8x16(b_i8x16);
-            v128_t b_high_i16x8 = wasm_i16x8_extend_high_i8x16(b_i8x16);
-            sum_i32x4 = wasm_i32x4_add(sum_i32x4, wasm_i32x4_dot_i16x8(a_low_i16x8, b_low_i16x8));
-            sum_i32x4 = wasm_i32x4_add(sum_i32x4, wasm_i32x4_dot_i16x8(a_high_i16x8, b_high_i16x8));
-        }
-
-        // Reduce window to scalar
-        sum_total += nk_reduce_add_i32x4_to_i64_v128_(sum_i32x4);
-    }
-
-    // Handle tail elements
-    for (; i < n; i++) { sum_total += (nk_i32_t)a[i] * (nk_i32_t)b[i]; }
-
-    *result = (nk_i32_t)sum_total;
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dot_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                       nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_u64_t sum_total = 0;
-    nk_size_t i = 0;
-
-    // Windowed accumulation loop
-    while (i + 16 <= n) {
-        v128_t sum_u32x4 = wasm_i32x4_splat(0);
-
-        nk_size_t cycle = 0;
-        // u8 widened to u16 fits the signed pairwise dot, which adds at most 4 × 255² per lane, so 8191
-        // iterations stay below 2³¹
-        for (; cycle < 8191 && i + 16 <= n; ++cycle, i += 16) {
-            v128_t a_u8x16 = wasm_v128_load(a + i);
-            v128_t b_u8x16 = wasm_v128_load(b + i);
-            v128_t a_low_u16x8 = wasm_u16x8_extend_low_u8x16(a_u8x16);
-            v128_t a_high_u16x8 = wasm_u16x8_extend_high_u8x16(a_u8x16);
-            v128_t b_low_u16x8 = wasm_u16x8_extend_low_u8x16(b_u8x16);
-            v128_t b_high_u16x8 = wasm_u16x8_extend_high_u8x16(b_u8x16);
-            sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_dot_i16x8(a_low_u16x8, b_low_u16x8));
-            sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_dot_i16x8(a_high_u16x8, b_high_u16x8));
-        }
-
-        // Reduce window to scalar
-        sum_total += nk_reduce_add_u32x4_to_u64_v128_(sum_u32x4);
-    }
-
-    // Handle tail elements
-    for (; i < n; i++) { sum_total += (nk_u32_t)a[i] * (nk_u32_t)b[i]; }
-
-    *result = (nk_u32_t)sum_total;
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dot_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
-                                       nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_u8_t const *a_bytes = (nk_u8_t const *)a;
-    nk_u8_t const *b_bytes = (nk_u8_t const *)b;
-    nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
-
-    nk_u32_t dot = 0;
-    nk_size_t i = 0;
-
-    // Windowed accumulation loop
-    while (i + 16 <= n_bytes) {
-        v128_t popcount_u8x16 = wasm_i8x16_splat(0);
-
-        nk_size_t cycle = 0;
-        // Accumulate 31 iterations in u8 before widening: 31 × 8 = 248 < 255
-        for (; cycle < 31 && i + 16 <= n_bytes; ++cycle, i += 16) {
-            v128_t a_u8x16 = wasm_v128_load(a_bytes + i);
-            v128_t b_u8x16 = wasm_v128_load(b_bytes + i);
-            v128_t and_u8x16 = wasm_v128_and(a_u8x16, b_u8x16);
-            v128_t popcnt_u8x16 = wasm_i8x16_popcnt(and_u8x16);
-            popcount_u8x16 = wasm_i8x16_add(popcount_u8x16, popcnt_u8x16);
-        }
-
-        // Widen once per window: u8 → u16 → u32
-        dot += nk_reduce_add_u8x16_v128_(popcount_u8x16);
-    }
-
-    // Handle tail bytes
-    for (; i < n_bytes; i++) {
-        nk_u8_t and_byte = a_bytes[i] & b_bytes[i];
-        dot += nk_u1x8_popcount_(and_byte);
-    }
-
-    *result = dot;
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_V128
-
 NUMKONG_INLINE void nk_load_e5m2x4_to_f32x4_v128_(void const *src, nk_b128_vec_t *dst) {
     nk_b32_vec_t raw;
     raw.u32 = (nk_u32_t)wasm_i32x4_extract_lane(wasm_v128_load32_zero(src), 0);
@@ -394,6 +252,148 @@ NUMKONG_INLINE void nk_dot_u1x128_finalize_v128(                                
     v128_t odd_u32x4 = wasm_i32x4_shuffle(sum_02_u32x4, sum_13_u32x4, 2, 3, 6, 7);
     result->v128 = wasm_i32x4_add(even_u32x4, odd_u32x4); // [sum_a, sum_b, sum_c, sum_d]
 }
+
+#if NUMKONG_TARGET_V128
+NUMKONG_API nk_status_t nk_dot_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                         nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    v128_t sum_f32x4 = wasm_f32x4_splat(0.0f);
+    v128_t mask_high_u32x4 = wasm_i32x4_splat((int)0xFFFF0000);
+    nk_bf16_t const *a_scalars = a, *b_scalars = b;
+    nk_size_t count_scalars = n;
+    nk_b128_vec_t a_bf16_vec, b_bf16_vec;
+
+nk_dot_bf16_v128_cycle:
+    if (count_scalars < 8) {
+        nk_partial_load_b16x8_serial_(a_scalars, &a_bf16_vec, count_scalars);
+        nk_partial_load_b16x8_serial_(b_scalars, &b_bf16_vec, count_scalars);
+        count_scalars = 0;
+    }
+    else {
+        nk_load_b128_v128_(a_scalars, &a_bf16_vec);
+        nk_load_b128_v128_(b_scalars, &b_bf16_vec);
+        a_scalars += 8, b_scalars += 8, count_scalars -= 8;
+    }
+    v128_t a_even_f32x4 = wasm_i32x4_shl(a_bf16_vec.v128, 16); // even bf16 lanes into the f32 high half
+    v128_t b_even_f32x4 = wasm_i32x4_shl(b_bf16_vec.v128, 16);
+    sum_f32x4 = wasm_f32x4_add(sum_f32x4, wasm_f32x4_mul(a_even_f32x4, b_even_f32x4));
+    v128_t a_odd_f32x4 = wasm_v128_and(a_bf16_vec.v128, mask_high_u32x4); // odd lanes already sit there
+    v128_t b_odd_f32x4 = wasm_v128_and(b_bf16_vec.v128, mask_high_u32x4);
+    sum_f32x4 = wasm_f32x4_add(sum_f32x4, wasm_f32x4_mul(a_odd_f32x4, b_odd_f32x4));
+    if (count_scalars) goto nk_dot_bf16_v128_cycle;
+
+    *result = nk_reduce_add_f32x4_v128_(sum_f32x4);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dot_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i32_t *result,
+                                       nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_i64_t sum_total = 0;
+    nk_size_t i = 0;
+
+    // Windowed accumulation loop
+    while (i + 16 <= n) {
+        v128_t sum_i32x4 = wasm_i32x4_splat(0);
+
+        nk_size_t cycle = 0;
+        // Two pairwise dots add at most 65536 per lane, so 32767 iterations fit i32
+        for (; cycle < 32767 && i + 16 <= n; ++cycle, i += 16) {
+            v128_t a_i8x16 = wasm_v128_load(a + i);
+            v128_t b_i8x16 = wasm_v128_load(b + i);
+
+            v128_t a_low_i16x8 = wasm_i16x8_extend_low_i8x16(a_i8x16);
+            v128_t a_high_i16x8 = wasm_i16x8_extend_high_i8x16(a_i8x16);
+            v128_t b_low_i16x8 = wasm_i16x8_extend_low_i8x16(b_i8x16);
+            v128_t b_high_i16x8 = wasm_i16x8_extend_high_i8x16(b_i8x16);
+            sum_i32x4 = wasm_i32x4_add(sum_i32x4, wasm_i32x4_dot_i16x8(a_low_i16x8, b_low_i16x8));
+            sum_i32x4 = wasm_i32x4_add(sum_i32x4, wasm_i32x4_dot_i16x8(a_high_i16x8, b_high_i16x8));
+        }
+
+        // Reduce window to scalar
+        sum_total += nk_reduce_add_i32x4_to_i64_v128_(sum_i32x4);
+    }
+
+    // Handle tail elements
+    for (; i < n; i++) { sum_total += (nk_i32_t)a[i] * (nk_i32_t)b[i]; }
+
+    *result = (nk_i32_t)sum_total;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dot_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                       nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_u64_t sum_total = 0;
+    nk_size_t i = 0;
+
+    // Windowed accumulation loop
+    while (i + 16 <= n) {
+        v128_t sum_u32x4 = wasm_i32x4_splat(0);
+
+        nk_size_t cycle = 0;
+        // u8 widened to u16 fits the signed pairwise dot, which adds at most 4 × 255² per lane,
+        // so 8191 iterations stay below 2³¹
+        for (; cycle < 8191 && i + 16 <= n; ++cycle, i += 16) {
+            v128_t a_u8x16 = wasm_v128_load(a + i);
+            v128_t b_u8x16 = wasm_v128_load(b + i);
+            v128_t a_low_u16x8 = wasm_u16x8_extend_low_u8x16(a_u8x16);
+            v128_t a_high_u16x8 = wasm_u16x8_extend_high_u8x16(a_u8x16);
+            v128_t b_low_u16x8 = wasm_u16x8_extend_low_u8x16(b_u8x16);
+            v128_t b_high_u16x8 = wasm_u16x8_extend_high_u8x16(b_u8x16);
+            sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_dot_i16x8(a_low_u16x8, b_low_u16x8));
+            sum_u32x4 = wasm_i32x4_add(sum_u32x4, wasm_i32x4_dot_i16x8(a_high_u16x8, b_high_u16x8));
+        }
+
+        // Reduce window to scalar
+        sum_total += nk_reduce_add_u32x4_to_u64_v128_(sum_u32x4);
+    }
+
+    // Handle tail elements
+    for (; i < n; i++) { sum_total += (nk_u32_t)a[i] * (nk_u32_t)b[i]; }
+
+    *result = (nk_u32_t)sum_total;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dot_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n_bits, nk_u32_t *result,
+                                       nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_u8_t const *a_bytes = (nk_u8_t const *)a;
+    nk_u8_t const *b_bytes = (nk_u8_t const *)b;
+    nk_size_t n_bytes = n_bits / NUMKONG_BITS_PER_BYTE;
+
+    nk_u32_t dot = 0;
+    nk_size_t i = 0;
+
+    // Windowed accumulation loop
+    while (i + 16 <= n_bytes) {
+        v128_t popcount_u8x16 = wasm_i8x16_splat(0);
+
+        nk_size_t cycle = 0;
+        // Accumulate 31 iterations in u8 before widening: 31 × 8 = 248 < 255
+        for (; cycle < 31 && i + 16 <= n_bytes; ++cycle, i += 16) {
+            v128_t a_u8x16 = wasm_v128_load(a_bytes + i);
+            v128_t b_u8x16 = wasm_v128_load(b_bytes + i);
+            v128_t and_u8x16 = wasm_v128_and(a_u8x16, b_u8x16);
+            v128_t popcnt_u8x16 = wasm_i8x16_popcnt(and_u8x16);
+            popcount_u8x16 = wasm_i8x16_add(popcount_u8x16, popcnt_u8x16);
+        }
+
+        // Widen once per window: u8 → u16 → u32
+        dot += nk_reduce_add_u8x16_v128_(popcount_u8x16);
+    }
+
+    // Handle tail bytes
+    for (; i < n_bytes; i++) {
+        nk_u8_t and_byte = a_bytes[i] & b_bytes[i];
+        dot += nk_u1x8_popcount_(and_byte);
+    }
+
+    *result = dot;
+    return nk_success_k;
+}
+#endif // NUMKONG_TARGET_V128
 
 #if defined(__clang__)
 #pragma clang attribute pop

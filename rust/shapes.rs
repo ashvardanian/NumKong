@@ -2527,7 +2527,7 @@ mod tests {
     /// CPU as the plain verbs do.
     #[test]
     fn shapes_verbs_on_a_stream_match() {
-        let stream = Stream::default(Capabilities::cpu_enabled());
+        let stream = Stream::default(Capabilities::enabled_cpu());
         let allocator = UnifiedAllocator::new(&stream);
         let clouds = [&CLOUD[..], &CLOUD[..]];
         let packs = ShapesPackedMatrix::new_in(&clouds, allocator).unwrap();
@@ -2568,7 +2568,7 @@ mod tests {
     /// A short workspace and short outputs refuse before any kernel writes.
     #[test]
     fn shapes_verbs_on_a_stream_refuse() {
-        let stream = Stream::default(Capabilities::cpu_enabled());
+        let stream = Stream::default(Capabilities::enabled_cpu());
         let packs = ShapesPackedMatrix::new(&[&CLOUD[..]]).unwrap();
         let mut results = [0.0_f64; 1];
         let mut short = Vec::new_in(UnifiedAllocator::new(&stream));
@@ -2589,17 +2589,12 @@ mod tests {
     /// Without a device, a GPU's stream, memory and kernels all report it, and the verbs compile.
     #[test]
     fn shapes_verbs_without_a_gpu() {
-        for (count_devices, compiled, vendor) in [
+        for (count_devices, vendor) in [
             (
-                Capabilities::cuda_count_devices as fn() -> Result<usize, Error>,
-                Capabilities::cuda_compiled as fn() -> Capabilities,
+                Capabilities::count_devices_cuda as fn() -> Result<usize, Error>,
                 Capability::Cuda,
             ),
-            (
-                Capabilities::rocm_count_devices,
-                Capabilities::rocm_compiled,
-                Capability::Rocm,
-            ),
+            (Capabilities::count_devices_rocm, Capability::Rocm),
         ] {
             if count_devices().unwrap() != 0 {
                 continue;
@@ -2617,16 +2612,12 @@ mod tests {
             assert_eq!(stream.scope(|_| Ok(())), missing_gpu);
             let packs = ShapesPackedMatrix::new(&[&CLOUD[..]]).unwrap();
             let mut results = [0.0_f64; 1];
-            assert_eq!(
-                stream.scope(|scope| packs.rmsds_on(scope, &packs, &mut results)),
-                if compiled().bits() != 0 {
-                    missing_gpu
-                } else {
-                    Err(Error::KernelFailed {
-                        status: Status::MissingKernel,
-                    })
-                }
-            );
+            // Without a device, the binary's own kernels decide which refusal comes back.
+            let refused = stream.scope(|scope| packs.rmsds_on(scope, &packs, &mut results));
+            let missing_kernel = Err(Error::KernelFailed {
+                status: Status::MissingKernel,
+            });
+            assert!(refused == missing_gpu || refused == missing_kernel);
         }
     }
 

@@ -213,7 +213,7 @@ NUMKONG_INLINE nk_status_t nk_capabilities_detected_rocm_(nk_size_t ordinal, nk_
     if (hipGetDeviceProperties(&properties, (int)ordinal) != hipSuccess) return nk_device_code_mismatch_k;
     char const *const name = properties.gcnArchName;
     nk_capability_t detected = nk_cap_rocm_k;
-    if (strncmp(name, "gfx942", 6) == 0) detected |= nk_cap_cdna3_k;
+    if (strncmp(name, "gfx942", 6) == 0 || strncmp(name, "gfx950", 6) == 0) detected |= nk_cap_cdna3_k;
     if (strncmp(name, "gfx950", 6) == 0) detected |= nk_cap_cdna4_k;
     if (strncmp(name, "gfx1250", 7) == 0 || strncmp(name, "gfx1251", 7) == 0) detected |= nk_cap_cdna5_k;
     *capabilities = detected;
@@ -367,11 +367,11 @@ NUMKONG_API nk_status_t nk_allocator_init_pinned_rocm(nk_allocator_t *allocator)
     return nk_allocator_init_pinned_rocm_(allocator);
 }
 
-NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
+NUMKONG_API nk_status_t nk_count_devices_rocm(nk_size_t *count) {
     *count = nk_count_devices_rocm_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_capabilities_detected_rocm(nk_size_t ordinal, nk_capability_t *capabilities) {
     return nk_capabilities_detected_rocm_(ordinal, capabilities);
 }
 NUMKONG_API nk_status_t nk_stream_init_rocm(nk_size_t ordinal, nk_stream_t *stream) {

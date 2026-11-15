@@ -20,7 +20,7 @@
 #define NUMKONG_ATTENTION_NEONFHM_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONFHM
+#if NUMKONG_ARCH_ARM64_NEONFHM_
 
 #include <arm_neon.h>
 
@@ -112,6 +112,7 @@ NUMKONG_INLINE void nk_attention_weighted_sum_f16_neonfhm_(nk_f32_t *output_row,
     }
 }
 
+#if NUMKONG_TARGET_NEONFHM
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_neonfhm(nk_size_t key_value_head_count, nk_size_t depth,
                                                             nk_size_t token_count, nk_size_t segment_count,
                                                             nk_size_t *bytes) {
@@ -588,16 +589,6 @@ NUMKONG_API nk_status_t nk_attention_packed_nvfp4_neonfhm(
     return nk_success_k;
 }
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 NUMKONG_API nk_status_t nk_attention_packed_workspace_size_f16_neonfhm(nk_size_t head_count,
                                                                        nk_size_t key_value_head_count, nk_size_t depth,
                                                                        nk_size_t query_token_count,
@@ -632,6 +623,18 @@ NUMKONG_API nk_status_t nk_attention_packed_workspace_size_nvfp4_neonfhm(nk_size
 }
 
 #endif // NUMKONG_TARGET_NEONFHM
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_ARM64_NEONFHM_
 #endif // NUMKONG_ARCH_ARM64_
 
 #endif // NUMKONG_ATTENTION_NEONFHM_H

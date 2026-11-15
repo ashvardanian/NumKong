@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the SVE2 kernels.
  */
-#define NUMKONG_HEADER_ONLY 1
-#define NUMKONG_TARGET_SVE2 1
+#define NUMKONG_HEADER_ONLY      1
+#define NUMKONG_ARCH_ARM64_SVE2_ 1
 #include <numkong/types.h>
 #include <numkong/sparse/sve2.h> // `nk_sparse_intersect_u32_sve2`
 

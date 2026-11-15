@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the Sapphire Rapids AMX kernels, AMX-TILE plus AMX-INT8.
  */
-#define NUMKONG_HEADER_ONLY        1
-#define NUMKONG_TARGET_SAPPHIREAMX 1
+#define NUMKONG_HEADER_ONLY             1
+#define NUMKONG_ARCH_X8664_SAPPHIREAMX_ 1
 #include "numkong/types.h"
 #include "numkong/capabilities.h"     // `syscall`, `SYS_arch_prctl`
 #include "numkong/dots/sapphireamx.h" // `nk_dots_symmetric_i8_sapphireamx`
@@ -13,7 +13,7 @@
 
 int main(void) {
 #if NUMKONG_OS_LINUX_
-    syscall(SYS_arch_prctl, 0x1023, 18); // ARCH_REQ_XCOMP_PERM for XTILEDATA, as `nk_cpu_configure_thread` asks
+    syscall(SYS_arch_prctl, 0x1023, 18); // ARCH_REQ_XCOMP_PERM for XTILEDATA, as `nk_configure_thread_cpu` asks
 #endif
     nk_i8_t vectors[16 * 64];
     nk_i32_t gram[16 * 16];

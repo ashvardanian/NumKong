@@ -21,6 +21,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SKYLAKE // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512dq,f16c,fma,bmi,bmi2"))), \
                              apply_to = function)
@@ -29,7 +30,6 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-#if NUMKONG_TARGET_SKYLAKE
 nk_define_cross_normalized_packed_(angular, f64, skylake, f64, f64, f64, /*norm_value_type=*/f64, f64, nk_b256_vec_t,
                                    nk_dots_packed_f64_skylake, nk_angular_f64x4_from_dot_skylake_,
                                    nk_dots_reduce_sumsq_f64_skylake_, nk_load_b256_haswell_,
@@ -359,13 +359,13 @@ nk_define_cross_normalized_symmetric_(euclidean, e3m2, skylake, e3m2, f32, /*nor
                                       nk_dots_reduce_sumsq_e3m2_skylake_, nk_load_b128_haswell_,
                                       nk_partial_load_b32x4_skylake_, nk_store_b128_haswell_,
                                       nk_partial_store_b32x4_skylake_, 1)
-#endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__cplusplus)
 } // extern "C"

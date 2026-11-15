@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the NEON FP8 kernels, the @c fp8dot4 instruction.
  */
-#define NUMKONG_HEADER_ONLY    1
-#define NUMKONG_TARGET_NEONFP8 1
+#define NUMKONG_HEADER_ONLY         1
+#define NUMKONG_ARCH_ARM64_NEONFP8_ 1
 #include <numkong/types.h>
 #include <numkong/dot/neonfp8.h> // `nk_dot_e4m3_neonfp8`
 

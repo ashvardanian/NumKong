@@ -382,9 +382,9 @@ public struct Device: Sendable, Equatable {
         var count: nk_size_t = 1
         switch kind {
         case .cpu: break
-        case .cuda: try _nkCheck(nk_cuda_count_devices(&count))
-        case .rocm: try _nkCheck(nk_rocm_count_devices(&count))
-        case .metal: try _nkCheck(nk_metal_count_devices(&count))
+        case .cuda: try _nkCheck(nk_count_devices_cuda(&count))
+        case .rocm: try _nkCheck(nk_count_devices_rocm(&count))
+        case .metal: try _nkCheck(nk_count_devices_metal(&count))
         }
         return Int(count)
     }
@@ -395,23 +395,25 @@ public struct Device: Sendable, Equatable {
             var mask: nk_capability_t = 0
             let device = nk_size_t(ordinal)
             switch kind {
-            case .cpu: try _nkCheck(nk_cpu_capabilities_detected(&mask))
-            case .cuda: try _nkCheck(nk_cuda_capabilities_detected(device, &mask))
-            case .rocm: try _nkCheck(nk_rocm_capabilities_detected(device, &mask))
-            case .metal: try _nkCheck(nk_metal_capabilities_detected(device, &mask))
+            case .cpu: try _nkCheck(nk_capabilities_detected_cpu(&mask))
+            case .cuda: try _nkCheck(nk_capabilities_detected_cuda(device, &mask))
+            case .rocm: try _nkCheck(nk_capabilities_detected_rocm(device, &mask))
+            case .metal: try _nkCheck(nk_capabilities_detected_metal(device, &mask))
             }
             return Capabilities(rawValue: UInt64(mask))
         }
     }
 
-    /// What this binary holds kernels for on devices of this kind, whether or not this one runs.
+    /// What this binary holds kernels for, on a GPU only the code this one runs, whether or not it
+    /// offers them; empty past the last device.
     public var capabilitiesCompiled: Capabilities {
         var mask: nk_capability_t = 0
+        let device = nk_size_t(ordinal)
         switch kind {
-        case .cpu: _ = nk_cpu_capabilities_compiled(&mask)
-        case .cuda: _ = nk_cuda_capabilities_compiled(&mask)
-        case .rocm: _ = nk_rocm_capabilities_compiled(&mask)
-        case .metal: _ = nk_metal_capabilities_compiled(&mask)
+        case .cpu: _ = nk_capabilities_compiled_cpu(&mask)
+        case .cuda: _ = nk_capabilities_compiled_cuda(device, &mask)
+        case .rocm: _ = nk_capabilities_compiled_rocm(device, &mask)
+        case .metal: _ = nk_capabilities_compiled_metal(device, &mask)
         }
         return Capabilities(rawValue: UInt64(mask))
     }
@@ -424,10 +426,10 @@ public struct Device: Sendable, Equatable {
             var mask: nk_capability_t = 0
             let device = nk_size_t(ordinal)
             switch kind {
-            case .cpu: try _nkCheck(nk_cpu_capabilities_enabled(&mask))
-            case .cuda: try _nkCheck(nk_cuda_capabilities_enabled(device, &mask))
-            case .rocm: try _nkCheck(nk_rocm_capabilities_enabled(device, &mask))
-            case .metal: try _nkCheck(nk_metal_capabilities_enabled(device, &mask))
+            case .cpu: try _nkCheck(nk_capabilities_enabled_cpu(&mask))
+            case .cuda: try _nkCheck(nk_capabilities_enabled_cuda(device, &mask))
+            case .rocm: try _nkCheck(nk_capabilities_enabled_rocm(device, &mask))
+            case .metal: try _nkCheck(nk_capabilities_enabled_metal(device, &mask))
             }
             return Capabilities(rawValue: UInt64(mask))
         }
@@ -438,7 +440,7 @@ public struct Device: Sendable, Equatable {
     /// - Throws: ``Error`` on a GPU, which has no thread state to configure.
     public func configureThread(_ capabilities: Capabilities) throws {
         guard kind == .cpu else { throw fail(.missingKernel, "GPUs have no thread state to configure") }
-        try _nkCheck(nk_cpu_configure_thread(capabilities.native))
+        try _nkCheck(nk_configure_thread_cpu(capabilities.native))
     }
 
 }

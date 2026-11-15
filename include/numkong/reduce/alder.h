@@ -15,7 +15,7 @@
 #define NUMKONG_REDUCE_ALDER_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_ALDER
+#if NUMKONG_ARCH_X8664_ALDER_
 
 #include "numkong/types.h"
 #include "numkong/dot/alder.h" // VEX compat macros (_mm256_dpwssd_avx_epi32)
@@ -107,6 +107,74 @@ NUMKONG_INLINE void nk_reduce_moments_strided_u8_alder_(             //
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
+/**
+ *  @section reduce_alder_e2m3_moments E2M3 moments via integer VNNI DPBUSD
+ *
+ *  Every e2m3 value × 16 is an exact integer in [-120, +120] (i8 range).
+ *  We use a dual-VPSHUFB LUT to map 5-bit magnitude → unsigned i8, create a sign vector (+1/-1),
+ *  then accumulate with @c _mm256_dpbusd_avx_epi32 (u8 × i8 → i32). For sumsq, magnitude ≤ 120 <
+ *  128, so it's safe as both u8 and i8.
+ *  Final: sum = i32_sum / 16, sumsq = i32_sumsq / 256.
+ */
+NUMKONG_INLINE void nk_reduce_moments_contiguous_e2m3_alder_( //
+    nk_e2m3_t const *data, nk_size_t count,                   //
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
+    __m256i const lut_low_u8x32 = _mm256_set_epi8(30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0, //
+                                                  30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0);
+    __m256i const lut_high_u8x32 = _mm256_set_epi8(120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36, 32,
+                                                   120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36, 32);
+    __m256i const nibble_mask_u8x32 = _mm256_set1_epi8(0x0F);
+    __m256i const magnitude_mask_u8x32 = _mm256_set1_epi8(0x1F);
+    __m256i const half_select_u8x32 = _mm256_set1_epi8(0x10);
+    __m256i const sign_mask_u8x32 = _mm256_set1_epi8(0x20);
+    __m256i const ones_i8x32 = _mm256_set1_epi8(1);
+    __m256i const neg_ones_i8x32 = _mm256_set1_epi8(-1);
+    __m256i sum_i32x8 = _mm256_setzero_si256();
+    __m256i sumsq_i32x8 = _mm256_setzero_si256();
+    nk_size_t idx = 0;
+    for (; idx + 32 <= count; idx += 32) {
+        __m256i data_u8x32 = _mm256_loadu_si256((__m256i const *)(data + idx));
+        __m256i magnitude_u8x32 = _mm256_and_si256(data_u8x32, magnitude_mask_u8x32);
+        __m256i shuffle_idx_u8x32 = _mm256_and_si256(magnitude_u8x32, nibble_mask_u8x32);
+        __m256i upper_select_u8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(magnitude_u8x32, half_select_u8x32),
+                                                       half_select_u8x32);
+        __m256i unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, shuffle_idx_u8x32),
+                                                    _mm256_shuffle_epi8(lut_high_u8x32, shuffle_idx_u8x32),
+                                                    upper_select_u8x32);
+        // Sign vector: +1 for positive, -1 for negative (i8)
+        __m256i negate_mask_u8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(data_u8x32, sign_mask_u8x32), sign_mask_u8x32);
+        __m256i sign_i8x32 = _mm256_blendv_epi8(ones_i8x32, neg_ones_i8x32, negate_mask_u8x32);
+        // DPBUSD: unsigned_magnitude (u8) × sign (+1/-1 i8) → signed sum
+        sum_i32x8 = _mm256_dpbusd_avx_epi32(sum_i32x8, unsigned_u8x32, sign_i8x32);
+        // DPBUSD: unsigned_magnitude (u8) × unsigned_magnitude (as i8, safe since ≤120) → sumsq
+        sumsq_i32x8 = _mm256_dpbusd_avx_epi32(sumsq_i32x8, unsigned_u8x32, unsigned_u8x32);
+    }
+    nk_i32_t sum = nk_reduce_add_i32x8_haswell_(sum_i32x8);
+    nk_i32_t sumsq = nk_reduce_add_i32x8_haswell_(sumsq_i32x8);
+    nk_size_t remaining = count - idx;
+    if (remaining > 0) {
+        nk_b256_vec_t tail_vec;
+        nk_partial_load_b8x32_serial_(data + idx, &tail_vec, remaining);
+        __m256i data_u8x32 = tail_vec.ymm;
+        __m256i magnitude_u8x32 = _mm256_and_si256(data_u8x32, magnitude_mask_u8x32);
+        __m256i shuffle_idx_u8x32 = _mm256_and_si256(magnitude_u8x32, nibble_mask_u8x32);
+        __m256i upper_select_u8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(magnitude_u8x32, half_select_u8x32),
+                                                       half_select_u8x32);
+        __m256i unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, shuffle_idx_u8x32),
+                                                    _mm256_shuffle_epi8(lut_high_u8x32, shuffle_idx_u8x32),
+                                                    upper_select_u8x32);
+        __m256i negate_mask_u8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(data_u8x32, sign_mask_u8x32), sign_mask_u8x32);
+        __m256i sign_i8x32 = _mm256_blendv_epi8(ones_i8x32, neg_ones_i8x32, negate_mask_u8x32);
+        sum += nk_reduce_add_i32x8_haswell_(
+            _mm256_dpbusd_avx_epi32(_mm256_setzero_si256(), unsigned_u8x32, sign_i8x32));
+        sumsq += nk_reduce_add_i32x8_haswell_(
+            _mm256_dpbusd_avx_epi32(_mm256_setzero_si256(), unsigned_u8x32, unsigned_u8x32));
+    }
+    *sum_ptr = (nk_f32_t)sum / 16.0f;
+    *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
+}
+
+#if NUMKONG_TARGET_ALDER
 NUMKONG_API nk_status_t nk_reduce_moments_u8_alder(         //
     nk_u8_t const *data, nk_size_t count, nk_size_t stride, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
@@ -510,73 +578,6 @@ NUMKONG_API nk_status_t nk_reduce_moments_e3m2_alder(         //
     return nk_success_k;
 }
 
-/**
- *  @section reduce_alder_e2m3_moments E2M3 moments via integer VNNI DPBUSD
- *
- *  Every e2m3 value × 16 is an exact integer in [-120, +120] (i8 range).
- *  We use a dual-VPSHUFB LUT to map 5-bit magnitude → unsigned i8, create a sign vector (+1/-1),
- *  then accumulate with @c _mm256_dpbusd_avx_epi32 (u8 × i8 → i32). For sumsq, magnitude ≤ 120 <
- *  128, so it's safe as both u8 and i8.
- *  Final: sum = i32_sum / 16, sumsq = i32_sumsq / 256.
- */
-NUMKONG_INLINE void nk_reduce_moments_contiguous_e2m3_alder_( //
-    nk_e2m3_t const *data, nk_size_t count,                   //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    __m256i const lut_low_u8x32 = _mm256_set_epi8(30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0, //
-                                                  30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0);
-    __m256i const lut_high_u8x32 = _mm256_set_epi8(120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36, 32,
-                                                   120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36, 32);
-    __m256i const nibble_mask_u8x32 = _mm256_set1_epi8(0x0F);
-    __m256i const magnitude_mask_u8x32 = _mm256_set1_epi8(0x1F);
-    __m256i const half_select_u8x32 = _mm256_set1_epi8(0x10);
-    __m256i const sign_mask_u8x32 = _mm256_set1_epi8(0x20);
-    __m256i const ones_i8x32 = _mm256_set1_epi8(1);
-    __m256i const neg_ones_i8x32 = _mm256_set1_epi8(-1);
-    __m256i sum_i32x8 = _mm256_setzero_si256();
-    __m256i sumsq_i32x8 = _mm256_setzero_si256();
-    nk_size_t idx = 0;
-    for (; idx + 32 <= count; idx += 32) {
-        __m256i data_u8x32 = _mm256_loadu_si256((__m256i const *)(data + idx));
-        __m256i magnitude_u8x32 = _mm256_and_si256(data_u8x32, magnitude_mask_u8x32);
-        __m256i shuffle_idx_u8x32 = _mm256_and_si256(magnitude_u8x32, nibble_mask_u8x32);
-        __m256i upper_select_u8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(magnitude_u8x32, half_select_u8x32),
-                                                       half_select_u8x32);
-        __m256i unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, shuffle_idx_u8x32),
-                                                    _mm256_shuffle_epi8(lut_high_u8x32, shuffle_idx_u8x32),
-                                                    upper_select_u8x32);
-        // Sign vector: +1 for positive, -1 for negative (i8)
-        __m256i negate_mask_u8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(data_u8x32, sign_mask_u8x32), sign_mask_u8x32);
-        __m256i sign_i8x32 = _mm256_blendv_epi8(ones_i8x32, neg_ones_i8x32, negate_mask_u8x32);
-        // DPBUSD: unsigned_magnitude (u8) × sign (+1/-1 i8) → signed sum
-        sum_i32x8 = _mm256_dpbusd_avx_epi32(sum_i32x8, unsigned_u8x32, sign_i8x32);
-        // DPBUSD: unsigned_magnitude (u8) × unsigned_magnitude (as i8, safe since ≤120) → sumsq
-        sumsq_i32x8 = _mm256_dpbusd_avx_epi32(sumsq_i32x8, unsigned_u8x32, unsigned_u8x32);
-    }
-    nk_i32_t sum = nk_reduce_add_i32x8_haswell_(sum_i32x8);
-    nk_i32_t sumsq = nk_reduce_add_i32x8_haswell_(sumsq_i32x8);
-    nk_size_t remaining = count - idx;
-    if (remaining > 0) {
-        nk_b256_vec_t tail_vec;
-        nk_partial_load_b8x32_serial_(data + idx, &tail_vec, remaining);
-        __m256i data_u8x32 = tail_vec.ymm;
-        __m256i magnitude_u8x32 = _mm256_and_si256(data_u8x32, magnitude_mask_u8x32);
-        __m256i shuffle_idx_u8x32 = _mm256_and_si256(magnitude_u8x32, nibble_mask_u8x32);
-        __m256i upper_select_u8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(magnitude_u8x32, half_select_u8x32),
-                                                       half_select_u8x32);
-        __m256i unsigned_u8x32 = _mm256_blendv_epi8(_mm256_shuffle_epi8(lut_low_u8x32, shuffle_idx_u8x32),
-                                                    _mm256_shuffle_epi8(lut_high_u8x32, shuffle_idx_u8x32),
-                                                    upper_select_u8x32);
-        __m256i negate_mask_u8x32 = _mm256_cmpeq_epi8(_mm256_and_si256(data_u8x32, sign_mask_u8x32), sign_mask_u8x32);
-        __m256i sign_i8x32 = _mm256_blendv_epi8(ones_i8x32, neg_ones_i8x32, negate_mask_u8x32);
-        sum += nk_reduce_add_i32x8_haswell_(
-            _mm256_dpbusd_avx_epi32(_mm256_setzero_si256(), unsigned_u8x32, sign_i8x32));
-        sumsq += nk_reduce_add_i32x8_haswell_(
-            _mm256_dpbusd_avx_epi32(_mm256_setzero_si256(), unsigned_u8x32, unsigned_u8x32));
-    }
-    *sum_ptr = (nk_f32_t)sum / 16.0f;
-    *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
-}
-
 NUMKONG_INLINE void nk_reduce_moments_strided_e2m3_alder_(             //
     nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
@@ -653,6 +654,8 @@ NUMKONG_API nk_status_t nk_reduce_moments_e2m3_alder(         //
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_ALDER
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -663,6 +666,6 @@ NUMKONG_API nk_status_t nk_reduce_moments_e2m3_alder(         //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_ALDER
+#endif // NUMKONG_ARCH_X8664_ALDER_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_REDUCE_ALDER_H

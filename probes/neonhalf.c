@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the NEON half kernels, ARMv8.2-A half-precision arithmetic.
  */
-#define NUMKONG_HEADER_ONLY     1
-#define NUMKONG_TARGET_NEONHALF 1
+#define NUMKONG_HEADER_ONLY          1
+#define NUMKONG_ARCH_ARM64_NEONHALF_ 1
 #include "numkong/types.h"
 #include "numkong/each/neonhalf.h" // `nk_each_sum_f16_neonhalf`
 #include "numkong/trigonometry/neonhalf.h"

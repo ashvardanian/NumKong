@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the Alder Lake kernels, AVX-VNNI 256-bit.
  */
-#define NUMKONG_HEADER_ONLY  1
-#define NUMKONG_TARGET_ALDER 1
+#define NUMKONG_HEADER_ONLY       1
+#define NUMKONG_ARCH_X8664_ALDER_ 1
 #include <numkong/types.h>
 #include <numkong/dot/alder.h> // `nk_dot_i8_alder`
 

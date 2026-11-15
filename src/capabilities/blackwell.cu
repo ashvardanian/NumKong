@@ -16,3 +16,6 @@
 #include "numkong/spatials/blackwell.cuh"
 #include "numkong/attention/blackwell.cuh"
 #include "numkong/shapes/blackwell.cuh"
+
+/** One of this unit's kernels, which @c nk_capabilities_compiled_cuda asks the runtime to load. */
+extern "C" void const *nk_probe_blackwell_(void) { return (void const *)&nk_dots_pack_bf16_blackwell_kernel_; }

@@ -8,28 +8,31 @@
 
 static nk_capability_kernels_t const *nk_bilinear_f64_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
-                   nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-                   nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
-        !NUMKONG_MULTIVERSIONED
+        best_k = NUMKONG_MULTIVERSIONED   ? 0
+                 : NUMKONG_TARGET_RVV     ? nk_cap_rvv_index_k
+                 : NUMKONG_TARGET_SKYLAKE ? nk_cap_skylake_index_k
+                 : NUMKONG_TARGET_HASWELL ? nk_cap_haswell_index_k
+                 : NUMKONG_TARGET_SMEF64  ? nk_cap_smef64_index_k
+                 : NUMKONG_TARGET_NEON    ? nk_cap_neon_index_k
+                                          : nk_cap_serial_index_k,
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_serial,
 #if NUMKONG_TARGET_NEON
-        above_k & ~(nk_cap_neon_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_neon,
+        best_k > nk_cap_neon_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_neon,
 #endif
 #if NUMKONG_TARGET_SMEF64
-        above_k & ~(nk_cap_smef64_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_smef64,
+        best_k > nk_cap_smef64_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_smef64,
 #endif
 #if NUMKONG_TARGET_HASWELL
-        above_k & ~(nk_cap_haswell_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_haswell,
+        best_k > nk_cap_haswell_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_haswell,
 #endif
 #if NUMKONG_TARGET_SKYLAKE
-        above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_skylake,
+        best_k > nk_cap_skylake_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_skylake,
 #endif
 #if NUMKONG_TARGET_RVV
-        above_k & ~(nk_cap_rvv_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_rvv,
+        best_k > nk_cap_rvv_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64_rvv,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
@@ -53,28 +56,31 @@ NUMKONG_API nk_status_t nk_bilinear_f64_best(nk_f64_t const *a, nk_f64_t const *
 
 static nk_capability_kernels_t const *nk_bilinear_f32_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
-                   nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-                   nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
-                  !NUMKONG_MULTIVERSIONED
+        best_k = NUMKONG_MULTIVERSIONED   ? 0
+                 : NUMKONG_TARGET_RVV     ? nk_cap_rvv_index_k
+                 : NUMKONG_TARGET_SKYLAKE ? nk_cap_skylake_index_k
+                 : NUMKONG_TARGET_HASWELL ? nk_cap_haswell_index_k
+                 : NUMKONG_TARGET_SMEF64  ? nk_cap_smef64_index_k
+                 : NUMKONG_TARGET_NEON    ? nk_cap_neon_index_k
+                                          : nk_cap_serial_index_k,
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_serial,
 #if NUMKONG_TARGET_NEON
-        above_k & ~(nk_cap_neon_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_neon,
+        best_k > nk_cap_neon_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_neon,
 #endif
 #if NUMKONG_TARGET_SMEF64
-        above_k & ~(nk_cap_smef64_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_smef64,
+        best_k > nk_cap_smef64_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_smef64,
 #endif
 #if NUMKONG_TARGET_HASWELL
-        above_k & ~(nk_cap_haswell_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_haswell,
+        best_k > nk_cap_haswell_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_haswell,
 #endif
 #if NUMKONG_TARGET_SKYLAKE
-        above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_skylake,
+        best_k > nk_cap_skylake_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_skylake,
 #endif
 #if NUMKONG_TARGET_RVV
-        above_k & ~(nk_cap_rvv_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_rvv,
+        best_k > nk_cap_rvv_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32_rvv,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
@@ -98,21 +104,23 @@ NUMKONG_API nk_status_t nk_bilinear_f32_best(nk_f32_t const *a, nk_f32_t const *
 
 static nk_capability_kernels_t const *nk_bilinear_f16_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
-                   nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
-                  !NUMKONG_MULTIVERSIONED
+        best_k = NUMKONG_MULTIVERSIONED   ? 0
+                 : NUMKONG_TARGET_RVV     ? nk_cap_rvv_index_k
+                 : NUMKONG_TARGET_HASWELL ? nk_cap_haswell_index_k
+                 : NUMKONG_TARGET_NEON    ? nk_cap_neon_index_k
+                                          : nk_cap_serial_index_k,
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16_serial,
 #if NUMKONG_TARGET_NEON
-        above_k & ~(nk_cap_neon_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16_neon,
+        best_k > nk_cap_neon_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16_neon,
 #endif
 #if NUMKONG_TARGET_HASWELL
-        above_k & ~(nk_cap_haswell_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16_haswell,
+        best_k > nk_cap_haswell_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16_haswell,
 #endif
 #if NUMKONG_TARGET_RVV
-        above_k & ~(nk_cap_rvv_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16_rvv,
+        best_k > nk_cap_rvv_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16_rvv,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
@@ -135,25 +143,27 @@ NUMKONG_API nk_status_t nk_bilinear_f16_best(nk_f16_t const *a, nk_f16_t const *
 
 static nk_capability_kernels_t const *nk_bilinear_bf16_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
-                   nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_genoa_k * NUMKONG_TARGET_GENOA |
-                   nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
-                  !NUMKONG_MULTIVERSIONED
+        best_k = NUMKONG_MULTIVERSIONED     ? 0
+                 : NUMKONG_TARGET_RVV       ? nk_cap_rvv_index_k
+                 : NUMKONG_TARGET_GENOA     ? nk_cap_genoa_index_k
+                 : NUMKONG_TARGET_HASWELL   ? nk_cap_haswell_index_k
+                 : NUMKONG_TARGET_NEONBFDOT ? nk_cap_neonbfdot_index_k
+                                            : nk_cap_serial_index_k,
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16_serial,
 #if NUMKONG_TARGET_NEONBFDOT
-        above_k & ~(nk_cap_neonbfdot_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16_neonbfdot,
+        best_k > nk_cap_neonbfdot_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16_neonbfdot,
 #endif
 #if NUMKONG_TARGET_HASWELL
-        above_k & ~(nk_cap_haswell_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16_haswell,
+        best_k > nk_cap_haswell_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16_haswell,
 #endif
 #if NUMKONG_TARGET_GENOA
-        above_k & ~(nk_cap_genoa_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16_genoa,
+        best_k > nk_cap_genoa_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16_genoa,
 #endif
 #if NUMKONG_TARGET_RVV
-        above_k & ~(nk_cap_rvv_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16_rvv,
+        best_k > nk_cap_rvv_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16_rvv,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
@@ -176,28 +186,31 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_best(nk_bf16_t const *a, nk_bf16_t cons
 
 static nk_capability_kernels_t const *nk_mahalanobis_f64_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
-                   nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-                   nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
-        !NUMKONG_MULTIVERSIONED
+        best_k = NUMKONG_MULTIVERSIONED   ? 0
+                 : NUMKONG_TARGET_RVV     ? nk_cap_rvv_index_k
+                 : NUMKONG_TARGET_SKYLAKE ? nk_cap_skylake_index_k
+                 : NUMKONG_TARGET_HASWELL ? nk_cap_haswell_index_k
+                 : NUMKONG_TARGET_SMEF64  ? nk_cap_smef64_index_k
+                 : NUMKONG_TARGET_NEON    ? nk_cap_neon_index_k
+                                          : nk_cap_serial_index_k,
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_serial,
 #if NUMKONG_TARGET_NEON
-        above_k & ~(nk_cap_neon_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_neon,
+        best_k > nk_cap_neon_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_neon,
 #endif
 #if NUMKONG_TARGET_SMEF64
-        above_k & ~(nk_cap_smef64_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_smef64,
+        best_k > nk_cap_smef64_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_smef64,
 #endif
 #if NUMKONG_TARGET_HASWELL
-        above_k & ~(nk_cap_haswell_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_haswell,
+        best_k > nk_cap_haswell_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_haswell,
 #endif
 #if NUMKONG_TARGET_SKYLAKE
-        above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_skylake,
+        best_k > nk_cap_skylake_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_skylake,
 #endif
 #if NUMKONG_TARGET_RVV
-        above_k & ~(nk_cap_rvv_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_rvv,
+        best_k > nk_cap_rvv_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f64_rvv,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
@@ -221,28 +234,31 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_best(nk_f64_t const *a, nk_f64_t cons
 
 static nk_capability_kernels_t const *nk_mahalanobis_f32_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
-                   nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-                   nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
-                  !NUMKONG_MULTIVERSIONED
+        best_k = NUMKONG_MULTIVERSIONED   ? 0
+                 : NUMKONG_TARGET_RVV     ? nk_cap_rvv_index_k
+                 : NUMKONG_TARGET_SKYLAKE ? nk_cap_skylake_index_k
+                 : NUMKONG_TARGET_HASWELL ? nk_cap_haswell_index_k
+                 : NUMKONG_TARGET_SMEF64  ? nk_cap_smef64_index_k
+                 : NUMKONG_TARGET_NEON    ? nk_cap_neon_index_k
+                                          : nk_cap_serial_index_k,
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_serial,
 #if NUMKONG_TARGET_NEON
-        above_k & ~(nk_cap_neon_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_neon,
+        best_k > nk_cap_neon_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_neon,
 #endif
 #if NUMKONG_TARGET_SMEF64
-        above_k & ~(nk_cap_smef64_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_smef64,
+        best_k > nk_cap_smef64_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_smef64,
 #endif
 #if NUMKONG_TARGET_HASWELL
-        above_k & ~(nk_cap_haswell_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_haswell,
+        best_k > nk_cap_haswell_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_haswell,
 #endif
 #if NUMKONG_TARGET_SKYLAKE
-        above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_skylake,
+        best_k > nk_cap_skylake_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_skylake,
 #endif
 #if NUMKONG_TARGET_RVV
-        above_k & ~(nk_cap_rvv_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_rvv,
+        best_k > nk_cap_rvv_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f32_rvv,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
@@ -266,21 +282,23 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_best(nk_f32_t const *a, nk_f32_t cons
 
 static nk_capability_kernels_t const *nk_mahalanobis_f16_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
-                   nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
-                  !NUMKONG_MULTIVERSIONED
+        best_k = NUMKONG_MULTIVERSIONED   ? 0
+                 : NUMKONG_TARGET_RVV     ? nk_cap_rvv_index_k
+                 : NUMKONG_TARGET_HASWELL ? nk_cap_haswell_index_k
+                 : NUMKONG_TARGET_NEON    ? nk_cap_neon_index_k
+                                          : nk_cap_serial_index_k,
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f16_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f16_serial,
 #if NUMKONG_TARGET_NEON
-        above_k & ~(nk_cap_neon_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f16_neon,
+        best_k > nk_cap_neon_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f16_neon,
 #endif
 #if NUMKONG_TARGET_HASWELL
-        above_k & ~(nk_cap_haswell_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f16_haswell,
+        best_k > nk_cap_haswell_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f16_haswell,
 #endif
 #if NUMKONG_TARGET_RVV
-        above_k & ~(nk_cap_rvv_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f16_rvv,
+        best_k > nk_cap_rvv_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_f16_rvv,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
@@ -303,25 +321,27 @@ NUMKONG_API nk_status_t nk_mahalanobis_f16_best(nk_f16_t const *a, nk_f16_t cons
 
 static nk_capability_kernels_t const *nk_mahalanobis_bf16_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
-                   nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_genoa_k * NUMKONG_TARGET_GENOA |
-                   nk_cap_rvv_k * NUMKONG_TARGET_RVV) *
-                  !NUMKONG_MULTIVERSIONED
+        best_k = NUMKONG_MULTIVERSIONED     ? 0
+                 : NUMKONG_TARGET_RVV       ? nk_cap_rvv_index_k
+                 : NUMKONG_TARGET_GENOA     ? nk_cap_genoa_index_k
+                 : NUMKONG_TARGET_HASWELL   ? nk_cap_haswell_index_k
+                 : NUMKONG_TARGET_NEONBFDOT ? nk_cap_neonbfdot_index_k
+                                            : nk_cap_serial_index_k,
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_bf16_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_bf16_serial,
 #if NUMKONG_TARGET_NEONBFDOT
-        above_k & ~(nk_cap_neonbfdot_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_bf16_neonbfdot,
+        best_k > nk_cap_neonbfdot_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_bf16_neonbfdot,
 #endif
 #if NUMKONG_TARGET_HASWELL
-        above_k & ~(nk_cap_haswell_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_bf16_haswell,
+        best_k > nk_cap_haswell_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_bf16_haswell,
 #endif
 #if NUMKONG_TARGET_GENOA
-        above_k & ~(nk_cap_genoa_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_bf16_genoa,
+        best_k > nk_cap_genoa_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_bf16_genoa,
 #endif
 #if NUMKONG_TARGET_RVV
-        above_k & ~(nk_cap_rvv_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_bf16_rvv,
+        best_k > nk_cap_rvv_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_mahalanobis_bf16_rvv,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
@@ -345,18 +365,19 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_best(nk_bf16_t const *a, nk_bf16_t c
 
 static nk_capability_kernels_t const *nk_bilinear_f64c_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
-                   nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE) *
-                  !NUMKONG_MULTIVERSIONED
+        best_k = NUMKONG_MULTIVERSIONED   ? 0
+                 : NUMKONG_TARGET_SKYLAKE ? nk_cap_skylake_index_k
+                 : NUMKONG_TARGET_SMEF64  ? nk_cap_smef64_index_k
+                                          : nk_cap_serial_index_k,
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64c_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64c_serial,
 #if NUMKONG_TARGET_SMEF64
-        above_k & ~(nk_cap_smef64_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64c_smef64,
+        best_k > nk_cap_smef64_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64c_smef64,
 #endif
 #if NUMKONG_TARGET_SKYLAKE
-        above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64c_skylake,
+        best_k > nk_cap_skylake_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f64c_skylake,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
@@ -377,21 +398,23 @@ NUMKONG_API nk_status_t nk_bilinear_f64c_best(nk_f64c_t const *a, nk_f64c_t cons
 
 static nk_capability_kernels_t const *nk_bilinear_f32c_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
-                   nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE) *
-                  !NUMKONG_MULTIVERSIONED
+        best_k = NUMKONG_MULTIVERSIONED   ? 0
+                 : NUMKONG_TARGET_SKYLAKE ? nk_cap_skylake_index_k
+                 : NUMKONG_TARGET_SMEF64  ? nk_cap_smef64_index_k
+                 : NUMKONG_TARGET_NEON    ? nk_cap_neon_index_k
+                                          : nk_cap_serial_index_k,
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32c_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32c_serial,
 #if NUMKONG_TARGET_NEON
-        above_k & ~(nk_cap_neon_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32c_neon,
+        best_k > nk_cap_neon_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32c_neon,
 #endif
 #if NUMKONG_TARGET_SMEF64
-        above_k & ~(nk_cap_smef64_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32c_smef64,
+        best_k > nk_cap_smef64_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32c_smef64,
 #endif
 #if NUMKONG_TARGET_SKYLAKE
-        above_k & ~(nk_cap_skylake_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32c_skylake,
+        best_k > nk_cap_skylake_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f32c_skylake,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
@@ -413,12 +436,16 @@ NUMKONG_API nk_status_t nk_bilinear_f32c_best(nk_f32c_t const *a, nk_f32c_t cons
 }
 
 static nk_capability_kernels_t const *nk_bilinear_f16c_capabilities(void) {
-    enum { above_k = (nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON) * !NUMKONG_MULTIVERSIONED };
+    enum {
+        best_k = NUMKONG_MULTIVERSIONED ? 0
+                 : NUMKONG_TARGET_NEON  ? nk_cap_neon_index_k
+                                        : nk_cap_serial_index_k,
+    };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16c_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16c_serial,
 #if NUMKONG_TARGET_NEON
-        above_k & ~(nk_cap_neon_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16c_neon,
+        best_k > nk_cap_neon_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_f16c_neon,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
@@ -439,18 +466,19 @@ NUMKONG_API nk_status_t nk_bilinear_f16c_best(nk_f16c_t const *a, nk_f16c_t cons
 
 static nk_capability_kernels_t const *nk_bilinear_bf16c_capabilities(void) {
     enum {
-        above_k = (nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
-                   nk_cap_genoa_k * NUMKONG_TARGET_GENOA) *
-                  !NUMKONG_MULTIVERSIONED
+        best_k = NUMKONG_MULTIVERSIONED     ? 0
+                 : NUMKONG_TARGET_GENOA     ? nk_cap_genoa_index_k
+                 : NUMKONG_TARGET_NEONBFDOT ? nk_cap_neonbfdot_index_k
+                                            : nk_cap_serial_index_k,
     };
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
-        above_k & ~(nk_cap_serial_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16c_serial,
+        best_k > nk_cap_serial_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16c_serial,
 #if NUMKONG_TARGET_NEONBFDOT
-        above_k & ~(nk_cap_neonbfdot_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16c_neonbfdot,
+        best_k > nk_cap_neonbfdot_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16c_neonbfdot,
 #endif
 #if NUMKONG_TARGET_GENOA
-        above_k & ~(nk_cap_genoa_k * 2 - 1) ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16c_genoa,
+        best_k > nk_cap_genoa_index_k ? NUMKONG_NULL : (nk_kernel_punned_t)&nk_bilinear_bf16c_genoa,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {

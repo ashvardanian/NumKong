@@ -13,7 +13,7 @@
 #define NUMKONG_CAST_DIAMOND_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_DIAMOND
+#if NUMKONG_ARCH_X8664_DIAMOND_
 
 #include "numkong/types.h"
 
@@ -73,6 +73,6 @@ NUMKONG_INLINE void nk_partial_load_e5m2x32_to_f16x32_diamond_(void const *src, 
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_DIAMOND
+#endif // NUMKONG_ARCH_X8664_DIAMOND_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_CAST_DIAMOND_H

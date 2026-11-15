@@ -10,7 +10,7 @@
 #define NUMKONG_REDUCE_NEONFHM_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONFHM
+#if NUMKONG_ARCH_ARM64_NEONFHM_
 
 #include "numkong/types.h"         // `nk_e4m3_t`
 #include "numkong/cast/serial.h"   // `nk_partial_load_b8x8_serial_`
@@ -155,6 +155,7 @@ NUMKONG_INLINE void nk_reduce_moments_chunked_e4m3_neonfhm_(      //
     }
 }
 
+#if NUMKONG_TARGET_NEONFHM
 NUMKONG_API nk_status_t nk_reduce_moments_e4m3_neonfhm(           //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
@@ -298,6 +299,8 @@ NUMKONG_API nk_status_t nk_reduce_moments_e5m2_neonfhm(           //
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_NEONFHM
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -308,6 +311,6 @@ NUMKONG_API nk_status_t nk_reduce_moments_e5m2_neonfhm(           //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONFHM
+#endif // NUMKONG_ARCH_ARM64_NEONFHM_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_REDUCE_NEONFHM_H

@@ -99,7 +99,7 @@
 #define NUMKONG_NATIVE_BF16 0
 
 #include "numkong/memory.h"
-#include "numkong/capabilities.h" // `nk_cpu_capabilities_detected`
+#include "numkong/capabilities.h" // `nk_capabilities_detected_cpu`
 #include "numkong/types.hpp"
 #include "numkong/tensor.hpp"
 #include "numkong/dots.hpp"
@@ -633,22 +633,22 @@ void print_stats_row(char const *kernel_name, error_stats_t const &stats) noexce
 extern char const *volatile nk_test_current_kernel_;
 
 /** The capabilities this CPU runs, whether or not this binary holds them. */
-inline nk_capability_t cpu_capabilities_detected() noexcept {
+inline nk_capability_t capabilities_detected_cpu() noexcept {
     nk_capability_t capabilities = 0;
-    return nk_cpu_capabilities_detected(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
+    return nk_capabilities_detected_cpu(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
 }
 
 /** The CPU capabilities this binary holds, whether or not this CPU runs them. */
-inline nk_capability_t cpu_capabilities_compiled() noexcept {
+inline nk_capability_t capabilities_compiled_cpu() noexcept {
     nk_capability_t capabilities = 0;
-    return nk_cpu_capabilities_compiled(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
+    return nk_capabilities_compiled_cpu(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
 }
 
 /** Probes the capabilities @c machine_t reports. */
 inline machine_t probe_machine() noexcept {
     machine_t machine;
-    machine.compiled = cpu_capabilities_compiled();
-    machine.detected = cpu_capabilities_detected();
+    machine.compiled = capabilities_compiled_cpu();
+    machine.detected = capabilities_detected_cpu();
     return machine;
 }
 

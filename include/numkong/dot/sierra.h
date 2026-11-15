@@ -78,7 +78,7 @@
 #define NUMKONG_DOT_SIERRA_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_SIERRA
+#if NUMKONG_ARCH_X8664_SIERRA_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"    // `nk_partial_load_b8x32_serial_`
@@ -88,6 +88,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SIERRA // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2,avxvnni,avxvnniint8"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -478,11 +479,12 @@ NUMKONG_API nk_status_t nk_dot_e2m1_sierra(nk_e2m1x2_t const *a, nk_e2m1x2_t con
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SIERRA
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SIERRA
+#endif // NUMKONG_ARCH_X8664_SIERRA_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOT_SIERRA_H

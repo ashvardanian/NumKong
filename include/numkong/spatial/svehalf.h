@@ -31,7 +31,7 @@
 #define NUMKONG_SPATIAL_SVEHALF_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SVEHALF
+#if NUMKONG_ARCH_ARM64_SVEHALF_
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h"   // `nk_svaddv_f64_`
@@ -81,6 +81,7 @@ NUMKONG_INLINE void nk_squared_distance_f16_svehalf_(nk_f16_t const *a_enum, nk_
     *result = nk_svaddv_f32_(svptrue_b32(), d2_f32x);
 }
 
+#if NUMKONG_TARGET_SVEHALF
 NUMKONG_API nk_status_t nk_sqeuclidean_f16_svehalf(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -137,6 +138,8 @@ NUMKONG_API nk_status_t nk_angular_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t 
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_SVEHALF
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -147,6 +150,6 @@ NUMKONG_API nk_status_t nk_angular_f16_svehalf(nk_f16_t const *a_enum, nk_f16_t 
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SVEHALF
+#endif // NUMKONG_ARCH_ARM64_SVEHALF_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIAL_SVEHALF_H

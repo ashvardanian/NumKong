@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the LoongArch LASX kernels, 256-bit SIMD.
  */
-#define NUMKONG_HEADER_ONLY        1
-#define NUMKONG_TARGET_LOONGSONASX 1
+#define NUMKONG_HEADER_ONLY                   1
+#define NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_ 1
 #include <numkong/types.h>
 #include <numkong/dot/loongsonasx.h> // `nk_dot_f32_loongsonasx`
 

@@ -21,7 +21,7 @@
 #define NUMKONG_DOTS_CDNA5_CUH
 
 #if NUMKONG_ARCH_ROCM_
-#if NUMKONG_TARGET_CDNA5
+#if NUMKONG_ARCH_ROCM_CDNA5_
 
 #include "numkong/dots/cdna4.cuh"
 
@@ -883,6 +883,8 @@ NUMKONG_DEVICE void nk_cross_tile_u4_cdna5_(nk_cross_metric_t metric, nk_diagona
 
 #pragma endregion Tiles
 
+#if NUMKONG_TARGET_CDNA5
+
 #pragma region BF16
 
 nk_define_cross_pack_rocm_(bf16, cdna5, bf16, bf16, nk_load_b8_simt_, /*norm_value_type=*/f32, nk_bf16_lane_sumsq_simt_,
@@ -983,10 +985,12 @@ nk_define_cross_rocm_(dot, u4, cdna5, cdna5, u4x2, u4x2, u32, /*depth_simd_dimen
 
 #pragma endregion U4
 
+#endif // NUMKONG_TARGET_CDNA5
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_CDNA5
+#endif // NUMKONG_ARCH_ROCM_CDNA5_
 #endif // NUMKONG_ARCH_ROCM_
 #endif // NUMKONG_DOTS_CDNA5_CUH

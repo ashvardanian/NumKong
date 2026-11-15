@@ -17,7 +17,7 @@
 #define NUMKONG_DOTS_SMEBI32_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SMEBI32
+#if NUMKONG_ARCH_ARM64_SMEBI32_
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h" // `nk_svaddv_u32_`
@@ -122,6 +122,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_dots_pack_u1_smebi32_streaming_( //
     }
 }
 
+#if NUMKONG_TARGET_SMEBI32
 NUMKONG_API nk_status_t nk_dots_pack_size_u1_smebi32(nk_size_t columns, nk_size_t depth_bits, nk_size_t *bytes) {
     nk_size_t const tile_dim = nk_tile_dim_smebi32_();        // 16 rows per tile
     nk_size_t const depth_tile_size = nk_tile_dim_smebi32_(); // 16 u32 per depth tile = 512 bits
@@ -667,6 +668,8 @@ NUMKONG_API nk_status_t nk_dots_symmetric_u1_smebi32( //
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_SMEBI32
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -677,6 +680,6 @@ NUMKONG_API nk_status_t nk_dots_symmetric_u1_smebi32( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SMEBI32
+#endif // NUMKONG_ARCH_ARM64_SMEBI32_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_DOTS_SMEBI32_H

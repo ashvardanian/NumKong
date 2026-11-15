@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIALS_LOONGSONASX_H
 
 #if NUMKONG_ARCH_LOONGARCH64_
-#if NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 
 #include "numkong/spatial/loongsonasx.h"
 #include "numkong/spatial/serial.h"
@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_LOONGSONASX // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("lasx"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -160,11 +161,12 @@ nk_define_cross_normalized_symmetric_(euclidean, f16, loongsonasx, f16, f32, /*n
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_LOONGSONASX
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_LOONGSONASX
+#endif // NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 #endif // NUMKONG_ARCH_LOONGARCH64_
 #endif // NUMKONG_SPATIALS_LOONGSONASX_H

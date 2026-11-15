@@ -14,7 +14,7 @@ That matters for fp16, bf16, fp8, packed bits, and strided reductions.
 use numkong::{Capabilities, Dot};
 
 fn main() {
-    Capabilities::cpu_enabled().configure_thread().unwrap();
+    Capabilities::enabled_cpu().configure_thread_cpu().unwrap();
     let a = [1.0_f32, 2.0, 3.0];
     let b = [4.0_f32, 5.0, 6.0];
     let dot = f32::dot(&a, &b).unwrap();
@@ -116,33 +116,33 @@ RUSTFLAGS="-C target-feature=+relaxed-simd" cargo build --target wasm32-wasip1
 
 ## Runtime Dispatch
 
-`Capabilities` answers for the CPU and each GPU group through its associated functions, and `Capabilities::configure_thread` enables CPU-specific acceleration features such as Intel AMX.
+`Capabilities` answers for the CPU and each GPU group through its associated functions, and `Capabilities::configure_thread_cpu` enables CPU-specific acceleration features such as Intel AMX.
 It must be called once per thread before using AMX operations.
 
 ```rust
 use numkong::{Capabilities, Capability};
 
-let enabled = Capabilities::cpu_enabled();
-enabled.configure_thread().unwrap();
+let enabled = Capabilities::enabled_cpu();
+enabled.configure_thread_cpu().unwrap();
 
 println!("dispatching to {enabled}"); // like "serial,neon,neonhalf"
 if enabled.contains(Capability::SapphireAmx) {
     println!("AMX enabled");
 }
 
-for ordinal in 0..Capabilities::cuda_count_devices().unwrap() {
-    println!("CUDA device {ordinal} runs {}", Capabilities::cuda_enabled(ordinal).unwrap()); // like "cuda,ampere,hopper"
+for ordinal in 0..Capabilities::count_devices_cuda().unwrap() {
+    println!("CUDA device {ordinal} runs {}", Capabilities::enabled_cuda(ordinal).unwrap()); // like "cuda,ampere,hopper"
 }
 ```
 
 Each group reports a `Capabilities` set of `Capability` bits along two independent axes, plus the set dispatch uses:
 
-- `cpu_detected()`, `cuda_detected(ordinal)` and their ROCm and Metal kin: what the device can execute, from CPUID or HWCAP on the CPU and from the runtime on a GPU
-- `cpu_compiled()`, `cuda_compiled()` and their kin: what this binary contains, from the probes at build time
-- `cpu_enabled()`, `cuda_enabled(ordinal)` and their kin: what dispatch runs within, i.e. both axes at once
+- `detected_cpu()`, `detected_cuda(ordinal)` and their ROCm and Metal kin: what the device can execute, from CPUID or HWCAP on the CPU and from the runtime on a GPU
+- `compiled_cpu()`, `compiled_cuda(ordinal)` and their kin: what this binary contains, from the probes at build time, and on a GPU only the code that one device runs
+- `enabled_cpu()`, `enabled_cuda(ordinal)` and their kin: what dispatch runs within, i.e. both axes at once
 
-Reach for the `_enabled` ones unless you specifically mean one of the raw axes.
-`cpu_detected()` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
+Reach for the `enabled_` ones unless you specifically mean one of the raw axes.
+`detected_cpu()` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
 The crate keeps no process state: every CPU kernel call passes `Capabilities::CPUS`, and the library clamps it to the CPU capabilities it settles as it loads.
 No verb allocates: a GPU verb takes any memory its device reaches, which the runtime checks per call.
 `Stream::new(capabilities, ordinal)` makes a stream on a device, `Stream::default(capabilities)` names the vendor's default, and `stream.synchronize()` waits for it.
@@ -150,7 +150,7 @@ No verb allocates: a GPU verb takes any memory its device reaches, which the run
 `stream.scope(|scope| ...)` runs the safe `_on` verbs, each queueing on that stream with its capabilities, and joins it before anything they borrow is released.
 `Capabilities::stream_init_cuda(ordinal)` and `Capabilities::stream_free_cuda(stream)` stay as the unsafe raw handles, with `rocm_` and `metal_` twins.
 
-Call `configure_thread` at the start of every thread that will use AMX operations.
+Call `configure_thread_cpu` at the start of every thread that will use AMX operations.
 In a thread-pool setting, each worker thread needs its own call.
 The function is idempotent and cheap to call more than once on the same thread.
 
@@ -663,7 +663,7 @@ No verb allocates, so `results` and `workspace` come from the caller, and memory
 ```rust
 use numkong::{f16, Capabilities, Shapes, ShapesPackedMatrix, Stream, UnifiedAllocator};
 
-let stream = Stream::new(Capabilities::cuda_enabled(0)?, 0)?;
+let stream = Stream::new(Capabilities::enabled_cuda(0)?, 0)?;
 let unified = UnifiedAllocator::new(&stream);
 let packs = ShapesPackedMatrix::<f16, _>::new_in(&clouds, unified)?;
 

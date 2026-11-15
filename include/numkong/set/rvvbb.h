@@ -18,19 +18,19 @@
 #define NUMKONG_SET_RVVBB_H
 
 #if NUMKONG_ARCH_RISCV64_
-#if NUMKONG_TARGET_RVVBB
+#if NUMKONG_ARCH_RISCV64_RVVBB_
 
 #include "numkong/types.h"
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v,+zvbb"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v,+zvbb")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 /**
@@ -44,6 +44,7 @@ NUMKONG_INLINE vuint8m4_t nk_popcount_u8m4_rvvbb_(vuint8m4_t v_u8m4) {
     return result_u8m4;
 }
 
+#if NUMKONG_TARGET_RVVBB
 NUMKONG_API nk_status_t nk_hamming_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -123,9 +124,7 @@ NUMKONG_API nk_status_t nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const 
     return nk_success_k;
 }
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
+#endif // NUMKONG_TARGET_RVVBB
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -133,6 +132,10 @@ NUMKONG_API nk_status_t nk_jaccard_u1_rvvbb(nk_u1x8_t const *a, nk_u1x8_t const 
 #pragma GCC pop_options
 #endif
 
-#endif // NUMKONG_TARGET_RVVBB
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_RISCV64_RVVBB_
 #endif // NUMKONG_ARCH_RISCV64_
 #endif // NUMKONG_SET_RVVBB_H

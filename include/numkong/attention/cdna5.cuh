@@ -19,7 +19,7 @@
 #define NUMKONG_ATTENTION_CDNA5_CUH
 
 #if NUMKONG_ARCH_ROCM_
-#if NUMKONG_TARGET_CDNA5
+#if NUMKONG_ARCH_ROCM_CDNA5_
 
 #include "numkong/attention/cdna4.cuh" // `nk_attention_launch_cdna3_`, `nk_f32_to_f16_cdna4_`
 #include "numkong/dots/cdna5.cuh"      // `nk_wmma_bf16_cdna5_`, `nk_wmma_u8i8_cdna5_`
@@ -793,6 +793,18 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_i8_cdna5_(
 
 #pragma endregion Tile
 
+#if NUMKONG_TARGET_CDNA5
+
+/** @ref nk_attention_pack_directory_rocm_ as the CDNA5 tier's kernel, which its packs launch. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_pack_directory_cdna5_kernel_(unsigned char *packed, nk_size_t key_value_head_count, nk_size_t depth,
+                                              nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                              nk_size_t segment_count, nk_size_t row_bytes, nk_size_t directory_bytes,
+                                              nk_capability_t capability) {
+    nk_attention_pack_directory_rocm_(packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count,
+                                      row_bytes, directory_bytes, capability);
+}
+
 #pragma region Instantiations
 
 nk_define_attention_pack_size_simt_(bf16, cdna5, 2)
@@ -813,10 +825,12 @@ nk_define_attention_packed_simt_(i8, cdna5, rocm)
 
 #pragma endregion Instantiations
 
+#endif // NUMKONG_TARGET_CDNA5
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_CDNA5
+#endif // NUMKONG_ARCH_ROCM_CDNA5_
 #endif // NUMKONG_ARCH_ROCM_
 #endif // NUMKONG_ATTENTION_CDNA5_CUH

@@ -21,7 +21,7 @@
 #define NUMKONG_DOTS_HOPPER_CUH
 
 #if NUMKONG_ARCH_CUDA_
-#if NUMKONG_TARGET_HOPPER
+#if NUMKONG_ARCH_CUDA_HOPPER_
 
 #include "numkong/dots/ampere.cuh"
 
@@ -1389,6 +1389,8 @@ NUMKONG_DEVICE void nk_cross_tile_mxfp8e5m2_hopper_(nk_cross_metric_t metric, nk
 
 #pragma endregion MXFP8E5M2 Tiles
 
+#if NUMKONG_TARGET_HOPPER
+
 #pragma region BF16
 
 nk_define_cross_pack_cuda_(bf16, hopper, bf16, bf16, nk_load_b8_simt_, /*norm_value_type=*/f32,
@@ -1513,10 +1515,12 @@ nk_define_cross_cuda_(dot, mxfp8e5m2, hopper, mxfp8e5m2_hopper, e5m2, e5m2, f32,
 
 #pragma endregion MXFP8E5M2
 
+#endif // NUMKONG_TARGET_HOPPER
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_HOPPER
+#endif // NUMKONG_ARCH_CUDA_HOPPER_
 #endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_DOTS_HOPPER_CUH

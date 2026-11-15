@@ -35,12 +35,12 @@ NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocato
 
 NUMKONG_API nk_status_t nk_stream_synchronize_metal(nk_stream_t stream) { return nk_stream_synchronize_metal_(stream); }
 
-NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
+NUMKONG_API nk_status_t nk_count_devices_metal(nk_size_t *count) {
     *count = nk_count_devices_metal_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
 
-NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_capabilities_detected_metal(nk_size_t ordinal, nk_capability_t *capabilities) {
     return nk_capabilities_detected_metal_(ordinal, capabilities);
 }
 

@@ -26,7 +26,7 @@
 #define NUMKONG_TRIGONOMETRY_SVEHALF_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SVEHALF
+#if NUMKONG_ARCH_ARM64_SVEHALF_
 
 #include "numkong/types.h"
 
@@ -178,6 +178,7 @@ NUMKONG_INLINE svfloat16_t nk_atan_f16x_svehalf_(svfloat16_t values_f16x) {
     return svreinterpret_f16_u16(sveor_u16_x(predicate_b16x, svreinterpret_u16_f16(results_f16x), signs_u16x));
 }
 
+#if NUMKONG_TARGET_SVEHALF
 NUMKONG_API nk_status_t nk_trig_sin_f16_svehalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_f16_for_arm_simd_t const *inputs = (nk_f16_for_arm_simd_t const *)ins;
@@ -214,6 +215,8 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_svehalf(nk_f16_t const *ins, nk_size_t 
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_SVEHALF
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -224,6 +227,6 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_svehalf(nk_f16_t const *ins, nk_size_t 
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SVEHALF
+#endif // NUMKONG_ARCH_ARM64_SVEHALF_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_TRIGONOMETRY_SVEHALF_H

@@ -23,15 +23,15 @@
 #include "numkong/cast/rvv.h"    // `nk_f16m1_to_f32m2_rvv_`, `nk_bf16m1_to_f32m2_rvv_`
 #include "numkong/spatial/rvv.h" // `nk_f32m2_reciprocal_rvv_`
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 NUMKONG_INLINE vfloat32m2_t nk_log2_f32m2_rvv_(vfloat32m2_t x, nk_size_t vector_length) {
@@ -418,14 +418,14 @@ NUMKONG_API nk_status_t nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, 
 
 #endif // NUMKONG_TARGET_RVV
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
 #endif
 
 #endif // NUMKONG_ARCH_RISCV64_RVV_

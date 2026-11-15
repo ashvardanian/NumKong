@@ -27,6 +27,37 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("simd128"))), apply_to = function)
 #endif
 
+#pragma region Binary Sets from Dot
+
+NUMKONG_INLINE void nk_hamming_u32x4_from_dot_v128_( //
+    nk_b128_vec_t const *dots_vec, nk_u32_t query_pop, nk_b128_vec_t const *target_pops_vec,
+    nk_b128_vec_t *result_vec) {
+    v128_t dots_u32x4 = dots_vec->v128;
+    v128_t query_u32x4 = wasm_u32x4_splat(query_pop);
+    v128_t target_u32x4 = target_pops_vec->v128;
+    result_vec->v128 = wasm_i32x4_sub(wasm_i32x4_add(query_u32x4, target_u32x4), wasm_i32x4_shl(dots_u32x4, 1));
+}
+
+NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_v128_( //
+    nk_b128_vec_t const *dots_vec, nk_u32_t query_pop, nk_b128_vec_t const *target_pops_vec,
+    nk_b128_vec_t *result_vec) {
+    v128_t dot_f32x4 = wasm_f32x4_convert_u32x4(dots_vec->v128);
+    v128_t query_f32x4 = wasm_f32x4_splat((nk_f32_t)query_pop);
+    v128_t target_f32x4 = wasm_f32x4_convert_u32x4(target_pops_vec->v128);
+    v128_t union_f32x4 = wasm_f32x4_sub(wasm_f32x4_add(query_f32x4, target_f32x4), dot_f32x4);
+
+    v128_t zero_f32x4 = wasm_f32x4_splat(0.0f);
+    v128_t one_f32x4 = wasm_f32x4_splat(1.0f);
+    v128_t zero_mask_u32x4 = wasm_f32x4_eq(union_f32x4, zero_f32x4);
+    v128_t safe_union_f32x4 = wasm_v128_bitselect(one_f32x4, union_f32x4, zero_mask_u32x4);
+
+    v128_t ratio_f32x4 = wasm_f32x4_div(dot_f32x4, safe_union_f32x4);
+    v128_t jaccard_f32x4 = wasm_f32x4_sub(one_f32x4, ratio_f32x4);
+    result_vec->v128 = wasm_v128_bitselect(zero_f32x4, jaccard_f32x4, zero_mask_u32x4);
+}
+
+#pragma endregion Binary Sets from Dot
+
 #if NUMKONG_TARGET_V128
 
 #pragma region Binary Sets
@@ -198,37 +229,6 @@ NUMKONG_API nk_status_t nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const *b
 #pragma endregion Integer Sets
 
 #endif // NUMKONG_TARGET_V128
-
-#pragma region Binary Sets from Dot
-
-NUMKONG_INLINE void nk_hamming_u32x4_from_dot_v128_( //
-    nk_b128_vec_t const *dots_vec, nk_u32_t query_pop, nk_b128_vec_t const *target_pops_vec,
-    nk_b128_vec_t *result_vec) {
-    v128_t dots_u32x4 = dots_vec->v128;
-    v128_t query_u32x4 = wasm_u32x4_splat(query_pop);
-    v128_t target_u32x4 = target_pops_vec->v128;
-    result_vec->v128 = wasm_i32x4_sub(wasm_i32x4_add(query_u32x4, target_u32x4), wasm_i32x4_shl(dots_u32x4, 1));
-}
-
-NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_v128_( //
-    nk_b128_vec_t const *dots_vec, nk_u32_t query_pop, nk_b128_vec_t const *target_pops_vec,
-    nk_b128_vec_t *result_vec) {
-    v128_t dot_f32x4 = wasm_f32x4_convert_u32x4(dots_vec->v128);
-    v128_t query_f32x4 = wasm_f32x4_splat((nk_f32_t)query_pop);
-    v128_t target_f32x4 = wasm_f32x4_convert_u32x4(target_pops_vec->v128);
-    v128_t union_f32x4 = wasm_f32x4_sub(wasm_f32x4_add(query_f32x4, target_f32x4), dot_f32x4);
-
-    v128_t zero_f32x4 = wasm_f32x4_splat(0.0f);
-    v128_t one_f32x4 = wasm_f32x4_splat(1.0f);
-    v128_t zero_mask_u32x4 = wasm_f32x4_eq(union_f32x4, zero_f32x4);
-    v128_t safe_union_f32x4 = wasm_v128_bitselect(one_f32x4, union_f32x4, zero_mask_u32x4);
-
-    v128_t ratio_f32x4 = wasm_f32x4_div(dot_f32x4, safe_union_f32x4);
-    v128_t jaccard_f32x4 = wasm_f32x4_sub(one_f32x4, ratio_f32x4);
-    result_vec->v128 = wasm_v128_bitselect(zero_f32x4, jaccard_f32x4, zero_mask_u32x4);
-}
-
-#pragma endregion Binary Sets from Dot
 
 #if defined(__clang__)
 #pragma clang attribute pop

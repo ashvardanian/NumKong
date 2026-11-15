@@ -12,3 +12,6 @@
 
 #include "numkong/each/ada.cuh"
 #include "numkong/cast/ada.cuh"
+
+/** One of this unit's kernels, which @c nk_capabilities_compiled_cuda asks the runtime to load. */
+extern "C" void const *nk_probe_ada_(void) { return (void const *)&nk_cast_ada_kernel_; }

@@ -9,7 +9,7 @@
 #define NUMKONG_CAST_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/types.h"
 #include "numkong/cast/v128.h" // `nk_bf16x4_to_f32x4_v128_`, `nk_f32x4_to_bf16x4_v128_`
@@ -323,6 +323,7 @@ NUMKONG_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t hub_ve
     return result_vec;
 }
 
+#if NUMKONG_TARGET_V128RELAXED
 NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
                                             nk_size_t count, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -424,6 +425,8 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dt
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_V128RELAXED
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -432,6 +435,6 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dt
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_CAST_V128RELAXED_H

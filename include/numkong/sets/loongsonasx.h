@@ -10,7 +10,7 @@
 #define NUMKONG_SETS_LOONGSONASX_H
 
 #if NUMKONG_ARCH_LOONGARCH64_
-#if NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 
 #include "numkong/set/loongsonasx.h"
 #include "numkong/dots/loongsonasx.h"
@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_LOONGSONASX // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("lasx"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -59,11 +60,12 @@ nk_define_cross_normalized_symmetric_(jaccard, u1, loongsonasx, u1x8, u32, /*nor
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_LOONGSONASX
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_LOONGSONASX
+#endif // NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 #endif // NUMKONG_ARCH_LOONGARCH64_
 #endif // NUMKONG_SETS_LOONGSONASX_H

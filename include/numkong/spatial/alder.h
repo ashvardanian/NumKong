@@ -26,7 +26,7 @@
 #define NUMKONG_SPATIAL_ALDER_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_ALDER
+#if NUMKONG_ARCH_X8664_ALDER_
 
 #include "numkong/types.h"
 #include "numkong/dot/alder.h" // VEX compat macros + dpbusd helpers
@@ -38,6 +38,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_ALDER // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2,avxvnni"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -657,11 +658,12 @@ NUMKONG_API nk_status_t nk_euclidean_e3m2_alder(nk_e3m2_t const *a, nk_e3m2_t co
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_ALDER
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_ALDER
+#endif // NUMKONG_ARCH_X8664_ALDER_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIAL_ALDER_H

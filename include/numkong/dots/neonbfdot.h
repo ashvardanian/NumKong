@@ -10,7 +10,7 @@
 #define NUMKONG_DOTS_NEONBFDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_NEONBFDOT_
 
 #include "numkong/dots/serial.h"
 #include "numkong/dot/neonbfdot.h"
@@ -37,6 +37,7 @@ NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_neonbfdot_(nk_bf16_t const *da
 
 #pragma endregion Norms
 
+#if NUMKONG_TARGET_NEONBFDOT
 /* BF16 GEMM: depth_simd_dimensions=8 (8 bf16s = 16 bytes = NEON register width) */
 nk_define_cross_pack_size_(dots, bf16, neonbfdot, bf16, bf16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/8,
                            /*dimensions_per_value=*/1, /*scale_bytes=*/1)
@@ -58,6 +59,8 @@ nk_define_cross_packed_(dots, bf16, neonbfdot, bf16, bf16, f32, nk_b128_vec_t, n
                         /*depth_simd_dimensions=*/8,
                         /*dimensions_per_value=*/1)
 
+#endif // NUMKONG_TARGET_NEONBFDOT
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -68,6 +71,6 @@ nk_define_cross_packed_(dots, bf16, neonbfdot, bf16, bf16, f32, nk_b128_vec_t, n
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONBFDOT
+#endif // NUMKONG_ARCH_ARM64_NEONBFDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_DOTS_NEONBFDOT_H

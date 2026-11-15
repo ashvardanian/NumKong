@@ -11,7 +11,7 @@
 #define NUMKONG_SCALAR_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/types.h"
 
@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_V128RELAXED // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
@@ -35,11 +36,12 @@ NUMKONG_API nk_f64_t nk_f64_fma_v128relaxed(nk_f64_t a, nk_f64_t b, nk_f64_t c) 
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
+#endif // NUMKONG_TARGET_V128RELAXED
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_SCALAR_V128RELAXED_H

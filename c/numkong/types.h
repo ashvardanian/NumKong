@@ -8,7 +8,13 @@
  *
  *  - Sized aliases for numeric types, like: @c nk_i32_t and @c nk_f64_t.
  *  - Macros for internal compiler/hardware checks, like: @c NUMKONG_ARCH_ARM64_.
- *  - Macros for feature controls, like: @c NUMKONG_TARGET_NEON
+ *  - Two flags per capability, read in this order by every capability header:
+ *    @c NUMKONG_ARCH_ARM64_NEONHALF_ says the capability's code compiles in this unit. It is
+ *    detected here from the unit's flags or from compiling as a GPU vendor, only this library's
+ *    own build raises or zeroes it with its probe's verdict, and it never reads a target. A
+ *    capability's flag also holds wherever the flag of a capability built on it holds.
+ *    @c NUMKONG_TARGET_NEONHALF says this unit has the capability's kernels: the umbrella declares
+ *    them, and a header-only unit or the capability's own unit defines them.
  *
  *  @section types_fp8 FP8 Numeric Types
  *
@@ -434,9 +440,17 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /*  Compiling for WASM with SIMD128, NUMKONG_TARGET_V128:
  *  A module carries one SIMD capability, chosen by the toolchain's `-msimd128` flag alone. */
-#if !defined(NUMKONG_TARGET_V128) || (NUMKONG_TARGET_V128 && !(NUMKONG_ARCH_WASM_ && defined(__wasm_simd128__)))
-#undef NUMKONG_TARGET_V128
+#if !defined(NUMKONG_ARCH_WASM_V128_) || (NUMKONG_ARCH_WASM_V128_ && !(NUMKONG_ARCH_WASM_ && defined(__wasm_simd128__)))
+#undef NUMKONG_ARCH_WASM_V128_
 #if NUMKONG_ARCH_WASM_ && defined(__wasm_simd128__)
+#define NUMKONG_ARCH_WASM_V128_ 1
+#else
+#define NUMKONG_ARCH_WASM_V128_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_WASM_V128_) || ...
+#if !defined(NUMKONG_TARGET_V128) || (NUMKONG_TARGET_V128 && !NUMKONG_ARCH_WASM_V128_)
+#undef NUMKONG_TARGET_V128
+#if NUMKONG_ARCH_WASM_V128_
 #define NUMKONG_TARGET_V128 1
 #else
 #define NUMKONG_TARGET_V128 0
@@ -445,10 +459,18 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /*  Compiling for WASM with Relaxed SIMD, NUMKONG_TARGET_V128RELAXED:
  *  Requires -mrelaxed-simd for FMA instructions: f32x4.relaxed_madd, f64x2.relaxed_madd */
-#if !defined(NUMKONG_TARGET_V128RELAXED) || \
-    (NUMKONG_TARGET_V128RELAXED && !(NUMKONG_ARCH_WASM_ && defined(__wasm_relaxed_simd__)))
-#undef NUMKONG_TARGET_V128RELAXED
+#if !defined(NUMKONG_ARCH_WASM_V128RELAXED_) || \
+    (NUMKONG_ARCH_WASM_V128RELAXED_ && !(NUMKONG_ARCH_WASM_ && defined(__wasm_relaxed_simd__)))
+#undef NUMKONG_ARCH_WASM_V128RELAXED_
 #if NUMKONG_ARCH_WASM_ && defined(__wasm_relaxed_simd__)
+#define NUMKONG_ARCH_WASM_V128RELAXED_ 1
+#else
+#define NUMKONG_ARCH_WASM_V128RELAXED_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_WASM_V128RELAXED_) || ...
+#if !defined(NUMKONG_TARGET_V128RELAXED) || (NUMKONG_TARGET_V128RELAXED && !NUMKONG_ARCH_WASM_V128RELAXED_)
+#undef NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 #define NUMKONG_TARGET_V128RELAXED 1
 #else
 #define NUMKONG_TARGET_V128RELAXED 0
@@ -456,59 +478,100 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_V128RELAXED) || ...
 
 /* Compiling for RISC-V Vector: NUMKONG_TARGET_RVV */
-#if !defined(NUMKONG_TARGET_RVV) || (NUMKONG_TARGET_RVV && !NUMKONG_ARCH_RISCV64_)
+#if !defined(NUMKONG_ARCH_RISCV64_RVV_) || (NUMKONG_ARCH_RISCV64_RVV_ && !NUMKONG_ARCH_RISCV64_)
+#undef NUMKONG_ARCH_RISCV64_RVV_
 #if NUMKONG_ARCH_RISCV64_ && (defined(__riscv_v) && (__riscv_v >= 1000000))
+#define NUMKONG_ARCH_RISCV64_RVV_ 1
+#else
+#define NUMKONG_ARCH_RISCV64_RVV_ 0
+#endif // defined(__riscv_v) && (__riscv_v >= 1000000)
+#endif // !defined(NUMKONG_ARCH_RISCV64_RVV_) || ...
+#if !defined(NUMKONG_TARGET_RVV) || (NUMKONG_TARGET_RVV && !NUMKONG_ARCH_RISCV64_)
+#undef NUMKONG_TARGET_RVV
+#if NUMKONG_ARCH_RISCV64_RVV_
 #define NUMKONG_TARGET_RVV 1
 #else
-#undef NUMKONG_TARGET_RVV
 #define NUMKONG_TARGET_RVV 0
-#endif // defined(__riscv_v) && (__riscv_v >= 1000000)
+#endif
 #endif // !defined(NUMKONG_TARGET_RVV) || ...
 
 /*  Compiling for RISC-V Vector with Zvfh, f16, NUMKONG_TARGET_RVVHALF:
  *  Requires GCC 14+ or Clang 18+ for full intrinsic support */
-#if !defined(NUMKONG_TARGET_RVVHALF) || (NUMKONG_TARGET_RVVHALF && !NUMKONG_ARCH_RISCV64_)
+#if !defined(NUMKONG_ARCH_RISCV64_RVVHALF_) || (NUMKONG_ARCH_RISCV64_RVVHALF_ && !NUMKONG_ARCH_RISCV64_)
+#undef NUMKONG_ARCH_RISCV64_RVVHALF_
 #if NUMKONG_ARCH_RISCV64_ && (defined(__riscv_zvfh) && (__riscv_zvfh > 0))
+#define NUMKONG_ARCH_RISCV64_RVVHALF_ 1
+#else
+#define NUMKONG_ARCH_RISCV64_RVVHALF_ 0
+#endif // defined(__riscv_zvfh) && (__riscv_zvfh > 0)
+#endif // !defined(NUMKONG_ARCH_RISCV64_RVVHALF_) || ...
+#if !defined(NUMKONG_TARGET_RVVHALF) || (NUMKONG_TARGET_RVVHALF && !NUMKONG_ARCH_RISCV64_)
+#undef NUMKONG_TARGET_RVVHALF
+#if NUMKONG_ARCH_RISCV64_RVVHALF_
 #define NUMKONG_TARGET_RVVHALF 1
 #else
-#undef NUMKONG_TARGET_RVVHALF
 #define NUMKONG_TARGET_RVVHALF 0
-#endif // defined(__riscv_zvfh) && (__riscv_zvfh > 0)
+#endif
 #endif // !defined(NUMKONG_TARGET_RVVHALF) || ...
 
 /*  Compiling for RISC-V Vector with Zvfbfwma, bf16 widening FMA, NUMKONG_TARGET_RVVBF16:
  *  Requires GCC 14+ or Clang 18+ for full intrinsic support */
-#if !defined(NUMKONG_TARGET_RVVBF16) || (NUMKONG_TARGET_RVVBF16 && !NUMKONG_ARCH_RISCV64_)
+#if !defined(NUMKONG_ARCH_RISCV64_RVVBF16_) || (NUMKONG_ARCH_RISCV64_RVVBF16_ && !NUMKONG_ARCH_RISCV64_)
+#undef NUMKONG_ARCH_RISCV64_RVVBF16_
 #if NUMKONG_ARCH_RISCV64_ && (defined(__riscv_zvfbfwma) && (__riscv_zvfbfwma > 0))
+#define NUMKONG_ARCH_RISCV64_RVVBF16_ 1
+#else
+#define NUMKONG_ARCH_RISCV64_RVVBF16_ 0
+#endif // defined(__riscv_zvfbfwma) && (__riscv_zvfbfwma > 0)
+#endif // !defined(NUMKONG_ARCH_RISCV64_RVVBF16_) || ...
+#if !defined(NUMKONG_TARGET_RVVBF16) || (NUMKONG_TARGET_RVVBF16 && !NUMKONG_ARCH_RISCV64_)
+#undef NUMKONG_TARGET_RVVBF16
+#if NUMKONG_ARCH_RISCV64_RVVBF16_
 #define NUMKONG_TARGET_RVVBF16 1
 #else
-#undef NUMKONG_TARGET_RVVBF16
 #define NUMKONG_TARGET_RVVBF16 0
-#endif // defined(__riscv_zvfbfwma) && (__riscv_zvfbfwma > 0)
+#endif
 #endif // !defined(NUMKONG_TARGET_RVVBF16) || ...
 
 /*  Compiling for RISC-V Vector with Zvbb, basic bit-manipulation, NUMKONG_TARGET_RVVBB:
  *  Provides per-element popcount via vcpop.v, plus vclz.v, vctz.v, vbrev.v, vrol.v, vror.v */
-#if !defined(NUMKONG_TARGET_RVVBB) || (NUMKONG_TARGET_RVVBB && !NUMKONG_ARCH_RISCV64_)
+#if !defined(NUMKONG_ARCH_RISCV64_RVVBB_) || (NUMKONG_ARCH_RISCV64_RVVBB_ && !NUMKONG_ARCH_RISCV64_)
+#undef NUMKONG_ARCH_RISCV64_RVVBB_
 #if NUMKONG_ARCH_RISCV64_ && (defined(__riscv_zvbb) && (__riscv_zvbb > 0))
+#define NUMKONG_ARCH_RISCV64_RVVBB_ 1
+#else
+#define NUMKONG_ARCH_RISCV64_RVVBB_ 0
+#endif // defined(__riscv_zvbb) && (__riscv_zvbb > 0)
+#endif // !defined(NUMKONG_ARCH_RISCV64_RVVBB_) || ...
+#if !defined(NUMKONG_TARGET_RVVBB) || (NUMKONG_TARGET_RVVBB && !NUMKONG_ARCH_RISCV64_)
+#undef NUMKONG_TARGET_RVVBB
+#if NUMKONG_ARCH_RISCV64_RVVBB_
 #define NUMKONG_TARGET_RVVBB 1
 #else
-#undef NUMKONG_TARGET_RVVBB
 #define NUMKONG_TARGET_RVVBB 0
-#endif // defined(__riscv_zvbb) && (__riscv_zvbb > 0)
+#endif
 #endif // !defined(NUMKONG_TARGET_RVVBB) || ...
 
 /*  Compiling for LoongArch LASX, 256-bit SIMD, NUMKONG_TARGET_LOONGSONASX:
  *  LASX provides 32 × 256-bit vector registers, widening integer multiply-accumulate, and
  *  f32-to-f64 conversion via xvfcvtl_d_s / xvfcvth_d_s, but no widening FMA. Its kernels scope it
  *  per function under GCC 15, while Clang's `lasxintrin.h` needs `-mlasx` across the unit. */
-#if !defined(NUMKONG_TARGET_LOONGSONASX) || (NUMKONG_TARGET_LOONGSONASX && !NUMKONG_ARCH_LOONGARCH64_)
+#if !defined(NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_) || \
+    (NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_ && !NUMKONG_ARCH_LOONGARCH64_)
+#undef NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 #if NUMKONG_ARCH_LOONGARCH64_ && (defined(__loongarch_asx))
+#define NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_ 1
+#else
+#define NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_ 0
+#endif // defined(__loongarch_asx)
+#endif // !defined(NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_) || ...
+#if !defined(NUMKONG_TARGET_LOONGSONASX) || (NUMKONG_TARGET_LOONGSONASX && !NUMKONG_ARCH_LOONGARCH64_)
+#undef NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 #define NUMKONG_TARGET_LOONGSONASX 1
 #else
-#undef NUMKONG_TARGET_LOONGSONASX
 #define NUMKONG_TARGET_LOONGSONASX 0
-#endif // defined(__loongarch_asx)
+#endif
 #endif // !defined(NUMKONG_TARGET_LOONGSONASX) || ...
 
 /*  Compiling for Power VSX, 128-bit SIMD, POWER9+ baseline, NUMKONG_TARGET_POWERVSX:
@@ -516,13 +579,21 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
  *  conversion via vec_extract_fp32_from_shorth/l, length-limited loads via vec_xl_len, per-byte
  *  popcount via vec_popcnt, and vec_cmpne. Requires POWER9, ISA 3.0, or newer. Its kernels scope it
  *  per function under GCC 15, while Clang's `altivec.h` needs `-mcpu=power9` across the unit. */
-#if !defined(NUMKONG_TARGET_POWERVSX) || (NUMKONG_TARGET_POWERVSX && !NUMKONG_ARCH_PPC64_)
+#if !defined(NUMKONG_ARCH_PPC64_POWERVSX_) || (NUMKONG_ARCH_PPC64_POWERVSX_ && !NUMKONG_ARCH_PPC64_)
+#undef NUMKONG_ARCH_PPC64_POWERVSX_
 #if NUMKONG_ARCH_PPC64_ && (defined(__VSX__) && defined(__POWER9_VECTOR__))
+#define NUMKONG_ARCH_PPC64_POWERVSX_ 1
+#else
+#define NUMKONG_ARCH_PPC64_POWERVSX_ 0
+#endif // defined(__VSX__)
+#endif // !defined(NUMKONG_ARCH_PPC64_POWERVSX_) || ...
+#if !defined(NUMKONG_TARGET_POWERVSX) || (NUMKONG_TARGET_POWERVSX && !NUMKONG_ARCH_PPC64_)
+#undef NUMKONG_TARGET_POWERVSX
+#if NUMKONG_ARCH_PPC64_POWERVSX_
 #define NUMKONG_TARGET_POWERVSX 1
 #else
-#undef NUMKONG_TARGET_POWERVSX
 #define NUMKONG_TARGET_POWERVSX 0
-#endif // defined(__VSX__)
+#endif
 #endif // !defined(NUMKONG_TARGET_POWERVSX) || ...
 
 /*  Compiling for Power MMA, the ISA 3.1 Matrix-Multiply Assist of POWER10, NUMKONG_TARGET_POWERMMA:
@@ -530,65 +601,113 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
  *  rank-4 outer products over VSX registers, on top of the POWER9 VSX of NUMKONG_TARGET_POWERVSX.
  *  Its kernels scope it per function under GCC 15, while Clang's `altivec.h` needs `-mcpu=power10`
  *  across the whole unit. */
-#if !defined(NUMKONG_TARGET_POWERMMA) || (NUMKONG_TARGET_POWERMMA && !NUMKONG_ARCH_PPC64_)
+#if !defined(NUMKONG_ARCH_PPC64_POWERMMA_) || (NUMKONG_ARCH_PPC64_POWERMMA_ && !NUMKONG_ARCH_PPC64_)
+#undef NUMKONG_ARCH_PPC64_POWERMMA_
 #if NUMKONG_ARCH_PPC64_ && (defined(__MMA__) && defined(__POWER9_VECTOR__))
+#define NUMKONG_ARCH_PPC64_POWERMMA_ 1
+#else
+#define NUMKONG_ARCH_PPC64_POWERMMA_ 0
+#endif // defined(__MMA__)
+#endif // !defined(NUMKONG_ARCH_PPC64_POWERMMA_) || ...
+#if !defined(NUMKONG_TARGET_POWERMMA) || (NUMKONG_TARGET_POWERMMA && !NUMKONG_ARCH_PPC64_)
+#undef NUMKONG_TARGET_POWERMMA
+#if NUMKONG_ARCH_PPC64_POWERMMA_
 #define NUMKONG_TARGET_POWERMMA 1
 #else
-#undef NUMKONG_TARGET_POWERMMA
 #define NUMKONG_TARGET_POWERMMA 0
-#endif // defined(__MMA__)
+#endif
 #endif // !defined(NUMKONG_TARGET_POWERMMA) || ...
 
 /* Compiling for Arm: NUMKONG_TARGET_NEON, AArch64 only — AArch32 NEON is not supported. */
-#if !defined(NUMKONG_TARGET_NEON) || (NUMKONG_TARGET_NEON && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_NEON_) || (NUMKONG_ARCH_ARM64_NEON_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_NEON_
 #if NUMKONG_ARCH_ARM64_ && ((defined(__ARM_NEON) && defined(__aarch64__)) || (defined(_MSC_VER) && defined(_M_ARM64)))
+#define NUMKONG_ARCH_ARM64_NEON_ 1
+#else
+#define NUMKONG_ARCH_ARM64_NEON_ 0
+#endif // (defined(__ARM_NEON) && defined(__aarch64__)) || ...
+#endif // !defined(NUMKONG_ARCH_ARM64_NEON_) || ...
+#if !defined(NUMKONG_TARGET_NEON) || (NUMKONG_TARGET_NEON && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_NEON
+#if NUMKONG_ARCH_ARM64_NEON_
 #define NUMKONG_TARGET_NEON 1
 #else
-#undef NUMKONG_TARGET_NEON
 #define NUMKONG_TARGET_NEON 0
-#endif // (defined(__ARM_NEON) && defined(__aarch64__)) || ...
+#endif
 #endif // !defined(NUMKONG_TARGET_NEON) || ...
 
 /* Compiling for Arm: NUMKONG_TARGET_NEONSDOT, FEAT_DotProd, AArch64 only. */
-#if !defined(NUMKONG_TARGET_NEONSDOT) || (NUMKONG_TARGET_NEONSDOT && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_NEONSDOT_) || (NUMKONG_ARCH_ARM64_NEONSDOT_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_NEONSDOT_
 #if NUMKONG_ARCH_ARM64_ && ((defined(__ARM_FEATURE_DOTPROD) && defined(__aarch64__)) || \
                             (defined(_MSC_VER) && defined(_M_ARM64) && __ARM_ARCH >= 804))
+#define NUMKONG_ARCH_ARM64_NEONSDOT_ 1
+#else
+#define NUMKONG_ARCH_ARM64_NEONSDOT_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_ARM64_NEONSDOT_) || ...
+#if !defined(NUMKONG_TARGET_NEONSDOT) || (NUMKONG_TARGET_NEONSDOT && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_NEONSDOT
+#if NUMKONG_ARCH_ARM64_NEONSDOT_
 #define NUMKONG_TARGET_NEONSDOT 1
 #else
-#undef NUMKONG_TARGET_NEONSDOT
 #define NUMKONG_TARGET_NEONSDOT 0
 #endif
 #endif // !defined(NUMKONG_TARGET_NEONSDOT) || ...
 
 /* Compiling for Arm: NUMKONG_TARGET_NEONHALF, FEAT_FP16, AArch64 only. */
-#if !defined(NUMKONG_TARGET_NEONHALF) || (NUMKONG_TARGET_NEONHALF && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_NEONHALF_) || (NUMKONG_ARCH_ARM64_NEONHALF_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_NEONHALF_
 #if NUMKONG_ARCH_ARM64_ && ((defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && defined(__aarch64__)) || \
                             (defined(_MSC_VER) && defined(_M_ARM64) && __ARM_ARCH >= 802))
+#define NUMKONG_ARCH_ARM64_NEONHALF_ 1
+#else
+#define NUMKONG_ARCH_ARM64_NEONHALF_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_ARM64_NEONHALF_) || ...
+#if !defined(NUMKONG_TARGET_NEONHALF) || (NUMKONG_TARGET_NEONHALF && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_NEONHALF
+#if NUMKONG_ARCH_ARM64_NEONHALF_
 #define NUMKONG_TARGET_NEONHALF 1
 #else
-#undef NUMKONG_TARGET_NEONHALF
 #define NUMKONG_TARGET_NEONHALF 0
 #endif
 #endif // !defined(NUMKONG_TARGET_NEONHALF) || ...
 
 /* Compiling for Arm: NUMKONG_TARGET_NEONFHM, FEAT_FHM, AArch64 only. */
-#if !defined(NUMKONG_TARGET_NEONFHM) || (NUMKONG_TARGET_NEONFHM && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_NEONFHM_) || (NUMKONG_ARCH_ARM64_NEONFHM_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_NEONFHM_
 #if NUMKONG_ARCH_ARM64_ && ((defined(__ARM_FEATURE_FP16_FML) && defined(__aarch64__)) || \
                             (defined(_MSC_VER) && defined(_M_ARM64) && __ARM_ARCH >= 804))
+#define NUMKONG_ARCH_ARM64_NEONFHM_ 1
+#else
+#define NUMKONG_ARCH_ARM64_NEONFHM_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_ARM64_NEONFHM_) || ...
+#if !defined(NUMKONG_TARGET_NEONFHM) || (NUMKONG_TARGET_NEONFHM && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_NEONFHM
+#if NUMKONG_ARCH_ARM64_NEONFHM_
 #define NUMKONG_TARGET_NEONFHM 1
 #else
-#undef NUMKONG_TARGET_NEONFHM
 #define NUMKONG_TARGET_NEONFHM 0
 #endif
 #endif // !defined(NUMKONG_TARGET_NEONFHM) || ...
 
 /* Compiling for Arm: NUMKONG_TARGET_NEONBFDOT, FEAT_BF16, AArch64 only. */
-#if !defined(NUMKONG_TARGET_NEONBFDOT) || (NUMKONG_TARGET_NEONBFDOT && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_NEONBFDOT_) || (NUMKONG_ARCH_ARM64_NEONBFDOT_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_NEONBFDOT_
 #if NUMKONG_ARCH_ARM64_ && ((defined(__ARM_FEATURE_BF16_VECTOR_ARITHMETIC) && defined(__aarch64__)) || \
                             (defined(_MSC_VER) && defined(_M_ARM64) && __ARM_ARCH >= 806))
+#define NUMKONG_ARCH_ARM64_NEONBFDOT_ 1
+#else
+#define NUMKONG_ARCH_ARM64_NEONBFDOT_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_ARM64_NEONBFDOT_) || ...
+#if !defined(NUMKONG_TARGET_NEONBFDOT) || (NUMKONG_TARGET_NEONBFDOT && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_NEONBFDOT_
 #define NUMKONG_TARGET_NEONBFDOT 1
 #else
-#undef NUMKONG_TARGET_NEONBFDOT
 #define NUMKONG_TARGET_NEONBFDOT 0
 #endif
 #endif // !defined(NUMKONG_TARGET_NEONBFDOT) || ...
@@ -596,93 +715,165 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 /*  Compiling for Arm: NUMKONG_TARGET_NEONFP8, NEON FP8 extensions, FEAT_FP8DOT4. ACLE macro
  *  __ARM_FEATURE_FP8DOT4 defined by GCC 15+ and Clang 21+ when +fp8dot4 is enabled. Older compilers
  *  lack mfloat8x16_t and the fp8dot4 target attribute entirely. */
-#if !defined(NUMKONG_TARGET_NEONFP8) || (NUMKONG_TARGET_NEONFP8 && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_NEONFP8_) || (NUMKONG_ARCH_ARM64_NEONFP8_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_NEONFP8_
 #if NUMKONG_ARCH_ARM64_ && (defined(__ARM_FEATURE_FP8DOT4) && defined(__aarch64__))
+#define NUMKONG_ARCH_ARM64_NEONFP8_ 1
+#else
+#define NUMKONG_ARCH_ARM64_NEONFP8_ 0
+#endif // defined(__ARM_FEATURE_FP8DOT4)
+#endif // !defined(NUMKONG_ARCH_ARM64_NEONFP8_) || ...
+#if !defined(NUMKONG_TARGET_NEONFP8) || (NUMKONG_TARGET_NEONFP8 && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_NEONFP8
+#if NUMKONG_ARCH_ARM64_NEONFP8_
 #define NUMKONG_TARGET_NEONFP8 1
 #else
-#undef NUMKONG_TARGET_NEONFP8
 #define NUMKONG_TARGET_NEONFP8 0
-#endif // defined(__ARM_FEATURE_FP8DOT4)
-#endif // !defined(NUMKONG_TARGET_NEONFP8)  || ...
+#endif
+#endif // !defined(NUMKONG_TARGET_NEONFP8) || ...
 
 /* Compiling for Arm: NUMKONG_TARGET_SVE */
-#if !defined(NUMKONG_TARGET_SVE) || (NUMKONG_TARGET_SVE && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_SVE_) || (NUMKONG_ARCH_ARM64_SVE_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_SVE_
 #if NUMKONG_ARCH_ARM64_ && (defined(__ARM_FEATURE_SVE))
+#define NUMKONG_ARCH_ARM64_SVE_ 1
+#else
+#define NUMKONG_ARCH_ARM64_SVE_ 0
+#endif // defined(__ARM_FEATURE_SVE)
+#endif // !defined(NUMKONG_ARCH_ARM64_SVE_) || ...
+#if !defined(NUMKONG_TARGET_SVE) || (NUMKONG_TARGET_SVE && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_SVE
+#if NUMKONG_ARCH_ARM64_SVE_
 #define NUMKONG_TARGET_SVE 1
 #else
-#undef NUMKONG_TARGET_SVE
 #define NUMKONG_TARGET_SVE 0
-#endif // defined(__ARM_FEATURE_SVE)
+#endif
 #endif // !defined(NUMKONG_TARGET_SVE) || ...
 
 /* Compiling for Arm: NUMKONG_TARGET_SVESDOT */
-#if !defined(NUMKONG_TARGET_SVESDOT) || (NUMKONG_TARGET_SVESDOT && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_SVESDOT_) || (NUMKONG_ARCH_ARM64_SVESDOT_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_SVESDOT_
 #if NUMKONG_ARCH_ARM64_ && (defined(__ARM_FEATURE_SVE))
+#define NUMKONG_ARCH_ARM64_SVESDOT_ 1
+#else
+#define NUMKONG_ARCH_ARM64_SVESDOT_ 0
+#endif // defined(__ARM_FEATURE_SVE)
+#endif // !defined(NUMKONG_ARCH_ARM64_SVESDOT_) || ...
+#if !defined(NUMKONG_TARGET_SVESDOT) || (NUMKONG_TARGET_SVESDOT && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_SVESDOT
+#if NUMKONG_ARCH_ARM64_SVESDOT_
 #define NUMKONG_TARGET_SVESDOT 1
 #else
-#undef NUMKONG_TARGET_SVESDOT
 #define NUMKONG_TARGET_SVESDOT 0
-#endif // defined(__ARM_FEATURE_SVE)
+#endif
 #endif // !defined(NUMKONG_TARGET_SVESDOT) || ...
 
 /* Compiling for Arm: NUMKONG_TARGET_SVEHALF */
-#if !defined(NUMKONG_TARGET_SVEHALF) || (NUMKONG_TARGET_SVEHALF && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_SVEHALF_) || (NUMKONG_ARCH_ARM64_SVEHALF_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_SVEHALF_
 #if NUMKONG_ARCH_ARM64_ && (defined(__ARM_FEATURE_SVE))
+#define NUMKONG_ARCH_ARM64_SVEHALF_ 1
+#else
+#define NUMKONG_ARCH_ARM64_SVEHALF_ 0
+#endif // defined(__ARM_FEATURE_SVE)
+#endif // !defined(NUMKONG_ARCH_ARM64_SVEHALF_) || ...
+#if !defined(NUMKONG_TARGET_SVEHALF) || (NUMKONG_TARGET_SVEHALF && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_SVEHALF
+#if NUMKONG_ARCH_ARM64_SVEHALF_
 #define NUMKONG_TARGET_SVEHALF 1
 #else
-#undef NUMKONG_TARGET_SVEHALF
 #define NUMKONG_TARGET_SVEHALF 0
-#endif // defined(__ARM_FEATURE_SVE)
+#endif
 #endif // !defined(NUMKONG_TARGET_SVEHALF) || ...
 
 /* Compiling for Arm: NUMKONG_TARGET_SVEBFDOT */
-#if !defined(NUMKONG_TARGET_SVEBFDOT) || (NUMKONG_TARGET_SVEBFDOT && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_SVEBFDOT_) || (NUMKONG_ARCH_ARM64_SVEBFDOT_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_SVEBFDOT_
 #if NUMKONG_ARCH_ARM64_ && (defined(__ARM_FEATURE_SVE))
+#define NUMKONG_ARCH_ARM64_SVEBFDOT_ 1
+#else
+#define NUMKONG_ARCH_ARM64_SVEBFDOT_ 0
+#endif // defined(__ARM_FEATURE_SVE)
+#endif // !defined(NUMKONG_ARCH_ARM64_SVEBFDOT_) || ...
+#if !defined(NUMKONG_TARGET_SVEBFDOT) || (NUMKONG_TARGET_SVEBFDOT && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_SVEBFDOT
+#if NUMKONG_ARCH_ARM64_SVEBFDOT_
 #define NUMKONG_TARGET_SVEBFDOT 1
 #else
-#undef NUMKONG_TARGET_SVEBFDOT
 #define NUMKONG_TARGET_SVEBFDOT 0
-#endif // defined(__ARM_FEATURE_SVE)
+#endif
 #endif // !defined(NUMKONG_TARGET_SVEBFDOT) || ...
 
 /* Compiling for Arm: NUMKONG_TARGET_SVE2 */
-#if !defined(NUMKONG_TARGET_SVE2) || (NUMKONG_TARGET_SVE2 && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_SVE2_) || (NUMKONG_ARCH_ARM64_SVE2_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_SVE2_
 #if NUMKONG_ARCH_ARM64_ && (defined(__ARM_FEATURE_SVE2))
+#define NUMKONG_ARCH_ARM64_SVE2_ 1
+#else
+#define NUMKONG_ARCH_ARM64_SVE2_ 0
+#endif // defined(__ARM_FEATURE_SVE2)
+#endif // !defined(NUMKONG_ARCH_ARM64_SVE2_) || ...
+#if !defined(NUMKONG_TARGET_SVE2) || (NUMKONG_TARGET_SVE2 && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_SVE2
+#if NUMKONG_ARCH_ARM64_SVE2_
 #define NUMKONG_TARGET_SVE2 1
 #else
-#undef NUMKONG_TARGET_SVE2
 #define NUMKONG_TARGET_SVE2 0
-#endif // defined(__ARM_FEATURE_SVE2)
+#endif
 #endif // !defined(NUMKONG_TARGET_SVE2) || ...
 
 /* Compiling for Arm: NUMKONG_TARGET_SME, the Scalable Matrix Extension. */
-#if !defined(NUMKONG_TARGET_SME) || (NUMKONG_TARGET_SME && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_SME_) || (NUMKONG_ARCH_ARM64_SME_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_SME_
 #if NUMKONG_ARCH_ARM64_ && (defined(__ARM_FEATURE_SME))
+#define NUMKONG_ARCH_ARM64_SME_ 1
+#else
+#define NUMKONG_ARCH_ARM64_SME_ 0
+#endif // defined(__ARM_FEATURE_SME)
+#endif // !defined(NUMKONG_ARCH_ARM64_SME_) || ...
+#if !defined(NUMKONG_TARGET_SME) || (NUMKONG_TARGET_SME && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_SME
+#if NUMKONG_ARCH_ARM64_SME_
 #define NUMKONG_TARGET_SME 1
 #else
-#undef NUMKONG_TARGET_SME
 #define NUMKONG_TARGET_SME 0
-#endif // defined(__ARM_FEATURE_SME)
+#endif
 #endif // !defined(NUMKONG_TARGET_SME) || ...
 
 /*  AppleClang 17 exposes SME sub-features through `arm_sme.h` builtin aliases, not dedicated
  *  `__ARM_FEATURE_*` predefines for every matrix subtype. */
-#if !defined(NUMKONG_TARGET_SMEF64) || (NUMKONG_TARGET_SMEF64 && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_SMEF64_) || (NUMKONG_ARCH_ARM64_SMEF64_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_SMEF64_
 #if NUMKONG_ARCH_ARM64_ && (defined(__ARM_FEATURE_SME_F64F64) || nk_has_builtin_(__builtin_sme_svmopa_za64_f64_m))
+#define NUMKONG_ARCH_ARM64_SMEF64_ 1
+#else
+#define NUMKONG_ARCH_ARM64_SMEF64_ 0
+#endif // defined(__ARM_FEATURE_SME_F64F64) || ...
+#endif // !defined(NUMKONG_ARCH_ARM64_SMEF64_) || ...
+#if !defined(NUMKONG_TARGET_SMEF64) || (NUMKONG_TARGET_SMEF64 && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_SMEF64
+#if NUMKONG_ARCH_ARM64_SMEF64_
 #define NUMKONG_TARGET_SMEF64 1
 #else
-#undef NUMKONG_TARGET_SMEF64
 #define NUMKONG_TARGET_SMEF64 0
-#endif // defined(__ARM_FEATURE_SME_F64F64) || ...
+#endif
 #endif // !defined(NUMKONG_TARGET_SMEF64) || ...
 
-#if !defined(NUMKONG_TARGET_SMEBI32) || (NUMKONG_TARGET_SMEBI32 && !NUMKONG_ARCH_ARM64_)
+#if !defined(NUMKONG_ARCH_ARM64_SMEBI32_) || (NUMKONG_ARCH_ARM64_SMEBI32_ && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_ARCH_ARM64_SMEBI32_
 #if NUMKONG_ARCH_ARM64_ && (nk_has_builtin_(__builtin_sme_svbmopa_za32_u32_m))
+#define NUMKONG_ARCH_ARM64_SMEBI32_ 1
+#else
+#define NUMKONG_ARCH_ARM64_SMEBI32_ 0
+#endif // nk_has_builtin_(__builtin_sme_svbmopa_za32_u32_m)
+#endif // !defined(NUMKONG_ARCH_ARM64_SMEBI32_) || ...
+#if !defined(NUMKONG_TARGET_SMEBI32) || (NUMKONG_TARGET_SMEBI32 && !NUMKONG_ARCH_ARM64_)
+#undef NUMKONG_TARGET_SMEBI32
+#if NUMKONG_ARCH_ARM64_SMEBI32_
 #define NUMKONG_TARGET_SMEBI32 1
 #else
-#undef NUMKONG_TARGET_SMEBI32
 #define NUMKONG_TARGET_SMEBI32 0
-#endif // nk_has_builtin_(__builtin_sme_svbmopa_za32_u32_m)
+#endif
 #endif // !defined(NUMKONG_TARGET_SMEBI32) || ...
 
 /*  Compiling for x86: NUMKONG_TARGET_HASWELL
@@ -702,14 +893,22 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
  *  - _MSC_VER >= 1900, VS 2015+: AVX2/FMA/F16C, matching Haswell
  *  - _MSC_VER >= 1920, VS 2019+: AVX-512 base plus AVX-VNNI, matching Skylake, Icelake, and Alder
  *  - _MSC_VER >= 1944, VS 2022 17.14+: BF16, FP16, VP2INTERSECT, VNNI-INT8, AMX, matching Sierra */
-#if !defined(NUMKONG_TARGET_HASWELL) || (NUMKONG_TARGET_HASWELL && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_HASWELL_) || (NUMKONG_ARCH_X8664_HASWELL_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_HASWELL_
 #if NUMKONG_ARCH_X8664_ && ((defined(__AVX2__) && defined(__FMA__) && defined(__F16C__)) || \
                             (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1900))
+#define NUMKONG_ARCH_X8664_HASWELL_ 1
+#else
+#define NUMKONG_ARCH_X8664_HASWELL_ 0
+#endif // defined(__AVX2__)
+#endif // !defined(NUMKONG_ARCH_X8664_HASWELL_) || ...
+#if !defined(NUMKONG_TARGET_HASWELL) || (NUMKONG_TARGET_HASWELL && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_HASWELL
+#if NUMKONG_ARCH_X8664_HASWELL_
 #define NUMKONG_TARGET_HASWELL 1
 #else
-#undef NUMKONG_TARGET_HASWELL
 #define NUMKONG_TARGET_HASWELL 0
-#endif // defined(__AVX2__)
+#endif
 #endif // !defined(NUMKONG_TARGET_HASWELL) || ...
 
 /*
@@ -728,35 +927,59 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
  *  gcc-12 -march=native -dM -E - < /dev/null | egrep "NEON|SVE|FP16|FMA" | sort
  *  @endcode
  */
-#if !defined(NUMKONG_TARGET_SKYLAKE) || (NUMKONG_TARGET_SKYLAKE && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_SKYLAKE_) || (NUMKONG_ARCH_X8664_SKYLAKE_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_SKYLAKE_
 #if NUMKONG_ARCH_X8664_ && ((defined(__AVX512F__) && defined(__AVX512CD__) && defined(__AVX512VL__) && \
                              defined(__AVX512DQ__) && defined(__AVX512BW__)) ||                        \
                             (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1920))
+#define NUMKONG_ARCH_X8664_SKYLAKE_ 1
+#else
+#define NUMKONG_ARCH_X8664_SKYLAKE_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_X8664_SKYLAKE_) || ...
+#if !defined(NUMKONG_TARGET_SKYLAKE) || (NUMKONG_TARGET_SKYLAKE && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_SKYLAKE
+#if NUMKONG_ARCH_X8664_SKYLAKE_
 #define NUMKONG_TARGET_SKYLAKE 1
 #else
-#undef NUMKONG_TARGET_SKYLAKE
 #define NUMKONG_TARGET_SKYLAKE 0
 #endif
 #endif // !defined(NUMKONG_TARGET_SKYLAKE) || ...
 
-#if !defined(NUMKONG_TARGET_ICELAKE) || (NUMKONG_TARGET_ICELAKE && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_ICELAKE_) || (NUMKONG_ARCH_X8664_ICELAKE_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_ICELAKE_
 #if NUMKONG_ARCH_X8664_ && ((defined(__AVX512VNNI__) && defined(__AVX512IFMA__) && defined(__AVX512BITALG__) &&      \
                              defined(__AVX512VBMI__) && defined(__AVX512VBMI2__) && defined(__AVX512VPOPCNTDQ__)) || \
                             (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1920))
+#define NUMKONG_ARCH_X8664_ICELAKE_ 1
+#else
+#define NUMKONG_ARCH_X8664_ICELAKE_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_X8664_ICELAKE_) || ...
+#if !defined(NUMKONG_TARGET_ICELAKE) || (NUMKONG_TARGET_ICELAKE && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_ICELAKE
+#if NUMKONG_ARCH_X8664_ICELAKE_
 #define NUMKONG_TARGET_ICELAKE 1
 #else
-#undef NUMKONG_TARGET_ICELAKE
 #define NUMKONG_TARGET_ICELAKE 0
 #endif
 #endif // !defined(NUMKONG_TARGET_ICELAKE) || ...
 
-#if !defined(NUMKONG_TARGET_GENOA) || (NUMKONG_TARGET_GENOA && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_GENOA_) || (NUMKONG_ARCH_X8664_GENOA_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_GENOA_
 #if NUMKONG_ARCH_X8664_ && (defined(__AVX512BF16__) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944))
+#define NUMKONG_ARCH_X8664_GENOA_ 1
+#else
+#define NUMKONG_ARCH_X8664_GENOA_ 0
+#endif // defined(__AVX512BF16__) || ...
+#endif // !defined(NUMKONG_ARCH_X8664_GENOA_) || ...
+#if !defined(NUMKONG_TARGET_GENOA) || (NUMKONG_TARGET_GENOA && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_GENOA
+#if NUMKONG_ARCH_X8664_GENOA_
 #define NUMKONG_TARGET_GENOA 1
 #else
-#undef NUMKONG_TARGET_GENOA
 #define NUMKONG_TARGET_GENOA 0
-#endif // defined(__AVX512BF16__) || ...
+#endif
 #endif // !defined(NUMKONG_TARGET_GENOA) || ...
 
 /*  Compiling for x86: NUMKONG_TARGET_DIAMOND, AVX10.2, Diamond Rapids
@@ -765,82 +988,185 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
  *  - Clang 20+ defines __AVX10_2__ with -mavx10.2. The target attribute spells it `avx10.2-512` up
  *    to Clang 21, and `avx10.2` from Clang 22 and GCC 15.
  *  - MSVC defines __AVX10_VER__ >= 2 with /arch:AVX10.2, VS 2026+, not yet released. */
-#if !defined(NUMKONG_TARGET_DIAMOND) || (NUMKONG_TARGET_DIAMOND && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_DIAMOND_) || (NUMKONG_ARCH_X8664_DIAMOND_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_DIAMOND_
 #if NUMKONG_ARCH_X8664_ && (defined(__AVX10_2__) || (defined(__AVX10_VER__) && __AVX10_VER__ >= 2))
+#define NUMKONG_ARCH_X8664_DIAMOND_ 1
+#else
+#define NUMKONG_ARCH_X8664_DIAMOND_ 0
+#endif // defined(__AVX10_2__) || ...
+#endif // !defined(NUMKONG_ARCH_X8664_DIAMOND_) || ...
+#if !defined(NUMKONG_TARGET_DIAMOND) || (NUMKONG_TARGET_DIAMOND && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_DIAMOND
+#if NUMKONG_ARCH_X8664_DIAMOND_
 #define NUMKONG_TARGET_DIAMOND 1
 #else
-#undef NUMKONG_TARGET_DIAMOND
 #define NUMKONG_TARGET_DIAMOND 0
-#endif // defined(__AVX10_2__) || ...
+#endif
 #endif // !defined(NUMKONG_TARGET_DIAMOND) || ...
 
-#if !defined(NUMKONG_TARGET_SAPPHIRE) || (NUMKONG_TARGET_SAPPHIRE && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_SAPPHIRE_) || (NUMKONG_ARCH_X8664_SAPPHIRE_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_SAPPHIRE_
 #if NUMKONG_ARCH_X8664_ && (defined(__AVX512FP16__) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944))
+#define NUMKONG_ARCH_X8664_SAPPHIRE_ 1
+#else
+#define NUMKONG_ARCH_X8664_SAPPHIRE_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_X8664_SAPPHIRE_) || ...
+#if !defined(NUMKONG_TARGET_SAPPHIRE) || (NUMKONG_TARGET_SAPPHIRE && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_SAPPHIRE
+#if NUMKONG_ARCH_X8664_SAPPHIRE_
 #define NUMKONG_TARGET_SAPPHIRE 1
 #else
-#undef NUMKONG_TARGET_SAPPHIRE
 #define NUMKONG_TARGET_SAPPHIRE 0
 #endif
 #endif // !defined(NUMKONG_TARGET_SAPPHIRE) || ...
 
-#if !defined(NUMKONG_TARGET_SAPPHIREAMX) || (NUMKONG_TARGET_SAPPHIREAMX && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_SAPPHIREAMX_) || (NUMKONG_ARCH_X8664_SAPPHIREAMX_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_SAPPHIREAMX_
 #if NUMKONG_ARCH_X8664_ &&                                                                                   \
     ((defined(__AMX_TILE__) && defined(__AMX_BF16__) && defined(__AMX_INT8__) && defined(__AVX512FP16__)) || \
      (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944))
+#define NUMKONG_ARCH_X8664_SAPPHIREAMX_ 1
+#else
+#define NUMKONG_ARCH_X8664_SAPPHIREAMX_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_X8664_SAPPHIREAMX_) || ...
+#if !defined(NUMKONG_TARGET_SAPPHIREAMX) || (NUMKONG_TARGET_SAPPHIREAMX && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_SAPPHIREAMX
+#if NUMKONG_ARCH_X8664_SAPPHIREAMX_
 #define NUMKONG_TARGET_SAPPHIREAMX 1
 #else
-#undef NUMKONG_TARGET_SAPPHIREAMX
 #define NUMKONG_TARGET_SAPPHIREAMX 0
 #endif
 #endif // !defined(NUMKONG_TARGET_SAPPHIREAMX) || ...
 
-#if !defined(NUMKONG_TARGET_GRANITEAMX) || (NUMKONG_TARGET_GRANITEAMX && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_GRANITEAMX_) || (NUMKONG_ARCH_X8664_GRANITEAMX_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_GRANITEAMX_
 #if NUMKONG_ARCH_X8664_ && \
     ((defined(__AMX_TILE__) && defined(__AMX_FP16__)) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944))
+#define NUMKONG_ARCH_X8664_GRANITEAMX_ 1
+#else
+#define NUMKONG_ARCH_X8664_GRANITEAMX_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_X8664_GRANITEAMX_) || ...
+#if !defined(NUMKONG_TARGET_GRANITEAMX) || (NUMKONG_TARGET_GRANITEAMX && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_GRANITEAMX
+#if NUMKONG_ARCH_X8664_GRANITEAMX_
 #define NUMKONG_TARGET_GRANITEAMX 1
 #else
-#undef NUMKONG_TARGET_GRANITEAMX
 #define NUMKONG_TARGET_GRANITEAMX 0
 #endif
 #endif // !defined(NUMKONG_TARGET_GRANITEAMX) || ...
 
-#if !defined(NUMKONG_TARGET_DIAMONDAMX) || (NUMKONG_TARGET_DIAMONDAMX && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_DIAMONDAMX_) || (NUMKONG_ARCH_X8664_DIAMONDAMX_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_DIAMONDAMX_
 #if NUMKONG_ARCH_X8664_ && (defined(__AMX_TILE__) && defined(__AMX_BF16__) && defined(__AMX_INT8__) && \
                             defined(__AMX_FP8__) && defined(__AMX_AVX512__))
+#define NUMKONG_ARCH_X8664_DIAMONDAMX_ 1
+#else
+#define NUMKONG_ARCH_X8664_DIAMONDAMX_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_X8664_DIAMONDAMX_) || ...
+#if !defined(NUMKONG_TARGET_DIAMONDAMX) || (NUMKONG_TARGET_DIAMONDAMX && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_DIAMONDAMX
+#if NUMKONG_ARCH_X8664_DIAMONDAMX_
 #define NUMKONG_TARGET_DIAMONDAMX 1
 #else
-#undef NUMKONG_TARGET_DIAMONDAMX
 #define NUMKONG_TARGET_DIAMONDAMX 0
 #endif
 #endif // !defined(NUMKONG_TARGET_DIAMONDAMX) || ...
 
-#if !defined(NUMKONG_TARGET_TURIN) || (NUMKONG_TARGET_TURIN && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_TURIN_) || (NUMKONG_ARCH_X8664_TURIN_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_TURIN_
 #if NUMKONG_ARCH_X8664_ && ((defined(__AVX512VP2INTERSECT__) && defined(__AVX512BF16__)) || \
                             (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944))
+#define NUMKONG_ARCH_X8664_TURIN_ 1
+#else
+#define NUMKONG_ARCH_X8664_TURIN_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_X8664_TURIN_) || ...
+#if !defined(NUMKONG_TARGET_TURIN) || (NUMKONG_TARGET_TURIN && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_TURIN
+#if NUMKONG_ARCH_X8664_TURIN_
 #define NUMKONG_TARGET_TURIN 1
 #else
-#undef NUMKONG_TARGET_TURIN
 #define NUMKONG_TARGET_TURIN 0
 #endif
 #endif // !defined(NUMKONG_TARGET_TURIN) || ...
 
-#if !defined(NUMKONG_TARGET_ALDER) || (NUMKONG_TARGET_ALDER && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_ALDER_) || (NUMKONG_ARCH_X8664_ALDER_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_ALDER_
 #if NUMKONG_ARCH_X8664_ && (defined(__AVXVNNI__) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1920))
+#define NUMKONG_ARCH_X8664_ALDER_ 1
+#else
+#define NUMKONG_ARCH_X8664_ALDER_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_X8664_ALDER_) || ...
+#if !defined(NUMKONG_TARGET_ALDER) || (NUMKONG_TARGET_ALDER && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_ALDER
+#if NUMKONG_ARCH_X8664_ALDER_
 #define NUMKONG_TARGET_ALDER 1
 #else
-#undef NUMKONG_TARGET_ALDER
 #define NUMKONG_TARGET_ALDER 0
 #endif
 #endif // !defined(NUMKONG_TARGET_ALDER) || ...
 
-#if !defined(NUMKONG_TARGET_SIERRA) || (NUMKONG_TARGET_SIERRA && !NUMKONG_ARCH_X8664_)
+#if !defined(NUMKONG_ARCH_X8664_SIERRA_) || (NUMKONG_ARCH_X8664_SIERRA_ && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_ARCH_X8664_SIERRA_
 #if NUMKONG_ARCH_X8664_ && (defined(__AVXVNNIINT8__) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944))
+#define NUMKONG_ARCH_X8664_SIERRA_ 1
+#else
+#define NUMKONG_ARCH_X8664_SIERRA_ 0
+#endif
+#endif // !defined(NUMKONG_ARCH_X8664_SIERRA_) || ...
+#if !defined(NUMKONG_TARGET_SIERRA) || (NUMKONG_TARGET_SIERRA && !NUMKONG_ARCH_X8664_)
+#undef NUMKONG_TARGET_SIERRA
+#if NUMKONG_ARCH_X8664_SIERRA_
 #define NUMKONG_TARGET_SIERRA 1
 #else
-#undef NUMKONG_TARGET_SIERRA
 #define NUMKONG_TARGET_SIERRA 0
 #endif
 #endif // !defined(NUMKONG_TARGET_SIERRA) || ...
+
+/*  A GPU generation's building blocks are `static __device__ __forceinline__`, emitted only where a
+ *  kernel compiled for that generation calls them, so every compiler of the vendor builds every
+ *  generation's. Host units of a GPU build carry the vendor flag too, but only the vendor's own
+ *  compiler parses device code. */
+#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+#define NUMKONG_ARCH_CUDA_AMPERE_         1
+#define NUMKONG_ARCH_CUDA_ADA_            1
+#define NUMKONG_ARCH_CUDA_HOPPER_         1
+#define NUMKONG_ARCH_CUDA_BLACKWELL_      1
+#define NUMKONG_ARCH_CUDA_BLACKWELLRTX_   1
+#define NUMKONG_ARCH_CUDA_BLACKWELLULTRA_ 1
+#else
+#define NUMKONG_ARCH_CUDA_AMPERE_         0
+#define NUMKONG_ARCH_CUDA_ADA_            0
+#define NUMKONG_ARCH_CUDA_HOPPER_         0
+#define NUMKONG_ARCH_CUDA_BLACKWELL_      0
+#define NUMKONG_ARCH_CUDA_BLACKWELLRTX_   0
+#define NUMKONG_ARCH_CUDA_BLACKWELLULTRA_ 0
+#endif
+#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+#define NUMKONG_ARCH_ROCM_CDNA3_ 1
+#define NUMKONG_ARCH_ROCM_CDNA4_ 1
+#define NUMKONG_ARCH_ROCM_CDNA5_ 1
+#else
+#define NUMKONG_ARCH_ROCM_CDNA3_ 0
+#define NUMKONG_ARCH_ROCM_CDNA4_ 0
+#define NUMKONG_ARCH_ROCM_CDNA5_ 0
+#endif
+
+/*  Metal's families build their pipelines through the host runtime, so each compiles wherever that
+ *  runtime does. */
+#if NUMKONG_ARCH_METAL_
+#define NUMKONG_ARCH_METAL_APPLE9_  1
+#define NUMKONG_ARCH_METAL_APPLE10_ 1
+#else
+#define NUMKONG_ARCH_METAL_APPLE9_  0
+#define NUMKONG_ARCH_METAL_APPLE10_ 0
+#endif
 
 /*  Compiling the NVIDIA baseline, @c cuda, on the SIMT cores of every CUDA device:
  *  NUMKONG_TARGET_CUDA. The library's later-generation units turn it off, so one unit emits it. */
@@ -941,36 +1267,50 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #define NUMKONG_TARGET_METAL NUMKONG_ARCH_METAL_
 #endif // !defined(NUMKONG_TARGET_METAL) || ...
 
-/** Whether a capability's helpers compile here: its own target, or any capability built on it. Each
- *  architecture's base, Haswell, NEON, RVV, PowerVSX and V128, covers every capability built on it.
- *  @c NUMKONG_TARGET_* alone decides where its kernels are defined. */
-#define NUMKONG_ARCH_X8664_SAPPHIREAMX_ \
-    (NUMKONG_TARGET_SAPPHIREAMX || NUMKONG_TARGET_GRANITEAMX || NUMKONG_TARGET_DIAMONDAMX)
-#define NUMKONG_ARCH_X8664_ICELAKE_ \
-    (NUMKONG_TARGET_ICELAKE || NUMKONG_TARGET_GENOA || NUMKONG_TARGET_SAPPHIRE || NUMKONG_ARCH_X8664_SAPPHIREAMX_)
-#define NUMKONG_ARCH_X8664_SKYLAKE_ \
-    (NUMKONG_TARGET_SKYLAKE || NUMKONG_ARCH_X8664_ICELAKE_ || NUMKONG_TARGET_DIAMOND || NUMKONG_TARGET_TURIN)
-#define NUMKONG_ARCH_X8664_HASWELL_ \
-    (NUMKONG_TARGET_HASWELL || NUMKONG_ARCH_X8664_SKYLAKE_ || NUMKONG_TARGET_ALDER || NUMKONG_TARGET_SIERRA)
-#define NUMKONG_ARCH_ARM64_SME_ (NUMKONG_TARGET_SME || NUMKONG_TARGET_SMEF64 || NUMKONG_TARGET_SMEBI32)
-#define NUMKONG_ARCH_ARM64_SVE_                                                                           \
-    (NUMKONG_TARGET_SVE || NUMKONG_TARGET_SVEHALF || NUMKONG_TARGET_SVESDOT || NUMKONG_TARGET_SVEBFDOT || \
-     NUMKONG_TARGET_SVE2 || NUMKONG_ARCH_ARM64_SME_)
-#define NUMKONG_ARCH_ARM64_NEON_                                                                             \
-    (NUMKONG_TARGET_NEON || NUMKONG_TARGET_NEONHALF || NUMKONG_TARGET_NEONBFDOT || NUMKONG_TARGET_NEONFHM || \
-     NUMKONG_TARGET_NEONSDOT || NUMKONG_TARGET_NEONFP8 || NUMKONG_ARCH_ARM64_SVE_)
-#define NUMKONG_ARCH_RISCV64_RVV_ \
-    (NUMKONG_TARGET_RVV || NUMKONG_TARGET_RVVHALF || NUMKONG_TARGET_RVVBF16 || NUMKONG_TARGET_RVVBB)
-#define NUMKONG_ARCH_PPC64_POWERVSX_ (NUMKONG_TARGET_POWERVSX || NUMKONG_TARGET_POWERMMA)
-#define NUMKONG_ARCH_WASM_V128_      (NUMKONG_TARGET_V128 || NUMKONG_TARGET_V128RELAXED)
-#define NUMKONG_ARCH_CUDA_BLACKWELL_ (NUMKONG_TARGET_BLACKWELL || NUMKONG_TARGET_BLACKWELLULTRA)
-#define NUMKONG_ARCH_CUDA_AMPERE_                                                                            \
-    (NUMKONG_TARGET_AMPERE || NUMKONG_TARGET_ADA || NUMKONG_TARGET_HOPPER || NUMKONG_ARCH_CUDA_BLACKWELL_ || \
-     NUMKONG_TARGET_BLACKWELLRTX)
-#define NUMKONG_ARCH_CUDA_ADA_ \
-    (NUMKONG_TARGET_ADA || NUMKONG_TARGET_HOPPER || NUMKONG_ARCH_CUDA_BLACKWELL_ || NUMKONG_TARGET_BLACKWELLRTX)
-#define NUMKONG_ARCH_ROCM_CDNA4_ (NUMKONG_TARGET_CDNA4 || NUMKONG_TARGET_CDNA5)
-#define NUMKONG_ARCH_ROCM_CDNA3_ (NUMKONG_TARGET_CDNA3 || NUMKONG_ARCH_ROCM_CDNA4_)
+/*  Building blocks follow what is built on them, top-down. Each target above took a literal 0 or 1
+ *  from its own detection, so raising a base's flag here opens its blocks and never its kernels. */
+#if NUMKONG_ARCH_X8664_GRANITEAMX_ || NUMKONG_ARCH_X8664_DIAMONDAMX_
+#undef NUMKONG_ARCH_X8664_SAPPHIREAMX_
+#define NUMKONG_ARCH_X8664_SAPPHIREAMX_ 1
+#endif
+#if NUMKONG_ARCH_X8664_GENOA_ || NUMKONG_ARCH_X8664_SAPPHIRE_ || NUMKONG_ARCH_X8664_SAPPHIREAMX_
+#undef NUMKONG_ARCH_X8664_ICELAKE_
+#define NUMKONG_ARCH_X8664_ICELAKE_ 1
+#endif
+#if NUMKONG_ARCH_X8664_ICELAKE_ || NUMKONG_ARCH_X8664_DIAMOND_ || NUMKONG_ARCH_X8664_TURIN_
+#undef NUMKONG_ARCH_X8664_SKYLAKE_
+#define NUMKONG_ARCH_X8664_SKYLAKE_ 1
+#endif
+#if NUMKONG_ARCH_X8664_SKYLAKE_ || NUMKONG_ARCH_X8664_ALDER_ || NUMKONG_ARCH_X8664_SIERRA_
+#undef NUMKONG_ARCH_X8664_HASWELL_
+#define NUMKONG_ARCH_X8664_HASWELL_ 1
+#endif
+#if NUMKONG_ARCH_ARM64_SMEF64_ || NUMKONG_ARCH_ARM64_SMEBI32_
+#undef NUMKONG_ARCH_ARM64_SME_
+#define NUMKONG_ARCH_ARM64_SME_ 1
+#endif
+#if NUMKONG_ARCH_ARM64_SVEHALF_ || NUMKONG_ARCH_ARM64_SVESDOT_ || NUMKONG_ARCH_ARM64_SVEBFDOT_ || \
+    NUMKONG_ARCH_ARM64_SVE2_ || NUMKONG_ARCH_ARM64_SME_
+#undef NUMKONG_ARCH_ARM64_SVE_
+#define NUMKONG_ARCH_ARM64_SVE_ 1
+#endif
+#if NUMKONG_ARCH_ARM64_NEONHALF_ || NUMKONG_ARCH_ARM64_NEONBFDOT_ || NUMKONG_ARCH_ARM64_NEONFHM_ || \
+    NUMKONG_ARCH_ARM64_NEONSDOT_ || NUMKONG_ARCH_ARM64_NEONFP8_ || NUMKONG_ARCH_ARM64_SVE_
+#undef NUMKONG_ARCH_ARM64_NEON_
+#define NUMKONG_ARCH_ARM64_NEON_ 1
+#endif
+#if NUMKONG_ARCH_RISCV64_RVVHALF_ || NUMKONG_ARCH_RISCV64_RVVBF16_ || NUMKONG_ARCH_RISCV64_RVVBB_
+#undef NUMKONG_ARCH_RISCV64_RVV_
+#define NUMKONG_ARCH_RISCV64_RVV_ 1
+#endif
+#if NUMKONG_ARCH_PPC64_POWERMMA_
+#undef NUMKONG_ARCH_PPC64_POWERVSX_
+#define NUMKONG_ARCH_PPC64_POWERVSX_ 1
+#endif
+#if NUMKONG_ARCH_WASM_V128RELAXED_
+#undef NUMKONG_ARCH_WASM_V128_
+#define NUMKONG_ARCH_WASM_V128_ 1
+#endif
 
 /* Include the relevant intrinsics headers */
 #if defined(_MSC_VER)
@@ -994,7 +1334,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 /*  The LASX and POWER9 intrinsics headers open in the same target region as their kernels.
  *  GCC 15 defines @c __loongarch_asx and @c __POWER9_VECTOR__ there, while Clang defines them
  *  only under `-mlasx` or `-mcpu=power9`. */
-#if NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 #if !defined(__clang__)
 #pragma GCC push_options
 #pragma GCC target("lasx")
@@ -2332,7 +2672,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b64_vec_t {
 
 /** Small 16-byte memory slice viewable as different types. */
 typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
-#if NUMKONG_ARCH_X8664_HASWELL_ || NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_X8664_HASWELL_ || NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
     __m128i xmm;
     __m128d xmm_pd;
     __m128 xmm_ps;
@@ -2386,7 +2726,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
 
 /** Small 32-byte memory slice viewable as different types. */
 typedef union NUMKONG_MAY_ALIAS_ nk_b256_vec_t {
-#if NUMKONG_ARCH_X8664_HASWELL_ || NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_X8664_HASWELL_ || NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
     __m256i ymm;
     __m256d ymm_pd;
     __m256 ymm_ps;

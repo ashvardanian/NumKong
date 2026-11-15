@@ -10,7 +10,7 @@
 #define NUMKONG_SPARSE_TURIN_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_TURIN
+#if NUMKONG_ARCH_X8664_TURIN_
 
 #include "numkong/types.h"
 #include "numkong/sparse/serial.h" // `nk_sparse_intersect_u16_serial_`, `nk_sparse_dot_u16bf16_`
@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_TURIN // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(                                                                                                    \
     __attribute__((target(                                                                                                       \
@@ -323,11 +324,12 @@ NUMKONG_API nk_status_t nk_sparse_dot_u32f32_turin(       //
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_TURIN
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_TURIN
+#endif // NUMKONG_ARCH_X8664_TURIN_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPARSE_TURIN_H

@@ -5,8 +5,8 @@
  *  @brief Whether the toolchain builds the SME BI32 kernels, the boolean and integer
  *      32-bit outer product.
  */
-#define NUMKONG_HEADER_ONLY    1
-#define NUMKONG_TARGET_SMEBI32 1
+#define NUMKONG_HEADER_ONLY         1
+#define NUMKONG_ARCH_ARM64_SMEBI32_ 1
 #include <numkong/types.h>
 #include <numkong/dots/smebi32.h> // `nk_dots_symmetric_u1_smebi32`
 

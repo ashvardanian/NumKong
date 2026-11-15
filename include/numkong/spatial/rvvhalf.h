@@ -15,20 +15,20 @@
 #define NUMKONG_SPATIAL_RVVHALF_H
 
 #if NUMKONG_ARCH_RISCV64_
-#if NUMKONG_TARGET_RVVHALF
+#if NUMKONG_ARCH_RISCV64_RVVHALF_
 
 #include "numkong/types.h"
 #include "numkong/spatial/rvv.h" // `nk_rsqrt_f32_rvv_`
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v,+zvfh"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v,+zvfh")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 NUMKONG_INLINE void nk_squared_distance_f16_rvvhalf_(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
@@ -57,6 +57,7 @@ NUMKONG_INLINE void nk_squared_distance_f16_rvvhalf_(nk_f16_t const *a_scalars, 
     *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
 }
 
+#if NUMKONG_TARGET_RVVHALF
 NUMKONG_API nk_status_t nk_sqeuclidean_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
                                                    nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -116,9 +117,7 @@ NUMKONG_API nk_status_t nk_angular_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16
     return nk_success_k;
 }
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
+#endif // NUMKONG_TARGET_RVVHALF
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -126,6 +125,10 @@ NUMKONG_API nk_status_t nk_angular_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16
 #pragma GCC pop_options
 #endif
 
-#endif // NUMKONG_TARGET_RVVHALF
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_RISCV64_RVVHALF_
 #endif // NUMKONG_ARCH_RISCV64_
 #endif // NUMKONG_SPATIAL_RVVHALF_H

@@ -14,7 +14,7 @@
 #define NUMKONG_DOTS_SIERRA_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_SIERRA
+#if NUMKONG_ARCH_X8664_SIERRA_
 
 #include "numkong/dot/sierra.h"     // Sierra-specific dot product helpers
 #include "numkong/dot/haswell.h"    // Haswell partial load functions
@@ -92,6 +92,7 @@ NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_sierra_(nk_e2m1x2_t const *dat
 
 #pragma endregion Norms
 
+#if NUMKONG_TARGET_SIERRA
 /* I8 GEMM: depth_simd_dimensions=32 (32 i8s = 32 bytes = AVX2 register width) */
 nk_define_cross_pack_size_(dots, i8, sierra, i8, i8, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1, /*scale_bytes=*/1)
@@ -174,6 +175,8 @@ nk_define_cross_packed_(dots, e2m1, sierra, e2m1x2, e2m1x2, f32, nk_b256_vec_t, 
                         nk_dot_e2m1x64_finalize_sierra, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
 
+#endif // NUMKONG_TARGET_SIERRA
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -184,6 +187,6 @@ nk_define_cross_packed_(dots, e2m1, sierra, e2m1x2, e2m1x2, f32, nk_b256_vec_t, 
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SIERRA
+#endif // NUMKONG_ARCH_X8664_SIERRA_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_SIERRA_H

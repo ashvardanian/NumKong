@@ -58,14 +58,13 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_HASWELL // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
-
-#if NUMKONG_TARGET_HASWELL
 
 NUMKONG_INLINE nk_f32_t nk_shapes_sqrt_f32_haswell_(nk_f32_t x) { return _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(x))); }
 NUMKONG_INLINE nk_f64_t nk_shapes_sqrt_f64_haswell_(nk_f64_t x) { return _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(x))); }
@@ -1531,13 +1530,12 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_haswell(void const *const *a_packed,
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_HASWELL
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__cplusplus)
 } // extern "C"

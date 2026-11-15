@@ -35,7 +35,7 @@
 #define NUMKONG_SPATIAL_SVEBFDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SVEBFDOT
+#if NUMKONG_ARCH_ARM64_SVEBFDOT_
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h"   // `nk_svaddv_f64_`
@@ -85,6 +85,7 @@ NUMKONG_INLINE void nk_squared_distance_bf16_svebfdot_(nk_bf16_t const *a_enum, 
     *result = d2;
 }
 
+#if NUMKONG_TARGET_SVEBFDOT
 NUMKONG_API nk_status_t nk_sqeuclidean_bf16_svebfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                      nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -126,6 +127,8 @@ NUMKONG_API nk_status_t nk_angular_bf16_svebfdot(nk_bf16_t const *a_enum, nk_bf1
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_SVEBFDOT
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -136,6 +139,6 @@ NUMKONG_API nk_status_t nk_angular_bf16_svebfdot(nk_bf16_t const *a_enum, nk_bf1
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SVEBFDOT
+#endif // NUMKONG_ARCH_ARM64_SVEBFDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIAL_SVEBFDOT_H

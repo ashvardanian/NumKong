@@ -25,7 +25,7 @@
 #define NUMKONG_SPATIAL_SIERRA_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_SIERRA
+#if NUMKONG_ARCH_X8664_SIERRA_
 
 #include "numkong/types.h"
 #include "numkong/reduce/haswell.h"  // `nk_reduce_add_i32x8_haswell_`
@@ -36,6 +36,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SIERRA // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2,avxvnni,avxvnniint8"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -562,11 +563,12 @@ nk_angular_e3m2_sierra_cycle:
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SIERRA
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SIERRA
+#endif // NUMKONG_ARCH_X8664_SIERRA_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIAL_SIERRA_H

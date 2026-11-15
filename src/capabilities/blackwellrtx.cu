@@ -15,3 +15,6 @@
 #include "numkong/dots/blackwellrtx.cuh"
 #include "numkong/spatials/blackwellrtx.cuh"
 #include "numkong/attention/blackwellrtx.cuh"
+
+/** One of this unit's kernels, which @c nk_capabilities_compiled_cuda asks the runtime to load. */
+extern "C" void const *nk_probe_blackwellrtx_(void) { return (void const *)&nk_dots_pack_e4m3_blackwellrtx_kernel_; }

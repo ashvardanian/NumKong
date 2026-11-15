@@ -37,7 +37,7 @@
 #define NUMKONG_TRIGONOMETRY_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_partial_load_b32x4_serial_`, `nk_partial_load_b64x2_serial_`, `nk_partial_store_b32x4_serial_`
@@ -567,7 +567,7 @@ NUMKONG_INLINE v128_t nk_f64x2_atan2_v128relaxed_(v128_t const ys_inputs, v128_t
 /*  NUMKONG_API wrappers, with the same loop and tail pattern as neon.h. Full loads use
  *  wasm_v128_load and wasm_v128_store, while tails use nk_partial_load_b32x4_serial_ and
  *  nk_partial_store_b32x4_serial_ through the .v128 union member. */
-
+#if NUMKONG_TARGET_V128RELAXED
 NUMKONG_API nk_status_t nk_trig_sin_f32_v128relaxed(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs,
                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -688,6 +688,8 @@ NUMKONG_API nk_status_t nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_siz
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_V128RELAXED
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -696,6 +698,6 @@ NUMKONG_API nk_status_t nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_siz
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_TRIGONOMETRY_V128RELAXED_H

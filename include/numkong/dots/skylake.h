@@ -518,6 +518,7 @@ nk_define_cross_packed_(dots, e3m2, skylake, e3m2, e3m2, f32, nk_b512_vec_t, nk_
                         /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 
 #endif // NUMKONG_TARGET_SKYLAKE
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)

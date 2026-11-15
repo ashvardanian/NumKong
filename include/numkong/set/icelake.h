@@ -40,6 +40,39 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512vpopcntdq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
+#pragma region Distances from Dot Products
+
+/** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Icelake). */
+NUMKONG_INLINE void nk_hamming_u32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                       nk_b128_vec_t const *target_pops_vec,
+                                                       nk_b128_vec_t *result_vec) {
+    __m128i dots_i32x4 = dots_vec->xmm;
+    __m128i query_i32x4 = _mm_set1_epi32((int)query_pop);
+    __m128i target_i32x4 = target_pops_vec->xmm;
+    result_vec->xmm = _mm_sub_epi32(_mm_add_epi32(query_i32x4, target_i32x4), _mm_slli_epi32(dots_i32x4, 1));
+}
+
+/** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Icelake). */
+NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                       nk_b128_vec_t const *target_pops_vec,
+                                                       nk_b128_vec_t *result_vec) {
+    __m128 dot_f32x4 = _mm_cvtepi32_ps(dots_vec->xmm);
+    __m128 query_f32x4 = _mm_set1_ps((nk_f32_t)query_pop);
+    __m128 target_f32x4 = _mm_cvtepi32_ps(target_pops_vec->xmm);
+    __m128 union_f32x4 = _mm_sub_ps(_mm_add_ps(query_f32x4, target_f32x4), dot_f32x4);
+
+    __m128 zero_union_b32x4 = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
+    __m128 one_f32x4 = _mm_set1_ps(1.0f);
+    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_b32x4);
+
+    // Exact division, not `_mm_rcp14_ps`, so batches match the serial reference bit for bit.
+    __m128 ratio_f32x4 = _mm_div_ps(dot_f32x4, safe_union_f32x4);
+    __m128 jaccard_f32x4 = _mm_sub_ps(one_f32x4, ratio_f32x4);
+    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
+}
+
+#pragma endregion Distances from Dot Products
+
 #if NUMKONG_TARGET_ICELAKE
 
 #pragma region Binary Sets
@@ -306,39 +339,6 @@ NUMKONG_API nk_status_t nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t const
 #pragma endregion Integer Sets
 
 #endif // NUMKONG_TARGET_ICELAKE
-
-#pragma region Distances from Dot Products
-
-/** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (Icelake). */
-NUMKONG_INLINE void nk_hamming_u32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                       nk_b128_vec_t const *target_pops_vec,
-                                                       nk_b128_vec_t *result_vec) {
-    __m128i dots_i32x4 = dots_vec->xmm;
-    __m128i query_i32x4 = _mm_set1_epi32((int)query_pop);
-    __m128i target_i32x4 = target_pops_vec->xmm;
-    result_vec->xmm = _mm_sub_epi32(_mm_add_epi32(query_i32x4, target_i32x4), _mm_slli_epi32(dots_i32x4, 1));
-}
-
-/** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Icelake). */
-NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_icelake_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                       nk_b128_vec_t const *target_pops_vec,
-                                                       nk_b128_vec_t *result_vec) {
-    __m128 dot_f32x4 = _mm_cvtepi32_ps(dots_vec->xmm);
-    __m128 query_f32x4 = _mm_set1_ps((nk_f32_t)query_pop);
-    __m128 target_f32x4 = _mm_cvtepi32_ps(target_pops_vec->xmm);
-    __m128 union_f32x4 = _mm_sub_ps(_mm_add_ps(query_f32x4, target_f32x4), dot_f32x4);
-
-    __m128 zero_union_b32x4 = _mm_cmpeq_ps(union_f32x4, _mm_setzero_ps());
-    __m128 one_f32x4 = _mm_set1_ps(1.0f);
-    __m128 safe_union_f32x4 = _mm_blendv_ps(union_f32x4, one_f32x4, zero_union_b32x4);
-
-    // Exact division rather than `_mm_rcp14_ps` — batched results must match the serial reference bit-for-bit.
-    __m128 ratio_f32x4 = _mm_div_ps(dot_f32x4, safe_union_f32x4);
-    __m128 jaccard_f32x4 = _mm_sub_ps(one_f32x4, ratio_f32x4);
-    result_vec->xmm_ps = _mm_blendv_ps(jaccard_f32x4, _mm_setzero_ps(), zero_union_b32x4);
-}
-
-#pragma endregion Distances from Dot Products
 
 #if defined(__clang__)
 #pragma clang attribute pop

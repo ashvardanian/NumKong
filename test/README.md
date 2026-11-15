@@ -198,7 +198,7 @@ __SIMD and Relaxed SIMD Support__
 The SIMD builds require fixed-width SIMD — 128-bit `v128`.
 The `serial` build runs on engines that validate neither probe.
 The `v128relaxed` capability adds Relaxed SIMD instructions like `f32x4.relaxed_madd` and the fused `i8` dot product; an engine without them refuses the whole module at instantiation, which is why the capability is a build choice rather than a runtime one.
-Inside a module, `nk_cpu_capabilities_detected` reports the capabilities it was compiled with, since an engine validated it whole, so `detected`, `compiled` and `enabled` agree.
+Inside a module, `nk_capabilities_detected_cpu` reports the capabilities it was compiled with, since an engine validated it whole, so `detected`, `compiled` and `enabled` agree.
 
 | Engine   | SIMD128 | Relaxed SIMD | Threads | Memory64 |
 | :------- | ------: | -----------: | ------: | -------: |

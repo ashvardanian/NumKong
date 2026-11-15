@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_NEON // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8-a+simd"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -26,7 +27,6 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-#if NUMKONG_TARGET_NEON
 nk_define_cross_normalized_packed_(angular, f32, neon, f32, f32, f64, /*norm_value_type=*/f64, f64, nk_b256_vec_t,
                                    nk_dots_packed_f32_neon, nk_angular_through_f64_from_dot_neon_,
                                    nk_dots_reduce_sumsq_f32_neon_, nk_load_b256_neon_, nk_partial_load_b64x4_serial_,
@@ -226,13 +226,13 @@ nk_define_cross_scaled_symmetric_(euclideans, mxfp6e3m2, neon, i16, nk_euclidean
                                   /*normalized=*/1,
                                   /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                   /*register_rows=*/2, /*register_columns=*/4)
-#endif // NUMKONG_TARGET_NEON
 
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_NEON
 
 #if defined(__cplusplus)
 } // extern "C"

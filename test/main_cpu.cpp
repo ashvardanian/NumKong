@@ -15,7 +15,7 @@
 
 #include <string_view> // `std::string_view`
 
-#include "numkong/capabilities.h" // nk_cpu_capabilities, nk_cpu_configure_thread
+#include "numkong/capabilities.h" // `nk_capabilities_detected_cpu`, `nk_configure_thread_cpu`
 
 #if !NUMKONG_ARCH_WASM_
 #include <csignal> // `std::signal`, `SIGILL`
@@ -104,7 +104,7 @@ struct capability_kernel {
 
 /** The CPU capabilities this machine runs and this binary holds. */
 static nk_capability_t runnable_capabilities() noexcept {
-    return cpu_capabilities_detected() & cpu_capabilities_compiled();
+    return capabilities_detected_cpu() & capabilities_compiled_cpu();
 }
 
 #if !NUMKONG_HEADER_ONLY
@@ -240,9 +240,10 @@ static error_stats_t test_best_dots_packed_bf16(settings_t const &settings) {
         stats.expect(std::memcmp(expected.raw_values_data(), dispatched.raw_values_data(), expected.size_bytes()) == 0,
                      "the dispatch point ran another capability's kernel");
     }
-    nk_capability_t cuda = 0;
-    stats.expect(nk_cuda_capabilities_compiled(&cuda));
-    if (!cuda)
+    nk_kernel_punned_t cuda_kernel = nullptr;
+    nk_capability_t cuda_capability = 0;
+    if (nk_find_kernel_punned(nk_kernel_dots_packed_k, nk_bf16_k, nk_cap_cuda_k, &cuda_kernel, &cuda_capability) !=
+        nk_success_k)
         stats.expect(nk_dots_packed_bf16_best(a.raw_values_data(), b.raw_values_data(), expected.raw_values_data(),
                                               rows, columns, depth, row_bytes, c_stride, nullptr, 0, nk_cap_cuda_k,
                                               nullptr) == nk_missing_kernel_k,
@@ -542,8 +543,8 @@ static error_stats_t test_device_capabilities(settings_t const &) {
     nk::device_t const cpu = nk::device_t::cpu();
     auto const detected = cpu.capabilities_detected();
     auto const enabled = cpu.capabilities_enabled();
-    stats.expect(detected && detected.value == cpu_capabilities_detected(), "the CPU detected another mask");
-    stats.expect(cpu.capabilities_compiled() == cpu_capabilities_compiled(), "the CPU compiled another mask");
+    stats.expect(detected && detected.value == capabilities_detected_cpu(), "the CPU detected another mask");
+    stats.expect(cpu.capabilities_compiled() == capabilities_compiled_cpu(), "the CPU compiled another mask");
     stats.expect(enabled && enabled.value == (detected.value & cpu.capabilities_compiled()),
                  "the CPU enabled more than it detected and compiled");
     stats.expect(nk::default_capabilities() == (NUMKONG_HEADER_ONLY ? 0 : enabled.value),
@@ -693,8 +694,8 @@ int main(int, char **argv) {
 #endif // NUMKONG_HAS_SIGNAL_
 
     // Breadcrumb for crash_handler: if SIGILL fires here, the log shows which call faulted.
-    nk_test_current_kernel_ = "nk_cpu_configure_thread()";
-    [[maybe_unused]] nk_status_t const configured = nk_cpu_configure_thread(env.machine.detected); // Also enables AMX
+    nk_test_current_kernel_ = "nk_configure_thread_cpu()";
+    [[maybe_unused]] nk_status_t const configured = nk_configure_thread_cpu(env.machine.detected); // Also enables AMX
     nk_test_current_kernel_ = nullptr;
 
     print(env.machine);

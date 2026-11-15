@@ -46,8 +46,6 @@ NUMKONG_DEVICE void nk_e4m3x4_to_f16x4_cdna4_(nk_u32_t codes, nk_u32_t *low, nk_
 
 #pragma endregion Conversions
 
-#if NUMKONG_TARGET_CDNA4
-
 #pragma region Steps
 
 NUMKONG_DEVICE void nk_attention_scores_bf16_cdna4_(nk_fui32_t scores[4], nk_u32_t const keys[8],
@@ -618,6 +616,18 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_i8_cdna4_(
 }
 
 #pragma endregion Tile
+
+#if NUMKONG_TARGET_CDNA4
+
+/** @ref nk_attention_pack_directory_rocm_ as the CDNA4 tier's kernel, which its packs launch. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_pack_directory_cdna4_kernel_(unsigned char *packed, nk_size_t key_value_head_count, nk_size_t depth,
+                                              nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                              nk_size_t segment_count, nk_size_t row_bytes, nk_size_t directory_bytes,
+                                              nk_capability_t capability) {
+    nk_attention_pack_directory_rocm_(packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count,
+                                      row_bytes, directory_bytes, capability);
+}
 
 #pragma region Instantiations
 

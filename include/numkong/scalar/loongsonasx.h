@@ -14,7 +14,7 @@
 #define NUMKONG_SCALAR_LOONGSONASX_H
 
 #if NUMKONG_ARCH_LOONGARCH64_
-#if NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 
 #include "numkong/types.h"
 
@@ -77,6 +77,7 @@ NUMKONG_INLINE nk_f64_t nk_sqrt_f64_loongsonasx_(nk_f64_t x) {
     return c.f;
 }
 
+#if NUMKONG_TARGET_LOONGSONASX
 NUMKONG_API nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) { return nk_rsqrt_f32_loongsonasx_(x); }
 
 NUMKONG_API nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) { return x <= 0 ? 0 : nk_sqrt_f32_loongsonasx_(x); }
@@ -84,6 +85,8 @@ NUMKONG_API nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) { return x <= 0 ? 0 : n
 NUMKONG_API nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) { return nk_sqrt_f64_loongsonasx_(x); }
 
 NUMKONG_API nk_f64_t nk_f64_rsqrt_loongsonasx(nk_f64_t x) { return 1.0 / nk_sqrt_f64_loongsonasx_(x); }
+
+#endif // NUMKONG_TARGET_LOONGSONASX
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -95,6 +98,6 @@ NUMKONG_API nk_f64_t nk_f64_rsqrt_loongsonasx(nk_f64_t x) { return 1.0 / nk_sqrt
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_LOONGSONASX
+#endif // NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 #endif // NUMKONG_ARCH_LOONGARCH64_
 #endif // NUMKONG_SCALAR_LOONGSONASX_H

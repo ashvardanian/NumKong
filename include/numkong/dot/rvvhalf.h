@@ -20,20 +20,21 @@
 #define NUMKONG_DOT_RVVHALF_H
 
 #if NUMKONG_ARCH_RISCV64_
-#if NUMKONG_TARGET_RVVHALF
+#if NUMKONG_ARCH_RISCV64_RVVHALF_
 
 #include "numkong/types.h"
 #include "numkong/cast/rvv.h" // `nk_e4m3m1_to_f16m2_rvv_`
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#if NUMKONG_TARGET_RVVHALF // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v,+zvfh"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v,+zvfh")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_dot_f16_rvvhalf(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
@@ -108,16 +109,17 @@ NUMKONG_API nk_status_t nk_dot_e5m2_rvvhalf(nk_e5m2_t const *a_scalars, nk_e5m2_
     return nk_success_k;
 }
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-
 #endif // NUMKONG_TARGET_RVVHALF
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_RISCV64_RVVHALF_
 #endif // NUMKONG_ARCH_RISCV64_
 #endif // NUMKONG_DOT_RVVHALF_H

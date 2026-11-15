@@ -32,7 +32,7 @@
 #define NUMKONG_SPATIAL_NEONSDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONSDOT
+#if NUMKONG_ARCH_ARM64_NEONSDOT_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"  // `nk_partial_load_b4x32_serial_`
@@ -76,6 +76,7 @@ NUMKONG_INLINE void nk_squared_distance_i8_neonsdot_(nk_i8_t const *a, nk_i8_t c
     *result = distance_sq_u32;
 }
 
+#if NUMKONG_TARGET_NEONSDOT
 NUMKONG_API nk_status_t nk_sqeuclidean_i8_neonsdot(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
                                                    nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -473,6 +474,8 @@ nk_angular_u4_neonsdot_cycle:
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_NEONSDOT
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -483,6 +486,6 @@ nk_angular_u4_neonsdot_cycle:
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONSDOT
+#endif // NUMKONG_ARCH_ARM64_NEONSDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIAL_NEONSDOT_H

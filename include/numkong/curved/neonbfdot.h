@@ -27,7 +27,7 @@
 #define NUMKONG_CURVED_NEONBFDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_NEONBFDOT_
 
 #include "numkong/types.h"     // `nk_bf16_t`
 #include "numkong/cast/neon.h" // `nk_partial_load_b16x8_neon_`
@@ -80,6 +80,7 @@ NUMKONG_INLINE void nk_fma_bf16cx4_neonbfdot_(int16x4x2_t c_i16x4x2, int16x4x2_t
     *imag_f32x4 = vfmaq_f32(*imag_f32x4, c_imag_f32x4, b_real_f32x4);
 }
 
+#if NUMKONG_TARGET_NEONBFDOT
 NUMKONG_API nk_status_t nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c,
                                                    nk_size_t n, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -167,6 +168,8 @@ NUMKONG_API nk_status_t nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, n
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_NEONBFDOT
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -177,6 +180,6 @@ NUMKONG_API nk_status_t nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, n
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONBFDOT
+#endif // NUMKONG_ARCH_ARM64_NEONBFDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_CURVED_NEONBFDOT_H

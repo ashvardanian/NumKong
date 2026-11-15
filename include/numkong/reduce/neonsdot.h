@@ -10,7 +10,7 @@
 #define NUMKONG_REDUCE_NEONSDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONSDOT
+#if NUMKONG_ARCH_ARM64_NEONSDOT_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"
@@ -122,6 +122,7 @@ NUMKONG_INLINE void nk_reduce_moments_chunked_i8_neonsdot_(     //
     }
 }
 
+#if NUMKONG_TARGET_NEONSDOT
 NUMKONG_API nk_status_t nk_reduce_moments_i8_neonsdot(          //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_stream_t stream) {
@@ -442,6 +443,8 @@ NUMKONG_API nk_status_t nk_reduce_moments_i4_neonsdot(            //
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_NEONSDOT
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -452,6 +455,6 @@ NUMKONG_API nk_status_t nk_reduce_moments_i4_neonsdot(            //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONSDOT
+#endif // NUMKONG_ARCH_ARM64_NEONSDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_REDUCE_NEONSDOT_H

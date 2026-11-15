@@ -27,7 +27,7 @@
 #define NUMKONG_EACH_NEONFHM_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONFHM
+#if NUMKONG_ARCH_ARM64_NEONFHM_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_partial_load_b16x8_serial_`, `nk_partial_store_b16x8_serial_`
@@ -103,6 +103,7 @@ NUMKONG_INLINE uint8x8_t nk_fma_e5m2x8_neonfhm_(uint8x8_t a_e5m2x8, uint8x8_t b_
         vfmaq_f32(vmulq_f32(ab_high_f32x4, alpha_f32x4), vcvt_high_f32_f16(c_f16x8), beta_f32x4));
 }
 
+#if NUMKONG_TARGET_NEONFHM
 NUMKONG_API nk_status_t nk_each_fma_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
                                                 nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result,
                                                 nk_stream_t stream) {
@@ -203,6 +204,8 @@ NUMKONG_API nk_status_t nk_each_fma_e5m2_neonfhm(nk_e5m2_t const *a, nk_e5m2_t c
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_NEONFHM
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -213,6 +216,6 @@ NUMKONG_API nk_status_t nk_each_fma_e5m2_neonfhm(nk_e5m2_t const *a, nk_e5m2_t c
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONFHM
+#endif // NUMKONG_ARCH_ARM64_NEONFHM_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_EACH_NEONFHM_H

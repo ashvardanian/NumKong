@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIALS_GRANITEAMX_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_GRANITEAMX
+#if NUMKONG_ARCH_X8664_GRANITEAMX_
 
 #include "numkong/spatial/skylake.h"
 #include "numkong/spatial/serial.h"
@@ -49,6 +49,7 @@ NUMKONG_INLINE void nk_angulars_packed_finalize_f16_graniteamx_(nk_f16_t const *
     }
 }
 
+#if NUMKONG_TARGET_GRANITEAMX
 NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_f16_graniteamx(nk_size_t rows, nk_size_t columns,
                                                                          nk_size_t depth, nk_size_t *bytes) {
     nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
@@ -413,6 +414,8 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_graniteamx( //
 
 #pragma endregion E5M2 Symmetric
 
+#endif // NUMKONG_TARGET_GRANITEAMX
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -423,6 +426,6 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_graniteamx( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_GRANITEAMX
+#endif // NUMKONG_ARCH_X8664_GRANITEAMX_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIALS_GRANITEAMX_H

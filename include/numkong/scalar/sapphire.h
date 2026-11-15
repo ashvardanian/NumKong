@@ -12,7 +12,7 @@
 #define NUMKONG_SCALAR_SAPPHIRE_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_SAPPHIRE
+#if NUMKONG_ARCH_X8664_SAPPHIRE_
 
 #include "numkong/types.h"
 
@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SAPPHIRE // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512fp16,f16c,fma,bmi,bmi2"))), \
                              apply_to = function)
@@ -64,11 +65,12 @@ NUMKONG_API nk_f16_t nk_f16_fma_sapphire(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SAPPHIRE
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SAPPHIRE
+#endif // NUMKONG_ARCH_X8664_SAPPHIRE_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SCALAR_SAPPHIRE_H

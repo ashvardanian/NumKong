@@ -17,20 +17,21 @@
 #define NUMKONG_DOT_RVVBF16_H
 
 #if NUMKONG_ARCH_RISCV64_
-#if NUMKONG_TARGET_RVVBF16
+#if NUMKONG_ARCH_RISCV64_RVVBF16_
 
 #include "numkong/types.h"
 #include "numkong/cast/rvv.h" // `nk_e4m3m1_to_bf16m2_rvv_`, `nk_e5m2m1_to_bf16m2_rvv_`
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#if NUMKONG_TARGET_RVVBF16 // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v,+zvfbfwma"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v,+zvfbfwma")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_dot_bf16_rvvbf16(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
@@ -102,16 +103,17 @@ NUMKONG_API nk_status_t nk_dot_e5m2_rvvbf16(nk_e5m2_t const *a_scalars, nk_e5m2_
     return nk_success_k;
 }
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-
 #endif // NUMKONG_TARGET_RVVBF16
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_RISCV64_RVVBF16_
 #endif // NUMKONG_ARCH_RISCV64_
 #endif // NUMKONG_DOT_RVVBF16_H

@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIALS_APPLE10_H
 
 #if NUMKONG_ARCH_METAL_
-#if NUMKONG_TARGET_APPLE10
+#if NUMKONG_ARCH_METAL_APPLE10_
 #include "numkong/dots/apple10.h"
 #include "numkong/spatials/metal.h"
 
@@ -18,6 +18,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_APPLE10
 nk_define_spatials_metal_(angular, i8, apple10, i8, 64, 1, NUMKONG_METAL_LANGUAGE_4_0_, 1)
 nk_define_spatials_metal_(angular, i4, apple10, i4x2, 64, 2, NUMKONG_METAL_LANGUAGE_4_0_, 1)
 nk_define_spatials_metal_(angular, u4, apple10, u4x2, 64, 2, NUMKONG_METAL_LANGUAGE_4_0_, 1)
@@ -53,9 +54,11 @@ nk_define_spatials_metal_(euclidean, mxfp4, apple10, e2m1x2, 64, 2, NUMKONG_META
 nk_define_spatials_metal_(angular, nvfp4, apple10, e2m1x2, 64, 2, NUMKONG_METAL_LANGUAGE_4_0_, 1)
 nk_define_spatials_metal_(euclidean, nvfp4, apple10, e2m1x2, 64, 2, NUMKONG_METAL_LANGUAGE_4_0_, 1)
 
+#endif // NUMKONG_TARGET_APPLE10
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-#endif // NUMKONG_TARGET_APPLE10
+#endif // NUMKONG_ARCH_METAL_APPLE10_
 #endif // NUMKONG_ARCH_METAL_
 #endif // NUMKONG_SPATIALS_APPLE10_H

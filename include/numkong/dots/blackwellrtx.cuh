@@ -18,7 +18,7 @@
 #define NUMKONG_DOTS_BLACKWELLRTX_CUH
 
 #if NUMKONG_ARCH_CUDA_
-#if NUMKONG_TARGET_BLACKWELLRTX
+#if NUMKONG_ARCH_CUDA_BLACKWELLRTX_
 
 #include "numkong/dots/ampere.cuh"
 
@@ -83,7 +83,6 @@ NUMKONG_DEVICE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_
                  : "+f"(accumulator[0].f), "+f"(accumulator[1].f), "+f"(accumulator[2].f), "+f"(accumulator[3].f)
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second), "r"(0x7F7F7F7Fu));
 }
-
 
 #pragma endregion Instructions
 
@@ -340,6 +339,8 @@ NUMKONG_DEVICE void nk_cross_tile_e2m1_blackwellrtx_(nk_cross_metric_t metric, n
 
 #pragma endregion Tiles
 
+#if NUMKONG_TARGET_BLACKWELLRTX
+
 #pragma region E5M2
 
 nk_define_cross_pack_cuda_(e5m2, blackwellrtx, e5m2, e5m2, nk_load_b8_simt_, /*norm_value_type=*/f32,
@@ -385,10 +386,12 @@ nk_define_cross_cuda_(dot, e2m1, blackwellrtx, e2m1_blackwellrtx, e2m1x2, e2m1x2
 
 #pragma endregion E2M1
 
+#endif // NUMKONG_TARGET_BLACKWELLRTX
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_BLACKWELLRTX
+#endif // NUMKONG_ARCH_CUDA_BLACKWELLRTX_
 #endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_DOTS_BLACKWELLRTX_CUH

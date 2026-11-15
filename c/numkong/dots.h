@@ -102,7 +102,7 @@
  *  @code{.c}
  *  // Standard matmul: C rows-by-columns from A rows-by-depth times B depth-by-columns
  *  nk_capability_t capabilities = nk_cap_serial_k;
- *  nk_cpu_capabilities_enabled(&capabilities);
+ *  nk_capabilities_enabled_cpu(&capabilities);
  *  nk_dots_pack_bf16_best(b_transposed, columns, depth, depth * sizeof(nk_bf16_t), b_packed, 0, columns,
  *                         capabilities, NULL);
  *  nk_dots_packed_bf16_best(a, b_packed, c, rows, columns, depth, a_stride, c_stride, NULL, 0, capabilities, NULL);
@@ -221,7 +221,7 @@ extern "C" {
  *  @brief Returns packed buffer size in bytes for second multiplier matrix (B).
  *  @param[in] columns The number of rows in B (output columns).
  *  @param[in] depth Columns in B, counting dimensions, a multiple of the values per byte.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The size of the packed buffer.
  *  @note The packed layout is backend-specific and must be produced by the matching pack function.
  *
@@ -293,7 +293,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_u1_best(nk_size_t columns, nk_size_t d
  *  @param[in] b_packed A buffer produced by the matching nk_dots_pack_bf16_best.
  *  @param[out] columns Receives the column count (B rows).
  *  @param[out] depth Receives the inner dimension.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -371,7 +371,7 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_u1_best(void const *b_packed, nk_si
  *  @param[out] b_packed The output packed buffer from nk_dots_pack_size_bf16_best.
  *  @param[in] columns_begin First output column to pack; 0 for a full pack.
  *  @param[in] columns_end One past the last output column to pack; @p columns for a full pack.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -476,7 +476,7 @@ NUMKONG_API nk_status_t nk_dots_pack_u1_best(nk_u1x8_t const *b, nk_size_t colum
  *  @param[in] rows The number of rows in A.
  *  @param[in] columns The number of rows in B (output columns).
  *  @param[in] depth Columns in A and B, counting dimensions.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The workspace size, zero when no scratch is needed.
  *
  *  @par Statuses:
@@ -499,7 +499,7 @@ NUMKONG_API nk_status_t nk_dots_packed_workspace_size_bf16_best(nk_size_t rows, 
  *      by @p stream for GPU capabilities. Null with zero bytes selects the scratch-free path.
  *  @param[in] workspace_bytes At least what @c nk_dots_packed_workspace_size_bf16_best reports,
  *      or zero. Anything between zero and that size returns @c nk_unexpected_dimensions_k.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -682,7 +682,7 @@ NUMKONG_API nk_status_t nk_dots_packed_u1_best(nk_u1x8_t const *a, void const *b
  *  @param[in] depth Counts dimensions.
  *  @param[in] rows_begin First result row to compute.
  *  @param[in] rows_end Result row after the last to compute, clamped to @p vector_count.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The workspace size, zero when no scratch is needed.
  *
  *  @par Statuses:
@@ -709,7 +709,7 @@ NUMKONG_API nk_status_t nk_dots_symmetric_workspace_size_bf16_best(nk_size_t vec
  *      by @p stream for GPU capabilities. Null with zero bytes selects the scratch-free path.
  *  @param[in] workspace_bytes At least what @c nk_dots_symmetric_workspace_size_bf16_best reports,
  *      or zero. Anything between zero and that size returns @c nk_unexpected_dimensions_k.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:

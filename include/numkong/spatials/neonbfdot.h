@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIALS_NEONBFDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_NEONBFDOT_
 
 #include "numkong/spatial/neon.h"
 #include "numkong/dots/neonbfdot.h"
@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_NEONBFDOT // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+simd+bf16"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -52,11 +53,12 @@ nk_define_cross_normalized_symmetric_(euclidean, bf16, neonbfdot, bf16, f32, /*n
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_NEONBFDOT
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONBFDOT
+#endif // NUMKONG_ARCH_ARM64_NEONBFDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIALS_NEONBFDOT_H

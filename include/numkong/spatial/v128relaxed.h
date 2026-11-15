@@ -33,7 +33,7 @@
 #define NUMKONG_SPATIAL_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/types.h"
 #include "numkong/spatial/v128.h" // `nk_angular_normalize_f64_v128_`
@@ -82,6 +82,7 @@ nk_sqeuclidean_f32_v128relaxed_cycle:
     *result = nk_reduce_add_f64x2_v128_(sum_f64x2);
 }
 
+#if NUMKONG_TARGET_V128RELAXED
 NUMKONG_API nk_status_t nk_sqeuclidean_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n,
                                                        nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -966,6 +967,8 @@ NUMKONG_API nk_status_t nk_angular_i8_v128relaxed(nk_i8_t const *a, nk_i8_t cons
 
 #pragma endregion I8 and U8 Integers
 
+#endif // NUMKONG_TARGET_V128RELAXED
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -974,6 +977,6 @@ NUMKONG_API nk_status_t nk_angular_i8_v128relaxed(nk_i8_t const *a, nk_i8_t cons
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_SPATIAL_V128RELAXED_H

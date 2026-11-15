@@ -21,7 +21,7 @@
 #define NUMKONG_SPATIAL_LOONGSONASX_H
 
 #if NUMKONG_ARCH_LOONGARCH64_
-#if NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 
 #include "numkong/types.h"
 #include "numkong/spatial/serial.h"
@@ -296,6 +296,7 @@ NUMKONG_INLINE void nk_squared_distance_i8_loongsonasx_(nk_i8_t const *a, nk_i8_
     *result = (nk_u32_t)sum;
 }
 
+#if NUMKONG_TARGET_LOONGSONASX
 NUMKONG_API nk_status_t nk_sqeuclidean_i8_loongsonasx(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
                                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -763,6 +764,8 @@ NUMKONG_API nk_status_t nk_angular_f16_loongsonasx(nk_f16_t const *a, nk_f16_t c
 
 #pragma endregion F16 and BF16 Floats
 
+#endif // NUMKONG_TARGET_LOONGSONASX
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -773,6 +776,6 @@ NUMKONG_API nk_status_t nk_angular_f16_loongsonasx(nk_f16_t const *a, nk_f16_t c
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_LOONGSONASX
+#endif // NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 #endif // NUMKONG_ARCH_LOONGARCH64_
 #endif // NUMKONG_SPATIAL_LOONGSONASX_H

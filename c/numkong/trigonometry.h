@@ -140,7 +140,7 @@ extern "C" {
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of sine values.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -155,7 +155,7 @@ NUMKONG_API nk_status_t nk_trig_sin_f64_best(nk_f64_t const *ins, nk_size_t n, n
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of cosine values.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -170,7 +170,7 @@ NUMKONG_API nk_status_t nk_trig_cos_f64_best(nk_f64_t const *ins, nk_size_t n, n
  *  @param[in] ins Input array of input values.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of arc-tangent values.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -185,7 +185,7 @@ NUMKONG_API nk_status_t nk_trig_atan_f64_best(nk_f64_t const *ins, nk_size_t n, 
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of sine values.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -200,7 +200,7 @@ NUMKONG_API nk_status_t nk_trig_sin_f32_best(nk_f32_t const *ins, nk_size_t n, n
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of cosine values.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -215,7 +215,7 @@ NUMKONG_API nk_status_t nk_trig_cos_f32_best(nk_f32_t const *ins, nk_size_t n, n
  *  @param[in] ins Input array of input values.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of arc-tangent values.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -230,7 +230,7 @@ NUMKONG_API nk_status_t nk_trig_atan_f32_best(nk_f32_t const *ins, nk_size_t n, 
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of sine values.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -245,7 +245,7 @@ NUMKONG_API nk_status_t nk_trig_sin_f16_best(nk_f16_t const *ins, nk_size_t n, n
  *  @param[in] ins Input array of angles in radians.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of cosine values.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -260,7 +260,7 @@ NUMKONG_API nk_status_t nk_trig_cos_f16_best(nk_f16_t const *ins, nk_size_t n, n
  *  @param[in] ins Input array of input values.
  *  @param[in] n Number of elements in the input/output arrays.
  *  @param[out] outs Output array of arc-tangent values.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:

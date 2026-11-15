@@ -10,7 +10,7 @@
 #define NUMKONG_REDUCE_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/types.h"
 #include "numkong/reduce/v128.h" // `nk_reduce_add_f32x4_v128_`, `nk_reduce_sadd_u64x2_v128_`, `nk_comparable_to_fp8_v128_`
@@ -87,6 +87,7 @@ NUMKONG_CONSTEXPR void nk_reduce_moments_recursive_f32_v128relaxed_( //
     else nk_reduce_moments_strided_f32_serial_(data, count, stride, sum, sumsq);
 }
 
+#if NUMKONG_TARGET_V128RELAXED
 NUMKONG_API nk_status_t nk_reduce_moments_f32_v128relaxed(   //
     nk_f32_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f64_t *sum, nk_f64_t *sumsq, nk_stream_t stream) {
@@ -2010,6 +2011,8 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_v128relaxed(        //
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_V128RELAXED
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -2018,6 +2021,6 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_v128relaxed(        //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_REDUCE_V128RELAXED_H

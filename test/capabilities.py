@@ -69,10 +69,10 @@ def test_masks_past_this_cpu_are_clamped():
     Without the clamp in the library's lookup, an ISA that was compiled in but that this CPU lacks
     would point dispatch at instructions the hardware refuses to execute.
     """
-    detected, compiled = nk.cpu_capabilities_detected(), nk.cpu_capabilities_compiled()
+    detected, compiled = nk.capabilities_detected_cpu(), nk.capabilities_compiled_cpu()
     a, b = array.array("f", [0.25] * 64), array.array("f", [0.5] * 64)
     assert nk.dot(a, b, capabilities=detected | compiled) == 8.0
-    assert nk.cpu_capabilities_enabled() == detected & compiled
+    assert nk.capabilities_enabled_cpu() == detected & compiled
     assert nk.Capability.SERIAL in detected & compiled, "the serial fallback is always both detected and compiled in"
 
 
@@ -89,10 +89,10 @@ def test_compiled_covers_the_baseline_this_machine_detects():
     baseline = baseline_for_this_machine()
     if baseline is None:
         pytest.skip(f"no SIMD baseline is guaranteed on {platform.machine()}")
-    if baseline not in nk.cpu_capabilities_detected():
+    if baseline not in nk.capabilities_detected_cpu():
         pytest.skip(f"this CPU does not report {baseline.name}; nothing to verify")
 
-    assert baseline in nk.cpu_capabilities_compiled(), (
+    assert baseline in nk.capabilities_compiled_cpu(), (
         f"this CPU reports {baseline.name} but no {baseline.name} kernels were compiled in — "
         f"the ISA probes failed at build time and this build is scalar"
     )
@@ -104,15 +104,17 @@ def test_gpu_producers_refuse_an_ordinal_they_do_not_see(vendor: str):
 
     A GPU it counts synchronizes its default stream, and one it does not refuses to.
     """
-    count = getattr(nk, f"{vendor}_count_devices")()
-    detected = getattr(nk, f"{vendor}_capabilities_detected")
-    enabled = getattr(nk, f"{vendor}_capabilities_enabled")
-    compiled = getattr(nk, f"{vendor}_capabilities_compiled")()
+    count = getattr(nk, f"count_devices_{vendor}")()
+    detected = getattr(nk, f"capabilities_detected_{vendor}")
+    enabled = getattr(nk, f"capabilities_enabled_{vendor}")
+    compiled = getattr(nk, f"capabilities_compiled_{vendor}")
     for ordinal in (-1, count):
         with pytest.raises(ValueError):
             enabled(ordinal)
+        with pytest.raises(ValueError):
+            compiled(ordinal)
     if count:
-        assert enabled(count - 1) == detected(count - 1) & compiled
+        assert enabled(count - 1) == detected(count - 1) & compiled(count - 1)
         nk.synchronize(enabled(count - 1))
     else:
         with pytest.raises(RuntimeError):
@@ -121,10 +123,10 @@ def test_gpu_producers_refuse_an_ordinal_they_do_not_see(vendor: str):
 
 def test_synchronize_on_the_cpu_returns():
     """The CPU has nothing queued, so its synchronization returns at once, and a stream must be a pointer."""
-    nk.synchronize(nk.cpu_capabilities_enabled())
-    nk.synchronize(nk.cpu_capabilities_enabled(), stream=None)
+    nk.synchronize(nk.capabilities_enabled_cpu())
+    nk.synchronize(nk.capabilities_enabled_cpu(), stream=None)
     with pytest.raises(TypeError):
-        nk.synchronize(nk.cpu_capabilities_enabled(), stream="not a pointer")
+        nk.synchronize(nk.capabilities_enabled_cpu(), stream="not a pointer")
 
 
 def test_capabilities_keyword_narrows_one_call():
@@ -133,9 +135,9 @@ def test_capabilities_keyword_narrows_one_call():
     The keyword keeps no serial fallback, so a mask of no capability finds no kernel.
     """
     a, b = array.array("f", [0.25] * 64), array.array("f", [0.5] * 64)
-    enabled = nk.cpu_capabilities_enabled()
+    enabled = nk.capabilities_enabled_cpu()
     assert nk.dot(a, b, capabilities=nk.Capability.SERIAL) == nk.dot(a, b) == 8.0
-    assert nk.cpu_capabilities_enabled() == enabled
+    assert nk.capabilities_enabled_cpu() == enabled
     with pytest.raises(LookupError):
         nk.dot(a, b, capabilities=nk.Capability(0))
     with pytest.raises(TypeError):

@@ -5,8 +5,8 @@
  *  @brief Whether the toolchain builds the Ice Lake kernels, AVX-512F/BW/DQ/VL plus VNNI,
  *      VBMI and VPOPCNTDQ.
  */
-#define NUMKONG_HEADER_ONLY    1
-#define NUMKONG_TARGET_ICELAKE 1
+#define NUMKONG_HEADER_ONLY         1
+#define NUMKONG_ARCH_X8664_ICELAKE_ 1
 #include <numkong/types.h>
 #include <numkong/dot/icelake.h> // `nk_dot_i8_icelake`
 

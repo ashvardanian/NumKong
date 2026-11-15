@@ -185,7 +185,7 @@ extern "C" {
  *  @param[in] columns The number of column points.
  *  @param[out] results The @b [rows,columns] squared distances.
  *  @param[in] results_stride The bytes between consecutive rows of @p results.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -202,7 +202,7 @@ NUMKONG_API nk_status_t nk_sqeuclideans3d_f64_best(nk_f64_t const *a, nk_size_t 
 /**
  *  @brief Returns the bytes a Haversine or Vincenty pack of @p points points takes.
  *  @param[in] points The number of points.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The size of the pack.
  *
  *  @par Statuses:
@@ -220,7 +220,7 @@ NUMKONG_API nk_status_t nk_vincentys_pack_size_f64_best(nk_size_t points, nk_cap
  *  @param[in] longitudes Longitudes, in radians.
  *  @param[in] count The number of points.
  *  @param[out] packed The pack, on an @c nk_default_alignment_k boundary.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -242,7 +242,7 @@ NUMKONG_API nk_status_t nk_vincentys_pack_f64_best(nk_f64_t const *latitudes, nk
  *  @param[in] b_packed The column points, packed the same way.
  *  @param[out] results The @b [rows,columns] distances.
  *  @param[in] results_stride The bytes between consecutive rows of @p results.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -262,7 +262,7 @@ NUMKONG_API nk_status_t nk_vincentys_packed_f64_best(void const *a_packed, void 
  *  @brief Returns the bytes the terrain pack of a @p rows × @p columns grid takes.
  *  @param[in] rows The grid rows.
  *  @param[in] columns The grid columns.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The size of the pack.
  *
  *  @par Statuses:
@@ -281,7 +281,7 @@ NUMKONG_API nk_status_t nk_terrain_pack_size_f32_best(nk_size_t rows, nk_size_t 
  *  @param[in] row_metres The ground length of one row step, constant over the grid.
  *  @param[in] column_metres The ground length of one column step, constant over the grid.
  *  @param[out] packed The pack, on an @c nk_default_alignment_k boundary.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -298,7 +298,7 @@ NUMKONG_API nk_status_t nk_terrain_pack_f32_best(nk_f32_t const *heights, nk_siz
  *  @param[in] points The @p count × 2 interleaved [column,row] cell coordinates of the points.
  *  @param[in] count The number of points.
  *  @param[out] results The @p count heights in metres, NaN off the grid or beside a missing cell.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -323,7 +323,7 @@ NUMKONG_API nk_status_t nk_terrain_heights_packed_f32_best(nk_f32_t const *heigh
  *  @param[in] refraction The refraction coefficient: 1/7 for light, 0.25 for radio, 0 for none.
  *  @param[out] results The @b [rows,columns] clearances.
  *  @param[in] results_stride The bytes between consecutive rows of @p results.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:

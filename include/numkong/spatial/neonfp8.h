@@ -13,7 +13,7 @@
 #define NUMKONG_SPATIAL_NEONFP8_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONFP8
+#if NUMKONG_ARCH_ARM64_NEONFP8_
 
 #include "numkong/types.h"
 #include "numkong/dot/neonfp8.h"  // `nk_e2m3x16_to_e4m3x16_neonfp8_`, `nk_e3m2x16_to_e5m2x16_neonfp8_`
@@ -56,6 +56,7 @@ nk_sqeuclidean_e4m3_neonfp8_cycle:
     *result = vaddvq_f32(a2_f32x4) - 2 * vaddvq_f32(ab_f32x4) + vaddvq_f32(b2_f32x4);
 }
 
+#if NUMKONG_TARGET_NEONFP8
 NUMKONG_API nk_status_t nk_sqeuclidean_e4m3_neonfp8(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
                                                     nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -302,6 +303,8 @@ nk_angular_e3m2_neonfp8_cycle:
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_NEONFP8
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -312,6 +315,6 @@ nk_angular_e3m2_neonfp8_cycle:
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONFP8
+#endif // NUMKONG_ARCH_ARM64_NEONFP8_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIAL_NEONFP8_H

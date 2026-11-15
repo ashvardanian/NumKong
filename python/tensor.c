@@ -1405,7 +1405,7 @@ char const doc_method_copy[] =                                                  
     "    and shape, C-contiguous. When given, the copy writes into it\n"              //
     "    with no allocation and returns `out`.\n"                                     //
     "  capabilities (int, optional): A producer's mask, like\n"                       //
-    "    nk.metal_capabilities_enabled(0), placing the copy in the unified memory\n"  //
+    "    nk.capabilities_enabled_metal(0), placing the copy in the unified memory\n"  //
     "    of that device, which GPU functions write and the host reads. It then\n"     //
     "    refuses resize() and reserve(), and frees with the tensor and its views.\n"  //
     "    Takes no `out`.\n"                                                           //

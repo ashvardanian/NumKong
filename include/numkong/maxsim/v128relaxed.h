@@ -17,7 +17,7 @@
 #define NUMKONG_MAXSIM_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/types.h"
 #include "numkong/maxsim/serial.h"   // `nk_maxsim_packed_regions_t`
@@ -81,6 +81,7 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_refine_f16_v128relaxed_(void const *query, voi
     return nk_dot_f16_widened_v128relaxed_((nk_f16_t const *)query, (nk_f16_t const *)document, depth);
 }
 
+#if NUMKONG_TARGET_V128RELAXED
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_v128relaxed( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result, nk_stream_t stream) {
@@ -323,6 +324,8 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_v128relaxed(nk_f16_t const *vectors, 
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_V128RELAXED
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -331,6 +334,6 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_v128relaxed(nk_f16_t const *vectors, 
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_MAXSIM_V128RELAXED_H

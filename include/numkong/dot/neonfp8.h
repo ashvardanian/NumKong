@@ -34,7 +34,7 @@
 #define NUMKONG_DOT_NEONFP8_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONFP8
+#if NUMKONG_ARCH_ARM64_NEONFP8_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_partial_load_b8x16_serial_`
@@ -112,6 +112,7 @@ NUMKONG_INLINE uint8x16_t nk_e3m2x16_to_e5m2x16_neonfp8_(uint8x16_t raw_u8x16) {
     return vorrq_u8(sign_shifted_u8x16, result_mag_u8x16);
 }
 
+#if NUMKONG_TARGET_NEONFP8
 NUMKONG_API nk_status_t nk_dot_e4m3_neonfp8(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
                                             nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -364,6 +365,8 @@ NUMKONG_INLINE void nk_dot_e3m2x16_finalize_neonfp8(                            
     result->f32x4 = vpaddq_f32(ab_f32x4, cd_f32x4);
 }
 
+#endif // NUMKONG_TARGET_NEONFP8
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -374,6 +377,6 @@ NUMKONG_INLINE void nk_dot_e3m2x16_finalize_neonfp8(                            
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONFP8
+#endif // NUMKONG_ARCH_ARM64_NEONFP8_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_DOT_NEONFP8_H

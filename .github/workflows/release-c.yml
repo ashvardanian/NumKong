@@ -254,7 +254,7 @@ jobs:
               .then(m => m.default())
               .then(M => {
                 const out = M._malloc(8);
-                M._nk_cpu_capabilities_enabled(BigInt(out));
+                M._nk_capabilities_enabled_cpu(BigInt(out));
                 console.log('capabilities:', new BigUint64Array(M.wasmMemory.buffer, out, 1)[0]);
               })"
       - name: Upload WASM Module

@@ -29,15 +29,15 @@
 #include "numkong/cast/rvv.h" // `nk_e4m3m1_to_f32m4_rvv_`
 #include "numkong/set/rvv.h"  // `nk_popcount_u8m4_rvv_`
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 /**
@@ -830,14 +830,14 @@ NUMKONG_API nk_status_t nk_vdot_f64c_rvv(nk_f64c_t const *a_pairs, nk_f64c_t con
 }
 #endif // NUMKONG_TARGET_RVV
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
 #endif
 
 #endif // NUMKONG_ARCH_RISCV64_RVV_

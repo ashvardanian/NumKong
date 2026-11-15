@@ -33,7 +33,7 @@
 #define NUMKONG_DOTS_SMEF64_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SMEF64
+#if NUMKONG_ARCH_ARM64_SMEF64_
 
 #include "numkong/types.h"
 #include "numkong/dots/sme.h" // `nk_dots_sme_packed_header_t`
@@ -42,6 +42,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SMEF64 // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("sme,sme-f64f64"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -1408,11 +1409,12 @@ NUMKONG_API nk_status_t nk_dots_packed_f64_smef64( //
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SMEF64
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SMEF64
+#endif // NUMKONG_ARCH_ARM64_SMEF64_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_DOTS_SMEF64_H

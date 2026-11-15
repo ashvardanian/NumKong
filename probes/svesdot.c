@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the SVE I8 kernels, signed dot products, @c FEAT_SVEDot.
  */
-#define NUMKONG_HEADER_ONLY    1
-#define NUMKONG_TARGET_SVESDOT 1
+#define NUMKONG_HEADER_ONLY         1
+#define NUMKONG_ARCH_ARM64_SVESDOT_ 1
 #include <numkong/types.h>
 #include <numkong/dot/svesdot.h> // `nk_dot_i8_svesdot`
 

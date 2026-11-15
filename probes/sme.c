@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the SME kernels, the Scalable Matrix Extension.
  */
-#define NUMKONG_HEADER_ONLY 1
-#define NUMKONG_TARGET_SME  1
+#define NUMKONG_HEADER_ONLY     1
+#define NUMKONG_ARCH_ARM64_SME_ 1
 #include <numkong/types.h>
 #include <numkong/dots/sme.h> // `nk_dots_symmetric_i8_sme`
 

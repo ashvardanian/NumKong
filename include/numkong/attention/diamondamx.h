@@ -26,7 +26,7 @@
 #define NUMKONG_ATTENTION_DIAMONDAMX_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_DIAMONDAMX
+#if NUMKONG_ARCH_X8664_DIAMONDAMX_
 
 #include "numkong/attention/serial.h" // shared packed-KV offsets, width-agnostic fallback
 #include "numkong/each/skylake.h"     // `nk_exp2_f32x16_skylake_`
@@ -113,6 +113,7 @@ NUMKONG_INLINE __m512 nk_attention_dequantize_e4m3x16_diamondamx_(__m128i weight
     return _mm512_cvtxph_ps(_mm256_cvthf8_ph(weights_e4m3x16));
 }
 
+#if NUMKONG_TARGET_DIAMONDAMX
 /*  E4M3 native and I8 share a raw 1-byte, 64-deep, quad-interleaved tile layout, past the AMX
  *  envelope in serial F32. */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_diamondamx(nk_size_t key_value_head_count, nk_size_t depth,
@@ -629,16 +630,6 @@ NUMKONG_API nk_status_t nk_attention_packed_e4m3_diamondamx(
     return nk_success_k;
 }
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 NUMKONG_API nk_status_t nk_attention_packed_workspace_size_e4m3_diamondamx(nk_size_t head_count,
                                                                            nk_size_t key_value_head_count,
                                                                            nk_size_t depth, nk_size_t query_token_count,
@@ -651,5 +642,17 @@ NUMKONG_API nk_status_t nk_attention_packed_workspace_size_e4m3_diamondamx(nk_si
 }
 
 #endif // NUMKONG_TARGET_DIAMONDAMX
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_X8664_DIAMONDAMX_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_ATTENTION_DIAMONDAMX_H

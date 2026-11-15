@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIALS_POWERMMA_H
 
 #if NUMKONG_ARCH_PPC64_
-#if NUMKONG_TARGET_POWERMMA
+#if NUMKONG_ARCH_PPC64_POWERMMA_
 
 #include "numkong/cast/powervsx.h"    // `nk_load_b128_powervsx_`, `nk_partial_store_b32x4_powervsx_`
 #include "numkong/spatial/powervsx.h" // `nk_angular_through_f32_from_dot_powervsx_`
@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_POWERMMA // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("cpu=pwr10"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -137,11 +138,12 @@ nk_define_cross_normalized_symmetric_(euclidean, u8, powermma, u8, u32, /*norm_v
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_POWERMMA
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_POWERMMA
+#endif // NUMKONG_ARCH_PPC64_POWERMMA_
 #endif // NUMKONG_ARCH_PPC64_
 #endif // NUMKONG_SPATIALS_POWERMMA_H

@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the RVV kernels, RVV 1.0, the RISC-V Vector Extension.
  */
-#define NUMKONG_HEADER_ONLY 1
-#define NUMKONG_TARGET_RVV  1
+#define NUMKONG_HEADER_ONLY       1
+#define NUMKONG_ARCH_RISCV64_RVV_ 1
 #include <numkong/types.h>
 #include <numkong/dot/rvv.h> // `nk_dot_f32_rvv`
 

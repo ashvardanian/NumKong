@@ -13,7 +13,7 @@
 #define NUMKONG_SPATIALS_NEONFP8_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONFP8
+#if NUMKONG_ARCH_ARM64_NEONFP8_
 
 #include "numkong/dots/neonfp8.h"
 
@@ -21,6 +21,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_NEONFP8 // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8-a+simd+fp8dot4"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -128,11 +129,12 @@ nk_define_cross_normalized_symmetric_(euclidean, e3m2, neonfp8, e3m2, f32, f32, 
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_NEONFP8
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONFP8
+#endif // NUMKONG_ARCH_ARM64_NEONFP8_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIALS_NEONFP8_H

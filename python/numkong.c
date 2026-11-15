@@ -980,8 +980,8 @@ static PyObject *capability_from_mask(nk_capability_t capabilities) {
 
 int device_capabilities(DLDevice device, nk_capability_t *capabilities) {
     nk_status_t const status = device.device_type == kDLROCM
-                                   ? nk_rocm_capabilities_enabled((nk_size_t)device.device_id, capabilities)
-                                   : nk_cuda_capabilities_enabled((nk_size_t)device.device_id, capabilities);
+                                   ? nk_capabilities_enabled_rocm((nk_size_t)device.device_id, capabilities)
+                                   : nk_capabilities_enabled_cuda((nk_size_t)device.device_id, capabilities);
     if (status == nk_success_k && *capabilities) return 1;
     PyErr_Format(PyExc_ValueError, "NumKong has no kernels for %s device %d: %s",
                  device.device_type == kDLROCM ? "ROCm" : "CUDA", (int)device.device_id,
@@ -1037,57 +1037,57 @@ static PyObject *stream_freed(nk_status_t (*release)(nk_stream_t stream), PyObje
     Py_RETURN_NONE;
 }
 
-static char const doc_cpu_capabilities_detected[] =                                                //
+static char const doc_capabilities_detected_cpu[] =                                                //
     "Get the capabilities this CPU can execute, from CPUID or HWCAP.\n\n"                          //
-    "Says nothing about whether the kernels were compiled in, which `cpu_capabilities_compiled`\n" //
+    "Says nothing about whether the kernels were compiled in, which `capabilities_compiled_cpu`\n" //
     "reports.\n\n"                                                                                 //
     "Signature:\n"                                                                                 //
-    "  >>> def cpu_capabilities_detected() -> Capability: ...";
+    "  >>> def capabilities_detected_cpu() -> Capability: ...";
 
-static PyObject *api_cpu_capabilities_detected(PyObject *self, PyObject *unused) {
+static PyObject *api_capabilities_detected_cpu(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
-    return capabilities_reported(nk_cpu_capabilities_detected);
+    return capabilities_reported(nk_capabilities_detected_cpu);
 }
 
-static char const doc_cpu_capabilities_compiled[] =                                                      //
+static char const doc_capabilities_compiled_cpu[] =                                                      //
     "Get the CPU capabilities whose kernels were compiled into this binary.\n\n"                         //
     "Decided at build time. Independent of the hardware: a binary built with a broken probe toolchain\n" //
     "still detects this machine's full set while containing no SIMD kernels at all, which is what\n"     //
     "makes a scalar build hard to spot.\n\n"                                                             //
     "Signature:\n"                                                                                       //
-    "  >>> def cpu_capabilities_compiled() -> Capability: ...";
+    "  >>> def capabilities_compiled_cpu() -> Capability: ...";
 
-static PyObject *api_cpu_capabilities_compiled(PyObject *self, PyObject *unused) {
+static PyObject *api_capabilities_compiled_cpu(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
-    return capabilities_reported(nk_cpu_capabilities_compiled);
+    return capabilities_reported(nk_capabilities_compiled_cpu);
 }
 
-static char const doc_cpu_capabilities_enabled[] =                                                      //
+static char const doc_capabilities_enabled_cpu[] =                                                      //
     "Get the CPU capabilities kernels run within, unless a call passes a narrower `capabilities=`.\n\n" //
-    "`cpu_capabilities_detected() & cpu_capabilities_compiled()`, which the library settles as it\n"    //
+    "`capabilities_detected_cpu() & capabilities_compiled_cpu()`, which the library settles as it\n"    //
     "loads, always with SERIAL.\n\n"                                                                    //
     "Signature:\n"                                                                                      //
-    "  >>> def cpu_capabilities_enabled() -> Capability: ...";
+    "  >>> def capabilities_enabled_cpu() -> Capability: ...";
 
-static PyObject *api_cpu_capabilities_enabled(PyObject *self, PyObject *unused) {
+static PyObject *api_capabilities_enabled_cpu(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
-    return capabilities_reported(nk_cpu_capabilities_enabled);
+    return capabilities_reported(nk_capabilities_enabled_cpu);
 }
 
-static char const doc_cpu_configure_thread[] =                                                       //
+static char const doc_configure_thread_cpu[] =                                                       //
     "Prepare the calling thread for kernels of `capabilities`, like Arm's FPCR or AMX tiles.\n\n"    //
     "The library already asks for AMX tiles for the whole process as it loads; call this on every\n" //
     "thread whose kernels need more.\n\n"                                                            //
     "Args:\n"                                                                                        //
     "  capabilities (Capability): The mask kernels on this thread run with.\n\n"                     //
     "Signature:\n"                                                                                   //
-    "  >>> def cpu_configure_thread(capabilities, /) -> None: ...";
+    "  >>> def configure_thread_cpu(capabilities, /) -> None: ...";
 
-static PyObject *api_cpu_configure_thread(PyObject *self, PyObject *capabilities) {
+static PyObject *api_configure_thread_cpu(PyObject *self, PyObject *capabilities) {
     nk_unused_(self);
     unsigned long long const bits = PyLong_AsUnsignedLongLong(capabilities);
     if (bits == (unsigned long long)-1 && PyErr_Occurred()) return NULL;
-    if (!check_status(nk_cpu_configure_thread((nk_capability_t)bits))) return NULL;
+    if (!check_status(nk_configure_thread_cpu((nk_capability_t)bits))) return NULL;
     Py_RETURN_NONE;
 }
 
@@ -1096,7 +1096,7 @@ static char const doc_count_devices[] =                                         
     "Returns:\n"                                                                 //
     "  int: Zero without that runtime or without its kernels in this build.\n\n" //
     "Signature:\n"                                                               //
-    "  >>> def cuda_count_devices() -> int: ...  # rocm_ and metal_ alike";
+    "  >>> def count_devices_cuda() -> int: ...  # _rocm and _metal alike";
 
 static char const doc_capabilities_detected[] =                                                    //
     "Get the capabilities one GPU can execute, from its runtime.\n\n"                              //
@@ -1106,12 +1106,14 @@ static char const doc_capabilities_detected[] =                                 
     "  Capability: One flag per capability; GPU bits sit above every member, so they print as a\n" //
     "    number. Raises ValueError past the devices this process sees.\n\n"                        //
     "Signature:\n"                                                                                 //
-    "  >>> def cuda_capabilities_detected(ordinal, /) -> Capability: ...  # rocm_ and metal_ alike";
+    "  >>> def capabilities_detected_cuda(ordinal, /) -> Capability: ...  # _rocm and _metal alike";
 
 static char const doc_capabilities_compiled[] =                                  //
-    "Get the GPU capabilities of one vendor whose kernels were compiled in.\n\n" //
+    "Get the GPU capabilities this binary holds code for that one GPU runs.\n\n" //
+    "Returns:\n"                                                                 //
+    "  Capability: Raises ValueError past the devices this process sees.\n\n"    //
     "Signature:\n"                                                               //
-    "  >>> def cuda_capabilities_compiled() -> Capability: ...  # rocm_ and metal_ alike";
+    "  >>> def capabilities_compiled_cuda(ordinal, /) -> Capability: ...  # _rocm and _metal alike";
 
 static char const doc_capabilities_enabled[] =                                                        //
     "Get the mask one GPU dispatches with: what it executes and this binary holds kernels for.\n\n"   //
@@ -1119,7 +1121,7 @@ static char const doc_capabilities_enabled[] =                                  
     "methods placing tensors and shape packs in unified memory. Raises ValueError past the devices\n" //
     "this process sees.\n\n"                                                                          //
     "Signature:\n"                                                                                    //
-    "  >>> def cuda_capabilities_enabled(ordinal, /) -> Capability: ...  # rocm_ and metal_ alike";
+    "  >>> def capabilities_enabled_cuda(ordinal, /) -> Capability: ...  # _rocm and _metal alike";
 
 static char const doc_stream_init[] =                                                               //
     "Create a stream on one GPU, which names that device to every call taking it as `stream=`.\n\n" //
@@ -1130,29 +1132,29 @@ static char const doc_stream_init[] =                                           
     "  int: The `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>` pointer as an integer.\n"    //
     "    Raises ValueError past the devices this process sees.\n\n"                                 //
     "Signature:\n"                                                                                  //
-    "  >>> def stream_init_cuda(ordinal, /) -> int: ...  # rocm_ and metal_ alike";
+    "  >>> def stream_init_cuda(ordinal, /) -> int: ...  # _rocm and _metal alike";
 
 static char const doc_stream_free[] =                                                                 //
     "Free a stream `stream_init_cuda` made, once `synchronize` joined whatever was queued on it.\n\n" //
     "Nothing may use the stream afterwards.\n\n"                                                      //
     "Signature:\n"                                                                                    //
-    "  >>> def stream_free_cuda(stream, /) -> None: ...  # rocm_ and metal_ alike";
+    "  >>> def stream_free_cuda(stream, /) -> None: ...  # _rocm and _metal alike";
 
-static PyObject *api_cuda_count_devices(PyObject *self, PyObject *unused) {
+static PyObject *api_count_devices_cuda(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
-    return devices_counted(nk_cuda_count_devices);
+    return devices_counted(nk_count_devices_cuda);
 }
-static PyObject *api_cuda_capabilities_detected(PyObject *self, PyObject *ordinal) {
+static PyObject *api_capabilities_detected_cuda(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
-    return device_capabilities_reported(nk_cuda_capabilities_detected, ordinal);
+    return device_capabilities_reported(nk_capabilities_detected_cuda, ordinal);
 }
-static PyObject *api_cuda_capabilities_compiled(PyObject *self, PyObject *unused) {
-    nk_unused_(self), nk_unused_(unused);
-    return capabilities_reported(nk_cuda_capabilities_compiled);
-}
-static PyObject *api_cuda_capabilities_enabled(PyObject *self, PyObject *ordinal) {
+static PyObject *api_capabilities_compiled_cuda(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
-    return device_capabilities_reported(nk_cuda_capabilities_enabled, ordinal);
+    return device_capabilities_reported(nk_capabilities_compiled_cuda, ordinal);
+}
+static PyObject *api_capabilities_enabled_cuda(PyObject *self, PyObject *ordinal) {
+    nk_unused_(self);
+    return device_capabilities_reported(nk_capabilities_enabled_cuda, ordinal);
 }
 static PyObject *api_cuda_stream_init(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
@@ -1162,21 +1164,21 @@ static PyObject *api_cuda_stream_free(PyObject *self, PyObject *stream) {
     nk_unused_(self);
     return stream_freed(nk_stream_free_cuda, stream);
 }
-static PyObject *api_rocm_count_devices(PyObject *self, PyObject *unused) {
+static PyObject *api_count_devices_rocm(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
-    return devices_counted(nk_rocm_count_devices);
+    return devices_counted(nk_count_devices_rocm);
 }
-static PyObject *api_rocm_capabilities_detected(PyObject *self, PyObject *ordinal) {
+static PyObject *api_capabilities_detected_rocm(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
-    return device_capabilities_reported(nk_rocm_capabilities_detected, ordinal);
+    return device_capabilities_reported(nk_capabilities_detected_rocm, ordinal);
 }
-static PyObject *api_rocm_capabilities_compiled(PyObject *self, PyObject *unused) {
-    nk_unused_(self), nk_unused_(unused);
-    return capabilities_reported(nk_rocm_capabilities_compiled);
-}
-static PyObject *api_rocm_capabilities_enabled(PyObject *self, PyObject *ordinal) {
+static PyObject *api_capabilities_compiled_rocm(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
-    return device_capabilities_reported(nk_rocm_capabilities_enabled, ordinal);
+    return device_capabilities_reported(nk_capabilities_compiled_rocm, ordinal);
+}
+static PyObject *api_capabilities_enabled_rocm(PyObject *self, PyObject *ordinal) {
+    nk_unused_(self);
+    return device_capabilities_reported(nk_capabilities_enabled_rocm, ordinal);
 }
 static PyObject *api_rocm_stream_init(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
@@ -1186,21 +1188,21 @@ static PyObject *api_rocm_stream_free(PyObject *self, PyObject *stream) {
     nk_unused_(self);
     return stream_freed(nk_stream_free_rocm, stream);
 }
-static PyObject *api_metal_count_devices(PyObject *self, PyObject *unused) {
+static PyObject *api_count_devices_metal(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
-    return devices_counted(nk_metal_count_devices);
+    return devices_counted(nk_count_devices_metal);
 }
-static PyObject *api_metal_capabilities_detected(PyObject *self, PyObject *ordinal) {
+static PyObject *api_capabilities_detected_metal(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
-    return device_capabilities_reported(nk_metal_capabilities_detected, ordinal);
+    return device_capabilities_reported(nk_capabilities_detected_metal, ordinal);
 }
-static PyObject *api_metal_capabilities_compiled(PyObject *self, PyObject *unused) {
-    nk_unused_(self), nk_unused_(unused);
-    return capabilities_reported(nk_metal_capabilities_compiled);
-}
-static PyObject *api_metal_capabilities_enabled(PyObject *self, PyObject *ordinal) {
+static PyObject *api_capabilities_compiled_metal(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
-    return device_capabilities_reported(nk_metal_capabilities_enabled, ordinal);
+    return device_capabilities_reported(nk_capabilities_compiled_metal, ordinal);
+}
+static PyObject *api_capabilities_enabled_metal(PyObject *self, PyObject *ordinal) {
+    nk_unused_(self);
+    return device_capabilities_reported(nk_capabilities_enabled_metal, ordinal);
 }
 static PyObject *api_metal_stream_init(PyObject *self, PyObject *ordinal) {
     nk_unused_(self);
@@ -1214,7 +1216,7 @@ static PyObject *api_metal_stream_free(PyObject *self, PyObject *stream) {
 static char const doc_synchronize[] =                                                                 //
     "Wait for everything queued on a stream of the device `capabilities` describes.\n\n"              //
     "Args:\n"                                                                                         //
-    "  capabilities (Capability): A mask like `cuda_capabilities_enabled(0)` reports.\n"              //
+    "  capabilities (Capability): A mask like `capabilities_enabled_cuda(0)` reports.\n"              //
     "  stream (int, optional): A `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>` pointer as\n" //
     "    an integer, None for the default stream, and None on the CPU.\n\n"                           //
     "Signature:\n"                                                                                    //
@@ -1378,26 +1380,26 @@ static PyMethodDef nk_methods[] = {
     {"attention_rope", (PyCFunction)api_attention_rope, METH_FASTCALL | METH_KEYWORDS, doc_attention_rope},
 
     // Capabilities of the CPU and each GPU, and GPU streams, the only calls taking a device ordinal
-    {"cpu_capabilities_detected", api_cpu_capabilities_detected, METH_NOARGS, doc_cpu_capabilities_detected},
-    {"cpu_capabilities_compiled", api_cpu_capabilities_compiled, METH_NOARGS, doc_cpu_capabilities_compiled},
-    {"cpu_capabilities_enabled", api_cpu_capabilities_enabled, METH_NOARGS, doc_cpu_capabilities_enabled},
-    {"cpu_configure_thread", api_cpu_configure_thread, METH_O, doc_cpu_configure_thread},
-    {"cuda_count_devices", api_cuda_count_devices, METH_NOARGS, doc_count_devices},
-    {"cuda_capabilities_detected", api_cuda_capabilities_detected, METH_O, doc_capabilities_detected},
-    {"cuda_capabilities_compiled", api_cuda_capabilities_compiled, METH_NOARGS, doc_capabilities_compiled},
-    {"cuda_capabilities_enabled", api_cuda_capabilities_enabled, METH_O, doc_capabilities_enabled},
+    {"capabilities_detected_cpu", api_capabilities_detected_cpu, METH_NOARGS, doc_capabilities_detected_cpu},
+    {"capabilities_compiled_cpu", api_capabilities_compiled_cpu, METH_NOARGS, doc_capabilities_compiled_cpu},
+    {"capabilities_enabled_cpu", api_capabilities_enabled_cpu, METH_NOARGS, doc_capabilities_enabled_cpu},
+    {"configure_thread_cpu", api_configure_thread_cpu, METH_O, doc_configure_thread_cpu},
+    {"count_devices_cuda", api_count_devices_cuda, METH_NOARGS, doc_count_devices},
+    {"capabilities_detected_cuda", api_capabilities_detected_cuda, METH_O, doc_capabilities_detected},
+    {"capabilities_compiled_cuda", api_capabilities_compiled_cuda, METH_O, doc_capabilities_compiled},
+    {"capabilities_enabled_cuda", api_capabilities_enabled_cuda, METH_O, doc_capabilities_enabled},
     {"stream_init_cuda", api_cuda_stream_init, METH_O, doc_stream_init},
     {"stream_free_cuda", api_cuda_stream_free, METH_O, doc_stream_free},
-    {"rocm_count_devices", api_rocm_count_devices, METH_NOARGS, doc_count_devices},
-    {"rocm_capabilities_detected", api_rocm_capabilities_detected, METH_O, doc_capabilities_detected},
-    {"rocm_capabilities_compiled", api_rocm_capabilities_compiled, METH_NOARGS, doc_capabilities_compiled},
-    {"rocm_capabilities_enabled", api_rocm_capabilities_enabled, METH_O, doc_capabilities_enabled},
+    {"count_devices_rocm", api_count_devices_rocm, METH_NOARGS, doc_count_devices},
+    {"capabilities_detected_rocm", api_capabilities_detected_rocm, METH_O, doc_capabilities_detected},
+    {"capabilities_compiled_rocm", api_capabilities_compiled_rocm, METH_O, doc_capabilities_compiled},
+    {"capabilities_enabled_rocm", api_capabilities_enabled_rocm, METH_O, doc_capabilities_enabled},
     {"stream_init_rocm", api_rocm_stream_init, METH_O, doc_stream_init},
     {"stream_free_rocm", api_rocm_stream_free, METH_O, doc_stream_free},
-    {"metal_count_devices", api_metal_count_devices, METH_NOARGS, doc_count_devices},
-    {"metal_capabilities_detected", api_metal_capabilities_detected, METH_O, doc_capabilities_detected},
-    {"metal_capabilities_compiled", api_metal_capabilities_compiled, METH_NOARGS, doc_capabilities_compiled},
-    {"metal_capabilities_enabled", api_metal_capabilities_enabled, METH_O, doc_capabilities_enabled},
+    {"count_devices_metal", api_count_devices_metal, METH_NOARGS, doc_count_devices},
+    {"capabilities_detected_metal", api_capabilities_detected_metal, METH_O, doc_capabilities_detected},
+    {"capabilities_compiled_metal", api_capabilities_compiled_metal, METH_O, doc_capabilities_compiled},
+    {"capabilities_enabled_metal", api_capabilities_enabled_metal, METH_O, doc_capabilities_enabled},
     {"stream_init_metal", api_metal_stream_init, METH_O, doc_stream_init},
     {"stream_free_metal", api_metal_stream_free, METH_O, doc_stream_free},
     {"synchronize", (PyCFunction)api_synchronize, METH_FASTCALL | METH_KEYWORDS, doc_synchronize},
@@ -1433,10 +1435,10 @@ static char const doc_module[] =                                                
     "\n"                                                                                             //
     "Dispatch:\n"                                                                                    //
     " - Kernel-running functions take `capabilities=`, a `Capability` mask defaulting to\n"          //
-    "   `cpu_capabilities_enabled()`, or for packed operands to the mask that packed them.\n"        //
+    "   `capabilities_enabled_cpu()`, or for packed operands to the mask that packed them.\n"        //
     " - They also take `stream=`, a GPU stream pointer as an integer, None on the CPU.\n"            //
     " - CUDA and ROCm tensors from `from_dlpack` run `dots_pack` and the dots, angulars and\n"       //
-    "   euclideans `_packed` and `_symmetric` functions with `cuda_capabilities_enabled(ordinal)`\n" //
+    "   euclideans `_packed` and `_symmetric` functions with `capabilities_enabled_cuda(ordinal)`\n" //
     "   of their device, into an `out=` on the same device. Every other function refuses them.\n"    //
     "\n"                                                                                             //
     "Example:\n"                                                                                     //

@@ -361,13 +361,13 @@ The stream is that device's `cudaStream_t`, `hipStream_t`, or `id<MTLCommandQueu
 
 ```c
 nk_capability_t cpu = nk_cap_cpus_k, gpu = 0;
-nk_cuda_capabilities_enabled(0, &gpu); // detected on CUDA device 0 and compiled into this binary
+nk_capabilities_enabled_cuda(0, &gpu); // detected on CUDA device 0 and compiled into this binary
 nk_dots_symmetric_bf16_best(vectors, count, depth, stride, gram, gram_stride, 0, count, NULL, 0, cpu, NULL);
 nk_dots_symmetric_bf16_best(vectors_on_gpu, count, depth, stride, gram_on_gpu, gram_stride, 0, count, NULL, 0, gpu,
                             cuda_stream);
 ```
 
-The library clamps every CPU mask to `nk_cpu_capabilities_enabled`, what this CPU runs and this binary holds, which it settles as it loads, so `nk_cap_cpus_k` runs the best kernel here.
+The library clamps every CPU mask to `nk_capabilities_enabled_cpu`, what this CPU runs and this binary holds, which it settles as it loads, so `nk_cap_cpus_k` runs the best kernel here.
 Narrowing the mask narrows the choice: `cpu & ~nk_cap_sapphireamx_k` skips AMX, and `nk_cap_serial_k` alone runs the reference kernel.
 Header-only builds, with `NUMKONG_HEADER_ONLY=1`, inline the capability kernels their compiler flags enable, and their dispatch points report `nk_missing_library_k`.
 Library builds, the default, compile every capability the toolchain builds into one binary and export the dispatch points, so a single binary runs everywhere — the model of DBMS products (ClickHouse), web browsers (Chromium), and other projects that ship to heterogeneous fleets.
@@ -385,6 +385,28 @@ angular(a, b, n, &distance, NULL);
 ```
 
 It picks exactly what the dispatch point picks for the same mask, and returns `nk_missing_kernel_k` when no capability in the mask has the kernel.
+
+### Multiversioned and Monoversioned Builds
+
+Multiversioned builds are for distributing to a diverse fleet.
+One binary serves every machine, because each CPU and each GPU picks its own capability at runtime, and packages, wheels and crates ship this way by default.
+Monoversioned builds are for high-velocity environments of identical machines.
+They compile one version of each operation, the best that machine runs, so builds are much shorter and binaries much smaller, but the binary runs only on that kind of machine and refuses cleanly elsewhere.
+`NUMKONG_MULTIVERSIONED=OFF` with a `NUMKONG_MARCH` floor switches to it, as the `xeon4_hopper`, `xeon6_blackwell`, `grace_hopper`, `vera_rubin` and `venice_mi450` presets do.
+
+| Word       | Question                                                      | When                                                                                                       | Scope                         |
+| :--------- | :------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------- | :---------------------------- |
+| `probe`    | Can the toolchain build this capability?                      | Configure, as CMake compiles `probes/<capability>.c`, then compile, as `NUMKONG_ARCH_<ARCH>_<CAPABILITY>_` | The build                     |
+| `target`   | Is this capability's unit in the build?                       | Compile, as `NUMKONG_TARGET_<CAPABILITY>`                                                                  | The build                     |
+| `implied`  | What do the floor's flags already guarantee?                  | Compile, as both macros default where no build writes them, and at runtime where no OS is asked            | The build                     |
+| `compiled` | Does the binary carry this capability's code for this device? | Runtime, as `nk_capabilities_compiled_cpu` or `_cuda(ordinal)` report, the latter asking the driver        | The build, or each GPU's code |
+| `detected` | Does this device offer the capability?                        | Runtime, as `nk_capabilities_detected_cpu` or `_cuda(ordinal)` report                                      | The device                    |
+| `enabled`  | What may dispatch pick?                                       | Runtime, `detected` and `compiled` at once, less a refused AMX grant                                       | The device                    |
+
+A monoversioned build names one machine: one CPU, and at most one GPU architecture per vendor that every GPU in it shares.
+It compiles the best capability that machine runs and folds every dispatch row to it, and CMake refuses two CUDA or two ROCm architectures with `NUMKONG_MULTIVERSIONED=OFF`.
+On any other machine, or under a mask narrowed below the folded capability, a dispatch point answers `nk_missing_kernel_k`, never a crash or a slower kernel.
+The scalar math and element conversions, like `nk_f32_sqrt_best` and `nk_f16_to_f32_best`, return values rather than statuses, so their rows keep every kernel.
 
 ## Numeric Types
 

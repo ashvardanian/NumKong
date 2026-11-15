@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the Power VSX kernels, POWER9+ 128-bit SIMD.
  */
-#define NUMKONG_HEADER_ONLY     1
-#define NUMKONG_TARGET_POWERVSX 1
+#define NUMKONG_HEADER_ONLY          1
+#define NUMKONG_ARCH_PPC64_POWERVSX_ 1
 #include <numkong/types.h>
 #include <numkong/dot/powervsx.h> // `nk_dot_f32_powervsx`
 

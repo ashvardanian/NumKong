@@ -333,7 +333,7 @@ static char const doc_ShapesPackedMatrix_copy[] =                               
     "Slices in steps copy too. The block lives until the copy and its views are gone, so keep\n" //
     "them past nk.synchronize().\n\n"                                                            //
     "Args:\n"                                                                                    //
-    "  capabilities (int): A producer's mask, like nk.cuda_capabilities_enabled(0).\n"           //
+    "  capabilities (int): A producer's mask, like nk.capabilities_enabled_cuda(0).\n"           //
     "  stream (int, optional): A stream of that vendor, naming the device the block is made\n"   //
     "    on, or None for the default.\n\n"                                                       //
     "Returns:\n"                                                                                 //

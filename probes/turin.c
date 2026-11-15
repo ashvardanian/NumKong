@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the Turin kernels, AVX-512F plus VP2INTERSECT.
  */
-#define NUMKONG_HEADER_ONLY  1
-#define NUMKONG_TARGET_TURIN 1
+#define NUMKONG_HEADER_ONLY       1
+#define NUMKONG_ARCH_X8664_TURIN_ 1
 #include <numkong/types.h>
 #include <numkong/sparse/turin.h> // `nk_sparse_intersect_u32_turin`
 

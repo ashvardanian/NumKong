@@ -14,7 +14,7 @@
 #define NUMKONG_MAXSIM_NEONSDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONSDOT
+#if NUMKONG_ARCH_ARM64_NEONSDOT_
 
 #include "numkong/types.h"
 #include "numkong/maxsim/serial.h" // `nk_maxsim_packed_header_t`
@@ -25,6 +25,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_NEONSDOT // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("dotprod"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -603,11 +604,12 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_neonsdot( //
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_NEONSDOT
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONSDOT
+#endif // NUMKONG_ARCH_ARM64_NEONSDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_MAXSIM_NEONSDOT_H

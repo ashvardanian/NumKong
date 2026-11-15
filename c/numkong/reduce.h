@@ -110,7 +110,7 @@ extern "C" {
  *  @param[in] stride Byte stride between elements, <tt>sizeof(*data)</tt> for contiguous arrays.
  *  @param[out] sum_ptr Output sum.
  *  @param[out] sumsq_ptr Output sum of squares.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -129,7 +129,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_f64_best(nk_f64_t const *data, nk_size
  *  @param[out] min_index_ptr Output index of the minimum value.
  *  @param[out] max_value_ptr Output maximum value.
  *  @param[out] max_index_ptr Output index of the maximum value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -541,12 +541,12 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e5m2_neon(nk_e5m2_t const *, nk_size_t,
 /** @copydoc nk_reduce_moments_f64_best */
 NUMKONG_API nk_status_t nk_reduce_moments_f16_neon(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
                                                    nk_stream_t stream);
-#endif // NUMKONG_TARGET_NEON
-
-#if NUMKONG_TARGET_NEONBFDOT
 /** @copydoc nk_reduce_moments_bf16_serial */
 NUMKONG_API nk_status_t nk_reduce_moments_bf16_neon(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
                                                     nk_stream_t);
+#endif // NUMKONG_TARGET_NEON
+
+#if NUMKONG_TARGET_NEONBFDOT
 /** @copydoc nk_reduce_moments_f64_best */
 NUMKONG_API nk_status_t nk_reduce_moments_bf16_neonbfdot(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *,
                                                          nk_f32_t *, nk_stream_t stream);

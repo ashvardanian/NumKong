@@ -59,9 +59,9 @@ interface EmscriptenModule {
   _nk_kld_f64_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
   _nk_jsd_f32_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
   _nk_jsd_f64_best(a: any, b: any, n: any, result: any, capabilities: bigint, stream: any): number;
-  _nk_cpu_capabilities_detected(capabilities: any): number;
-  _nk_cpu_capabilities_compiled(capabilities: any): number;
-  _nk_cpu_capabilities_enabled(capabilities: any): number;
+  _nk_capabilities_detected_cpu(capabilities: any): number;
+  _nk_capabilities_compiled_cpu(capabilities: any): number;
+  _nk_capabilities_enabled_cpu(capabilities: any): number;
   _nk_capabilities_name(capabilities: any, buffer: any, capacity: any): any;
   _nk_status_name(status: number): any;
 
@@ -584,18 +584,18 @@ export class Device {
   /** The SIMD capabilities the engine validated this module with, as a bitmask: it validates a
    *  module whole, so they equal {@link capabilitiesCompiled}. */
   capabilitiesDetected(): bigint {
-    return queryCapabilities('_nk_cpu_capabilities_detected');
+    return queryCapabilities('_nk_capabilities_detected_cpu');
   }
 
   /** The SIMD capabilities compiled into this module, as a bitmask. */
   capabilitiesCompiled(): bigint {
-    return queryCapabilities('_nk_cpu_capabilities_compiled');
+    return queryCapabilities('_nk_capabilities_compiled_cpu');
   }
 
   /** The SIMD capabilities every kernel call runs within: detected and compiled at once, which the
    *  library settles as it loads, as a bitmask. Always includes `Capability.serial`. */
   capabilitiesEnabled(): bigint {
-    return queryCapabilities('_nk_cpu_capabilities_enabled');
+    return queryCapabilities('_nk_capabilities_enabled_cpu');
   }
 }
 

@@ -36,14 +36,13 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_POWERVSX // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("power9-vector"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("power9-vector")
 #endif
-
-#if NUMKONG_TARGET_POWERVSX
 
 /* F32 GEMM: depth_simd_dimensions=4 (4 f32s = 16 bytes = VSX register width, f64 accumulation) */
 nk_define_cross_pack_size_(dots, f32, powervsx, f32, f32, /*norm_value_type=*/f64, /*depth_simd_dimensions=*/2,
@@ -198,13 +197,12 @@ nk_define_cross_packed_(dots, f64, powervsx, f64, f64, f64, nk_b128_vec_t, nk_do
                         nk_dot_f64x2_finalize_powervsx, nk_store_b256_powervsx_, nk_partial_store_b64x4_powervsx_,
                         /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
 
-#endif // NUMKONG_TARGET_POWERVSX
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_POWERVSX
 
 #if defined(__cplusplus)
 } // extern "C"

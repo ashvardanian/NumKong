@@ -60,7 +60,7 @@
 #define NUMKONG_DOT_NEONBFDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_NEONBFDOT_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_partial_load_b8x8_serial_`
@@ -71,6 +71,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_NEONBFDOT // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+simd+bf16"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -245,11 +246,12 @@ NUMKONG_INLINE void nk_dot_bf16x8_finalize_neonbfdot(                           
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_NEONBFDOT
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONBFDOT
+#endif // NUMKONG_ARCH_ARM64_NEONBFDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_DOT_NEONBFDOT_H

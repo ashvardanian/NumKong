@@ -13,7 +13,7 @@
 #define NUMKONG_DOTS_NEONFP8_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONFP8
+#if NUMKONG_ARCH_ARM64_NEONFP8_
 
 #include "numkong/dots/serial.h"
 #include "numkong/dots/neon.h" // `nk_dots_reduce_sumsq_e4m3_neon_`
@@ -24,6 +24,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_NEONFP8 // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8-a+simd+fp8dot4"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -120,11 +121,12 @@ nk_define_cross_packed_(dots, e3m2, neonfp8, e3m2, e3m2, f32, nk_b128_vec_t, nk_
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_NEONFP8
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONFP8
+#endif // NUMKONG_ARCH_ARM64_NEONFP8_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_DOTS_NEONFP8_H

@@ -264,8 +264,6 @@ NUMKONG_DEVICE void nk_cross_stage_norms_e2m1_cdna4_(int row_squares, int column
 
 #pragma endregion Norms
 
-#if NUMKONG_TARGET_CDNA4
-
 /*  Each folds one 128-byte slab. Two MFMAs that read words 0-3 and 4-7 of every fragment cover
  *  the slab once, since A and B share each lane's depth mapping; the outer loop over those halves
  *  keeps dependent MFMAs 16 apart. */
@@ -860,6 +858,8 @@ NUMKONG_DEVICE void nk_cross_tile_u4_cdna4_(nk_cross_metric_t metric, nk_diagona
 }
 
 #pragma endregion Tiles
+
+#if NUMKONG_TARGET_CDNA4
 
 #pragma region BF16
 

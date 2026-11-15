@@ -51,7 +51,7 @@ typedef int (*nk_u8_compare_punned_t)(nk_u8_t, nk_u8_t);
  *  @brief Scalar square root, √x.
  *
  *  @param[in] x The input value.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  *  @return The square root of @p x.
  */
@@ -65,7 +65,7 @@ NUMKONG_API nk_f64_t nk_f64_sqrt_best(nk_f64_t x, nk_capability_t capabilities);
  *  @sa Rust @c f32::rsqrt
  *
  *  @param[in] x The input value.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  *  @return The reciprocal square root of @p x.
  */
@@ -81,7 +81,7 @@ NUMKONG_API nk_f64_t nk_f64_rsqrt_best(nk_f64_t x, nk_capability_t capabilities)
  *  @param[in] a Multiplicand.
  *  @param[in] b Multiplier.
  *  @param[in] c Addend.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  *  @return a × b + c computed without intermediate rounding.
  */
@@ -101,7 +101,7 @@ NUMKONG_API nk_f16_t nk_f16_fma_best(nk_f16_t a, nk_f16_t b, nk_f16_t c, nk_capa
  *
  *  @param[in] a First operand.
  *  @param[in] b Second operand.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  *  @return <tt>clamp(a + b, MIN, MAX)</tt>.
  */
@@ -130,7 +130,7 @@ NUMKONG_API nk_u4x2_t nk_u4x2_saturating_add_best(nk_u4x2_t a, nk_u4x2_t b, nk_c
  *
  *  @param[in] a First operand.
  *  @param[in] b Second operand.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  *  @return <tt>clamp(a * b, MIN, MAX)</tt>.
  */
@@ -163,7 +163,7 @@ NUMKONG_API nk_u4x2_t nk_u4x2_saturating_mul_best(nk_u4x2_t a, nk_u4x2_t b, nk_c
  *
  *  @param[in] a First operand.
  *  @param[in] b Second operand.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  *  @return Negative if <tt>a < b</tt>, zero if <tt>a == b</tt>, positive if <tt>a > b</tt>.
  *

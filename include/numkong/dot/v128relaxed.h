@@ -25,7 +25,7 @@
 #define NUMKONG_DOT_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/types.h"
 #include "numkong/dot/v128.h" // `nk_dot2_f64x2_v128_`, `nk_dot_stable_sum_f64x2_v128_`, `nk_load_e5m2x4_to_f32x4_v128_`
@@ -70,6 +70,7 @@ nk_dot_f32_widened_v128relaxed_cycle:
     return nk_reduce_add_f64x2_v128_(sum_f64x2);
 }
 
+#if NUMKONG_TARGET_V128RELAXED
 NUMKONG_API nk_status_t nk_dot_f32_v128relaxed(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1221,6 +1222,8 @@ NUMKONG_API nk_status_t nk_vdot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f6
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_V128RELAXED
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -1229,6 +1232,6 @@ NUMKONG_API nk_status_t nk_vdot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f6
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_DOT_V128RELAXED_H

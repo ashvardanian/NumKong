@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SKYLAKE // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512dq,f16c,fma,bmi,bmi2"))), \
                              apply_to = function)
@@ -29,8 +30,6 @@ extern "C" {
 #pragma GCC push_options
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
-
-#if NUMKONG_TARGET_SKYLAKE
 
 NUMKONG_API nk_status_t nk_bilinear_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
                                                 nk_f64_t *result, nk_stream_t stream) {
@@ -453,13 +452,12 @@ NUMKONG_API nk_status_t nk_bilinear_f64c_skylake(nk_f64c_t const *a, nk_f64c_t c
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_SKYLAKE
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__cplusplus)
 } // extern "C"

@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the SME F64 kernels, @c FEAT_SME_F64F64.
  */
-#define NUMKONG_HEADER_ONLY   1
-#define NUMKONG_TARGET_SMEF64 1
+#define NUMKONG_HEADER_ONLY        1
+#define NUMKONG_ARCH_ARM64_SMEF64_ 1
 #include <numkong/types.h>
 #include <numkong/dots/smef64.h> // `nk_dots_symmetric_f64_smef64`
 

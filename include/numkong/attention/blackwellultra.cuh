@@ -15,7 +15,7 @@
 #define NUMKONG_ATTENTION_BLACKWELLULTRA_CUH
 
 #if NUMKONG_ARCH_CUDA_
-#if NUMKONG_TARGET_BLACKWELLULTRA
+#if NUMKONG_ARCH_CUDA_BLACKWELLULTRA_
 
 #include "numkong/attention/blackwell.cuh" // `nk_define_attention_tma_blackwell_`
 
@@ -63,6 +63,44 @@ NUMKONG_DEVICE nk_f32_t nk_tmem_load_extreme_x32_blackwellultra_(nk_u32_t addres
 
 #pragma endregion Instructions
 
+#if NUMKONG_TARGET_BLACKWELLULTRA
+
+/** @ref nk_attention_backward_prepare_blackwell_ as the Blackwell Ultra tier's kernel. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_backward_prepare_blackwellultra_kernel_(nk_attention_backward_arguments_t arguments) {
+    nk_attention_backward_prepare_blackwell_(&arguments);
+}
+
+/** @ref nk_attention_backward_prepare_single_blackwell_ as the Blackwell Ultra tier's kernel. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_backward_prepare_single_blackwellultra_kernel_(
+        __grid_constant__ nk_attention_backward_maps_blackwell_t const maps) {
+    nk_attention_backward_prepare_single_blackwell_(&maps);
+}
+
+/** @ref nk_attention_backward_launch_kernels_blackwell_ over the tier's own preparing kernels. */
+NUMKONG_INLINE nk_status_t nk_attention_backward_launch_blackwellultra_(void const *keys_kernel,
+                                                                        void const *queries_kernel,
+                                                                        nk_attention_backward_arguments_t arguments,
+                                                                        void *workspace, nk_size_t workspace_bytes,
+                                                                        nk_stream_t stream) {
+    return nk_attention_backward_launch_kernels_blackwell_(
+        (void const *)nk_attention_backward_prepare_blackwellultra_kernel_,
+        (void const *)nk_attention_backward_prepare_single_blackwellultra_kernel_, keys_kernel, queries_kernel,
+        arguments, workspace, workspace_bytes, stream);
+}
+
+/** @ref nk_attention_pack_directory_cuda_ as Blackwell Ultra's own kernel, for its packs. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_pack_directory_blackwellultra_kernel_(unsigned char *packed, nk_size_t key_value_head_count,
+                                                       nk_size_t depth, nk_u32_t const *key_offsets,
+                                                       nk_u32_t const *key_lengths, nk_size_t segment_count,
+                                                       nk_size_t row_bytes, nk_size_t directory_bytes,
+                                                       nk_capability_t capability) {
+    nk_attention_pack_directory_cuda_(packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count,
+                                      row_bytes, directory_bytes, capability);
+}
+
 #pragma region BF16
 
 nk_define_attention_pack_size_simt_(bf16, blackwellultra, 2)
@@ -86,7 +124,7 @@ static __global__ void __launch_bounds__(nk_attention_backward_threads_blackwell
     if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_queries_blackwell_(&maps);
     else nk_attention_backward_queries_bf16_cuda_(&maps.arguments);
 }
-nk_define_attention_backward_cuda_(bf16, blackwellultra, bf16, nk_attention_backward_launch_blackwell_,
+nk_define_attention_backward_cuda_(bf16, blackwellultra, bf16, nk_attention_backward_launch_blackwellultra_,
                                    nk_attention_backward_workspace_size_blackwell_)
 
 #pragma endregion BF16
@@ -136,6 +174,7 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_blackwellultra(
     nk_size_t segment_count, nk_i8_t const *keys, nk_size_t key_stride, nk_i8_t const *values, nk_size_t value_stride,
     void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     return nk_attention_pack_launch_cuda_(
+        (void const *)nk_attention_pack_directory_blackwellultra_kernel_,
         (void const *)nk_attention_pack_i8_blackwellultra_kernel_, nk_cap_blackwellultra_k,
         nk_attention_pack_element_bytes_i8_blackwell_(depth), keys, values, key_value_head_count, depth, key_offsets,
         key_lengths, segment_count, key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, stream);
@@ -147,10 +186,12 @@ nk_define_attention_tma_blackwell_(i8, blackwellultra, i8, 1, 1, nk_mma_f16_blac
 
 #pragma endregion I8
 
+#endif // NUMKONG_TARGET_BLACKWELLULTRA
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_BLACKWELLULTRA
+#endif // NUMKONG_ARCH_CUDA_BLACKWELLULTRA_
 #endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_ATTENTION_BLACKWELLULTRA_CUH

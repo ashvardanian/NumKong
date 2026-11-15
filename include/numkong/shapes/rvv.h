@@ -48,7 +48,6 @@
 
 #if NUMKONG_ARCH_RISCV64_
 #if NUMKONG_ARCH_RISCV64_RVV_
-#if NUMKONG_TARGET_RVV
 
 #include "numkong/types.h"
 #include "numkong/cast/rvv.h"      // `nk_f16m1_to_f32m2_rvv_`
@@ -56,15 +55,16 @@
 #include "numkong/shapes/serial.h" // `nk_shapes_simplex_next_tile_serial_`, `nk_shapes_workspace_f64_serial_t`
 #include "numkong/dot/rvv.h"       // `nk_dot2_f64m1_rvv_`, `nk_dot_stable_sum_f64m1_rvv_`
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#if NUMKONG_TARGET_RVV // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 /** The parts of the 8 flips' squared distances from one outer point to @p vector_length inner
@@ -1801,17 +1801,17 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_rvv(void const *const *a_packed, nk_
     return nk_success_k;
 }
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-
 #endif // NUMKONG_TARGET_RVV
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
 #endif // NUMKONG_ARCH_RISCV64_RVV_
 #endif // NUMKONG_ARCH_RISCV64_
 #endif // NUMKONG_SHAPES_RVV_H

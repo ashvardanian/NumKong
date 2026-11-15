@@ -206,9 +206,10 @@ export class Device {
     return addon.capabilitiesDetected(deviceKindIndex(this.kind), this.ordinal);
   }
 
-  /** The capabilities compiled into this build for devices of this kind, as a bitmask. */
+  /** The capabilities compiled into this build, on a GPU only those whose code this device runs,
+   *  as a bitmask. */
   capabilitiesCompiled(): bigint {
-    return addon.capabilitiesCompiled(deviceKindIndex(this.kind));
+    return addon.capabilitiesCompiled(deviceKindIndex(this.kind), this.ordinal);
   }
 
   /** The capabilities this device's kernel calls run within: detected and compiled at once, as a

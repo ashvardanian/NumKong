@@ -4,9 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the RVV Zvfbfwma kernels, BF16 widening fused multiply-add.
  */
-#define NUMKONG_HEADER_ONLY    1
-#define NUMKONG_TARGET_RVV     1 // `types.h` drops the RVV extensions without the base
-#define NUMKONG_TARGET_RVVBF16 1
+#define NUMKONG_HEADER_ONLY           1
+#define NUMKONG_ARCH_RISCV64_RVVBF16_ 1
 #include <numkong/types.h>
 #include <numkong/dot/rvvbf16.h> // `nk_dot_bf16_rvvbf16`
 

@@ -86,7 +86,7 @@ extern "C" {
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output divergence value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The distributions are assumed to be normalized.
@@ -107,7 +107,7 @@ NUMKONG_API nk_status_t nk_kld_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output divergence value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The distributions are assumed to be normalized.
@@ -128,7 +128,7 @@ NUMKONG_API nk_status_t nk_kld_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b,
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output divergence value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The distributions are assumed to be normalized.
@@ -149,7 +149,7 @@ NUMKONG_API nk_status_t nk_kld_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output divergence value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The distributions are assumed to be normalized.
@@ -170,7 +170,7 @@ NUMKONG_API nk_status_t nk_kld_f64_best(nk_f64_t const *a, nk_f64_t const *b, nk
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The distributions are assumed to be normalized.
@@ -191,7 +191,7 @@ NUMKONG_API nk_status_t nk_jsd_f16_best(nk_f16_t const *a, nk_f16_t const *b, nk
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The distributions are assumed to be normalized.
@@ -212,7 +212,7 @@ NUMKONG_API nk_status_t nk_jsd_bf16_best(nk_bf16_t const *a, nk_bf16_t const *b,
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The distributions are assumed to be normalized.
@@ -233,7 +233,7 @@ NUMKONG_API nk_status_t nk_jsd_f32_best(nk_f32_t const *a, nk_f32_t const *b, nk
  *  @param[in] b The second discrete probability distribution.
  *  @param[in] n The number of elements in the distributions.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The distributions are assumed to be normalized.

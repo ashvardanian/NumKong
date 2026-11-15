@@ -13,7 +13,7 @@
 #define NUMKONG_DOTS_NEONFHM_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONFHM
+#if NUMKONG_ARCH_ARM64_NEONFHM_
 
 #include "numkong/dots/serial.h"
 #include "numkong/dots/neon.h" // `nk_pack_mxfp8_scales_neon_`, `nk_cross_scaled_exact_wide_mxfp8e4m3_neon_`
@@ -47,6 +47,7 @@ NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_neonfhm_(nk_e5m2_t const *data
 
 #pragma endregion Norms
 
+#if NUMKONG_TARGET_NEONFHM
 /* F16 GEMM using FMLAL: depth_simd_dimensions=8 (8 f16s = 16 bytes = NEON register width) */
 nk_define_cross_pack_size_(dots, f16, neonfhm, f16, f16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/8,
                            /*dimensions_per_value=*/1, /*scale_bytes=*/1)
@@ -146,6 +147,8 @@ nk_define_cross_scaled_symmetric_(dots, mxfp8e5m2, neonfhm, f16, nk_dot_from_wid
                                   /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                   /*register_rows=*/2, /*register_columns=*/4)
 
+#endif // NUMKONG_TARGET_NEONFHM
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -156,6 +159,6 @@ nk_define_cross_scaled_symmetric_(dots, mxfp8e5m2, neonfhm, f16, nk_dot_from_wid
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONFHM
+#endif // NUMKONG_ARCH_ARM64_NEONFHM_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_DOTS_NEONFHM_H

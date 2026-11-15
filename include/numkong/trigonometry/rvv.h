@@ -46,15 +46,15 @@
 #include "numkong/cast/rvv.h"
 #include "numkong/spatial/rvv.h" /* nk_f32m4_reciprocal_rvv_, nk_f32m2_reciprocal_rvv_, nk_f64m4_reciprocal_rvv_ */
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 /*  RVV trigonometry kernels using LMUL=4 for f32 and f64.
@@ -783,14 +783,14 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, n
 
 #endif // NUMKONG_TARGET_RVV
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
 #endif
 
 #endif // NUMKONG_ARCH_RISCV64_RVV_

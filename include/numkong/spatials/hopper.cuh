@@ -18,7 +18,7 @@
 #define NUMKONG_SPATIALS_HOPPER_CUH
 
 #if NUMKONG_ARCH_CUDA_
-#if NUMKONG_TARGET_HOPPER
+#if NUMKONG_ARCH_CUDA_HOPPER_
 
 #include "numkong/dots/hopper.cuh"
 #include "numkong/spatials/ampere.cuh"
@@ -26,6 +26,8 @@
 #if defined(__cplusplus)
 extern "C" {
 #endif
+
+#if NUMKONG_TARGET_HOPPER
 
 #pragma region BF16
 
@@ -99,10 +101,12 @@ nk_define_cross_cuda_(euclidean, u4, hopper, u4_hopper, u4x2, u4x2, f32, /*depth
 
 #pragma endregion U4
 
+#endif // NUMKONG_TARGET_HOPPER
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_HOPPER
+#endif // NUMKONG_ARCH_CUDA_HOPPER_
 #endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_SPATIALS_HOPPER_CUH

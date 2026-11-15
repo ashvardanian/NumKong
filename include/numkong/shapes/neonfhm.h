@@ -40,7 +40,7 @@
 #define NUMKONG_SHAPES_NEONFHM_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONFHM
+#if NUMKONG_ARCH_ARM64_NEONFHM_
 
 #include "numkong/types.h"
 #include "numkong/shapes/serial.h" // `nk_shapes_best_flip_f32_serial_`, `nk_shapes_mutual_f16_t`
@@ -249,6 +249,7 @@ NUMKONG_INLINE void nk_shapes_hausdorff_flips_f16_neonfhm_(void const *row_packe
     vst1q_f32(hausdorffs, vsqrtq_f32(farthest_f32x4[0])), vst1q_f32(hausdorffs + 4, vsqrtq_f32(farthest_f32x4[1]));
 }
 
+#if NUMKONG_TARGET_NEONFHM
 NUMKONG_API nk_status_t nk_chamfers_packed_f16_neonfhm(void const *const *a_packed, nk_size_t rows,
                                                        void const *const *b_packed, nk_size_t columns,
                                                        nk_f32_t *results, nk_size_t results_stride, nk_f32_t *rotations,
@@ -367,6 +368,8 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_neonfhm(void const *const *a_packed,
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_NEONFHM
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -377,6 +380,6 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_neonfhm(void const *const *a_packed,
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONFHM
+#endif // NUMKONG_ARCH_ARM64_NEONFHM_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SHAPES_NEONFHM_H

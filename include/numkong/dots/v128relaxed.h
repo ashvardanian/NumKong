@@ -14,7 +14,7 @@
 #define NUMKONG_DOTS_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/dot/v128relaxed.h"
 #include "numkong/dots/v128.h" // `nk_dots_reduce_sumsq_i8_v128_`
@@ -94,6 +94,7 @@ NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_v128relaxed_(nk_e3m2_t const *
 
 #pragma endregion Norms
 
+#if NUMKONG_TARGET_V128RELAXED
 /* I8 GEMM: depth_simd_dimensions=16 — standard (correction depends on both A and B) */
 nk_define_cross_pack_size_(dots, i8, v128relaxed, i8, i8, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/16,
                            /*dimensions_per_value=*/1, /*scale_bytes=*/1)
@@ -392,6 +393,8 @@ nk_define_cross_compensated_packed_(dots, i4, v128relaxed, i4x2, i4x2, i32,
                                     nk_dots_reduce_sum_stub_i4_serial_,
                                     /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 
+#endif // NUMKONG_TARGET_V128RELAXED
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -400,6 +403,6 @@ nk_define_cross_compensated_packed_(dots, i4, v128relaxed, i4x2, i4x2, i32,
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_DOTS_V128RELAXED_H

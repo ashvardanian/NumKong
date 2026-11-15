@@ -22,7 +22,7 @@
 #define NUMKONG_ATTENTION_GENOA_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_GENOA
+#if NUMKONG_ARCH_X8664_GENOA_
 
 #include "numkong/attention/serial.h"  // shared packed-KV header/offsets, width-agnostic fallback
 #include "numkong/attention/skylake.h" // `nk_attention_softmax_panel_skylake_`; Genoa implies Skylake
@@ -80,6 +80,7 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_genoa_(nk_size_t key_value_head_
     return nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1, unit_bytes);
 }
 
+#if NUMKONG_TARGET_GENOA
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_genoa(nk_size_t key_value_head_count, nk_size_t depth,
                                                           nk_size_t token_count, nk_size_t segment_count,
                                                           nk_size_t *bytes) {
@@ -496,16 +497,6 @@ NUMKONG_API nk_status_t nk_attention_packed_e4m3_genoa(
     return nk_success_k;
 }
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 NUMKONG_API nk_status_t nk_attention_packed_workspace_size_bf16_genoa(nk_size_t head_count,
                                                                       nk_size_t key_value_head_count, nk_size_t depth,
                                                                       nk_size_t query_token_count,
@@ -529,5 +520,17 @@ NUMKONG_API nk_status_t nk_attention_packed_workspace_size_e4m3_genoa(nk_size_t 
 }
 
 #endif // NUMKONG_TARGET_GENOA
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_X8664_GENOA_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_ATTENTION_GENOA_H

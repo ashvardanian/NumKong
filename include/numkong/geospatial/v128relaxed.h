@@ -30,7 +30,7 @@
 #define NUMKONG_GEOSPATIAL_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/types.h"
 #include "numkong/geospatial/serial.h"        // `nk_geospatial_packed_axes_f64_serial_`
@@ -271,6 +271,7 @@ NUMKONG_INLINE v128_t nk_vincenty_f64x2_v128relaxed_(                           
     return wasm_i64x2_relaxed_laneselect(zero_f64x2, distances_f64x2, zeroed_mask_i64x2);
 }
 
+#if NUMKONG_TARGET_V128RELAXED
 NUMKONG_API nk_status_t nk_sqeuclideans3d_i32_v128relaxed(nk_i32_t const *a, nk_size_t rows, nk_i32_t const *b,
                                                           nk_size_t columns, nk_u64_t *results,
                                                           nk_size_t results_stride, nk_stream_t stream) {
@@ -403,6 +404,8 @@ NUMKONG_API nk_status_t nk_vincentys_packed_f64_v128relaxed(void const *a_packed
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_V128RELAXED
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -411,6 +414,6 @@ NUMKONG_API nk_status_t nk_vincentys_packed_f64_v128relaxed(void const *a_packed
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_GEOSPATIAL_V128RELAXED_H

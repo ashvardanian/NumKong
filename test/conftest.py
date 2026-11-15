@@ -27,7 +27,7 @@ def pytest_report_header() -> list[str]:
     """Echoes every setting in the grammar it parses, where pytest prints its own header."""
     return [
         f"- NumKong: {nk.__version__} from {nk.__file__}",
-        f"- Capabilities: {nk.cpu_capabilities_enabled()!r}",
+        f"- Capabilities: {nk.capabilities_enabled_cpu()!r}",
         f"- Seed: {SETTINGS.seed}",
         f"- Filter: {SETTINGS.filter or 'none'}",
         f"- In QEMU: {str(SETTINGS.in_qemu).lower()}",

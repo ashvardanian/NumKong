@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIALS_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/spatial/v128relaxed.h"
 #include "numkong/dots/v128relaxed.h"
@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_V128RELAXED // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
@@ -289,11 +290,12 @@ nk_define_cross_normalized_symmetric_(euclidean, f64, v128relaxed, f64, f64, /*n
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
+#endif // NUMKONG_TARGET_V128RELAXED
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_SPATIALS_V128RELAXED_H

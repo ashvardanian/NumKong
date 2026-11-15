@@ -17,7 +17,7 @@
 #define NUMKONG_ATTENTION_BLACKWELLRTX_CUH
 
 #if NUMKONG_ARCH_CUDA_
-#if NUMKONG_TARGET_BLACKWELLRTX
+#if NUMKONG_ARCH_CUDA_BLACKWELLRTX_
 
 #include "numkong/attention/ampere.cuh"
 #include "numkong/attention/ada.cuh"     // `nk_attention_weights_e4m3_ada_`
@@ -261,6 +261,19 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_e4m3_blackwellrtx_(
 
 #pragma endregion Tile
 
+#if NUMKONG_TARGET_BLACKWELLRTX
+
+/** @ref nk_attention_pack_directory_cuda_ as the Blackwell RTX tier's own kernel, for its packs. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_pack_directory_blackwellrtx_kernel_(unsigned char *packed, nk_size_t key_value_head_count,
+                                                     nk_size_t depth, nk_u32_t const *key_offsets,
+                                                     nk_u32_t const *key_lengths, nk_size_t segment_count,
+                                                     nk_size_t row_bytes, nk_size_t directory_bytes,
+                                                     nk_capability_t capability) {
+    nk_attention_pack_directory_cuda_(packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count,
+                                      row_bytes, directory_bytes, capability);
+}
+
 #pragma region Instantiations
 
 nk_define_attention_pack_size_simt_(e4m3, blackwellrtx, 1)
@@ -270,10 +283,12 @@ nk_define_attention_packed_simt_(e4m3, blackwellrtx, cuda)
 
 #pragma endregion Instantiations
 
+#endif // NUMKONG_TARGET_BLACKWELLRTX
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_BLACKWELLRTX
+#endif // NUMKONG_ARCH_CUDA_BLACKWELLRTX_
 #endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_ATTENTION_BLACKWELLRTX_CUH

@@ -525,7 +525,7 @@ def test_copy_keeps_the_distances(capabilities, kind: str, np_rng: np.random.Gen
     packed = nk.shapes_pack([random_cloud(np_rng, points) for points in (3, 5, 8, 13, 21)])
     every_other = packed[::2]
     expected = np.asarray(KINDS[kind](every_other, every_other))
-    copied = every_other.copy(capabilities=nk.cpu_capabilities_enabled())
+    copied = every_other.copy(capabilities=nk.capabilities_enabled_cpu())
     del packed, every_other
     gc.collect()
     np.testing.assert_array_equal(np.asarray(KINDS[kind](copied, copied)), expected)
@@ -542,9 +542,9 @@ def test_copy_refuses_what_it_cannot_place(np_rng: np.random.Generator):
     with pytest.raises(TypeError):
         packed.copy()
     with pytest.raises(TypeError):
-        packed.copy(nk.cpu_capabilities_enabled(), capabilities=nk.cpu_capabilities_enabled())
+        packed.copy(nk.capabilities_enabled_cpu(), capabilities=nk.capabilities_enabled_cpu())
     with pytest.raises(TypeError):
-        packed.copy(nk.cpu_capabilities_enabled(), 0)
+        packed.copy(nk.capabilities_enabled_cpu(), 0)
     with pytest.raises(TypeError):
         packed.copy(capabilities="gpu")
 
@@ -554,25 +554,25 @@ def test_unified_tensors_stay_fixed():
     """`copy(capabilities=)` keeps the values, its views keep the block alive, and its storage never moves."""
     source = nk.zeros((2, 3), dtype="float32")
     np.asarray(source)[:] = 7.0
-    unified = source.copy(capabilities=nk.cpu_capabilities_enabled())
+    unified = source.copy(capabilities=nk.capabilities_enabled_cpu())
     view = unified[1]
     del source, unified
     gc.collect()
     np.testing.assert_array_equal(np.asarray(view), np.full(3, 7.0, dtype=np.float32))
 
-    unified = nk.zeros((2, 3), dtype="float32").copy(capabilities=nk.cpu_capabilities_enabled())
+    unified = nk.zeros((2, 3), dtype="float32").copy(capabilities=nk.capabilities_enabled_cpu())
     with pytest.raises(BufferError):
         unified.resize(3, 2)
     with pytest.raises(BufferError):
         unified.reserve(64)
     with pytest.raises(TypeError):
-        unified.copy(out=nk.zeros((2, 3), dtype="float32"), capabilities=nk.cpu_capabilities_enabled())
+        unified.copy(out=nk.zeros((2, 3), dtype="float32"), capabilities=nk.capabilities_enabled_cpu())
     with pytest.raises(RuntimeError):
         unified.copy(capabilities=1 << 59)
     assert unified.copy().reserve(64) is None
 
 
-METAL_DEVICES = nk.metal_count_devices()
+METAL_DEVICES = nk.count_devices_metal()
 requires_metal = pytest.mark.skipif(not (numpy_available and METAL_DEVICES), reason="No Metal device in this build")
 
 METAL_TOLERANCES = {
@@ -587,7 +587,7 @@ METAL_TOLERANCES = {
 
 def metal_operands(generator: np.random.Generator, kind: str, stream: int | None = None):
     """Unified float16 packs of `kind`'s clouds on Metal, their heap source, and a Metal output of `[3,3]`."""
-    gpu = nk.metal_capabilities_enabled(0)
+    gpu = nk.capabilities_enabled_metal(0)
     points = (11, 11, 11) if kind == "rmsds" else (6, 11, 17)
     clouds = [random_cloud(generator, count).astype(np.float16) for count in points]
     heap = nk.shapes_pack(clouds, dtype="float16")
@@ -642,7 +642,7 @@ def test_metal_keeps_distances_within_the_limit(kind: str, np_rng: np.random.Gen
 @pytest.mark.parametrize("kind", list(KINDS))
 def test_metal_rotations_superpose(kind: str, np_rng: np.random.Generator):
     """The rotations of a Metal call take a rigid copy back onto its cloud."""
-    gpu = nk.metal_capabilities_enabled(0)
+    gpu = nk.capabilities_enabled_metal(0)
     cloud = random_cloud(np_rng, 12).astype(np.float16)
     rotation = random_rotation(np_rng)
     moved = (cloud.astype(np.float64) @ rotation.T).astype(np.float16)
@@ -661,7 +661,7 @@ def test_metal_rotations_superpose(kind: str, np_rng: np.random.Generator):
 @requires_metal
 def test_metal_stream_joins_and_keeps_borrows(np_rng: np.random.Generator):
     """`nk.synchronize` waits for a stream of its own, whose packs and outputs may die before it does."""
-    gpu = nk.metal_capabilities_enabled(0)
+    gpu = nk.capabilities_enabled_metal(0)
     stream = nk.stream_init_metal(0)
     _, heap, packs, out = metal_operands(np_rng, "chamfers", stream=stream)
     expected = np.asarray(nk.chamfers_packed(heap, heap, capabilities=nk.Capability.SERIAL))

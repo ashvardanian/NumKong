@@ -162,10 +162,10 @@ NUMKONG_DEVICE void nk_each_inverse_rms_f64_to_f32_simt_(nk_f64_t sum, nk_size_t
     *scale = (nk_f32_t)power, *factor = (nk_f32_t)(inverse_rms * remainder);
 }
 
-/** Generates @p verb for @p isa_suffix, an RMSNorm of @p input_type vectors into @p output_type
- *  ones after @c nk_define_each_rmsnorm_ of the serial backend: the helper that normalizes one
- *  chunk out of its 16-byte @c pieces, the device body that normalizes every vector of a launch,
- *  one block per vector, the kernel over it, and the entry point.
+/** Generates the device bodies of @p verb for @p isa_suffix, an RMSNorm of @p input_type vectors
+ *  into @p output_type ones after @c nk_define_each_rmsnorm_ of the serial backend: the helper that
+ *  normalizes one chunk out of its 16-byte @c pieces, and the body that normalizes every vector of
+ *  a launch, one block per vector, which @c nk_define_each_rmsnorm_kernel_simt_ launches.
  *  Squares sum in @p reduction_type, rounded and shuffled through the primitives of @p vendor,
  *  @c cuda or @c rocm, the @p inverse_rms helper turns them into a scale and a factor of
  *  @p element_type, and every value scales in that @p element_type. F64 vectors whose sum of
@@ -332,18 +332,22 @@ NUMKONG_DEVICE void nk_each_inverse_rms_f64_to_f32_simt_(nk_f64_t sum, nk_size_t
                 convert_and_store(&result, y + column);                                                                \
             }                                                                                                          \
         }                                                                                                              \
-    }                                                                                                                  \
-    static __global__ void __launch_bounds__(nk_each_threads_simt_k, 1)                                                \
-        nk_each_##verb##_##output_type##_##isa_suffix##_kernel_(nk_each_rmsnorm_arguments_t arguments) {               \
-        nk_each_##verb##_##output_type##_##isa_suffix##_vectors_(arguments);                                           \
-    }                                                                                                                  \
-    NUMKONG_API nk_status_t nk_each_##verb##_##output_type##_##isa_suffix(                                             \
-        nk_##input_type##_t const *x, nk_f32_t const *gamma, nk_##output_type##_t *y, nk_size_t rows,                  \
-        nk_size_t groups, nk_size_t columns, nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,                 \
-        nk_stream_t stream) {                                                                                          \
-        return nk_each_rmsnorm_launch_##vendor##_(                                                                     \
-            (void const *)&nk_each_##verb##_##output_type##_##isa_suffix##_kernel_, sizeof(nk_##input_type##_t),       \
-            sizeof(nk_##output_type##_t), x, gamma, y, rows, groups, columns, x_stride, y_stride, epsilon, stream);    \
+    }
+
+/** Generates the kernel of @p verb for @p isa_suffix over the body @c nk_define_each_rmsnorm_simt_
+ *  defines, and the entry point that launches it through the host side of @p vendor. */
+#define nk_define_each_rmsnorm_kernel_simt_(verb, input_type, output_type, isa_suffix, vendor)                      \
+    static __global__ void __launch_bounds__(nk_each_threads_simt_k, 1)                                             \
+        nk_each_##verb##_##output_type##_##isa_suffix##_kernel_(nk_each_rmsnorm_arguments_t arguments) {            \
+        nk_each_##verb##_##output_type##_##isa_suffix##_vectors_(arguments);                                        \
+    }                                                                                                               \
+    NUMKONG_API nk_status_t nk_each_##verb##_##output_type##_##isa_suffix(                                          \
+        nk_##input_type##_t const *x, nk_f32_t const *gamma, nk_##output_type##_t *y, nk_size_t rows,               \
+        nk_size_t groups, nk_size_t columns, nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,              \
+        nk_stream_t stream) {                                                                                       \
+        return nk_each_rmsnorm_launch_##vendor##_(                                                                  \
+            (void const *)&nk_each_##verb##_##output_type##_##isa_suffix##_kernel_, sizeof(nk_##input_type##_t),    \
+            sizeof(nk_##output_type##_t), x, gamma, y, rows, groups, columns, x_stride, y_stride, epsilon, stream); \
     }
 
 #if defined(__cplusplus)

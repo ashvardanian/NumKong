@@ -125,7 +125,7 @@ extern "C" {
  *  @param[in] b The second binary vector.
  *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The output distance value is non-negative.
@@ -145,7 +145,7 @@ NUMKONG_API nk_status_t nk_hamming_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *
  *  @param[in] b The second binary vector.
  *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The output distance value is non-negative.
@@ -165,7 +165,7 @@ NUMKONG_API nk_status_t nk_jaccard_u1_best(nk_u1x8_t const *a, nk_u1x8_t const *
  *  @param[in] b The second binary vector.
  *  @param[in] n The number of 32-bit scalars in the vectors.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The output distance value is non-negative.
@@ -185,7 +185,7 @@ NUMKONG_API nk_status_t nk_jaccard_u32_best(nk_u32_t const *a, nk_u32_t const *b
  *  @param[in] b The second byte vector.
  *  @param[in] n The number of bytes in the vectors.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The output distance value is non-negative.
@@ -205,7 +205,7 @@ NUMKONG_API nk_status_t nk_hamming_u8_best(nk_u8_t const *a, nk_u8_t const *b, n
  *  @param[in] b The second vector.
  *  @param[in] n The number of 16-bit scalars in the vectors.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The output distance value is non-negative.

@@ -214,14 +214,23 @@ NUMKONG_INLINE nk_size_t nk_count_devices_cuda_(void) {
     return cudaGetDeviceCount(&count) == cudaSuccess ? (nk_size_t)count : 0;
 }
 
+/** The compute capability of CUDA device @p ordinal and the driver's CUDA version, like 13000. */
+NUMKONG_INLINE nk_status_t nk_architecture_cuda_(nk_size_t ordinal, int *major, int *minor, int *driver) {
+    *major = 0, *minor = 0, *driver = 0;
+    if (ordinal >= nk_count_devices_cuda_()) return nk_missing_gpu_k;
+    if (cudaDeviceGetAttribute(major, cudaDevAttrComputeCapabilityMajor, (int)ordinal) != cudaSuccess ||
+        cudaDeviceGetAttribute(minor, cudaDevAttrComputeCapabilityMinor, (int)ordinal) != cudaSuccess ||
+        cudaDriverGetVersion(driver) != cudaSuccess)
+        return nk_device_code_mismatch_k;
+    return nk_success_k;
+}
+
 /** The capabilities CUDA device @p ordinal runs, by the runtime's own ordinal. */
 NUMKONG_INLINE nk_status_t nk_capabilities_detected_cuda_(nk_size_t ordinal, nk_capability_t *capabilities) {
+    int major = 0, minor = 0, driver = 0;
+    nk_status_t const status = nk_architecture_cuda_(ordinal, &major, &minor, &driver);
     *capabilities = 0;
-    if (ordinal >= nk_count_devices_cuda_()) return nk_missing_gpu_k;
-    int major = 0, minor = 0;
-    if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, (int)ordinal) != cudaSuccess ||
-        cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, (int)ordinal) != cudaSuccess)
-        return nk_device_code_mismatch_k;
+    if (status != nk_success_k) return status;
     nk_capability_t detected = nk_cap_cuda_k;
     if (major * 10 + minor >= 80) detected |= nk_cap_ampere_k;
     if (major * 10 + minor >= 89) detected |= nk_cap_ada_k;
@@ -379,11 +388,11 @@ NUMKONG_API nk_status_t nk_allocator_init_pinned_cuda(nk_allocator_t *allocator)
     return nk_allocator_init_pinned_cuda_(allocator);
 }
 
-NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
+NUMKONG_API nk_status_t nk_count_devices_cuda(nk_size_t *count) {
     *count = nk_count_devices_cuda_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_capabilities_detected_cuda(nk_size_t ordinal, nk_capability_t *capabilities) {
     return nk_capabilities_detected_cuda_(ordinal, capabilities);
 }
 NUMKONG_API nk_status_t nk_stream_init_cuda(nk_size_t ordinal, nk_stream_t *stream) {

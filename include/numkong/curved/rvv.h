@@ -21,18 +21,17 @@
 #include "numkong/curved/serial.h"
 #include "numkong/cast/rvv.h"
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+#if NUMKONG_TARGET_RVV // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v")
 #endif
-
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
-#if NUMKONG_TARGET_RVV
 
 NUMKONG_API nk_status_t nk_bilinear_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
                                             nk_f64_t *result, nk_stream_t stream) {
@@ -318,16 +317,15 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t co
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_RVV
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
+#endif
+#endif // NUMKONG_TARGET_RVV
+
+#if defined(__cplusplus)
+} // extern "C"
 #endif
 
 #endif // NUMKONG_ARCH_RISCV64_RVV_

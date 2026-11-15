@@ -54,27 +54,28 @@ NUMKONG_CONSTEXPR nk_capability_group_t nk_capability_group_of_(nk_capability_t 
                                    (capabilities >= nk_cap_metal_k));
 }
 
-/** What each group runs in this process: the CPU's starts at serial and widens as the library
- *  loads, and the GPU groups keep every bit, as their masks come from per-device producers. */
-extern nk_capability_t nk_capabilities_runnable_[nk_capability_groups_k];
+/** What the CPU runs in this process: serial until the library loads, then what it detects and
+ *  compiled. A GPU mask comes from its own device's producer, so the picks clamp only CPU masks. */
+extern nk_capability_t nk_capabilities_enabled_cpu_;
 
-/** The best capability @p capabilities shares with its group's kernels and runnable ones, or zero. */
+/** The best capability @p capabilities shares with its group's kernels and, on the CPU, its enabled
+ *  ones, or zero. */
 NUMKONG_INLINE nk_capability_t nk_capability_pick_(nk_capability_t capabilities,
                                                    nk_capability_kernels_t const groups[nk_capability_groups_k]) {
     nk_capability_group_t const group_index = nk_capability_group_of_(capabilities);
-    nk_u64_t const at_or_below = nk_u64_smear_down_(capabilities & groups[group_index].capabilities &
-                                                    nk_capabilities_runnable_[group_index]);
+    nk_capability_t const clamp = group_index ? ~(nk_capability_t)0 : nk_capabilities_enabled_cpu_;
+    nk_u64_t const at_or_below = nk_u64_smear_down_(capabilities & groups[group_index].capabilities & clamp);
     return at_or_below ^ (at_or_below >> 1);
 }
 
-/** The kernel of the best capability @p capabilities shares with its group's kernels and runnable
- *  ones, or null. */
+/** The kernel of the best capability @p capabilities shares with its group's kernels and, on the
+ *  CPU, its enabled ones, or null. */
 NUMKONG_INLINE nk_kernel_punned_t nk_kernel_pick_(nk_capability_t capabilities,
                                                   nk_capability_kernels_t const groups[nk_capability_groups_k]) {
     nk_capability_group_t const group_index = nk_capability_group_of_(capabilities);
     nk_capability_kernels_t const *group = &groups[group_index];
-    nk_u64_t const at_or_below = nk_u64_smear_down_(capabilities & group->capabilities &
-                                                    nk_capabilities_runnable_[group_index]);
+    nk_capability_t const clamp = group_index ? ~(nk_capability_t)0 : nk_capabilities_enabled_cpu_;
+    nk_u64_t const at_or_below = nk_u64_smear_down_(capabilities & group->capabilities & clamp);
     return group->kernels[nk_u64_popcount_(group->capabilities & at_or_below)];
 }
 

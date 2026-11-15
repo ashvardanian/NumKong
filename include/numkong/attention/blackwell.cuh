@@ -2766,17 +2766,6 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_i8_blackwell_(
                                               keys_before, keys_after, tasks_begin, tasks_end, stream);
 }
 
-static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
-    nk_attention_backward_prepare_blackwell_kernel_(nk_attention_backward_arguments_t arguments) {
-    nk_attention_backward_prepare_blackwell_(&arguments);
-}
-
-static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
-    nk_attention_backward_prepare_single_blackwell_kernel_(
-        __grid_constant__ nk_attention_backward_maps_blackwell_t const maps) {
-    nk_attention_backward_prepare_single_blackwell_(&maps);
-}
-
 /** Bytes of the single pass's workspace, dO in BF16 then D per row, for shapes it takes, else 0. */
 NUMKONG_INLINE nk_size_t nk_attention_backward_workspace_size_blackwell_(nk_size_t head_count,
                                                                          nk_size_t key_value_head_count,
@@ -2800,78 +2789,6 @@ NUMKONG_INLINE int nk_attention_backward_describe_blackwell_(nk_attention_backwa
     maps->prepared_gradients = (unsigned char *)workspace;
     maps->prepared_dots = (nk_f32_t *)((unsigned char *)workspace + rows * depth * 2);
     return 1;
-}
-
-/** Launches the BF16 backward kernels, a block per multiprocessor, after preparing dQ where Q and
- *  dQ rows align for 16-byte copies, with the maps of Q, dO and the planes where whole 128-byte
- *  column blocks reach them, or, with no shared memory, a block per task of the @c cuda loops for
- *  heads too deep for the tensor cores. A @p workspace of the bytes the single pass needs runs it
- *  instead, where the rows allow. */
-NUMKONG_INLINE nk_status_t nk_attention_backward_launch_blackwell_(void const *keys_kernel, void const *queries_kernel,
-                                                                   nk_attention_backward_arguments_t arguments,
-                                                                   void *workspace, nk_size_t workspace_bytes,
-                                                                   nk_stream_t stream) {
-    nk_status_t status = nk_attention_backward_validate_cuda_(&arguments);
-    if (status != nk_success_k) return status;
-    if (workspace_bytes && ((nk_size_t)workspace & (nk_default_alignment_k - 1))) return nk_misaligned_k;
-    if (arguments.tasks_begin >= arguments.tasks_end || arguments.depth == 0) return nk_success_k;
-    nk_size_t const depth = arguments.depth, group = arguments.head_count / arguments.key_value_head_count;
-    int const tensor_cores = depth <= nk_attention_backward_depth_blackwell_k;
-    arguments.prepared = tensor_cores && depth % 8 == 0 &&
-                         (((nk_size_t)arguments.queries | arguments.query_stride | (nk_size_t)arguments.query_gradient |
-                           arguments.query_gradient_stride) &
-                          15) == 0;
-    nk_attention_backward_maps_blackwell_t maps;
-    maps.arguments = arguments;
-    // Boxes span whole 128-byte column blocks of 128 folded rows, so heads of 64 or 128 dimensions.
-    maps.mapped = arguments.prepared && depth * 2 % 128 == 0 && depth <= nk_attention_narrow_depth_blackwell_k &&
-                  nk_attention_backward_rows_blackwell_k % group == 0 &&
-                  nk_attention_queries_map_blackwell_(&maps.queries_map, arguments.queries, arguments.query_token_count,
-                                                      arguments.head_count, depth * 2, arguments.query_stride, group) &&
-                  nk_attention_queries_map_blackwell_(&maps.gradients_map, arguments.query_gradient,
-                                                      arguments.query_token_count, arguments.head_count, depth * 4,
-                                                      arguments.query_gradient_stride, group) &&
-                  nk_cross_map_blackwell_(&maps.planes_map, arguments.packed, 0x7FFFFFFF, depth * 2, depth * 2, 128,
-                                          nk_attention_box_rows_blackwell_k);
-    nk_size_t const workspace_needed = nk_attention_backward_workspace_size_blackwell_(
-        arguments.head_count, arguments.key_value_head_count, depth, arguments.query_token_count);
-    // The single pass reads O and dO by float4 and reduces dQ through TMA, both on 16-byte rows.
-    maps.single = maps.mapped && workspace_needed != 0 &&
-                  (((nk_size_t)arguments.key_gradient | (nk_size_t)arguments.value_gradient |
-                    arguments.key_value_gradient_stride | (nk_size_t)arguments.output |
-                    (nk_size_t)arguments.output_gradient | arguments.output_stride) &
-                   15) == 0 &&
-                  nk_attention_sums_map_blackwell_(&maps.sums_map, arguments.query_gradient, arguments.head_count,
-                                                   depth, arguments.query_gradient_stride, group);
-    int const single = maps.single && workspace_bytes >= workspace_needed &&
-                       nk_attention_backward_describe_blackwell_(&maps, workspace);
-    if (workspace_bytes != 0 && maps.single && !single) return nk_unexpected_dimensions_k;
-    if (single) {
-        nk_size_t const single_bytes = nk_attention_backward_single_shared_bytes_blackwell_(depth);
-        status = nk_launch_resident_cuda_((void const *)nk_attention_backward_prepare_single_blackwell_kernel_,
-                                          nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &maps, stream);
-        if (status == nk_success_k)
-            status = nk_launch_resident_cuda_(keys_kernel, nk_attention_backward_single_threads_blackwell_k,
-                                              single_bytes, single_bytes, NUMKONG_SIZE_MAX, &maps, stream);
-        return status;
-    }
-    maps.single = 0;
-    status = arguments.prepared
-                 ? nk_launch_resident_cuda_((void const *)nk_attention_backward_prepare_blackwell_kernel_,
-                                            nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &maps.arguments, stream)
-                 : nk_success_k;
-    unsigned const threads = tensor_cores ? nk_attention_backward_threads_blackwell_k : nk_attention_threads_k;
-    nk_size_t const shared_bytes = tensor_cores ? nk_attention_backward_shared_bytes_blackwell_(depth) : 0;
-    nk_size_t const shared_ceiling =
-        tensor_cores ? nk_attention_backward_shared_bytes_blackwell_(nk_attention_backward_depth_blackwell_k) : 0;
-    nk_size_t const blocks_wanted = tensor_cores ? NUMKONG_SIZE_MAX : arguments.tasks_end - arguments.tasks_begin;
-    if (status == nk_success_k)
-        status = nk_launch_resident_cuda_(keys_kernel, threads, shared_bytes, shared_ceiling, blocks_wanted, &maps,
-                                          stream);
-    if (status == nk_success_k)
-        status = nk_launch_resident_cuda_(queries_kernel, threads, shared_bytes, shared_ceiling, blocks_wanted, &maps,
-                                          stream);
-    return status;
 }
 
 #pragma endregion Launch
@@ -3084,6 +3001,7 @@ NUMKONG_CONSTEXPR nk_size_t nk_attention_pack_element_bytes_i8_blackwell_(nk_siz
         nk_##input_value_type##_t const *values, nk_size_t value_stride, void *key_value_packed,                      \
         nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {                                             \
         return nk_attention_pack_launch_cuda_(                                                                        \
+            (void const *)nk_attention_pack_directory_##isa_suffix##_kernel_,                                         \
             (void const *)nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_, nk_cap_##isa_suffix##_k,      \
             sizeof(nk_##input_value_type##_t), keys, values, key_value_head_count, depth, key_offsets, key_lengths,   \
             segment_count, key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, stream);               \
@@ -3496,8 +3414,118 @@ NUMKONG_CONSTEXPR nk_size_t nk_attention_pack_element_bytes_i8_blackwell_(nk_siz
 
 #pragma endregion Attention Macros
 
+#pragma region Launch
+
+/** Launches the BF16 backward kernels, a block per multiprocessor, after preparing dQ where Q and
+ *  dQ rows align for 16-byte copies, with the maps of Q, dO and the planes where whole 128-byte
+ *  column blocks reach them, or, with no shared memory, a block per task of the @c cuda loops for
+ *  heads too deep for the tensor cores. A @p workspace of the bytes the single pass needs runs it
+ *  instead, where the rows allow; @p prepare_kernel and @p prepare_single_kernel are the tier's own
+ *  wrappers of @ref nk_attention_backward_prepare_blackwell_ and its single-pass twin. */
+NUMKONG_INLINE nk_status_t nk_attention_backward_launch_kernels_blackwell_(
+    void const *prepare_kernel, void const *prepare_single_kernel, void const *keys_kernel, void const *queries_kernel,
+    nk_attention_backward_arguments_t arguments, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_status_t status = nk_attention_backward_validate_cuda_(&arguments);
+    if (status != nk_success_k) return status;
+    if (workspace_bytes && ((nk_size_t)workspace & (nk_default_alignment_k - 1))) return nk_misaligned_k;
+    if (arguments.tasks_begin >= arguments.tasks_end || arguments.depth == 0) return nk_success_k;
+    nk_size_t const depth = arguments.depth, group = arguments.head_count / arguments.key_value_head_count;
+    int const tensor_cores = depth <= nk_attention_backward_depth_blackwell_k;
+    arguments.prepared = tensor_cores && depth % 8 == 0 &&
+                         (((nk_size_t)arguments.queries | arguments.query_stride | (nk_size_t)arguments.query_gradient |
+                           arguments.query_gradient_stride) &
+                          15) == 0;
+    nk_attention_backward_maps_blackwell_t maps;
+    maps.arguments = arguments;
+    // Boxes span whole 128-byte column blocks of 128 folded rows, so heads of 64 or 128 dimensions.
+    maps.mapped = arguments.prepared && depth * 2 % 128 == 0 && depth <= nk_attention_narrow_depth_blackwell_k &&
+                  nk_attention_backward_rows_blackwell_k % group == 0 &&
+                  nk_attention_queries_map_blackwell_(&maps.queries_map, arguments.queries, arguments.query_token_count,
+                                                      arguments.head_count, depth * 2, arguments.query_stride, group) &&
+                  nk_attention_queries_map_blackwell_(&maps.gradients_map, arguments.query_gradient,
+                                                      arguments.query_token_count, arguments.head_count, depth * 4,
+                                                      arguments.query_gradient_stride, group) &&
+                  nk_cross_map_blackwell_(&maps.planes_map, arguments.packed, 0x7FFFFFFF, depth * 2, depth * 2, 128,
+                                          nk_attention_box_rows_blackwell_k);
+    nk_size_t const workspace_needed = nk_attention_backward_workspace_size_blackwell_(
+        arguments.head_count, arguments.key_value_head_count, depth, arguments.query_token_count);
+    // The single pass reads O and dO by float4 and reduces dQ through TMA, both on 16-byte rows.
+    maps.single = maps.mapped && workspace_needed != 0 &&
+                  (((nk_size_t)arguments.key_gradient | (nk_size_t)arguments.value_gradient |
+                    arguments.key_value_gradient_stride | (nk_size_t)arguments.output |
+                    (nk_size_t)arguments.output_gradient | arguments.output_stride) &
+                   15) == 0 &&
+                  nk_attention_sums_map_blackwell_(&maps.sums_map, arguments.query_gradient, arguments.head_count,
+                                                   depth, arguments.query_gradient_stride, group);
+    int const single = maps.single && workspace_bytes >= workspace_needed &&
+                       nk_attention_backward_describe_blackwell_(&maps, workspace);
+    if (workspace_bytes != 0 && maps.single && !single) return nk_unexpected_dimensions_k;
+    if (single) {
+        nk_size_t const single_bytes = nk_attention_backward_single_shared_bytes_blackwell_(depth);
+        status = nk_launch_resident_cuda_(prepare_single_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &maps,
+                                          stream);
+        if (status == nk_success_k)
+            status = nk_launch_resident_cuda_(keys_kernel, nk_attention_backward_single_threads_blackwell_k,
+                                              single_bytes, single_bytes, NUMKONG_SIZE_MAX, &maps, stream);
+        return status;
+    }
+    maps.single = 0;
+    status = arguments.prepared ? nk_launch_resident_cuda_(prepare_kernel, nk_attention_threads_k, 0, 0,
+                                                           NUMKONG_SIZE_MAX, &maps.arguments, stream)
+                                : nk_success_k;
+    unsigned const threads = tensor_cores ? nk_attention_backward_threads_blackwell_k : nk_attention_threads_k;
+    nk_size_t const shared_bytes = tensor_cores ? nk_attention_backward_shared_bytes_blackwell_(depth) : 0;
+    nk_size_t const shared_ceiling =
+        tensor_cores ? nk_attention_backward_shared_bytes_blackwell_(nk_attention_backward_depth_blackwell_k) : 0;
+    nk_size_t const blocks_wanted = tensor_cores ? NUMKONG_SIZE_MAX : arguments.tasks_end - arguments.tasks_begin;
+    if (status == nk_success_k)
+        status = nk_launch_resident_cuda_(keys_kernel, threads, shared_bytes, shared_ceiling, blocks_wanted, &maps,
+                                          stream);
+    if (status == nk_success_k)
+        status = nk_launch_resident_cuda_(queries_kernel, threads, shared_bytes, shared_ceiling, blocks_wanted, &maps,
+                                          stream);
+    return status;
+}
+
+#pragma endregion Launch
+
 /*  Later generations read the helpers above and emit only their own kernels. */
 #if NUMKONG_TARGET_BLACKWELL
+
+/** @ref nk_attention_backward_prepare_blackwell_ as the Blackwell tier's kernel. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_backward_prepare_blackwell_kernel_(nk_attention_backward_arguments_t arguments) {
+    nk_attention_backward_prepare_blackwell_(&arguments);
+}
+
+/** @ref nk_attention_backward_prepare_single_blackwell_ as the Blackwell tier's kernel. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_backward_prepare_single_blackwell_kernel_(
+        __grid_constant__ nk_attention_backward_maps_blackwell_t const maps) {
+    nk_attention_backward_prepare_single_blackwell_(&maps);
+}
+
+/** @ref nk_attention_backward_launch_kernels_blackwell_ over the tier's own preparing kernels. */
+NUMKONG_INLINE nk_status_t nk_attention_backward_launch_blackwell_(void const *keys_kernel, void const *queries_kernel,
+                                                                   nk_attention_backward_arguments_t arguments,
+                                                                   void *workspace, nk_size_t workspace_bytes,
+                                                                   nk_stream_t stream) {
+    return nk_attention_backward_launch_kernels_blackwell_(
+        (void const *)nk_attention_backward_prepare_blackwell_kernel_,
+        (void const *)nk_attention_backward_prepare_single_blackwell_kernel_, keys_kernel, queries_kernel, arguments,
+        workspace, workspace_bytes, stream);
+}
+
+/** @ref nk_attention_pack_directory_cuda_ as the Blackwell tier's own kernel, for its packs. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_pack_directory_blackwell_kernel_(unsigned char *packed, nk_size_t key_value_head_count,
+                                                  nk_size_t depth, nk_u32_t const *key_offsets,
+                                                  nk_u32_t const *key_lengths, nk_size_t segment_count,
+                                                  nk_size_t row_bytes, nk_size_t directory_bytes,
+                                                  nk_capability_t capability) {
+    nk_attention_pack_directory_cuda_(packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count,
+                                      row_bytes, directory_bytes, capability);
+}
 
 #pragma region BF16
 
@@ -3573,7 +3601,8 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_blackwell(nk_size_t key_value_head_
                                                        nk_size_t key_stride, nk_i8_t const *values,
                                                        nk_size_t value_stride, void *key_value_packed,
                                                        nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
-    return nk_attention_pack_launch_cuda_((void const *)nk_attention_pack_i8_blackwell_kernel_, nk_cap_blackwell_k,
+    return nk_attention_pack_launch_cuda_((void const *)nk_attention_pack_directory_blackwell_kernel_,
+                                          (void const *)nk_attention_pack_i8_blackwell_kernel_, nk_cap_blackwell_k,
                                           nk_attention_pack_element_bytes_i8_blackwell_(depth), keys, values,
                                           key_value_head_count, depth, key_offsets, key_lengths, segment_count,
                                           key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, stream);

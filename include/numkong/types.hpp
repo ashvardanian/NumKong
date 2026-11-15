@@ -242,9 +242,9 @@ class device_t {
         nk_status_t status = nk_success_k;
         switch (kind) {
         case device_kind_t::cpu_k: break;
-        case device_kind_t::cuda_k: status = nk_cuda_count_devices(&count); break;
-        case device_kind_t::rocm_k: status = nk_rocm_count_devices(&count); break;
-        case device_kind_t::metal_k: status = nk_metal_count_devices(&count); break;
+        case device_kind_t::cuda_k: status = nk_count_devices_cuda(&count); break;
+        case device_kind_t::rocm_k: status = nk_count_devices_rocm(&count); break;
+        case device_kind_t::metal_k: status = nk_count_devices_metal(&count); break;
         }
         return {count, static_cast<status_t>(status)};
     }
@@ -264,23 +264,24 @@ class device_t {
         nk_capability_t capabilities = 0;
         nk_status_t status = nk_success_k;
         switch (kind_) {
-        case device_kind_t::cpu_k: status = nk_cpu_capabilities_detected(&capabilities); break;
-        case device_kind_t::cuda_k: status = nk_cuda_capabilities_detected(ordinal_, &capabilities); break;
-        case device_kind_t::rocm_k: status = nk_rocm_capabilities_detected(ordinal_, &capabilities); break;
-        case device_kind_t::metal_k: status = nk_metal_capabilities_detected(ordinal_, &capabilities); break;
+        case device_kind_t::cpu_k: status = nk_capabilities_detected_cpu(&capabilities); break;
+        case device_kind_t::cuda_k: status = nk_capabilities_detected_cuda(ordinal_, &capabilities); break;
+        case device_kind_t::rocm_k: status = nk_capabilities_detected_rocm(ordinal_, &capabilities); break;
+        case device_kind_t::metal_k: status = nk_capabilities_detected_metal(ordinal_, &capabilities); break;
         }
         return {capabilities, static_cast<status_t>(status)};
     }
 
-    /** What this binary holds kernels for on devices of this kind, whether or not this one runs. */
+    /** What this binary holds code for that this device runs, whether or not it offers the
+     *  capabilities; zero past the last device. */
     nk_capability_t capabilities_compiled() const noexcept {
         nk_capability_t capabilities = 0;
-        [[maybe_unused]] nk_status_t status = nk_success_k; // Never fails: the mask is fixed at build time
+        [[maybe_unused]] nk_status_t status = nk_success_k; // A failure leaves the mask empty
         switch (kind_) {
-        case device_kind_t::cpu_k: status = nk_cpu_capabilities_compiled(&capabilities); break;
-        case device_kind_t::cuda_k: status = nk_cuda_capabilities_compiled(&capabilities); break;
-        case device_kind_t::rocm_k: status = nk_rocm_capabilities_compiled(&capabilities); break;
-        case device_kind_t::metal_k: status = nk_metal_capabilities_compiled(&capabilities); break;
+        case device_kind_t::cpu_k: status = nk_capabilities_compiled_cpu(&capabilities); break;
+        case device_kind_t::cuda_k: status = nk_capabilities_compiled_cuda(ordinal_, &capabilities); break;
+        case device_kind_t::rocm_k: status = nk_capabilities_compiled_rocm(ordinal_, &capabilities); break;
+        case device_kind_t::metal_k: status = nk_capabilities_compiled_metal(ordinal_, &capabilities); break;
         }
         return capabilities;
     }
@@ -290,10 +291,10 @@ class device_t {
         nk_capability_t capabilities = 0;
         nk_status_t status = nk_success_k;
         switch (kind_) {
-        case device_kind_t::cpu_k: status = nk_cpu_capabilities_enabled(&capabilities); break;
-        case device_kind_t::cuda_k: status = nk_cuda_capabilities_enabled(ordinal_, &capabilities); break;
-        case device_kind_t::rocm_k: status = nk_rocm_capabilities_enabled(ordinal_, &capabilities); break;
-        case device_kind_t::metal_k: status = nk_metal_capabilities_enabled(ordinal_, &capabilities); break;
+        case device_kind_t::cpu_k: status = nk_capabilities_enabled_cpu(&capabilities); break;
+        case device_kind_t::cuda_k: status = nk_capabilities_enabled_cuda(ordinal_, &capabilities); break;
+        case device_kind_t::rocm_k: status = nk_capabilities_enabled_rocm(ordinal_, &capabilities); break;
+        case device_kind_t::metal_k: status = nk_capabilities_enabled_metal(ordinal_, &capabilities); break;
         }
         return {capabilities, static_cast<status_t>(status)};
     }
@@ -302,7 +303,7 @@ class device_t {
      *  kernels, so they report @c missing_kernel_k. */
     status_t configure_thread(nk_capability_t capabilities) const noexcept {
         if (kind_ != device_kind_t::cpu_k) return status_t::missing_kernel_k;
-        return static_cast<status_t>(nk_cpu_configure_thread(capabilities));
+        return static_cast<status_t>(nk_configure_thread_cpu(capabilities));
     }
 };
 
@@ -319,7 +320,7 @@ inline nk_capability_t default_capabilities() noexcept {
     return 0;
 #else
     nk_capability_t capabilities = 0;
-    return nk_cpu_capabilities_enabled(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
+    return nk_capabilities_enabled_cpu(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
 #endif
 }
 

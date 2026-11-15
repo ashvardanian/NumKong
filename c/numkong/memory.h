@@ -60,7 +60,7 @@ NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocato
  *  @param[in] bytes The size of the block, where zero hands out a null one.
  *  @param[out] pointer The block, or null on failure.
  *      CPU storage uses @c nk_default_alignment_k alignment.
- *  @param[in] capabilities The group to allocate for, like @c nk_cuda_capabilities_enabled reports.
+ *  @param[in] capabilities The group to allocate for, like @c nk_capabilities_enabled_cuda reports.
  *  @param[in] stream Null on the CPU, or a stream of that group, naming the device.
  *
  *  CUDA and ROCm hand out managed memory, CUDA from the device's managed pool in the order of
@@ -78,7 +78,7 @@ NUMKONG_API nk_status_t nk_memory_allocate_unified_best(nk_size_t bytes, void **
  *      @p stream is done with it.
  *  @param[in] pointer The block, or null for none.
  *  @param[in] bytes The size it was allocated with.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream The stream the block was allocated on, or null for the default.
  *
  *  CUDA frees blocks of its managed pool once the work queued on @p stream completes, without

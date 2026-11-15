@@ -104,7 +104,7 @@ extern "C" {
  *  @param[in] alpha Pointer to the scaling factor (type depends on input precision).
  *  @param[in] beta Pointer to the shift (bias) value (type depends on input precision).
  *  @param[out] result The output vector.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -189,7 +189,7 @@ NUMKONG_API nk_status_t nk_each_scale_f64c_best(nk_f64c_t const *a, nk_size_t n,
  *  @param[in] b The second input vector.
  *  @param[in] n The number of elements in the vectors.
  *  @param[out] result The output vector.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -258,7 +258,7 @@ NUMKONG_API nk_status_t nk_each_sum_f64c_best(nk_f64c_t const *a, nk_f64c_t cons
  *  @param[in] alpha Pointer to the first weight (type depends on input precision).
  *  @param[in] beta Pointer to the second weight (type depends on input precision).
  *  @param[out] result The output vector.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -347,7 +347,7 @@ NUMKONG_API nk_status_t nk_each_blend_f64c_best(nk_f64c_t const *a, nk_f64c_t co
  *      on input precision).
  *  @param[in] beta Pointer to the scaling factor for c[i] (type depends on input precision).
  *  @param[out] result The output vector.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -441,7 +441,7 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_best(nk_f64c_t const *a, nk_f64c_t cons
  *  @param[in] y_stride The row stride of @p y in bytes.
  *  @param[in] gate_scale Multiplies every gate element before the SiLU; 1 for unscaled inputs.
  *  @param[in] output_scale Multiplies every result before the store; 1 for unscaled inputs.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -489,7 +489,7 @@ NUMKONG_API nk_status_t nk_each_swiglu_e4m3_best(nk_e4m3_t const *gate, nk_e4m3_
  *  @param[in] x_stride Row stride of @p x in bytes; groups pack @p columns apart.
  *  @param[in] y_stride Row stride of @p y in bytes.
  *  @param[in] epsilon Variance epsilon added before the reciprocal square root.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -540,7 +540,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_best(nk_e4m3_t const *x, nk_f32_t c
  *  @param[in] x_stride Row stride of @p x in bytes; groups pack @p columns apart.
  *  @param[in] y_stride Row stride of @p y in bytes.
  *  @param[in] epsilon Variance epsilon added before the reciprocal square root.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:

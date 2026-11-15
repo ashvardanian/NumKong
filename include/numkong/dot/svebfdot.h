@@ -30,7 +30,7 @@
 #define NUMKONG_DOT_SVEBFDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SVEBFDOT
+#if NUMKONG_ARCH_ARM64_SVEBFDOT_
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h" // `nk_svaddv_f64_`
@@ -39,6 +39,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SVEBFDOT // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+sve+bf16"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -69,11 +70,12 @@ NUMKONG_API nk_status_t nk_dot_bf16_svebfdot(nk_bf16_t const *a_scalars, nk_bf16
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SVEBFDOT
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SVEBFDOT
+#endif // NUMKONG_ARCH_ARM64_SVEBFDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_DOT_SVEBFDOT_H

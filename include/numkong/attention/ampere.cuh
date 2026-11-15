@@ -1791,6 +1791,16 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_ampere_(void const *keys
 /*  Later generations read the helpers above and emit only their own kernels. */
 #if NUMKONG_TARGET_AMPERE
 
+/** @ref nk_attention_pack_directory_cuda_ as the Ampere tier's kernel, which its packs launch. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_pack_directory_ampere_kernel_(unsigned char *packed, nk_size_t key_value_head_count, nk_size_t depth,
+                                               nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                               nk_size_t segment_count, nk_size_t row_bytes, nk_size_t directory_bytes,
+                                               nk_capability_t capability) {
+    nk_attention_pack_directory_cuda_(packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count,
+                                      row_bytes, directory_bytes, capability);
+}
+
 #pragma region Instantiations
 
 nk_define_attention_pack_size_simt_(bf16, ampere, 2)

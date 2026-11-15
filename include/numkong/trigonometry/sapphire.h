@@ -25,7 +25,7 @@
 #define NUMKONG_TRIGONOMETRY_SAPPHIRE_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_SAPPHIRE
+#if NUMKONG_ARCH_X8664_SAPPHIRE_
 
 #include "numkong/types.h"
 
@@ -196,6 +196,7 @@ NUMKONG_INLINE __m512h nk_atan_f16x32_sapphire_(__m512h values_f16x32) {
     return _mm512_castsi512_ph(_mm512_xor_si512(_mm512_castph_si512(results_f16x32), signs_b16x32));
 }
 
+#if NUMKONG_TARGET_SAPPHIRE
 NUMKONG_API nk_status_t nk_trig_sin_f16_sapphire(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
@@ -242,6 +243,8 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_sapphire(nk_f16_t const *ins, nk_size_t
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_SAPPHIRE
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -252,6 +255,6 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_sapphire(nk_f16_t const *ins, nk_size_t
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SAPPHIRE
+#endif // NUMKONG_ARCH_X8664_SAPPHIRE_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_TRIGONOMETRY_SAPPHIRE_H

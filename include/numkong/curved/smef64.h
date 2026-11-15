@@ -46,7 +46,7 @@
 #define NUMKONG_CURVED_SMEF64_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SMEF64
+#if NUMKONG_ARCH_ARM64_SMEF64_
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h"    // `nk_svaddv_f64_`
@@ -117,6 +117,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_bilinear_f32_smef64_streaming_( //
     *result = outer_sum_f64;
 }
 
+#if NUMKONG_TARGET_SMEF64
 NUMKONG_API nk_status_t nk_bilinear_f32_smef64( //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result,
     nk_stream_t stream) {
@@ -540,6 +541,8 @@ NUMKONG_API nk_status_t nk_bilinear_f64c_smef64( //
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_SMEF64
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -550,6 +553,6 @@ NUMKONG_API nk_status_t nk_bilinear_f64c_smef64( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SMEF64
+#endif // NUMKONG_ARCH_ARM64_SMEF64_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_CURVED_SMEF64_H

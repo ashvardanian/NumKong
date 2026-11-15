@@ -155,7 +155,7 @@ extern "C" {
  *  @param[in] b The second vector.
  *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The output distance value is non-negative.
@@ -208,7 +208,7 @@ NUMKONG_API nk_status_t nk_euclidean_u4_best(nk_u4x2_t const *a, nk_u4x2_t const
  *  @param[in] b The second vector.
  *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The output distance value is non-negative.
@@ -261,7 +261,7 @@ NUMKONG_API nk_status_t nk_sqeuclidean_u4_best(nk_u4x2_t const *a, nk_u4x2_t con
  *  @param[in] b The second vector.
  *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The output distance value is non-negative.

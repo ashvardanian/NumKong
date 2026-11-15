@@ -479,7 +479,7 @@ if gpu, err := nk.NewDevice(nk.DeviceMetal, 0); err == nil {
 }
 ```
 
-`CapabilitiesDetected` and `CapabilitiesCompiled` report the two raw axes, what the device executes and what this binary contains for its kind.
+`CapabilitiesDetected` and `CapabilitiesCompiled` report the two raw axes, what the device executes and what this binary contains, on a GPU only the code that device runs.
 Every kernel call passes `CapCPUs`, which the library clamps to the CPU's `CapabilitiesEnabled`, settled as it loads, so the package keeps no mask of its own.
 Every capability is a typed `Capability` constant, like `CapSerial`, `CapNEON`, `CapHaswell`, `CapSapphireAMX`, `CapSME`, `CapAmpere`, and `CapApple9`, and `CapCPUs`, `CapGPUs`, and `CapAny` group them.
 These are useful for logging the active platform or gating optional benchmark paths.

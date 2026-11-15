@@ -258,9 +258,9 @@ napi_value api_device_count(napi_env env, napi_callback_info info) {
     nk_status_t status = nk_success_k;
     switch (kind) {
     case device_cpu_k: break;
-    case device_cuda_k: status = nk_cuda_count_devices(&count); break;
-    case device_rocm_k: status = nk_rocm_count_devices(&count); break;
-    case device_metal_k: status = nk_metal_count_devices(&count); break;
+    case device_cuda_k: status = nk_count_devices_cuda(&count); break;
+    case device_rocm_k: status = nk_count_devices_rocm(&count); break;
+    case device_metal_k: status = nk_count_devices_metal(&count); break;
     default: status = nk_missing_gpu_k;
     }
     if (!check_status(env, status)) return NULL;
@@ -276,26 +276,27 @@ napi_value api_capabilities_detected(napi_env env, napi_callback_info info) {
     nk_capability_t capabilities = 0;
     nk_status_t status;
     switch (kind) {
-    case device_cpu_k: status = nk_cpu_capabilities_detected(&capabilities); break;
-    case device_cuda_k: status = nk_cuda_capabilities_detected(ordinal, &capabilities); break;
-    case device_rocm_k: status = nk_rocm_capabilities_detected(ordinal, &capabilities); break;
-    case device_metal_k: status = nk_metal_capabilities_detected(ordinal, &capabilities); break;
+    case device_cpu_k: status = nk_capabilities_detected_cpu(&capabilities); break;
+    case device_cuda_k: status = nk_capabilities_detected_cuda(ordinal, &capabilities); break;
+    case device_rocm_k: status = nk_capabilities_detected_rocm(ordinal, &capabilities); break;
+    case device_metal_k: status = nk_capabilities_detected_metal(ordinal, &capabilities); break;
     default: status = nk_missing_gpu_k;
     }
     return capabilities_or_throw(env, status, capabilities);
 }
 
-/** The capabilities compiled in for devices of a kind, whether or not a device runs them. */
+/** The capabilities compiled in, on a GPU only those whose code the device runs, whether or not it
+ *  offers them. */
 napi_value api_capabilities_compiled(napi_env env, napi_callback_info info) {
-    uint32_t kind;
-    if (!read_device_arguments(env, info, 1, &kind, NULL)) return NULL;
+    uint32_t kind, ordinal;
+    if (!read_device_arguments(env, info, 2, &kind, &ordinal)) return NULL;
     nk_capability_t capabilities = 0;
     nk_status_t status;
     switch (kind) {
-    case device_cpu_k: status = nk_cpu_capabilities_compiled(&capabilities); break;
-    case device_cuda_k: status = nk_cuda_capabilities_compiled(&capabilities); break;
-    case device_rocm_k: status = nk_rocm_capabilities_compiled(&capabilities); break;
-    case device_metal_k: status = nk_metal_capabilities_compiled(&capabilities); break;
+    case device_cpu_k: status = nk_capabilities_compiled_cpu(&capabilities); break;
+    case device_cuda_k: status = nk_capabilities_compiled_cuda(ordinal, &capabilities); break;
+    case device_rocm_k: status = nk_capabilities_compiled_rocm(ordinal, &capabilities); break;
+    case device_metal_k: status = nk_capabilities_compiled_metal(ordinal, &capabilities); break;
     default: status = nk_missing_gpu_k;
     }
     return capabilities_or_throw(env, status, capabilities);
@@ -308,10 +309,10 @@ napi_value api_capabilities_enabled(napi_env env, napi_callback_info info) {
     nk_capability_t capabilities = 0;
     nk_status_t status;
     switch (kind) {
-    case device_cpu_k: status = nk_cpu_capabilities_enabled(&capabilities); break;
-    case device_cuda_k: status = nk_cuda_capabilities_enabled(ordinal, &capabilities); break;
-    case device_rocm_k: status = nk_rocm_capabilities_enabled(ordinal, &capabilities); break;
-    case device_metal_k: status = nk_metal_capabilities_enabled(ordinal, &capabilities); break;
+    case device_cpu_k: status = nk_capabilities_enabled_cpu(&capabilities); break;
+    case device_cuda_k: status = nk_capabilities_enabled_cuda(ordinal, &capabilities); break;
+    case device_rocm_k: status = nk_capabilities_enabled_rocm(ordinal, &capabilities); break;
+    case device_metal_k: status = nk_capabilities_enabled_metal(ordinal, &capabilities); break;
     default: status = nk_missing_gpu_k;
     }
     return capabilities_or_throw(env, status, capabilities);

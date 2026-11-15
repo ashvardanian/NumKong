@@ -437,8 +437,6 @@ NUMKONG_DEVICE unsigned char *nk_attention_dynamic_shared_cdna3_(void) {
 
 #pragma endregion Tile
 
-#if NUMKONG_TARGET_CDNA3
-
 /*  Each covers a 4-word step of a lane's fragments in two of MI300's MFMAs, the first reading words
  *  0 and 1, the second words 2 and 3, as A and B share each lane's depth or slot mapping. */
 #pragma region Steps
@@ -812,6 +810,18 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_i8_cdna3_(
 }
 
 #pragma endregion Tile
+
+#if NUMKONG_TARGET_CDNA3
+
+/** @ref nk_attention_pack_directory_rocm_ as the CDNA3 tier's kernel, which its packs launch. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_pack_directory_cdna3_kernel_(unsigned char *packed, nk_size_t key_value_head_count, nk_size_t depth,
+                                              nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                              nk_size_t segment_count, nk_size_t row_bytes, nk_size_t directory_bytes,
+                                              nk_capability_t capability) {
+    nk_attention_pack_directory_rocm_(packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count,
+                                      row_bytes, directory_bytes, capability);
+}
 
 #pragma region Instantiations
 

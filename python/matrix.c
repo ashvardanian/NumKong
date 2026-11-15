@@ -172,7 +172,7 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
 static PyMethodDef PackedMatrix_methods[] = {
     {"pack_size", (PyCFunction)PackedMatrix_pack_size, METH_CLASS | METH_FASTCALL | METH_KEYWORDS,
      "Return packed buffer size in bytes for a matrix shape and dtype, under the CPU's enabled capabilities\n" //
-     "or the `capabilities=` mask, like `cuda_capabilities_enabled(0)` to size a GPU `dots_pack(b, out=...)`."},
+     "or the `capabilities=` mask, like `capabilities_enabled_cuda(0)` to size a GPU `dots_pack(b, out=...)`."},
     {NULL, NULL, 0, NULL},
 };
 
@@ -732,7 +732,7 @@ char const doc_dots_pack[] =                                                    
     "    Supported values: 'bf16', 'f16', 'f32', 'f64', 'i8', 'u8',\n"                     //
     "    'e4m3', 'e5m2', 'e3m2', 'e2m3', 'e2m1', 'i4', 'u4', 'u1'.\n"                      //
     "  out (Tensor, optional): Required for a GPU b: a C-contiguous Tensor on its GPU,\n"  //
-    "    of PackedMatrix.pack_size(..., capabilities=cuda_capabilities_enabled(0))\n"      //
+    "    of PackedMatrix.pack_size(..., capabilities=capabilities_enabled_cuda(0))\n"      //
     "    bytes or more, holding the packed bytes for the PackedMatrix's lifetime.\n"       //
     "  threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"      //
     "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0,\n"      //

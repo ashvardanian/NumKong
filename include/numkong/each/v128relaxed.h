@@ -18,7 +18,7 @@
 #define NUMKONG_EACH_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/types.h"
 #include "numkong/each/v128.h" // `nk_each_add_f32_v128_`
@@ -67,6 +67,7 @@ NUMKONG_INLINE void nk_each_affine_f32_v128relaxed_(nk_f32_t const *a, nk_size_t
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val;
 }
 
+#if NUMKONG_TARGET_V128RELAXED
 NUMKONG_API nk_status_t nk_each_scale_f32_v128relaxed(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                                       nk_f32_t const *beta, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -582,6 +583,8 @@ NUMKONG_API nk_status_t nk_each_fma_u8_v128relaxed(       //
 
 #pragma endregion U8 Integers
 
+#endif // NUMKONG_TARGET_V128RELAXED
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -590,7 +593,7 @@ NUMKONG_API nk_status_t nk_each_fma_u8_v128relaxed(       //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 
 #endif // NUMKONG_EACH_V128RELAXED_H

@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the NEON SDOT kernels, the ARMv8.2-A dot product.
  */
-#define NUMKONG_HEADER_ONLY     1
-#define NUMKONG_TARGET_NEONSDOT 1
+#define NUMKONG_HEADER_ONLY          1
+#define NUMKONG_ARCH_ARM64_NEONSDOT_ 1
 #include <numkong/types.h>
 #include <numkong/dot/neonsdot.h> // `nk_dot_i8_neonsdot`
 

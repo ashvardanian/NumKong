@@ -135,7 +135,7 @@ extern "C" {
 /**
  *  @brief Returns the bytes a pack of @p points takes.
  *  @param[in] points The number of 3D points.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The size of the pack.
  *
  *  @par Statuses:
@@ -153,7 +153,7 @@ NUMKONG_API nk_status_t nk_shapes_pack_size_f16_best(nk_size_t points, nk_capabi
  *  @param[in] count The number of 3D points.
  *  @param[out] packed The pack, as many bytes as @c nk_shapes_pack_size_f64_best reports, starting
  *      on an @c nk_default_alignment_k boundary.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -195,7 +195,7 @@ NUMKONG_API nk_status_t nk_shapes_pack_normalized_f16_best(nk_f16_t const *point
  *      centroid, or 1.
  *  @param[out] spreads Null, or the 3 descending eigenvalues of the packed points' second moments.
  *  @param[out] max_radius Null, or the largest packed point norm.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -225,7 +225,7 @@ NUMKONG_API nk_status_t nk_shapes_packed_shape_f16_best(void const *packed, nk_s
  *
  *  @param[in] packed A pack of @c f64 points, plain or normalized.
  *  @param[out] points The cloud, its points × 3 interleaved [x0,y0,z0, x1,y1,z1, ...].
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -251,7 +251,7 @@ NUMKONG_API nk_status_t nk_shapes_unpack_f16_best(void const *packed, nk_f16_t *
  *  @param[in] columns The number of column frames.
  *  @param[out] results The @b [rows,columns] distances.
  *  @param[in] results_stride The bytes between consecutive rows of @p results.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -293,7 +293,7 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_best(void const *const *a_packed, nk
  *      each row cloud.
  *  @param[in] limit Distances up to it are exact; past it, a pair may stop early and report a lower
  *      bound that also lies past it, with that bound's flip in @p rotations. Infinity scores all.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -338,7 +338,7 @@ NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_best(void const *const *a_packe
  *  @param[in,out] workspace Scratch of @p workspace_bytes on an @c nk_default_alignment_k boundary,
  *      as @c nk_chamfers_workspace_size_f64_best reports for the largest clouds.
  *  @param[in] workspace_bytes The bytes of @p workspace.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -388,7 +388,7 @@ NUMKONG_API nk_status_t nk_chamfers_workspace_size_f16_best(nk_size_t row_points
  *      @p row_points and @p column_points points.
  *  @param[in] row_points The largest row cloud.
  *  @param[in] column_points The largest column cloud.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The size of the workspace.
  *
  *  @par Statuses:
@@ -425,7 +425,7 @@ NUMKONG_API nk_status_t nk_wassersteinprocrustes_workspace_size_f16_best(nk_size
  *  @param[in] workspace The scratch memory, aligned to @c nk_default_alignment_k.
  *  @param[in] workspace_bytes At least the bytes the matching workspace-size query reports for the
  *      largest clouds on each side.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:

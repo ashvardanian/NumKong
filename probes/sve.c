@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the SVE kernels, the Scalable Vector Extension.
  */
-#define NUMKONG_HEADER_ONLY 1
-#define NUMKONG_TARGET_SVE  1
+#define NUMKONG_HEADER_ONLY     1
+#define NUMKONG_ARCH_ARM64_SVE_ 1
 #include <numkong/types.h>
 #include <numkong/dot/sve.h> // `nk_dot_f32_sve`
 

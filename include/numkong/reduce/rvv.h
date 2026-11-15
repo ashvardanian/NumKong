@@ -17,15 +17,15 @@
 #include "numkong/dot/rvv.h" // `nk_dot_stable_sum_f64m1_rvv_`
 #include "numkong/reduce/serial.h"
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 /** Saturating horizontal sum of u64m1 via tree fold: O(log @p vector_length) vector ops. */

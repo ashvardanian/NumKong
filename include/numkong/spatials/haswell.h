@@ -21,6 +21,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_HASWELL // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2,popcnt"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -28,7 +29,6 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "popcnt")
 #endif
 
-#if NUMKONG_TARGET_HASWELL
 nk_define_cross_normalized_packed_(angular, f32, haswell, f32, f32, f64, /*norm_value_type=*/f64, f64, nk_b256_vec_t,
                                    nk_dots_packed_f32_haswell, nk_angular_through_f64_from_dot_haswell_,
                                    nk_dots_reduce_sumsq_f32_haswell_, nk_load_b256_haswell_,
@@ -303,13 +303,13 @@ nk_define_cross_normalized_symmetric_(euclidean, u4, haswell, u4x2, u32, /*norm_
                                       nk_dots_reduce_sumsq_u4_haswell_, nk_load_b128_haswell_,
                                       nk_partial_load_b32x4_haswell_, nk_store_b128_haswell_,
                                       nk_partial_store_b32x4_haswell_, 2)
-#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__cplusplus)
 } // extern "C"

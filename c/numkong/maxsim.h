@@ -26,7 +26,7 @@
  *  @code{.c}
  *  // Pack query and document matrices with the same capabilities, as the packs record theirs
  *  nk_capability_t caps = nk_cap_serial_k;
- *  nk_cpu_capabilities_enabled(&caps);
+ *  nk_capabilities_enabled_cpu(&caps);
  *  nk_size_t query_bytes = 0, document_bytes = 0;
  *  nk_maxsim_pack_size_bf16_best(query_count, depth, caps, &query_bytes);
  *  nk_maxsim_pack_size_bf16_best(document_count, depth, caps, &document_bytes);
@@ -71,7 +71,7 @@ extern "C" {
  *  @brief Returns packed buffer size in bytes for a maxsim vector set.
  *  @param[in] vector_count The number of vectors to pack.
  *  @param[in] depth The number of dimensions per vector.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The size of the packed buffer.
  *  @note The packed layout is backend-specific and must be produced by the matching pack function.
  *
@@ -92,7 +92,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_best(nk_size_t vector_count, nk_
  *  @param[in] packed A buffer produced by the matching nk_maxsim_pack_bf16_best.
  *  @param[out] vectors Receives the vector count.
  *  @param[out] depth Receives the inner dimension.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -115,7 +115,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_best(void const *packed, nk_s
  *  @param[in] depth The number of dimensions per vector.
  *  @param[in] stride The row stride in bytes for the input vectors.
  *  @param[out] packed The output packed buffer from nk_maxsim_pack_size_bf16_best.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -144,7 +144,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_best(nk_f16_t const *vectors, nk_size
  *  @param[in] document_count Number of document vectors.
  *  @param[in] depth Number of dimensions per vector.
  *  @param[out] result Pointer to store the sum of per-query minimum angular distances.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:

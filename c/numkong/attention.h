@@ -39,7 +39,7 @@
  *  nk_u32_t offsets[] = {0, 100, 630, 663}, lengths[] = {100, 530, 33};   // 3 ragged segments
  *  nk_capability_t cpu;
  *  nk_size_t bytes;
- *  nk_cpu_capabilities_enabled(&cpu);
+ *  nk_capabilities_enabled_cpu(&cpu);
  *  nk_attention_pack_size_bf16_best(kv_heads, 128, 663, 3, cpu, &bytes);   // 663 tokens in 3 segments
  *  void *kv = aligned_alloc(64, bytes);
  *  nk_size_t const bf16 = sizeof(nk_bf16_t);
@@ -151,7 +151,7 @@ extern "C" {
  *  @param[in] depth Head dimension; any value ≥ 1.
  *  @param[in] token_count Tokens across all segments, the sum of the pack's key counts.
  *  @param[in] segment_count Number of segments packed together.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The size of the packed buffer.
  *
  *  @note The packed layout is backend-specific and must be produced by the matching pack function.
@@ -205,7 +205,7 @@ NUMKONG_API nk_status_t nk_attention_pack_size_mxfp8e5m2_best(nk_size_t key_valu
  *  @param[out] key_value_head_count Receives the K/V head count.
  *  @param[out] depth Receives the head dimension.
  *  @param[out] segments Receives the segment count.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -294,7 +294,7 @@ NUMKONG_API nk_status_t nk_attention_packed_segments(void const *key_value_packe
  *  @param[out] key_value_packed 64-byte-aligned buffer of @c nk_attention_pack_size_* bytes.
  *  @param[in] tasks_begin First task of a window over the segments × K/V heads grid.
  *  @param[in] tasks_end End of that half-open window, clipped to the grid.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  GPU packs read the arrays on the device, so only their counts are checked.
@@ -428,7 +428,7 @@ NUMKONG_API nk_status_t nk_attention_pack_mxfp8e5m2_best(nk_size_t key_value_hea
  *      used in its order, so the caller frees it only once the stream passes the call.
  *  @param[in] workspace_bytes At least what @c nk_attention_packed_workspace_size_bf16_best reports
  *      for the fast path, or 0 for the path without scratch.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -457,7 +457,7 @@ NUMKONG_API nk_status_t nk_attention_packed_bf16_best(
  *  @param[in] query_token_count Query rows the call addresses.
  *  @param[in] keys_before Keys visible before each query's position.
  *  @param[in] keys_after Keys visible after each query's position.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The workspace size, 0 when the capability needs none.
  *
  *  Every other parameter follows @c nk_attention_packed_bf16_best.
@@ -563,7 +563,7 @@ NUMKONG_API nk_status_t nk_attention_packed_workspace_size_mxfp8e5m2_best(
  *  @param[in] workspace_bytes At least what
  *      @c nk_attention_packed_gradients_workspace_size_bf16_best reports for the fast path, or 0
  *      for the path without scratch.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  Every other parameter follows @c nk_attention_packed_bf16_best.
@@ -640,7 +640,7 @@ NUMKONG_API nk_status_t nk_attention_packed_gradients_mxfp8e5m2_best(
  *  @param[in] query_token_count Query rows the call addresses.
  *  @param[in] keys_before Keys before each query that it saw in the forward pass.
  *  @param[in] keys_after Keys after each query that it saw in the forward pass.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The workspace size, 0 when the capability needs none.
  */
 NUMKONG_API nk_status_t nk_attention_packed_gradients_workspace_size_bf16_best(
@@ -757,7 +757,7 @@ NUMKONG_API nk_status_t nk_attention_packed_mxfp8e5m2_best(
  *  @param[in] depth The even number of channels per head.
  *  @param[in] x_stride Row stride of @p x in bytes.
  *  @param[in] y_stride Row stride of @p y in bytes.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:

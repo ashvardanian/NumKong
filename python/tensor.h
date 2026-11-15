@@ -193,7 +193,7 @@ int tensor_on_host(Tensor const *tensor);
 int tensor_export_buffer(Tensor *tensor, Py_buffer *view, int flags);
 
 /**
- *  @brief Find the capabilities @c nk_cuda_capabilities_enabled or @c nk_rocm_capabilities_enabled
+ *  @brief Find the capabilities @c nk_capabilities_enabled_cuda or @c nk_capabilities_enabled_rocm
  *      reports for GPU @p device.
  *  @return 1 on success, 0 with a @c ValueError when that device has none.
  */

@@ -117,6 +117,37 @@ NUMKONG_INLINE void nk_u1_and_or_popcounts_neon_(nk_u1x8_t const *a, nk_u1x8_t c
     *intersection_count_ptr = intersection_count, *union_count_ptr = union_count;
 }
 
+#pragma region Distances from Dot Products
+
+/** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (NEON). */
+NUMKONG_INLINE void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                    nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+    uint32x4_t dots_u32x4 = dots_vec->u32x4;
+    uint32x4_t query_u32x4 = vdupq_n_u32(query_pop);
+    uint32x4_t target_u32x4 = target_pops_vec->u32x4;
+    result_vec->u32x4 = vsubq_u32(vaddq_u32(query_u32x4, target_u32x4), vshlq_n_u32(dots_u32x4, 1));
+}
+
+/** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (NEON). */
+NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                    nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
+    float32x4_t dot_f32x4 = vcvtq_f32_u32(dots_vec->u32x4);
+    float32x4_t query_f32x4 = vdupq_n_f32((nk_f32_t)query_pop);
+    float32x4_t target_f32x4 = vcvtq_f32_u32(target_pops_vec->u32x4);
+    float32x4_t union_f32x4 = vsubq_f32(vaddq_f32(query_f32x4, target_f32x4), dot_f32x4);
+
+    float32x4_t one_f32x4 = vdupq_n_f32(1.0f);
+    uint32x4_t zero_union_u32x4 = vceqq_f32(union_f32x4, vdupq_n_f32(0.0f));
+    float32x4_t safe_union_f32x4 = vbslq_f32(zero_union_u32x4, one_f32x4, union_f32x4);
+
+    // Exact division, not `vrecpeq_f32`, so batches match the serial reference bit for bit.
+    float32x4_t ratio_f32x4 = vdivq_f32(dot_f32x4, safe_union_f32x4);
+    float32x4_t jaccard_f32x4 = vsubq_f32(one_f32x4, ratio_f32x4);
+    result_vec->f32x4 = vbslq_f32(zero_union_u32x4, vdupq_n_f32(0.0f), jaccard_f32x4);
+}
+
+#pragma endregion Distances from Dot Products
+
 #if NUMKONG_TARGET_NEON
 
 NUMKONG_API nk_status_t nk_hamming_u1_neon(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
@@ -205,37 +236,6 @@ NUMKONG_API nk_status_t nk_jaccard_u16_neon(nk_u16_t const *a, nk_u16_t const *b
 #pragma endregion Integer Sets
 
 #endif // NUMKONG_TARGET_NEON
-
-#pragma region Distances from Dot Products
-
-/** Hamming from_dot: computes pop_a + pop_b - 2*dot for 4 pairs (NEON). */
-NUMKONG_INLINE void nk_hamming_u32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                    nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
-    uint32x4_t dots_u32x4 = dots_vec->u32x4;
-    uint32x4_t query_u32x4 = vdupq_n_u32(query_pop);
-    uint32x4_t target_u32x4 = target_pops_vec->u32x4;
-    result_vec->u32x4 = vsubq_u32(vaddq_u32(query_u32x4, target_u32x4), vshlq_n_u32(dots_u32x4, 1));
-}
-
-/** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (NEON). */
-NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                    nk_b128_vec_t const *target_pops_vec, nk_b128_vec_t *result_vec) {
-    float32x4_t dot_f32x4 = vcvtq_f32_u32(dots_vec->u32x4);
-    float32x4_t query_f32x4 = vdupq_n_f32((nk_f32_t)query_pop);
-    float32x4_t target_f32x4 = vcvtq_f32_u32(target_pops_vec->u32x4);
-    float32x4_t union_f32x4 = vsubq_f32(vaddq_f32(query_f32x4, target_f32x4), dot_f32x4);
-
-    float32x4_t one_f32x4 = vdupq_n_f32(1.0f);
-    uint32x4_t zero_union_u32x4 = vceqq_f32(union_f32x4, vdupq_n_f32(0.0f));
-    float32x4_t safe_union_f32x4 = vbslq_f32(zero_union_u32x4, one_f32x4, union_f32x4);
-
-    // Exact division rather than `vrecpeq_f32` — batched results must match the serial reference bit-for-bit.
-    float32x4_t ratio_f32x4 = vdivq_f32(dot_f32x4, safe_union_f32x4);
-    float32x4_t jaccard_f32x4 = vsubq_f32(one_f32x4, ratio_f32x4);
-    result_vec->f32x4 = vbslq_f32(zero_union_u32x4, vdupq_n_f32(0.0f), jaccard_f32x4);
-}
-
-#pragma endregion Distances from Dot Products
 
 #if defined(__clang__)
 #pragma clang attribute pop

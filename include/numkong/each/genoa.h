@@ -13,7 +13,7 @@
 #define NUMKONG_EACH_GENOA_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_GENOA
+#if NUMKONG_ARCH_X8664_GENOA_
 
 #include "numkong/types.h"
 #include "numkong/each/skylake.h"   // `nk_each_rmsnorm_output_bf16_skylake_`
@@ -24,6 +24,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_GENOA // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(                                                                        \
     __attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512dq,avx512bf16,f16c,fma,bmi,bmi2"))), \
@@ -85,11 +86,12 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_genoa(nk_e4m3_t const *x, nk_f32_t 
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_GENOA
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_GENOA
+#endif // NUMKONG_ARCH_X8664_GENOA_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_EACH_GENOA_H

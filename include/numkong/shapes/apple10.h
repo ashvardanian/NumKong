@@ -18,7 +18,7 @@
 #define NUMKONG_SHAPES_APPLE10_H
 
 #if NUMKONG_ARCH_METAL_
-#if NUMKONG_TARGET_APPLE10
+#if NUMKONG_ARCH_METAL_APPLE10_
 #include "numkong/shapes/metal.h" // `nk_shapes_launch_metal_`
 
 #if defined(__cplusplus)
@@ -44,6 +44,7 @@ static char const nk_shapes_source_apple10_[] = {
 /** Frames per side of an RMSD tile, as the kernels stage them. */
 enum { nk_rmsds_frames_apple10_k = 21 };
 
+#if NUMKONG_TARGET_APPLE10
 NUMKONG_API nk_status_t nk_chamfers_workspace_size_f16_apple10(nk_size_t row_points, nk_size_t column_points,
                                                                nk_size_t *bytes) {
     nk_unused_(row_points), nk_unused_(column_points);
@@ -86,9 +87,11 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_apple10(void const *const *a_packed,
         results_stride, NUMKONG_NULL, NUMKONG_F32_INF, NUMKONG_NULL, 0, 0, 0, stream);
 }
 
+#endif // NUMKONG_TARGET_APPLE10
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-#endif // NUMKONG_TARGET_APPLE10
+#endif // NUMKONG_ARCH_METAL_APPLE10_
 #endif // NUMKONG_ARCH_METAL_
 #endif // NUMKONG_SHAPES_APPLE10_H

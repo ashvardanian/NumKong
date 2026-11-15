@@ -24,14 +24,13 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_HASWELL // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
-
-#if NUMKONG_TARGET_HASWELL
 
 NUMKONG_API nk_status_t nk_bilinear_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
                                                 nk_f64_t *result, nk_stream_t stream) {
@@ -326,13 +325,12 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_haswell(nk_bf16_t const *a, nk_bf16_
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_HASWELL
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__cplusplus)
 } // extern "C"

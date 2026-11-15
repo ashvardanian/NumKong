@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the Diamond Rapids kernels, AVX10.2.
  */
-#define NUMKONG_HEADER_ONLY    1
-#define NUMKONG_TARGET_DIAMOND 1
+#define NUMKONG_HEADER_ONLY         1
+#define NUMKONG_ARCH_X8664_DIAMOND_ 1
 #include <numkong/types.h>
 #include <numkong/dot/diamond.h> // `nk_dot_e4m3_diamond`
 

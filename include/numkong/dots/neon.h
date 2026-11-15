@@ -23,6 +23,10 @@
 #include "numkong/dot/neon.h"
 #include "numkong/reduce/neon.h" // `nk_reduce_moments_chunked_f32_neon_`
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 NUMKONG_INLINE void nk_pack_nvfp4_scales_neon_(nk_u8_t const *source, nk_size_t blocks, nk_u8_t *destination,
                                                nk_size_t stride, nk_i32_t base) {
     nk_unused_(base);
@@ -154,24 +158,7 @@ NUMKONG_INLINE nk_u32_t nk_dots_reduce_sum_u1_neon_(nk_u1x8_t const *data, nk_si
 
 #pragma endregion Norms
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
-
 #if NUMKONG_TARGET_NEON
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("arch=armv8-a+simd"))), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC target("arch=armv8-a+simd")
-#endif
-
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_neon_(nk_bf16_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
     nk_unused_(stride);
@@ -392,6 +379,8 @@ nk_define_cross_scaled_symmetric_(dots, mxfp8e5m2, neon, f16, nk_dot_from_wide_f
                                   /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                   /*register_rows=*/2, /*register_columns=*/4)
 
+#endif // NUMKONG_TARGET_NEON
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -401,7 +390,6 @@ nk_define_cross_scaled_symmetric_(dots, mxfp8e5m2, neon, f16, nk_dot_from_wide_f
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-#endif // NUMKONG_TARGET_NEON
 
 #endif // NUMKONG_ARCH_ARM64_NEON_
 #endif // NUMKONG_ARCH_ARM64_

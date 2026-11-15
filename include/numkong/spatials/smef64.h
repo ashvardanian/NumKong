@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIALS_SMEF64_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SMEF64
+#if NUMKONG_ARCH_ARM64_SMEF64_
 
 #include "numkong/dots/serial.h"
 #include "numkong/reduce/sve.h" // `nk_svaddv_f64_`
@@ -121,6 +121,7 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_finalize_f32_smef64_streaming_( //
     }
 }
 
+#if NUMKONG_TARGET_SMEF64
 NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_f32_smef64(nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                                      nk_size_t *bytes) {
     nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
@@ -579,6 +580,8 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_smef64( //
 }
 
 #pragma endregion F64 Symmetric Euclidean
+#endif // NUMKONG_TARGET_SMEF64
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -589,6 +592,6 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_smef64( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SMEF64
+#endif // NUMKONG_ARCH_ARM64_SMEF64_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIALS_SMEF64_H

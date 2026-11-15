@@ -103,7 +103,7 @@ extern "C" {
  *  @param[in] b_length The number of elements in the second array.
  *  @param[out] result Output buffer for intersection elements, or NULL to count only.
  *  @param[out] count The output intersection count.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
@@ -124,7 +124,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u16_best(nk_u16_t const *a, nk_u16_t
  *  @param[in] b_length The number of elements in the second array.
  *  @param[out] result Output buffer for intersection elements, or NULL to count only.
  *  @param[out] count The output intersection count.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
@@ -145,7 +145,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u32_best(nk_u32_t const *a, nk_u32_t
  *  @param[in] b_length The number of elements in the second array.
  *  @param[out] result Output buffer for intersection elements, or NULL to count only.
  *  @param[out] count The output intersection count.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
@@ -167,7 +167,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u64_best(nk_u64_t const *a, nk_u64_t
  *  @param[in] a_length The number of elements in the first array.
  *  @param[in] b_length The number of elements in the second array.
  *  @param[out] product The output dot product.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.
@@ -189,7 +189,7 @@ NUMKONG_API nk_status_t nk_sparse_dot_u16bf16_best(nk_u16_t const *a, nk_u16_t c
  *  @param[in] a_length The number of elements in the first array.
  *  @param[in] b_length The number of elements in the second array.
  *  @param[out] product The output dot product.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note Inputs must be sorted in ascending order and contain unique elements.

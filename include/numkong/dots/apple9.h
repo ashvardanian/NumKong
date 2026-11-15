@@ -21,7 +21,7 @@
 #define NUMKONG_DOTS_APPLE9_H
 
 #if NUMKONG_ARCH_METAL_
-#if NUMKONG_TARGET_APPLE9
+#if NUMKONG_ARCH_METAL_APPLE9_
 #include "numkong/dots/metal.h" // `nk_cross_encode_metal_`, `nk_define_cross_metal_`
 
 #if defined(__cplusplus)
@@ -68,6 +68,7 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_apple9_(char const *kernel, nk_cross_
 
 #pragma endregion Launchers
 
+#if NUMKONG_TARGET_APPLE9
 nk_define_cross_metal_(f16, apple9, f16, f32, f32, 16, 1)
 nk_define_cross_metal_(bf16, apple9, bf16, f32, f32, 16, 1)
 nk_define_cross_metal_(e4m3, apple9, e4m3, f32, f32, 16, 1)
@@ -82,10 +83,12 @@ nk_define_cross_metal_(mxfp6e3m2, apple9, e3m2, f32, f32, 32, 1)
 nk_define_cross_metal_(mxfp4, apple9, e2m1x2, f32, f32, 32, 2)
 nk_define_cross_metal_(nvfp4, apple9, e2m1x2, f32, f32, 32, 2)
 
+#endif // NUMKONG_TARGET_APPLE9
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_APPLE9
+#endif // NUMKONG_ARCH_METAL_APPLE9_
 #endif // NUMKONG_ARCH_METAL_
 #endif // NUMKONG_DOTS_APPLE9_H

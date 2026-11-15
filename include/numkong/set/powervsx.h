@@ -44,6 +44,37 @@ extern "C" {
 #pragma GCC target("power9-vector")
 #endif
 
+/** Hamming from_dot: computes pop_a + pop_b - 2 × dot for 4 pairs (Power VSX). */
+NUMKONG_INLINE void nk_hamming_u32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                        nk_b128_vec_t const *target_pops_vec,
+                                                        nk_b128_vec_t *result_vec) {
+    nk_vu32x4_t dots_u32x4 = dots_vec->vu32x4;
+    nk_vu32x4_t query_u32x4 = vec_splats(query_pop);
+    nk_vu32x4_t target_u32x4 = target_pops_vec->vu32x4;
+    nk_vu32x4_t two_dots_u32x4 = vec_add(dots_u32x4, dots_u32x4);
+    result_vec->vu32x4 = vec_sub(vec_add(query_u32x4, target_u32x4), two_dots_u32x4);
+}
+
+/** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Power VSX). */
+NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
+                                                        nk_b128_vec_t const *target_pops_vec,
+                                                        nk_b128_vec_t *result_vec) {
+    nk_vf32x4_t dot_f32x4 = vec_ctf(dots_vec->vu32x4, 0);
+    nk_vf32x4_t query_f32x4 = vec_splats((nk_f32_t)query_pop);
+    nk_vf32x4_t target_f32x4 = vec_ctf(target_pops_vec->vu32x4, 0);
+    nk_vf32x4_t union_f32x4 = vec_sub(vec_add(query_f32x4, target_f32x4), dot_f32x4);
+
+    nk_vf32x4_t one_f32x4 = vec_splats(1.0f);
+    nk_vf32x4_t zero_f32x4 = vec_splats(0.0f);
+    nk_vu32x4_t zero_union_mask_u32x4 = (nk_vu32x4_t)vec_cmpeq(union_f32x4, zero_f32x4);
+    nk_vf32x4_t safe_union_f32x4 = vec_sel(union_f32x4, one_f32x4, zero_union_mask_u32x4);
+
+    // Exact division, not `vec_re`, so batches match the serial reference bit for bit.
+    nk_vf32x4_t ratio_f32x4 = vec_div(dot_f32x4, safe_union_f32x4);
+    nk_vf32x4_t jaccard_f32x4 = vec_sub(one_f32x4, ratio_f32x4);
+    result_vec->vf32x4 = vec_sel(jaccard_f32x4, zero_f32x4, zero_union_mask_u32x4);
+}
+
 #if NUMKONG_TARGET_POWERVSX
 
 NUMKONG_API nk_status_t nk_hamming_u1_powervsx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
@@ -126,37 +157,6 @@ NUMKONG_API nk_status_t nk_hamming_u8_powervsx(nk_u8_t const *a, nk_u8_t const *
 }
 
 #endif // NUMKONG_TARGET_POWERVSX
-
-/** Hamming from_dot: computes pop_a + pop_b - 2 × dot for 4 pairs (Power VSX). */
-NUMKONG_INLINE void nk_hamming_u32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                        nk_b128_vec_t const *target_pops_vec,
-                                                        nk_b128_vec_t *result_vec) {
-    nk_vu32x4_t dots_u32x4 = dots_vec->vu32x4;
-    nk_vu32x4_t query_u32x4 = vec_splats(query_pop);
-    nk_vu32x4_t target_u32x4 = target_pops_vec->vu32x4;
-    nk_vu32x4_t two_dots_u32x4 = vec_add(dots_u32x4, dots_u32x4);
-    result_vec->vu32x4 = vec_sub(vec_add(query_u32x4, target_u32x4), two_dots_u32x4);
-}
-
-/** Jaccard from_dot: computes 1 - dot / (pop_a + pop_b - dot) for 4 pairs (Power VSX). */
-NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_powervsx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_pop,
-                                                        nk_b128_vec_t const *target_pops_vec,
-                                                        nk_b128_vec_t *result_vec) {
-    nk_vf32x4_t dot_f32x4 = vec_ctf(dots_vec->vu32x4, 0);
-    nk_vf32x4_t query_f32x4 = vec_splats((nk_f32_t)query_pop);
-    nk_vf32x4_t target_f32x4 = vec_ctf(target_pops_vec->vu32x4, 0);
-    nk_vf32x4_t union_f32x4 = vec_sub(vec_add(query_f32x4, target_f32x4), dot_f32x4);
-
-    nk_vf32x4_t one_f32x4 = vec_splats(1.0f);
-    nk_vf32x4_t zero_f32x4 = vec_splats(0.0f);
-    nk_vu32x4_t zero_union_mask_u32x4 = (nk_vu32x4_t)vec_cmpeq(union_f32x4, zero_f32x4);
-    nk_vf32x4_t safe_union_f32x4 = vec_sel(union_f32x4, one_f32x4, zero_union_mask_u32x4);
-
-    // Exact division rather than `vec_re` — batched results must match the serial reference bit-for-bit.
-    nk_vf32x4_t ratio_f32x4 = vec_div(dot_f32x4, safe_union_f32x4);
-    nk_vf32x4_t jaccard_f32x4 = vec_sub(one_f32x4, ratio_f32x4);
-    result_vec->vf32x4 = vec_sel(jaccard_f32x4, zero_f32x4, zero_union_mask_u32x4);
-}
 
 #if defined(__clang__)
 #pragma clang attribute pop

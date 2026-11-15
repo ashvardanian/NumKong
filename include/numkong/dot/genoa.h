@@ -79,7 +79,7 @@
 #define NUMKONG_DOT_GENOA_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_GENOA
+#if NUMKONG_ARCH_X8664_GENOA_
 
 #include "numkong/types.h"
 #include "numkong/cast/icelake.h"   // `nk_e4m3x32_to_bf16x32_icelake_`
@@ -123,6 +123,7 @@ nk_dot_bf16_genoa_cycle:
     *result = nk_reduce_add_f32x16_skylake_(sum_f32x16);
 }
 
+#if NUMKONG_TARGET_GENOA
 NUMKONG_API nk_status_t nk_dot_bf16_genoa(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
                                           nk_size_t count_scalars, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -290,6 +291,8 @@ NUMKONG_INLINE void nk_dot_bf16x32_finalize_genoa(nk_dot_bf16x32_state_genoa_t c
     nk_dot_through_bf16_finalize_genoa_(state_a, state_b, state_c, state_d, total_dimensions, result);
 }
 
+#endif // NUMKONG_TARGET_GENOA
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -300,6 +303,6 @@ NUMKONG_INLINE void nk_dot_bf16x32_finalize_genoa(nk_dot_bf16x32_state_genoa_t c
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_GENOA
+#endif // NUMKONG_ARCH_X8664_GENOA_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOT_GENOA_H

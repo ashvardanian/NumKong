@@ -188,7 +188,8 @@ extern "C" {
 typedef nk_u64_t nk_capability_t;
 
 /** Serial (non-SIMD) fallback capability. Always available. */
-#define nk_cap_serial_k ((nk_capability_t)1)
+#define nk_cap_serial_index_k 0
+#define nk_cap_serial_k       ((nk_capability_t)1 << nk_cap_serial_index_k)
 
 /** Mask representing any capability. */
 #define nk_cap_any_k ((nk_capability_t)NUMKONG_U64_MAX)
@@ -197,155 +198,204 @@ typedef nk_u64_t nk_capability_t;
  *  the highest bit a mask shares with a dispatch point's capabilities names the one to run. */
 
 /** Arm NEON, the AArch64 Advanced SIMD baseline. */
-#define nk_cap_neon_k ((nk_capability_t)1 << 1)
+#define nk_cap_neon_index_k 1
+#define nk_cap_neon_k       ((nk_capability_t)1 << nk_cap_neon_index_k)
 
 /** NEON with half-precision arithmetic, FEAT_FP16. */
-#define nk_cap_neonhalf_k ((nk_capability_t)1 << 2)
+#define nk_cap_neonhalf_index_k 2
+#define nk_cap_neonhalf_k       ((nk_capability_t)1 << nk_cap_neonhalf_index_k)
 
 /** NEON with BFloat16 dot products, FEAT_BF16. */
-#define nk_cap_neonbfdot_k ((nk_capability_t)1 << 3)
+#define nk_cap_neonbfdot_index_k 3
+#define nk_cap_neonbfdot_k       ((nk_capability_t)1 << nk_cap_neonbfdot_index_k)
 
 /** NEON with half-precision multiply-accumulate into single precision, FEAT_FHM. */
-#define nk_cap_neonfhm_k ((nk_capability_t)1 << 4)
+#define nk_cap_neonfhm_index_k 4
+#define nk_cap_neonfhm_k       ((nk_capability_t)1 << nk_cap_neonfhm_index_k)
 
 /** NEON with 8-bit integer dot products, FEAT_DotProd. */
-#define nk_cap_neonsdot_k ((nk_capability_t)1 << 5)
+#define nk_cap_neonsdot_index_k 5
+#define nk_cap_neonsdot_k       ((nk_capability_t)1 << nk_cap_neonsdot_index_k)
 
 /** NEON with FP8 dot products, FEAT_FP8DOT4. */
-#define nk_cap_neonfp8_k ((nk_capability_t)1 << 6)
+#define nk_cap_neonfp8_index_k 6
+#define nk_cap_neonfp8_k       ((nk_capability_t)1 << nk_cap_neonfp8_index_k)
 
 /** Arm Scalable Vector Extension. */
-#define nk_cap_sve_k ((nk_capability_t)1 << 7)
+#define nk_cap_sve_index_k 7
+#define nk_cap_sve_k       ((nk_capability_t)1 << nk_cap_sve_index_k)
 
 /** SVE with half-precision arithmetic. */
-#define nk_cap_svehalf_k ((nk_capability_t)1 << 8)
+#define nk_cap_svehalf_index_k 8
+#define nk_cap_svehalf_k       ((nk_capability_t)1 << nk_cap_svehalf_index_k)
 
 /** SVE with 8-bit integer matrix multiplies, FEAT_I8MM. */
-#define nk_cap_svesdot_k ((nk_capability_t)1 << 9)
+#define nk_cap_svesdot_index_k 9
+#define nk_cap_svesdot_k       ((nk_capability_t)1 << nk_cap_svesdot_index_k)
 
 /** SVE with BFloat16 dot products. */
-#define nk_cap_svebfdot_k ((nk_capability_t)1 << 10)
+#define nk_cap_svebfdot_index_k 10
+#define nk_cap_svebfdot_k       ((nk_capability_t)1 << nk_cap_svebfdot_index_k)
 
 /** Arm SVE2. */
-#define nk_cap_sve2_k ((nk_capability_t)1 << 11)
+#define nk_cap_sve2_index_k 11
+#define nk_cap_sve2_k       ((nk_capability_t)1 << nk_cap_sve2_index_k)
 
 /** Arm Scalable Matrix Extension. */
-#define nk_cap_sme_k ((nk_capability_t)1 << 12)
+#define nk_cap_sme_index_k 12
+#define nk_cap_sme_k       ((nk_capability_t)1 << nk_cap_sme_index_k)
 
 /** SME with double-precision outer products, FEAT_SME_F64F64. */
-#define nk_cap_smef64_k ((nk_capability_t)1 << 13)
+#define nk_cap_smef64_index_k 13
+#define nk_cap_smef64_k       ((nk_capability_t)1 << nk_cap_smef64_index_k)
 
 /** SME with binary outer products into 32-bit integers, SME_BI32I32. */
-#define nk_cap_smebi32_k ((nk_capability_t)1 << 14)
+#define nk_cap_smebi32_index_k 14
+#define nk_cap_smebi32_k       ((nk_capability_t)1 << nk_cap_smebi32_index_k)
 
 /** x86 AVX2, FMA, F16C, BMI1 and BMI2, as on Intel Haswell. */
-#define nk_cap_haswell_k ((nk_capability_t)1 << 15)
+#define nk_cap_haswell_index_k 15
+#define nk_cap_haswell_k       ((nk_capability_t)1 << nk_cap_haswell_index_k)
 
 /** @c nk_cap_haswell_k plus AVX-VNNI, as on Intel Alder Lake. */
-#define nk_cap_alder_k ((nk_capability_t)1 << 16)
+#define nk_cap_alder_index_k 16
+#define nk_cap_alder_k       ((nk_capability_t)1 << nk_cap_alder_index_k)
 
 /** @c nk_cap_alder_k plus AVX-VNNI-INT8, as on Intel Sierra Forest. */
-#define nk_cap_sierra_k ((nk_capability_t)1 << 17)
+#define nk_cap_sierra_index_k 17
+#define nk_cap_sierra_k       ((nk_capability_t)1 << nk_cap_sierra_index_k)
 
 /** @c nk_cap_haswell_k plus AVX-512 F, DQ, BW and VL, as on Intel Skylake-X. */
-#define nk_cap_skylake_k ((nk_capability_t)1 << 18)
+#define nk_cap_skylake_index_k 18
+#define nk_cap_skylake_k       ((nk_capability_t)1 << nk_cap_skylake_index_k)
 
 /** @c nk_cap_skylake_k plus AVX-512 VNNI, IFMA, BITALG, VBMI, VBMI2 and VPOPCNTDQ. */
-#define nk_cap_icelake_k ((nk_capability_t)1 << 19)
+#define nk_cap_icelake_index_k 19
+#define nk_cap_icelake_k       ((nk_capability_t)1 << nk_cap_icelake_index_k)
 
 /** @c nk_cap_skylake_k plus AVX-512 BF16 and VNNI, as on AMD Genoa. */
-#define nk_cap_genoa_k ((nk_capability_t)1 << 20)
+#define nk_cap_genoa_index_k 20
+#define nk_cap_genoa_k       ((nk_capability_t)1 << nk_cap_genoa_index_k)
 
 /** @c nk_cap_genoa_k plus AVX-512 VBMI2 and VP2INTERSECT, as on AMD Turin. */
-#define nk_cap_turin_k ((nk_capability_t)1 << 21)
+#define nk_cap_turin_index_k 21
+#define nk_cap_turin_k       ((nk_capability_t)1 << nk_cap_turin_index_k)
 
 /** @c nk_cap_skylake_k plus AVX-512 FP16, as on Intel Sapphire Rapids. */
-#define nk_cap_sapphire_k ((nk_capability_t)1 << 22)
+#define nk_cap_sapphire_index_k 22
+#define nk_cap_sapphire_k       ((nk_capability_t)1 << nk_cap_sapphire_index_k)
 
 /** @c nk_cap_sapphire_k plus AVX10.2, as on Intel Diamond Rapids. */
-#define nk_cap_diamond_k ((nk_capability_t)1 << 23)
+#define nk_cap_diamond_index_k 23
+#define nk_cap_diamond_k       ((nk_capability_t)1 << nk_cap_diamond_index_k)
 
 /** @c nk_cap_sapphire_k and @c nk_cap_genoa_k plus AMX tiles with BF16 and INT8. */
-#define nk_cap_sapphireamx_k ((nk_capability_t)1 << 24)
+#define nk_cap_sapphireamx_index_k 24
+#define nk_cap_sapphireamx_k       ((nk_capability_t)1 << nk_cap_sapphireamx_index_k)
 
 /** @c nk_cap_sapphireamx_k plus AMX-FP16, as on Intel Granite Rapids. */
-#define nk_cap_graniteamx_k ((nk_capability_t)1 << 25)
+#define nk_cap_graniteamx_index_k 25
+#define nk_cap_graniteamx_k       ((nk_capability_t)1 << nk_cap_graniteamx_index_k)
 
 /** @c nk_cap_sapphireamx_k plus AMX-FP8 and AMX-AVX512, as on Intel Diamond Rapids. */
-#define nk_cap_diamondamx_k ((nk_capability_t)1 << 26)
+#define nk_cap_diamondamx_index_k 26
+#define nk_cap_diamondamx_k       ((nk_capability_t)1 << nk_cap_diamondamx_index_k)
 
 /** RISC-V Vector extension. */
-#define nk_cap_rvv_k ((nk_capability_t)1 << 27)
+#define nk_cap_rvv_index_k 27
+#define nk_cap_rvv_k       ((nk_capability_t)1 << nk_cap_rvv_index_k)
 
 /** RVV with BFloat16 widening multiply-accumulate, Zvfbfwma. */
-#define nk_cap_rvvbf16_k ((nk_capability_t)1 << 28)
+#define nk_cap_rvvbf16_index_k 28
+#define nk_cap_rvvbf16_k       ((nk_capability_t)1 << nk_cap_rvvbf16_index_k)
 
 /** RVV with half-precision arithmetic, Zvfh. */
-#define nk_cap_rvvhalf_k ((nk_capability_t)1 << 29)
+#define nk_cap_rvvhalf_index_k 29
+#define nk_cap_rvvhalf_k       ((nk_capability_t)1 << nk_cap_rvvhalf_index_k)
 
 /** RVV with basic bit manipulation, Zvbb. */
-#define nk_cap_rvvbb_k ((nk_capability_t)1 << 30)
+#define nk_cap_rvvbb_index_k 30
+#define nk_cap_rvvbb_k       ((nk_capability_t)1 << nk_cap_rvvbb_index_k)
 
 /** WebAssembly 128-bit SIMD. */
-#define nk_cap_v128_k ((nk_capability_t)1 << 31)
+#define nk_cap_v128_index_k 31
+#define nk_cap_v128_k       ((nk_capability_t)1 << nk_cap_v128_index_k)
 
 /** WebAssembly Relaxed SIMD. */
-#define nk_cap_v128relaxed_k ((nk_capability_t)1 << 32)
+#define nk_cap_v128relaxed_index_k 32
+#define nk_cap_v128relaxed_k       ((nk_capability_t)1 << nk_cap_v128relaxed_index_k)
 
 /** IBM Power VSX at ISA 3.0, as on POWER9. */
-#define nk_cap_powervsx_k ((nk_capability_t)1 << 33)
+#define nk_cap_powervsx_index_k 33
+#define nk_cap_powervsx_k       ((nk_capability_t)1 << nk_cap_powervsx_index_k)
 
 /** LoongArch LASX 256-bit SIMD. */
-#define nk_cap_loongsonasx_k ((nk_capability_t)1 << 34)
+#define nk_cap_loongsonasx_index_k 34
+#define nk_cap_loongsonasx_k       ((nk_capability_t)1 << nk_cap_loongsonasx_index_k)
 
 /** @c nk_cap_powervsx_k plus the ISA 3.1 Matrix-Multiply Assist accumulators, as on POWER10. */
-#define nk_cap_powermma_k ((nk_capability_t)1 << 35)
+#define nk_cap_powermma_index_k 35
+#define nk_cap_powermma_k       ((nk_capability_t)1 << nk_cap_powermma_index_k)
 
-/*  GPU capabilities, as each vendor's <tt>nk_\<vendor\>_capabilities_*</tt> functions report them for one
+/*  GPU capabilities, as each vendor's <tt>nk_capabilities_*_\<vendor\></tt> functions report them for one
  *  device, grouped by vendor above bit 47 to leave room for more CPU capabilities and more per
  *  vendor. Each vendor's baseline runs on all its devices, as @c serial runs on every CPU. */
 
 /** NVIDIA baseline, which runs on every CUDA device. */
-#define nk_cap_cuda_k ((nk_capability_t)1 << 48)
+#define nk_cap_cuda_index_k 48
+#define nk_cap_cuda_k       ((nk_capability_t)1 << nk_cap_cuda_index_k)
 
 /** NVIDIA @c mma.sync tensor cores, as on A100, RTX 30 and every later GPU. */
-#define nk_cap_ampere_k ((nk_capability_t)1 << 49)
+#define nk_cap_ampere_index_k 49
+#define nk_cap_ampere_k       ((nk_capability_t)1 << nk_cap_ampere_index_k)
 
 /** NVIDIA FP8 @c mma.sync, as on L4, L40S, RTX 40 and every later GPU. */
-#define nk_cap_ada_k ((nk_capability_t)1 << 50)
+#define nk_cap_ada_index_k 50
+#define nk_cap_ada_k       ((nk_capability_t)1 << nk_cap_ada_index_k)
 
 /** NVIDIA Hopper @c wgmma, as on H100, H200 and GH200. */
-#define nk_cap_hopper_k ((nk_capability_t)1 << 51)
+#define nk_cap_hopper_index_k 51
+#define nk_cap_hopper_k       ((nk_capability_t)1 << nk_cap_hopper_index_k)
 
 /** NVIDIA datacenter Blackwell @c tcgen05, as on B200, GB200, B300 and GB300. */
-#define nk_cap_blackwell_k ((nk_capability_t)1 << 52)
+#define nk_cap_blackwell_index_k 52
+#define nk_cap_blackwell_k       ((nk_capability_t)1 << nk_cap_blackwell_index_k)
 
 /** NVIDIA FP6 and FP4 @c mma.sync of compute capability 12.x, as on RTX 50 and DGX Spark. */
-#define nk_cap_blackwellrtx_k ((nk_capability_t)1 << 53)
+#define nk_cap_blackwellrtx_index_k 53
+#define nk_cap_blackwellrtx_k       ((nk_capability_t)1 << nk_cap_blackwellrtx_index_k)
 
 /** NVIDIA Blackwell Ultra @c tcgen05.ld.red, as on B300 and GB300. */
-#define nk_cap_blackwellultra_k ((nk_capability_t)1 << 54)
+#define nk_cap_blackwellultra_index_k 54
+#define nk_cap_blackwellultra_k       ((nk_capability_t)1 << nk_cap_blackwellultra_index_k)
 
 /** AMD baseline, which runs on every ROCm device. */
-#define nk_cap_rocm_k ((nk_capability_t)1 << 56)
+#define nk_cap_rocm_index_k 56
+#define nk_cap_rocm_k       ((nk_capability_t)1 << nk_cap_rocm_index_k)
 
 /** AMD MFMA over BF16, F16 and I8, as on MI300X, MI300A and MI325X. */
-#define nk_cap_cdna3_k ((nk_capability_t)1 << 57)
+#define nk_cap_cdna3_index_k 57
+#define nk_cap_cdna3_k       ((nk_capability_t)1 << nk_cap_cdna3_index_k)
 
 /** AMD MFMA over FP8, FP6 and FP4, as on MI350X and MI355X. */
-#define nk_cap_cdna4_k ((nk_capability_t)1 << 58)
+#define nk_cap_cdna4_index_k 58
+#define nk_cap_cdna4_k       ((nk_capability_t)1 << nk_cap_cdna4_index_k)
 
 /** AMD WMMA over FP8, FP6 and FP4, as on MI450X, MI455X and MI430X. */
-#define nk_cap_cdna5_k ((nk_capability_t)1 << 59)
+#define nk_cap_cdna5_index_k 59
+#define nk_cap_cdna5_k       ((nk_capability_t)1 << nk_cap_cdna5_index_k)
 
 /** Apple baseline, which runs on every Metal device. */
-#define nk_cap_metal_k ((nk_capability_t)1 << 60)
+#define nk_cap_metal_index_k 60
+#define nk_cap_metal_k       ((nk_capability_t)1 << nk_cap_metal_index_k)
 
 /** Apple GPU family 9, as on M3 and M4. */
-#define nk_cap_apple9_k ((nk_capability_t)1 << 61)
+#define nk_cap_apple9_index_k 61
+#define nk_cap_apple9_k       ((nk_capability_t)1 << nk_cap_apple9_index_k)
 
 /** Apple GPU family 10, as on M5. */
-#define nk_cap_apple10_k ((nk_capability_t)1 << 62)
+#define nk_cap_apple10_index_k 62
+#define nk_cap_apple10_k       ((nk_capability_t)1 << nk_cap_apple10_index_k)
 
 /** Every GPU capability above, which the CPU dispatch never detects, compiles or enables. */
 #define nk_cap_gpus_k                                                                                                \
@@ -1107,7 +1157,7 @@ typedef void (*nk_kernel_punned_t)(void);
 
 /** What the compiler's own flags guarantee of every CPU running this binary, for platforms whose OS
  *  cannot be asked. The compiled mask would name kits that the CPU may lack. */
-NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_implied_(void) {
+NUMKONG_INLINE nk_capability_t nk_capabilities_implied_cpu_(void) {
     nk_capability_t capabilities = nk_cap_serial_k;
 #if defined(__ARM_NEON) && defined(__aarch64__)
     capabilities |= nk_cap_neon_k;
@@ -1126,7 +1176,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_implied_(void) {
 
 #if NUMKONG_ARCH_X8664_
 
-NUMKONG_INLINE nk_status_t nk_cpu_configure_thread_x86_(nk_capability_t capabilities) {
+NUMKONG_INLINE nk_status_t nk_configure_thread_x86_(nk_capability_t capabilities) {
 #if NUMKONG_TARGET_SAPPHIREAMX || NUMKONG_TARGET_GRANITEAMX || NUMKONG_TARGET_DIAMONDAMX
     if (capabilities & (nk_cap_sapphireamx_k | nk_cap_graniteamx_k | nk_cap_diamondamx_k)) {
 #if NUMKONG_OS_LINUX_
@@ -1155,7 +1205,7 @@ NUMKONG_INLINE void nk_cpu_cpuid_x8664_(unsigned leaf, unsigned subleaf, int reg
 #endif
 }
 
-NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_x8664_(void) {
+NUMKONG_INLINE nk_capability_t nk_capabilities_detected_x8664_(void) {
     union four_registers_t {
         int array[4];
         struct separate_t {
@@ -1275,7 +1325,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_x8664_(void) {
 
 #if NUMKONG_ARCH_ARM64_
 
-NUMKONG_INLINE nk_status_t nk_cpu_configure_thread_arm64_(nk_capability_t capabilities) {
+NUMKONG_INLINE nk_status_t nk_configure_thread_arm64_(nk_capability_t capabilities) {
 #if defined(_MSC_VER)
     nk_unused_(capabilities);
     return nk_success_k;
@@ -1306,7 +1356,7 @@ NUMKONG_INLINE nk_status_t nk_cpu_configure_thread_arm64_(nk_capability_t capabi
 
 #elif NUMKONG_OS_LINUX_ || NUMKONG_OS_FREEBSD_
     // Read ID registers via MRS, safe only once MRS is known to work: any capability beyond basic
-    // NEON means nk_cpu_capabilities_detected_arm64_ saw the kernel emulate it.
+    // NEON means nk_capabilities_detected_arm64_ saw the kernel emulate it.
     if (capabilities & ~(nk_cap_neon_k | nk_cap_serial_k)) {
         // FEAT_EBF16: ID_AA64ISAR1_EL1.BF16 bits [47:44] >= 0b0010
         unsigned long isar1_val;
@@ -1330,7 +1380,7 @@ NUMKONG_INLINE nk_status_t nk_cpu_configure_thread_arm64_(nk_capability_t capabi
 #endif // _MSC_VER
 }
 
-NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
+NUMKONG_INLINE nk_capability_t nk_capabilities_detected_arm64_(void) {
 #if NUMKONG_OS_APPLE_
     size_t size = sizeof(unsigned);
     unsigned supports_neon = 0, supports_fp16 = 0, supports_fhm = 0, supports_bf16 = 0, supports_dotprod = 0;
@@ -1365,7 +1415,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
     unsigned long hwcap = 0;
     elf_aux_info(AT_HWCAP, &hwcap, sizeof(hwcap));
 #endif
-    if (!(hwcap & hwcap_cpuid)) return nk_cpu_capabilities_implied_();
+    if (!(hwcap & hwcap_cpuid)) return nk_capabilities_implied_cpu_();
 
     unsigned long id_aa64isar0_el1 = 0, id_aa64isar1_el1 = 0, id_aa64pfr0_el1 = 0, id_aa64zfr0_el1 = 0,
                   id_aa64fpfr0_el1 = 0;
@@ -1462,7 +1512,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
                              (nk_cap_smef64_k * (supports_sme && supports_smef64)) | nk_cap_serial_k);
 
 #else
-    return nk_cpu_capabilities_implied_();
+    return nk_capabilities_implied_cpu_();
 #endif
 }
 
@@ -1470,7 +1520,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
 
 #if NUMKONG_ARCH_RISCV64_
 
-NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) {
+NUMKONG_INLINE nk_capability_t nk_capabilities_detected_riscv64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long const hwcap_isa_v = 1ul << ('V' - 'A');   // COMPAT_HWCAP_ISA_V, RVV 1.0
     long const riscv_hwprobe = 258;                         // __NR_riscv_hwprobe, from Linux 6.4
@@ -1505,7 +1555,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) {
     }
     return caps;
 #else
-    return nk_cpu_capabilities_implied_();
+    return nk_capabilities_implied_cpu_();
 #endif
 }
 
@@ -1513,7 +1563,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) {
 
 #if NUMKONG_ARCH_LOONGARCH64_
 
-NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_loongarch64_(void) {
+NUMKONG_INLINE nk_capability_t nk_capabilities_detected_loongarch64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long const hwcap_loongarch_lasx = 1ul << 5; // HWCAP_LOONGARCH_LASX, 256-bit SIMD
     unsigned long hwcap = getauxval(AT_HWCAP);
@@ -1521,7 +1571,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_loongarch64_(void) {
     if (hwcap & hwcap_loongarch_lasx) caps |= nk_cap_loongsonasx_k;
     return caps;
 #else
-    return nk_cpu_capabilities_implied_();
+    return nk_capabilities_implied_cpu_();
 #endif
 }
 
@@ -1529,7 +1579,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_loongarch64_(void) {
 
 #if NUMKONG_ARCH_PPC64_
 
-NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
+NUMKONG_INLINE nk_capability_t nk_capabilities_detected_power64_(void) {
 #if NUMKONG_OS_LINUX_
     unsigned long const hwcap_ppc_vsx = 0x00000080ul;        // PPC_FEATURE_HAS_VSX, in AT_HWCAP
     unsigned long const hwcap2_ppc_arch_3_00 = 0x00800000ul; // PPC_FEATURE2_ARCH_3_00, in AT_HWCAP2: POWER9
@@ -1543,7 +1593,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
     caps |= (nk_cap_powervsx_k * supports_powervsx) | (nk_cap_powermma_k * supports_powermma);
     return caps;
 #else
-    return nk_cpu_capabilities_implied_();
+    return nk_capabilities_implied_cpu_();
 #endif
 }
 
@@ -1553,46 +1603,46 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
 
 /** An engine validates a module whole before running it, so the compiled capabilities are the
  *  detected ones. */
-NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_wasm_(void) {
+NUMKONG_INLINE nk_capability_t nk_capabilities_detected_wasm_(void) {
     return nk_cap_serial_k | (nk_cap_v128_k * NUMKONG_TARGET_V128) |
            (nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED);
 }
 
 #endif // NUMKONG_ARCH_WASM_
 
-NUMKONG_INLINE nk_status_t nk_cpu_configure_thread_(nk_capability_t capabilities) {
+NUMKONG_INLINE nk_status_t nk_configure_thread_cpu_(nk_capability_t capabilities) {
 #if NUMKONG_ARCH_X8664_
-    return nk_cpu_configure_thread_x86_(capabilities);
+    return nk_configure_thread_x86_(capabilities);
 #endif
 #if NUMKONG_ARCH_ARM64_
-    return nk_cpu_configure_thread_arm64_(capabilities);
+    return nk_configure_thread_arm64_(capabilities);
 #endif
     nk_unused_(capabilities);
     return nk_success_k; // no other architecture needs thread configuration
 }
 
-NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_(void) {
+NUMKONG_INLINE nk_capability_t nk_capabilities_detected_cpu_(void) {
 #if NUMKONG_ARCH_X8664_
-    return nk_cpu_capabilities_detected_x8664_();
+    return nk_capabilities_detected_x8664_();
 #elif NUMKONG_ARCH_ARM64_
-    return nk_cpu_capabilities_detected_arm64_();
+    return nk_capabilities_detected_arm64_();
 #elif NUMKONG_ARCH_RISCV64_
-    return nk_cpu_capabilities_detected_riscv64_();
+    return nk_capabilities_detected_riscv64_();
 #elif NUMKONG_ARCH_LOONGARCH64_
-    return nk_cpu_capabilities_detected_loongarch64_();
+    return nk_capabilities_detected_loongarch64_();
 #elif NUMKONG_ARCH_PPC64_
-    return nk_cpu_capabilities_detected_power64_();
+    return nk_capabilities_detected_power64_();
 #elif NUMKONG_ARCH_WASM_
-    return nk_cpu_capabilities_detected_wasm_();
+    return nk_capabilities_detected_wasm_();
 #else
     return nk_cap_serial_k;
 #endif
 }
 
-/** Returns the capabilities whose kernels were compiled into this binary, as decided by the
- *  @c NUMKONG_TARGET_* macros the ISA probes set at build time. Says nothing about the current CPU
- *  — see @b nk_cpu_capabilities_detected_(). */
-NUMKONG_CONSTEXPR nk_capability_t nk_cpu_capabilities_compiled_(void) {
+/** The capabilities the <tt>NUMKONG_TARGET_*</tt> macros of the including unit compile, as a
+ *  constant for consumers picking kits at compile time; in the library, the mask that
+ *  @c nk_capabilities_compiled_cpu reports. Says nothing about the current CPU. */
+NUMKONG_CONSTEXPR nk_capability_t nk_capabilities_compiled_cpu_mask(void) {
     nk_capability_t caps = nk_cap_serial_k;
 #if NUMKONG_ARCH_X8664_
     caps |= nk_cap_haswell_k * NUMKONG_TARGET_HASWELL;
@@ -1646,11 +1696,11 @@ NUMKONG_CONSTEXPR nk_capability_t nk_cpu_capabilities_compiled_(void) {
 
 /*  CPU capabilities, reported along two independent axes and the mask dispatch runs within:
  *
- *  - @b nk_cpu_capabilities_detected() — what this CPU can execute, from CPUID or the OS, or from
+ *  - @b nk_capabilities_detected_cpu() — what this CPU can execute, from CPUID or the OS, or from
  *    what the compiler flags guarantee where the OS cannot be asked.
- *  - @b nk_cpu_capabilities_compiled() — what this binary contains, from the `NUMKONG_TARGET_*`
+ *  - @b nk_capabilities_compiled_cpu() — what this binary contains, from the `NUMKONG_TARGET_*`
  *    macros the ISA probes set at build time.
- *  - @b nk_cpu_capabilities_enabled() — both axes at once, which the library settles as it loads:
+ *  - @b nk_capabilities_enabled_cpu() — both axes at once, which the library settles as it loads:
  *    what every dispatch point on the CPU runs within. Always retains @b nk_cap_serial_k.
  *
  *  The two axes are independent, and conflating them is a silent performance cliff rather than a
@@ -1659,17 +1709,17 @@ NUMKONG_CONSTEXPR nk_capability_t nk_cpu_capabilities_compiled_(void) {
  *  so @b nk_cap_cpus_k runs the best kernel, and a narrower mask narrows dispatch. */
 
 /** Writes the CPU capabilities this machine can execute. */
-NUMKONG_API nk_status_t nk_cpu_capabilities_detected(nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_detected_cpu(nk_capability_t *capabilities);
 
 /** Writes the CPU capabilities this binary holds kernels for. */
-NUMKONG_API nk_status_t nk_cpu_capabilities_compiled(nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_compiled_cpu(nk_capability_t *capabilities);
 
 /** Writes the CPU capabilities dispatch runs within: detected and compiled together. */
-NUMKONG_API nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_enabled_cpu(nk_capability_t *capabilities);
 
 /**
  *  @brief Prepares the calling thread for the kernels of @p capabilities, and only those.
- *  @param[in] capabilities The capabilities to prepare for, like @c nk_cpu_capabilities_enabled.
+ *  @param[in] capabilities The capabilities to prepare for, like @c nk_capabilities_enabled_cpu.
  *
  *  Most capabilities need nothing. The ones that do, and what they cost:
  *  - @c nk_cap_sapphireamx_k on Linux: one @c arch_prctl syscall for AMX tile state, which the
@@ -1679,11 +1729,11 @@ NUMKONG_API nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilitie
  *    Finding FEAT_EBF16 costs a @c sysctl on Apple systems, and one ID-register read on Linux and
  *    FreeBSD when @p capabilities holds more than NEON.
  */
-NUMKONG_API nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities);
+NUMKONG_API nk_status_t nk_configure_thread_cpu(nk_capability_t capabilities);
 
 /**
  *  @brief Writes @p capabilities as a comma-separated name list such as "serial,haswell,skylake".
- *  @param[in] capabilities The mask to name, like @c nk_cpu_capabilities_detected() reports.
+ *  @param[in] capabilities The mask to name, like @c nk_capabilities_detected_cpu() reports.
  *  @param[out] buffer Destination, always null-terminated; the list is truncated to fit.
  *  @param[in] capacity Size of @p buffer, like @c NUMKONG_CAPABILITIES_NAME_CAPACITY; a zero
  *      capacity writes nothing.
@@ -1691,25 +1741,31 @@ NUMKONG_API nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities);
  */
 NUMKONG_API nk_size_t nk_capabilities_name(nk_capability_t capabilities, char *buffer, nk_size_t capacity);
 
-/*  The library detects once per process; header-only builds ask on every call. */
+/*  The library detects once per process; header-only builds ask on every call, and make the same
+ *  process-wide AMX request the library makes as it loads. */
 #if NUMKONG_HEADER_ONLY
 
-NUMKONG_API nk_status_t nk_cpu_capabilities_detected(nk_capability_t *capabilities) {
-    *capabilities = nk_cpu_capabilities_detected_();
+NUMKONG_API nk_status_t nk_capabilities_detected_cpu(nk_capability_t *capabilities) {
+    *capabilities = nk_capabilities_detected_cpu_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_cpu_capabilities_compiled(nk_capability_t *capabilities) {
-    *capabilities = nk_cpu_capabilities_compiled_();
+NUMKONG_API nk_status_t nk_capabilities_compiled_cpu(nk_capability_t *capabilities) {
+    *capabilities = nk_capabilities_compiled_cpu_mask();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilities) {
-    *capabilities = nk_cpu_capabilities_detected_() & nk_cpu_capabilities_compiled_();
+NUMKONG_API nk_status_t nk_capabilities_enabled_cpu(nk_capability_t *capabilities) {
+    nk_capability_t enabled = nk_capabilities_detected_cpu_() & nk_capabilities_compiled_cpu_mask();
+#if NUMKONG_ARCH_X8664_
+    if (nk_configure_thread_x86_(enabled) != nk_success_k)
+        enabled &= ~(nk_cap_sapphireamx_k | nk_cap_graniteamx_k | nk_cap_diamondamx_k);
+#endif
+    *capabilities = enabled;
     return nk_success_k;
 }
 
-/** @copydoc nk_cpu_configure_thread */
-NUMKONG_API nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities) {
-    return nk_cpu_configure_thread_(capabilities);
+/** @copydoc nk_configure_thread_cpu */
+NUMKONG_API nk_status_t nk_configure_thread_cpu(nk_capability_t capabilities) {
+    return nk_configure_thread_cpu_(capabilities);
 }
 
 /** @copydoc nk_capabilities_name */
@@ -1804,8 +1860,8 @@ NUMKONG_INLINE nk_status_t nk_stream_free_metal_(nk_stream_t stream) {
 #endif
 }
 
-/** The CUDA capabilities this binary holds kernels for: the baseline and what
- *  @c NUMKONG_TARGET_* enables. */
+/** The CUDA capabilities the including unit holds kernels for: the baseline and what
+ *  @c NUMKONG_TARGET_* enables, for header-only builds. */
 NUMKONG_CONSTEXPR nk_capability_t nk_capabilities_compiled_cuda_(void) {
     return (nk_cap_cuda_k * NUMKONG_TARGET_CUDA) | (nk_cap_ampere_k * NUMKONG_TARGET_AMPERE) |
            (nk_cap_ada_k * NUMKONG_TARGET_ADA) | (nk_cap_hopper_k * NUMKONG_TARGET_HOPPER) |
@@ -1813,7 +1869,7 @@ NUMKONG_CONSTEXPR nk_capability_t nk_capabilities_compiled_cuda_(void) {
            (nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA);
 }
 
-/** The ROCm capabilities this binary holds kernels for. */
+/** The ROCm capabilities the including unit holds kernels for, for header-only builds. */
 NUMKONG_CONSTEXPR nk_capability_t nk_capabilities_compiled_rocm_(void) {
     return (nk_cap_rocm_k * NUMKONG_TARGET_ROCM) | (nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3) |
            (nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4) | (nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5);
@@ -1829,15 +1885,20 @@ NUMKONG_CONSTEXPR nk_capability_t nk_capabilities_compiled_metal_(void) {
  *  @c cudaSetDevice or @c hipSetDevice takes, or the position in Metal's device list. Each vendor
  *  has four queries:
  *
- *  - @b nk_cuda_count_devices() — how many devices the runtime sees, zero without its kernels.
- *  - @b nk_cuda_capabilities_detected() — what one device runs.
- *  - @b nk_cuda_capabilities_compiled() — what this binary holds kernels for.
- *  - @b nk_cuda_capabilities_enabled() — both at once: the mask for its dispatch points.
+ *  - @b nk_count_devices_cuda() — how many devices the runtime sees, zero without its kernels.
+ *  - @b nk_capabilities_detected_cuda() — what one device runs.
+ *  - @b nk_capabilities_compiled_cuda() — what this binary holds code for that one device runs.
+ *  - @b nk_capabilities_enabled_cuda() — both at once: the mask for its dispatch points.
  *
  *  ROCm and Metal have the same four. Nothing is cached, as the runtimes answer from their own
  *  state: ask once per device and keep the mask. Each vendor also makes a stream on one device with
  *  @b nk_stream_init_cuda() and frees it with @b nk_stream_free_cuda(), for a caller without the
- *  vendor's runtime at hand. */
+ *  vendor's runtime at hand.
+ *
+ *  A CUDA or ROCm unit holds code for the architectures CMake compiled it for, and a device runs
+ *  a capability only where the runtime loads one of its unit's kernels there, which
+ *  @b nk_capabilities_compiled_cuda() and @b nk_capabilities_compiled_rocm() ask of
+ *  @c cudaFuncGetAttributes and @c hipFuncGetAttributes. */
 
 /**
  *  @brief Counts the CUDA devices the process sees.
@@ -1846,7 +1907,7 @@ NUMKONG_CONSTEXPR nk_capability_t nk_capabilities_compiled_metal_(void) {
  *  @par Statuses:
  *  - @c nk_missing_gpu_k Without one.
  */
-NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count);
+NUMKONG_API nk_status_t nk_count_devices_cuda(nk_size_t *count);
 
 /**
  *  @brief Reports the capabilities CUDA device @p ordinal runs.
@@ -1856,13 +1917,17 @@ NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count);
  *  @par Statuses:
  *  - @c nk_missing_gpu_k Past the last device.
  */
-NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_detected_cuda(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /**
- *  @brief Reports the CUDA capabilities this binary holds kernels for.
- *  @param[out] capabilities The CUDA capabilities compiled in, zero without any.
+ *  @brief Reports the CUDA capabilities this binary holds code for that device @p ordinal runs.
+ *  @param[in] ordinal The CUDA runtime's ordinal, like @c cudaSetDevice takes.
+ *  @param[out] capabilities The CUDA capabilities compiled for the device, zero on failure.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Past the last device.
  */
-NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_compiled_cuda(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /**
  *  @brief Reports the capabilities CUDA device @p ordinal runs that this binary holds kernels for.
@@ -1872,7 +1937,7 @@ NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilit
  *  @par Statuses:
  *  - @c nk_missing_gpu_k Past the last device.
  */
-NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_enabled_cuda(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** Creates a stream on CUDA device @p ordinal with @c cudaStreamCreate, for any consumer to use. */
 NUMKONG_API nk_status_t nk_stream_init_cuda(nk_size_t ordinal, nk_stream_t *stream);
@@ -1887,7 +1952,7 @@ NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream);
  *  @par Statuses:
  *  - @c nk_missing_gpu_k Without one.
  */
-NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count);
+NUMKONG_API nk_status_t nk_count_devices_rocm(nk_size_t *count);
 
 /**
  *  @brief Reports the capabilities ROCm device @p ordinal runs.
@@ -1897,13 +1962,17 @@ NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count);
  *  @par Statuses:
  *  - @c nk_missing_gpu_k Past the last device.
  */
-NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_detected_rocm(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /**
- *  @brief Reports the ROCm capabilities this binary holds kernels for.
- *  @param[out] capabilities The ROCm capabilities compiled in, zero without any.
+ *  @brief Reports the ROCm capabilities this binary holds code for that device @p ordinal runs.
+ *  @param[in] ordinal The HIP runtime's ordinal, like @c hipSetDevice takes.
+ *  @param[out] capabilities The ROCm capabilities compiled for the device, zero on failure.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Past the last device.
  */
-NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_compiled_rocm(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /**
  *  @brief Reports the capabilities ROCm device @p ordinal runs that this binary holds kernels for.
@@ -1913,7 +1982,7 @@ NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilit
  *  @par Statuses:
  *  - @c nk_missing_gpu_k Past the last device.
  */
-NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_enabled_rocm(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** Creates a stream on ROCm device @p ordinal with @c hipStreamCreate, for any consumer to use. */
 NUMKONG_API nk_status_t nk_stream_init_rocm(nk_size_t ordinal, nk_stream_t *stream);
@@ -1928,7 +1997,7 @@ NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream);
  *  @par Statuses:
  *  - @c nk_missing_gpu_k Without one.
  */
-NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count);
+NUMKONG_API nk_status_t nk_count_devices_metal(nk_size_t *count);
 
 /**
  *  @brief Reports the capabilities Metal device @p ordinal runs.
@@ -1938,13 +2007,17 @@ NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count);
  *  @par Statuses:
  *  - @c nk_missing_gpu_k Past the last device.
  */
-NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_detected_metal(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /**
- *  @brief Reports the Metal capabilities this binary holds kernels for.
- *  @param[out] capabilities The Metal capabilities compiled in, zero without any.
+ *  @brief Reports the Metal capabilities this binary holds code for that device @p ordinal runs.
+ *  @param[in] ordinal The device's position in the order the system lists them.
+ *  @param[out] capabilities The Metal capabilities compiled for the device, zero on failure.
+ *
+ *  @par Statuses:
+ *  - @c nk_missing_gpu_k Past the last device.
  */
-NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_compiled_metal(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /**
  *  @brief Reports the capabilities Metal device @p ordinal runs that this binary holds kernels for.
@@ -1954,7 +2027,7 @@ NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabili
  *  @par Statuses:
  *  - @c nk_missing_gpu_k Past the last device.
  */
-NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_capabilities_enabled_metal(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** Opens an @c id<MTLCommandQueue> stream on Metal device @p ordinal with @c newCommandQueue. */
 NUMKONG_API nk_status_t nk_stream_init_metal(nk_size_t ordinal, nk_stream_t *stream);
@@ -1966,7 +2039,7 @@ NUMKONG_API nk_status_t nk_stream_free_metal(nk_stream_t stream);
  *  @brief Finds the kernel of @p kind for @p dtype that the best of @p capabilities runs.
  *  @param[in] kind The kernel kind, like @c nk_kernel_dot_k.
  *  @param[in] dtype The input type, like @c nk_f32_k.
- *  @param[in] capabilities One device's mask, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's mask, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] kernel The kernel, to cast back to its kind's signature, or null.
  *  @param[out] capability The single capability the kernel belongs to, or zero.
  *
@@ -1980,11 +2053,11 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
 
 /*  Compiled for CUDA or ROCm, the producers come from `cuda.cuh` or `rocm.cuh`, included below. */
 #if !NUMKONG_ARCH_CUDA_
-NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
+NUMKONG_API nk_status_t nk_count_devices_cuda(nk_size_t *count) {
     *count = 0;
     return nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_capabilities_detected_cuda(nk_size_t ordinal, nk_capability_t *capabilities) {
     nk_unused_(ordinal);
     *capabilities = 0;
     return nk_missing_gpu_k;
@@ -1999,21 +2072,26 @@ NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream) {
     return nk_missing_gpu_k;
 }
 #endif // !NUMKONG_ARCH_CUDA_
-NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_capabilities_compiled_cuda(nk_size_t ordinal, nk_capability_t *capabilities) {
+    nk_size_t count = 0;
+    *capabilities = 0;
+    if (nk_count_devices_cuda(&count) != nk_success_k || ordinal >= count) return nk_missing_gpu_k;
     *capabilities = nk_capabilities_compiled_cuda_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
-    nk_status_t const status = nk_cuda_capabilities_detected(ordinal, capabilities);
-    *capabilities &= nk_capabilities_compiled_cuda_();
+NUMKONG_API nk_status_t nk_capabilities_enabled_cuda(nk_size_t ordinal, nk_capability_t *capabilities) {
+    nk_capability_t compiled = 0;
+    nk_status_t const status = nk_capabilities_detected_cuda(ordinal, capabilities);
+    nk_unused_(nk_capabilities_compiled_cuda(ordinal, &compiled));
+    *capabilities &= compiled;
     return status;
 }
 #if !NUMKONG_ARCH_ROCM_
-NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
+NUMKONG_API nk_status_t nk_count_devices_rocm(nk_size_t *count) {
     *count = 0;
     return nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_capabilities_detected_rocm(nk_size_t ordinal, nk_capability_t *capabilities) {
     nk_unused_(ordinal);
     *capabilities = 0;
     return nk_missing_gpu_k;
@@ -2028,29 +2106,38 @@ NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream) {
     return nk_missing_gpu_k;
 }
 #endif // !NUMKONG_ARCH_ROCM_
-NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_capabilities_compiled_rocm(nk_size_t ordinal, nk_capability_t *capabilities) {
+    nk_size_t count = 0;
+    *capabilities = 0;
+    if (nk_count_devices_rocm(&count) != nk_success_k || ordinal >= count) return nk_missing_gpu_k;
     *capabilities = nk_capabilities_compiled_rocm_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
-    nk_status_t const status = nk_rocm_capabilities_detected(ordinal, capabilities);
-    *capabilities &= nk_capabilities_compiled_rocm_();
+NUMKONG_API nk_status_t nk_capabilities_enabled_rocm(nk_size_t ordinal, nk_capability_t *capabilities) {
+    nk_capability_t compiled = 0;
+    nk_status_t const status = nk_capabilities_detected_rocm(ordinal, capabilities);
+    nk_unused_(nk_capabilities_compiled_rocm(ordinal, &compiled));
+    *capabilities &= compiled;
     return status;
 }
-NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
+NUMKONG_API nk_status_t nk_count_devices_metal(nk_size_t *count) {
     *count = nk_count_devices_metal_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_capabilities_detected_metal(nk_size_t ordinal, nk_capability_t *capabilities) {
     return nk_capabilities_detected_metal_(ordinal, capabilities);
 }
-NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_capabilities_compiled_metal(nk_size_t ordinal, nk_capability_t *capabilities) {
+    *capabilities = 0;
+    if (ordinal >= nk_count_devices_metal_()) return nk_missing_gpu_k;
     *capabilities = nk_capabilities_compiled_metal_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
+NUMKONG_API nk_status_t nk_capabilities_enabled_metal(nk_size_t ordinal, nk_capability_t *capabilities) {
+    nk_capability_t compiled = 0;
     nk_status_t const status = nk_capabilities_detected_metal_(ordinal, capabilities);
-    *capabilities &= nk_capabilities_compiled_metal_();
+    nk_unused_(nk_capabilities_compiled_metal(ordinal, &compiled));
+    *capabilities &= compiled;
     return status;
 }
 NUMKONG_API nk_status_t nk_stream_init_metal(nk_size_t ordinal, nk_stream_t *stream) {

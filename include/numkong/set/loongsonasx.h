@@ -35,7 +35,7 @@
 #define NUMKONG_SET_LOONGSONASX_H
 
 #if NUMKONG_ARCH_LOONGARCH64_
-#if NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 
 #include "numkong/types.h"
 #include "numkong/set/serial.h"      // `nk_u1x8_popcount_`, serial fallbacks
@@ -67,6 +67,7 @@ NUMKONG_INLINE nk_u64_t nk_reduce_add_u64x4_loongsonasx_(__m256i sum_u64x4) {
 
 #pragma region Binary Sets
 
+#if NUMKONG_TARGET_LOONGSONASX
 NUMKONG_API nk_status_t nk_hamming_u1_loongsonasx(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -180,6 +181,8 @@ NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_loongsonasx_(nk_b128_vec_t const *
 
 #pragma endregion Batched Finalizers
 
+#endif // NUMKONG_TARGET_LOONGSONASX
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -190,6 +193,6 @@ NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_loongsonasx_(nk_b128_vec_t const *
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_LOONGSONASX
+#endif // NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 #endif // NUMKONG_ARCH_LOONGARCH64_
 #endif // NUMKONG_SET_LOONGSONASX_H

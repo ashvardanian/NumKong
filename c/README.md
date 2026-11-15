@@ -17,8 +17,8 @@ int main(void) {
     nk_f32_t b[] = {4, 5, 6};
     nk_f64_t dot = 0;
     nk_capability_t capabilities = nk_cap_serial_k;
-    nk_cpu_capabilities_enabled(&capabilities); // the capabilities this CPU runs and this build holds
-    nk_cpu_configure_thread(capabilities);
+    nk_capabilities_enabled_cpu(&capabilities); // the capabilities this CPU runs and this build holds
+    nk_configure_thread_cpu(capabilities);
     nk_status_t status = nk_dot_f32_best(a, b, 3, &dot, capabilities, NULL); // widened f32 → f64 output
     printf("dot=%f, %s\n", dot, nk_status_name(status));
     return status != nk_success_k;
@@ -162,7 +162,7 @@ Every wrapper ends in the two arguments of its dispatch point, defaulted to `nk:
 That scoped enum mirrors `nk_status_t` value for value, converts to it with `static_cast`, and is tested with `nk::succeeded` and `nk::failed` rather than as a `bool`.
 Factories, like `nk::tensor<T>::zeros`, and the allocating overloads return an `nk::expected<T>` holding the `value` and its `status`, which converts to `true` on success and unpacks with structured bindings.
 A failed factory leaves its `value` empty, while a zero-volume request succeeds with an empty one.
-`nk::default_capabilities()` is the `nk_cpu_capabilities_enabled` mask, and a zero mask runs the C++ reference template instead of any capability's kernel.
+`nk::default_capabilities()` is the `nk_capabilities_enabled_cpu` mask, and a zero mask runs the C++ reference template instead of any capability's kernel.
 `nk::device_t` names one device by its kind and its runtime's ordinal, and asks the matching `nk_<kind>_*` functions for its masks:
 
 ```cpp
@@ -664,28 +664,44 @@ Linking the library is the default, and the way to ship one binary across many C
 Every query writes its answer through a pointer and returns an `nk_status_t`.
 CPU capabilities are reported along two independent axes, plus the mask to dispatch with:
 
-- `nk_cpu_capabilities_detected` is what this CPU can execute, from CPUID or the OS, or where the OS cannot be asked, from what the compiler flags guarantee.
-- `nk_cpu_capabilities_compiled` is what this binary contains, from the ISA probes at build time.
-- `nk_cpu_capabilities_enabled` is both axes at once, the mask to pass every CPU call, and always holds `nk_cap_serial_k`.
+- `nk_capabilities_detected_cpu` is what this CPU can execute, from CPUID or the OS, or where the OS cannot be asked, from what the compiler flags guarantee.
+- `nk_capabilities_compiled_cpu` is what this binary contains, from the ISA probes at build time; `nk_capabilities_compiled_cpu_mask()` is the same mask as a constant of the including unit's `NUMKONG_TARGET_*` macros, for consumers picking kits at compile time.
+- `nk_capabilities_enabled_cpu` is both axes at once, the mask to pass every CPU call, and always holds `nk_cap_serial_k`.
 
 Ask for `enabled` unless you specifically mean one of the raw axes.
 The two axes are independent, and conflating them fails quietly rather than loudly: a binary whose ISA probes failed still reports this machine's full `detected` mask while containing no SIMD kernels at all.
 To dispatch over fewer capabilities, pass a narrower mask to the call itself; there is no process-wide setting to change.
 
-`nk_cpu_configure_thread` prepares the calling thread for the capabilities it is given, and only those.
+| Word       | Question                                                      | When                                                                                                       | Scope                         |
+| :--------- | :------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------- | :---------------------------- |
+| `probe`    | Can the toolchain build this capability?                      | Configure, as CMake compiles `probes/<capability>.c`, then compile, as `NUMKONG_ARCH_<ARCH>_<CAPABILITY>_` | The build                     |
+| `target`   | Is this capability's unit in the build?                       | Compile, as `NUMKONG_TARGET_<CAPABILITY>`                                                                  | The build                     |
+| `implied`  | What do the floor's flags already guarantee?                  | Compile, as both macros default where no build writes them, and at runtime where no OS is asked            | The build                     |
+| `compiled` | Does the binary carry this capability's code for this device? | Runtime, as `nk_capabilities_compiled_cpu` or `_cuda(ordinal)` report, the latter asking the driver        | The build, or each GPU's code |
+| `detected` | Does this device offer the capability?                        | Runtime, as `nk_capabilities_detected_cpu` or `_cuda(ordinal)` report                                      | The device                    |
+| `enabled`  | What may dispatch pick?                                       | Runtime, `detected` and `compiled` at once, less a refused AMX grant                                       | The device                    |
+
+A monoversioned build names one machine: one CPU, and at most one GPU architecture per vendor that every GPU in it shares.
+It compiles the best capability that machine runs and folds every dispatch row to it, and CMake refuses two CUDA or two ROCm architectures with `NUMKONG_MULTIVERSIONED=OFF`.
+On any other machine, or under a mask narrowed below the folded capability, a dispatch point answers `nk_missing_kernel_k`, never a crash or a slower kernel.
+The scalar math and element conversions, like `nk_f32_sqrt_best` and `nk_f16_to_f32_best`, return values rather than statuses, so their rows keep every kernel.
+
+`nk_configure_thread_cpu` prepares the calling thread for the capabilities it is given, and only those.
 Most capabilities need nothing: AMX on Linux costs one `arch_prctl` syscall, which grants tile state to the whole process, and fused BF16 dot products on Arm cost one `FPCR` write per thread.
 
 ```c
 nk_capability_t enabled = nk_cap_serial_k;
-nk_cpu_capabilities_enabled(&enabled);
-nk_cpu_configure_thread(enabled);
+nk_capabilities_enabled_cpu(&enabled);
+nk_configure_thread_cpu(enabled);
 if (enabled & nk_cap_sapphireamx_k) { /* AMX both detected and compiled in */ }
 nk_dot_bf16_best(a, b, n, &dot, enabled & ~nk_cap_sapphireamx_k, NULL); // dispatch without AMX
 ```
 
 GPUs are more ISAs with a mask of their own, one device at a time.
 Each vendor has its own queries, and a device index is that runtime's own ordinal: the one `cudaSetDevice` or `hipSetDevice` takes, or the position in Metal's device list.
-`nk_cuda_count_devices` counts the devices, and `nk_cuda_capabilities_detected`, `nk_cuda_capabilities_compiled`, and `nk_cuda_capabilities_enabled` report one device's capabilities the way their CPU twins do; `nk_rocm_*` and `nk_metal_*` are the same for the other vendors.
+`nk_count_devices_cuda` counts the devices, and `nk_capabilities_detected_cuda`, `nk_capabilities_compiled_cuda`, and `nk_capabilities_enabled_cuda` report one device's capabilities the way their CPU twins do; the `_rocm` and `_metal` functions are the same for the other vendors.
+A GPU's `compiled` mask holds only the capabilities whose unit carries code that device runs, as the runtime answers when asked to load one of the unit's kernels there with `cudaFuncGetAttributes` or `hipFuncGetAttributes`.
+Projects compiling their own GPU units call the same two functions with their own lists, and need no GPU runtime for it.
 Each vendor's baseline, `nk_cap_cuda_k`, `nk_cap_rocm_k`, or `nk_cap_metal_k`, plays the role of `nk_cap_serial_k`.
 A GPU capability, like `nk_dots_packed_bf16_ampere`, takes its CPU twin's arguments, queues on the trailing stream — a `cudaStream_t`, a `hipStream_t`, or an `id<MTLCommandQueue>`, with null for the default one — and returns without waiting.
 Only the capability queries take an ordinal; the stream names the device for everything else.
@@ -696,7 +712,7 @@ Their `*_workspace_size_*` twin reports the bytes from the shapes alone, and a z
 ```c
 nk_size_t devices = 0, workspace_bytes = 0;
 nk_capability_t gpu = 0;
-if (nk_cuda_count_devices(&devices) == nk_success_k && nk_cuda_capabilities_enabled(0, &gpu) == nk_success_k) {
+if (nk_count_devices_cuda(&devices) == nk_success_k && nk_capabilities_enabled_cuda(0, &gpu) == nk_success_k) {
     nk_dots_packed_workspace_size_f64_best(rows, columns, depth, gpu, &workspace_bytes);
     void *workspace = NULL;
     nk_memory_allocate_unified_best(workspace_bytes, &workspace, gpu, cuda_stream);

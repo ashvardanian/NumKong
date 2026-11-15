@@ -75,7 +75,7 @@ static nk::status_t bench_device(environment_t const &env, nk::device_t device) 
 int main() {
     environment_t const env {read_settings(), probe_machine()};
     auto const devices = select_devices(env.settings.devices);
-    [[maybe_unused]] nk_status_t const configured = nk_cpu_configure_thread(env.machine.detected); // Also enables AMX
+    [[maybe_unused]] nk_status_t const configured = nk_configure_thread_cpu(env.machine.detected); // Also enables AMX
 
 #if NUMKONG_COMPARE_TO_MKL
     mkl_set_num_threads(1);

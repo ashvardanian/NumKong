@@ -17,15 +17,15 @@
 
 #include "numkong/types.h"
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 /** Reciprocal square root of @p number: a 7-bit @c vfrsqrt7 estimate and two Newton steps. */
@@ -219,14 +219,14 @@ NUMKONG_API nk_i64_t nk_i64_saturating_mul_rvv(nk_i64_t a, nk_i64_t b) {
 }
 #endif // NUMKONG_TARGET_RVV
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
 #endif
 
 #endif // NUMKONG_ARCH_RISCV64_RVV_

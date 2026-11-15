@@ -86,7 +86,7 @@ extern "C" {
  *  @param[in] rows Number of rows in A.
  *  @param[in] columns Number of columns in B (packed).
  *  @param[in] depth Shared inner dimension in dimensions.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The scratch size, 0 when the capability needs none.
  *
  *  @par Statuses:
@@ -101,7 +101,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_workspace_size_f32_best(nk_size_t row
  *  @param[in] depth Counts dimensions.
  *  @param[in] rows_begin First row of results to compute.
  *  @param[in] rows_end One past the last row of results to compute.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The scratch size, 0 when the capability needs none.
  *
  *  @par Statuses:
@@ -116,7 +116,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_workspace_size_f32_best(nk_size_t 
  *  @param[in] rows Number of rows in A.
  *  @param[in] columns Number of columns in B (packed).
  *  @param[in] depth Shared inner dimension in dimensions.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The scratch size, 0 when the capability needs none.
  *
  *  @par Statuses:
@@ -131,7 +131,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_workspace_size_f32_best(nk_size_t r
  *  @param[in] depth Counts dimensions.
  *  @param[in] rows_begin First row of results to compute.
  *  @param[in] rows_end One past the last row of results to compute.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The scratch size, 0 when the capability needs none.
  *
  *  @par Statuses:
@@ -155,7 +155,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_workspace_size_f32_best(nk_size_
  *      ordered by @p stream on GPU capabilities. May be null with @p workspace_bytes of 0.
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports for the fast
  *      path, or 0 for the scratch-free path. Anything in between is @c nk_unexpected_dimensions_k.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -182,7 +182,7 @@ NUMKONG_API nk_status_t nk_angulars_packed_f32_best(nk_f32_t const *a, void cons
  *      ordered by @p stream on GPU capabilities. May be null with @p workspace_bytes of 0.
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports for the fast
  *      path, or 0 for the scratch-free path. Anything in between is @c nk_unexpected_dimensions_k.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -209,7 +209,7 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_f32_best(nk_f32_t const *vectors, 
  *      ordered by @p stream on GPU capabilities. May be null with @p workspace_bytes of 0.
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports for the fast
  *      path, or 0 for the scratch-free path. Anything in between is @c nk_unexpected_dimensions_k.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -236,7 +236,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f32_best(nk_f32_t const *a, void co
  *      ordered by @p stream on GPU capabilities. May be null with @p workspace_bytes of 0.
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports for the fast
  *      path, or 0 for the scratch-free path. Anything in between is @c nk_unexpected_dimensions_k.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:

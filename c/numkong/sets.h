@@ -70,7 +70,7 @@ extern "C" {
  *  @param[in] r_stride Byte stride between rows of C
  *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, or null with zero bytes.
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports, or zero.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -93,7 +93,7 @@ NUMKONG_API nk_status_t nk_hammings_packed_u1_best(nk_u1x8_t const *v, void cons
  *  @param[in] rows_end Result row after the last to compute, clamped to @p vector_count.
  *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, or null with zero bytes.
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports, or zero.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -117,7 +117,7 @@ NUMKONG_API nk_status_t nk_hammings_symmetric_u1_best(nk_u1x8_t const *vectors, 
  *  @param[in] r_stride Byte stride between rows of C
  *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, or null with zero bytes.
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports, or zero.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -140,7 +140,7 @@ NUMKONG_API nk_status_t nk_jaccards_packed_u1_best(nk_u1x8_t const *v, void cons
  *  @param[in] rows_end Result row after the last to compute, clamped to @p vector_count.
  *  @param[in] workspace Scratch aligned to @c nk_default_alignment_k, or null with zero bytes.
  *  @param[in] workspace_bytes At least what the matching workspace-size query reports, or zero.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -157,7 +157,7 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_best(nk_u1x8_t const *vectors, 
  *  @param[in] rows Number of rows in the results matrix
  *  @param[in] columns Number of columns in the results matrix
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The scratch the fast path takes, zero when the kernel needs none.
  */
 NUMKONG_API nk_status_t nk_hammings_packed_workspace_size_u1_best(nk_size_t rows, nk_size_t columns, nk_size_t d,
@@ -169,7 +169,7 @@ NUMKONG_API nk_status_t nk_hammings_packed_workspace_size_u1_best(nk_size_t rows
  *  @param[in] d Counts dimensions, a multiple of the values per byte.
  *  @param[in] rows_begin First result row to compute.
  *  @param[in] rows_end Result row after the last to compute.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[out] bytes The scratch the fast path takes, zero when the kernel needs none.
  */
 NUMKONG_API nk_status_t nk_hammings_symmetric_workspace_size_u1_best(nk_size_t vector_count, nk_size_t d,

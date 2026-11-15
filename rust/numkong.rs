@@ -52,7 +52,7 @@
 //! let l2sq_dist = f32::sqeuclidean(a, b);
 //!
 //! // Enable AMX and other platform-specific SIMD features
-//! numkong::Capabilities::cpu_enabled().configure_thread().unwrap();
+//! numkong::Capabilities::enabled_cpu().configure_thread_cpu().unwrap();
 //! ```
 //!
 //! ## Mixed Precision Support

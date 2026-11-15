@@ -65,7 +65,7 @@ extern "C" {
  *  @param[in] c The metric tensor or covariance matrix, stored row-major as an n × n matrix.
  *  @param[in] n The number of dimensions in the vectors.
  *  @param[out] result The output bilinear form value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The output value can be negative.
@@ -95,7 +95,7 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_best(nk_bf16_t const *a, nk_bf16_t cons
  *  @param[in] c The Positive Semi-Definite (PSD) matrix, stored row-major as an n × n matrix.
  *  @param[in] n The number of dimensions in the vectors.
  *  @param[out] result The output distance value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The output value is non-negative when C is PSD.
@@ -128,7 +128,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_best(nk_bf16_t const *a, nk_bf16_t c
  *  @param[in] c The complex metric tensor, stored row-major as an n × n matrix.
  *  @param[in] n The number of dimensions in the vectors.
  *  @param[out] results The output complex value with real and imaginary parts.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:

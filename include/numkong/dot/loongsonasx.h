@@ -26,7 +26,7 @@
 #define NUMKONG_DOT_LOONGSONASX_H
 
 #if NUMKONG_ARCH_LOONGARCH64_
-#if NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 
 #include "numkong/types.h"
 #include "numkong/dot/serial.h"
@@ -132,6 +132,7 @@ NUMKONG_INLINE void nk_dot2_f64x4_loongsonasx_(__m256d *sum_f64x4, __m256d *comp
 
 #pragma region F32 and F64 Floats
 
+#if NUMKONG_TARGET_LOONGSONASX
 NUMKONG_API nk_status_t nk_dot_f32_loongsonasx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
                                                nk_size_t count_scalars, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -705,6 +706,8 @@ NUMKONG_INLINE void nk_dot_u1x256_finalize_loongsonasx(                         
 
 #pragma endregion Binary
 
+#endif // NUMKONG_TARGET_LOONGSONASX
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -715,6 +718,6 @@ NUMKONG_INLINE void nk_dot_u1x256_finalize_loongsonasx(                         
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_LOONGSONASX
+#endif // NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 #endif // NUMKONG_ARCH_LOONGARCH64_
 #endif // NUMKONG_DOT_LOONGSONASX_H

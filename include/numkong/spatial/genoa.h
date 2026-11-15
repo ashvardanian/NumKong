@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIAL_GENOA_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_GENOA
+#if NUMKONG_ARCH_X8664_GENOA_
 
 #include "numkong/types.h"
 #include "numkong/spatial/haswell.h" // `nk_angular_normalize_f32_haswell_`
@@ -60,6 +60,7 @@ nk_sqeuclidean_bf16_genoa_cycle:
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
 }
 
+#if NUMKONG_TARGET_GENOA
 NUMKONG_API nk_status_t nk_sqeuclidean_bf16_genoa(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
                                                   nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -110,6 +111,8 @@ nk_angular_bf16_genoa_cycle:
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_GENOA
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -120,6 +123,6 @@ nk_angular_bf16_genoa_cycle:
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_GENOA
+#endif // NUMKONG_ARCH_X8664_GENOA_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIAL_GENOA_H

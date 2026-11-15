@@ -464,7 +464,7 @@ for ordinal in 0..<((try? Device.count(.metal)) ?? 0) {
 
 - `Device.cpu` is the host CPU, and `Device(kind:ordinal:)` any device `Device.count(_:)` counts, throwing an `Error` past the last one.
 - `capabilitiesDetected` is what the device can execute, from CPUID or HWCAP on the CPU.
-- `capabilitiesCompiled` is what this binary contains for devices of its kind, from the ISA probes at build time.
+- `capabilitiesCompiled` is what this binary contains, from the ISA probes at build time, and on a GPU only the code that device runs.
 - `capabilitiesEnabled` is what dispatch runs within, both axes at once, which the library settles for the CPU as it loads, and on the CPU always contains `.serial`.
   Every CPU kernel call passes `Capabilities.cpus`, which the library clamps to it, so the module keeps no mask of its own.
 - `configureThread(_:)` sets per-thread state such as Intel AMX tiles for the given CPU capabilities, usually the enabled ones.

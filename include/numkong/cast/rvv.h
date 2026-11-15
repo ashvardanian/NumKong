@@ -45,15 +45,15 @@
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_cast_elementwise_serial_`
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 #pragma region Register to Register Helpers
@@ -1054,14 +1054,14 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_dtype, voi
 
 #pragma endregion Unified Cast Dispatcher
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
 #endif
 
 #endif // NUMKONG_ARCH_RISCV64_RVV_

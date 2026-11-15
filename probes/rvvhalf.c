@@ -4,9 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the RVV Zvfh kernels, half-precision vectors.
  */
-#define NUMKONG_HEADER_ONLY    1
-#define NUMKONG_TARGET_RVV     1 // `types.h` drops the RVV extensions without the base
-#define NUMKONG_TARGET_RVVHALF 1
+#define NUMKONG_HEADER_ONLY           1
+#define NUMKONG_ARCH_RISCV64_RVVHALF_ 1
 #include <numkong/types.h>
 #include <numkong/dot/rvvhalf.h> // `nk_dot_f16_rvvhalf`
 

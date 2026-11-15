@@ -4,8 +4,8 @@
  *  @date November 12, 2026
  *  @brief Whether the toolchain builds the Power MMA kernels, POWER10 Matrix-Multiply Assist.
  */
-#define NUMKONG_HEADER_ONLY     1
-#define NUMKONG_TARGET_POWERMMA 1
+#define NUMKONG_HEADER_ONLY          1
+#define NUMKONG_ARCH_PPC64_POWERMMA_ 1
 #include "numkong/types.h"
 #include "numkong/dots/powermma.h" // `nk_dots_symmetric_bf16_powermma`
 

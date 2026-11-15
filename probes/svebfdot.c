@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the SVE BF16 kernels, the @c FEAT_BF16 dot product.
  */
-#define NUMKONG_HEADER_ONLY     1
-#define NUMKONG_TARGET_SVEBFDOT 1
+#define NUMKONG_HEADER_ONLY          1
+#define NUMKONG_ARCH_ARM64_SVEBFDOT_ 1
 #include <numkong/types.h>
 #include <numkong/dot/svebfdot.h> // `nk_dot_bf16_svebfdot`
 

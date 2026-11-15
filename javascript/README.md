@@ -265,7 +265,7 @@ console.log(metal.capabilitiesEnabled() & Capability.gpus);
 `capabilitiesEnabled()` is the one you usually want, and derives from two independent axes:
 
 - `capabilitiesDetected()`: what the device, like this CPU or WASM host, can execute.
-- `capabilitiesCompiled()`: what this build contains for devices of its kind, from the ISA probes at build time.
+- `capabilitiesCompiled()`: what this build contains, from the ISA probes at build time, and on a GPU only the code that device runs.
 - `capabilitiesEnabled()`: what dispatch runs within, both axes at once, which the library settles as it loads.
 
 `capabilitiesDetected()` describes the machine and says nothing about whether a kernel was compiled in, so a prebuild whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.

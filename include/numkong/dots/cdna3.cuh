@@ -478,8 +478,6 @@ NUMKONG_DEVICE void nk_cross_finish_tile_cdna3_(
 
 #pragma endregion Tile
 
-#if NUMKONG_TARGET_CDNA3
-
 /*  The @c rocm B32 tile over the F16 pairs that the Float8, Float6 and Float4 codes widen into. */
 #pragma region F16 Pair Tile
 
@@ -1022,6 +1020,8 @@ NUMKONG_DEVICE void nk_cross_tile_u4_cdna3_(nk_cross_metric_t metric, nk_diagona
 }
 
 #pragma endregion Tiles
+
+#if NUMKONG_TARGET_CDNA3
 
 #pragma region BF16
 

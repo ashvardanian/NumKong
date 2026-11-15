@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIALS_SIERRA_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_SIERRA
+#if NUMKONG_ARCH_X8664_SIERRA_
 
 #include "numkong/spatial/haswell.h"
 #include "numkong/spatial/serial.h"
@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SIERRA // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2,avxvnni,avxvnniint8"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -120,11 +121,12 @@ nk_define_cross_normalized_symmetric_(euclidean, e2m1, sierra, e2m1x2, f32, /*no
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SIERRA
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SIERRA
+#endif // NUMKONG_ARCH_X8664_SIERRA_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIALS_SIERRA_H

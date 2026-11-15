@@ -31,7 +31,7 @@
 #define NUMKONG_SETS_SMEBI32_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_SMEBI32
+#if NUMKONG_ARCH_ARM64_SMEBI32_
 
 #include "numkong/types.h"
 #include "numkong/set/serial.h"
@@ -41,6 +41,13 @@
 
 #if defined(__cplusplus)
 extern "C" {
+#endif
+
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((target("sme2"))), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC target("+sme2")
 #endif
 
 /*
@@ -58,13 +65,6 @@ extern "C" {
  *  - Unpacked kernel: ZA transpose (ZA0.S=staging, ZA1-3.S=accumulation, 3-tile fast path)
  *  - Packed format: column-major u32 within each tile
  */
-
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("sme2"))), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC target("+sme2")
-#endif
 
 #pragma region Hamming Distance
 
@@ -219,6 +219,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_hammings_packed_u1_smebi32_streaming_(
     }
 }
 
+#if NUMKONG_TARGET_SMEBI32
 NUMKONG_API nk_status_t nk_hammings_packed_workspace_size_u1_smebi32(nk_size_t rows, nk_size_t columns,
                                                                      nk_size_t depth_bits, nk_size_t *bytes) {
     nk_unused_(rows), nk_unused_(columns), nk_unused_(depth_bits);
@@ -1087,6 +1088,8 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_smebi32( //
 
 #pragma endregion Jaccard Distance
 
+#endif // NUMKONG_TARGET_SMEBI32
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -1097,7 +1100,7 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_smebi32( //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_SMEBI32
+#endif // NUMKONG_ARCH_ARM64_SMEBI32_
 #endif // NUMKONG_ARCH_ARM64_
 
 #endif // NUMKONG_SETS_SMEBI32_H

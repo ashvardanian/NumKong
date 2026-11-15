@@ -33,7 +33,7 @@
 #define NUMKONG_ATTENTION_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include <wasm_simd128.h>
 
@@ -48,6 +48,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_V128RELAXED // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
@@ -775,14 +776,6 @@ NUMKONG_API nk_status_t nk_attention_packed_i8_v128relaxed(
     return nk_success_k;
 }
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#endif
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 NUMKONG_API nk_status_t nk_attention_packed_workspace_size_bf16_v128relaxed(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_size_t query_token_count,
     nk_size_t keys_before, nk_size_t keys_after, nk_size_t *bytes) {
@@ -812,6 +805,15 @@ NUMKONG_API nk_status_t nk_attention_packed_workspace_size_i8_v128relaxed(nk_siz
     return nk_success_k;
 }
 
+#if defined(__clang__)
+#pragma clang attribute pop
+#endif
 #endif // NUMKONG_TARGET_V128RELAXED
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_ATTENTION_V128RELAXED_H

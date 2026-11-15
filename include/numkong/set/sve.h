@@ -41,14 +41,13 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_SVE // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+sve"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=armv8.2-a+sve")
 #endif
-
-#if NUMKONG_TARGET_SVE
 
 #pragma region Binary Sets
 
@@ -174,13 +173,12 @@ NUMKONG_API nk_status_t nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b,
 
 #pragma endregion Integer Sets
 
-#endif // NUMKONG_TARGET_SVE
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_SVE
 
 #if defined(__cplusplus)
 } // extern "C"

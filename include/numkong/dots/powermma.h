@@ -44,7 +44,7 @@
 #define NUMKONG_DOTS_POWERMMA_H
 
 #if NUMKONG_ARCH_PPC64_
-#if NUMKONG_TARGET_POWERMMA
+#if NUMKONG_ARCH_PPC64_POWERMMA_
 
 #include "numkong/types.h"
 #include "numkong/dots/serial.h" // `nk_cross_packed_buffer_header_t`, `nk_dots_reduce_sumsq_bf16_serial_`
@@ -491,6 +491,7 @@ NUMKONG_INLINE void nk_dots_symmetric_tile_f32_powermma_(nk_u8_t const *const *r
 
 #pragma region BF16 Floats
 
+#if NUMKONG_TARGET_POWERMMA
 NUMKONG_API nk_status_t nk_dots_pack_size_bf16_powermma(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {
     *bytes = nk_dots_pack_bytes_powermma_(columns, depth, sizeof(nk_bf16_t), sizeof(nk_bf16_t), sizeof(nk_f32_t));
     return nk_success_k;
@@ -989,6 +990,8 @@ NUMKONG_API nk_status_t nk_dots_symmetric_f32_powermma(nk_f32_t const *vectors, 
 
 #pragma endregion F32 Floats
 
+#endif // NUMKONG_TARGET_POWERMMA
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -999,6 +1002,6 @@ NUMKONG_API nk_status_t nk_dots_symmetric_f32_powermma(nk_f32_t const *vectors, 
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_POWERMMA
+#endif // NUMKONG_ARCH_PPC64_POWERMMA_
 #endif // NUMKONG_ARCH_PPC64_
 #endif // NUMKONG_DOTS_POWERMMA_H

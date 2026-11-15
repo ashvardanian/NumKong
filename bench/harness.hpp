@@ -373,15 +373,15 @@ class loop_t {
 };
 
 /** The capabilities this CPU runs, whether or not this binary holds them. */
-inline nk_capability_t cpu_capabilities_detected() noexcept {
+inline nk_capability_t capabilities_detected_cpu() noexcept {
     nk_capability_t capabilities = 0;
-    return nk_cpu_capabilities_detected(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
+    return nk_capabilities_detected_cpu(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
 }
 
 /** The CPU capabilities this binary holds, whether or not this CPU runs them. */
-inline nk_capability_t cpu_capabilities_compiled() noexcept {
+inline nk_capability_t capabilities_compiled_cpu() noexcept {
     nk_capability_t capabilities = 0;
-    return nk_cpu_capabilities_compiled(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
+    return nk_capabilities_compiled_cpu(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
 }
 
 /** Whether a kernel's @p status is a success; otherwise skips @p loop, naming the status. */
@@ -574,8 +574,8 @@ struct machine_t {
 /** Probes the capabilities @c machine_t reports. */
 inline machine_t probe_machine() noexcept {
     machine_t machine;
-    machine.compiled = cpu_capabilities_compiled();
-    machine.detected = cpu_capabilities_detected();
+    machine.compiled = capabilities_compiled_cpu();
+    machine.detected = capabilities_detected_cpu();
     return machine;
 }
 

@@ -4,9 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the RVV Zvbb kernels, basic bit manipulation.
  */
-#define NUMKONG_HEADER_ONLY  1
-#define NUMKONG_TARGET_RVV   1 // `types.h` drops the RVV extensions without the base
-#define NUMKONG_TARGET_RVVBB 1
+#define NUMKONG_HEADER_ONLY         1
+#define NUMKONG_ARCH_RISCV64_RVVBB_ 1
 #include <numkong/types.h>
 #include <numkong/dot/rvvbb.h> // `nk_dot_u1_rvvbb`
 

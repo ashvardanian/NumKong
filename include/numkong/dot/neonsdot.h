@@ -108,7 +108,7 @@
 #define NUMKONG_DOT_NEONSDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONSDOT
+#if NUMKONG_ARCH_ARM64_NEONSDOT_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_partial_load_b8x16_serial_`
@@ -118,6 +118,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_NEONSDOT // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+dotprod"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -723,11 +724,12 @@ NUMKONG_INLINE void nk_dot_scaled_i8x64_update_neonsdot(nk_dot_scaled_f32_state_
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_NEONSDOT
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONSDOT
+#endif // NUMKONG_ARCH_ARM64_NEONSDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_DOT_NEONSDOT_H

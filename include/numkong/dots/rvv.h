@@ -54,15 +54,15 @@
 #include "numkong/dot/rvv.h"    // `nk_dot2_f64_rvv_`
 #include "numkong/reduce/rvv.h" // `nk_reduce_moments_contiguous_f32_rvv_`
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 /** E2M3 magnitude LUT: 5-bit magnitude → unsigned value × 16 (u8). Shared across the pack,
@@ -3213,14 +3213,14 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_rvv(nk_e5m2_t const *vectors, nk_
 
 #endif // NUMKONG_TARGET_RVV
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
 #endif
 
 #endif // NUMKONG_ARCH_RISCV64_RVV_

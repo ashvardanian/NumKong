@@ -40,15 +40,15 @@
 #include "numkong/dot/rvv.h"           // `nk_dot2_f64m1_rvv_`, `nk_dot2_f64m4_rvv_`
 #include "numkong/trigonometry/rvv.h"  // `nk_f64m4_sin_rvv_`, `nk_f64m4_cos_rvv_`, `nk_f64m4_atan2_rvv_`
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("arch=+v")
-#endif
-
-#if defined(__cplusplus)
-extern "C" {
 #endif
 
 #pragma region Haversine Distance
@@ -409,14 +409,14 @@ NUMKONG_API nk_status_t nk_vincentys_packed_f64_rvv(void const *a_packed, void c
 
 #endif // NUMKONG_TARGET_RVV
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
-
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
+#endif
+
+#if defined(__cplusplus)
+} // extern "C"
 #endif
 
 #endif // NUMKONG_ARCH_RISCV64_RVV_

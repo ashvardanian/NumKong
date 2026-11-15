@@ -148,7 +148,7 @@ extern "C" {
  *  @param[in] b The second vector.
  *  @param[in] n Counts dimensions, a multiple of the values per byte.
  *  @param[out] result The output dot product value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @note The output value can be negative.
@@ -190,7 +190,7 @@ NUMKONG_API nk_status_t nk_dot_u4_best(nk_u4x2_t const *a, nk_u4x2_t const *b, n
  *  @param[in] b The second vector.
  *  @param[in] n_bits Counts dimensions in bits, a multiple of the bits per byte.
  *  @param[out] result The output dot product value.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -222,7 +222,7 @@ NUMKONG_API nk_status_t nk_dot_e3m2_best(nk_e3m2_t const *a, nk_e3m2_t const *b,
  *  @param[in] b_pairs The second complex vector.
  *  @param[in] count_pairs The number of complex pairs in the vectors.
  *  @param[out] result The output complex value as {real, imag}.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:
@@ -247,7 +247,7 @@ NUMKONG_API nk_status_t nk_dot_bf16c_best(nk_bf16c_t const *a_pairs, nk_bf16c_t 
  *  @param[in] b_pairs The second complex vector.
  *  @param[in] count_pairs The number of complex pairs in the vectors.
  *  @param[out] result The output complex value as {real, imag}.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  @par Statuses:

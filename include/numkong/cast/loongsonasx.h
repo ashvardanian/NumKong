@@ -24,7 +24,7 @@
 #define NUMKONG_CAST_LOONGSONASX_H
 
 #if NUMKONG_ARCH_LOONGARCH64_
-#if NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"        // `nk_partial_load_b32x4_serial_`, `nk_partial_load_b64x4_serial_`
@@ -102,6 +102,6 @@ NUMKONG_INLINE void nk_partial_load_f16x8_to_f32x8_loongsonasx_(nk_f16_t const *
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_LOONGSONASX
+#endif // NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
 #endif // NUMKONG_ARCH_LOONGARCH64_
 #endif // NUMKONG_CAST_LOONGSONASX_H

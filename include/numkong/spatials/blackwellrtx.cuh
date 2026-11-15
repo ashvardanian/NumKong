@@ -14,7 +14,7 @@
 #define NUMKONG_SPATIALS_BLACKWELLRTX_CUH
 
 #if NUMKONG_ARCH_CUDA_
-#if NUMKONG_TARGET_BLACKWELLRTX
+#if NUMKONG_ARCH_CUDA_BLACKWELLRTX_
 
 #include "numkong/dots/blackwellrtx.cuh"
 #include "numkong/spatials/ampere.cuh"
@@ -22,6 +22,8 @@
 #if defined(__cplusplus)
 extern "C" {
 #endif
+
+#if NUMKONG_TARGET_BLACKWELLRTX
 
 #pragma region E5M2
 
@@ -69,10 +71,12 @@ nk_define_cross_cuda_(euclidean, e2m1, blackwellrtx, e2m1_blackwellrtx, e2m1x2, 
 
 #pragma endregion E2M1
 
+#endif // NUMKONG_TARGET_BLACKWELLRTX
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_BLACKWELLRTX
+#endif // NUMKONG_ARCH_CUDA_BLACKWELLRTX_
 #endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_SPATIALS_BLACKWELLRTX_CUH

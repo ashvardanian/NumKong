@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the Skylake kernels, AVX-512F/BW/DQ/VL.
  */
-#define NUMKONG_HEADER_ONLY    1
-#define NUMKONG_TARGET_SKYLAKE 1
+#define NUMKONG_HEADER_ONLY         1
+#define NUMKONG_ARCH_X8664_SKYLAKE_ 1
 #include <numkong/types.h>
 #include <numkong/dot/skylake.h> // `nk_dot_f64_skylake`
 

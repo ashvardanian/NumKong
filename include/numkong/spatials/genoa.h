@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIALS_GENOA_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_GENOA
+#if NUMKONG_ARCH_X8664_GENOA_
 
 #include "numkong/spatial/haswell.h"
 #include "numkong/dots/genoa.h"
@@ -23,6 +23,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_GENOA // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(                                                                        \
     __attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512dq,avx512bf16,f16c,fma,bmi,bmi2"))), \
@@ -100,11 +101,12 @@ nk_define_cross_normalized_symmetric_(euclidean, e5m2, genoa, e5m2, f32, /*norm_
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_GENOA
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_GENOA
+#endif // NUMKONG_ARCH_X8664_GENOA_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIALS_GENOA_H

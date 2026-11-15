@@ -282,9 +282,10 @@ endif ()
 
 include(cmake/numkong_platform.cmake)
 
-# One compile probe per capability under `probes/`, defining `NUMKONG_TARGET_<CAPABILITY>` as the toolchain compiles
-# it through `numkong::cpu_capabilities_compiled`, and as 0 through `numkong_cpu_capabilities_disabled_`. Each probe
-# compiles at the units' `numkong_unit_arch_flags_`, which `try_compile` would not take from `add_compile_options`.
+# One compile probe per capability under `probes/`, defining `NUMKONG_ARCH_<ARCH>_<CAPABILITY>_` as the toolchain
+# compiles it and `NUMKONG_TARGET_<CAPABILITY>` as the build keeps it through `numkong::cpu_capabilities_compiled`, and
+# every flag as 0 through `numkong_cpu_capabilities_disabled_`. Each probe compiles at the units'
+# `numkong_unit_arch_flags_`, which `try_compile` would not take from `add_compile_options`.
 include(cmake/numkong_probes.cmake)
 
 include(cmake/numkong_gpu.cmake)
@@ -294,8 +295,8 @@ if (NUMKONG_MARCH)
 else ()
     set(numkong_floor_ "the portable floor")
 endif ()
-get_property(numkong_capabilities_enabled_ GLOBAL PROPERTY numkong_capabilities_enabled)
-list(JOIN numkong_capabilities_enabled_ " " numkong_capabilities_summary_)
+get_property(numkong_capabilities_compiled_ GLOBAL PROPERTY numkong_capabilities_compiled)
+list(JOIN numkong_capabilities_compiled_ " " numkong_capabilities_summary_)
 if (NUMKONG_MULTIVERSIONED)
     message(STATUS "NumKong: multiversioned above ${numkong_floor_}")
 else ()
@@ -495,41 +496,41 @@ set(numkong_dispatch_units_
 set(numkong_library_units_
     ${numkong_dispatch_units_}
     src/capabilities/serial.c
-    $<$<BOOL:${numkong_target_haswell_enabled}>:src/capabilities/haswell.c>
-    $<$<BOOL:${numkong_target_alder_enabled}>:src/capabilities/alder.c>
-    $<$<BOOL:${numkong_target_sierra_enabled}>:src/capabilities/sierra.c>
-    $<$<BOOL:${numkong_target_skylake_enabled}>:src/capabilities/skylake.c>
-    $<$<BOOL:${numkong_target_icelake_enabled}>:src/capabilities/icelake.c>
-    $<$<BOOL:${numkong_target_genoa_enabled}>:src/capabilities/genoa.c>
-    $<$<BOOL:${numkong_target_turin_enabled}>:src/capabilities/turin.c>
-    $<$<BOOL:${numkong_target_sapphire_enabled}>:src/capabilities/sapphire.c>
-    $<$<BOOL:${numkong_target_diamond_enabled}>:src/capabilities/diamond.c>
-    $<$<BOOL:${numkong_target_sapphireamx_enabled}>:src/capabilities/sapphireamx.c>
-    $<$<BOOL:${numkong_target_graniteamx_enabled}>:src/capabilities/graniteamx.c>
-    $<$<BOOL:${numkong_target_diamondamx_enabled}>:src/capabilities/diamondamx.c>
-    $<$<BOOL:${numkong_target_neon_enabled}>:src/capabilities/neon.c>
-    $<$<BOOL:${numkong_target_neonhalf_enabled}>:src/capabilities/neonhalf.c>
-    $<$<BOOL:${numkong_target_neonbfdot_enabled}>:src/capabilities/neonbfdot.c>
-    $<$<BOOL:${numkong_target_neonfhm_enabled}>:src/capabilities/neonfhm.c>
-    $<$<BOOL:${numkong_target_neonsdot_enabled}>:src/capabilities/neonsdot.c>
-    $<$<BOOL:${numkong_target_neonfp8_enabled}>:src/capabilities/neonfp8.c>
-    $<$<BOOL:${numkong_target_sve_enabled}>:src/capabilities/sve.c>
-    $<$<BOOL:${numkong_target_svehalf_enabled}>:src/capabilities/svehalf.c>
-    $<$<BOOL:${numkong_target_svesdot_enabled}>:src/capabilities/svesdot.c>
-    $<$<BOOL:${numkong_target_svebfdot_enabled}>:src/capabilities/svebfdot.c>
-    $<$<BOOL:${numkong_target_sve2_enabled}>:src/capabilities/sve2.c>
-    $<$<BOOL:${numkong_target_sme_enabled}>:src/capabilities/sme.c>
-    $<$<BOOL:${numkong_target_smef64_enabled}>:src/capabilities/smef64.c>
-    $<$<BOOL:${numkong_target_smebi32_enabled}>:src/capabilities/smebi32.c>
-    $<$<BOOL:${numkong_target_rvv_enabled}>:src/capabilities/rvv.c>
-    $<$<BOOL:${numkong_target_rvvhalf_enabled}>:src/capabilities/rvvhalf.c>
-    $<$<BOOL:${numkong_target_rvvbf16_enabled}>:src/capabilities/rvvbf16.c>
-    $<$<BOOL:${numkong_target_rvvbb_enabled}>:src/capabilities/rvvbb.c>
+    $<$<BOOL:${numkong_target_haswell_compiled}>:src/capabilities/haswell.c>
+    $<$<BOOL:${numkong_target_alder_compiled}>:src/capabilities/alder.c>
+    $<$<BOOL:${numkong_target_sierra_compiled}>:src/capabilities/sierra.c>
+    $<$<BOOL:${numkong_target_skylake_compiled}>:src/capabilities/skylake.c>
+    $<$<BOOL:${numkong_target_icelake_compiled}>:src/capabilities/icelake.c>
+    $<$<BOOL:${numkong_target_genoa_compiled}>:src/capabilities/genoa.c>
+    $<$<BOOL:${numkong_target_turin_compiled}>:src/capabilities/turin.c>
+    $<$<BOOL:${numkong_target_sapphire_compiled}>:src/capabilities/sapphire.c>
+    $<$<BOOL:${numkong_target_diamond_compiled}>:src/capabilities/diamond.c>
+    $<$<BOOL:${numkong_target_sapphireamx_compiled}>:src/capabilities/sapphireamx.c>
+    $<$<BOOL:${numkong_target_graniteamx_compiled}>:src/capabilities/graniteamx.c>
+    $<$<BOOL:${numkong_target_diamondamx_compiled}>:src/capabilities/diamondamx.c>
+    $<$<BOOL:${numkong_target_neon_compiled}>:src/capabilities/neon.c>
+    $<$<BOOL:${numkong_target_neonhalf_compiled}>:src/capabilities/neonhalf.c>
+    $<$<BOOL:${numkong_target_neonbfdot_compiled}>:src/capabilities/neonbfdot.c>
+    $<$<BOOL:${numkong_target_neonfhm_compiled}>:src/capabilities/neonfhm.c>
+    $<$<BOOL:${numkong_target_neonsdot_compiled}>:src/capabilities/neonsdot.c>
+    $<$<BOOL:${numkong_target_neonfp8_compiled}>:src/capabilities/neonfp8.c>
+    $<$<BOOL:${numkong_target_sve_compiled}>:src/capabilities/sve.c>
+    $<$<BOOL:${numkong_target_svehalf_compiled}>:src/capabilities/svehalf.c>
+    $<$<BOOL:${numkong_target_svesdot_compiled}>:src/capabilities/svesdot.c>
+    $<$<BOOL:${numkong_target_svebfdot_compiled}>:src/capabilities/svebfdot.c>
+    $<$<BOOL:${numkong_target_sve2_compiled}>:src/capabilities/sve2.c>
+    $<$<BOOL:${numkong_target_sme_compiled}>:src/capabilities/sme.c>
+    $<$<BOOL:${numkong_target_smef64_compiled}>:src/capabilities/smef64.c>
+    $<$<BOOL:${numkong_target_smebi32_compiled}>:src/capabilities/smebi32.c>
+    $<$<BOOL:${numkong_target_rvv_compiled}>:src/capabilities/rvv.c>
+    $<$<BOOL:${numkong_target_rvvhalf_compiled}>:src/capabilities/rvvhalf.c>
+    $<$<BOOL:${numkong_target_rvvbf16_compiled}>:src/capabilities/rvvbf16.c>
+    $<$<BOOL:${numkong_target_rvvbb_compiled}>:src/capabilities/rvvbb.c>
     $<$<BOOL:${numkong_arch_wasm_}>:src/capabilities/v128.c>
     $<$<BOOL:${numkong_arch_wasm_}>:src/capabilities/v128relaxed.c>
-    $<$<BOOL:${numkong_target_powervsx_enabled}>:src/capabilities/powervsx.c>
-    $<$<BOOL:${numkong_target_loongsonasx_enabled}>:src/capabilities/loongsonasx.c>
-    $<$<BOOL:${numkong_target_powermma_enabled}>:src/capabilities/powermma.c>
+    $<$<BOOL:${numkong_target_powervsx_compiled}>:src/capabilities/powervsx.c>
+    $<$<BOOL:${numkong_target_loongsonasx_compiled}>:src/capabilities/loongsonasx.c>
+    $<$<BOOL:${numkong_target_powermma_compiled}>:src/capabilities/powermma.c>
 )
 # Dispatch calls kernels through `void *` signatures on purpose, which every supported ABI passes alike
 set_source_files_properties(
@@ -663,7 +664,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
         "SHELL:-sEXPORT_ES6=1" # Generate ES6 module
         "SHELL:-sMODULARIZE=1" # Wrap in module factory
         "SHELL:-sEXPORT_NAME=NumKongModule" # Export name
-        "SHELL:-sEXPORTED_FUNCTIONS=['_malloc','_free','_nk_dot_f32_best','_nk_dot_f64_best','_nk_dot_f16_best','_nk_dot_bf16_best','_nk_dot_i8_best','_nk_dot_u8_best','_nk_angular_f32_best','_nk_angular_f64_best','_nk_angular_f16_best','_nk_angular_bf16_best','_nk_angular_i8_best','_nk_angular_u8_best','_nk_sqeuclidean_f32_best','_nk_sqeuclidean_f64_best','_nk_sqeuclidean_f16_best','_nk_sqeuclidean_bf16_best','_nk_sqeuclidean_i8_best','_nk_sqeuclidean_u8_best','_nk_euclidean_f32_best','_nk_euclidean_f64_best','_nk_euclidean_f16_best','_nk_euclidean_bf16_best','_nk_euclidean_i8_best','_nk_euclidean_u8_best','_nk_hamming_u1_best','_nk_hamming_u8_best','_nk_jaccard_u1_best','_nk_jaccard_u16_best','_nk_jaccard_u32_best','_nk_kld_f32_best','_nk_kld_f64_best','_nk_kld_f16_best','_nk_kld_bf16_best','_nk_jsd_f32_best','_nk_jsd_f64_best','_nk_jsd_f16_best','_nk_jsd_bf16_best','_nk_cpu_capabilities_detected','_nk_cpu_capabilities_compiled','_nk_cpu_capabilities_enabled','_nk_capabilities_name','_nk_status_name','_nk_dots_pack_size_f32_best','_nk_dots_pack_size_f64_best','_nk_dots_pack_size_f16_best','_nk_dots_pack_size_bf16_best','_nk_dots_pack_size_i8_best','_nk_dots_pack_size_u8_best','_nk_dots_pack_f32_best','_nk_dots_pack_f64_best','_nk_dots_pack_f16_best','_nk_dots_pack_bf16_best','_nk_dots_pack_i8_best','_nk_dots_pack_u8_best','_nk_dots_packed_f32_best','_nk_dots_packed_f64_best','_nk_dots_packed_f16_best','_nk_dots_packed_bf16_best','_nk_dots_packed_i8_best','_nk_dots_packed_u8_best','_nk_dots_packed_shape_f32_best','_nk_dots_packed_shape_f64_best','_nk_dots_packed_shape_f16_best','_nk_dots_packed_shape_bf16_best','_nk_dots_packed_shape_i8_best','_nk_dots_packed_shape_u8_best','_nk_dots_symmetric_f32_best','_nk_dots_symmetric_f64_best','_nk_dots_symmetric_f16_best','_nk_dots_symmetric_bf16_best','_nk_dots_symmetric_i8_best','_nk_dots_symmetric_u8_best','_nk_angulars_packed_f32_best','_nk_angulars_packed_f64_best','_nk_angulars_packed_f16_best','_nk_angulars_packed_bf16_best','_nk_angulars_symmetric_f32_best','_nk_angulars_symmetric_f64_best','_nk_angulars_symmetric_f16_best','_nk_angulars_symmetric_bf16_best','_nk_euclideans_packed_f32_best','_nk_euclideans_packed_f64_best','_nk_euclideans_packed_f16_best','_nk_euclideans_packed_bf16_best','_nk_euclideans_symmetric_f32_best','_nk_euclideans_symmetric_f64_best','_nk_euclideans_symmetric_f16_best','_nk_euclideans_symmetric_bf16_best']"
+        "SHELL:-sEXPORTED_FUNCTIONS=['_malloc','_free','_nk_dot_f32_best','_nk_dot_f64_best','_nk_dot_f16_best','_nk_dot_bf16_best','_nk_dot_i8_best','_nk_dot_u8_best','_nk_angular_f32_best','_nk_angular_f64_best','_nk_angular_f16_best','_nk_angular_bf16_best','_nk_angular_i8_best','_nk_angular_u8_best','_nk_sqeuclidean_f32_best','_nk_sqeuclidean_f64_best','_nk_sqeuclidean_f16_best','_nk_sqeuclidean_bf16_best','_nk_sqeuclidean_i8_best','_nk_sqeuclidean_u8_best','_nk_euclidean_f32_best','_nk_euclidean_f64_best','_nk_euclidean_f16_best','_nk_euclidean_bf16_best','_nk_euclidean_i8_best','_nk_euclidean_u8_best','_nk_hamming_u1_best','_nk_hamming_u8_best','_nk_jaccard_u1_best','_nk_jaccard_u16_best','_nk_jaccard_u32_best','_nk_kld_f32_best','_nk_kld_f64_best','_nk_kld_f16_best','_nk_kld_bf16_best','_nk_jsd_f32_best','_nk_jsd_f64_best','_nk_jsd_f16_best','_nk_jsd_bf16_best','_nk_capabilities_detected_cpu','_nk_capabilities_compiled_cpu','_nk_capabilities_enabled_cpu','_nk_capabilities_name','_nk_status_name','_nk_dots_pack_size_f32_best','_nk_dots_pack_size_f64_best','_nk_dots_pack_size_f16_best','_nk_dots_pack_size_bf16_best','_nk_dots_pack_size_i8_best','_nk_dots_pack_size_u8_best','_nk_dots_pack_f32_best','_nk_dots_pack_f64_best','_nk_dots_pack_f16_best','_nk_dots_pack_bf16_best','_nk_dots_pack_i8_best','_nk_dots_pack_u8_best','_nk_dots_packed_f32_best','_nk_dots_packed_f64_best','_nk_dots_packed_f16_best','_nk_dots_packed_bf16_best','_nk_dots_packed_i8_best','_nk_dots_packed_u8_best','_nk_dots_packed_shape_f32_best','_nk_dots_packed_shape_f64_best','_nk_dots_packed_shape_f16_best','_nk_dots_packed_shape_bf16_best','_nk_dots_packed_shape_i8_best','_nk_dots_packed_shape_u8_best','_nk_dots_symmetric_f32_best','_nk_dots_symmetric_f64_best','_nk_dots_symmetric_f16_best','_nk_dots_symmetric_bf16_best','_nk_dots_symmetric_i8_best','_nk_dots_symmetric_u8_best','_nk_angulars_packed_f32_best','_nk_angulars_packed_f64_best','_nk_angulars_packed_f16_best','_nk_angulars_packed_bf16_best','_nk_angulars_symmetric_f32_best','_nk_angulars_symmetric_f64_best','_nk_angulars_symmetric_f16_best','_nk_angulars_symmetric_bf16_best','_nk_euclideans_packed_f32_best','_nk_euclideans_packed_f64_best','_nk_euclideans_packed_f16_best','_nk_euclideans_packed_bf16_best','_nk_euclideans_symmetric_f32_best','_nk_euclideans_symmetric_f64_best','_nk_euclideans_symmetric_f16_best','_nk_euclideans_symmetric_bf16_best']"
         "SHELL:-sEXPORTED_RUNTIME_METHODS=['wasmMemory']" # Export memory object
         "SHELL:-sALLOW_MEMORY_GROWTH=1" # Dynamic memory
         "SHELL:-sENVIRONMENT=web,node" # Both browser and Node.js
@@ -748,7 +749,7 @@ else ()
             target_link_options(${library_} INTERFACE ${CMAKE_C_COMPILE_OPTIONS_IPO} ${CMAKE_C_LINK_OPTIONS_IPO})
         endif ()
 
-        # Every capability the toolchain builds; `nk_cpu_capabilities_enabled()` picks among them at load.
+        # Every capability the toolchain builds; `nk_capabilities_enabled_cpu()` picks among them at load.
         target_link_libraries(${library_} PRIVATE $<BUILD_INTERFACE:numkong_cpu_capabilities_compiled>)
     endforeach ()
 endif ()
@@ -893,7 +894,9 @@ endif ()
 # Both GPU vendors may share one library: their units are separate files, each vendor has its own capability group,
 # and each numbers its own devices.
 if (NUMKONG_ROCM_ARCH)
-    find_package(hip REQUIRED GLOBAL)
+    if (NOT TARGET hip::host) # another library in the same project may have found HIP already
+        find_package(hip REQUIRED GLOBAL)
+    endif ()
     numkong_select_gpu_codes(
         numkong_cdna3_unit_codes_ "${numkong_rocm_resolved_architectures_}" "${numkong_target_cdna3_architectures}"
     )

@@ -51,7 +51,7 @@ python -m pip install .
 Quick runtime check:
 
 ```sh
-python -c "import numkong as nk; print(repr(nk.cpu_capabilities_enabled()))"
+python -c "import numkong as nk; print(repr(nk.capabilities_enabled_cpu()))"
 ```
 
 ## Wheel Compatibility and Building from Source
@@ -693,7 +693,7 @@ Packs need no GPU kernel: the host gathers them, and `copy` places the table and
 Every shape function then runs that mask in one launch on `stream=`, ignoring `threads=`, so it needs `out=` and, where the workspace size is not zero, a single window of `workspace=`.
 
 ```python
-gpu = nk.cuda_capabilities_enabled(0)
+gpu = nk.capabilities_enabled_cuda(0)
 packs = nk.shapes_pack(clouds, dtype="f16", threads=8).copy(capabilities=gpu)
 distances = nk.from_dlpack(torch.empty((n, n), device="cuda"))
 nk.chamfers_packed(packs, packs, out=distances, limit=2.5, stream=stream)
@@ -704,7 +704,7 @@ A slice of copied packs in steps would rebuild the table on the host, so it rais
 Metal runs `float16` packs only, and writes only into blocks of its own allocator, so a plain NumPy `out=` raises `BufferError`:
 
 ```python
-gpu = nk.metal_capabilities_enabled(0)
+gpu = nk.capabilities_enabled_metal(0)
 packs = nk.shapes_pack(clouds, dtype="f16").copy(gpu)
 distances = nk.zeros((n, n), dtype="float32").copy(capabilities=gpu)
 nk.chamfers_packed(packs, packs, out=distances, limit=2.5)
@@ -785,15 +785,15 @@ import numpy as np
 import numkong as nk
 
 # `enabled` is what dispatch runs within: detected on this CPU AND compiled into the wheel, settled as the library loads.
-print(repr(nk.cpu_capabilities_enabled()))
-print(nk.Capability.SKYLAKE in nk.cpu_capabilities_enabled()) # will AVX-512 kernels run here?
+print(repr(nk.capabilities_enabled_cpu()))
+print(nk.Capability.SKYLAKE in nk.capabilities_enabled_cpu()) # will AVX-512 kernels run here?
 
 # The two raw axes, when you specifically mean one of them:
-print(repr(nk.cpu_capabilities_detected())) # this CPU
-print(repr(nk.cpu_capabilities_compiled())) # this build
+print(repr(nk.capabilities_detected_cpu())) # this CPU
+print(repr(nk.capabilities_compiled_cpu())) # this build
 
 # Prepare a thread that runs kernels, like Arm's FPCR; the library already asked for AMX tiles as it loaded.
-nk.cpu_configure_thread(nk.cpu_capabilities_enabled())
+nk.configure_thread_cpu(nk.capabilities_enabled_cpu())
 
 # Narrow a single call, e.g. to test one capability: what cannot run here is dropped.
 a = np.random.randn(1536).astype(np.float32)
@@ -851,8 +851,8 @@ For Python, the intended user-facing story is external partitioning around the G
 ## GPU Tensors through DLPack
 
 Builds configured with `-C cmake.define.NUMKONG_CUDA_ARCH=all` or `-C cmake.define.NUMKONG_ROCM_ARCH=all` also carry the CUDA or ROCm kernels.
-`nk.cuda_count_devices()` counts the devices this process sees, zero without the runtime or its kernels, and `nk.cuda_capabilities_enabled(0)` reports the mask device 0 dispatches with, raising `ValueError` past the last.
-`nk.cuda_capabilities_detected` and `nk.cuda_capabilities_compiled` answer as their CPU twins do, `nk.rocm_*` and `nk.metal_*` do the same for the other vendors, and `cpu_configure_thread` is CPU only.
+`nk.count_devices_cuda()` counts the devices this process sees, zero without the runtime or its kernels, and `nk.capabilities_enabled_cuda(0)` reports the mask device 0 dispatches with, raising `ValueError` past the last.
+`nk.capabilities_detected_cuda` and `nk.capabilities_compiled_cuda` answer per device as their CPU twins do for the CPU, the `_rocm` and `_metal` functions do the same for the other vendors, and `configure_thread_cpu` is CPU only.
 `nk.from_dlpack` imports a CUDA or ROCm tensor without a copy and records its device.
 Only `dots_pack`, the dots, angulars and euclideans `_packed` and `_symmetric` functions, and `attention_pack`, `attention_packed` and `attention_packed_gradients` run on it, with that device's enabled capabilities.
 The shape functions also take it for their outputs, running the mask their packs were copied with.
@@ -871,7 +871,7 @@ import numkong as nk
 
 left = torch.randn(4096, 768, device="cuda", dtype=torch.bfloat16)
 right = torch.randn(8192, 768, device="cuda", dtype=torch.bfloat16)
-capabilities = nk.cuda_capabilities_enabled(right.device.index)
+capabilities = nk.capabilities_enabled_cuda(right.device.index)
 packed_storage = torch.empty(nk.PackedMatrix.pack_size(8192, 768, "bf16", capabilities=capabilities),
                              device="cuda", dtype=torch.uint8)
 result = torch.empty(4096, 8192, device="cuda", dtype=torch.float32)

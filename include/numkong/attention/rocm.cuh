@@ -359,55 +359,6 @@ NUMKONG_DEVICE void nk_attention_fallback_i8_rocm_(nk_attention_arguments_t cons
 
 #pragma endregion Tile
 
-#pragma region Pack
-
-/** Writes the header, recording the packing @p capability, and the directory, one block walking the
- *  segments 128 at a time. */
-static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
-    nk_attention_pack_directory_rocm_kernel_(unsigned char *packed, nk_size_t key_value_head_count, nk_size_t depth,
-                                             nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
-                                             nk_size_t segment_count, nk_size_t row_bytes, nk_size_t directory_bytes,
-                                             nk_capability_t capability) {
-    __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
-    nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)packed;
-    if (threadIdx.x == 0) {
-        header->key_value_head_count = (nk_u32_t)key_value_head_count;
-        header->depth = (nk_u32_t)depth;
-        header->segments = (nk_u32_t)segment_count;
-        header->key_tensor_scale = 0, header->value_tensor_scale = 0;
-        header->capability = capability;
-        for (unsigned reserved_index = 0; reserved_index < sizeof(header->reserved) / sizeof(header->reserved[0]);
-             ++reserved_index)
-            header->reserved[reserved_index] = 0;
-    }
-    nk_u64_t *payload_offsets = (nk_u64_t *)(packed + sizeof(nk_attention_packed_header_t));
-    nk_u32_t *offsets_copy = (nk_u32_t *)(payload_offsets + segment_count);
-    nk_u32_t *lengths_copy = offsets_copy + segment_count + 1;
-    nk_u64_t running = 0;
-    for (nk_size_t chunk = 0; chunk < segment_count; chunk += blockDim.x) {
-        nk_size_t const segment = chunk + threadIdx.x;
-        nk_u32_t const length = segment < segment_count
-                                    ? nk_attention_pack_key_count_simt_(key_offsets, key_lengths, segment)
-                                    : 0;
-        nk_u64_t const bytes = nk_attention_pack_segment_bytes_serial_(length, key_value_head_count,
-                                                                       nk_attention_panel_k, row_bytes);
-        nk_u64_t total;
-        nk_u64_t const inclusive = nk_attention_block_scan_rocm_(bytes, warp_totals, &total);
-        if (segment < segment_count) {
-            payload_offsets[segment] = running + inclusive - bytes;
-            offsets_copy[segment] = key_offsets[segment];
-            lengths_copy[segment] = length;
-        }
-        running += total;
-    }
-    if (threadIdx.x == 0) offsets_copy[segment_count] = key_offsets[segment_count];
-    for (nk_size_t byte = segment_count * sizeof(nk_u64_t) + (2 * segment_count + 1) * sizeof(nk_u32_t) + threadIdx.x;
-         byte < directory_bytes; byte += blockDim.x)
-        packed[sizeof(nk_attention_packed_header_t) + byte] = 0;
-}
-
-#pragma endregion Pack
-
 #pragma region Backward
 
 /** Accumulates the gradients of one query row, of @p head at @p row of the task, against one key at
@@ -534,46 +485,6 @@ NUMKONG_DEVICE void nk_attention_backward_queries_bf16_rocm_(nk_attention_backwa
 
 #pragma region Launchers
 
-/** Launches the directory writer, recording the packing @p capability, for a window starting at
- *  task 0, then @p payload_kernel over the window. */
-NUMKONG_INLINE nk_status_t nk_attention_pack_launch_rocm_(void const *payload_kernel, nk_capability_t capability,
-                                                          nk_size_t element_bytes, void const *keys, void const *values,
-                                                          nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
-                                                          nk_size_t segment_count, nk_size_t key_stride,
-                                                          nk_size_t value_stride, void *packed, nk_size_t tasks_begin,
-                                                          nk_size_t tasks_end, nk_stream_t stream) {
-    if ((nk_size_t)packed & 15) return nk_misaligned_k;
-    if (key_value_head_count > NUMKONG_U32_MAX || depth > NUMKONG_U32_MAX || segment_count > NUMKONG_U32_MAX)
-        return nk_unexpected_dimensions_k;
-    nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
-    // Zero the gap between the directory and the payload, so the pack depends on its inputs alone
-    nk_size_t const directory_bytes = nk_attention_payload_offset_simt_(segment_count, row_bytes) -
-                                      sizeof(nk_attention_packed_header_t);
-    if (tasks_begin == 0) {
-        void *directory_arguments[9] = {&packed,
-                                        &key_value_head_count,
-                                        &depth,
-                                        &key_offsets,
-                                        &key_lengths,
-                                        &segment_count,
-                                        (void *)&row_bytes,
-                                        (void *)&directory_bytes,
-                                        (void *)&capability};
-        nk_status_t const status = nk_launch_rocm_((void const *)nk_attention_pack_directory_rocm_kernel_, 1,
-                                                   nk_attention_threads_k, directory_arguments, 0, stream);
-        if (status != nk_success_k) return status;
-    }
-    nk_size_t const total_tasks = segment_count * key_value_head_count;
-    nk_size_t const end = tasks_end < total_tasks ? tasks_end : total_tasks;
-    if (tasks_begin >= end) return nk_success_k;
-    void *payload_arguments[12] = {(void *)&keys, (void *)&values, &key_value_head_count, &depth,
-                                   &key_offsets,  &key_lengths,    &segment_count,        &key_stride,
-                                   &value_stride, &packed,         &tasks_begin,          (void *)&end};
-    return nk_launch_rocm_(payload_kernel, end - tasks_begin < 65535 ? end - tasks_begin : 65535,
-                           nk_attention_pack_threads_k, payload_arguments, 0, stream);
-}
-
 /** Validates the contract and launches @p kernel with as many blocks as stay resident. */
 NUMKONG_INLINE nk_status_t nk_attention_launch_rocm_(void const *kernel, void const *queries, void const *packed,
                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
@@ -651,6 +562,7 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_rocm_(void const *keys_k
         nk_##input_value_type##_t const *values, nk_size_t value_stride, void *key_value_packed,                     \
         nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {                                            \
         return nk_attention_pack_launch_rocm_(                                                                       \
+            (void const *)nk_attention_pack_directory_##isa_suffix##_kernel_,                                        \
             (void const *)nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_, nk_cap_##isa_suffix##_k,     \
             sizeof(nk_##input_value_type##_t), keys, values, key_value_head_count, depth, key_offsets, key_lengths,  \
             segment_count, key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, stream);              \
@@ -736,9 +648,107 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_rocm_(void const *keys_k
 
 #pragma endregion Attention Macros
 
+#pragma region Pack
+
+/** Writes the header, recording the packing @p capability, and the directory, one block walking the
+ *  segments 128 at a time. */
+NUMKONG_DEVICE void nk_attention_pack_directory_rocm_(unsigned char *packed, nk_size_t key_value_head_count,
+                                                      nk_size_t depth, nk_u32_t const *key_offsets,
+                                                      nk_u32_t const *key_lengths, nk_size_t segment_count,
+                                                      nk_size_t row_bytes, nk_size_t directory_bytes,
+                                                      nk_capability_t capability) {
+    __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
+    nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)packed;
+    if (threadIdx.x == 0) {
+        header->key_value_head_count = (nk_u32_t)key_value_head_count;
+        header->depth = (nk_u32_t)depth;
+        header->segments = (nk_u32_t)segment_count;
+        header->key_tensor_scale = 0, header->value_tensor_scale = 0;
+        header->capability = capability;
+        for (unsigned reserved_index = 0; reserved_index < sizeof(header->reserved) / sizeof(header->reserved[0]);
+             ++reserved_index)
+            header->reserved[reserved_index] = 0;
+    }
+    nk_u64_t *payload_offsets = (nk_u64_t *)(packed + sizeof(nk_attention_packed_header_t));
+    nk_u32_t *offsets_copy = (nk_u32_t *)(payload_offsets + segment_count);
+    nk_u32_t *lengths_copy = offsets_copy + segment_count + 1;
+    nk_u64_t running = 0;
+    for (nk_size_t chunk = 0; chunk < segment_count; chunk += blockDim.x) {
+        nk_size_t const segment = chunk + threadIdx.x;
+        nk_u32_t const length = segment < segment_count
+                                    ? nk_attention_pack_key_count_simt_(key_offsets, key_lengths, segment)
+                                    : 0;
+        nk_u64_t const bytes = nk_attention_pack_segment_bytes_serial_(length, key_value_head_count,
+                                                                       nk_attention_panel_k, row_bytes);
+        nk_u64_t total;
+        nk_u64_t const inclusive = nk_attention_block_scan_rocm_(bytes, warp_totals, &total);
+        if (segment < segment_count) {
+            payload_offsets[segment] = running + inclusive - bytes;
+            offsets_copy[segment] = key_offsets[segment];
+            lengths_copy[segment] = length;
+        }
+        running += total;
+    }
+    if (threadIdx.x == 0) offsets_copy[segment_count] = key_offsets[segment_count];
+    for (nk_size_t byte = segment_count * sizeof(nk_u64_t) + (2 * segment_count + 1) * sizeof(nk_u32_t) + threadIdx.x;
+         byte < directory_bytes; byte += blockDim.x)
+        packed[sizeof(nk_attention_packed_header_t) + byte] = 0;
+}
+
+/** Launches the directory writer, recording the packing @p capability, for a window starting at
+ *  task 0, then @p payload_kernel over the window; @p directory_kernel is the tier's own
+ *  @ref nk_attention_pack_directory_rocm_ . */
+NUMKONG_INLINE nk_status_t nk_attention_pack_launch_rocm_(
+    void const *directory_kernel, void const *payload_kernel, nk_capability_t capability, nk_size_t element_bytes,
+    void const *keys, void const *values, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *key_offsets,
+    nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride, void *packed,
+    nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    if ((nk_size_t)packed & 15) return nk_misaligned_k;
+    if (key_value_head_count > NUMKONG_U32_MAX || depth > NUMKONG_U32_MAX || segment_count > NUMKONG_U32_MAX)
+        return nk_unexpected_dimensions_k;
+    nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
+    // Zero the gap between the directory and the payload, so the pack depends on its inputs alone
+    nk_size_t const directory_bytes = nk_attention_payload_offset_simt_(segment_count, row_bytes) -
+                                      sizeof(nk_attention_packed_header_t);
+    if (tasks_begin == 0) {
+        void *directory_arguments[9] = {&packed,
+                                        &key_value_head_count,
+                                        &depth,
+                                        &key_offsets,
+                                        &key_lengths,
+                                        &segment_count,
+                                        (void *)&row_bytes,
+                                        (void *)&directory_bytes,
+                                        (void *)&capability};
+        nk_status_t const status = nk_launch_rocm_(directory_kernel, 1, nk_attention_threads_k, directory_arguments, 0,
+                                                   stream);
+        if (status != nk_success_k) return status;
+    }
+    nk_size_t const total_tasks = segment_count * key_value_head_count;
+    nk_size_t const end = tasks_end < total_tasks ? tasks_end : total_tasks;
+    if (tasks_begin >= end) return nk_success_k;
+    void *payload_arguments[12] = {(void *)&keys, (void *)&values, &key_value_head_count, &depth,
+                                   &key_offsets,  &key_lengths,    &segment_count,        &key_stride,
+                                   &value_stride, &packed,         &tasks_begin,          (void *)&end};
+    return nk_launch_rocm_(payload_kernel, end - tasks_begin < 65535 ? end - tasks_begin : 65535,
+                           nk_attention_pack_threads_k, payload_arguments, 0, stream);
+}
+
+#pragma endregion Pack
+
 #pragma region Instantiations
 
 #if NUMKONG_TARGET_ROCM
+
+/** @ref nk_attention_pack_directory_rocm_ as the ROCm baseline's kernel, which its packs launch. */
+static __global__ void __launch_bounds__(nk_attention_threads_k, 1)
+    nk_attention_pack_directory_rocm_kernel_(unsigned char *packed, nk_size_t key_value_head_count, nk_size_t depth,
+                                             nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,
+                                             nk_size_t segment_count, nk_size_t row_bytes, nk_size_t directory_bytes,
+                                             nk_capability_t capability) {
+    nk_attention_pack_directory_rocm_(packed, key_value_head_count, depth, key_offsets, key_lengths, segment_count,
+                                      row_bytes, directory_bytes, capability);
+}
 nk_define_attention_baseline_rocm_(bf16, rocm, bf16, 2)
 nk_define_attention_baseline_rocm_(e4m3, rocm, e4m3, 1)
 nk_define_attention_baseline_rocm_(i8, rocm, i8, 1)

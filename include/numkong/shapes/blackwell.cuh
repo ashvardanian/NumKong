@@ -28,6 +28,7 @@
 #if NUMKONG_ARCH_CUDA_
 #if NUMKONG_ARCH_CUDA_BLACKWELL_
 
+#include "numkong/attention/blackwell.cuh" // `nk_f32x2_blackwell_`, `nk_f32x2_mul_blackwell_`, `_add_`
 #include "numkong/dots/blackwell.cuh"
 #include "numkong/shapes/cuda.cuh" // `nk_shapes_accessible_cuda_`
 #include "numkong/shapes/serial.h" // `nk_shapes_packed_header_f32_t`, `nk_shapes_alignment_k`
@@ -37,7 +38,6 @@
 extern "C" {
 #endif
 
-#if NUMKONG_TARGET_BLACKWELL
 #pragma region Configuration
 
 enum {
@@ -125,32 +125,6 @@ NUMKONG_DEVICE float2 nk_f16x2_sub_to_f32x2_blackwell_(nk_u32_t pair, nk_f32_t s
         "sub.rn.f32.f16 %1, high, %3;\n}\n"
         : "=f"(result.x), "=f"(result.y)
         : "r"(pair), "f"(subtrahend));
-    return result;
-}
-
-/** @p first times @p second lane by lane in F32, each rounded once, through one packed FMUL2. */
-NUMKONG_DEVICE float2 nk_f32x2_mul_blackwell_(float2 first, float2 second) {
-    float2 result;
-    asm("{\n.reg .b64 first, second, product;\n" //
-        "mov.b64 first, {%2, %3};\n"             //
-        "mov.b64 second, {%4, %5};\n"            //
-        "mul.rn.f32x2 product, first, second;\n" //
-        "mov.b64 {%0, %1}, product;\n}\n"
-        : "=f"(result.x), "=f"(result.y)
-        : "f"(first.x), "f"(first.y), "f"(second.x), "f"(second.y));
-    return result;
-}
-
-/** @p first plus @p second lane by lane in F32, each rounded once, through one packed FADD2. */
-NUMKONG_DEVICE float2 nk_f32x2_add_blackwell_(float2 first, float2 second) {
-    float2 result;
-    asm("{\n.reg .b64 first, second, sum;\n" //
-        "mov.b64 first, {%2, %3};\n"         //
-        "mov.b64 second, {%4, %5};\n"        //
-        "add.rn.f32x2 sum, first, second;\n" //
-        "mov.b64 {%0, %1}, sum;\n}\n"
-        : "=f"(result.x), "=f"(result.y)
-        : "f"(first.x), "f"(first.y), "f"(second.x), "f"(second.y));
     return result;
 }
 
@@ -338,45 +312,6 @@ NUMKONG_DEVICE void nk_rmsds_superpose_blackwell_(nk_rmsds_schedule_blackwell_t 
     __syncthreads();
 }
 
-static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k, 1)
-    nk_rmsds_packed_f16_blackwell_kernel_(nk_rmsds_schedule_blackwell_t const schedule) {
-    extern __shared__ unsigned char nk_rmsds_dynamic_shared_blackwell_[];
-    nk_rmsds_shared_blackwell_t *shared = (nk_rmsds_shared_blackwell_t *)nk_shared_aligned_ampere_(
-        nk_rmsds_dynamic_shared_blackwell_, 1024);
-    nk_u32_t const tensor_memory = nk_rmsds_initialize_blackwell_(shared);
-    nk_size_t const points = ((nk_shapes_packed_header_f32_t const *)schedule.a_packed[0])->points;
-    nk_size_t const axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k) /
-                                  sizeof(nk_f16_t);
-    nk_size_t slabs_issued = 0;
-    for (nk_size_t tile = blockIdx.x; tile < schedule.tiles; tile += gridDim.x) {
-        nk_size_t const row_begin = tile / schedule.column_tiles * nk_rmsds_frames_blackwell_k;
-        nk_size_t const column_begin = tile % schedule.column_tiles * nk_rmsds_frames_blackwell_k;
-        nk_rmsds_gather_f16_blackwell_(&schedule, shared, row_begin, column_begin, points);
-        nk_rmsds_multiply_f16_blackwell_(shared, tensor_memory, points, axis_stride, &slabs_issued);
-        nk_rmsds_drain_blackwell_(shared, tensor_memory);
-        nk_rmsds_superpose_blackwell_(&schedule, shared, row_begin, column_begin, points);
-    }
-    if (threadIdx.x < 32) nk_tmem_dealloc_blackwell_(tensor_memory, nk_rmsds_tensor_columns_blackwell_k);
-}
-
-NUMKONG_API nk_status_t nk_rmsds_packed_f16_blackwell(void const *const *a_packed, nk_size_t rows,
-                                                      void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
-                                                      nk_size_t results_stride, nk_stream_t stream) {
-    if (!rows || !columns) return nk_success_k;
-    if (((nk_size_t)results | results_stride) & (sizeof(nk_f32_t) - 1)) return nk_misaligned_k;
-    nk_status_t const reached = nk_shapes_accessible_cuda_(a_packed, rows, b_packed, columns, results, results_stride,
-                                                           sizeof(nk_f32_t), NUMKONG_NULL, NUMKONG_NULL, 0, stream);
-    if (reached != nk_success_k) return reached;
-    nk_rmsds_schedule_blackwell_t schedule;
-    schedule.a_packed = a_packed, schedule.b_packed = b_packed, schedule.results = results;
-    schedule.rows = rows, schedule.columns = columns, schedule.results_stride = results_stride;
-    schedule.column_tiles = nk_size_divide_round_up_(columns, nk_rmsds_frames_blackwell_k);
-    schedule.tiles = nk_size_divide_round_up_(rows, nk_rmsds_frames_blackwell_k) * schedule.column_tiles;
-    nk_size_t const shared_bytes = sizeof(nk_rmsds_shared_blackwell_t) + 1024;
-    return nk_launch_resident_cuda_((void const *)nk_rmsds_packed_f16_blackwell_kernel_, nk_shapes_threads_blackwell_k,
-                                    shared_bytes, shared_bytes, schedule.tiles, &schedule, stream);
-}
-
 #pragma endregion RMSD
 
 #pragma region Chamfer and Hausdorff
@@ -386,21 +321,24 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_blackwell(void const *const *a_packe
  *  rounds them, and their minimum taken with the old one in one instruction. */
 NUMKONG_DEVICE void nk_shapes_nearest_pair_f16_blackwell_(nk_f32_t const *outer_point, nk_u32_t const *axis_pairs,
                                                           nk_f32_t *nearest) {
-    float2 minus_squares[3], plus_squares[3];
+    nk_u64_t minus_squares[3], plus_squares[3];
     for (unsigned axis = 0; axis != 3; ++axis) {
         float2 const minus = nk_f16x2_sub_to_f32x2_blackwell_(axis_pairs[axis], outer_point[axis]);
         float2 const plus = nk_f16x2_add_to_f32x2_blackwell_(axis_pairs[axis], outer_point[axis]);
-        minus_squares[axis] = nk_f32x2_mul_blackwell_(minus, minus),
-        plus_squares[axis] = nk_f32x2_mul_blackwell_(plus, plus);
+        nk_u64_t const minus_pair = nk_f32x2_blackwell_(minus.x, minus.y);
+        nk_u64_t const plus_pair = nk_f32x2_blackwell_(plus.x, plus.y);
+        minus_squares[axis] = nk_f32x2_mul_blackwell_(minus_pair, minus_pair),
+        plus_squares[axis] = nk_f32x2_mul_blackwell_(plus_pair, plus_pair);
     }
-    float2 const planar[4] = {nk_f32x2_add_blackwell_(minus_squares[0], minus_squares[1]),
-                              nk_f32x2_add_blackwell_(plus_squares[0], minus_squares[1]),
-                              nk_f32x2_add_blackwell_(minus_squares[0], plus_squares[1]),
-                              nk_f32x2_add_blackwell_(plus_squares[0], plus_squares[1])};
+    nk_u64_t const planar[4] = {nk_f32x2_add_blackwell_(minus_squares[0], minus_squares[1]),
+                                nk_f32x2_add_blackwell_(plus_squares[0], minus_squares[1]),
+                                nk_f32x2_add_blackwell_(minus_squares[0], plus_squares[1]),
+                                nk_f32x2_add_blackwell_(plus_squares[0], plus_squares[1])};
     for (unsigned flip = 0; flip != nk_shapes_flips_blackwell_k; ++flip) {
-        float2 const squares = nk_f32x2_add_blackwell_(planar[flip & 3],
-                                                       (flip & 4) ? plus_squares[2] : minus_squares[2]);
-        nearest[flip] = fminf(fminf(squares.x, squares.y), nearest[flip]);
+        nk_u64_t const squares = nk_f32x2_add_blackwell_(planar[flip & 3],
+                                                         (flip & 4) ? plus_squares[2] : minus_squares[2]);
+        nearest[flip] = fminf(fminf(nk_f32x2_low_blackwell_(squares), nk_f32x2_high_blackwell_(squares)),
+                              nearest[flip]);
     }
 }
 
@@ -584,6 +522,55 @@ NUMKONG_DEVICE nk_f32_t nk_hausdorff_warp_packed_f16_blackwell_(void const *a_pa
     return nk_shapes_least_flip_f32_simt_(flip_distances);
 }
 
+#pragma endregion Chamfer and Hausdorff
+
+#if NUMKONG_TARGET_BLACKWELL
+
+#pragma region RMSD
+
+static __global__ void __launch_bounds__(nk_shapes_threads_blackwell_k, 1)
+    nk_rmsds_packed_f16_blackwell_kernel_(nk_rmsds_schedule_blackwell_t const schedule) {
+    extern __shared__ unsigned char nk_rmsds_dynamic_shared_blackwell_[];
+    nk_rmsds_shared_blackwell_t *shared = (nk_rmsds_shared_blackwell_t *)nk_shared_aligned_ampere_(
+        nk_rmsds_dynamic_shared_blackwell_, 1024);
+    nk_u32_t const tensor_memory = nk_rmsds_initialize_blackwell_(shared);
+    nk_size_t const points = ((nk_shapes_packed_header_f32_t const *)schedule.a_packed[0])->points;
+    nk_size_t const axis_stride = nk_size_round_up_to_multiple_(points * sizeof(nk_f16_t), nk_shapes_alignment_k) /
+                                  sizeof(nk_f16_t);
+    nk_size_t slabs_issued = 0;
+    for (nk_size_t tile = blockIdx.x; tile < schedule.tiles; tile += gridDim.x) {
+        nk_size_t const row_begin = tile / schedule.column_tiles * nk_rmsds_frames_blackwell_k;
+        nk_size_t const column_begin = tile % schedule.column_tiles * nk_rmsds_frames_blackwell_k;
+        nk_rmsds_gather_f16_blackwell_(&schedule, shared, row_begin, column_begin, points);
+        nk_rmsds_multiply_f16_blackwell_(shared, tensor_memory, points, axis_stride, &slabs_issued);
+        nk_rmsds_drain_blackwell_(shared, tensor_memory);
+        nk_rmsds_superpose_blackwell_(&schedule, shared, row_begin, column_begin, points);
+    }
+    if (threadIdx.x < 32) nk_tmem_dealloc_blackwell_(tensor_memory, nk_rmsds_tensor_columns_blackwell_k);
+}
+
+NUMKONG_API nk_status_t nk_rmsds_packed_f16_blackwell(void const *const *a_packed, nk_size_t rows,
+                                                      void const *const *b_packed, nk_size_t columns, nk_f32_t *results,
+                                                      nk_size_t results_stride, nk_stream_t stream) {
+    if (!rows || !columns) return nk_success_k;
+    if (((nk_size_t)results | results_stride) & (sizeof(nk_f32_t) - 1)) return nk_misaligned_k;
+    nk_status_t const reached = nk_shapes_accessible_cuda_(a_packed, rows, b_packed, columns, results, results_stride,
+                                                           sizeof(nk_f32_t), NUMKONG_NULL, NUMKONG_NULL, 0, stream);
+    if (reached != nk_success_k) return reached;
+    nk_rmsds_schedule_blackwell_t schedule;
+    schedule.a_packed = a_packed, schedule.b_packed = b_packed, schedule.results = results;
+    schedule.rows = rows, schedule.columns = columns, schedule.results_stride = results_stride;
+    schedule.column_tiles = nk_size_divide_round_up_(columns, nk_rmsds_frames_blackwell_k);
+    schedule.tiles = nk_size_divide_round_up_(rows, nk_rmsds_frames_blackwell_k) * schedule.column_tiles;
+    nk_size_t const shared_bytes = sizeof(nk_rmsds_shared_blackwell_t) + 1024;
+    return nk_launch_resident_cuda_((void const *)nk_rmsds_packed_f16_blackwell_kernel_, nk_shapes_threads_blackwell_k,
+                                    shared_bytes, shared_bytes, schedule.tiles, &schedule, stream);
+}
+
+#pragma endregion RMSD
+
+#pragma region Chamfer and Hausdorff
+
 static __global__ void __launch_bounds__(nk_shapes_lanes_blackwell_k, 1)
     nk_chamfers_packed_f16_blackwell_kernel_(nk_shapes_schedule_blackwell_t const schedule) {
     nk_f32_t flip_distances[nk_shapes_flips_blackwell_k];
@@ -651,6 +638,7 @@ NUMKONG_API nk_status_t nk_hausdorffs_packed_f16_blackwell(void const *const *a_
 }
 
 #pragma endregion Chamfer and Hausdorff
+
 #endif // NUMKONG_TARGET_BLACKWELL
 
 #if defined(__cplusplus)

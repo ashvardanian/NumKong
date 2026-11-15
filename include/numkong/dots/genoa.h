@@ -10,7 +10,7 @@
 #define NUMKONG_DOTS_GENOA_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_GENOA
+#if NUMKONG_ARCH_X8664_GENOA_
 
 #include "numkong/dot/genoa.h"
 #include "numkong/dots/serial.h"    // `nk_define_cross_pack_size_`
@@ -57,6 +57,7 @@ NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_genoa_(nk_e5m2_t const *data, 
 
 #pragma endregion Norms
 
+#if NUMKONG_TARGET_GENOA
 /* BF16 GEMM: depth_simd_dimensions=32 (32 bf16s = 64 bytes = 1 cache line) */
 nk_define_cross_pack_size_(dots, bf16, genoa, bf16, bf16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
                            /*dimensions_per_value=*/1, /*scale_bytes=*/1)
@@ -120,6 +121,8 @@ nk_define_cross_packed_(dots, e5m2, genoa, e5m2, bf16, f32, nk_b512_vec_t, nk_do
                         nk_dot_through_bf16_finalize_genoa_, nk_store_b128_haswell_, nk_partial_store_b32x4_skylake_,
                         /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 
+#endif // NUMKONG_TARGET_GENOA
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -130,6 +133,6 @@ nk_define_cross_packed_(dots, e5m2, genoa, e5m2, bf16, f32, nk_b512_vec_t, nk_do
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_GENOA
+#endif // NUMKONG_ARCH_X8664_GENOA_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_GENOA_H

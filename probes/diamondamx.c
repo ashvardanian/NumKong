@@ -4,8 +4,8 @@
  *  @date July 7, 2026
  *  @brief Whether the toolchain builds the Diamond Rapids AMX kernels, AMX-FP8 plus AMX-AVX512.
  */
-#define NUMKONG_HEADER_ONLY       1
-#define NUMKONG_TARGET_DIAMONDAMX 1
+#define NUMKONG_HEADER_ONLY            1
+#define NUMKONG_ARCH_X8664_DIAMONDAMX_ 1
 #include "numkong/types.h"
 #include "numkong/capabilities.h" // `syscall`, `SYS_arch_prctl`
 
@@ -13,7 +13,7 @@
 
 int main(void) {
 #if NUMKONG_OS_LINUX_
-    syscall(SYS_arch_prctl, 0x1023, 18); // ARCH_REQ_XCOMP_PERM for XTILEDATA, as `nk_cpu_configure_thread` asks
+    syscall(SYS_arch_prctl, 0x1023, 18); // ARCH_REQ_XCOMP_PERM for XTILEDATA, as `nk_configure_thread_cpu` asks
 #endif
     static nk_e4m3_t tokens[16 * 64];
     static nk_b512_vec_t packed[1024];

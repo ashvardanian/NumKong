@@ -76,7 +76,7 @@
 #define NUMKONG_DOTS_GRANITEAMX_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_GRANITEAMX
+#if NUMKONG_ARCH_X8664_GRANITEAMX_
 
 #include "numkong/dots/serial.h"
 #include "numkong/dots/sapphireamx.h"
@@ -211,6 +211,7 @@ NUMKONG_INLINE void nk_dots_f16_update_graniteamx_(  //
 
 #pragma region F16 Native
 
+#if NUMKONG_TARGET_GRANITEAMX
 NUMKONG_API nk_status_t nk_dots_pack_size_f16_graniteamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
     nk_size_t const tmm_rows = 16;
     nk_size_t const tmm_columns = 32;
@@ -1277,6 +1278,8 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_graniteamx(             //
 
 #pragma endregion E5M2 Source
 
+#endif // NUMKONG_TARGET_GRANITEAMX
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -1287,6 +1290,6 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_graniteamx(             //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_GRANITEAMX
+#endif // NUMKONG_ARCH_X8664_GRANITEAMX_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_GRANITEAMX_H

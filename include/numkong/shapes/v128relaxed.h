@@ -47,7 +47,7 @@
 #define NUMKONG_SHAPES_V128RELAXED_H
 
 #if NUMKONG_ARCH_WASM_
-#if NUMKONG_TARGET_V128RELAXED
+#if NUMKONG_ARCH_WASM_V128RELAXED_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"      // `nk_load_b64_serial_`
@@ -1093,6 +1093,7 @@ NUMKONG_INLINE void nk_shapes_pack_f32_v128relaxed_(nk_f32_t const *points, nk_s
                                      nk_sqrt_f64_v128relaxed_(largest_low > largest_high ? largest_low : largest_high));
 }
 
+#if NUMKONG_TARGET_V128RELAXED
 NUMKONG_API nk_status_t nk_shapes_pack_f16_v128relaxed(nk_f16_t const *points, nk_size_t count, void *packed,
                                                        nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1531,6 +1532,8 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_v128relaxed(void const *const *a_pac
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_V128RELAXED
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -1539,6 +1542,6 @@ NUMKONG_API nk_status_t nk_rmsds_packed_f16_v128relaxed(void const *const *a_pac
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_V128RELAXED_
 #endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_SHAPES_V128RELAXED_H

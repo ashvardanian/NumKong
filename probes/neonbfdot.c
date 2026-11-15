@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the NEON BFDOT kernels, ARMv8.6-A bfloat16 dot products.
  */
-#define NUMKONG_HEADER_ONLY      1
-#define NUMKONG_TARGET_NEONBFDOT 1
+#define NUMKONG_HEADER_ONLY           1
+#define NUMKONG_ARCH_ARM64_NEONBFDOT_ 1
 #include <numkong/types.h>
 #include <numkong/dot/neonbfdot.h> // `nk_dot_bf16_neonbfdot`
 

@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the SVE F16 kernels, half-precision arithmetic.
  */
-#define NUMKONG_HEADER_ONLY    1
-#define NUMKONG_TARGET_SVEHALF 1
+#define NUMKONG_HEADER_ONLY         1
+#define NUMKONG_ARCH_ARM64_SVEHALF_ 1
 #include <numkong/types.h>
 #include <numkong/dot/svehalf.h> // `nk_dot_f16_svehalf`
 

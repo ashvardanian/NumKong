@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the NEON FHM kernels, ARMv8.2-A FP16 fused multiply-add.
  */
-#define NUMKONG_HEADER_ONLY    1
-#define NUMKONG_TARGET_NEONFHM 1
+#define NUMKONG_HEADER_ONLY         1
+#define NUMKONG_ARCH_ARM64_NEONFHM_ 1
 #include "numkong/types.h"
 #include "numkong/dot/neonfhm.h" // `nk_dot_f16_neonfhm`
 #include "numkong/attention/neonfhm.h"

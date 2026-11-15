@@ -57,7 +57,38 @@ if (NUMKONG_ROCM_ARCH)
         set(CMAKE_HIP_ARCHITECTURES ${NUMKONG_ROCM_ARCH})
     endif ()
     enable_language(HIP)
+    # Every HIP unit parses CDNA5's building blocks, which name builtins a ROCm Clang before 22 does not know.
+    include(CheckSourceCompiles)
+    check_source_compiles(
+        HIP [=[
+#include <hip/hip_runtime.h>
+typedef __bf16 bf16x16_t __attribute__((vector_size(32)));
+typedef float f32x8_t __attribute__((vector_size(32)));
+static __device__ __forceinline__ f32x8_t multiply(bf16x16_t a, f32x8_t c) {
+    return __builtin_amdgcn_wmma_f32_16x16x32_bf16(false, a, false, a, (short)0, c, false, false);
+}
+int main() { return 0; }
+]=] numkong_hip_parses_cdna5_
+    )
+    if (NOT numkong_hip_parses_cdna5_)
+        message(FATAL_ERROR "NumKong needs a HIP compiler that knows CDNA5's builtins, like ROCm Clang 22 or newer")
+    endif ()
     set(numkong_rocm_resolved_architectures_ ${CMAKE_HIP_ARCHITECTURES})
+endif ()
+
+# A monoversioned build folds every GPU dispatch row to one capability, which only one architecture per vendor names:
+# sibling capabilities, like `blackwellrtx` beside `blackwell`, are no chain.
+if (NOT NUMKONG_MULTIVERSIONED)
+    foreach (vendor_ cuda rocm)
+        list(LENGTH numkong_${vendor_}_resolved_architectures_ architectures_count_)
+        if (architectures_count_ GREATER 1)
+            message(
+                FATAL_ERROR
+                    "A monoversioned build takes one ${vendor_} architecture, not "
+                    "`${numkong_${vendor_}_resolved_architectures_}`; name one code or set NUMKONG_MULTIVERSIONED=ON"
+            )
+        endif ()
+    endforeach ()
 endif ()
 
 # Metal compiles on the device, so the families only choose the capabilities embedded: the Metal baseline always,
@@ -103,14 +134,15 @@ numkong_add_gpu_capability(apple9 NUMKONG_TARGET_APPLE9 METAL_ARCHITECTURES appl
 numkong_add_gpu_capability(apple10 NUMKONG_TARGET_APPLE10 METAL_ARCHITECTURES apple10)
 
 # Sets `output_` to the entries of `codes_` that `capability_codes_` names, keeping CMake's "-real" and "-virtual"
-# suffixes. NVIDIA's release set, whose codes carry them, keeps only the first, the lowest code the capability needs.
+# suffixes and a ROCm target ID's ":xnack-" features. NVIDIA's release set, whose codes alone carry the suffixes, keeps
+# only the first, the lowest code the capability needs; every ROCm target ID is kept.
 function (numkong_select_gpu_codes output_ codes_ capability_codes_)
     set(kept_)
     foreach (code_ IN LISTS codes_)
-        string(REGEX REPLACE "-(real|virtual)$" "" architecture_ "${code_}")
+        string(REGEX REPLACE "(-(real|virtual)|:.+)$" "" architecture_ "${code_}")
         if (architecture_ IN_LIST capability_codes_)
             list(APPEND kept_ "${code_}")
-            if (NUMKONG_CUDA_ARCH STREQUAL "all" AND NOT architecture_ STREQUAL code_)
+            if (NUMKONG_CUDA_ARCH STREQUAL "all" AND code_ MATCHES "-(real|virtual)$")
                 break()
             endif ()
         endif ()

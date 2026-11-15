@@ -30,7 +30,7 @@
 #define NUMKONG_DOT_DIAMOND_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_DIAMOND
+#if NUMKONG_ARCH_X8664_DIAMOND_
 
 #include "numkong/types.h"
 #include "numkong/cast/diamond.h"   // `nk_load_e4m3x32_to_f16x32_diamond_`
@@ -41,6 +41,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_DIAMOND // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__) && __clang_major__ >= 22
 #pragma clang attribute push(                                                                                \
     __attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512dq,avx512fp16,avx10.2,f16c,fma,bmi,bmi2"))), \
@@ -160,11 +161,12 @@ NUMKONG_INLINE void nk_dot_through_f16_finalize_diamond_(                       
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_DIAMOND
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_DIAMOND
+#endif // NUMKONG_ARCH_X8664_DIAMOND_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOT_DIAMOND_H

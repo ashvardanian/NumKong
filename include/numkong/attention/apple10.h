@@ -18,7 +18,7 @@
 #define NUMKONG_ATTENTION_APPLE10_H
 
 #if NUMKONG_ARCH_METAL_
-#if NUMKONG_TARGET_APPLE10
+#if NUMKONG_ARCH_METAL_APPLE10_
 #include "numkong/attention/metal.h" // `nk_attention_launch_metal_`, `nk_attention_pack_launch_metal_`
 
 #if defined(__cplusplus)
@@ -41,6 +41,7 @@ static char const nk_attention_source_apple10_[] = {
 #pragma clang diagnostic pop
 #endif
 
+#if NUMKONG_TARGET_APPLE10
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_apple10(nk_size_t key_value_head_count, nk_size_t depth,
                                                             nk_size_t token_count, nk_size_t segment_count,
                                                             nk_size_t *bytes) {
@@ -589,9 +590,11 @@ NUMKONG_API nk_status_t nk_attention_packed_gradients_workspace_size_bf16_apple1
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_APPLE10
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-#endif // NUMKONG_TARGET_APPLE10
+#endif // NUMKONG_ARCH_METAL_APPLE10_
 #endif // NUMKONG_ARCH_METAL_
 #endif // NUMKONG_ATTENTION_APPLE10_H

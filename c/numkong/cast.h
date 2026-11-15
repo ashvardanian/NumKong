@@ -72,7 +72,7 @@ typedef void (*nk_f32_to_u8_punned_t)(nk_f32_t const *, nk_u8_t *);
  *  @param[out] to The @p count target elements, or an @c nk_<format>_ref_t if block-scaled.
  *  @param[in] to_dtype The type of elements in the mutable target array.
  *  @param[in] count Logical elements, a multiple of both block sizes if either is block-scaled.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] capabilities One device's capabilities, like @c nk_capabilities_enabled_cpu reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *
  *  Codes and scales are contiguous runs. A destination NVFP4 @c tensor_scale holding a non-zero
@@ -121,7 +121,7 @@ NUMKONG_API nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_dtype, 
  *  @see Libcanard float16 codec: https://github.com/OpenCyphal/libcanard/blob/636795f4bc395f56af8d2c61d3757b5e762bb9e5/canard.c#L811-L834
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_f16_to_f32_best(nk_f16_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
@@ -133,7 +133,7 @@ NUMKONG_API void nk_f16_to_f32_best(nk_f16_t const *src, nk_f32_t *dest, nk_capa
  *  @see Bfloat16 on Cloud TPUs: https://cloud.google.com/blog/products/ai-machine-learning/bfloat16-the-secret-to-high-performance-on-cloud-tpus
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_bf16_to_f32_best(nk_bf16_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
@@ -163,7 +163,7 @@ NUMKONG_API void nk_bf16_to_f32_best(nk_bf16_t const *src, nk_f32_t *dest, nk_ca
  *  @see ONNX Float8 types: https://onnx.ai/onnx/technical/float8.html
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_e4m3_to_f32_best(nk_e4m3_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
@@ -172,7 +172,7 @@ NUMKONG_API void nk_e4m3_to_f32_best(nk_e4m3_t const *src, nk_f32_t *dest, nk_ca
  *  @brief Scalar conversion from FP8 @c e5m2 to @c f32.
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_e5m2_to_f32_best(nk_e5m2_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
@@ -181,7 +181,7 @@ NUMKONG_API void nk_e5m2_to_f32_best(nk_e5m2_t const *src, nk_f32_t *dest, nk_ca
  *  @brief Scalar conversion from FP6 @c e2m3 to @c f32.
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_e2m3_to_f32_best(nk_e2m3_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
@@ -190,7 +190,7 @@ NUMKONG_API void nk_e2m3_to_f32_best(nk_e2m3_t const *src, nk_f32_t *dest, nk_ca
  *  @brief Scalar conversion from FP6 @c e3m2 to @c f32.
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_e3m2_to_f32_best(nk_e3m2_t const *src, nk_f32_t *dest, nk_capability_t capabilities);
@@ -218,7 +218,7 @@ NUMKONG_API void nk_e3m2_to_f32_best(nk_e3m2_t const *src, nk_f32_t *dest, nk_ca
  *  @see Libcanard float16 codec: https://github.com/OpenCyphal/libcanard/blob/636795f4bc395f56af8d2c61d3757b5e762bb9e5/canard.c#L811-L834
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_f32_to_f16_best(nk_f32_t const *src, nk_f16_t *dest, nk_capability_t capabilities);
@@ -230,7 +230,7 @@ NUMKONG_API void nk_f32_to_f16_best(nk_f32_t const *src, nk_f16_t *dest, nk_capa
  *  @see Bfloat16 on Cloud TPUs: https://cloud.google.com/blog/products/ai-machine-learning/bfloat16-the-secret-to-high-performance-on-cloud-tpus
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_f32_to_bf16_best(nk_f32_t const *src, nk_bf16_t *dest, nk_capability_t capabilities);
@@ -260,7 +260,7 @@ NUMKONG_API void nk_f32_to_bf16_best(nk_f32_t const *src, nk_bf16_t *dest, nk_ca
  *  @see ONNX Float8 types: https://onnx.ai/onnx/technical/float8.html
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_f32_to_e4m3_best(nk_f32_t const *src, nk_e4m3_t *dest, nk_capability_t capabilities);
@@ -290,7 +290,7 @@ NUMKONG_API void nk_f32_to_e4m3_best(nk_f32_t const *src, nk_e4m3_t *dest, nk_ca
  *  @see ONNX Float8 types: https://onnx.ai/onnx/technical/float8.html
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_f32_to_e5m2_best(nk_f32_t const *src, nk_e5m2_t *dest, nk_capability_t capabilities);
@@ -304,7 +304,7 @@ NUMKONG_API void nk_f32_to_e5m2_best(nk_f32_t const *src, nk_e5m2_t *dest, nk_ca
  *
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_f32_to_e2m3_best(nk_f32_t const *src, nk_e2m3_t *dest, nk_capability_t capabilities);
@@ -318,7 +318,7 @@ NUMKONG_API void nk_f32_to_e2m3_best(nk_f32_t const *src, nk_e2m3_t *dest, nk_ca
  *
  *  @param[in] src The scalar to convert.
  *  @param[out] dest Receives the converted scalar.
- *  @param[in] capabilities The CPU's capabilities, like @c nk_cpu_capabilities_enabled reports;
+ *  @param[in] capabilities The CPU's capabilities, like @c nk_capabilities_enabled_cpu reports;
  *      serial always stays.
  */
 NUMKONG_API void nk_f32_to_e3m2_best(nk_f32_t const *src, nk_e3m2_t *dest, nk_capability_t capabilities);

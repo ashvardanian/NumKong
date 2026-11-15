@@ -154,6 +154,7 @@ StatementMacros:
   - nk_define_each_sum_cuda_
   - nk_define_each_sum_rocm_
   - nk_define_each_rmsnorm_simt_
+  - nk_define_each_rmsnorm_kernel_simt_
   - nk_define_each_swiglu_cuda_
   - nk_define_each_swiglu_rocm_
   - nk_define_each_scale_cuda_

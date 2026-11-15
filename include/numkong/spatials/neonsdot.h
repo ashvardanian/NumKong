@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIALS_NEONSDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONSDOT
+#if NUMKONG_ARCH_ARM64_NEONSDOT_
 
 #include "numkong/spatial/neon.h"
 #include "numkong/dots/neonsdot.h"
@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_NEONSDOT // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+dotprod"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -233,11 +234,12 @@ nk_define_cross_scaled_symmetric_(euclideans, mxfp6e2m3, neonsdot, i8, nk_euclid
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_NEONSDOT
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONSDOT
+#endif // NUMKONG_ARCH_ARM64_NEONSDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIALS_NEONSDOT_H

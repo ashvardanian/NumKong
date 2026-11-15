@@ -25,7 +25,7 @@
 #define NUMKONG_TRIGONOMETRY_NEONHALF_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONHALF
+#if NUMKONG_ARCH_ARM64_NEONHALF_
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_partial_load_b16x8_serial_`
@@ -166,6 +166,7 @@ NUMKONG_INLINE float16x8_t nk_atan_f16x8_neonhalf_(float16x8_t values_f16x8) {
     return vbslq_f16(vdupq_n_u16(0x8000), values_f16x8, results_f16x8);
 }
 
+#if NUMKONG_TARGET_NEONHALF
 NUMKONG_API nk_status_t nk_trig_sin_f16_neonhalf(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
@@ -215,6 +216,8 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_neonhalf(nk_f16_t const *ins, nk_size_t
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_NEONHALF
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -225,6 +228,6 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_neonhalf(nk_f16_t const *ins, nk_size_t
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONHALF
+#endif // NUMKONG_ARCH_ARM64_NEONHALF_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_TRIGONOMETRY_NEONHALF_H

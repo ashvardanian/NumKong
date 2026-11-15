@@ -14,7 +14,7 @@
 #define NUMKONG_SCALAR_NEONHALF_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONHALF
+#if NUMKONG_ARCH_ARM64_NEONHALF_
 
 #include "numkong/types.h"
 
@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_NEONHALF // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+simd+fp16"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -60,11 +61,12 @@ NUMKONG_API nk_f16_t nk_f16_fma_neonhalf(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_NEONHALF
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONHALF
+#endif // NUMKONG_ARCH_ARM64_NEONHALF_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SCALAR_NEONHALF_H

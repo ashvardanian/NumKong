@@ -771,35 +771,35 @@ class _Dispatch(TypedDict, total=False):
     """A GPU stream pointer, left None on the CPU."""
 
 # Capabilities of the CPU and each GPU, and GPU streams, the only calls taking a device ordinal.
-def cpu_capabilities_detected() -> Capability:
+def capabilities_detected_cpu() -> Capability:
     """What this CPU can execute."""
     ...
 
-def cpu_capabilities_compiled() -> Capability:
+def capabilities_compiled_cpu() -> Capability:
     """What this binary holds CPU kernels for."""
     ...
 
-def cpu_capabilities_enabled() -> Capability:
+def capabilities_enabled_cpu() -> Capability:
     """What CPU kernels run within: both of the above, settled as the library loads."""
     ...
 
-def cpu_configure_thread(capabilities: Capability, /) -> None:
+def configure_thread_cpu(capabilities: Capability, /) -> None:
     """Prepare the calling thread for the CPU kernels of `capabilities`."""
     ...
 
-def cuda_count_devices() -> int:
+def count_devices_cuda() -> int:
     """How many CUDA devices this process sees, zero without the runtime or its kernels."""
     ...
 
-def cuda_capabilities_detected(ordinal: int, /) -> Capability:
+def capabilities_detected_cuda(ordinal: int, /) -> Capability:
     """What CUDA device `ordinal` can execute, raising ValueError past the last one."""
     ...
 
-def cuda_capabilities_compiled() -> Capability:
-    """What this binary holds CUDA kernels for."""
+def capabilities_compiled_cuda(ordinal: int, /) -> Capability:
+    """What this binary holds CUDA code for that device `ordinal` runs, raising ValueError past the last one."""
     ...
 
-def cuda_capabilities_enabled(ordinal: int, /) -> Capability:
+def capabilities_enabled_cuda(ordinal: int, /) -> Capability:
     """The mask CUDA device `ordinal` dispatches with, raising ValueError past the last one."""
     ...
 
@@ -811,19 +811,19 @@ def stream_free_cuda(stream: int, /) -> None:
     """Free a stream `stream_init_cuda` made, once `synchronize` joined its work."""
     ...
 
-def rocm_count_devices() -> int:
+def count_devices_rocm() -> int:
     """How many ROCm devices this process sees, zero without the runtime or its kernels."""
     ...
 
-def rocm_capabilities_detected(ordinal: int, /) -> Capability:
+def capabilities_detected_rocm(ordinal: int, /) -> Capability:
     """What ROCm device `ordinal` can execute, raising ValueError past the last one."""
     ...
 
-def rocm_capabilities_compiled() -> Capability:
-    """What this binary holds ROCm kernels for."""
+def capabilities_compiled_rocm(ordinal: int, /) -> Capability:
+    """What this binary holds ROCm code for that device `ordinal` runs, raising ValueError past the last one."""
     ...
 
-def rocm_capabilities_enabled(ordinal: int, /) -> Capability:
+def capabilities_enabled_rocm(ordinal: int, /) -> Capability:
     """The mask ROCm device `ordinal` dispatches with, raising ValueError past the last one."""
     ...
 
@@ -835,19 +835,19 @@ def stream_free_rocm(stream: int, /) -> None:
     """Free a stream `stream_init_rocm` made, once `synchronize` joined its work."""
     ...
 
-def metal_count_devices() -> int:
+def count_devices_metal() -> int:
     """How many Metal devices this process sees, zero without the runtime or its kernels."""
     ...
 
-def metal_capabilities_detected(ordinal: int, /) -> Capability:
+def capabilities_detected_metal(ordinal: int, /) -> Capability:
     """What Metal device `ordinal` can execute, raising ValueError past the last one."""
     ...
 
-def metal_capabilities_compiled() -> Capability:
-    """What this binary holds Metal kernels for."""
+def capabilities_compiled_metal(ordinal: int, /) -> Capability:
+    """What this binary holds Metal code for that device `ordinal` runs, raising ValueError past the last one."""
     ...
 
-def metal_capabilities_enabled(ordinal: int, /) -> Capability:
+def capabilities_enabled_metal(ordinal: int, /) -> Capability:
     """The mask Metal device `ordinal` dispatches with, raising ValueError past the last one."""
     ...
 

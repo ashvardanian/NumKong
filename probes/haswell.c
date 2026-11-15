@@ -4,8 +4,8 @@
  *  @date March 24, 2026
  *  @brief Whether the toolchain builds the Haswell kernels, AVX2 plus FMA plus F16C.
  */
-#define NUMKONG_HEADER_ONLY    1
-#define NUMKONG_TARGET_HASWELL 1
+#define NUMKONG_HEADER_ONLY         1
+#define NUMKONG_ARCH_X8664_HASWELL_ 1
 #include <numkong/types.h>
 #include <numkong/dot/haswell.h> // `nk_dot_f32_haswell`
 

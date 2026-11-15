@@ -194,10 +194,6 @@ NUMKONG_INLINE nk_status_t nk_each_rmsnorm_launch_rocm_(void const *kernel, nk_s
                                                 NUMKONG_NULL, n, result, stream);                                      \
     }
 
-#if NUMKONG_TARGET_ROCM
-nk_define_each_sum_rocm_(f32, f32, rocm, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_each_sum_rocm_(f16, f32, rocm, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
-nk_define_each_sum_rocm_(bf16, f32, rocm, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
 nk_define_each_rmsnorm_simt_(rmsnorm, f32, f32, f64, f32, nk_each_inverse_rms_f64_to_f32_simt_, rocm, rocm,
                              nk_assign_from_to_, nk_assign_from_to_)
 nk_define_each_rmsnorm_simt_(rmsnorm, bf16, bf16, f32, f32, nk_each_inverse_rms_f32_simt_, rocm, rocm,
@@ -222,6 +218,23 @@ nk_define_each_rmsnorm_simt_(rmscast, i32, i8, f32, f32, nk_each_inverse_rms_int
                              nk_assign_from_to_, nk_f32_to_i8_simt_)
 nk_define_each_rmsnorm_simt_(rmscast, u32, u8, f32, f32, nk_each_inverse_rms_integer_simt_, rocm, rocm,
                              nk_assign_from_to_, nk_f32_to_u8_simt_)
+
+#if NUMKONG_TARGET_ROCM
+nk_define_each_sum_rocm_(f32, f32, rocm, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_sum_rocm_(f16, f32, rocm, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
+nk_define_each_sum_rocm_(bf16, f32, rocm, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_each_rmsnorm_kernel_simt_(rmsnorm, f32, f32, rocm, rocm)
+nk_define_each_rmsnorm_kernel_simt_(rmsnorm, bf16, bf16, rocm, rocm)
+nk_define_each_rmsnorm_kernel_simt_(rmsnorm, e4m3, e4m3, rocm, rocm)
+nk_define_each_rmsnorm_kernel_simt_(rmscast, f32, bf16, rocm, rocm)
+nk_define_each_rmsnorm_kernel_simt_(rmscast, f32, f16, rocm, rocm)
+nk_define_each_rmsnorm_kernel_simt_(rmscast, f32, e4m3, rocm, rocm)
+nk_define_each_rmsnorm_kernel_simt_(rmscast, f32, e5m2, rocm, rocm)
+nk_define_each_rmsnorm_kernel_simt_(rmscast, f32, e2m3, rocm, rocm)
+nk_define_each_rmsnorm_kernel_simt_(rmscast, f32, e3m2, rocm, rocm)
+nk_define_each_rmsnorm_kernel_simt_(rmscast, f64, f32, rocm, rocm)
+nk_define_each_rmsnorm_kernel_simt_(rmscast, i32, i8, rocm, rocm)
+nk_define_each_rmsnorm_kernel_simt_(rmscast, u32, u8, rocm, rocm)
 nk_define_each_swiglu_rocm_(f32, rocm, nk_assign_from_to_, nk_assign_from_to_)
 nk_define_each_swiglu_rocm_(bf16, rocm, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
 nk_define_each_swiglu_rocm_(e4m3, rocm, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)

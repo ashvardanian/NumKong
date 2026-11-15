@@ -10,7 +10,7 @@
 #define NUMKONG_REDUCE_NEONBFDOT_H
 
 #if NUMKONG_ARCH_ARM64_
-#if NUMKONG_TARGET_NEONBFDOT
+#if NUMKONG_ARCH_ARM64_NEONBFDOT_
 
 #include "numkong/types.h"         // `nk_bf16_t`
 #include "numkong/cast/neon.h"     // `nk_e4m3x8_to_f16x8_neon_`
@@ -131,6 +131,7 @@ NUMKONG_INLINE void nk_reduce_moments_chunked_bf16_neonbfdot_(    //
     }
 }
 
+#if NUMKONG_TARGET_NEONBFDOT
 NUMKONG_API nk_status_t nk_reduce_moments_bf16_neonbfdot(         //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
@@ -138,6 +139,8 @@ NUMKONG_API nk_status_t nk_reduce_moments_bf16_neonbfdot(         //
     nk_reduce_moments_chunked_bf16_neonbfdot_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
+
+#endif // NUMKONG_TARGET_NEONBFDOT
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -149,6 +152,6 @@ NUMKONG_API nk_status_t nk_reduce_moments_bf16_neonbfdot(         //
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_NEONBFDOT
+#endif // NUMKONG_ARCH_ARM64_NEONBFDOT_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_REDUCE_NEONBFDOT_H

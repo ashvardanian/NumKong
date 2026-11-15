@@ -13,7 +13,7 @@
 #define NUMKONG_DOTS_DIAMOND_H
 
 #if NUMKONG_ARCH_X8664_
-#if NUMKONG_TARGET_DIAMOND
+#if NUMKONG_ARCH_X8664_DIAMOND_
 
 #include "numkong/dot/diamond.h"
 #include "numkong/dots/serial.h"  // `nk_define_cross_pack_size_`
@@ -23,6 +23,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_DIAMOND // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__) && __clang_major__ >= 22
 #pragma clang attribute push(                                                                                \
     __attribute__((target("avx2,avx512f,avx512vl,avx512bw,avx512dq,avx512fp16,avx10.2,f16c,fma,bmi,bmi2"))), \
@@ -86,11 +87,12 @@ nk_define_cross_packed_(dots, e5m2, diamond, e5m2, e5m2, f32, nk_b512_vec_t, nk_
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
+#endif // NUMKONG_TARGET_DIAMOND
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_DIAMOND
+#endif // NUMKONG_ARCH_X8664_DIAMOND_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_DOTS_DIAMOND_H
