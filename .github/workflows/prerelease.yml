@@ -29,6 +29,10 @@ jobs:
           python-version: "3.14"
       - name: Install Lint Dependencies
         run: python -m pip install --group lint
+      - name: Select Clang Format 22
+        run: |
+          ln -s "$(command -v clang-format-22)" "$RUNNER_TEMP/clang-format"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - name: Check Every Commit
         run: .github/scripts/check-commits.sh "${{ github.event.pull_request.base.sha }}"
 
