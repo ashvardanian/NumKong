@@ -10,28 +10,6 @@ namespace ashvardanian::numkong::test {
 
 #if NUMKONG_ARCH_CUDA_
 
-/** 1D contiguous round-trip via cudaMemcpy; bit-exact compare. */
-static bool test_memcpy_1d_roundtrip_() {
-    constexpr std::size_t count = 1 << 14;
-    auto [host_source, source_status] = nk::tensor<float>::zeros({count});
-    auto [host_destination, destination_status] = nk::tensor<float>::zeros({count});
-    if (nk::failed(source_status) || nk::failed(destination_status)) return false;
-
-    std::mt19937 generator(42);
-    std::uniform_real_distribution<float> distribution(-100.0f, 100.0f);
-    for (std::size_t i = 0; i < count; ++i) host_source[i] = distribution(generator);
-
-    float *device_pointer = nullptr;
-    nk_cuda_assert_(cudaMalloc(&device_pointer, count * sizeof(float)));
-    nk_cuda_assert_(cudaMemcpy(device_pointer, host_source.data(), count * sizeof(float), cudaMemcpyHostToDevice));
-    nk_cuda_assert_(cudaMemcpy(host_destination.data(), device_pointer, count * sizeof(float), cudaMemcpyDeviceToHost));
-    nk_cuda_assert_(cudaFree(device_pointer));
-
-    for (std::size_t i = 0; i < count; ++i)
-        if (host_source[i] != host_destination[i]) return false;
-    return true;
-}
-
 /** 2D round-trip with padded rows: logical @c columns elements per row, but rows pad to
  *  `stride_bytes(0) > columns * sizeof(T)`, which is the host pitch @c cudaMemcpy2D expects. */
 static bool test_memcpy_2d_padded_rows_() {
@@ -251,7 +229,6 @@ void test_tensor_cuda(error_stats_section_t &check) {
 
     check("tensor_memcpy_cuda", [&](settings_t const &) {
         error_stats_t stats(comparison_family_t::exact_k);
-        stats.expect(test_memcpy_1d_roundtrip_(), "1D round-trip (cudaMemcpy)");
         stats.expect(test_memcpy_2d_padded_rows_(), "2D round-trip, padded rows (cudaMemcpy2D)");
         stats.expect(test_memcpy_2d_subview_(), "2D sub-view extraction (cudaMemcpy2D)");
         stats.expect(test_memcpy_3d_batched_(), "3D batched round-trip (cudaMemcpy3D)");

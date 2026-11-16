@@ -8,115 +8,11 @@
  *  Blackwell and Blackwell RTX.
  */
 #include "cross_device.hpp"
-#include "geospatial.hpp"          // `test_geodesics_packed`, `test_terrain_packed`
-#include "numkong/shapes/serial.h" // `nk_shapes_packed_header_f32_t`
-#include "numkong/shapes.hpp"      // `nk::shapes_transport_epsilon_k`
+#include "geospatial.hpp" // `test_geodesics_packed`, `test_terrain_packed`
 
 namespace ashvardanian::numkong::test {
 
 #if NUMKONG_ARCH_CUDA_
-
-/** Transport clouds: random, or exact ties of a lattice with power-of-two steps, points repeated
- *  4 times, or a regular polygon around a column of points. */
-enum class transport_layout_t { random_k, lattice_k, repeated_k, ring_k };
-
-/** Packs @p count clouds of @p points each of @p scalar_type_ in @p layout with @p pack into device
- *  memory, back to back, and the table of their addresses after them. */
-template <typename scalar_type_, typename pack_size_type_, typename pack_type_>
-auto device_transport_packs(settings_t const &settings, cuda_backend_t &backend, std::mt19937 &generator,
-                            transport_layout_t layout, std::size_t count, std::size_t points, pack_size_type_ pack_size,
-                            pack_type_ pack, error_stats_t &stats) {
-    auto coordinates = make_vector<scalar_type_>(count * points * 3);
-    fill_random(settings, generator, coordinates);
-    std::vector<std::span<scalar_type_ const>> clouds(count);
-    std::size_t const corners = points > 8 ? points - points / 8 : points;
-    for (std::size_t index = 0; index != count; ++index) {
-        scalar_type_ *values = coordinates.values_data() + index * points * 3;
-        for (std::size_t point = 0; point != points; ++point) {
-            float const shift = float(index % 3);
-            if (layout == transport_layout_t::lattice_k)
-                values[point * 3] = float(point % 4) + shift, values[point * 3 + 1] = 0.5f * float(point / 4 % 4),
-                               values[point * 3 + 2] = 0.25f * float(point / 16);
-            else if (layout == transport_layout_t::repeated_k)
-                for (std::size_t axis = 0; axis != 3; ++axis)
-                    values[point * 3 + axis] = values[(point - point % 4) * 3 + axis];
-            else if (layout == transport_layout_t::ring_k) {
-                double const angle = 6.283185307179586 * double(point) / double(corners);
-                bool const corner = point < corners;
-                values[point * 3] = float(corner ? std::cos(angle) : 0.0) + shift;
-                values[point * 3 + 1] = float(corner ? std::sin(angle) : 0.0);
-                values[point * 3 + 2] = corner ? 0.0f : 0.5f * float(point - corners);
-            }
-        }
-        clouds[index] = {values, points * 3};
-    }
-    using packs_t = nk::shapes_packed<scalar_type_, cuda_backend_t::allocator<char>>;
-    auto packs = packs_t::make(clouds, allocator_of<char>(backend), pack_size, pack);
-    stats.expect(packs.status);
-    return std::move(packs.value);
-}
-
-/** The CUDA transport kernels against the serial ones on random and tied clouds of unequal sizes,
- *  within the bound the CPU capabilities meet: the roundings of a plan of up to n + m − 1 arcs,
- *  each costing at most the squared sum of both radii, and the simplex tolerance, under a root. */
-template <typename scalar_type_, nk_kernel_kind_t kind_, typename pack_size_type_, typename pack_type_,
-          typename workspace_size_type_, typename kernel_type_, typename serial_size_type_, typename serial_type_>
-error_stats_t test_transport_packed_cuda(settings_t const &settings, pack_size_type_ pack_size, pack_type_ pack,
-                                         workspace_size_type_ workspace_size, kernel_type_ kernel,
-                                         serial_size_type_ serial_workspace_size, serial_type_ serial) {
-    using distance_t = typename scalar_type_::shapes_distance_t;
-    using raw_distance_t = typename distance_t::raw_t;
-    error_stats_t stats(comparison_family_t::bounded_k);
-    auto backend = make_backend<cuda_backend_t>(settings);
-    std::mt19937 generator(settings.seed.value);
-    std::size_t const points = settings.shape_points, rows = 5, columns = 7, largest = points + 3;
-    nk_size_t bytes = 0, serial_bytes = 0;
-    nk_unused_(workspace_size(largest, largest, &bytes));
-    nk_unused_(serial_workspace_size(largest, largest, &serial_bytes));
-    auto workspace = make_vector<std::byte>(backend, bytes);
-    auto serial_workspace = make_vector<std::byte>(backend, serial_bytes);
-    auto results = make_vector<distance_t>(backend, rows * columns);
-    auto rotations = make_vector<f32_t>(backend, rows * columns * 9);
-    std::vector<raw_distance_t> expected(rows * columns);
-    std::vector<nk_f32_t> expected_rotations(rows * columns * 9);
-    nk_f64_t const roundoff = half_ulp<distance_t>(1.0), terms = static_cast<nk_f64_t>(points + largest);
-    for (transport_layout_t const layout : {transport_layout_t::random_k, transport_layout_t::lattice_k,
-                                            transport_layout_t::repeated_k, transport_layout_t::ring_k}) {
-        auto const row_packs = device_transport_packs<scalar_type_>(settings, backend, generator, layout, rows, points,
-                                                                    pack_size, pack, stats);
-        auto const column_packs = device_transport_packs<scalar_type_>(settings, backend, generator, layout, columns,
-                                                                       largest, pack_size, pack, stats);
-        backend.call(kernel, row_packs.data(), rows, column_packs.data(), columns, results.raw_values_data(),
-                     columns * sizeof(raw_distance_t), rotations.raw_values_data(), workspace.raw_values_data(), bytes);
-        if (!stats.expect(backend.synchronize())) return stats;
-        stats.expect(serial(row_packs.data(), rows, column_packs.data(), columns, expected.data(),
-                            columns * sizeof(raw_distance_t), expected_rotations.data(),
-                            serial_workspace.raw_values_data(), serial_bytes, nullptr));
-        for (std::size_t row = 0; row != rows; ++row)
-            for (std::size_t column = 0; column != columns; ++column) {
-                auto const radius = [](void const *packed) {
-                    if constexpr (std::is_same_v<scalar_type_, f32_t>)
-                        return static_cast<nk_f64_t>(((nk_shapes_packed_header_f64_t const *)packed)->max_radius);
-                    else return static_cast<nk_f64_t>(((nk_shapes_packed_header_f32_t const *)packed)->max_radius);
-                };
-                nk_f64_t const reach = radius(row_packs[row]) + radius(column_packs[column]);
-                nk_f64_t const scale = reach * reach, tolerance = nk::shapes_transport_epsilon_k * scale;
-                nk_f64_t const reference = expected[row * columns + column];
-                nk_f64_t bound;
-                if constexpr (kind_ == nk_kernel_wassersteinprocrustes_packed_k) {
-                    nk_f64_t const squared = (terms + 32) * roundoff * scale + tolerance;
-                    bound = nk::min_of(std::sqrt(squared), squared / reference);
-                }
-                else {
-                    nk_f64_t const loss = 4 * ((terms + 64) * roundoff * scale + tolerance);
-                    bound = nk::min_of(0.5 * std::sqrt(loss), loss / (8 * reference));
-                }
-                stats.accumulate_bounded(distance_t::from_raw(results.raw_values_data()[row * columns + column]),
-                                         f64_t(reference), bound);
-            }
-    }
-    return stats;
-}
 
 void test_cross_cuda(error_stats_section_t &check) {
     check.section("Cross CUDA", nk_cap_cuda_k);
@@ -393,25 +289,17 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("attention_rope_bf16_cuda", test_attention_rope<bf16_t, cuda_backend_t>, nk_attention_rope_bf16_cuda);
     check("attention_rope_e4m3_cuda", test_attention_rope<e4m3_t, cuda_backend_t>, nk_attention_rope_e4m3_cuda);
     check("wassersteinprocrustes_packed_f32_cuda",
-          test_transport_packed_cuda<f32_t, nk_kernel_wassersteinprocrustes_packed_k>, nk_shapes_pack_size_f32_serial,
-          nk_shapes_pack_f32_serial, nk_wassersteinprocrustes_workspace_size_f32_cuda,
-          nk_wassersteinprocrustes_packed_f32_cuda, nk_wassersteinprocrustes_workspace_size_f32_serial,
-          nk_wassersteinprocrustes_packed_f32_serial);
+          test_transport_packed<f32_t, nk_kernel_wassersteinprocrustes_packed_k, cuda_backend_t>,
+          nk_wassersteinprocrustes_workspace_size_f32_cuda, nk_wassersteinprocrustes_packed_f32_cuda);
     check("wassersteinprocrustes_packed_f16_cuda",
-          test_transport_packed_cuda<f16_t, nk_kernel_wassersteinprocrustes_packed_k>, nk_shapes_pack_size_f16_serial,
-          nk_shapes_pack_f16_serial, nk_wassersteinprocrustes_workspace_size_f16_cuda,
-          nk_wassersteinprocrustes_packed_f16_cuda, nk_wassersteinprocrustes_workspace_size_f16_serial,
-          nk_wassersteinprocrustes_packed_f16_serial);
+          test_transport_packed<f16_t, nk_kernel_wassersteinprocrustes_packed_k, cuda_backend_t>,
+          nk_wassersteinprocrustes_workspace_size_f16_cuda, nk_wassersteinprocrustes_packed_f16_cuda);
     check("gromovwassersteins_packed_f32_cuda",
-          test_transport_packed_cuda<f32_t, nk_kernel_gromovwassersteins_packed_k>, nk_shapes_pack_size_f32_serial,
-          nk_shapes_pack_f32_serial, nk_gromovwassersteins_workspace_size_f32_cuda,
-          nk_gromovwassersteins_packed_f32_cuda, nk_gromovwassersteins_workspace_size_f32_serial,
-          nk_gromovwassersteins_packed_f32_serial);
+          test_transport_packed<f32_t, nk_kernel_gromovwassersteins_packed_k, cuda_backend_t>,
+          nk_gromovwassersteins_workspace_size_f32_cuda, nk_gromovwassersteins_packed_f32_cuda);
     check("gromovwassersteins_packed_f16_cuda",
-          test_transport_packed_cuda<f16_t, nk_kernel_gromovwassersteins_packed_k>, nk_shapes_pack_size_f16_serial,
-          nk_shapes_pack_f16_serial, nk_gromovwassersteins_workspace_size_f16_cuda,
-          nk_gromovwassersteins_packed_f16_cuda, nk_gromovwassersteins_workspace_size_f16_serial,
-          nk_gromovwassersteins_packed_f16_serial);
+          test_transport_packed<f16_t, nk_kernel_gromovwassersteins_packed_k, cuda_backend_t>,
+          nk_gromovwassersteins_workspace_size_f16_cuda, nk_gromovwassersteins_packed_f16_cuda);
     check("haversines_packed_f64_cuda", test_geodesics_packed<f64_t, nk_kernel_haversines_packed_k, cuda_backend_t>,
           nk_haversines_pack_size_f64_cuda, nk_haversines_pack_f64_cuda, nk_haversines_packed_f64_cuda);
     check("vincentys_packed_f64_cuda", test_geodesics_packed<f64_t, nk_kernel_vincentys_packed_k, cuda_backend_t>,
@@ -1155,10 +1043,10 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("attention_packed_gradients_bf16_blackwell", test_attention_packed_gradients<bf16_t, cuda_backend_t>,
           nk_attention_pack_size_bf16_blackwell, nk_attention_pack_bf16_blackwell,
           nk_attention_packed_gradients_bf16_blackwell);
-    check("rmsds_packed_f16_blackwell", test_rmsds_packed_f16<cuda_backend_t>, nk_rmsds_packed_f16_blackwell);
-    check("chamfers_packed_f16_blackwell", test_shapes_flips_f16<cuda_backend_t, nk_kernel_chamfers_packed_k>,
+    check("rmsds_packed_f16_blackwell", test_rmsds_packed<f16_t, cuda_backend_t>, nk_rmsds_packed_f16_blackwell);
+    check("chamfers_packed_f16_blackwell", test_shapes_flips<f16_t, nk_kernel_chamfers_packed_k, cuda_backend_t>,
           nk_chamfers_packed_f16_blackwell);
-    check("hausdorffs_packed_f16_blackwell", test_shapes_flips_f16<cuda_backend_t, nk_kernel_hausdorffs_packed_k>,
+    check("hausdorffs_packed_f16_blackwell", test_shapes_flips<f16_t, nk_kernel_hausdorffs_packed_k, cuda_backend_t>,
           nk_hausdorffs_packed_f16_blackwell);
 #endif // NUMKONG_TARGET_BLACKWELL
 

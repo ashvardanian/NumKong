@@ -355,9 +355,9 @@ static void test_cross_metal_baseline(error_stats_section_t &check) {
     check("attention_rope_f32_metal", test_attention_rope<f32_t, metal_backend_t>, nk_attention_rope_f32_metal);
     check("attention_rope_bf16_metal", test_attention_rope<bf16_t, metal_backend_t>, nk_attention_rope_bf16_metal);
     check("attention_rope_e4m3_metal", test_attention_rope<e4m3_t, metal_backend_t>, nk_attention_rope_e4m3_metal);
-    check("chamfers_packed_f16_metal", test_shapes_flips_f16<metal_backend_t, nk_kernel_chamfers_packed_k>,
+    check("chamfers_packed_f16_metal", test_shapes_flips<f16_t, nk_kernel_chamfers_packed_k, metal_backend_t>,
           nk_chamfers_packed_f16_metal);
-    check("hausdorffs_packed_f16_metal", test_shapes_flips_f16<metal_backend_t, nk_kernel_hausdorffs_packed_k>,
+    check("hausdorffs_packed_f16_metal", test_shapes_flips<f16_t, nk_kernel_hausdorffs_packed_k, metal_backend_t>,
           nk_hausdorffs_packed_f16_metal);
 }
 
@@ -944,10 +944,10 @@ static void test_cross_apple10([[maybe_unused]] error_stats_section_t &check) {
     check("attention_packed_gradients_bf16_apple10", test_attention_packed_gradients<bf16_t, metal_backend_t>,
           nk_attention_pack_size_bf16_apple10, nk_attention_pack_bf16_apple10,
           nk_attention_packed_gradients_bf16_apple10);
-    check("rmsds_packed_f16_apple10", test_rmsds_packed_f16<metal_backend_t>, nk_rmsds_packed_f16_apple10);
-    check("chamfers_packed_f16_apple10", test_shapes_flips_f16<metal_backend_t, nk_kernel_chamfers_packed_k>,
+    check("rmsds_packed_f16_apple10", test_rmsds_packed<f16_t, metal_backend_t>, nk_rmsds_packed_f16_apple10);
+    check("chamfers_packed_f16_apple10", test_shapes_flips<f16_t, nk_kernel_chamfers_packed_k, metal_backend_t>,
           nk_chamfers_packed_f16_apple10);
-    check("hausdorffs_packed_f16_apple10", test_shapes_flips_f16<metal_backend_t, nk_kernel_hausdorffs_packed_k>,
+    check("hausdorffs_packed_f16_apple10", test_shapes_flips<f16_t, nk_kernel_hausdorffs_packed_k, metal_backend_t>,
           nk_hausdorffs_packed_f16_apple10);
 #endif // NUMKONG_TARGET_APPLE10
 }

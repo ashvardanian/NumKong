@@ -222,6 +222,18 @@ void test_cross_rocm(error_stats_section_t &check) {
           nk_vincentys_pack_size_f64_rocm, nk_vincentys_pack_f64_rocm, nk_vincentys_packed_f64_rocm);
     check("clearances_packed_f32_rocm", test_terrain_packed<f32_t, rocm_backend_t>, nk_terrain_pack_size_f32_rocm,
           nk_terrain_pack_f32_rocm, nk_terrain_heights_packed_f32_rocm, nk_clearances_packed_f32_rocm);
+    check("wassersteinprocrustes_packed_f32_rocm",
+          test_transport_packed<f32_t, nk_kernel_wassersteinprocrustes_packed_k, rocm_backend_t>,
+          nk_wassersteinprocrustes_workspace_size_f32_rocm, nk_wassersteinprocrustes_packed_f32_rocm);
+    check("wassersteinprocrustes_packed_f16_rocm",
+          test_transport_packed<f16_t, nk_kernel_wassersteinprocrustes_packed_k, rocm_backend_t>,
+          nk_wassersteinprocrustes_workspace_size_f16_rocm, nk_wassersteinprocrustes_packed_f16_rocm);
+    check("gromovwassersteins_packed_f32_rocm",
+          test_transport_packed<f32_t, nk_kernel_gromovwassersteins_packed_k, rocm_backend_t>,
+          nk_gromovwassersteins_workspace_size_f32_rocm, nk_gromovwassersteins_packed_f32_rocm);
+    check("gromovwassersteins_packed_f16_rocm",
+          test_transport_packed<f16_t, nk_kernel_gromovwassersteins_packed_k, rocm_backend_t>,
+          nk_gromovwassersteins_workspace_size_f16_rocm, nk_gromovwassersteins_packed_f16_rocm);
 
     check.section("Reductions ROCm", nk_cap_rocm_k);
     check("reduce_moments_f32_rocm", test_reduce_moments<f32_t, rocm_backend_t>, nk_reduce_moments_f32_rocm);
