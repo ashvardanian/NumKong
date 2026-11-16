@@ -246,11 +246,14 @@ endif ()
 
 # Linked by the units that call one GPU vendor's capability kernels: each macro is 1 where some architecture the build
 # compiles for, without CMake's "-real" or "-virtual" or a ROCm target ID's ":xnack-", runs the capability, else 0.
-# Metal has no compiler macro of its own, so its target also switches `NUMKONG_ARCH_METAL_` on.
+# Each target also switches its vendor flag on, as a host unit calling the vendor's kernels has no compiler macro saying
+# the vendor's runtime is in the build, and Metal has none even in its device code.
 add_library(numkong_cuda_capabilities_compiled_ INTERFACE)
 add_library(numkong::cuda_capabilities_compiled ALIAS numkong_cuda_capabilities_compiled_)
+target_compile_definitions(numkong_cuda_capabilities_compiled_ INTERFACE NUMKONG_ARCH_CUDA_=1)
 add_library(numkong_rocm_capabilities_compiled_ INTERFACE)
 add_library(numkong::rocm_capabilities_compiled ALIAS numkong_rocm_capabilities_compiled_)
+target_compile_definitions(numkong_rocm_capabilities_compiled_ INTERFACE NUMKONG_ARCH_ROCM_=1)
 add_library(numkong_metal_capabilities_compiled_ INTERFACE)
 target_compile_definitions(numkong_metal_capabilities_compiled_ INTERFACE NUMKONG_ARCH_METAL_=1)
 
