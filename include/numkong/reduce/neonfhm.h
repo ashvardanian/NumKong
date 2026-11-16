@@ -155,15 +155,6 @@ NUMKONG_INLINE void nk_reduce_moments_chunked_e4m3_neonfhm_(      //
     }
 }
 
-#if NUMKONG_TARGET_NEONFHM
-NUMKONG_API nk_status_t nk_reduce_moments_e4m3_neonfhm(           //
-    nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_reduce_moments_chunked_e4m3_neonfhm_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
-    return nk_success_k;
-}
-
 NUMKONG_INLINE void nk_reduce_moments_contiguous_e5m2_neonfhm_( //
     nk_e5m2_t const *data_ptr, nk_size_t count,                 //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
@@ -289,6 +280,15 @@ NUMKONG_INLINE void nk_reduce_moments_chunked_e5m2_neonfhm_(      //
             else *sum_ptr += sum, *sumsq_ptr += sumsq;
         }
     }
+}
+
+#if NUMKONG_TARGET_NEONFHM
+NUMKONG_API nk_status_t nk_reduce_moments_e4m3_neonfhm(           //
+    nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_reduce_moments_chunked_e4m3_neonfhm_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_reduce_moments_e5m2_neonfhm(           //

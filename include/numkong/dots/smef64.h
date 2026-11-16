@@ -42,7 +42,6 @@
 extern "C" {
 #endif
 
-#if NUMKONG_TARGET_SMEF64 // Kernels only: an empty pragma region would fail under -Werror
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("sme,sme-f64f64"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -69,32 +68,6 @@ extern "C" {
  *  f16 → f32 GEMM path for reduced-precision workloads. This f64 path exists specifically for
  *  higher-than-f32 accumulation precision; replacing it with f32 FMOPA would be counterproductive.
  *  Apple M4 has `hw.optional.arm.SME_F32F32: 1` but we don't use it here. */
-#pragma region F32 Floats
-
-NUMKONG_API nk_status_t nk_dots_pack_size_f32_smef64(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {
-    nk_size_t const tile_dimension = nk_cntd_sme_();  // rows per `ZA64` tile (8 for SVL=512)
-    nk_size_t const depth_tile_size = nk_cntw_sme_(); // `f32` depth elements per tile (16 for SVL=512)
-
-    nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
-    nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth, depth_tile_size);
-
-    nk_size_t size = sizeof(nk_dots_sme_packed_header_t);
-    size += column_tile_count * depth_tile_count * tile_dimension * depth_tile_size * sizeof(nk_f32_t);
-    size += columns * sizeof(nk_f64_t); // per-column squared norms
-
-    *bytes = size;
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dots_packed_shape_f32_smef64(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                        nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
-    if (header->capability != nk_cap_smef64_k) return nk_pack_mismatch_k;
-    *columns = header->columns;
-    *depth = header->depth;
-    return nk_success_k;
-}
 
 /** Adds the squares of the F32 values of @p row_f32x, one per column in its leading lanes, widened
  *  to F64, into ZA1.D for an even depth @p step and ZA2.D for an odd one, at the vertical slice
@@ -150,44 +123,6 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_dots_pack_f32_smef64_streaming_( //
                 nk_svaddv_f64_(predicate_all_b64x, svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 1, column)) +
                 nk_svaddv_f64_(predicate_all_b64x, svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 2, column));
     }
-}
-
-NUMKONG_API nk_status_t nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
-                                                nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                                nk_size_t columns_end, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    nk_size_t const tile_dimension = nk_cntd_sme_();                  // rows per `ZA64` tile (8 for SVL=512)
-    nk_size_t const depth_tile_size = nk_cntw_sme_();                 // `f32` depth elements per tile (16 for SVL=512)
-    nk_size_t const tile_elements = tile_dimension * depth_tile_size; // 128
-
-    nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
-    nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth, depth_tile_size);
-    nk_size_t const total_tiles = column_tile_count * depth_tile_count;
-
-    // Store actual dimensions and tile counts in header
-    nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
-    if (columns_begin == 0) {
-        nk_u32_t *header_words = (nk_u32_t *)header;
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            header_words[word_index] = 0;
-        header->column_tile_count = (nk_u32_t)column_tile_count;
-        header->depth_tile_count = (nk_u32_t)depth_tile_count;
-        header->columns = (nk_u32_t)columns;
-        header->depth = (nk_u32_t)depth;
-        header->svl_bytes = (nk_u32_t)nk_cntb_sme_(); // streaming vector length in bytes
-        header->capability = nk_cap_smef64_k;
-    }
-
-    nk_size_t const norms_offset = sizeof(nk_dots_sme_packed_header_t) + total_tiles * tile_elements * sizeof(nk_f32_t);
-    if (columns_begin == 0) header->norms_offset = (nk_u32_t)norms_offset;
-    nk_f32_t *tiles = (nk_f32_t *)((char *)b_packed + sizeof(nk_dots_sme_packed_header_t));
-    nk_f64_t *norms = (nk_f64_t *)((char *)b_packed + norms_offset);
-
-    nk_start_sme_streaming_();
-    nk_dots_pack_f32_smef64_streaming_(b, columns, depth, b_stride, tiles, norms, columns_begin, columns_end);
-    nk_stop_sme_streaming_();
-    return nk_success_k;
 }
 
 __arm_new("za") NUMKONG_OUTLINED_ void nk_dots_packed_f32_smef64_streaming_( //
@@ -425,29 +360,6 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_dots_packed_f32_smef64_streaming_( //
             }
         }
     }
-}
-
-NUMKONG_API nk_status_t nk_dots_packed_workspace_size_f32_smef64(nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                                                 nk_size_t *bytes) {
-    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
-    *bytes = 0;
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dots_packed_f32_smef64( //
-    nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
-    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
-    nk_unused_(workspace), nk_unused_(workspace_bytes);
-    nk_assert_(stream == NUMKONG_NULL);
-    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_smef64_k) return nk_pack_mismatch_k;
-
-    nk_size_t const a_stride_elements = a_stride / sizeof(nk_f32_t);
-    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f64_t);
-
-    nk_start_sme_streaming_();
-    nk_dots_packed_f32_smef64_streaming_(a, b_packed, c, rows, columns, depth, a_stride_elements, c_stride_elements);
-    nk_stop_sme_streaming_();
-    return nk_success_k;
 }
 
 /** f32 × f32 → f32 symmetric kernel using MOPA self-GEMM with f64 accumulation. Time-shares ZA0 for
@@ -785,33 +697,6 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_dots_symmetric_f32_smef64_streaming_( 
     }
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_workspace_size_f32_smef64(nk_size_t vector_count, nk_size_t depth,
-                                                                    nk_size_t rows_begin, nk_size_t rows_end,
-                                                                    nk_size_t *bytes) {
-    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
-    *bytes = 0;
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dots_symmetric_f32_smef64( //
-    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace, nk_size_t workspace_bytes,
-    nk_stream_t stream) {
-    nk_unused_(workspace), nk_unused_(workspace_bytes);
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-
-    nk_size_t const stride_elements = stride / sizeof(nk_f32_t);
-    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f64_t);
-    nk_start_sme_streaming_();
-    nk_dots_symmetric_f32_smef64_streaming_(vectors, vector_count, depth, stride_elements, result,
-                                            result_stride_elements, rows_begin, rows_end);
-    nk_stop_sme_streaming_();
-    return nk_success_k;
-}
-
-#pragma endregion F32 Floats
-
 /*  f64 GEMM via Ozaki splitting on shared exponents, using FMOPA with ZA64 tiles.
  *
  *  Each row of A and column of B is scaled by a power of two into (-1, 1) and cut into 5 slices.
@@ -839,7 +724,6 @@ NUMKONG_API nk_status_t nk_dots_symmetric_f32_smef64( //
  *  Packed B keeps the slices in f64, loading without conversion and keeping remainders exact. It
  *  takes 40 bytes per element, 5× the input with depth padded to the tile, plus an exponent and a
  *  norm per column. */
-#pragma region F64 Floats
 
 /** Depth steps between flushes, as 4096 × 1.5 × 2⁴⁰ units fit in the 2⁵³ an f64 holds exactly. */
 enum { nk_dots_flush_steps_f64_smef64_ = 4096 };
@@ -1135,51 +1019,6 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_dots_symmetric_f64_smef64_streaming_( 
     }
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_workspace_size_f64_smef64(nk_size_t vector_count, nk_size_t depth,
-                                                                    nk_size_t rows_begin, nk_size_t rows_end,
-                                                                    nk_size_t *bytes) {
-    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
-    *bytes = 0;
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dots_symmetric_f64_smef64( //
-    nk_f64_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f64_t *result,
-    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace, nk_size_t workspace_bytes,
-    nk_stream_t stream) {
-    nk_unused_(workspace), nk_unused_(workspace_bytes);
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-
-    nk_size_t const stride_elements = stride / sizeof(nk_f64_t);
-    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f64_t);
-    nk_start_sme_streaming_();
-    nk_dots_symmetric_f64_smef64_streaming_(vectors, vector_count, depth, stride_elements, result,
-                                            result_stride_elements, rows_begin, rows_end);
-    nk_stop_sme_streaming_();
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dots_pack_size_f64_smef64(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {
-    nk_size_t const tile_dimension = nk_cntd_sme_();
-    nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
-    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
-    // Each column tile holds its exponents, then 5 slices of each column per depth step
-    *bytes = nk_dots_tiles_offset_f64_smef64_(columns) +
-             column_tile_count * tile_dimension * (1 + 5 * depth_padded) * sizeof(nk_f64_t);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_dots_packed_shape_f64_smef64(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
-                                                        nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
-    if (header->capability != nk_cap_smef64_k) return nk_pack_mismatch_k;
-    *columns = header->columns;
-    *depth = header->depth;
-    return nk_success_k;
-}
-
 /** Returns depth step @p step of up to @p count columns, one per lane, from ZA0.D, which it refills
  *  from @p source with the 8 steps from @p step on whenever @p step starts them. Steps past
  *  @p depth read as zeros. */
@@ -1255,41 +1094,6 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_dots_pack_f64_smef64_streaming_( //
                 nk_svaddv_f64_(predicate_all_b64x, svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 1, column)) +
                 nk_svaddv_f64_(predicate_all_b64x, svread_hor_za64_f64_m(svdup_f64(0), predicate_all_b64x, 2, column));
     }
-}
-
-NUMKONG_API nk_status_t nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t columns, nk_size_t depth,
-                                                nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
-                                                nk_size_t columns_end, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    nk_size_t const tile_dimension = nk_cntd_sme_();
-    nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
-
-    nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
-    if (columns_begin == 0) {
-        nk_u32_t *header_words = (nk_u32_t *)header;
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            header_words[word_index] = 0;
-        char *pack_bytes = (char *)b_packed;
-        // The norms end short of the 64-byte aligned tiles, so the gap between them is zeroed too.
-        for (nk_size_t byte_index = sizeof(*header) + columns * sizeof(nk_f64_t);
-             byte_index < nk_dots_tiles_offset_f64_smef64_(columns); byte_index++)
-            pack_bytes[byte_index] = 0;
-        header->column_tile_count = (nk_u32_t)column_tile_count;
-        header->depth_tile_count = (nk_u32_t)nk_size_divide_round_up_(depth, tile_dimension);
-        header->columns = (nk_u32_t)columns;
-        header->depth = (nk_u32_t)depth;
-        header->svl_bytes = (nk_u32_t)nk_cntb_sme_();
-        header->capability = nk_cap_smef64_k;
-        header->norms_offset = (nk_u32_t)sizeof(nk_dots_sme_packed_header_t);
-    }
-
-    nk_f64_t *tiles = (nk_f64_t *)((char *)b_packed + nk_dots_tiles_offset_f64_smef64_(columns));
-    nk_f64_t *norms = (nk_f64_t *)((char *)b_packed + sizeof(nk_dots_sme_packed_header_t));
-    nk_start_sme_streaming_();
-    nk_dots_pack_f64_smef64_streaming_(b, columns, depth, b_stride, tiles, norms, columns_begin, columns_end);
-    nk_stop_sme_streaming_();
-    return nk_success_k;
 }
 
 __arm_new("za") NUMKONG_OUTLINED_ void nk_dots_packed_f64_smef64_streaming_( //
@@ -1379,6 +1183,203 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_dots_packed_f64_smef64_streaming_( //
     }
 }
 
+#if NUMKONG_TARGET_SMEF64
+#pragma region F32 Floats
+
+NUMKONG_API nk_status_t nk_dots_pack_size_f32_smef64(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {
+    nk_size_t const tile_dimension = nk_cntd_sme_();  // rows per `ZA64` tile (8 for SVL=512)
+    nk_size_t const depth_tile_size = nk_cntw_sme_(); // `f32` depth elements per tile (16 for SVL=512)
+
+    nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
+    nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth, depth_tile_size);
+
+    nk_size_t size = sizeof(nk_dots_sme_packed_header_t);
+    size += column_tile_count * depth_tile_count * tile_dimension * depth_tile_size * sizeof(nk_f32_t);
+    size += columns * sizeof(nk_f64_t); // per-column squared norms
+
+    *bytes = size;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_packed_shape_f32_smef64(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
+                                                        nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    if (header->capability != nk_cap_smef64_k) return nk_pack_mismatch_k;
+    *columns = header->columns;
+    *depth = header->depth;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
+                                                nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
+                                                nk_size_t columns_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    nk_size_t const tile_dimension = nk_cntd_sme_();                  // rows per `ZA64` tile (8 for SVL=512)
+    nk_size_t const depth_tile_size = nk_cntw_sme_();                 // `f32` depth elements per tile (16 for SVL=512)
+    nk_size_t const tile_elements = tile_dimension * depth_tile_size; // 128
+
+    nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
+    nk_size_t const depth_tile_count = nk_size_divide_round_up_(depth, depth_tile_size);
+    nk_size_t const total_tiles = column_tile_count * depth_tile_count;
+
+    // Store actual dimensions and tile counts in header
+    nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    if (columns_begin == 0) {
+        nk_u32_t *header_words = (nk_u32_t *)header;
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            header_words[word_index] = 0;
+        header->column_tile_count = (nk_u32_t)column_tile_count;
+        header->depth_tile_count = (nk_u32_t)depth_tile_count;
+        header->columns = (nk_u32_t)columns;
+        header->depth = (nk_u32_t)depth;
+        header->svl_bytes = (nk_u32_t)nk_cntb_sme_(); // streaming vector length in bytes
+        header->capability = nk_cap_smef64_k;
+    }
+
+    nk_size_t const norms_offset = sizeof(nk_dots_sme_packed_header_t) + total_tiles * tile_elements * sizeof(nk_f32_t);
+    if (columns_begin == 0) header->norms_offset = (nk_u32_t)norms_offset;
+    nk_f32_t *tiles = (nk_f32_t *)((char *)b_packed + sizeof(nk_dots_sme_packed_header_t));
+    nk_f64_t *norms = (nk_f64_t *)((char *)b_packed + norms_offset);
+
+    nk_start_sme_streaming_();
+    nk_dots_pack_f32_smef64_streaming_(b, columns, depth, b_stride, tiles, norms, columns_begin, columns_end);
+    nk_stop_sme_streaming_();
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_packed_workspace_size_f32_smef64(nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                                 nk_size_t *bytes) {
+    nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_packed_f32_smef64( //
+    nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
+    nk_size_t a_stride, nk_size_t c_stride, void *workspace, nk_size_t workspace_bytes, nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_smef64_k) return nk_pack_mismatch_k;
+
+    nk_size_t const a_stride_elements = a_stride / sizeof(nk_f32_t);
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f64_t);
+
+    nk_start_sme_streaming_();
+    nk_dots_packed_f32_smef64_streaming_(a, b_packed, c, rows, columns, depth, a_stride_elements, c_stride_elements);
+    nk_stop_sme_streaming_();
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_symmetric_workspace_size_f32_smef64(nk_size_t vector_count, nk_size_t depth,
+                                                                    nk_size_t rows_begin, nk_size_t rows_end,
+                                                                    nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_symmetric_f32_smef64( //
+    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace, nk_size_t workspace_bytes,
+    nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
+
+    nk_size_t const stride_elements = stride / sizeof(nk_f32_t);
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f64_t);
+    nk_start_sme_streaming_();
+    nk_dots_symmetric_f32_smef64_streaming_(vectors, vector_count, depth, stride_elements, result,
+                                            result_stride_elements, rows_begin, rows_end);
+    nk_stop_sme_streaming_();
+    return nk_success_k;
+}
+
+#pragma endregion F32 Floats
+#pragma region F64 Floats
+
+NUMKONG_API nk_status_t nk_dots_symmetric_workspace_size_f64_smef64(nk_size_t vector_count, nk_size_t depth,
+                                                                    nk_size_t rows_begin, nk_size_t rows_end,
+                                                                    nk_size_t *bytes) {
+    nk_unused_(vector_count), nk_unused_(depth), nk_unused_(rows_begin), nk_unused_(rows_end);
+    *bytes = 0;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_symmetric_f64_smef64( //
+    nk_f64_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+    nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, void *workspace, nk_size_t workspace_bytes,
+    nk_stream_t stream) {
+    nk_unused_(workspace), nk_unused_(workspace_bytes);
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
+
+    nk_size_t const stride_elements = stride / sizeof(nk_f64_t);
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f64_t);
+    nk_start_sme_streaming_();
+    nk_dots_symmetric_f64_smef64_streaming_(vectors, vector_count, depth, stride_elements, result,
+                                            result_stride_elements, rows_begin, rows_end);
+    nk_stop_sme_streaming_();
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_pack_size_f64_smef64(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {
+    nk_size_t const tile_dimension = nk_cntd_sme_();
+    nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
+    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, tile_dimension);
+    // Each column tile holds its exponents, then 5 slices of each column per depth step
+    *bytes = nk_dots_tiles_offset_f64_smef64_(columns) +
+             column_tile_count * tile_dimension * (1 + 5 * depth_padded) * sizeof(nk_f64_t);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_packed_shape_f64_smef64(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
+                                                        nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
+    if (header->capability != nk_cap_smef64_k) return nk_pack_mismatch_k;
+    *columns = header->columns;
+    *depth = header->depth;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t columns, nk_size_t depth,
+                                                nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
+                                                nk_size_t columns_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    nk_size_t const tile_dimension = nk_cntd_sme_();
+    nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
+
+    nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
+    if (columns_begin == 0) {
+        nk_u32_t *header_words = (nk_u32_t *)header;
+        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+            header_words[word_index] = 0;
+        char *pack_bytes = (char *)b_packed;
+        // The norms end short of the 64-byte aligned tiles, so the gap between them is zeroed too.
+        for (nk_size_t byte_index = sizeof(*header) + columns * sizeof(nk_f64_t);
+             byte_index < nk_dots_tiles_offset_f64_smef64_(columns); byte_index++)
+            pack_bytes[byte_index] = 0;
+        header->column_tile_count = (nk_u32_t)column_tile_count;
+        header->depth_tile_count = (nk_u32_t)nk_size_divide_round_up_(depth, tile_dimension);
+        header->columns = (nk_u32_t)columns;
+        header->depth = (nk_u32_t)depth;
+        header->svl_bytes = (nk_u32_t)nk_cntb_sme_();
+        header->capability = nk_cap_smef64_k;
+        header->norms_offset = (nk_u32_t)sizeof(nk_dots_sme_packed_header_t);
+    }
+
+    nk_f64_t *tiles = (nk_f64_t *)((char *)b_packed + nk_dots_tiles_offset_f64_smef64_(columns));
+    nk_f64_t *norms = (nk_f64_t *)((char *)b_packed + sizeof(nk_dots_sme_packed_header_t));
+    nk_start_sme_streaming_();
+    nk_dots_pack_f64_smef64_streaming_(b, columns, depth, b_stride, tiles, norms, columns_begin, columns_end);
+    nk_stop_sme_streaming_();
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_dots_packed_workspace_size_f64_smef64(nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                                  nk_size_t *bytes) {
     nk_unused_(rows), nk_unused_(columns), nk_unused_(depth);
@@ -1404,12 +1405,13 @@ NUMKONG_API nk_status_t nk_dots_packed_f64_smef64( //
 
 #pragma endregion F64 Floats
 
+#endif // NUMKONG_TARGET_SMEF64
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif // NUMKONG_TARGET_SMEF64
 
 #if defined(__cplusplus)
 } // extern "C"
