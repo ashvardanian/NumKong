@@ -1,6 +1,3 @@
-unstable_features = true
-fn_single_line = true
 max_width = 120
-imports_granularity = "Crate"
-group_imports = "Preserve"
+use_small_heuristics = "Max"
 reorder_imports = true

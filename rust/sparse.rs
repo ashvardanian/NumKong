@@ -26,13 +26,13 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
     tensor::Error,
     types::bf16,
 };
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     fn nk_sparse_intersect_u16_best(
         a: *const u16,
         b: *const u16,
@@ -128,10 +128,7 @@ impl SparseIntersect for u16 {
     fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<usize, Error> {
         let min_len = a.len().min(b.len());
         if result.len() < min_len {
-            return Err(Error::CapacityExceeded {
-                requested: min_len,
-                capacity: result.len(),
-            });
+            return Err(Error::CapacityExceeded { requested: min_len, capacity: result.len() });
         }
         let mut count: usize = 0;
         unsafe {
@@ -173,10 +170,7 @@ impl SparseIntersect for u32 {
     fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<usize, Error> {
         let min_len = a.len().min(b.len());
         if result.len() < min_len {
-            return Err(Error::CapacityExceeded {
-                requested: min_len,
-                capacity: result.len(),
-            });
+            return Err(Error::CapacityExceeded { requested: min_len, capacity: result.len() });
         }
         let mut count: usize = 0;
         unsafe {
@@ -218,10 +212,7 @@ impl SparseIntersect for u64 {
     fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<usize, Error> {
         let min_len = a.len().min(b.len());
         if result.len() < min_len {
-            return Err(Error::CapacityExceeded {
-                requested: min_len,
-                capacity: result.len(),
-            });
+            return Err(Error::CapacityExceeded { requested: min_len, capacity: result.len() });
         }
         let mut count: usize = 0;
         unsafe {
@@ -383,10 +374,7 @@ mod tests {
         let mut result: Vec<u16> = vec![0; 2];
         assert_eq!(
             u16::sparse_intersect_into(&left, &right, &mut result),
-            Err(Error::CapacityExceeded {
-                requested: 5,
-                capacity: 2
-            })
+            Err(Error::CapacityExceeded { requested: 5, capacity: 2 })
         );
     }
 
@@ -422,11 +410,7 @@ mod tests {
         vec![
             vec![],
             vec![Scalar::try_from(42).unwrap()],
-            vec![
-                Scalar::try_from(1).unwrap(),
-                Scalar::try_from(5).unwrap(),
-                Scalar::try_from(10).unwrap(),
-            ],
+            vec![Scalar::try_from(1).unwrap(), Scalar::try_from(5).unwrap(), Scalar::try_from(10).unwrap()],
             vec![
                 Scalar::try_from(2).unwrap(),
                 Scalar::try_from(4).unwrap(),
@@ -444,10 +428,7 @@ mod tests {
             (0..100).map(|x| Scalar::try_from(x * 2).unwrap()).collect(),
             (50..150).map(|x| Scalar::try_from(x * 2).unwrap()).collect(),
             (0..100).map(|x| Scalar::try_from(x * 5).unwrap()).collect(),
-            (0..150)
-                .filter(|x| x % 7 == 0)
-                .map(|x| Scalar::try_from(x).unwrap())
-                .collect(),
+            (0..150).filter(|x| x % 7 == 0).map(|x| Scalar::try_from(x).unwrap()).collect(),
             (0..500).map(|x| Scalar::try_from(x * 3).unwrap()).collect(),
             (100..600).map(|x| Scalar::try_from(x * 3).unwrap()).collect(),
             (0..600).map(|x| Scalar::try_from(x * 7).unwrap()).collect(),
@@ -548,17 +529,11 @@ mod tests {
         let first_indices_u16: Vec<u16> = vec![1, 3, 5];
         let second_indices_u16: Vec<u16> = vec![2, 3, 5, 7];
         let first_weights_bf16: Vec<bf16> = vec![1.0, 2.0, 3.0].iter().map(|&value| bf16::from_f32(value)).collect();
-        let second_weights_bf16: Vec<bf16> = vec![4.0, 5.0, 6.0, 7.0]
-            .iter()
-            .map(|&value| bf16::from_f32(value))
-            .collect();
-        let result = u16::sparse_dot(
-            &first_indices_u16,
-            &second_indices_u16,
-            &first_weights_bf16,
-            &second_weights_bf16,
-        )
-        .unwrap();
+        let second_weights_bf16: Vec<bf16> =
+            vec![4.0, 5.0, 6.0, 7.0].iter().map(|&value| bf16::from_f32(value)).collect();
+        let result =
+            u16::sparse_dot(&first_indices_u16, &second_indices_u16, &first_weights_bf16, &second_weights_bf16)
+                .unwrap();
         assert!((result - 28.0).abs() < 1.0, "sparse_dot u16bf16: {result}");
 
         // Disjoint sets → 0
@@ -573,13 +548,7 @@ mod tests {
         let indices: [u32; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
         assert_eq!(u32::sparse_dot(&indices, &indices, &[1.0], &[1.0]).unwrap(), 0.0);
         assert_eq!(
-            u16::sparse_dot(
-                &[1_u16, 2, 3],
-                &[1_u16, 2, 3],
-                &[bf16::from_f32(1.0)],
-                &[bf16::from_f32(1.0)]
-            )
-            .unwrap(),
+            u16::sparse_dot(&[1_u16, 2, 3], &[1_u16, 2, 3], &[bf16::from_f32(1.0)], &[bf16::from_f32(1.0)]).unwrap(),
             0.0
         );
         // Matching lengths still compute: three shared indices, unit weights.

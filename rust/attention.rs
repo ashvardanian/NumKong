@@ -43,10 +43,10 @@ use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
 use forkunion as fu;
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
     scalar::Roots,
     tensor::{Allocator, Error, Global, PackedBuffer, Tensor, TensorMut, TensorRef},
-    types::{bf16, e4m3, f16, StorageElement},
+    types::{StorageElement, bf16, e4m3, f16},
 };
 
 #[cfg(feature = "parallel")]
@@ -55,7 +55,7 @@ use crate::capabilities::WorkerStatus;
 // region: FFI
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     fn nk_attention_pack_size_bf16_best(
         heads: nk_size_t,
         depth: nk_size_t,
@@ -460,17 +460,19 @@ impl Attention for bf16 {
     }
 
     unsafe fn attention_packed_shape(packed: *const u8) -> Result<(usize, usize, usize), Error> {
-        let (mut heads, mut depth, mut segments) = (0usize, 0usize, 0usize);
-        nk_attention_packed_shape_bf16_best(
-            packed,
-            &mut heads,
-            &mut depth,
-            &mut segments,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()?;
-        Ok((heads, depth, segments))
+        unsafe {
+            let (mut heads, mut depth, mut segments) = (0usize, 0usize, 0usize);
+            nk_attention_packed_shape_bf16_best(
+                packed,
+                &mut heads,
+                &mut depth,
+                &mut segments,
+                Capabilities::CPUS.bits(),
+                null_mut(),
+            )
+            .check()?;
+            Ok((heads, depth, segments))
+        }
     }
 
     unsafe fn attention_pack(
@@ -652,17 +654,19 @@ impl Attention for f16 {
     }
 
     unsafe fn attention_packed_shape(packed: *const u8) -> Result<(usize, usize, usize), Error> {
-        let (mut heads, mut depth, mut segments) = (0usize, 0usize, 0usize);
-        nk_attention_packed_shape_f16_best(
-            packed,
-            &mut heads,
-            &mut depth,
-            &mut segments,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()?;
-        Ok((heads, depth, segments))
+        unsafe {
+            let (mut heads, mut depth, mut segments) = (0usize, 0usize, 0usize);
+            nk_attention_packed_shape_f16_best(
+                packed,
+                &mut heads,
+                &mut depth,
+                &mut segments,
+                Capabilities::CPUS.bits(),
+                null_mut(),
+            )
+            .check()?;
+            Ok((heads, depth, segments))
+        }
     }
 
     unsafe fn attention_pack(
@@ -769,17 +773,19 @@ impl Attention for e4m3 {
     }
 
     unsafe fn attention_packed_shape(packed: *const u8) -> Result<(usize, usize, usize), Error> {
-        let (mut heads, mut depth, mut segments) = (0usize, 0usize, 0usize);
-        nk_attention_packed_shape_e4m3_best(
-            packed,
-            &mut heads,
-            &mut depth,
-            &mut segments,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()?;
-        Ok((heads, depth, segments))
+        unsafe {
+            let (mut heads, mut depth, mut segments) = (0usize, 0usize, 0usize);
+            nk_attention_packed_shape_e4m3_best(
+                packed,
+                &mut heads,
+                &mut depth,
+                &mut segments,
+                Capabilities::CPUS.bits(),
+                null_mut(),
+            )
+            .check()?;
+            Ok((heads, depth, segments))
+        }
     }
 
     unsafe fn attention_pack(
@@ -886,17 +892,19 @@ impl Attention for i8 {
     }
 
     unsafe fn attention_packed_shape(packed: *const u8) -> Result<(usize, usize, usize), Error> {
-        let (mut heads, mut depth, mut segments) = (0usize, 0usize, 0usize);
-        nk_attention_packed_shape_i8_best(
-            packed,
-            &mut heads,
-            &mut depth,
-            &mut segments,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()?;
-        Ok((heads, depth, segments))
+        unsafe {
+            let (mut heads, mut depth, mut segments) = (0usize, 0usize, 0usize);
+            nk_attention_packed_shape_i8_best(
+                packed,
+                &mut heads,
+                &mut depth,
+                &mut segments,
+                Capabilities::CPUS.bits(),
+                null_mut(),
+            )
+            .check()?;
+            Ok((heads, depth, segments))
+        }
     }
 
     unsafe fn attention_pack(
@@ -1026,10 +1034,7 @@ where
     View: TensorRef<Scalar, MAX_RANK> + ?Sized,
 {
     let &[rows, width] = view.shape() else {
-        return Err(Error::DimensionMismatch {
-            expected: 2,
-            got: view.ndim(),
-        });
+        return Err(Error::DimensionMismatch { expected: 2, got: view.ndim() });
     };
     if !view.has_contiguous_rows() {
         return Err(Error::NonContiguousRows);
@@ -1045,10 +1050,7 @@ where
     // A zero head count would survive to the query path and divide by zero there, so reject the
     // zero-width view that produces it here, where the geometry is established.
     if depth == 0 || width == 0 || width % depth != 0 {
-        return Err(Error::DimensionMismatch {
-            expected: depth,
-            got: width,
-        });
+        return Err(Error::DimensionMismatch { expected: depth, got: width });
     }
     Ok((rows, width / depth, row_stride as usize))
 }
@@ -1069,10 +1071,7 @@ where
     let (keys_tokens, keys_heads, keys_stride) = validate_token_view(keys, depth)?;
     let (values_tokens, values_heads, values_stride) = validate_token_view(values, depth)?;
     if keys_tokens != values_tokens || keys_heads != values_heads {
-        return Err(Error::DimensionMismatch {
-            expected: keys_tokens,
-            got: values_tokens,
-        });
+        return Err(Error::DimensionMismatch { expected: keys_tokens, got: values_tokens });
     }
     Ok((keys_tokens, keys_heads, keys_stride, values_stride))
 }
@@ -1080,10 +1079,7 @@ where
 /// Validates that `offsets` is cumulative and covers at most `tokens` rows.
 fn validate_offsets(offsets: &[u32], tokens: usize) -> Result<usize, Error> {
     let [_, .., last] = offsets else {
-        return Err(Error::DimensionMismatch {
-            expected: 2,
-            got: offsets.len(),
-        });
+        return Err(Error::DimensionMismatch { expected: 2, got: offsets.len() });
     };
     for pair in offsets.windows(2) {
         if pair[1] < pair[0] {
@@ -1096,10 +1092,7 @@ fn validate_offsets(offsets: &[u32], tokens: usize) -> Result<usize, Error> {
     }
     let last = *last as usize;
     if last > tokens {
-        return Err(Error::DimensionMismatch {
-            expected: tokens,
-            got: last,
-        });
+        return Err(Error::DimensionMismatch { expected: tokens, got: last });
     }
     Ok(offsets.len() - 1)
 }
@@ -1111,10 +1104,7 @@ fn validate_lengths(key_offsets: &[u32], key_lengths: Option<&[u32]>) -> Result<
         return Ok((key_offsets[key_offsets.len() - 1] - key_offsets[0]) as usize);
     };
     if lengths.len() + 1 != key_offsets.len() {
-        return Err(Error::DimensionMismatch {
-            expected: key_offsets.len() - 1,
-            got: lengths.len(),
-        });
+        return Err(Error::DimensionMismatch { expected: key_offsets.len() - 1, got: lengths.len() });
     }
     for (pair, &length) in key_offsets.windows(2).zip(lengths) {
         if length > pair[1] - pair[0] {
@@ -1201,13 +1191,8 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
         KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
-        let Some(PackPlan {
-            heads,
-            keys_stride,
-            values_stride,
-            segment_count,
-            destination,
-        }) = self.prepare_pack(keys, values, depth, key_offsets, key_lengths)?
+        let Some(PackPlan { heads, keys_stride, values_stride, segment_count, destination }) =
+            self.prepare_pack(keys, values, depth, key_offsets, key_lengths)?
         else {
             return Ok(());
         };
@@ -1238,12 +1223,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     /// `key_lengths` carries one token count per segment.
     pub fn reserve(&mut self, heads: usize, depth: usize, key_lengths: &[u32]) -> Result<(), Error> {
         let token_count = key_lengths.iter().map(|&length| length as usize).sum();
-        self.buffer.reserve(Scalar::attention_pack_size(
-            heads,
-            depth,
-            token_count,
-            key_lengths.len(),
-        )?)
+        self.buffer.reserve(Scalar::attention_pack_size(heads, depth, token_count, key_lengths.len())?)
     }
 
     /// Ragged attention into a caller-provided `f32` output tensor of the same logical shape as `q`
@@ -1267,12 +1247,8 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
         QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
     {
-        let QueryPlan {
-            query_head_count,
-            query_stride,
-            segment_count,
-            scale,
-        } = self.prepare_query(queries, output, query_offsets, scale)?;
+        let QueryPlan { query_head_count, query_stride, segment_count, scale } =
+            self.prepare_query(queries, output, query_offsets, scale)?;
         let query_token_count = query_offsets[segment_count] as usize;
         unsafe {
             Scalar::attention_packed(
@@ -1340,22 +1316,34 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     }
 
     /// Returns the shape `(heads, depth, segments)` of the packed cache.
-    pub fn shape(&self) -> (usize, usize, usize) { (self.heads, self.depth, self.segment_count) }
+    pub fn shape(&self) -> (usize, usize, usize) {
+        (self.heads, self.depth, self.segment_count)
+    }
 
     /// Returns the number of ragged segments in the packed cache.
-    pub fn segments(&self) -> usize { self.segment_count }
+    pub fn segments(&self) -> usize {
+        self.segment_count
+    }
 
     /// Returns the number of KV heads per token.
-    pub fn heads(&self) -> usize { self.heads }
+    pub fn heads(&self) -> usize {
+        self.heads
+    }
 
     /// Returns the number of channels per head.
-    pub fn depth(&self) -> usize { self.depth }
+    pub fn depth(&self) -> usize {
+        self.depth
+    }
 
     /// Returns the total KV token count across segments.
-    pub fn tokens(&self) -> usize { self.total_tokens }
+    pub fn tokens(&self) -> usize {
+        self.total_tokens
+    }
 
     /// Bytes currently allocated for the packed blob (>= the live packed size).
-    pub fn capacity(&self) -> usize { self.buffer.capacity() }
+    pub fn capacity(&self) -> usize {
+        self.buffer.capacity()
+    }
 
     /// Reset to logically empty, keeping the allocation so the next `pack_into` reuses it.
     pub fn clear(&mut self) {
@@ -1365,13 +1353,19 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     }
 
     /// Returns a reference to the allocator.
-    pub fn allocator(&self) -> &Alloc { self.buffer.allocator() }
+    pub fn allocator(&self) -> &Alloc {
+        self.buffer.allocator()
+    }
 
     /// Returns the packed data buffer.
-    pub fn as_bytes(&self) -> &[u8] { self.buffer.as_bytes() }
+    pub fn as_bytes(&self) -> &[u8] {
+        self.buffer.as_bytes()
+    }
 
     /// Returns a pointer to the packed data.
-    pub fn as_ptr(&self) -> *const u8 { self.buffer.as_ptr() }
+    pub fn as_ptr(&self) -> *const u8 {
+        self.buffer.as_ptr()
+    }
 }
 
 // Convenience methods using the Global allocator
@@ -1443,13 +1437,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         if size == 0 {
             return Ok(None);
         }
-        Ok(Some(PackPlan {
-            heads,
-            keys_stride,
-            values_stride,
-            segment_count,
-            destination,
-        }))
+        Ok(Some(PackPlan { heads, keys_stride, values_stride, segment_count, destination }))
     }
 
     /// Validate a query batch against the packed geometry and resolve the softmax scale.
@@ -1469,17 +1457,11 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     {
         let (query_tokens, query_head_count, query_stride) = validate_token_view(queries, self.depth)?;
         if query_head_count % self.heads != 0 {
-            return Err(Error::DimensionMismatch {
-                expected: self.heads,
-                got: query_head_count,
-            });
+            return Err(Error::DimensionMismatch { expected: self.heads, got: query_head_count });
         }
         let segment_count = validate_offsets(query_offsets, query_tokens)?;
         if segment_count != self.segment_count {
-            return Err(Error::DimensionMismatch {
-                expected: self.segment_count,
-                got: segment_count,
-            });
+            return Err(Error::DimensionMismatch { expected: self.segment_count, got: segment_count });
         }
         let row_values = query_head_count * self.depth;
         if output.shape() != [query_tokens, row_values] {
@@ -1508,9 +1490,7 @@ fn attention_row_cost(row: usize, queries: usize, keys: usize, keys_before: usiz
     let position = keys as i64 - queries as i64 + row as i64;
     let (begin, end) = if position < 0 {
         let lag = position.unsigned_abs() as usize;
-        let end = keys_after
-            .checked_sub(lag)
-            .map_or(0, |reach| reach.saturating_add(1).min(keys));
+        let end = keys_after.checked_sub(lag).map_or(0, |reach| reach.saturating_add(1).min(keys));
         (0, end)
     } else {
         let lead = position as usize;
@@ -1553,11 +1533,7 @@ fn attention_windows(
                 if target > done + cost * heads {
                     break;
                 }
-                let heads_before = if target > done {
-                    (target - done).div_ceil(cost)
-                } else {
-                    0
-                };
+                let heads_before = if target > done { (target - done).div_ceil(cost) } else { 0 };
                 bounds[window] = (pair[0] as usize + row) * head_count + heads_before as usize;
                 window += 1;
             }
@@ -1601,12 +1577,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
     {
-        let QueryPlan {
-            query_head_count,
-            query_stride,
-            segment_count,
-            scale,
-        } = self.prepare_query(queries, output, query_offsets, scale)?;
+        let QueryPlan { query_head_count, query_stride, segment_count, scale } =
+            self.prepare_query(queries, output, query_offsets, scale)?;
         let output_stride = output.stride_bytes(0) as usize;
 
         let q_ptr = fu::SyncConstPtr::new(queries.as_ptr());
@@ -1618,9 +1590,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let query_token_count = query_offsets[segment_count] as usize;
         let task_count = (query_offsets[segment_count] - query_offsets[0]) as usize * query_head_count;
         let threads = pool.threads_count();
-        let window_count = if threads > 1 { 4 * threads } else { 1 }
-            .min(ATTENTION_WINDOWS_LIMIT)
-            .min(task_count);
+        let window_count = if threads > 1 { 4 * threads } else { 1 }.min(ATTENTION_WINDOWS_LIMIT).min(task_count);
         let mut window_bounds = [0usize; ATTENTION_WINDOWS_LIMIT + 1];
         attention_windows(
             query_offsets,
@@ -1682,15 +1652,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         let (query_tokens, query_head_count, _) = validate_token_view(queries, self.depth)?;
         let shape = [query_tokens, query_head_count * self.depth];
         let mut output = Tensor::full_in(&shape, 0.0, self.buffer.allocator().clone())?;
-        self.attention_parallel_into(
-            queries,
-            query_offsets,
-            scale,
-            keys_before,
-            keys_after,
-            &mut output,
-            pool,
-        )?;
+        self.attention_parallel_into(queries, query_offsets, scale, keys_before, keys_after, &mut output, pool)?;
         Ok(output)
     }
 
@@ -1711,13 +1673,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
-        let Some(PackPlan {
-            heads,
-            keys_stride,
-            values_stride,
-            segment_count,
-            destination,
-        }) = self.prepare_pack(keys, values, depth, key_offsets, key_lengths)?
+        let Some(PackPlan { heads, keys_stride, values_stride, segment_count, destination }) =
+            self.prepare_pack(keys, values, depth, key_offsets, key_lengths)?
         else {
             return Ok(());
         };
@@ -1812,37 +1769,19 @@ impl AttentionRope for f32 {
         XMut: TensorMut<Self, RX> + ?Sized,
     {
         if x.ndim() != 2 {
-            return Err(Error::DimensionMismatch {
-                expected: 2,
-                got: x.ndim(),
-            });
+            return Err(Error::DimensionMismatch { expected: 2, got: x.ndim() });
         }
         if depth % 2 != 0 {
-            return Err(Error::InvalidShape {
-                axis: 1,
-                size: depth,
-                reason: "RoPE depth must be even",
-            });
+            return Err(Error::InvalidShape { axis: 1, size: depth, reason: "RoPE depth must be even" });
         }
         let &[rows, width] = x.shape() else {
-            return Err(Error::DimensionMismatch {
-                expected: 2,
-                got: x.ndim(),
-            });
+            return Err(Error::DimensionMismatch { expected: 2, got: x.ndim() });
         };
         if width < head_count * depth {
-            return Err(Error::ShapeMismatch {
-                axis: 1,
-                expected: head_count * depth,
-                got: width,
-            });
+            return Err(Error::ShapeMismatch { axis: 1, expected: head_count * depth, got: width });
         }
         if cos.len() < rows * depth / 2 || sin.len() < rows * depth / 2 {
-            return Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: rows * depth / 2,
-                got: cos.len().min(sin.len()),
-            });
+            return Err(Error::ShapeMismatch { axis: 0, expected: rows * depth / 2, got: cos.len().min(sin.len()) });
         }
         if rows == 0 {
             return Ok(());
@@ -1881,37 +1820,19 @@ impl AttentionRope for bf16 {
         XMut: TensorMut<Self, RX> + ?Sized,
     {
         if x.ndim() != 2 {
-            return Err(Error::DimensionMismatch {
-                expected: 2,
-                got: x.ndim(),
-            });
+            return Err(Error::DimensionMismatch { expected: 2, got: x.ndim() });
         }
         if depth % 2 != 0 {
-            return Err(Error::InvalidShape {
-                axis: 1,
-                size: depth,
-                reason: "RoPE depth must be even",
-            });
+            return Err(Error::InvalidShape { axis: 1, size: depth, reason: "RoPE depth must be even" });
         }
         let &[rows, width] = x.shape() else {
-            return Err(Error::DimensionMismatch {
-                expected: 2,
-                got: x.ndim(),
-            });
+            return Err(Error::DimensionMismatch { expected: 2, got: x.ndim() });
         };
         if width < head_count * depth {
-            return Err(Error::ShapeMismatch {
-                axis: 1,
-                expected: head_count * depth,
-                got: width,
-            });
+            return Err(Error::ShapeMismatch { axis: 1, expected: head_count * depth, got: width });
         }
         if cos.len() < rows * depth / 2 || sin.len() < rows * depth / 2 {
-            return Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: rows * depth / 2,
-                got: cos.len().min(sin.len()),
-            });
+            return Err(Error::ShapeMismatch { axis: 0, expected: rows * depth / 2, got: cos.len().min(sin.len()) });
         }
         if rows == 0 {
             return Ok(());
@@ -1950,37 +1871,19 @@ impl AttentionRope for e4m3 {
         XMut: TensorMut<Self, RX> + ?Sized,
     {
         if x.ndim() != 2 {
-            return Err(Error::DimensionMismatch {
-                expected: 2,
-                got: x.ndim(),
-            });
+            return Err(Error::DimensionMismatch { expected: 2, got: x.ndim() });
         }
         if depth % 2 != 0 {
-            return Err(Error::InvalidShape {
-                axis: 1,
-                size: depth,
-                reason: "RoPE depth must be even",
-            });
+            return Err(Error::InvalidShape { axis: 1, size: depth, reason: "RoPE depth must be even" });
         }
         let &[rows, width] = x.shape() else {
-            return Err(Error::DimensionMismatch {
-                expected: 2,
-                got: x.ndim(),
-            });
+            return Err(Error::DimensionMismatch { expected: 2, got: x.ndim() });
         };
         if width < head_count * depth {
-            return Err(Error::ShapeMismatch {
-                axis: 1,
-                expected: head_count * depth,
-                got: width,
-            });
+            return Err(Error::ShapeMismatch { axis: 1, expected: head_count * depth, got: width });
         }
         if cos.len() < rows * depth / 2 || sin.len() < rows * depth / 2 {
-            return Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: rows * depth / 2,
-                got: cos.len().min(sin.len()),
-            });
+            return Err(Error::ShapeMismatch { axis: 0, expected: rows * depth / 2, got: cos.len().min(sin.len()) });
         }
         if rows == 0 {
             return Ok(());
@@ -2014,7 +1917,7 @@ mod tests {
     use super::*;
     use crate::{
         tensor::DEFAULT_ALIGNMENT,
-        types::{assert_close, FloatLike, TestableType},
+        types::{FloatLike, TestableType, assert_close},
     };
 
     #[test]
@@ -2031,10 +1934,7 @@ mod tests {
         let read = AttentionPackedMatrix::<bf16>::peek_shape(cache.as_bytes()).unwrap();
         assert_eq!(read, (cache.heads(), cache.depth(), cache.segments()));
         assert_eq!(cache.shape(), read);
-        assert!(matches!(
-            AttentionPackedMatrix::<bf16>::peek_shape(&[]),
-            Err(Error::InvalidShape { size: 0, .. })
-        ));
+        assert!(matches!(AttentionPackedMatrix::<bf16>::peek_shape(&[]), Err(Error::InvalidShape { size: 0, .. })));
     }
 
     #[test]
@@ -2052,9 +1952,7 @@ mod tests {
             let keys = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.1)).unwrap();
             let values = keys.clone().unwrap();
             let offsets = [0u32, tokens as u32];
-            cache
-                .pack_into(&keys.view(), &values.view(), depth, &offsets, None)
-                .unwrap();
+            cache.pack_into(&keys.view(), &values.view(), depth, &offsets, None).unwrap();
             assert_eq!(cache.shape(), (heads, depth, 1));
             assert_eq!(cache.capacity(), reserved_capacity, "reserved capacity must not change");
             assert_eq!(cache.as_ptr(), reserved_ptr, "reserved pointer must stay stable");
@@ -2083,10 +1981,7 @@ mod tests {
         let offsets = [0u32, tokens as u32];
         let cache = AttentionPackedMatrix::new(&keys.view(), &keys.view(), depth, &offsets, Some(&[6u32])).unwrap();
         assert_eq!(cache.tokens(), 6);
-        assert_eq!(
-            cache.as_bytes().len(),
-            AttentionPackedMatrix::<bf16>::pack_size(1, depth, 6, 1).unwrap()
-        );
+        assert_eq!(cache.as_bytes().len(), AttentionPackedMatrix::<bf16>::pack_size(1, depth, 6, 1).unwrap());
         assert!(AttentionPackedMatrix::new(&keys.view(), &keys.view(), depth, &offsets, Some(&[11u32])).is_err());
         assert!(AttentionPackedMatrix::new(&keys.view(), &keys.view(), depth, &[0u32, 6, 3], None).is_err());
     }
@@ -2096,9 +1991,8 @@ mod tests {
         crate::capabilities::configure_cpu_thread().unwrap();
         let (tokens, depth) = (8usize, 8usize);
         let keys = Tensor::<bf16>::full(&[tokens, depth], bf16::from_f32(0.1)).unwrap();
-        let rows: Vec<bf16> = (0..tokens)
-            .flat_map(|token| core::iter::repeat(bf16::from_f32(token as f32)).take(depth))
-            .collect();
+        let rows: Vec<bf16> =
+            (0..tokens).flat_map(|token| core::iter::repeat(bf16::from_f32(token as f32)).take(depth)).collect();
         let values = Tensor::<bf16>::from_slice(&rows, &[tokens, depth]).unwrap();
         let cache =
             AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &[0u32, tokens as u32], None).unwrap();
@@ -2106,9 +2000,7 @@ mod tests {
         // Equal scores weight every visible key alike, so a row is the mean index of its band.
         let bands = [(usize::MAX, usize::MAX), (usize::MAX, 0), (0, 0), (1, 0), (1, 2)];
         for (keys_before, keys_after) in bands {
-            let outputs = cache
-                .attention(&keys.view(), &[0u32, tokens as u32], None, keys_before, keys_after)
-                .unwrap();
+            let outputs = cache.attention(&keys.view(), &[0u32, tokens as u32], None, keys_before, keys_after).unwrap();
             for row in 0..tokens {
                 let first = row.saturating_sub(keys_before);
                 let last = row.saturating_add(keys_after).min(tokens - 1);
@@ -2127,9 +2019,8 @@ mod tests {
         crate::capabilities::configure_cpu_thread().unwrap();
         let (tokens, depth) = (8usize, 8usize);
         let keys = Tensor::<bf16>::full(&[tokens, depth], bf16::from_f32(0.1)).unwrap();
-        let rows: Vec<bf16> = (0..tokens)
-            .flat_map(|token| core::iter::repeat(bf16::from_f32(token as f32)).take(depth))
-            .collect();
+        let rows: Vec<bf16> =
+            (0..tokens).flat_map(|token| core::iter::repeat(bf16::from_f32(token as f32)).take(depth)).collect();
         let values = Tensor::<bf16>::from_slice(&rows, &[tokens, depth]).unwrap();
         let cache =
             AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &[0u32, tokens as u32], None).unwrap();
@@ -2138,10 +2029,7 @@ mod tests {
         let causal = cache.attention(&query.view(), &[0u32, 1], None, usize::MAX, 0).unwrap();
         assert!((causal.as_slice()[0] - 3.5).abs() < 5e-2, "decode sees the whole cache");
         let latest = cache.attention(&query.view(), &[0u32, 1], None, 0, 0).unwrap();
-        assert!(
-            (latest.as_slice()[0] - 7.0).abs() < 5e-2,
-            "a one-key window sees the last key"
-        );
+        assert!((latest.as_slice()[0] - 7.0).abs() < 5e-2, "a one-key window sees the last key");
     }
 
     #[test]
@@ -2267,9 +2155,7 @@ mod tests {
         let mut wide = Tensor::<f32>::from_slice(&wide_vec, &[rows, full]).unwrap();
         {
             let mut span = wide.span();
-            let mut sec = span
-                .slice_mut(&[SliceRange::Full, SliceRange::range(0, width)][..])
-                .unwrap();
+            let mut sec = span.slice_mut(&[SliceRange::Full, SliceRange::range(0, width)][..]).unwrap();
             f32::attention_rope_into(&mut sec, &cos, &sin, head_count, depth).unwrap();
         }
 
@@ -2286,11 +2172,7 @@ mod tests {
                 );
             }
             for c in width..full {
-                assert_eq!(
-                    wide_after[r * full + c],
-                    999.0,
-                    "RoPE wrote outside its strided section"
-                );
+                assert_eq!(wide_after[r * full + c], 999.0, "RoPE wrote outside its strided section");
             }
         }
     }

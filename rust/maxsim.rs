@@ -43,15 +43,15 @@
 use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
     tensor::{Allocator, Error, Global, PackedBuffer, TensorRef},
-    types::{bf16, f16, StorageElement},
+    types::{StorageElement, bf16, f16},
 };
 
 // region: FFI
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     fn nk_maxsim_pack_size_f32_best(
         vectors: nk_size_t,
         depth: nk_size_t,
@@ -218,10 +218,12 @@ impl MaxSim for f32 {
     }
 
     unsafe fn maxsim_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
-        let (mut vectors, mut depth) = (0usize, 0usize);
-        nk_maxsim_packed_shape_f32_best(packed, &mut vectors, &mut depth, Capabilities::CPUS.bits(), null_mut())
-            .check()?;
-        Ok((vectors, depth))
+        unsafe {
+            let (mut vectors, mut depth) = (0usize, 0usize);
+            nk_maxsim_packed_shape_f32_best(packed, &mut vectors, &mut depth, Capabilities::CPUS.bits(), null_mut())
+                .check()?;
+            Ok((vectors, depth))
+        }
     }
 
     unsafe fn maxsim_pack(
@@ -231,16 +233,9 @@ impl MaxSim for f32 {
         stride: usize,
         packed: *mut u8,
     ) -> Result<(), Error> {
-        nk_maxsim_pack_f32_best(
-            data,
-            vectors,
-            depth,
-            stride,
-            packed,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()
+        unsafe {
+            nk_maxsim_pack_f32_best(data, vectors, depth, stride, packed, Capabilities::CPUS.bits(), null_mut()).check()
+        }
     }
 
     unsafe fn maxsim_packed(
@@ -251,17 +246,19 @@ impl MaxSim for f32 {
         depth: usize,
         result: *mut Self::Score,
     ) -> Result<(), Error> {
-        nk_maxsim_packed_f32_best(
-            queries,
-            documents,
-            query_count,
-            document_count,
-            depth,
-            result,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()
+        unsafe {
+            nk_maxsim_packed_f32_best(
+                queries,
+                documents,
+                query_count,
+                document_count,
+                depth,
+                result,
+                Capabilities::CPUS.bits(),
+                null_mut(),
+            )
+            .check()
+        }
     }
 }
 
@@ -275,10 +272,12 @@ impl MaxSim for f16 {
     }
 
     unsafe fn maxsim_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
-        let (mut vectors, mut depth) = (0usize, 0usize);
-        nk_maxsim_packed_shape_f16_best(packed, &mut vectors, &mut depth, Capabilities::CPUS.bits(), null_mut())
-            .check()?;
-        Ok((vectors, depth))
+        unsafe {
+            let (mut vectors, mut depth) = (0usize, 0usize);
+            nk_maxsim_packed_shape_f16_best(packed, &mut vectors, &mut depth, Capabilities::CPUS.bits(), null_mut())
+                .check()?;
+            Ok((vectors, depth))
+        }
     }
 
     unsafe fn maxsim_pack(
@@ -288,16 +287,9 @@ impl MaxSim for f16 {
         stride: usize,
         packed: *mut u8,
     ) -> Result<(), Error> {
-        nk_maxsim_pack_f16_best(
-            data,
-            vectors,
-            depth,
-            stride,
-            packed,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()
+        unsafe {
+            nk_maxsim_pack_f16_best(data, vectors, depth, stride, packed, Capabilities::CPUS.bits(), null_mut()).check()
+        }
     }
 
     unsafe fn maxsim_packed(
@@ -308,17 +300,19 @@ impl MaxSim for f16 {
         depth: usize,
         result: *mut Self::Score,
     ) -> Result<(), Error> {
-        nk_maxsim_packed_f16_best(
-            queries,
-            documents,
-            query_count,
-            document_count,
-            depth,
-            result,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()
+        unsafe {
+            nk_maxsim_packed_f16_best(
+                queries,
+                documents,
+                query_count,
+                document_count,
+                depth,
+                result,
+                Capabilities::CPUS.bits(),
+                null_mut(),
+            )
+            .check()
+        }
     }
 }
 
@@ -332,10 +326,12 @@ impl MaxSim for bf16 {
     }
 
     unsafe fn maxsim_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
-        let (mut vectors, mut depth) = (0usize, 0usize);
-        nk_maxsim_packed_shape_bf16_best(packed, &mut vectors, &mut depth, Capabilities::CPUS.bits(), null_mut())
-            .check()?;
-        Ok((vectors, depth))
+        unsafe {
+            let (mut vectors, mut depth) = (0usize, 0usize);
+            nk_maxsim_packed_shape_bf16_best(packed, &mut vectors, &mut depth, Capabilities::CPUS.bits(), null_mut())
+                .check()?;
+            Ok((vectors, depth))
+        }
     }
 
     unsafe fn maxsim_pack(
@@ -345,16 +341,10 @@ impl MaxSim for bf16 {
         stride: usize,
         packed: *mut u8,
     ) -> Result<(), Error> {
-        nk_maxsim_pack_bf16_best(
-            data,
-            vectors,
-            depth,
-            stride,
-            packed,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()
+        unsafe {
+            nk_maxsim_pack_bf16_best(data, vectors, depth, stride, packed, Capabilities::CPUS.bits(), null_mut())
+                .check()
+        }
     }
 
     unsafe fn maxsim_packed(
@@ -365,17 +355,19 @@ impl MaxSim for bf16 {
         depth: usize,
         result: *mut Self::Score,
     ) -> Result<(), Error> {
-        nk_maxsim_packed_bf16_best(
-            queries,
-            documents,
-            query_count,
-            document_count,
-            depth,
-            result,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()
+        unsafe {
+            nk_maxsim_packed_bf16_best(
+                queries,
+                documents,
+                query_count,
+                document_count,
+                depth,
+                result,
+                Capabilities::CPUS.bits(),
+                null_mut(),
+            )
+            .check()
+        }
     }
 }
 
@@ -403,12 +395,7 @@ impl<Scalar: MaxSim, Alloc: Allocator + Clone> MaxSimPackedMatrix<Scalar, Alloc>
     /// Clone this packed matrix, returning an error on allocation failure.
     #[allow(clippy::should_implement_trait)]
     pub fn clone(&self) -> Result<Self, Error> {
-        Ok(Self {
-            buffer: self.buffer.clone()?,
-            vectors: self.vectors,
-            depth: self.depth,
-            _marker: PhantomData,
-        })
+        Ok(Self { buffer: self.buffer.clone()?, vectors: self.vectors, depth: self.depth, _marker: PhantomData })
     }
 }
 
@@ -416,12 +403,7 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     /// An empty packed set owning no allocation; fill it with
     /// [`pack_into`](Self::pack_into).
     pub fn empty_in(alloc: Alloc) -> Self {
-        Self {
-            buffer: PackedBuffer::empty_in(alloc),
-            vectors: 0,
-            depth: 0,
-            _marker: PhantomData,
-        }
+        Self { buffer: PackedBuffer::empty_in(alloc), vectors: 0, depth: 0, _marker: PhantomData }
     }
 
     /// Pack vectors from a 2D tensor view using a custom allocator.
@@ -472,37 +454,35 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
         other: &MaxSimPackedMatrix<Scalar, OtherAlloc>,
     ) -> Result<Scalar::Score, Error> {
         if self.depth != other.depth {
-            return Err(Error::DimensionMismatch {
-                expected: self.depth,
-                got: other.depth,
-            });
+            return Err(Error::DimensionMismatch { expected: self.depth, got: other.depth });
         }
         let mut score = Scalar::Score::default();
         unsafe {
-            Scalar::maxsim_packed(
-                self.as_ptr(),
-                other.as_ptr(),
-                self.vectors,
-                other.vectors,
-                self.depth,
-                &mut score,
-            )
+            Scalar::maxsim_packed(self.as_ptr(), other.as_ptr(), self.vectors, other.vectors, self.depth, &mut score)
         }?;
         Ok(score)
     }
 
     /// Returns a reference to the allocator.
-    pub fn allocator(&self) -> &Alloc { self.buffer.allocator() }
+    pub fn allocator(&self) -> &Alloc {
+        self.buffer.allocator()
+    }
 
     /// Number of vectors in the packed set.
-    pub fn vectors(&self) -> usize { self.vectors }
+    pub fn vectors(&self) -> usize {
+        self.vectors
+    }
 
     /// Returns the shape __\[vectors,depth\]__ of the original vector set.
-    pub fn shape(&self) -> (usize, usize) { (self.vectors, self.depth) }
+    pub fn shape(&self) -> (usize, usize) {
+        (self.vectors, self.depth)
+    }
 
     /// Bytes a packed buffer occupies for `vectors` vectors of the given `depth` under the active
     /// backend's layout, letting a caller pre-size an external buffer without packing.
-    pub fn pack_size(vectors: usize, depth: usize) -> Result<usize, Error> { Scalar::maxsim_pack_size(vectors, depth) }
+    pub fn pack_size(vectors: usize, depth: usize) -> Result<usize, Error> {
+        Scalar::maxsim_pack_size(vectors, depth)
+    }
 
     /// Adopt an externally-produced packed buffer by copying `bytes` into a container-owned
     /// allocation tagged with the given `vectors` and `depth`. The packed layout is not
@@ -525,16 +505,24 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     }
 
     /// Bytes currently allocated (>= the live packed size).
-    pub fn capacity(&self) -> usize { self.buffer.capacity() }
+    pub fn capacity(&self) -> usize {
+        self.buffer.capacity()
+    }
 
     /// Reset to logically empty, keeping the allocation so the next `pack_into` reuses it.
-    pub fn clear(&mut self) { self.buffer.clear(); }
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+    }
 
     /// Returns the packed data buffer.
-    pub fn as_bytes(&self) -> &[u8] { self.buffer.as_bytes() }
+    pub fn as_bytes(&self) -> &[u8] {
+        self.buffer.as_bytes()
+    }
 
     /// Returns a pointer to the packed data.
-    pub fn as_ptr(&self) -> *const u8 { self.buffer.as_ptr() }
+    pub fn as_ptr(&self) -> *const u8 {
+        self.buffer.as_ptr()
+    }
 }
 
 // endregion: MaxSimPackedMatrix
@@ -545,10 +533,7 @@ where
     Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
 {
     let &[rows, columns] = data.shape() else {
-        return Err(Error::DimensionMismatch {
-            expected: 2,
-            got: data.ndim(),
-        });
+        return Err(Error::DimensionMismatch { expected: 2, got: data.ndim() });
     };
 
     if !data.has_contiguous_rows() {
@@ -584,7 +569,7 @@ impl<Scalar: MaxSim> MaxSimPackedMatrix<Scalar, Global> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::{SliceRange, Tensor, DEFAULT_ALIGNMENT};
+    use crate::tensor::{DEFAULT_ALIGNMENT, SliceRange, Tensor};
 
     #[test]
     fn maxsim_packs_from_tensor_view() {
@@ -612,9 +597,7 @@ mod tests {
     #[test]
     fn maxsim_accepts_outer_strided_views() {
         let queries = Tensor::<f32>::full(&[8, 16], 1.0).unwrap();
-        let odd_rows = queries
-            .slice(&[SliceRange::range_step(1, 7, 2), SliceRange::range_step(0, 16, 1)])
-            .unwrap();
+        let odd_rows = queries.slice(&[SliceRange::range_step(1, 7, 2), SliceRange::range_step(0, 16, 1)]).unwrap();
 
         let queries_packed = MaxSimPackedMatrix::new(&odd_rows).unwrap();
         assert_eq!(queries_packed.shape(), (3, 16));
@@ -623,9 +606,8 @@ mod tests {
     #[test]
     fn maxsim_rejects_negative_row_stride() {
         let queries = Tensor::<f32>::full(&[8, 16], 1.0).unwrap();
-        let reversed_rows = queries
-            .slice(&[SliceRange::range_step(7, 0, -1), SliceRange::range_step(0, 16, 1)])
-            .unwrap();
+        let reversed_rows =
+            queries.slice(&[SliceRange::range_step(7, 0, -1), SliceRange::range_step(0, 16, 1)]).unwrap();
 
         let result = MaxSimPackedMatrix::new(&reversed_rows);
         assert!(matches!(result, Err(Error::InvalidShape { .. })));
@@ -667,11 +649,7 @@ mod tests {
             let data = Tensor::<f32>::full(&[vectors, depth], 1.0).unwrap();
             packed.pack_into(&data).unwrap();
             assert_eq!(packed.shape(), (vectors, depth));
-            assert_eq!(
-                packed.capacity(),
-                reserved_capacity,
-                "reserved capacity must not change"
-            );
+            assert_eq!(packed.capacity(), reserved_capacity, "reserved capacity must not change");
             assert_eq!(packed.as_ptr(), reserved_ptr, "reserved pointer must stay stable");
         }
     }

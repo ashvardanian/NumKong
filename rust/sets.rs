@@ -18,19 +18,19 @@ use core::{ffi::c_void, ptr::null_mut};
 use forkunion as fu;
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
     tensor::{Allocator, Error, Tensor, TensorMut, TensorRef, TensorView},
-    types::{u1x8, StorageElement},
+    types::{StorageElement, u1x8},
 };
 
 #[cfg(feature = "parallel")]
 use crate::capabilities::WorkerStatus;
 #[cfg(feature = "parallel")]
 use crate::dots::compute_thread_rows;
-use crate::dots::{validate_matrix_output, validate_packed_input, validate_symmetric_input, Dots, DotsPackedMatrix};
+use crate::dots::{Dots, DotsPackedMatrix, validate_matrix_output, validate_packed_input, validate_symmetric_input};
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
 
     fn nk_hammings_packed_u1_best(
         queries: *const u8,
@@ -157,21 +157,23 @@ impl Hammings for u1x8 {
         v_stride: usize,
         r_stride: usize,
     ) -> Result<(), Error> {
-        nk_hammings_packed_u1_best(
-            queries as *const u8,
-            packed,
-            result,
-            rows,
-            columns,
-            depth,
-            v_stride,
-            r_stride,
-            null_mut(),
-            0,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()
+        unsafe {
+            nk_hammings_packed_u1_best(
+                queries as *const u8,
+                packed,
+                result,
+                rows,
+                columns,
+                depth,
+                v_stride,
+                r_stride,
+                null_mut(),
+                0,
+                Capabilities::CPUS.bits(),
+                null_mut(),
+            )
+            .check()
+        }
     }
 
     unsafe fn hammings_symmetric(
@@ -184,21 +186,23 @@ impl Hammings for u1x8 {
         rows_begin: usize,
         rows_end: usize,
     ) -> Result<(), Error> {
-        nk_hammings_symmetric_u1_best(
-            vectors as *const u8,
-            vector_count,
-            depth,
-            stride,
-            result,
-            result_stride,
-            rows_begin,
-            rows_end,
-            null_mut(),
-            0,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()
+        unsafe {
+            nk_hammings_symmetric_u1_best(
+                vectors as *const u8,
+                vector_count,
+                depth,
+                stride,
+                result,
+                result_stride,
+                rows_begin,
+                rows_end,
+                null_mut(),
+                0,
+                Capabilities::CPUS.bits(),
+                null_mut(),
+            )
+            .check()
+        }
     }
 }
 
@@ -274,21 +278,23 @@ impl Jaccards for u1x8 {
         v_stride: usize,
         r_stride: usize,
     ) -> Result<(), Error> {
-        nk_jaccards_packed_u1_best(
-            queries as *const u8,
-            packed,
-            result,
-            rows,
-            columns,
-            depth,
-            v_stride,
-            r_stride,
-            null_mut(),
-            0,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()
+        unsafe {
+            nk_jaccards_packed_u1_best(
+                queries as *const u8,
+                packed,
+                result,
+                rows,
+                columns,
+                depth,
+                v_stride,
+                r_stride,
+                null_mut(),
+                0,
+                Capabilities::CPUS.bits(),
+                null_mut(),
+            )
+            .check()
+        }
     }
 
     unsafe fn jaccards_symmetric(
@@ -301,21 +307,23 @@ impl Jaccards for u1x8 {
         rows_begin: usize,
         rows_end: usize,
     ) -> Result<(), Error> {
-        nk_jaccards_symmetric_u1_best(
-            vectors as *const u8,
-            vector_count,
-            depth,
-            stride,
-            result,
-            result_stride,
-            rows_begin,
-            rows_end,
-            null_mut(),
-            0,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
-        .check()
+        unsafe {
+            nk_jaccards_symmetric_u1_best(
+                vectors as *const u8,
+                vector_count,
+                depth,
+                stride,
+                result,
+                result_stride,
+                rows_begin,
+                rows_end,
+                null_mut(),
+                0,
+                Capabilities::CPUS.bits(),
+                null_mut(),
+            )
+            .check()
+        }
     }
 }
 
@@ -476,11 +484,7 @@ pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<
         Self::Alloc: Clone,
     {
         let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
-        let mut output = Tensor::full_in(
-            &[rows, columns],
-            Scalar::JaccardResult::default(),
-            self.allocator().clone(),
-        )?;
+        let mut output = Tensor::full_in(&[rows, columns], Scalar::JaccardResult::default(), self.allocator().clone())?;
         unsafe {
             Scalar::jaccards_packed(
                 self.as_ptr(),
@@ -760,11 +764,7 @@ where
         Self::Alloc: Clone,
     {
         let (rows, columns, _) = validate_packed_input(self, packed_right)?;
-        let mut output = Tensor::full_in(
-            &[rows, columns],
-            Scalar::JaccardResult::default(),
-            self.allocator().clone(),
-        )?;
+        let mut output = Tensor::full_in(&[rows, columns], Scalar::JaccardResult::default(), self.allocator().clone())?;
         self.jaccards_packed_parallel_into(packed_right, &mut output, pool)?;
         Ok(output)
     }
@@ -794,11 +794,8 @@ where
         pool: &mut fu::ThreadPool,
     ) -> Result<Tensor<Scalar::JaccardResult, Alloc, MAX_RANK>, Error> {
         let (vector_count, _) = validate_symmetric_input(self)?;
-        let mut result = Tensor::full_in(
-            &[vector_count, vector_count],
-            Scalar::JaccardResult::default(),
-            self.allocator().clone(),
-        )?;
+        let mut result =
+            Tensor::full_in(&[vector_count, vector_count], Scalar::JaccardResult::default(), self.allocator().clone())?;
         self.jaccards_symmetric_parallel_into(&mut result, pool)?;
         Ok(result)
     }
@@ -899,11 +896,8 @@ impl<'queries, Scalar: Jaccards, const MAX_RANK: usize, Alloc: Allocator>
         Alloc: Clone,
     {
         let (vector_count, _) = validate_symmetric_input(self)?;
-        let mut result = Tensor::full_in(
-            &[vector_count, vector_count],
-            Scalar::JaccardResult::default(),
-            self.allocator().clone(),
-        )?;
+        let mut result =
+            Tensor::full_in(&[vector_count, vector_count], Scalar::JaccardResult::default(), self.allocator().clone())?;
         self.jaccards_symmetric_into(&mut result)?;
         Ok(result)
     }
@@ -1012,7 +1006,7 @@ impl<Scalar: Jaccards, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symme
 mod tests {
     use super::*;
     #[cfg(feature = "parallel")]
-    use crate::types::{align_depth, DIMS};
+    use crate::types::{DIMS, align_depth};
     use crate::types::{assert_upper_triangle_eq, init_thread};
 
     #[cfg(feature = "parallel")]
@@ -1028,31 +1022,17 @@ mod tests {
             let b_packed = DotsPackedMatrix::new(&b).unwrap();
             let serial = a.hammings_packed(&b_packed).unwrap();
             let parallel = a.hammings_packed_parallel(&b_packed, &mut pool).unwrap();
-            assert_eq!(
-                serial.as_slice(),
-                parallel.as_slice(),
-                "hammings @ ({rows},{columns},{depth})"
-            );
+            assert_eq!(serial.as_slice(), parallel.as_slice(), "hammings @ ({rows},{columns},{depth})");
             let mut into_span = Tensor::<u32>::full(&[rows, columns], 0u32).unwrap();
-            a.hammings_packed_parallel_into(&b_packed, &mut into_span.span(), &mut pool)
-                .unwrap();
+            a.hammings_packed_parallel_into(&b_packed, &mut into_span.span(), &mut pool).unwrap();
             assert_eq!(serial.as_slice(), into_span.as_slice(), "hammings _parallel_into(span)");
 
             let serial_j = a.jaccards_packed(&b_packed).unwrap();
             let parallel_j = a.jaccards_packed_parallel(&b_packed, &mut pool).unwrap();
-            assert_eq!(
-                serial_j.as_slice(),
-                parallel_j.as_slice(),
-                "jaccards @ ({rows},{columns},{depth})"
-            );
+            assert_eq!(serial_j.as_slice(), parallel_j.as_slice(), "jaccards @ ({rows},{columns},{depth})");
             let mut into_span_j = Tensor::<f32>::full(&[rows, columns], 0.0f32).unwrap();
-            a.jaccards_packed_parallel_into(&b_packed, &mut into_span_j.span(), &mut pool)
-                .unwrap();
-            assert_eq!(
-                serial_j.as_slice(),
-                into_span_j.as_slice(),
-                "jaccards _parallel_into(span)"
-            );
+            a.jaccards_packed_parallel_into(&b_packed, &mut into_span_j.span(), &mut pool).unwrap();
+            assert_eq!(serial_j.as_slice(), into_span_j.as_slice(), "jaccards _parallel_into(span)");
         }
     }
 
@@ -1075,9 +1055,7 @@ mod tests {
                 "hammings_symmetric_parallel",
             );
             let mut into_span_h = Tensor::<u32>::full(&[num_vectors, num_vectors], 0u32).unwrap();
-            vectors
-                .hammings_symmetric_parallel_into(&mut into_span_h.span(), &mut pool)
-                .unwrap();
+            vectors.hammings_symmetric_parallel_into(&mut into_span_h.span(), &mut pool).unwrap();
             assert_upper_triangle_eq(
                 serial_h.as_slice(),
                 into_span_h.as_slice(),
@@ -1094,9 +1072,7 @@ mod tests {
                 "jaccards_symmetric_parallel",
             );
             let mut into_span_j = Tensor::<f32>::full(&[num_vectors, num_vectors], 0.0f32).unwrap();
-            vectors
-                .jaccards_symmetric_parallel_into(&mut into_span_j.span(), &mut pool)
-                .unwrap();
+            vectors.jaccards_symmetric_parallel_into(&mut into_span_j.span(), &mut pool).unwrap();
             assert_upper_triangle_eq(
                 serial_j.as_slice(),
                 into_span_j.as_slice(),
@@ -1118,16 +1094,8 @@ mod tests {
         let packed = DotsPackedMatrix::new(&b).unwrap();
 
         let expected = a.hammings_packed(&packed).unwrap();
-        assert_eq!(
-            a.view().hammings_packed(&packed).unwrap().as_slice(),
-            expected.as_slice(),
-            "view A"
-        );
-        assert_eq!(
-            a.span().hammings_packed(&packed).unwrap().as_slice(),
-            expected.as_slice(),
-            "span A"
-        );
+        assert_eq!(a.view().hammings_packed(&packed).unwrap().as_slice(), expected.as_slice(), "view A");
+        assert_eq!(a.span().hammings_packed(&packed).unwrap().as_slice(), expected.as_slice(), "span A");
         let mut into = Tensor::<u32>::full(&[rows, columns], 0u32).unwrap();
         a.view().hammings_packed_into(&packed, &mut into.span()).unwrap();
         assert_eq!(into.as_slice(), expected.as_slice(), "view A into span");
@@ -1144,16 +1112,8 @@ mod tests {
         let packed = DotsPackedMatrix::new(&b).unwrap();
 
         let expected = a.jaccards_packed(&packed).unwrap();
-        assert_eq!(
-            a.view().jaccards_packed(&packed).unwrap().as_slice(),
-            expected.as_slice(),
-            "view A"
-        );
-        assert_eq!(
-            a.span().jaccards_packed(&packed).unwrap().as_slice(),
-            expected.as_slice(),
-            "span A"
-        );
+        assert_eq!(a.view().jaccards_packed(&packed).unwrap().as_slice(), expected.as_slice(), "view A");
+        assert_eq!(a.span().jaccards_packed(&packed).unwrap().as_slice(), expected.as_slice(), "span A");
         let mut into = Tensor::<f32>::full(&[rows, columns], 0.0f32).unwrap();
         a.view().jaccards_packed_into(&packed, &mut into.span()).unwrap();
         assert_eq!(into.as_slice(), expected.as_slice(), "view A into span");
@@ -1162,12 +1122,16 @@ mod tests {
     #[test]
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-    fn sets_packed_parallel() { check_hammings_packed_parallel_u1(); }
+    fn sets_packed_parallel() {
+        check_hammings_packed_parallel_u1();
+    }
 
     #[test]
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
-    fn sets_symmetric_parallel() { check_sets_symmetric_parallel(); }
+    fn sets_symmetric_parallel() {
+        check_sets_symmetric_parallel();
+    }
 
     #[test]
     fn binary_packed_u1() {

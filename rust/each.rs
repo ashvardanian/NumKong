@@ -51,13 +51,13 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
-    tensor::{check_len, Allocator, Error, Tensor, TensorMut, TensorRef},
-    types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
+    tensor::{Allocator, Error, Tensor, TensorMut, TensorRef, check_len},
+    types::{StorageElement, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c},
 };
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     // Elementwise operations
     fn nk_each_scale_f64_best(
         a: *const f64,
@@ -1134,18 +1134,8 @@ impl EachScale for f64 {
     fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_scale_f64_best(
-                p as *const f64,
-                len,
-                &alpha,
-                &beta,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_scale_f64_best(p as *const f64, len, &alpha, &beta, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1170,18 +1160,8 @@ impl EachScale for f32 {
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_scale_f32_best(
-                p as *const f32,
-                len,
-                &alpha,
-                &beta,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_scale_f32_best(p as *const f32, len, &alpha, &beta, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1278,18 +1258,8 @@ impl EachScale for i8 {
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_scale_i8_best(
-                p as *const i8,
-                len,
-                &alpha,
-                &beta,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_scale_i8_best(p as *const i8, len, &alpha, &beta, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1314,18 +1284,8 @@ impl EachScale for u8 {
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_scale_u8_best(
-                p as *const u8,
-                len,
-                &alpha,
-                &beta,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_scale_u8_best(p as *const u8, len, &alpha, &beta, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1350,18 +1310,8 @@ impl EachScale for i16 {
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_scale_i16_best(
-                p as *const i16,
-                len,
-                &alpha,
-                &beta,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_scale_i16_best(p as *const i16, len, &alpha, &beta, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1386,18 +1336,8 @@ impl EachScale for u16 {
     fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_scale_u16_best(
-                p as *const u16,
-                len,
-                &alpha,
-                &beta,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_scale_u16_best(p as *const u16, len, &alpha, &beta, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1422,18 +1362,8 @@ impl EachScale for i32 {
     fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_scale_i32_best(
-                p as *const i32,
-                len,
-                &alpha,
-                &beta,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_scale_i32_best(p as *const i32, len, &alpha, &beta, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1458,18 +1388,8 @@ impl EachScale for u32 {
     fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_scale_u32_best(
-                p as *const u32,
-                len,
-                &alpha,
-                &beta,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_scale_u32_best(p as *const u32, len, &alpha, &beta, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1494,18 +1414,8 @@ impl EachScale for i64 {
     fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_scale_i64_best(
-                p as *const i64,
-                len,
-                &alpha,
-                &beta,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_scale_i64_best(p as *const i64, len, &alpha, &beta, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1530,18 +1440,8 @@ impl EachScale for u64 {
     fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_scale_u64_best(
-                p as *const u64,
-                len,
-                &alpha,
-                &beta,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_scale_u64_best(p as *const u64, len, &alpha, &beta, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1829,17 +1729,8 @@ impl EachSum for f64 {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_sum_f64_best(
-                p as *const f64,
-                other.as_ptr(),
-                len,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_sum_f64_best(p as *const f64, other.as_ptr(), len, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1864,17 +1755,8 @@ impl EachSum for f32 {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_sum_f32_best(
-                p as *const f32,
-                other.as_ptr(),
-                len,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_sum_f32_best(p as *const f32, other.as_ptr(), len, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -1969,17 +1851,8 @@ impl EachSum for i8 {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_sum_i8_best(
-                p as *const i8,
-                other.as_ptr(),
-                len,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_sum_i8_best(p as *const i8, other.as_ptr(), len, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -2004,17 +1877,8 @@ impl EachSum for u8 {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_sum_u8_best(
-                p as *const u8,
-                other.as_ptr(),
-                len,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_sum_u8_best(p as *const u8, other.as_ptr(), len, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -2039,17 +1903,8 @@ impl EachSum for i16 {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_sum_i16_best(
-                p as *const i16,
-                other.as_ptr(),
-                len,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_sum_i16_best(p as *const i16, other.as_ptr(), len, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -2074,17 +1929,8 @@ impl EachSum for u16 {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_sum_u16_best(
-                p as *const u16,
-                other.as_ptr(),
-                len,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_sum_u16_best(p as *const u16, other.as_ptr(), len, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -2109,17 +1955,8 @@ impl EachSum for i32 {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_sum_i32_best(
-                p as *const i32,
-                other.as_ptr(),
-                len,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_sum_i32_best(p as *const i32, other.as_ptr(), len, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -2144,17 +1981,8 @@ impl EachSum for u32 {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_sum_u32_best(
-                p as *const u32,
-                other.as_ptr(),
-                len,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_sum_u32_best(p as *const u32, other.as_ptr(), len, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -2179,17 +2007,8 @@ impl EachSum for i64 {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_sum_i64_best(
-                p as *const i64,
-                other.as_ptr(),
-                len,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_sum_i64_best(p as *const i64, other.as_ptr(), len, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -2214,17 +2033,8 @@ impl EachSum for u64 {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_each_sum_u64_best(
-                p as *const u64,
-                other.as_ptr(),
-                len,
-                p,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_each_sum_u64_best(p as *const u64, other.as_ptr(), len, p, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -4146,7 +3956,7 @@ impl EachFma for bf16c {
 
 // region: Tensor-shaped tolerance equality
 
-use crate::types::{is_close, FloatConvertible, NumberLike};
+use crate::types::{FloatConvertible, NumberLike, is_close};
 
 /// Extension trait: tolerance-based equality for any [`TensorRef`] implementor.
 ///
@@ -4161,10 +3971,7 @@ where
         let b = other.view();
         a.ndim() == b.ndim()
             && a.shape() == b.shape()
-            && a.iter()
-                .dims()
-                .zip(b.iter().dims())
-                .all(|(x, y)| is_close((*x).to_f64(), (*y).to_f64(), atol, rtol))
+            && a.iter().dims().zip(b.iter().dims()).all(|(x, y)| is_close((*x).to_f64(), (*y).to_f64(), atol, rtol))
     }
 }
 
@@ -4495,29 +4302,16 @@ where
     YOut: TensorRef<Scalar, RY> + ?Sized,
 {
     if gate.ndim() != 2 {
-        return Err(Error::DimensionMismatch {
-            expected: 2,
-            got: gate.ndim(),
-        });
+        return Err(Error::DimensionMismatch { expected: 2, got: gate.ndim() });
     }
     if y.ndim() != 2 {
-        return Err(Error::DimensionMismatch {
-            expected: 2,
-            got: y.ndim(),
-        });
+        return Err(Error::DimensionMismatch { expected: 2, got: y.ndim() });
     }
     let (&[rows, columns], &[y_rows, y_columns]) = (gate.shape(), y.shape()) else {
-        return Err(Error::DimensionMismatch {
-            expected: 2,
-            got: gate.ndim(),
-        });
+        return Err(Error::DimensionMismatch { expected: 2, got: gate.ndim() });
     };
     if (rows, columns) != (y_rows, y_columns) {
-        let (axis, expected, got) = if rows != y_rows {
-            (0, rows, y_rows)
-        } else {
-            (1, columns, y_columns)
-        };
+        let (axis, expected, got) = if rows != y_rows { (0, rows, y_rows) } else { (1, columns, y_columns) };
         return Err(Error::ShapeMismatch { axis, expected, got });
     }
     if rows == 0 || columns == 0 {
@@ -4528,37 +4322,20 @@ where
     let (up_ptr, up_stride) = match up {
         Some(u) => {
             if u.ndim() != 2 {
-                return Err(Error::DimensionMismatch {
-                    expected: 2,
-                    got: u.ndim(),
-                });
+                return Err(Error::DimensionMismatch { expected: 2, got: u.ndim() });
             }
             let &[up_rows, up_columns] = u.shape() else {
-                return Err(Error::DimensionMismatch {
-                    expected: 2,
-                    got: u.ndim(),
-                });
+                return Err(Error::DimensionMismatch { expected: 2, got: u.ndim() });
             };
             if (up_rows, up_columns) != (rows, columns) {
-                let (axis, expected, got) = if up_rows != rows {
-                    (0, rows, up_rows)
-                } else {
-                    (1, columns, up_columns)
-                };
+                let (axis, expected, got) = if up_rows != rows { (0, rows, up_rows) } else { (1, columns, up_columns) };
                 return Err(Error::ShapeMismatch { axis, expected, got });
             }
             (u.as_ptr(), u.stride_bytes(0) as usize)
         }
         None => (core::ptr::null(), 0usize),
     };
-    Ok(Some(SwigluPlan {
-        rows,
-        columns,
-        gate_stride,
-        y_stride,
-        up_ptr,
-        up_stride,
-    }))
+    Ok(Some(SwigluPlan { rows, columns, gate_stride, y_stride, up_ptr, up_stride }))
 }
 
 impl EachSwiGlu for f32 {
@@ -4574,14 +4351,8 @@ impl EachSwiGlu for f32 {
         UIn: TensorRef<Self, RU> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        let Some(SwigluPlan {
-            rows,
-            columns,
-            gate_stride,
-            y_stride,
-            up_ptr,
-            up_stride,
-        }) = validate_swiglu(gate, up, y)?
+        let Some(SwigluPlan { rows, columns, gate_stride, y_stride, up_ptr, up_stride }) =
+            validate_swiglu(gate, up, y)?
         else {
             return Ok(());
         };
@@ -4619,14 +4390,8 @@ impl EachSwiGlu for bf16 {
         UIn: TensorRef<Self, RU> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        let Some(SwigluPlan {
-            rows,
-            columns,
-            gate_stride,
-            y_stride,
-            up_ptr,
-            up_stride,
-        }) = validate_swiglu(gate, up, y)?
+        let Some(SwigluPlan { rows, columns, gate_stride, y_stride, up_ptr, up_stride }) =
+            validate_swiglu(gate, up, y)?
         else {
             return Ok(());
         };
@@ -4664,14 +4429,8 @@ impl EachSwiGlu for e4m3 {
         UIn: TensorRef<Self, RU> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        let Some(SwigluPlan {
-            rows,
-            columns,
-            gate_stride,
-            y_stride,
-            up_ptr,
-            up_stride,
-        }) = validate_swiglu(gate, up, y)?
+        let Some(SwigluPlan { rows, columns, gate_stride, y_stride, up_ptr, up_stride }) =
+            validate_swiglu(gate, up, y)?
         else {
             return Ok(());
         };
@@ -4749,29 +4508,16 @@ where
     YOut: TensorRef<Output, RY> + ?Sized,
 {
     if x.ndim() != 2 {
-        return Err(Error::DimensionMismatch {
-            expected: 2,
-            got: x.ndim(),
-        });
+        return Err(Error::DimensionMismatch { expected: 2, got: x.ndim() });
     }
     if y.ndim() != 2 {
-        return Err(Error::DimensionMismatch {
-            expected: 2,
-            got: y.ndim(),
-        });
+        return Err(Error::DimensionMismatch { expected: 2, got: y.ndim() });
     }
     let (&[rows, width], &[y_rows, y_width]) = (x.shape(), y.shape()) else {
-        return Err(Error::DimensionMismatch {
-            expected: 2,
-            got: x.ndim(),
-        });
+        return Err(Error::DimensionMismatch { expected: 2, got: x.ndim() });
     };
     if (rows, width) != (y_rows, y_width) {
-        let (axis, expected, got) = if rows != y_rows {
-            (0, rows, y_rows)
-        } else {
-            (1, width, y_width)
-        };
+        let (axis, expected, got) = if rows != y_rows { (0, rows, y_rows) } else { (1, width, y_width) };
         return Err(Error::ShapeMismatch { axis, expected, got });
     }
     if groups == 0 || width % groups != 0 {
@@ -4787,23 +4533,13 @@ where
     let columns = width / groups;
     if let Some(g) = gamma {
         if g.len() != columns {
-            return Err(Error::ShapeMismatch {
-                axis: 1,
-                expected: columns,
-                got: g.len(),
-            });
+            return Err(Error::ShapeMismatch { axis: 1, expected: columns, got: g.len() });
         }
     }
     let x_stride = x.stride_bytes(0) as usize;
     let y_stride = y.stride_bytes(0) as usize;
     let gamma_ptr = gamma.map_or(core::ptr::null(), |g| g.as_ptr());
-    Ok(Some(RmsNormPlan {
-        rows,
-        columns,
-        x_stride,
-        y_stride,
-        gamma_ptr,
-    }))
+    Ok(Some(RmsNormPlan { rows, columns, x_stride, y_stride, gamma_ptr }))
 }
 
 impl EachRmsNorm for f32 {
@@ -4818,13 +4554,7 @@ impl EachRmsNorm for f32 {
         XIn: TensorRef<Self, RX> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        let Some(RmsNormPlan {
-            rows,
-            columns,
-            x_stride,
-            y_stride,
-            gamma_ptr,
-        }) = validate_rmsnorm(x, gamma, y, groups)?
+        let Some(RmsNormPlan { rows, columns, x_stride, y_stride, gamma_ptr }) = validate_rmsnorm(x, gamma, y, groups)?
         else {
             return Ok(());
         };
@@ -4860,13 +4590,7 @@ impl EachRmsNorm for bf16 {
         XIn: TensorRef<Self, RX> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        let Some(RmsNormPlan {
-            rows,
-            columns,
-            x_stride,
-            y_stride,
-            gamma_ptr,
-        }) = validate_rmsnorm(x, gamma, y, groups)?
+        let Some(RmsNormPlan { rows, columns, x_stride, y_stride, gamma_ptr }) = validate_rmsnorm(x, gamma, y, groups)?
         else {
             return Ok(());
         };
@@ -4902,13 +4626,7 @@ impl EachRmsNorm for e4m3 {
         XIn: TensorRef<Self, RX> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
     {
-        let Some(RmsNormPlan {
-            rows,
-            columns,
-            x_stride,
-            y_stride,
-            gamma_ptr,
-        }) = validate_rmsnorm(x, gamma, y, groups)?
+        let Some(RmsNormPlan { rows, columns, x_stride, y_stride, gamma_ptr }) = validate_rmsnorm(x, gamma, y, groups)?
         else {
             return Ok(());
         };
@@ -4986,13 +4704,7 @@ where
     XIn: TensorRef<Input, RX> + ?Sized,
     YOut: TensorMut<Output, RY> + ?Sized,
 {
-    let Some(RmsNormPlan {
-        rows,
-        columns,
-        x_stride,
-        y_stride,
-        gamma_ptr,
-    }) = validate_rmsnorm(x, gamma, y, groups)?
+    let Some(RmsNormPlan { rows, columns, x_stride, y_stride, gamma_ptr }) = validate_rmsnorm(x, gamma, y, groups)?
     else {
         return Ok(());
     };
@@ -5173,7 +4885,7 @@ impl EachRmsCast for u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16, FloatLike, NumberLike, TestableType};
+    use crate::types::{FloatLike, NumberLike, TestableType, assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16};
 
     /// Test a binary elementwise op: convert inputs, apply `op`, compare element-wise.
     pub(crate) fn check_each_binary<Scalar, F>(
@@ -5327,14 +5039,7 @@ mod tests {
         let a: Vec<f32> = vec![1.0, 2.0, 3.0];
         let b: Vec<f32> = vec![4.0, 5.0];
         let mut result = vec![0.0f32; a.len()];
-        assert_eq!(
-            f32::each_sum(&a, &b, &mut result),
-            Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: 3,
-                got: 2
-            })
-        );
+        assert_eq!(f32::each_sum(&a, &b, &mut result), Err(Error::ShapeMismatch { axis: 0, expected: 3, got: 2 }));
     }
 
     #[test]
@@ -5399,12 +5104,8 @@ mod tests {
         let left = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let right = Tensor::<f32>::full(&[3, 4], 2.0).unwrap();
 
-        let left_even = left
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
-            .unwrap();
-        let right_even = right
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
-            .unwrap();
+        let left_even = left.slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)]).unwrap();
+        let right_even = right.slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)]).unwrap();
 
         let added = left_even.add_tensor(&right_even).unwrap();
         assert_eq!(added.shape(), &[3, 2]);
@@ -5413,7 +5114,7 @@ mod tests {
 
     #[test]
     fn tensor_add_tensor_into_owning_destination() {
-        use crate::{tensor::Tensor, SumOps};
+        use crate::{SumOps, tensor::Tensor};
 
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let left = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
@@ -5431,9 +5132,7 @@ mod tests {
 
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
-        let even = source
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
-            .unwrap();
+        let even = source.slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)]).unwrap();
         let scaled = even.mul_scalar(0.5).unwrap();
         assert_eq!(scaled.as_slice(), &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
     }
@@ -5455,9 +5154,7 @@ mod tests {
 
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
-        let even = source
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
-            .unwrap();
+        let even = source.slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)]).unwrap();
         let mut sin_out = Tensor::<f32>::full(&[3, 2], 0.0).unwrap();
         {
             let mut span = sin_out.span();
@@ -5562,7 +5259,9 @@ mod tests {
 
     // endregion
 
-    fn silu(x: f64) -> f64 { x / (1.0 + (-x).exp()) }
+    fn silu(x: f64) -> f64 {
+        x / (1.0 + (-x).exp())
+    }
 
     fn check_swiglu<Scalar>(values: &[f32], with_up: bool)
     where
@@ -5614,14 +5313,8 @@ mod tests {
         let columns = 8;
         let buf: Vec<f32> = (0..rows * 2 * columns).map(|i| ((i % 11) as f32 - 5.0) * 0.3).collect();
         let wide = Tensor::<f32>::from_slice(&buf, &[rows, 2 * columns]).unwrap();
-        let gate = wide
-            .view()
-            .slice(&[SliceRange::Full, SliceRange::range(0, columns)][..])
-            .unwrap();
-        let up = wide
-            .view()
-            .slice(&[SliceRange::Full, SliceRange::range(columns, 2 * columns)][..])
-            .unwrap();
+        let gate = wide.view().slice(&[SliceRange::Full, SliceRange::range(0, columns)][..]).unwrap();
+        let up = wide.view().slice(&[SliceRange::Full, SliceRange::range(columns, 2 * columns)][..]).unwrap();
         let mut y = Tensor::<f32>::full(&[rows, columns], 0.0f32).unwrap();
         f32::swiglu_into(&gate, Some(&up), &mut y, 1.0, 1.0).unwrap();
 
@@ -5640,10 +5333,7 @@ mod tests {
         f32::swiglu_into(&gate_ct, Some(&up_ct), &mut y_ref, 1.0, 1.0).unwrap();
 
         for i in 0..rows * columns {
-            assert!(
-                (y.as_slice()[i] - y_ref.as_slice()[i]).abs() < 1e-5,
-                "strided gate|up SwiGLU mismatch at {i}"
-            );
+            assert!((y.as_slice()[i] - y_ref.as_slice()[i]).abs() < 1e-5, "strided gate|up SwiGLU mismatch at {i}");
         }
     }
 

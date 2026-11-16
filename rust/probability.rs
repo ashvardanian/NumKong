@@ -13,13 +13,13 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
-    tensor::{check_len, Error},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
+    tensor::{Error, check_len},
     types::{bf16, f16},
 };
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     fn nk_jsd_f16_best(
         a: *const u16,
         b: *const u16,
@@ -104,7 +104,9 @@ pub trait KullbackLeibler: Sized {
     fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `kullbackleibler`.
-    fn kl(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> { Self::kullbackleibler(a, b) }
+    fn kl(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
+        Self::kullbackleibler(a, b)
+    }
 }
 
 impl KullbackLeibler for f64 {
@@ -112,17 +114,8 @@ impl KullbackLeibler for f64 {
     fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_kld_f64_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()?;
+        unsafe { nk_kld_f64_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut()) }
+            .check()?;
         Ok(result)
     }
 }
@@ -132,17 +125,8 @@ impl KullbackLeibler for f32 {
     fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_kld_f32_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()?;
+        unsafe { nk_kld_f32_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut()) }
+            .check()?;
         Ok(result)
     }
 }
@@ -206,7 +190,9 @@ pub trait JensenShannon: Sized {
     fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `jensenshannon`.
-    fn js(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> { Self::jensenshannon(a, b) }
+    fn js(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
+        Self::jensenshannon(a, b)
+    }
 }
 
 impl JensenShannon for f64 {
@@ -214,17 +200,8 @@ impl JensenShannon for f64 {
     fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_jsd_f64_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()?;
+        unsafe { nk_jsd_f64_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut()) }
+            .check()?;
         Ok(result)
     }
 }
@@ -234,17 +211,8 @@ impl JensenShannon for f32 {
     fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
-        unsafe {
-            nk_jsd_f32_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()?;
+        unsafe { nk_jsd_f32_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut()) }
+            .check()?;
         Ok(result)
     }
 }
@@ -298,7 +266,7 @@ impl<Scalar: KullbackLeibler + JensenShannon> ProbabilitySimilarity for Scalar {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{assert_close, bf16, f16, FloatLike, NumberLike, TestableType};
+    use crate::types::{FloatLike, NumberLike, TestableType, assert_close, bf16, f16};
 
     fn check_kld<Scalar>(distribution_a: &[f32], distribution_b: &[f32], expected: f64)
     where

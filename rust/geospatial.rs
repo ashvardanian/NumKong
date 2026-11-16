@@ -51,8 +51,8 @@ use core::{ffi::c_void, ptr::null_mut};
 use forkunion as fu;
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
-    tensor::{check_len, Allocator, Error, Global, PackedBuffer},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
+    tensor::{Allocator, Error, Global, PackedBuffer, check_len},
 };
 
 #[cfg(feature = "parallel")]
@@ -61,7 +61,7 @@ use crate::capabilities::WorkerStatus;
 // region: FFI
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     fn nk_sqeuclideans3d_i32_best(
         a: *const i32,
         rows: nk_size_t,
@@ -244,17 +244,18 @@ impl<Alloc: Allocator> HaversinesPackedMatrix<Alloc> {
     pub fn new_in(latitudes: &[f64], longitudes: &[f64], alloc: Alloc) -> Result<Self, Error> {
         let bytes = Self::pack_size(latitudes.len())?;
         let buffer = pack_in(latitudes, longitudes, bytes, alloc, nk_haversines_pack_f64_best)?;
-        Ok(Self {
-            buffer,
-            points: latitudes.len(),
-        })
+        Ok(Self { buffer, points: latitudes.len() })
     }
 
     /// Returns a reference to the allocator.
-    pub fn allocator(&self) -> &Alloc { self.buffer.allocator() }
+    pub fn allocator(&self) -> &Alloc {
+        self.buffer.allocator()
+    }
 
     /// Number of packed points.
-    pub fn points(&self) -> usize { self.points }
+    pub fn points(&self) -> usize {
+        self.points
+    }
 
     /// Bytes one pack of `points` points takes, to size a buffer without packing.
     pub fn pack_size(points: usize) -> Result<usize, Error> {
@@ -330,17 +331,18 @@ impl<Alloc: Allocator> VincentysPackedMatrix<Alloc> {
     pub fn new_in(latitudes: &[f64], longitudes: &[f64], alloc: Alloc) -> Result<Self, Error> {
         let bytes = Self::pack_size(latitudes.len())?;
         let buffer = pack_in(latitudes, longitudes, bytes, alloc, nk_vincentys_pack_f64_best)?;
-        Ok(Self {
-            buffer,
-            points: latitudes.len(),
-        })
+        Ok(Self { buffer, points: latitudes.len() })
     }
 
     /// Returns a reference to the allocator.
-    pub fn allocator(&self) -> &Alloc { self.buffer.allocator() }
+    pub fn allocator(&self) -> &Alloc {
+        self.buffer.allocator()
+    }
 
     /// Number of packed points.
-    pub fn points(&self) -> usize { self.points }
+    pub fn points(&self) -> usize {
+        self.points
+    }
 
     /// Bytes one pack of `points` points takes, to size a buffer without packing.
     pub fn pack_size(points: usize) -> Result<usize, Error> {
@@ -395,14 +397,7 @@ fn pack_in<Alloc: Allocator>(
     let mut buffer = PackedBuffer::empty_in(alloc);
     let packed = buffer.reset_for_pack(bytes)?;
     unsafe {
-        pack(
-            latitudes.as_ptr(),
-            longitudes.as_ptr(),
-            latitudes.len(),
-            packed,
-            Capabilities::CPUS.bits(),
-            null_mut(),
-        )
+        pack(latitudes.as_ptr(), longitudes.as_ptr(), latitudes.len(), packed, Capabilities::CPUS.bits(), null_mut())
     }
     .check()?;
     Ok(buffer)
@@ -428,24 +423,17 @@ mod tests {
     const COLUMN_LATITUDES: [f64; 5] = [40.7128, 33.8688, -51.5074, 51.50740001, -89.9];
     const COLUMN_LONGITUDES: [f64; 5] = [-74.0060, -28.7907, 179.8722, -0.1278, 180.0];
 
-    fn radians(degrees: &[f64]) -> Vec<f64> { degrees.iter().map(|value| value.to_radians()).collect() }
+    fn radians(degrees: &[f64]) -> Vec<f64> {
+        degrees.iter().map(|value| value.to_radians()).collect()
+    }
 
     /// Great-circle meters between two points in radians, from their unit vectors on the sphere.
     fn haversine_reference(first: [f64; 2], second: [f64; 2]) -> f64 {
         let unit = |[latitude, longitude]: [f64; 2]| {
-            [
-                latitude.cos() * longitude.cos(),
-                latitude.cos() * longitude.sin(),
-                latitude.sin(),
-            ]
+            [latitude.cos() * longitude.cos(), latitude.cos() * longitude.sin(), latitude.sin()]
         };
         let (first, second) = (unit(first), unit(second));
-        let norm = |sign: f64| {
-            (0..3)
-                .map(|axis| (first[axis] + sign * second[axis]).powi(2))
-                .sum::<f64>()
-                .sqrt()
-        };
+        let norm = |sign: f64| (0..3).map(|axis| (first[axis] + sign * second[axis]).powi(2)).sum::<f64>().sqrt();
         2.0 * 6_371_008.8 * norm(-1.0).atan2(norm(1.0))
     }
 
@@ -510,18 +498,14 @@ mod tests {
     fn geospatial_parallel_matches_serial() {
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
-        let integers: Vec<[i32; 3]> = (0..37)
-            .map(|index: i32| [index * 7_919 - 150_000, index * index - 600, 1_000 - index * 31])
-            .collect();
+        let integers: Vec<[i32; 3]> =
+            (0..37).map(|index: i32| [index * 7_919 - 150_000, index * index - 600, 1_000 - index * 31]).collect();
         let (mut expected, mut found) = (vec![0_u64; 37 * 5], vec![u64::MAX; 37 * 5]);
         i32::sqeuclideans3d(&integers, &integers[..5], &mut expected).unwrap();
         i32::sqeuclideans3d_parallel(&integers, &integers[..5], &mut found, &mut pool).unwrap();
         assert_eq!(expected, found);
 
-        let floats: Vec<[f64; 3]> = integers
-            .iter()
-            .map(|point| point.map(|value| value as f64 * 0.37))
-            .collect();
+        let floats: Vec<[f64; 3]> = integers.iter().map(|point| point.map(|value| value as f64 * 0.37)).collect();
         let (mut expected, mut found) = (vec![0.0_f64; 37 * 5], vec![f64::NAN; 37 * 5]);
         f64::sqeuclideans3d(&floats, &floats[..5], &mut expected).unwrap();
         f64::sqeuclideans3d_parallel(&floats, &floats[..5], &mut found, &mut pool).unwrap();

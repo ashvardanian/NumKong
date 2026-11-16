@@ -9,7 +9,7 @@ categories = [
 ]
 description = "Portable mixed-precision math, linear-algebra, & retrieval library with 4000+ kernel symbols for x86, Arm, RISC-V, LoongArch, Power, & WebAssembly, covering numeric types from 4-bit integers & floats to 128-bit complex numbers"
 documentation = "https://docs.rs/numkong"
-edition = "2021"
+edition = "2024"
 homepage = "https://ashvardanian.com/posts/numkong-faster-scipy"
 include = [
   "/rust/*.rs",

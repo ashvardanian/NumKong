@@ -20,14 +20,14 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
     tensor::{Error, MinMaxAxisResult, MinMaxResult, MomentsAxisResult, Tensor, TensorMut, TensorRef},
-    types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement},
+    types::{StorageElement, bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2},
     vector::VectorIndex,
 };
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     // Reductions: moments (sum + sum-of-squares)
     fn nk_reduce_moments_f64_best(
         data: *const f64,
@@ -452,19 +452,21 @@ unsafe fn reduce_moments_via_ffi<Scalar, Sum: Default, SumSq: Default>(
 where
     Scalar: StorageElement,
 {
-    let mut sum: Sum = Default::default();
-    let mut sumsq: SumSq = Default::default();
-    ffi(
-        data,
-        count * Scalar::dimensions_per_value(),
-        stride,
-        &mut sum,
-        &mut sumsq,
-        Capabilities::CPUS.bits(),
-        null_mut(),
-    )
-    .check()?;
-    Ok((sum, sumsq))
+    unsafe {
+        let mut sum: Sum = Default::default();
+        let mut sumsq: SumSq = Default::default();
+        ffi(
+            data,
+            count * Scalar::dimensions_per_value(),
+            stride,
+            &mut sum,
+            &mut sumsq,
+            Capabilities::CPUS.bits(),
+            null_mut(),
+        )
+        .check()?;
+        Ok((sum, sumsq))
+    }
 }
 
 impl ReduceMoments for f64 {
@@ -676,28 +678,26 @@ unsafe fn reduce_minmax_via_ffi<Scalar, Out: Default>(
 where
     Scalar: StorageElement,
 {
-    let mut result = MinMaxResult {
-        min_value: Out::default(),
-        min_index: 0,
-        max_value: Out::default(),
-        max_index: 0,
-    };
-    ffi(
-        data,
-        count * Scalar::dimensions_per_value(),
-        stride,
-        &mut result.min_value,
-        &mut result.min_index,
-        &mut result.max_value,
-        &mut result.max_index,
-        Capabilities::CPUS.bits(),
-        null_mut(),
-    )
-    .check()?;
-    if none_on_sentinel && result.min_index == usize::MAX {
-        return Ok(None);
+    unsafe {
+        let mut result =
+            MinMaxResult { min_value: Out::default(), min_index: 0, max_value: Out::default(), max_index: 0 };
+        ffi(
+            data,
+            count * Scalar::dimensions_per_value(),
+            stride,
+            &mut result.min_value,
+            &mut result.min_index,
+            &mut result.max_value,
+            &mut result.max_index,
+            Capabilities::CPUS.bits(),
+            null_mut(),
+        )
+        .check()?;
+        if none_on_sentinel && result.min_index == usize::MAX {
+            return Ok(None);
+        }
+        Ok(Some(result))
     }
-    Ok(Some(result))
 }
 
 impl ReduceMinMax for f64 {
@@ -706,13 +706,7 @@ impl ReduceMinMax for f64 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_f64_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_f64_best)
         }
     }
 }
@@ -723,13 +717,7 @@ impl ReduceMinMax for f32 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_f32_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_f32_best)
         }
     }
 }
@@ -740,13 +728,7 @@ impl ReduceMinMax for i8 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_i8_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_i8_best)
         }
     }
 }
@@ -757,13 +739,7 @@ impl ReduceMinMax for u8 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_u8_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u8_best)
         }
     }
 }
@@ -774,13 +750,7 @@ impl ReduceMinMax for i16 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_i16_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_i16_best)
         }
     }
 }
@@ -791,13 +761,7 @@ impl ReduceMinMax for u16 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_u16_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u16_best)
         }
     }
 }
@@ -808,13 +772,7 @@ impl ReduceMinMax for i32 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_i32_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_i32_best)
         }
     }
 }
@@ -825,13 +783,7 @@ impl ReduceMinMax for u32 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_u32_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u32_best)
         }
     }
 }
@@ -842,13 +794,7 @@ impl ReduceMinMax for i64 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_i64_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_i64_best)
         }
     }
 }
@@ -859,13 +805,7 @@ impl ReduceMinMax for u64 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_u64_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u64_best)
         }
     }
 }
@@ -876,13 +816,7 @@ impl ReduceMinMax for f16 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_f16_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_f16_best)
         }
     }
 }
@@ -893,13 +827,7 @@ impl ReduceMinMax for bf16 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_bf16_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_bf16_best)
         }
     }
 }
@@ -910,13 +838,7 @@ impl ReduceMinMax for e4m3 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_e4m3_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_e4m3_best)
         }
     }
 }
@@ -927,13 +849,7 @@ impl ReduceMinMax for e5m2 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_e5m2_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_e5m2_best)
         }
     }
 }
@@ -944,13 +860,7 @@ impl ReduceMinMax for e2m3 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_e2m3_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_e2m3_best)
         }
     }
 }
@@ -961,13 +871,7 @@ impl ReduceMinMax for e3m2 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_e3m2_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_e3m2_best)
         }
     }
 }
@@ -978,13 +882,7 @@ impl ReduceMinMax for i4x2 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_i4_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_i4_best)
         }
     }
 }
@@ -995,13 +893,7 @@ impl ReduceMinMax for u4x2 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_u4_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u4_best)
         }
     }
 }
@@ -1012,13 +904,7 @@ impl ReduceMinMax for u1x8 {
 
     fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
-            reduce_minmax_via_ffi(
-                data.as_ptr(),
-                data.len(),
-                stride,
-                Self::NONE_ON_SENTINEL,
-                nk_reduce_minmax_u1_best,
-            )
+            reduce_minmax_via_ffi(data.as_ptr(), data.len(), stride, Self::NONE_ON_SENTINEL, nk_reduce_minmax_u1_best)
         }
     }
 }
@@ -1072,16 +958,24 @@ where
 /// from [`crate::vector`].
 pub trait BitwiseReductionsOps<const MAX_RANK: usize>: TensorRef<u1x8, MAX_RANK> {
     /// Number of set bits across the entire tensor.
-    fn popcount(&self) -> Result<u64, Error> { popcount_via_tensor_ref::<_, MAX_RANK>(self) }
+    fn popcount(&self) -> Result<u64, Error> {
+        popcount_via_tensor_ref::<_, MAX_RANK>(self)
+    }
 
     /// `true` if at least one bit in the tensor is set.
-    fn any_set(&self) -> Result<bool, Error> { Ok(self.popcount()? != 0) }
+    fn any_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? != 0)
+    }
 
     /// `true` if no bit in the tensor is set.
-    fn none_set(&self) -> Result<bool, Error> { Ok(self.popcount()? == 0) }
+    fn none_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? == 0)
+    }
 
     /// `true` if every bit in the tensor is set.
-    fn all_set(&self) -> Result<bool, Error> { Ok(self.popcount()? == self.numel() as u64) }
+    fn all_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? == self.numel() as u64)
+    }
 }
 
 impl<Container, const MAX_RANK: usize> BitwiseReductionsOps<MAX_RANK> for Container where
@@ -1097,16 +991,24 @@ pub trait SumSqToF64 {
 }
 
 impl SumSqToF64 for f32 {
-    fn to_f64(self) -> f64 { self as f64 }
+    fn to_f64(self) -> f64 {
+        self as f64
+    }
 }
 impl SumSqToF64 for f64 {
-    fn to_f64(self) -> f64 { self }
+    fn to_f64(self) -> f64 {
+        self
+    }
 }
 impl SumSqToF64 for u64 {
-    fn to_f64(self) -> f64 { self as f64 }
+    fn to_f64(self) -> f64 {
+        self as f64
+    }
 }
 impl SumSqToF64 for i64 {
-    fn to_f64(self) -> f64 { self as f64 }
+    fn to_f64(self) -> f64 {
+        self as f64
+    }
 }
 
 // endregion: SumSqToF64
@@ -1120,7 +1022,9 @@ where
     Scalar::SumSqOutput: Clone + Default + core::ops::AddAssign + SumSqToF64,
 {
     /// Sum and sum of squares over all elements.
-    fn moments_all(&self) -> Result<(Scalar::SumOutput, Scalar::SumSqOutput), Error> { self.view().moments_all() }
+    fn moments_all(&self) -> Result<(Scalar::SumOutput, Scalar::SumSqOutput), Error> {
+        self.view().moments_all()
+    }
 
     /// Sum and sum of squares along one axis, into new tensors.
     fn moments_axis<AnyIndex: VectorIndex>(
@@ -1151,7 +1055,9 @@ where
     }
 
     /// Sum over all elements.
-    fn sum_all(&self) -> Result<Scalar::SumOutput, Error> { self.view().sum_all() }
+    fn sum_all(&self) -> Result<Scalar::SumOutput, Error> {
+        self.view().sum_all()
+    }
 
     /// Sum along one axis, into a new tensor.
     fn sum_axis<AnyIndex: VectorIndex>(
@@ -1180,7 +1086,9 @@ where
     }
 
     /// Euclidean norm over all elements.
-    fn norm_all(&self) -> Result<f64, Error> { self.view().norm_all() }
+    fn norm_all(&self) -> Result<f64, Error> {
+        self.view().norm_all()
+    }
 
     /// Euclidean norm along one axis, into a new tensor.
     fn norm_axis<AnyIndex: VectorIndex>(
@@ -1222,7 +1130,9 @@ where
     Scalar::Output: Clone + Default + PartialOrd,
 {
     /// Minimum and maximum with their indices over all elements.
-    fn minmax_all(&self) -> Result<MinMaxResult<Scalar::Output>, Error> { self.view().minmax_all() }
+    fn minmax_all(&self) -> Result<MinMaxResult<Scalar::Output>, Error> {
+        self.view().minmax_all()
+    }
 
     /// Minimum and maximum with their indices along one axis, into new tensors.
     fn minmax_axis<AnyIndex: VectorIndex>(
@@ -1251,21 +1161,28 @@ where
         ValueTensor: TensorMut<Scalar::Output, MAX_RANK> + ?Sized,
         IndexTensor: TensorMut<usize, MAX_RANK> + ?Sized,
     {
-        self.view()
-            .minmax_axis_into(axis, keep_dims, min_out, argmin_out, max_out, argmax_out)
+        self.view().minmax_axis_into(axis, keep_dims, min_out, argmin_out, max_out, argmax_out)
     }
 
     /// Minimum over all elements.
-    fn min_all(&self) -> Result<Scalar::Output, Error> { self.view().min_all() }
+    fn min_all(&self) -> Result<Scalar::Output, Error> {
+        self.view().min_all()
+    }
 
     /// Index of the minimum over all elements.
-    fn argmin_all(&self) -> Result<usize, Error> { self.view().argmin_all() }
+    fn argmin_all(&self) -> Result<usize, Error> {
+        self.view().argmin_all()
+    }
 
     /// Maximum over all elements.
-    fn max_all(&self) -> Result<Scalar::Output, Error> { self.view().max_all() }
+    fn max_all(&self) -> Result<Scalar::Output, Error> {
+        self.view().max_all()
+    }
 
     /// Index of the maximum over all elements.
-    fn argmax_all(&self) -> Result<usize, Error> { self.view().argmax_all() }
+    fn argmax_all(&self) -> Result<usize, Error> {
+        self.view().argmax_all()
+    }
 
     /// Minimum along one axis, into a new tensor.
     fn min_axis<AnyIndex: VectorIndex>(
@@ -1326,7 +1243,7 @@ impl<Scalar: Clone + ReduceMinMax, const R: usize, C: TensorRef<Scalar, R>> MinM
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16, FloatLike, NumberLike, TestableType};
+    use crate::types::{FloatLike, NumberLike, TestableType, assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16};
 
     // region: ReduceMoments
 
@@ -1400,19 +1317,11 @@ mod tests {
             min_index: actual_min_index,
             max_value: actual_max,
             max_index: actual_max_index,
-        } = Scalar::reduce_minmax(&data, stride)
-            .unwrap()
-            .expect("Expected Some for non-NaN input");
-        let (expected_min_index, expected_min) = input_values
-            .iter()
-            .enumerate()
-            .min_by(|left, right| left.1.partial_cmp(right.1).unwrap())
-            .unwrap();
-        let (expected_max_index, expected_max) = input_values
-            .iter()
-            .enumerate()
-            .max_by(|left, right| left.1.partial_cmp(right.1).unwrap())
-            .unwrap();
+        } = Scalar::reduce_minmax(&data, stride).unwrap().expect("Expected Some for non-NaN input");
+        let (expected_min_index, expected_min) =
+            input_values.iter().enumerate().min_by(|left, right| left.1.partial_cmp(right.1).unwrap()).unwrap();
+        let (expected_max_index, expected_max) =
+            input_values.iter().enumerate().max_by(|left, right| left.1.partial_cmp(right.1).unwrap()).unwrap();
         assert_close(
             actual_min.to_f64(),
             *expected_min as f64,
@@ -1489,26 +1398,16 @@ mod tests {
     #[test]
     fn minmax_reduction_mixed_nan() {
         let data = vec![f64::NAN, 3.0, f64::NAN, 1.0, f64::NAN, 5.0];
-        let MinMaxResult {
-            min_value,
-            min_index,
-            max_value,
-            max_index,
-        } = f64::reduce_minmax(&data, core::mem::size_of::<f64>()).unwrap().unwrap();
+        let MinMaxResult { min_value, min_index, max_value, max_index } =
+            f64::reduce_minmax(&data, core::mem::size_of::<f64>()).unwrap().unwrap();
         assert_close(min_value, 1.0, 1e-10, 0.0, "mixed min");
         assert_eq!(min_index, 3);
         assert_close(max_value, 5.0, 1e-10, 0.0, "mixed max");
         assert_eq!(max_index, 5);
 
         let data_f32: Vec<f32> = vec![f32::NAN, 3.0, f32::NAN, 1.0, f32::NAN, 5.0];
-        let MinMaxResult {
-            min_value,
-            min_index,
-            max_value,
-            max_index,
-        } = f32::reduce_minmax(&data_f32, core::mem::size_of::<f32>())
-            .unwrap()
-            .unwrap();
+        let MinMaxResult { min_value, min_index, max_value, max_index } =
+            f32::reduce_minmax(&data_f32, core::mem::size_of::<f32>()).unwrap().unwrap();
         assert_close(min_value as f64, 1.0, 1e-5, 0.0, "mixed f32 min");
         assert_eq!(min_index, 3);
         assert_close(max_value as f64, 5.0, 1e-5, 0.0, "mixed f32 max");
@@ -1524,15 +1423,8 @@ mod tests {
         use crate::tensor::Tensor;
 
         // 16 bytes × 8 bits = 128 bits total. Alternating fully-set/zero bytes → popcount = 64.
-        let bits_storage: Vec<u1x8> = (0..16u8)
-            .map(|byte_index| {
-                if byte_index % 2 == 0 {
-                    u1x8(0xFFu8)
-                } else {
-                    u1x8(0x00u8)
-                }
-            })
-            .collect();
+        let bits_storage: Vec<u1x8> =
+            (0..16u8).map(|byte_index| if byte_index % 2 == 0 { u1x8(0xFFu8) } else { u1x8(0x00u8) }).collect();
         let mut tensor = Tensor::<u1x8>::zeros(&[4, 32]).unwrap();
         for (slot, value) in tensor.as_mut_slice().iter_mut().zip(bits_storage.iter()) {
             *slot = *value;
@@ -1638,9 +1530,7 @@ mod tests {
         assert_eq!(argmin_axis0.as_slice(), &[0, 0]);
         assert_eq!(argmax_axis0.as_slice(), &[2, 2]);
 
-        let reversed = a
-            .slice(&[SliceRange::full(), SliceRange::range_step(3, 0, -1)])
-            .unwrap();
+        let reversed = a.slice(&[SliceRange::full(), SliceRange::range_step(3, 0, -1)]).unwrap();
         let reversed_sum = reversed.sum_axis(-1_i32, false).unwrap();
         assert_eq!(reversed_sum.shape(), &[3]);
         assert_eq!(reversed_sum.as_slice(), &[6.0, 18.0, 30.0]);

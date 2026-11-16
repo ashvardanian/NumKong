@@ -51,13 +51,13 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
-    tensor::{check_len, Error},
-    types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, StorageElement},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
+    tensor::{Error, check_len},
+    types::{StorageElement, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2},
 };
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
 
     // Vector dot products
     fn nk_dot_i8_best(
@@ -265,7 +265,9 @@ pub trait Dot: StorageElement {
     fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `dot`.
-    fn inner(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> { Self::dot(first, second) }
+    fn inner(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
+        Self::dot(first, second)
+    }
 }
 
 impl Dot for f64 {
@@ -547,10 +549,7 @@ impl Dot for f16c {
             )
         }
         .check()?;
-        Ok(f32c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f32c { re: result[0], im: result[1] })
     }
 }
 
@@ -570,10 +569,7 @@ impl Dot for bf16c {
             )
         }
         .check()?;
-        Ok(f32c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f32c { re: result[0], im: result[1] })
     }
 }
 
@@ -593,10 +589,7 @@ impl Dot for f32c {
             )
         }
         .check()?;
-        Ok(f64c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f64c { re: result[0], im: result[1] })
     }
 }
 
@@ -616,10 +609,7 @@ impl Dot for f64c {
             )
         }
         .check()?;
-        Ok(f64c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f64c { re: result[0], im: result[1] })
     }
 }
 
@@ -641,7 +631,9 @@ pub trait VDot: Dot {
     /// Hermitian inner product. On real-valued types this falls back to `Dot::dot`; on complex
     /// types it returns ∑ᵢ conj(aᵢ) × bᵢ computed in the widened accumulator described by
     /// `Dot::Output`.
-    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> { Self::dot(first, second) }
+    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
+        Self::dot(first, second)
+    }
 }
 
 impl VDot for f64 {}
@@ -673,10 +665,7 @@ impl VDot for f16c {
             )
         }
         .check()?;
-        Ok(f32c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f32c { re: result[0], im: result[1] })
     }
 }
 
@@ -695,10 +684,7 @@ impl VDot for bf16c {
             )
         }
         .check()?;
-        Ok(f32c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f32c { re: result[0], im: result[1] })
     }
 }
 
@@ -717,10 +703,7 @@ impl VDot for f32c {
             )
         }
         .check()?;
-        Ok(f64c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f64c { re: result[0], im: result[1] })
     }
 }
 
@@ -739,10 +722,7 @@ impl VDot for f64c {
             )
         }
         .check()?;
-        Ok(f64c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f64c { re: result[0], im: result[1] })
     }
 }
 
@@ -754,8 +734,8 @@ mod tests {
     use crate::{
         curved::Bilinear,
         types::{
-            assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, FloatLike,
-            NumberLike, StorageElement, TestableType,
+            FloatLike, NumberLike, StorageElement, TestableType, assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2,
+            f16, f16c, f32c, f64c, i4x2, u1x8, u4x2,
         },
     };
 
@@ -816,14 +796,7 @@ mod tests {
 
         // Self-overlap equals the population count, and length mismatch is rejected.
         assert_eq!(u1x8::dot(&left, &left).unwrap(), 8);
-        assert_eq!(
-            u1x8::dot(&left, &right[..1]),
-            Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: 2,
-                got: 1
-            })
-        );
+        assert_eq!(u1x8::dot(&left, &right[..1]), Err(Error::ShapeMismatch { axis: 0, expected: 2, got: 1 }));
     }
 
     // endregion
@@ -835,12 +808,20 @@ mod tests {
         fn imag(&self) -> f64;
     }
     impl ComplexValue for f32c {
-        fn real(&self) -> f64 { self.re as f64 }
-        fn imag(&self) -> f64 { self.im as f64 }
+        fn real(&self) -> f64 {
+            self.re as f64
+        }
+        fn imag(&self) -> f64 {
+            self.im as f64
+        }
     }
     impl ComplexValue for f64c {
-        fn real(&self) -> f64 { self.re }
-        fn imag(&self) -> f64 { self.im }
+        fn real(&self) -> f64 {
+            self.re
+        }
+        fn imag(&self) -> f64 {
+            self.im
+        }
     }
 
     trait ComplexSample: Copy + StorageElement + Dot + VDot + Bilinear {
@@ -851,41 +832,50 @@ mod tests {
 
     impl ComplexSample for f16c {
         fn from_real_imag(re: f32, im: f32) -> Self {
-            Self {
-                re: f16::from_f32(re),
-                im: f16::from_f32(im),
-            }
+            Self { re: f16::from_f32(re), im: f16::from_f32(im) }
         }
-        fn atol() -> f64 { 5e-2 }
-        fn rtol() -> f64 { 5e-2 }
+        fn atol() -> f64 {
+            5e-2
+        }
+        fn rtol() -> f64 {
+            5e-2
+        }
     }
 
     impl ComplexSample for bf16c {
         fn from_real_imag(re: f32, im: f32) -> Self {
-            Self {
-                re: bf16::from_f32(re),
-                im: bf16::from_f32(im),
-            }
+            Self { re: bf16::from_f32(re), im: bf16::from_f32(im) }
         }
-        fn atol() -> f64 { 5e-2 }
-        fn rtol() -> f64 { 5e-2 }
+        fn atol() -> f64 {
+            5e-2
+        }
+        fn rtol() -> f64 {
+            5e-2
+        }
     }
 
     impl ComplexSample for f32c {
-        fn from_real_imag(re: f32, im: f32) -> Self { Self { re, im } }
-        fn atol() -> f64 { 1e-6 }
-        fn rtol() -> f64 { 1e-6 }
+        fn from_real_imag(re: f32, im: f32) -> Self {
+            Self { re, im }
+        }
+        fn atol() -> f64 {
+            1e-6
+        }
+        fn rtol() -> f64 {
+            1e-6
+        }
     }
 
     impl ComplexSample for f64c {
         fn from_real_imag(re: f32, im: f32) -> Self {
-            Self {
-                re: re as f64,
-                im: im as f64,
-            }
+            Self { re: re as f64, im: im as f64 }
         }
-        fn atol() -> f64 { 1e-12 }
-        fn rtol() -> f64 { 1e-12 }
+        fn atol() -> f64 {
+            1e-12
+        }
+        fn rtol() -> f64 {
+            1e-12
+        }
     }
 
     /// Test a complex two-input operation with real + imaginary expected outputs.
@@ -1054,11 +1044,7 @@ mod tests {
         let d = f16(0x0100);
         let d_f64 = d.to_f64();
         let expected = 3.0 * d_f64 * d_f64;
-        check_dot::<f16>(
-            &[d.to_f32(), d.to_f32(), d.to_f32()],
-            &[d.to_f32(), d.to_f32(), d.to_f32()],
-            expected,
-        );
+        check_dot::<f16>(&[d.to_f32(), d.to_f32(), d.to_f32()], &[d.to_f32(), d.to_f32(), d.to_f32()], expected);
     }
 
     #[test]
@@ -1068,11 +1054,7 @@ mod tests {
         let d = bf16(0x007F);
         let d_f64 = d.to_f64();
         let expected = 3.0 * d_f64 * d_f64;
-        check_dot::<bf16>(
-            &[d.to_f32(), d.to_f32(), d.to_f32()],
-            &[d.to_f32(), d.to_f32(), d.to_f32()],
-            expected,
-        );
+        check_dot::<bf16>(&[d.to_f32(), d.to_f32(), d.to_f32()], &[d.to_f32(), d.to_f32(), d.to_f32()], expected);
     }
 
     // endregion

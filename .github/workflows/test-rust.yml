@@ -26,7 +26,9 @@ jobs:
           free -h
 
       - name: Set Up Rust Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.100"
 
       - name: Build C Library
         run: |
@@ -71,8 +73,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
       - name: Set Up Rust Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: "1.100"
           targets: ${{ matrix.target }}
       - name: Install Cross-Compiler
         run: sudo apt-get update && sudo apt-get install -y ${{ matrix.packages }}
@@ -87,8 +90,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
       - name: Set Up Rust Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: "1.100"
           components: clippy, rustfmt
       - name: Run Clippy with All CPU Features
         run: cargo clippy --features parallel -- -D warnings
@@ -102,9 +106,10 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
-      # Until 1.100 reaches stable, nightly stands in, and `rust-version` rejects any older compiler.
       - name: Install Rust 1.100
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.100"
       - name: Build with Default Features
         run: cargo build
       - name: Build No-Alloc
@@ -131,8 +136,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
       - name: Set Up Rust Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: "1.100"
           targets: ${{ matrix.target }}
       - name: Install WASI SDK
         uses: nick-fields/retry@v4
@@ -161,7 +167,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
       - name: Set Up Rust Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.100"
       - name: Link Tests with CUDA
         run: cargo test --features cuda --no-run
 
@@ -176,6 +184,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
       - name: Set Up Rust Toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.100"
       - name: Link Tests with ROCm
         run: cargo test --features rocm --no-run

@@ -172,7 +172,9 @@ jobs:
           readelf -d build_android_arm64/libnumkong_shared.so | head -20
 
       - name: Set Up Rust Toolchain
-        uses: moonrepo/setup-rust@v1
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.100"
 
       - name: Install cargo-ndk and Target
         run: |
@@ -210,7 +212,9 @@ jobs:
           file build_android_armv7/libnumkong_shared.so | grep -q "ELF 32-bit.*ARM"
 
       - name: Set Up Rust Toolchain
-        uses: moonrepo/setup-rust@v1
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.100"
 
       - name: Install cargo-ndk and Target
         run: |
@@ -247,7 +251,9 @@ jobs:
           file build_linux_armv7/libnumkong_shared.so | grep -q "ELF 32-bit.*ARM"
 
       - name: Set Up Rust Toolchain
-        uses: moonrepo/setup-rust@v1
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: "1.100"
 
       - name: Install Target
         run: rustup target add armv7-unknown-linux-gnueabihf

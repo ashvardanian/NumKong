@@ -14,12 +14,12 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{nk_capability_t, nk_dtype_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
-    types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_dtype_t, nk_size_t, nk_status_t},
+    types::{StorageElement, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c},
 };
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     fn nk_cast_best(
         from: *const c_void,
         from_type: nk_dtype_t,
@@ -104,64 +104,104 @@ pub trait CastDType: private::Sealed + StorageElement {
 }
 
 impl CastDType for f64 {
-    fn dtype_code() -> u32 { dtype::F64 }
+    fn dtype_code() -> u32 {
+        dtype::F64
+    }
 }
 impl CastDType for f32 {
-    fn dtype_code() -> u32 { dtype::F32 }
+    fn dtype_code() -> u32 {
+        dtype::F32
+    }
 }
 impl CastDType for f16 {
-    fn dtype_code() -> u32 { dtype::F16 }
+    fn dtype_code() -> u32 {
+        dtype::F16
+    }
 }
 impl CastDType for bf16 {
-    fn dtype_code() -> u32 { dtype::BF16 }
+    fn dtype_code() -> u32 {
+        dtype::BF16
+    }
 }
 impl CastDType for e4m3 {
-    fn dtype_code() -> u32 { dtype::E4M3 }
+    fn dtype_code() -> u32 {
+        dtype::E4M3
+    }
 }
 impl CastDType for e5m2 {
-    fn dtype_code() -> u32 { dtype::E5M2 }
+    fn dtype_code() -> u32 {
+        dtype::E5M2
+    }
 }
 impl CastDType for e2m3 {
-    fn dtype_code() -> u32 { dtype::E2M3 }
+    fn dtype_code() -> u32 {
+        dtype::E2M3
+    }
 }
 impl CastDType for e3m2 {
-    fn dtype_code() -> u32 { dtype::E3M2 }
+    fn dtype_code() -> u32 {
+        dtype::E3M2
+    }
 }
 impl CastDType for f64c {
-    fn dtype_code() -> u32 { dtype::F64C }
+    fn dtype_code() -> u32 {
+        dtype::F64C
+    }
 }
 impl CastDType for f32c {
-    fn dtype_code() -> u32 { dtype::F32C }
+    fn dtype_code() -> u32 {
+        dtype::F32C
+    }
 }
 impl CastDType for f16c {
-    fn dtype_code() -> u32 { dtype::F16C }
+    fn dtype_code() -> u32 {
+        dtype::F16C
+    }
 }
 impl CastDType for bf16c {
-    fn dtype_code() -> u32 { dtype::BF16C }
+    fn dtype_code() -> u32 {
+        dtype::BF16C
+    }
 }
 impl CastDType for i8 {
-    fn dtype_code() -> u32 { dtype::I8 }
+    fn dtype_code() -> u32 {
+        dtype::I8
+    }
 }
 impl CastDType for i16 {
-    fn dtype_code() -> u32 { dtype::I16 }
+    fn dtype_code() -> u32 {
+        dtype::I16
+    }
 }
 impl CastDType for i32 {
-    fn dtype_code() -> u32 { dtype::I32 }
+    fn dtype_code() -> u32 {
+        dtype::I32
+    }
 }
 impl CastDType for i64 {
-    fn dtype_code() -> u32 { dtype::I64 }
+    fn dtype_code() -> u32 {
+        dtype::I64
+    }
 }
 impl CastDType for u8 {
-    fn dtype_code() -> u32 { dtype::U8 }
+    fn dtype_code() -> u32 {
+        dtype::U8
+    }
 }
 impl CastDType for u16 {
-    fn dtype_code() -> u32 { dtype::U16 }
+    fn dtype_code() -> u32 {
+        dtype::U16
+    }
 }
 impl CastDType for u32 {
-    fn dtype_code() -> u32 { dtype::U32 }
+    fn dtype_code() -> u32 {
+        dtype::U32
+    }
 }
 impl CastDType for u64 {
-    fn dtype_code() -> u32 { dtype::U64 }
+    fn dtype_code() -> u32 {
+        dtype::U64
+    }
 }
 
 /// Cast source slice elements to destination slice.
@@ -203,7 +243,7 @@ pub fn cast<S: CastDType, D: CastDType>(source: &[S], dest: &mut [D]) -> Result<
 
 // region: Tensor-shaped cast
 
-use crate::tensor::{check_len, Allocator, Error, Tensor, TensorMut, TensorRef, DEFAULT_MAX_RANK};
+use crate::tensor::{Allocator, DEFAULT_MAX_RANK, Error, Tensor, TensorMut, TensorRef, check_len};
 
 /// Extension trait: type casting for any [`TensorRef`] implementor.
 pub trait CastOps<Source: Clone + CastDType, const MAX_RANK: usize>: TensorRef<Source, MAX_RANK> {
@@ -234,7 +274,7 @@ impl<Source: Clone + CastDType, const R: usize, C: TensorRef<Source, R>> CastOps
 
 use crate::{
     tensor::{ScaledTensor, ScaledTensorView},
-    types::{e2m1x2, Ue4m3, Ue8m0},
+    types::{Ue4m3, Ue8m0, e2m1x2},
 };
 
 /// `#[repr(C)]` mirror of `nk_block_scaled_format_t`.
@@ -271,7 +311,9 @@ impl BlockScaledDescriptor {
     /// `nk_block_scaled_elements_size`: `count * element_bits / 8`.
     /// `count` counts dimensions, a multiple of the values per byte.
     #[inline]
-    pub fn elements_size(&self, count: usize) -> usize { count * dtype_bits(self.element_dtype) / 8 }
+    pub fn elements_size(&self, count: usize) -> usize {
+        count * dtype_bits(self.element_dtype) / 8
+    }
 
     /// Scale storage bytes for `count` logical elements — mirrors `nk_block_scaled_scales_size`:
     /// `0` when plain, else `round_up(count, block_size)`.
@@ -304,8 +346,8 @@ fn dtype_bits(code: u32) -> usize {
 pub(crate) mod ffi {
     use core::ffi::c_void;
 
-    use super::{dtype, BlockScaledDescriptor};
-    use crate::types::{e2m1x2, e2m3, e3m2, e4m3, e5m2, Ue4m3, Ue8m0};
+    use super::{BlockScaledDescriptor, dtype};
+    use crate::types::{Ue4m3, Ue8m0, e2m1x2, e2m3, e3m2, e4m3, e5m2};
 
     #[repr(C)]
     pub(crate) struct nk_nvfp4_cref_t {
@@ -425,30 +467,12 @@ pub(crate) mod ffi {
                 });
             }
             match format.element_dtype {
-                dtype::E2M3 => Self::Mxfp6E2m3(nk_mxfp6e2m3_cref_t {
-                    elements: elements as *const e2m3,
-                    scales,
-                }),
-                dtype::E3M2 => Self::Mxfp6E3m2(nk_mxfp6e3m2_cref_t {
-                    elements: elements as *const e3m2,
-                    scales,
-                }),
-                dtype::E4M3 => Self::Mxfp8E4m3(nk_mxfp8e4m3_cref_t {
-                    elements: elements as *const e4m3,
-                    scales,
-                }),
-                dtype::E5M2 => Self::Mxfp8E5m2(nk_mxfp8e5m2_cref_t {
-                    elements: elements as *const e5m2,
-                    scales,
-                }),
-                dtype::I8 => Self::Mxint8(nk_mxint8_cref_t {
-                    elements: elements as *const i8,
-                    scales,
-                }),
-                _ => Self::Mxfp4(nk_mxfp4_cref_t {
-                    elements: elements as *const e2m1x2,
-                    scales,
-                }),
+                dtype::E2M3 => Self::Mxfp6E2m3(nk_mxfp6e2m3_cref_t { elements: elements as *const e2m3, scales }),
+                dtype::E3M2 => Self::Mxfp6E3m2(nk_mxfp6e3m2_cref_t { elements: elements as *const e3m2, scales }),
+                dtype::E4M3 => Self::Mxfp8E4m3(nk_mxfp8e4m3_cref_t { elements: elements as *const e4m3, scales }),
+                dtype::E5M2 => Self::Mxfp8E5m2(nk_mxfp8e5m2_cref_t { elements: elements as *const e5m2, scales }),
+                dtype::I8 => Self::Mxint8(nk_mxint8_cref_t { elements: elements as *const i8, scales }),
+                _ => Self::Mxfp4(nk_mxfp4_cref_t { elements: elements as *const e2m1x2, scales }),
             }
         }
 
@@ -498,30 +522,12 @@ pub(crate) mod ffi {
                 });
             }
             match format.element_dtype {
-                dtype::E2M3 => Self::Mxfp6E2m3(nk_mxfp6e2m3_ref_t {
-                    elements: elements as *mut e2m3,
-                    scales,
-                }),
-                dtype::E3M2 => Self::Mxfp6E3m2(nk_mxfp6e3m2_ref_t {
-                    elements: elements as *mut e3m2,
-                    scales,
-                }),
-                dtype::E4M3 => Self::Mxfp8E4m3(nk_mxfp8e4m3_ref_t {
-                    elements: elements as *mut e4m3,
-                    scales,
-                }),
-                dtype::E5M2 => Self::Mxfp8E5m2(nk_mxfp8e5m2_ref_t {
-                    elements: elements as *mut e5m2,
-                    scales,
-                }),
-                dtype::I8 => Self::Mxint8(nk_mxint8_ref_t {
-                    elements: elements as *mut i8,
-                    scales,
-                }),
-                _ => Self::Mxfp4(nk_mxfp4_ref_t {
-                    elements: elements as *mut e2m1x2,
-                    scales,
-                }),
+                dtype::E2M3 => Self::Mxfp6E2m3(nk_mxfp6e2m3_ref_t { elements: elements as *mut e2m3, scales }),
+                dtype::E3M2 => Self::Mxfp6E3m2(nk_mxfp6e3m2_ref_t { elements: elements as *mut e3m2, scales }),
+                dtype::E4M3 => Self::Mxfp8E4m3(nk_mxfp8e4m3_ref_t { elements: elements as *mut e4m3, scales }),
+                dtype::E5M2 => Self::Mxfp8E5m2(nk_mxfp8e5m2_ref_t { elements: elements as *mut e5m2, scales }),
+                dtype::I8 => Self::Mxint8(nk_mxint8_ref_t { elements: elements as *mut i8, scales }),
+                _ => Self::Mxfp4(nk_mxfp4_ref_t { elements: elements as *mut e2m1x2, scales }),
             }
         }
 
@@ -725,9 +731,7 @@ fn block_scaled_cast_(
     to_format: &BlockScaledDescriptor,
     count: usize,
 ) -> Result<Option<f32>, Error> {
-    let from_scale = from_tensor_scale
-        .as_ref()
-        .map_or(core::ptr::null(), |scale| scale as *const f32);
+    let from_scale = from_tensor_scale.as_ref().map_or(core::ptr::null(), |scale| scale as *const f32);
     let from_operand = ffi::Cref::new(from_format, from_elements, from_scales, from_scale);
     let mut to_scale = 0.0f32;
     let mut to_operand = ffi::Ref::new(to_format, to_elements, to_scales, &mut to_scale);
@@ -856,8 +860,8 @@ impl<'a, F: BlockScaledFormat, A: Allocator + Clone> ScaledTensorView<'a, F, A> 
 mod tests {
     use super::*;
     use crate::types::{
-        assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, FloatLike, StorageElement,
-        TestableType,
+        FloatLike, StorageElement, TestableType, assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c,
+        f64c,
     };
 
     fn check_cast_roundtrip<T: FloatLike + TestableType + CastDType>(values: &[f32]) {
@@ -919,14 +923,7 @@ mod tests {
     fn cast_length_mismatch() {
         let src = [f16(0x3C00)];
         let mut dst = [0.0f32; 2];
-        assert_eq!(
-            cast(&src, &mut dst),
-            Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: 1,
-                got: 2
-            })
-        );
+        assert_eq!(cast(&src, &mut dst), Err(Error::ShapeMismatch { axis: 0, expected: 1, got: 2 }));
     }
 
     #[test]
@@ -942,10 +939,7 @@ mod tests {
         cast(&src, &mut dst).unwrap();
         assert_eq!(
             dst,
-            [
-                f16c::from_real_imag(f16::from_f32(3.0), f16::ZERO),
-                f16c::from_real_imag(f16::from_f32(-4.0), f16::ZERO),
-            ]
+            [f16c::from_real_imag(f16::from_f32(3.0), f16::ZERO), f16c::from_real_imag(f16::from_f32(-4.0), f16::ZERO),]
         );
     }
 
@@ -981,9 +975,7 @@ mod tests {
 
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
-        let even_columns = source
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
-            .unwrap();
+        let even_columns = source.slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)]).unwrap();
 
         let widened = even_columns.cast::<f64>().unwrap();
         assert_eq!(widened.shape(), &[3, 2]);
@@ -1052,10 +1044,7 @@ mod tests {
         let zeros = Tensor::<f32>::zeros(&[1, block]).unwrap();
         let scaled = zeros.view().cast_to_scaled::<Mxfp8E4m3>().unwrap();
         let decoded = scaled.view().cast::<f32>().unwrap();
-        assert!(
-            decoded.as_slice().iter().all(|&x| x == 0.0),
-            "all-zero block did not decode to zero"
-        );
+        assert!(decoded.as_slice().iter().all(|&x| x == 0.0), "all-zero block did not decode to zero");
 
         // A NaN in row 0 poisons only that block; row 1 stays clean.
         let mut data = vec![1.5f32; 2 * block];
@@ -1064,10 +1053,7 @@ mod tests {
         let scaled = dense.view().cast_to_scaled::<Mxfp8E4m3>().unwrap();
         let decoded = scaled.view().cast::<f32>().unwrap();
         let clean_row = &decoded.as_slice()[block..];
-        assert!(
-            clean_row.iter().all(|&x| (x - 1.5).abs() <= 0.2),
-            "clean block corrupted by a NaN in another block"
-        );
+        assert!(clean_row.iter().all(|&x| (x - 1.5).abs() <= 0.2), "clean block corrupted by a NaN in another block");
     }
 
     #[test]
@@ -1081,10 +1067,7 @@ mod tests {
         assert!(ts.unwrap() > 0.0, "derived tensor_scale must be positive");
 
         let mxfp8e4m3 = dense.view().cast_to_scaled::<Mxfp8E4m3>().unwrap();
-        assert!(
-            mxfp8e4m3.tensor_scale().is_none(),
-            "MX formats must not carry a per-tensor scale"
-        );
+        assert!(mxfp8e4m3.tensor_scale().is_none(), "MX formats must not carry a per-tensor scale");
     }
 
     #[test]
@@ -1242,11 +1225,7 @@ mod tests {
     /// Reinterpret a slice of single-byte storage elements as raw bytes — block-scaled elements and
     /// scales are all one byte wide — so the comparison works regardless of the element newtype.
     fn raw_bytes<T>(slice: &[T]) -> &[u8] {
-        assert_eq!(
-            core::mem::size_of::<T>(),
-            1,
-            "block-scaled storage element must be one byte"
-        );
+        assert_eq!(core::mem::size_of::<T>(), 1, "block-scaled storage element must be one byte");
         unsafe { core::slice::from_raw_parts(slice.as_ptr() as *const u8, slice.len()) }
     }
 
@@ -1286,16 +1265,8 @@ mod tests {
 
         let elements_view = scaled.elements();
         let scales_view = scaled.block_scales();
-        assert_eq!(
-            raw_bytes(elements_view.as_packed_slice().unwrap()),
-            &ref_elements[..],
-            "{ty} element bytes"
-        );
-        assert_eq!(
-            raw_bytes(scales_view.as_packed_slice().unwrap()),
-            &ref_scales[..],
-            "{ty} scale bytes"
-        );
+        assert_eq!(raw_bytes(elements_view.as_packed_slice().unwrap()), &ref_elements[..], "{ty} element bytes");
+        assert_eq!(raw_bytes(scales_view.as_packed_slice().unwrap()), &ref_scales[..], "{ty} scale bytes");
         if has_tensor_scale {
             assert_eq!(scaled.tensor_scale().unwrap(), ref_scale, "{ty} tensor scale");
         }
@@ -1317,20 +1288,8 @@ mod tests {
         // second encode/decode pass over already-representable values must not drift.
         let (data, shape) = sample_matrix();
         let dense = Tensor::<f32>::from_slice(&data, &shape).unwrap();
-        let decoded_once = dense
-            .view()
-            .cast_to_scaled::<F>()
-            .unwrap()
-            .view()
-            .cast::<f32>()
-            .unwrap();
-        let decoded_twice = decoded_once
-            .view()
-            .cast_to_scaled::<F>()
-            .unwrap()
-            .view()
-            .cast::<f32>()
-            .unwrap();
+        let decoded_once = dense.view().cast_to_scaled::<F>().unwrap().view().cast::<f32>().unwrap();
+        let decoded_twice = decoded_once.view().cast_to_scaled::<F>().unwrap().view().cast::<f32>().unwrap();
         assert_eq!(
             decoded_twice.as_slice(),
             decoded_once.as_slice(),

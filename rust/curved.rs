@@ -12,13 +12,13 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
-    tensor::{check_len, Error},
-    types::{bf16, bf16c, f16, f16c, f32c, f64c, StorageElement},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
+    tensor::{Error, check_len},
+    types::{StorageElement, bf16, bf16c, f16, f16c, f32c, f64c},
 };
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     fn nk_bilinear_f64_best(
         a: *const f64,
         b: *const f64,
@@ -159,11 +159,7 @@ impl Bilinear for f64 {
     fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -190,11 +186,7 @@ impl Bilinear for f32 {
     fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -221,11 +213,7 @@ impl Bilinear for f16 {
     fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -252,11 +240,7 @@ impl Bilinear for bf16 {
     fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -283,11 +267,7 @@ impl Bilinear for f64c {
     fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -304,10 +284,7 @@ impl Bilinear for f64c {
             )
             .check()?;
         }
-        Ok(f64c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f64c { re: result[0], im: result[1] })
     }
 }
 
@@ -317,11 +294,7 @@ impl Bilinear for f32c {
     fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -338,10 +311,7 @@ impl Bilinear for f32c {
             )
             .check()?;
         }
-        Ok(f64c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f64c { re: result[0], im: result[1] })
     }
 }
 
@@ -351,11 +321,7 @@ impl Bilinear for f16c {
     fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -372,10 +338,7 @@ impl Bilinear for f16c {
             )
             .check()?;
         }
-        Ok(f32c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f32c { re: result[0], im: result[1] })
     }
 }
 
@@ -385,11 +348,7 @@ impl Bilinear for bf16c {
     fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -406,10 +365,7 @@ impl Bilinear for bf16c {
             )
             .check()?;
         }
-        Ok(f32c {
-            re: result[0],
-            im: result[1],
-        })
+        Ok(f32c { re: result[0], im: result[1] })
     }
 }
 
@@ -441,11 +397,7 @@ impl Mahalanobis for f64 {
     fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -472,11 +424,7 @@ impl Mahalanobis for f32 {
     fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -503,11 +451,7 @@ impl Mahalanobis for f16 {
     fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -534,11 +478,7 @@ impl Mahalanobis for bf16 {
     fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, Error> {
         let point_count = a.len();
         if point_count == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "curved metrics need at least one dimension",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "curved metrics need at least one dimension" });
         }
         check_len(point_count, b.len())?;
         check_len(point_count * point_count, c.len())?;
@@ -562,7 +502,7 @@ impl Mahalanobis for bf16 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{assert_close, bf16, f16, FloatLike, NumberLike, TestableType};
+    use crate::types::{FloatLike, NumberLike, TestableType, assert_close, bf16, f16};
 
     /// Build an identity matrix of size point_count × point_count.
     pub(crate) fn make_identity<Scalar: FloatLike>(point_count: usize) -> Vec<Scalar> {

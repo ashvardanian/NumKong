@@ -54,7 +54,7 @@
 use core::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
-    tensor::{alloc_block, alloc_filled, layout_for, Allocator, CopyFrom, Error, Fill, Global, Tensor, GLOBAL},
+    tensor::{Allocator, CopyFrom, Error, Fill, GLOBAL, Global, Tensor, alloc_block, alloc_filled, layout_for},
     types::{DimMut, DimRef, FloatConvertible, NumberLike, StorageElement},
 };
 
@@ -75,11 +75,7 @@ impl private::Sealed for usize {}
 impl VectorIndex for usize {
     #[inline]
     fn resolve(self, len: usize) -> Option<usize> {
-        if self < len {
-            Some(self)
-        } else {
-            None
-        }
+        if self < len { Some(self) } else { None }
     }
 }
 
@@ -88,11 +84,7 @@ impl VectorIndex for u8 {
     #[inline]
     fn resolve(self, len: usize) -> Option<usize> {
         let index = self as usize;
-        if index < len {
-            Some(index)
-        } else {
-            None
-        }
+        if index < len { Some(index) } else { None }
     }
 }
 
@@ -101,11 +93,7 @@ impl VectorIndex for u16 {
     #[inline]
     fn resolve(self, len: usize) -> Option<usize> {
         let index = self as usize;
-        if index < len {
-            Some(index)
-        } else {
-            None
-        }
+        if index < len { Some(index) } else { None }
     }
 }
 
@@ -114,11 +102,7 @@ impl VectorIndex for u32 {
     #[inline]
     fn resolve(self, len: usize) -> Option<usize> {
         let index = self as usize;
-        if index < len {
-            Some(index)
-        } else {
-            None
-        }
+        if index < len { Some(index) } else { None }
     }
 }
 
@@ -127,11 +111,7 @@ impl VectorIndex for u64 {
     #[inline]
     fn resolve(self, len: usize) -> Option<usize> {
         let index = self as usize;
-        if index < len {
-            Some(index)
-        } else {
-            None
-        }
+        if index < len { Some(index) } else { None }
     }
 }
 
@@ -149,11 +129,7 @@ impl VectorIndex for isize {
             }
             len - negation
         };
-        if index < len {
-            Some(index)
-        } else {
-            None
-        }
+        if index < len { Some(index) } else { None }
     }
 }
 
@@ -170,11 +146,7 @@ impl VectorIndex for i8 {
             }
             len - negation
         };
-        if index < len {
-            Some(index)
-        } else {
-            None
-        }
+        if index < len { Some(index) } else { None }
     }
 }
 
@@ -191,11 +163,7 @@ impl VectorIndex for i16 {
             }
             len - negation
         };
-        if index < len {
-            Some(index)
-        } else {
-            None
-        }
+        if index < len { Some(index) } else { None }
     }
 }
 
@@ -212,11 +180,7 @@ impl VectorIndex for i32 {
             }
             len - negation
         };
-        if index < len {
-            Some(index)
-        } else {
-            None
-        }
+        if index < len { Some(index) } else { None }
     }
 }
 
@@ -233,11 +197,7 @@ impl VectorIndex for i64 {
             }
             len - negation
         };
-        if index < len {
-            Some(index)
-        } else {
-            None
-        }
+        if index < len { Some(index) } else { None }
     }
 }
 
@@ -382,12 +342,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     ///   implied by `dims` (`Scalar::dimensions_to_values(dims)` slots of `Scalar`).
     /// - The caller must not free the memory — this vector takes ownership.
     pub unsafe fn from_raw_parts_in(data: NonNull<Scalar>, dims: usize, alloc: Alloc) -> Self {
-        Self {
-            data,
-            dims,
-            capacity: Scalar::dimensions_to_values(dims),
-            alloc,
-        }
+        Self { data, dims, capacity: Scalar::dimensions_to_values(dims), alloc }
     }
 
     /// An empty vector that owns no allocation, holding only the given allocator.
@@ -395,12 +350,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     /// Cannot fail, because nothing is allocated until the first [`reserve`](Self::reserve)
     /// or [`resize`](Self::resize).
     pub fn empty_in(alloc: Alloc) -> Self {
-        Self {
-            data: NonNull::dangling(),
-            dims: 0,
-            capacity: 0,
-            alloc,
-        }
+        Self { data: NonNull::dangling(), dims: 0, capacity: 0, alloc }
     }
 
     /// Create a zero-initialized vector with the given number of dimensions.
@@ -408,20 +358,10 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         ensure_whole_values::<Scalar>(dims)?;
         let storage_count = Scalar::dimensions_to_values(dims);
         if storage_count == 0 {
-            return Ok(Self {
-                data: NonNull::dangling(),
-                dims: 0,
-                capacity: 0,
-                alloc,
-            });
+            return Ok(Self { data: NonNull::dangling(), dims: 0, capacity: 0, alloc });
         }
         let (data, actual_bytes) = alloc_filled(&alloc, storage_count, Scalar::default())?;
-        Ok(Self {
-            data,
-            dims,
-            capacity: actual_bytes / core::mem::size_of::<Scalar>(),
-            alloc,
-        })
+        Ok(Self { data, dims, capacity: actual_bytes / core::mem::size_of::<Scalar>(), alloc })
     }
 
     /// Create a vector filled with `value`.
@@ -454,22 +394,12 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         ensure_whole_values::<Scalar>(dims)?;
         let storage_count = Scalar::dimensions_to_values(dims);
         if storage_count == 0 {
-            return Ok(Self {
-                data: NonNull::dangling(),
-                dims: 0,
-                capacity: 0,
-                alloc,
-            });
+            return Ok(Self { data: NonNull::dangling(), dims: 0, capacity: 0, alloc });
         }
         let layout = layout_for::<Scalar>(storage_count)?;
         let (ptr, actual_bytes) = alloc_block(&alloc, layout)?;
         let capacity = actual_bytes / core::mem::size_of::<Scalar>();
-        Ok(Self {
-            data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) },
-            dims,
-            capacity,
-            alloc,
-        })
+        Ok(Self { data: unsafe { NonNull::new_unchecked(ptr.as_ptr() as *mut Scalar) }, dims, capacity, alloc })
     }
 
     /// Create a vector from a slice of scalars — f32 values.
@@ -504,24 +434,34 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
     /// Number of logical dimensions.
     #[inline]
-    pub fn dims(&self) -> usize { self.dims }
+    pub fn dims(&self) -> usize {
+        self.dims
+    }
 
     /// Number of logical dimensions; same as `dims()`.
     #[inline]
-    pub fn size(&self) -> usize { self.dims }
+    pub fn size(&self) -> usize {
+        self.dims
+    }
 
     /// Number of underlying storage values (`Scalar` instances).
     #[inline]
-    pub fn size_values(&self) -> usize { Scalar::dimensions_to_values(self.dims) }
+    pub fn size_values(&self) -> usize {
+        Scalar::dimensions_to_values(self.dims)
+    }
 
     /// Returns true if the vector has zero dimensions.
     #[inline]
-    pub fn is_empty(&self) -> bool { self.dims == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.dims == 0
+    }
 
     /// Allocated storage-value capacity (`Scalar` slots) — the ceiling
     /// [`resize`](Self::resize) honors. Always `>= size_values()`.
     #[inline]
-    pub fn capacity(&self) -> usize { self.capacity }
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
 
     /// Resize in place to `new_dims` dimensions without moving storage.
     ///
@@ -540,10 +480,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         ensure_whole_values::<Scalar>(new_dims)?;
         let needed = Scalar::dimensions_to_values(new_dims);
         if needed > self.capacity {
-            return Err(Error::CapacityExceeded {
-                requested: needed,
-                capacity: self.capacity,
-            });
+            return Err(Error::CapacityExceeded { requested: needed, capacity: self.capacity });
         }
         self.dims = new_dims;
         Ok(())
@@ -578,19 +515,27 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
     /// Reset to an empty vector (`dims() == 0`) while keeping the allocated `capacity()`.
     #[inline]
-    pub fn clear(&mut self) { self.dims = 0; }
+    pub fn clear(&mut self) {
+        self.dims = 0;
+    }
 
     /// Raw pointer to the underlying data.
     #[inline]
-    pub fn as_ptr(&self) -> *const Scalar { self.data.as_ptr() }
+    pub fn as_ptr(&self) -> *const Scalar {
+        self.data.as_ptr()
+    }
 
     /// Mutable raw pointer to the underlying data.
     #[inline]
-    pub fn as_mut_ptr(&mut self) -> *mut Scalar { self.data.as_ptr() }
+    pub fn as_mut_ptr(&mut self) -> *mut Scalar {
+        self.data.as_ptr()
+    }
 
     /// Size in bytes.
     #[inline]
-    pub fn size_bytes(&self) -> usize { Scalar::dimensions_to_values(self.dims) * core::mem::size_of::<Scalar>() }
+    pub fn size_bytes(&self) -> usize {
+        Scalar::dimensions_to_values(self.dims) * core::mem::size_of::<Scalar>()
+    }
 
     /// Create an immutable view of this vector.
     #[inline]
@@ -641,10 +586,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     where
         Scalar: FloatConvertible,
     {
-        let i = index.resolve(self.dims).ok_or(Error::IndexOutOfBounds {
-            index: 0,
-            size: self.dims,
-        })?;
+        let i = index.resolve(self.dims).ok_or(Error::IndexOutOfBounds { index: 0, size: self.dims })?;
         let location = Scalar::locate_dim(i);
         // SAFETY: `i < self.dims` from the bounds check above, so the located value is in storage.
         Ok(unsafe { location.read_from(self.data.as_ptr().add(location.value_index)) })
@@ -671,10 +613,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     where
         Scalar: FloatConvertible,
     {
-        let i = index.resolve(self.dims).ok_or(Error::IndexOutOfBounds {
-            index: 0,
-            size: self.dims,
-        })?;
+        let i = index.resolve(self.dims).ok_or(Error::IndexOutOfBounds { index: 0, size: self.dims })?;
         let location = Scalar::locate_dim(i);
         // SAFETY: `i < self.dims` from the bounds check above, so the located value is in storage.
         unsafe { location.write_into(self.data.as_ptr().add(location.value_index), value) };
@@ -741,10 +680,14 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
 impl<Scalar: StorageElement> Vector<Scalar, Global> {
     /// Create a zero-initialized vector with the global allocator.
-    pub fn zeros(dims: usize) -> Result<Self, Error> { Self::zeros_in(dims, Global) }
+    pub fn zeros(dims: usize) -> Result<Self, Error> {
+        Self::zeros_in(dims, Global)
+    }
 
     /// Create a vector filled with `value`.
-    pub fn full(dims: usize, value: Scalar) -> Result<Self, Error> { Self::full_in(dims, value, Global) }
+    pub fn full(dims: usize, value: Scalar) -> Result<Self, Error> {
+        Self::full_in(dims, value, Global)
+    }
 
     /// Create a vector filled with ones.
     pub fn ones(dims: usize) -> Result<Self, Error>
@@ -759,7 +702,9 @@ impl<Scalar: StorageElement> Vector<Scalar, Global> {
     /// # Safety
     /// The returned vector's contents are uninitialized. Reading from it before writing is
     /// undefined behavior.
-    pub unsafe fn uninitialized(dims: usize) -> Result<Self, Error> { unsafe { Self::uninitialized_in(dims, Global) } }
+    pub unsafe fn uninitialized(dims: usize) -> Result<Self, Error> {
+        unsafe { Self::uninitialized_in(dims, Global) }
+    }
 
     /// Create a vector from scalar f32 values.
     pub fn from_scalars(scalars: &[f32]) -> Result<Self, Error>
@@ -784,12 +729,7 @@ impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Vector<Scalar, Al
     pub fn clone(&self) -> Result<Self, Error> {
         let storage_count = Scalar::dimensions_to_values(self.dims);
         if storage_count == 0 {
-            return Ok(Self {
-                data: NonNull::dangling(),
-                dims: 0,
-                capacity: 0,
-                alloc: self.alloc.clone(),
-            });
+            return Ok(Self { data: NonNull::dangling(), dims: 0, capacity: 0, alloc: self.alloc.clone() });
         }
         let layout = layout_for::<Scalar>(storage_count)?;
         let (ptr, actual_bytes) = alloc_block(&self.alloc, layout)?;
@@ -808,12 +748,7 @@ impl<Scalar: StorageElement + Clone, Alloc: Allocator + Clone> Vector<Scalar, Al
 
 impl<Scalar: StorageElement> Default for Vector<Scalar, Global> {
     fn default() -> Self {
-        Self {
-            data: NonNull::dangling(),
-            dims: 0,
-            capacity: 0,
-            alloc: Global,
-        }
+        Self { data: NonNull::dangling(), dims: 0, capacity: 0, alloc: Global }
     }
 }
 
@@ -849,7 +784,9 @@ unsafe impl<'a, Scalar: StorageElement + Sync, Alloc: Sync> Send for VectorView<
 unsafe impl<'a, Scalar: StorageElement + Sync, Alloc: Sync> Sync for VectorView<'a, Scalar, Alloc> {}
 
 impl<'a, Scalar: StorageElement, Alloc> Clone for VectorView<'a, Scalar, Alloc> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 impl<'a, Scalar: StorageElement, Alloc> Copy for VectorView<'a, Scalar, Alloc> {}
 
@@ -863,7 +800,7 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
     /// - `stride` must be non-zero for non-empty views.
     #[inline]
     pub unsafe fn from_raw_parts(data: *const Scalar, dims: usize, stride: isize) -> Self {
-        Self::from_raw_parts_in(data, dims, stride, &GLOBAL)
+        unsafe { Self::from_raw_parts_in(data, dims, stride, &GLOBAL) }
     }
 }
 
@@ -874,42 +811,50 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
     /// The same as for [`VectorView::from_raw_parts`].
     #[inline]
     pub unsafe fn from_raw_parts_in(data: *const Scalar, dims: usize, stride: isize, allocator: &'a Alloc) -> Self {
-        Self {
-            data,
-            dims,
-            stride,
-            allocator,
-            _marker: PhantomData,
-        }
+        Self { data, dims, stride, allocator, _marker: PhantomData }
     }
 
     /// The allocator of the vector this view borrows, or [`Global`] for foreign memory.
     #[inline]
-    pub fn allocator(&self) -> &'a Alloc { self.allocator }
+    pub fn allocator(&self) -> &'a Alloc {
+        self.allocator
+    }
 
     /// Number of logical dimensions.
     #[inline]
-    pub fn dims(&self) -> usize { self.dims }
+    pub fn dims(&self) -> usize {
+        self.dims
+    }
 
     /// Number of logical dimensions; alias for dims.
     #[inline]
-    pub fn size(&self) -> usize { self.dims }
+    pub fn size(&self) -> usize {
+        self.dims
+    }
 
     /// Returns true if empty.
     #[inline]
-    pub fn is_empty(&self) -> bool { self.dims == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.dims == 0
+    }
 
     /// Stride in bytes between consecutive elements.
     #[inline]
-    pub fn stride_bytes(&self) -> isize { self.stride }
+    pub fn stride_bytes(&self) -> isize {
+        self.stride
+    }
 
     /// Returns true if elements are stored contiguously (stride == sizeof(Scalar)).
     #[inline]
-    pub fn is_contiguous(&self) -> bool { self.stride == core::mem::size_of::<Scalar>() as isize }
+    pub fn is_contiguous(&self) -> bool {
+        self.stride == core::mem::size_of::<Scalar>() as isize
+    }
 
     /// Get the underlying pointer.
     #[inline]
-    pub fn as_ptr(&self) -> *const Scalar { self.data }
+    pub fn as_ptr(&self) -> *const Scalar {
+        self.data
+    }
 
     /// Get a contiguous slice, if this view is contiguous.
     #[inline]
@@ -930,10 +875,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
     where
         Scalar: FloatConvertible,
     {
-        let i = index.resolve(self.dims).ok_or(Error::IndexOutOfBounds {
-            index: 0,
-            size: self.dims,
-        })?;
+        let i = index.resolve(self.dims).ok_or(Error::IndexOutOfBounds { index: 0, size: self.dims })?;
         let location = Scalar::locate_dim(i);
         // SAFETY: stride * value_index stays within allocation
         let ptr =
@@ -965,17 +907,10 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
     /// Returns an error if `start` or `end` exceed `dims()`, or if `step == 0`.
     pub fn strided(&self, start: usize, end: usize, step: isize) -> Result<Self, Error> {
         if start > self.dims || end > self.dims || step == 0 {
-            return Err(Error::IndexOutOfBounds {
-                index: start.max(end),
-                size: self.dims,
-            });
+            return Err(Error::IndexOutOfBounds { index: start.max(end), size: self.dims });
         }
         let count = if step > 0 {
-            if end > start {
-                (end - start).div_ceil(step as usize)
-            } else {
-                0
-            }
+            if end > start { (end - start).div_ceil(step as usize) } else { 0 }
         } else if start > end {
             let abs_step = (-step) as usize;
             (start - end).div_ceil(abs_step)
@@ -997,13 +932,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
     where
         Scalar: FloatConvertible,
     {
-        VectorViewIterator {
-            data: self.data,
-            stride: self.stride,
-            front: 0,
-            back: self.dims,
-            _marker: PhantomData,
-        }
+        VectorViewIterator { data: self.data, stride: self.stride, front: 0, back: self.dims, _marker: PhantomData }
     }
 }
 
@@ -1045,7 +974,7 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
     /// - No other references to the memory may exist for the duration of `'a`.
     #[inline]
     pub unsafe fn from_raw_parts(data: *mut Scalar, dims: usize, stride: isize) -> Self {
-        Self::from_raw_parts_in(data, dims, stride, &GLOBAL)
+        unsafe { Self::from_raw_parts_in(data, dims, stride, &GLOBAL) }
     }
 }
 
@@ -1056,46 +985,56 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
     /// The same as for [`VectorSpan::from_raw_parts`].
     #[inline]
     pub unsafe fn from_raw_parts_in(data: *mut Scalar, dims: usize, stride: isize, allocator: &'a Alloc) -> Self {
-        Self {
-            data,
-            dims,
-            stride,
-            allocator,
-            _marker: PhantomData,
-        }
+        Self { data, dims, stride, allocator, _marker: PhantomData }
     }
 
     /// The allocator of the vector this span borrows, or [`Global`] for foreign memory.
     #[inline]
-    pub fn allocator(&self) -> &'a Alloc { self.allocator }
+    pub fn allocator(&self) -> &'a Alloc {
+        self.allocator
+    }
 
     /// Number of logical dimensions.
     #[inline]
-    pub fn dims(&self) -> usize { self.dims }
+    pub fn dims(&self) -> usize {
+        self.dims
+    }
 
     /// Number of logical dimensions; alias for dims.
     #[inline]
-    pub fn size(&self) -> usize { self.dims }
+    pub fn size(&self) -> usize {
+        self.dims
+    }
 
     /// Returns true if empty.
     #[inline]
-    pub fn is_empty(&self) -> bool { self.dims == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.dims == 0
+    }
 
     /// Stride in bytes.
     #[inline]
-    pub fn stride_bytes(&self) -> isize { self.stride }
+    pub fn stride_bytes(&self) -> isize {
+        self.stride
+    }
 
     /// Returns true if contiguous.
     #[inline]
-    pub fn is_contiguous(&self) -> bool { self.stride == core::mem::size_of::<Scalar>() as isize }
+    pub fn is_contiguous(&self) -> bool {
+        self.stride == core::mem::size_of::<Scalar>() as isize
+    }
 
     /// Get the underlying pointer.
     #[inline]
-    pub fn as_ptr(&self) -> *const Scalar { self.data }
+    pub fn as_ptr(&self) -> *const Scalar {
+        self.data
+    }
 
     /// Get the mutable underlying pointer.
     #[inline]
-    pub fn as_mut_ptr(&mut self) -> *mut Scalar { self.data }
+    pub fn as_mut_ptr(&mut self) -> *mut Scalar {
+        self.data
+    }
 
     /// Reborrow as an immutable view, sharing the same data pointer and stride.
     pub fn as_view(&self) -> VectorView<'_, Scalar, Alloc> {
@@ -1126,10 +1065,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
     where
         Scalar: FloatConvertible,
     {
-        let i = index.resolve(self.dims).ok_or(Error::IndexOutOfBounds {
-            index: 0,
-            size: self.dims,
-        })?;
+        let i = index.resolve(self.dims).ok_or(Error::IndexOutOfBounds { index: 0, size: self.dims })?;
         let location = Scalar::locate_dim(i);
         // SAFETY: stride * value_index stays within allocation
         let ptr = unsafe { (self.data as *mut u8).offset(self.stride * location.value_index as isize) as *mut Scalar };
@@ -1162,13 +1098,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
     where
         Scalar: FloatConvertible,
     {
-        VectorViewIterator {
-            data: self.data,
-            stride: self.stride,
-            front: 0,
-            back: self.dims,
-            _marker: PhantomData,
-        }
+        VectorViewIterator { data: self.data, stride: self.stride, front: 0, back: self.dims, _marker: PhantomData }
     }
 
     /// Returns a mutable iterator over logical dimension values, yielding [`DimMut`] proxies.
@@ -1176,13 +1106,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
     where
         Scalar: FloatConvertible,
     {
-        VectorSpanIterator {
-            data: self.data,
-            stride: self.stride,
-            front: 0,
-            back: self.dims,
-            _marker: PhantomData,
-        }
+        VectorSpanIterator { data: self.data, stride: self.stride, front: 0, back: self.dims, _marker: PhantomData }
     }
 }
 
@@ -1214,13 +1138,19 @@ impl<Alloc: Allocator> Vector<u1x8, Alloc> {
     }
 
     /// `true` if at least one bit in the vector is set.
-    pub fn any_set(&self) -> Result<bool, Error> { Ok(self.popcount()? != 0) }
+    pub fn any_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? != 0)
+    }
 
     /// `true` if no bit in the vector is set.
-    pub fn none_set(&self) -> Result<bool, Error> { Ok(self.popcount()? == 0) }
+    pub fn none_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? == 0)
+    }
 
     /// `true` if every bit in the vector is set.
-    pub fn all_set(&self) -> Result<bool, Error> { Ok(self.popcount()? == self.dims as u64) }
+    pub fn all_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? == self.dims as u64)
+    }
 }
 
 impl<'a, Alloc: Allocator> VectorView<'a, u1x8, Alloc> {
@@ -1232,13 +1162,19 @@ impl<'a, Alloc: Allocator> VectorView<'a, u1x8, Alloc> {
     }
 
     /// `true` if at least one bit in the vector view is set.
-    pub fn any_set(&self) -> Result<bool, Error> { Ok(self.popcount()? != 0) }
+    pub fn any_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? != 0)
+    }
 
     /// `true` if no bit in the vector view is set.
-    pub fn none_set(&self) -> Result<bool, Error> { Ok(self.popcount()? == 0) }
+    pub fn none_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? == 0)
+    }
 
     /// `true` if every bit in the vector view is set.
-    pub fn all_set(&self) -> Result<bool, Error> { Ok(self.popcount()? == self.dims as u64) }
+    pub fn all_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? == self.dims as u64)
+    }
 }
 
 impl<'a, Alloc: Allocator> VectorSpan<'a, u1x8, Alloc> {
@@ -1250,13 +1186,19 @@ impl<'a, Alloc: Allocator> VectorSpan<'a, u1x8, Alloc> {
     }
 
     /// `true` if at least one bit in the vector span is set.
-    pub fn any_set(&self) -> Result<bool, Error> { Ok(self.popcount()? != 0) }
+    pub fn any_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? != 0)
+    }
 
     /// `true` if no bit in the vector span is set.
-    pub fn none_set(&self) -> Result<bool, Error> { Ok(self.popcount()? == 0) }
+    pub fn none_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? == 0)
+    }
 
     /// `true` if every bit in the vector span is set.
-    pub fn all_set(&self) -> Result<bool, Error> { Ok(self.popcount()? == self.dims as u64) }
+    pub fn all_set(&self) -> Result<bool, Error> {
+        Ok(self.popcount()? == self.dims as u64)
+    }
 }
 
 // endregion: Bit Reductions on u1x8 vectors
@@ -1286,10 +1228,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Fill<Scalar> for Vector<Scalar, A
             core::slice::from_raw_parts((&value as *const Scalar) as *const u8, core::mem::size_of::<Scalar>())
         };
         let default_bytes = unsafe {
-            core::slice::from_raw_parts(
-                (&default_value as *const Scalar) as *const u8,
-                core::mem::size_of::<Scalar>(),
-            )
+            core::slice::from_raw_parts((&default_value as *const Scalar) as *const u8, core::mem::size_of::<Scalar>())
         };
         if value_bytes == default_bytes {
             return;
@@ -1310,11 +1249,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> CopyFrom<&[Scalar]> for Vector<Sc
     fn copy_from(&mut self, source: &[Scalar]) -> Result<(), Error> {
         let storage_count = Scalar::dimensions_to_values(self.dims);
         if source.len() != storage_count {
-            return Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: storage_count,
-                got: source.len(),
-            });
+            return Err(Error::ShapeMismatch { axis: 0, expected: storage_count, got: source.len() });
         }
         if storage_count == 0 {
             return Ok(());
@@ -1360,10 +1295,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> Fill<Scalar> for VectorSpan<'
             core::slice::from_raw_parts((&value as *const Scalar) as *const u8, core::mem::size_of::<Scalar>())
         };
         let default_bytes = unsafe {
-            core::slice::from_raw_parts(
-                (&default_value as *const Scalar) as *const u8,
-                core::mem::size_of::<Scalar>(),
-            )
+            core::slice::from_raw_parts((&default_value as *const Scalar) as *const u8, core::mem::size_of::<Scalar>())
         };
         if value_bytes == default_bytes {
             return;
@@ -1397,11 +1329,7 @@ impl<'a, 'b, Scalar: StorageElement, Alloc: Allocator, SourceAlloc: Allocator>
 {
     fn copy_from(&mut self, source: &'b VectorView<'_, Scalar, SourceAlloc>) -> Result<(), Error> {
         if source.size() != self.dims {
-            return Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: self.dims,
-                got: source.size(),
-            });
+            return Err(Error::ShapeMismatch { axis: 0, expected: self.dims, got: source.size() });
         }
         if self.dims == 0 {
             return Ok(());
@@ -1547,19 +1475,25 @@ impl<'a, Scalar: FloatConvertible> DoubleEndedIterator for VectorSpanIterator<'a
 impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a Vector<Scalar, Alloc> {
     type Item = DimRef<'a, Scalar>;
     type IntoIter = VectorViewIterator<'a, Scalar>;
-    fn into_iter(self) -> Self::IntoIter { self.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a VectorView<'a, Scalar, Alloc> {
     type Item = DimRef<'a, Scalar>;
     type IntoIter = VectorViewIterator<'a, Scalar>;
-    fn into_iter(self) -> Self::IntoIter { self.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a VectorSpan<'a, Scalar, Alloc> {
     type Item = DimRef<'a, Scalar>;
     type IntoIter = VectorViewIterator<'a, Scalar>;
-    fn into_iter(self) -> Self::IntoIter { self.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 // endregion: IntoIterator, Immutable
@@ -1569,13 +1503,17 @@ impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a Vector
 impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a mut Vector<Scalar, Alloc> {
     type Item = DimMut<'a, Scalar>;
     type IntoIter = VectorSpanIterator<'a, Scalar>;
-    fn into_iter(self) -> Self::IntoIter { self.iter_mut() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
 }
 
 impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a mut VectorSpan<'a, Scalar, Alloc> {
     type Item = DimMut<'a, Scalar>;
     type IntoIter = VectorSpanIterator<'a, Scalar>;
-    fn into_iter(self) -> Self::IntoIter { self.iter_mut() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
 }
 
 // endregion: IntoIterator, Mutable
@@ -1583,7 +1521,9 @@ impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a mut Ve
 // region: AsRef
 
 impl<Scalar: StorageElement, Alloc: Allocator> AsRef<[Scalar]> for Vector<Scalar, Alloc> {
-    fn as_ref(&self) -> &[Scalar] { self.as_slice() }
+    fn as_ref(&self) -> &[Scalar] {
+        self.as_slice()
+    }
 }
 
 // endregion: AsRef
@@ -1594,7 +1534,9 @@ impl<Scalar: FloatConvertible, Alloc: Allocator> PartialEq for Vector<Scalar, Al
 where
     Scalar::DimScalar: PartialEq,
 {
-    fn eq(&self, other: &Self) -> bool { self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b) }
+    fn eq(&self, other: &Self) -> bool {
+        self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b)
+    }
 }
 
 impl<Scalar: FloatConvertible, Alloc: Allocator> PartialEq<[Scalar::DimScalar]> for Vector<Scalar, Alloc>
@@ -1610,14 +1552,18 @@ impl<'a, Scalar: FloatConvertible, Alloc: Allocator> PartialEq for VectorView<'a
 where
     Scalar::DimScalar: PartialEq,
 {
-    fn eq(&self, other: &Self) -> bool { self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b) }
+    fn eq(&self, other: &Self) -> bool {
+        self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b)
+    }
 }
 
 impl<'a, Scalar: FloatConvertible, Alloc: Allocator> PartialEq for VectorSpan<'a, Scalar, Alloc>
 where
     Scalar::DimScalar: PartialEq,
 {
-    fn eq(&self, other: &Self) -> bool { self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b) }
+    fn eq(&self, other: &Self) -> bool {
+        self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b)
+    }
 }
 
 // endregion: PartialEq
@@ -1634,10 +1580,7 @@ where
     /// |b| per element.
     pub fn allclose<OtherAlloc: Allocator>(&self, other: &Vector<Scalar, OtherAlloc>, atol: f64, rtol: f64) -> bool {
         self.dims == other.dims
-            && self
-                .iter()
-                .zip(other.iter())
-                .all(|(a, b)| crate::types::is_close(a.to_f64(), b.to_f64(), atol, rtol))
+            && self.iter().zip(other.iter()).all(|(a, b)| crate::types::is_close(a.to_f64(), b.to_f64(), atol, rtol))
     }
 }
 
@@ -1651,10 +1594,7 @@ where
     /// |b| per element.
     pub fn allclose(&self, other: &Self, atol: f64, rtol: f64) -> bool {
         self.dims == other.dims
-            && self
-                .iter()
-                .zip(other.iter())
-                .all(|(a, b)| crate::types::is_close(a.to_f64(), b.to_f64(), atol, rtol))
+            && self.iter().zip(other.iter()).all(|(a, b)| crate::types::is_close(a.to_f64(), b.to_f64(), atol, rtol))
     }
 }
 
@@ -1668,10 +1608,7 @@ where
     /// |b| per element.
     pub fn allclose(&self, other: &Self, atol: f64, rtol: f64) -> bool {
         self.dims == other.dims
-            && self
-                .iter()
-                .zip(other.iter())
-                .all(|(a, b)| crate::types::is_close(a.to_f64(), b.to_f64(), atol, rtol))
+            && self.iter().zip(other.iter()).all(|(a, b)| crate::types::is_close(a.to_f64(), b.to_f64(), atol, rtol))
     }
 }
 
@@ -1759,7 +1696,9 @@ impl<Scalar: FloatConvertible, Alloc: Allocator> core::fmt::Display for Vector<S
 where
     Scalar::DimScalar: core::fmt::Display,
 {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { fmt_display_list(f, self.iter(), 20) }
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        fmt_display_list(f, self.iter(), 20)
+    }
 }
 
 // endregion: Debug and Display
@@ -1995,10 +1934,7 @@ mod tests {
         }
         for (i, &expected) in values.iter().enumerate() {
             let got = v.get(i).unwrap().to_f32();
-            assert!(
-                (got - expected).abs() < 0.5,
-                "iter_mut[{i}] = {got}, expected {expected}"
-            );
+            assert!((got - expected).abs() < 0.5, "iter_mut[{i}] = {got}, expected {expected}");
         }
     }
 
@@ -2042,7 +1978,7 @@ mod tests {
         assert_eq!(VectorIndex::resolve(-1i32, 5), Some(4));
         assert_eq!(VectorIndex::resolve(-5i32, 5), Some(0));
         assert_eq!(VectorIndex::resolve(-6i32, 5), None); // out of bounds
-                                                          // Same logic across all signed widths.
+        // Same logic across all signed widths.
         assert_eq!(VectorIndex::resolve(-1i8, 5), Some(4));
         assert_eq!(VectorIndex::resolve(-1i16, 5), Some(4));
         assert_eq!(VectorIndex::resolve(-1i64, 5), Some(4));

@@ -30,7 +30,7 @@
 
 use core::{
     alloc::Layout,
-    ffi::{c_char, c_void, CStr},
+    ffi::{CStr, c_char, c_void},
     fmt,
     marker::PhantomData,
     ops::BitOr,
@@ -49,7 +49,7 @@ pub(crate) type nk_status_t = i32;
 pub(crate) type nk_dtype_t = u32;
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     fn nk_capabilities_detected_cpu(capabilities: *mut nk_capability_t) -> nk_status_t;
     fn nk_capabilities_compiled_cpu(capabilities: *mut nk_capability_t) -> nk_status_t;
     fn nk_capabilities_enabled_cpu(capabilities: *mut nk_capability_t) -> nk_status_t;
@@ -139,10 +139,7 @@ impl Status {
 
     /// The variant holding `code`, or [`Status::Unrecognized`] for a value C does not list.
     fn from_code(code: nk_status_t) -> Self {
-        Self::LISTED
-            .into_iter()
-            .find(|&status| status as nk_status_t == code)
-            .unwrap_or(Status::Unrecognized)
+        Self::LISTED.into_iter().find(|&status| status as nk_status_t == code).unwrap_or(Status::Unrecognized)
     }
 }
 
@@ -179,21 +176,21 @@ impl WorkerStatus {
     /// Keeps the status of a kernel call that failed.
     pub(crate) fn record(&self, result: Result<(), Error>) {
         if let Err(Error::KernelFailed { status }) = result {
-            self.0
-                .store(status as nk_status_t, core::sync::atomic::Ordering::Relaxed);
+            self.0.store(status as nk_status_t, core::sync::atomic::Ordering::Relaxed);
         }
     }
 
     /// Keeps a dispatch the pool refused, never spawned or running another one, so nothing ran.
     pub(crate) fn record_dispatch(&self, dispatched: forkunion::Result<()>) {
         if dispatched.is_err() {
-            self.0
-                .store(Status::BadAlloc as nk_status_t, core::sync::atomic::Ordering::Relaxed);
+            self.0.store(Status::BadAlloc as nk_status_t, core::sync::atomic::Ordering::Relaxed);
         }
     }
 
     /// `Ok(())` unless a worker recorded a failure.
-    pub(crate) fn check(&self) -> Result<(), Error> { self.0.load(core::sync::atomic::Ordering::Relaxed).check() }
+    pub(crate) fn check(&self) -> Result<(), Error> {
+        self.0.load(core::sync::atomic::Ordering::Relaxed).check()
+    }
 }
 
 /// One capability, numbered like the C `nk_cap_<capability>_k` bits: each capability group in a
@@ -405,10 +402,14 @@ impl Capabilities {
     );
 
     /// The raw `nk_capability_t` mask.
-    pub const fn bits(self) -> u64 { self.0 }
+    pub const fn bits(self) -> u64 {
+        self.0
+    }
 
     /// Whether `capability` is in this set.
-    pub const fn contains(self, capability: Capability) -> bool { self.0 & capability as nk_capability_t != 0 }
+    pub const fn contains(self, capability: Capability) -> bool {
+        self.0 & capability as nk_capability_t != 0
+    }
 
     /// This set less `capability`, like `enabled.without(Capability::Skylake)`.
     pub const fn without(self, capability: Capability) -> Self {
@@ -417,9 +418,7 @@ impl Capabilities {
 
     /// The capabilities in this set, in bit order.
     pub fn iter(self) -> impl Iterator<Item = Capability> {
-        CAPABILITIES
-            .into_iter()
-            .filter(move |&capability| self.contains(capability))
+        CAPABILITIES.into_iter().filter(move |&capability| self.contains(capability))
     }
 
     /// The GPU vendor whose bit tops this set, which C's dispatch reads as the set's group, or none
@@ -456,16 +455,16 @@ impl Capabilities {
     /// Sets up the calling thread for the CPU kernels in this set, usually
     /// [`Capabilities::enabled_cpu`]: AMX tile permission on x86 Linux, fused BF16 dots on Arm.
     /// Call it once per thread before using those kernels; it is idempotent.
-    pub fn configure_thread_cpu(self) -> Result<(), Error> { unsafe { nk_configure_thread_cpu(self.0) }.check() }
+    pub fn configure_thread_cpu(self) -> Result<(), Error> {
+        unsafe { nk_configure_thread_cpu(self.0) }.check()
+    }
 
     /// How many CUDA devices this process sees, zero without the runtime or without its kernels.
     pub fn count_devices_cuda() -> Result<usize, Error> {
         let mut count: nk_size_t = 0;
         // C reports an empty runtime as `nk_missing_gpu_k`, which for a count means zero.
         match unsafe { nk_count_devices_cuda(&mut count) }.check() {
-            Err(Error::KernelFailed {
-                status: Status::MissingGpu,
-            }) => Ok(0),
+            Err(Error::KernelFailed { status: Status::MissingGpu }) => Ok(0),
             result => result.map(|()| count),
         }
     }
@@ -518,9 +517,7 @@ impl Capabilities {
     pub fn count_devices_rocm() -> Result<usize, Error> {
         let mut count: nk_size_t = 0;
         match unsafe { nk_count_devices_rocm(&mut count) }.check() {
-            Err(Error::KernelFailed {
-                status: Status::MissingGpu,
-            }) => Ok(0),
+            Err(Error::KernelFailed { status: Status::MissingGpu }) => Ok(0),
             result => result.map(|()| count),
         }
     }
@@ -568,9 +565,7 @@ impl Capabilities {
     pub fn count_devices_metal() -> Result<usize, Error> {
         let mut count: nk_size_t = 0;
         match unsafe { nk_count_devices_metal(&mut count) }.check() {
-            Err(Error::KernelFailed {
-                status: Status::MissingGpu,
-            }) => Ok(0),
+            Err(Error::KernelFailed { status: Status::MissingGpu }) => Ok(0),
             result => result.map(|()| count),
         }
     }
@@ -627,7 +622,9 @@ impl Capabilities {
 
 /// Sets up the calling thread for the enabled CPU capabilities, as every parallel worker must.
 #[cfg(any(test, feature = "parallel"))]
-pub(crate) fn configure_cpu_thread() -> Result<(), Error> { Capabilities::enabled_cpu().configure_thread_cpu() }
+pub(crate) fn configure_cpu_thread() -> Result<(), Error> {
+    Capabilities::enabled_cpu().configure_thread_cpu()
+}
 
 /// One GPU vendor's stream producer and the release of what it made.
 type StreamProducers = (
@@ -672,11 +669,7 @@ pub struct Stream {
 impl Stream {
     /// The default stream of the default device of the group `capabilities` name.
     pub fn default(capabilities: Capabilities) -> Self {
-        Stream {
-            capabilities,
-            handle: core::ptr::null_mut(),
-            owned: false,
-        }
+        Stream { capabilities, handle: core::ptr::null_mut(), owned: false }
     }
 
     /// A new stream on device `ordinal` of the vendor `capabilities` name, a `cudaStream_t`, a
@@ -689,11 +682,7 @@ impl Stream {
         };
         let mut handle = core::ptr::null_mut();
         unsafe { init(ordinal, &mut handle) }.check()?;
-        Ok(Stream {
-            capabilities,
-            handle,
-            owned: true,
-        })
+        Ok(Stream { capabilities, handle, owned: true })
     }
 
     /// Borrows a stream the caller made and keeps owning, which is never freed here.
@@ -702,18 +691,18 @@ impl Stream {
     /// `handle` must be null or a live stream of the vendor `capabilities` name, a `cudaStream_t`,
     /// a `hipStream_t` or an `id<MTLCommandQueue>`, null on the CPU, and outlive the result.
     pub unsafe fn from_raw(capabilities: Capabilities, handle: *mut c_void) -> Self {
-        Stream {
-            capabilities,
-            handle,
-            owned: false,
-        }
+        Stream { capabilities, handle, owned: false }
     }
 
     /// The capabilities every consumer of this stream dispatches with.
-    pub fn capabilities(&self) -> Capabilities { self.capabilities }
+    pub fn capabilities(&self) -> Capabilities {
+        self.capabilities
+    }
 
     /// The vendor's handle, null for a default stream.
-    pub fn as_raw(&self) -> *mut c_void { self.handle }
+    pub fn as_raw(&self) -> *mut c_void {
+        self.handle
+    }
 
     /// Waits for everything queued on this stream, after which whatever its verbs wrote is readable
     /// from the host. The CPU has nothing to wait for.
@@ -744,10 +733,7 @@ impl Stream {
         body: impl for<'scope> FnOnce(&'scope Scope<'scope, 'env>) -> Result<Output, Error>,
     ) -> Result<Output, Error> {
         let join_on_unwind = JoinOnUnwind(self);
-        let output = body(&Scope {
-            stream: self,
-            scope: PhantomData,
-        });
+        let output = body(&Scope { stream: self, scope: PhantomData });
         core::mem::forget(join_on_unwind);
         let joined = self.synchronize();
         let output = output?;
@@ -768,7 +754,9 @@ impl Drop for Stream {
 struct JoinOnUnwind<'stream>(&'stream Stream);
 
 impl Drop for JoinOnUnwind<'_> {
-    fn drop(&mut self) { let _ = self.0.synchronize(); }
+    fn drop(&mut self) {
+        let _ = self.0.synchronize();
+    }
 }
 
 /// The span of a [`Stream::scope`] body, which every `_on` verb takes to queue on that stream.
@@ -781,7 +769,9 @@ pub struct Scope<'scope, 'env: 'scope> {
 
 impl Scope<'_, '_> {
     /// The stream every verb of this scope queues on, whose capabilities it dispatches with.
-    pub fn stream(&self) -> &Stream { self.stream }
+    pub fn stream(&self) -> &Stream {
+        self.stream
+    }
 }
 
 /// Memory the host and the devices of one capability group both address, for the packs and outputs
@@ -810,10 +800,14 @@ pub struct UnifiedAllocator<'stream> {
 
 impl<'stream> UnifiedAllocator<'stream> {
     /// Unified memory on the device of `stream`, the host heap for a CPU stream.
-    pub const fn new(stream: &'stream Stream) -> Self { UnifiedAllocator { stream } }
+    pub const fn new(stream: &'stream Stream) -> Self {
+        UnifiedAllocator { stream }
+    }
 
     /// The capabilities whose memory every block comes from.
-    pub fn capabilities(&self) -> Capabilities { self.stream.capabilities }
+    pub fn capabilities(&self) -> Capabilities {
+        self.stream.capabilities
+    }
 }
 
 unsafe impl Allocator for UnifiedAllocator<'_> {
@@ -846,22 +840,30 @@ unsafe impl Allocator for UnifiedAllocator<'_> {
 }
 
 impl From<Capability> for Capabilities {
-    fn from(capability: Capability) -> Self { Capabilities(capability as nk_capability_t) }
+    fn from(capability: Capability) -> Self {
+        Capabilities(capability as nk_capability_t)
+    }
 }
 
 impl BitOr for Capability {
     type Output = Capabilities;
-    fn bitor(self, other: Self) -> Capabilities { Capabilities(self as nk_capability_t | other as nk_capability_t) }
+    fn bitor(self, other: Self) -> Capabilities {
+        Capabilities(self as nk_capability_t | other as nk_capability_t)
+    }
 }
 
 impl BitOr<Capability> for Capabilities {
     type Output = Self;
-    fn bitor(self, capability: Capability) -> Self { Capabilities(self.0 | capability as nk_capability_t) }
+    fn bitor(self, capability: Capability) -> Self {
+        Capabilities(self.0 | capability as nk_capability_t)
+    }
 }
 
 impl BitOr for Capabilities {
     type Output = Self;
-    fn bitor(self, other: Self) -> Self { Capabilities(self.0 | other.0) }
+    fn bitor(self, other: Self) -> Self {
+        Capabilities(self.0 | other.0)
+    }
 }
 
 impl fmt::Display for Capabilities {
@@ -873,7 +875,9 @@ impl fmt::Display for Capabilities {
 }
 
 impl fmt::Display for Capability {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { fmt::Display::fmt(&Capabilities::from(*self), f) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&Capabilities::from(*self), f)
+    }
 }
 
 #[cfg(test)]
@@ -940,9 +944,7 @@ mod tests {
             assert_eq!(capability.to_string(), name);
             previous = capability as u64;
         }
-        let gpus = Capabilities::GPUS
-            .iter()
-            .fold(Capabilities::default(), |set, gpu| set | gpu);
+        let gpus = Capabilities::GPUS.iter().fold(Capabilities::default(), |set, gpu| set | gpu);
         assert_eq!(gpus, Capabilities::GPUS);
         assert_eq!(Capabilities::CPUS.bits() & Capabilities::GPUS.bits(), 0);
     }
@@ -995,17 +997,14 @@ mod tests {
             for ordinal in 0..count {
                 let reported = detected(ordinal).unwrap();
                 assert_eq!(reported.bits() & Capabilities::CPUS.bits(), 0);
-                assert_eq!(
-                    enabled(ordinal).unwrap().bits(),
-                    reported.bits() & compiled(ordinal).unwrap().bits()
-                );
+                assert_eq!(enabled(ordinal).unwrap().bits(), reported.bits() & compiled(ordinal).unwrap().bits());
             }
         }
     }
 
     #[test]
     fn unified_memory_follows_the_group() {
-        use crate::tensor::{Tensor, DEFAULT_ALIGNMENT};
+        use crate::tensor::{DEFAULT_ALIGNMENT, Tensor};
 
         let cpu = Stream::default(Capabilities::enabled_cpu());
         let allocator = UnifiedAllocator::new(&cpu);
@@ -1040,9 +1039,7 @@ mod tests {
         for (count_devices, _, _, _, baseline) in GPU_PRODUCERS {
             let count = count_devices().unwrap();
             let gpu = Capabilities::from(baseline);
-            let past_the_last = Err(Error::KernelFailed {
-                status: Status::MissingGpu,
-            });
+            let past_the_last = Err(Error::KernelFailed { status: Status::MissingGpu });
             assert_eq!(Stream::new(gpu, count).map(|_| ()), past_the_last);
             if count == 0 {
                 assert_eq!(Stream::default(gpu).scope(|_| Ok(())), past_the_last);
@@ -1050,9 +1047,7 @@ mod tests {
         }
 
         // The body's failure outranks the join's
-        let refused: Result<(), Error> = Err(Error::KernelFailed {
-            status: Status::Misaligned,
-        });
+        let refused: Result<(), Error> = Err(Error::KernelFailed { status: Status::Misaligned });
         let cuda = Stream::default(Capability::Cuda.into());
         if Capabilities::count_devices_cuda().unwrap() == 0 {
             assert_eq!(cuda.scope(|_| refused.clone()), refused);
@@ -1063,22 +1058,12 @@ mod tests {
     fn statuses_read_their_c_codes() {
         let (success, missing_kernel): (nk_status_t, nk_status_t) = (0, -19);
         assert_eq!(success.check(), Ok(()));
-        assert_eq!(
-            missing_kernel.check(),
-            Err(Error::KernelFailed {
-                status: Status::MissingKernel
-            })
-        );
+        assert_eq!(missing_kernel.check(), Err(Error::KernelFailed { status: Status::MissingKernel }));
         assert_eq!(Status::PackMismatch.to_string(), "packed by another capability");
         // A code the header does not list, like a positive caveat, is a failure named as such.
         let unlisted: [nk_status_t; 3] = [1, -1, -23];
         for code in unlisted {
-            assert_eq!(
-                code.check(),
-                Err(Error::KernelFailed {
-                    status: Status::Unrecognized
-                })
-            );
+            assert_eq!(code.check(), Err(Error::KernelFailed { status: Status::Unrecognized }));
         }
         assert_eq!(Status::Unrecognized.to_string(), "an unrecognized status");
     }

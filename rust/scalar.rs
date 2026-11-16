@@ -12,12 +12,12 @@
 //! Date: December 30, 2025
 
 use crate::{
-    capabilities::{nk_capability_t, Capabilities},
+    capabilities::{Capabilities, nk_capability_t},
     types::f16,
 };
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     // Scalar square-root / reciprocal-square-root, backing the `Roots` trait.
     fn nk_f32_sqrt_best(x: f32, capabilities: nk_capability_t) -> f32;
     fn nk_f32_rsqrt_best(x: f32, capabilities: nk_capability_t) -> f32;
@@ -41,16 +41,28 @@ pub trait Roots: Sized {
 }
 
 impl Roots for f32 {
-    fn sqrt(self) -> Self { unsafe { nk_f32_sqrt_best(self, Capabilities::CPUS.bits()) } }
-    fn rsqrt(self) -> Self { unsafe { nk_f32_rsqrt_best(self, Capabilities::CPUS.bits()) } }
+    fn sqrt(self) -> Self {
+        unsafe { nk_f32_sqrt_best(self, Capabilities::CPUS.bits()) }
+    }
+    fn rsqrt(self) -> Self {
+        unsafe { nk_f32_rsqrt_best(self, Capabilities::CPUS.bits()) }
+    }
 }
 
 impl Roots for f64 {
-    fn sqrt(self) -> Self { unsafe { nk_f64_sqrt_best(self, Capabilities::CPUS.bits()) } }
-    fn rsqrt(self) -> Self { unsafe { nk_f64_rsqrt_best(self, Capabilities::CPUS.bits()) } }
+    fn sqrt(self) -> Self {
+        unsafe { nk_f64_sqrt_best(self, Capabilities::CPUS.bits()) }
+    }
+    fn rsqrt(self) -> Self {
+        unsafe { nk_f64_rsqrt_best(self, Capabilities::CPUS.bits()) }
+    }
 }
 
 impl Roots for f16 {
-    fn sqrt(self) -> Self { f16(unsafe { nk_f16_sqrt_best(self.0, Capabilities::CPUS.bits()) }) }
-    fn rsqrt(self) -> Self { f16(unsafe { nk_f16_rsqrt_best(self.0, Capabilities::CPUS.bits()) }) }
+    fn sqrt(self) -> Self {
+        f16(unsafe { nk_f16_sqrt_best(self.0, Capabilities::CPUS.bits()) })
+    }
+    fn rsqrt(self) -> Self {
+        f16(unsafe { nk_f16_rsqrt_best(self.0, Capabilities::CPUS.bits()) })
+    }
 }

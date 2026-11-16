@@ -42,14 +42,14 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
     dot::Dot,
-    tensor::{check_len, Error},
-    types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2, StorageElement},
+    tensor::{Error, check_len},
+    types::{StorageElement, bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2},
 };
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
 
     // Spatial similarity/distance functions
     fn nk_angular_i8_best(
@@ -364,7 +364,9 @@ pub trait Angular: StorageElement {
     fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `angular`.
-    fn cosine(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> { Self::angular(a, b) }
+    fn cosine(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
+        Self::angular(a, b)
+    }
 }
 
 impl Angular for f64 {
@@ -373,14 +375,7 @@ impl Angular for f64 {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_angular_f64_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_angular_f64_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -393,14 +388,7 @@ impl Angular for f32 {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_angular_f32_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_angular_f32_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -453,14 +441,7 @@ impl Angular for i8 {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_angular_i8_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_angular_i8_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -473,14 +454,7 @@ impl Angular for u8 {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_angular_u8_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_angular_u8_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -643,14 +617,7 @@ impl Euclidean for f64 {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
-            nk_sqeuclidean_f64_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_sqeuclidean_f64_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -660,14 +627,7 @@ impl Euclidean for f64 {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
-            nk_euclidean_f64_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_euclidean_f64_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -682,14 +642,7 @@ impl Euclidean for f32 {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
-            nk_sqeuclidean_f32_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_sqeuclidean_f32_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -699,14 +652,7 @@ impl Euclidean for f32 {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
-            nk_euclidean_f32_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_euclidean_f32_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -799,14 +745,7 @@ impl Euclidean for i8 {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0;
         unsafe {
-            nk_sqeuclidean_i8_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_sqeuclidean_i8_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -816,14 +755,7 @@ impl Euclidean for i8 {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
-            nk_euclidean_i8_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_euclidean_i8_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -838,14 +770,7 @@ impl Euclidean for u8 {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0;
         unsafe {
-            nk_sqeuclidean_u8_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_sqeuclidean_u8_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -855,14 +780,7 @@ impl Euclidean for u8 {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
-            nk_euclidean_u8_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_euclidean_u8_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -1116,7 +1034,7 @@ impl<Scalar: Dot + Angular + Euclidean> SpatialSimilarity for Scalar {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2, FloatLike, TestableType};
+    use crate::types::{FloatLike, TestableType, assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2};
 
     /// Test a two-input metric: convert f32 inputs to Scalar, call `op`, compare to `expected`.
     pub(crate) fn check_binary<Scalar, R, F>(a_vals: &[f32], b_vals: &[f32], op: F, expected: f64, label: &str)
@@ -1242,10 +1160,7 @@ mod tests {
         let a = [a_val; 3];
         let b = [b_val; 3];
         let result = f32::sqeuclidean(&a, &b).unwrap();
-        assert!(
-            result.is_finite(),
-            "sqeuclidean<f32> denormal produced non-finite: {result}"
-        );
+        assert!(result.is_finite(), "sqeuclidean<f32> denormal produced non-finite: {result}");
         assert_close(result as f64, expected, 1e-50, 1e-6, "sqeuclidean<f32> denormal");
     }
 
@@ -1258,10 +1173,7 @@ mod tests {
         let a = [a_val; 3];
         let b = [b_val; 3];
         let result = f64::sqeuclidean(&a, &b).unwrap();
-        assert!(
-            result.is_finite(),
-            "sqeuclidean<f64> denormal produced non-finite: {result}"
-        );
+        assert!(result.is_finite(), "sqeuclidean<f64> denormal produced non-finite: {result}");
         assert_close(result, expected, 1e-300, 1e-6, "sqeuclidean<f64> denormal");
     }
 
@@ -1271,10 +1183,7 @@ mod tests {
         let d = f32::from_bits(0x007F_FFFF);
         let a = [d, d, d];
         let result = f32::angular(&a, &a).unwrap();
-        assert!(
-            result.is_finite(),
-            "angular<f32> denormal produced non-finite: {result}"
-        );
+        assert!(result.is_finite(), "angular<f32> denormal produced non-finite: {result}");
         assert_close(result as f64, 0.0, 1e-4, 0.0, "angular<f32> identical denormals");
     }
 
@@ -1283,10 +1192,7 @@ mod tests {
         let d = f64::from_bits(0x000F_FFFF_FFFF_FFFF);
         let a = [d, d, d];
         let result = f64::angular(&a, &a).unwrap();
-        assert!(
-            result.is_finite(),
-            "angular<f64> denormal produced non-finite: {result}"
-        );
+        assert!(result.is_finite(), "angular<f64> denormal produced non-finite: {result}");
         assert_close(result, 0.0, 1e-9, 0.0, "angular<f64> identical denormals");
     }
 

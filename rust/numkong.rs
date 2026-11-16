@@ -151,8 +151,8 @@ pub mod vector;
 
 // Re-export scalar types at crate root
 pub use types::{
-    bf16, bf16c, e2m1x2, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, is_close, u1x8, u4x2, DimMut, DimRef,
-    FloatConvertible, FloatLike, NumberLike, StorageElement, Ue4m3, Ue8m0,
+    DimMut, DimRef, FloatConvertible, FloatLike, NumberLike, StorageElement, Ue4m3, Ue8m0, bf16, bf16c, e2m1x2, e2m3,
+    e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, is_close, u1x8, u4x2,
 };
 
 // Re-export scalar-math traits
@@ -190,7 +190,7 @@ pub use geospatial::{HaversinesPackedMatrix, SqEuclideans3D, VincentysPackedMatr
 pub use sparse::{SparseDot, SparseIntersect};
 
 // Re-export cast operations
-pub use cast::{cast, CastDType, CastOps, DenseToScaledOps};
+pub use cast::{CastDType, CastOps, DenseToScaledOps, cast};
 
 // Re-export block-scaled formats and casts
 pub use cast::{
@@ -202,10 +202,10 @@ pub use capabilities::{Capabilities, Capability, Scope, Status, Stream, UnifiedA
 
 // Re-export tensor types
 pub use tensor::{
-    AllocError, Allocator, AxisIterator, AxisIteratorMut, CopyFrom, Error, Fill, Global, Matrix, MatrixSpan,
-    MatrixView, MinMaxResult, RangeStep, ScaledTensor, ScaledTensorSpan, ScaledTensorView, SliceArg, SliceRange,
-    SliceSpec, Tensor, TensorDims, TensorIterator, TensorMut, TensorRef, TensorSpan, TensorSpanDims,
-    TensorSpanIterator, TensorView, TensorViewDims, TensorViewIterator, DEFAULT_ALIGNMENT, DEFAULT_MAX_RANK,
+    AllocError, Allocator, AxisIterator, AxisIteratorMut, CopyFrom, DEFAULT_ALIGNMENT, DEFAULT_MAX_RANK, Error, Fill,
+    Global, Matrix, MatrixSpan, MatrixView, MinMaxResult, RangeStep, ScaledTensor, ScaledTensorSpan, ScaledTensorView,
+    SliceArg, SliceRange, SliceSpec, Tensor, TensorDims, TensorIterator, TensorMut, TensorRef, TensorSpan,
+    TensorSpanDims, TensorSpanIterator, TensorView, TensorViewDims, TensorViewIterator,
 };
 
 // Re-export batched GEMM types
@@ -317,9 +317,7 @@ mod tests {
         assert_eq!(kv.tokens(), tokens);
 
         // With constant V, softmax weights sum to 1 → every output equals V's value.
-        let outputs = kv
-            .attention(&keys.view(), &offsets, None, usize::MAX, usize::MAX)
-            .unwrap();
+        let outputs = kv.attention(&keys.view(), &offsets, None, usize::MAX, usize::MAX).unwrap();
         assert_eq!(outputs.shape(), [tokens, heads * depth]);
         for &x in outputs.as_slice() {
             assert!((x - 0.5).abs() < 1e-2, "expected 0.5, got {x}");
@@ -340,8 +338,7 @@ mod tests {
         assert!(cap0 > 0);
 
         // Same geometry repacked in place → allocation reused, capacity unchanged.
-        kv.pack_into(&small.view(), &small.view(), depth, &small_off, None)
-            .unwrap();
+        kv.pack_into(&small.view(), &small.view(), depth, &small_off, None).unwrap();
         assert_eq!(kv.capacity(), cap0, "same-size repack must reuse the buffer");
         assert_eq!(kv.tokens(), 10);
 
@@ -357,11 +354,8 @@ mod tests {
         assert_eq!(kv.tokens(), 0);
         assert_eq!(kv.capacity(), cap_big, "clear keeps the allocation");
 
-        kv.pack_into(&small.view(), &small.view(), depth, &small_off, None)
-            .unwrap();
-        let outputs = kv
-            .attention(&small.view(), &small_off, None, usize::MAX, usize::MAX)
-            .unwrap();
+        kv.pack_into(&small.view(), &small.view(), depth, &small_off, None).unwrap();
+        let outputs = kv.attention(&small.view(), &small_off, None, usize::MAX, usize::MAX).unwrap();
         assert_eq!(outputs.shape(), [10, heads * depth]);
     }
 
@@ -382,22 +376,12 @@ mod tests {
         let values = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.75)).unwrap();
         let kv = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets, None).unwrap();
 
-        let sequential = kv
-            .attention(&keys.view(), &offsets, None, usize::MAX, usize::MAX)
-            .unwrap();
+        let sequential = kv.attention(&keys.view(), &offsets, None, usize::MAX, usize::MAX).unwrap();
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::spawn(&topology, 4).unwrap();
         let mut parallel = Tensor::<f32>::full(&[tokens, heads * depth], 0.0).unwrap();
-        kv.attention_parallel_into(
-            &keys.view(),
-            &offsets,
-            None,
-            usize::MAX,
-            usize::MAX,
-            &mut parallel,
-            &mut pool,
-        )
-        .unwrap();
+        kv.attention_parallel_into(&keys.view(), &offsets, None, usize::MAX, usize::MAX, &mut parallel, &mut pool)
+            .unwrap();
 
         // Per-task dynamic scheduling must be bit-identical to the single-window run:
         // tasks are independent and write disjoint rows.
@@ -431,11 +415,7 @@ mod tests {
 
         // Serial pack via the typed constructor.
         let kv_serial = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets, None).unwrap();
-        assert_eq!(
-            kv_serial.as_bytes().len(),
-            predicted,
-            "pack_size must predict the blob size"
-        );
+        assert_eq!(kv_serial.as_bytes().len(), predicted, "pack_size must predict the blob size");
 
         // Parallel pack must yield a byte-identical blob.
         let topology = fu::Topology::new().unwrap();
@@ -443,24 +423,14 @@ mod tests {
         let kv_parallel =
             AttentionPackedMatrix::new_parallel(&keys.view(), &values.view(), depth, &offsets, None, &mut pool)
                 .unwrap();
-        assert_eq!(
-            kv_serial.as_bytes(),
-            kv_parallel.as_bytes(),
-            "parallel pack must match serial pack"
-        );
+        assert_eq!(kv_serial.as_bytes(), kv_parallel.as_bytes(), "parallel pack must match serial pack");
 
         // Serial and parallel attention must agree bit-for-bit.
-        let serial = kv_serial
-            .attention(&keys.view(), &offsets, None, usize::MAX, usize::MAX)
-            .unwrap();
-        let par_alloc = kv_parallel
-            .attention_parallel(&keys.view(), &offsets, None, usize::MAX, usize::MAX, &mut pool)
-            .unwrap();
+        let serial = kv_serial.attention(&keys.view(), &offsets, None, usize::MAX, usize::MAX).unwrap();
+        let par_alloc =
+            kv_parallel.attention_parallel(&keys.view(), &offsets, None, usize::MAX, usize::MAX, &mut pool).unwrap();
         for (index, (a, b)) in serial.as_slice().iter().zip(par_alloc.as_slice()).enumerate() {
-            assert!(
-                a.to_bits() == b.to_bits(),
-                "attention_parallel mismatch at {index}: {a} vs {b}"
-            );
+            assert!(a.to_bits() == b.to_bits(), "attention_parallel mismatch at {index}: {a} vs {b}");
         }
     }
 

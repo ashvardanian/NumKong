@@ -13,13 +13,13 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
-    tensor::{check_len, Error},
-    types::{u1x8, StorageElement},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
+    tensor::{Error, check_len},
+    types::{StorageElement, u1x8},
 };
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     fn nk_hamming_u1_best(
         a: *const u8,
         b: *const u8,
@@ -106,14 +106,7 @@ impl Hamming for u8 {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0;
         unsafe {
-            nk_hamming_u8_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_hamming_u8_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -166,14 +159,7 @@ impl Jaccard for u16 {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_jaccard_u16_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_jaccard_u16_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -186,14 +172,7 @@ impl Jaccard for u32 {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
-            nk_jaccard_u32_best(
-                a.as_ptr(),
-                b.as_ptr(),
-                a.len(),
-                &mut result,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
+            nk_jaccard_u32_best(a.as_ptr(), b.as_ptr(), a.len(), &mut result, Capabilities::CPUS.bits(), null_mut())
         }
         .check()?;
         Ok(result)
@@ -229,43 +208,19 @@ mod tests {
         // u1x8 — identical
         let left = vec![u1x8(0b11110000), u1x8(0b10101010)];
         let right = vec![u1x8(0b11110000), u1x8(0b10101010)];
-        assert_close(
-            u1x8::jaccard(&left, &right).unwrap() as f64,
-            0.0,
-            0.01,
-            0.0,
-            "jaccard_u1x8",
-        );
+        assert_close(u1x8::jaccard(&left, &right).unwrap() as f64, 0.0, 0.01, 0.0, "jaccard_u1x8");
 
         // u16 — identical
         let left: Vec<u16> = vec![1, 2, 3, 4];
         let right: Vec<u16> = vec![1, 2, 3, 4];
-        assert_close(
-            u16::jaccard(&left, &right).unwrap() as f64,
-            0.0,
-            0.01,
-            0.0,
-            "jaccard_u16 identical",
-        );
+        assert_close(u16::jaccard(&left, &right).unwrap() as f64, 0.0, 0.01, 0.0, "jaccard_u16 identical");
         // u16 — disjoint
         let disjoint: Vec<u16> = vec![5, 6, 7, 8];
-        assert_close(
-            u16::jaccard(&left, &disjoint).unwrap() as f64,
-            1.0,
-            0.01,
-            0.0,
-            "jaccard_u16 disjoint",
-        );
+        assert_close(u16::jaccard(&left, &disjoint).unwrap() as f64, 1.0, 0.01, 0.0, "jaccard_u16 disjoint");
 
         // u32 — partial overlap
         let left: Vec<u32> = vec![1, 2, 3, 4];
         let right: Vec<u32> = vec![1, 2, 5, 6];
-        assert_close(
-            u32::jaccard(&left, &right).unwrap() as f64,
-            0.5,
-            0.01,
-            0.0,
-            "jaccard_u32",
-        );
+        assert_close(u32::jaccard(&left, &right).unwrap() as f64, 0.5, 0.01, 0.0, "jaccard_u32");
     }
 }

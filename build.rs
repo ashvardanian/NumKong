@@ -33,11 +33,7 @@ fn main() {
         }
     };
     // Watch the archive itself so replacing a prebuilt library relinks the crate.
-    let archive_name = if target_env == "msvc" {
-        "numkong_static.lib"
-    } else {
-        "libnumkong_static.a"
-    };
+    let archive_name = if target_env == "msvc" { "numkong_static.lib" } else { "libnumkong_static.a" };
     let archive = library.join(archive_name);
     println!("cargo:rerun-if-changed={}", archive.display());
     println!("cargo:rustc-link-search=native={}", library.display());
@@ -78,16 +74,7 @@ fn main() {
 
 /// Builds and installs `numkong_static` through CMake and returns the installation prefix.
 fn build_library(manifest: &Path, enabled: impl Fn(&str) -> bool) -> PathBuf {
-    for source in [
-        "CMakeLists.txt",
-        "VERSION",
-        "cmake",
-        "c",
-        "cpp",
-        "include",
-        "probes",
-        "src",
-    ] {
+    for source in ["CMakeLists.txt", "VERSION", "cmake", "c", "cpp", "include", "probes", "src"] {
         println!("cargo:rerun-if-changed={}", manifest.join(source).display());
     }
 
@@ -104,11 +91,7 @@ fn build_library(manifest: &Path, enabled: impl Fn(&str) -> bool) -> PathBuf {
         println!("cargo:rerun-if-env-changed={variable}");
         let codes = env::var(variable).ok();
         from_environment |= codes.is_some();
-        let codes = if enabled(feature) {
-            codes.unwrap_or_else(|| "all".into())
-        } else {
-            String::new()
-        };
+        let codes = if enabled(feature) { codes.unwrap_or_else(|| "all".into()) } else { String::new() };
         library.define(variable, codes);
     }
     library.always_configure(from_environment);

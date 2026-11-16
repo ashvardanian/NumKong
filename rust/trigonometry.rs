@@ -7,13 +7,13 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
-    tensor::{check_len, Allocator, Error, Tensor, TensorMut, TensorRef},
-    types::{f16, StorageElement},
+    capabilities::{Capabilities, StatusCode, nk_capability_t, nk_size_t, nk_status_t},
+    tensor::{Allocator, Error, Tensor, TensorMut, TensorRef, check_len},
+    types::{StorageElement, f16},
 };
 
 #[link(name = "numkong")]
-extern "C" {
+unsafe extern "C" {
     fn nk_trig_sin_f32_best(
         inputs: *const f32,
         n: nk_size_t,
@@ -158,16 +158,8 @@ impl TrigSin for f16 {
     fn sin_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_trig_sin_f16_best(
-                p as *const u16,
-                len,
-                p as *mut u16,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_trig_sin_f16_best(p as *const u16, len, p as *mut u16, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -252,16 +244,8 @@ impl TrigCos for f16 {
     fn cos_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_trig_cos_f16_best(
-                p as *const u16,
-                len,
-                p as *mut u16,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_trig_cos_f16_best(p as *const u16, len, p as *mut u16, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -346,16 +330,8 @@ impl TrigAtan for f16 {
     fn atan_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe {
-            nk_trig_atan_f16_best(
-                p as *const u16,
-                len,
-                p as *mut u16,
-                Capabilities::CPUS.bits(),
-                null_mut(),
-            )
-        }
-        .check()
+        unsafe { nk_trig_atan_f16_best(p as *const u16, len, p as *mut u16, Capabilities::CPUS.bits(), null_mut()) }
+            .check()
     }
 }
 
@@ -432,17 +408,23 @@ impl<Scalar: Clone + TrigAtan, const R: usize, C: TensorRef<Scalar, R> + ?Sized>
 
 impl<Scalar: Clone + TrigSin, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Element-wise sine in-place.
-    pub fn sin_inplace(&mut self) -> Result<(), Error> { self.span().sin_inplace() }
+    pub fn sin_inplace(&mut self) -> Result<(), Error> {
+        self.span().sin_inplace()
+    }
 }
 
 impl<Scalar: Clone + TrigCos, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Element-wise cosine in-place.
-    pub fn cos_inplace(&mut self) -> Result<(), Error> { self.span().cos_inplace() }
+    pub fn cos_inplace(&mut self) -> Result<(), Error> {
+        self.span().cos_inplace()
+    }
 }
 
 impl<Scalar: Clone + TrigAtan, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Element-wise arctangent in-place.
-    pub fn atan_inplace(&mut self) -> Result<(), Error> { self.span().atan_inplace() }
+    pub fn atan_inplace(&mut self) -> Result<(), Error> {
+        self.span().atan_inplace()
+    }
 }
 
 // endregion: Tensor-shaped trigonometry
@@ -452,7 +434,7 @@ mod tests {
     use super::{TrigAtan, TrigCos, TrigSin};
     use crate::{
         tensor::Error,
-        types::{assert_close, f16, FloatLike, TestableType},
+        types::{FloatLike, TestableType, assert_close, f16},
     };
 
     pub(crate) fn check_trig_unary<Scalar, F>(
@@ -487,13 +469,7 @@ mod tests {
     {
         use core::f64::consts::PI;
 
-        check_trig_unary::<Scalar, _>(
-            count,
-            |i, n| (i as f64) * 2.0 * PI / (n as f64),
-            Scalar::sin,
-            f64::sin,
-            "sin",
-        );
+        check_trig_unary::<Scalar, _>(count, |i, n| (i as f64) * 2.0 * PI / (n as f64), Scalar::sin, f64::sin, "sin");
     }
 
     fn check_trig_cos<Scalar>(count: usize)
@@ -502,13 +478,7 @@ mod tests {
     {
         use core::f64::consts::PI;
 
-        check_trig_unary::<Scalar, _>(
-            count,
-            |i, n| (i as f64) * 2.0 * PI / (n as f64),
-            Scalar::cos,
-            f64::cos,
-            "cos",
-        );
+        check_trig_unary::<Scalar, _>(count, |i, n| (i as f64) * 2.0 * PI / (n as f64), Scalar::cos, f64::cos, "cos");
     }
 
     fn check_trig_atan<Scalar>(count: usize)

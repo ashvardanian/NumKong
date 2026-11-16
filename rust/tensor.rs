@@ -79,7 +79,7 @@ use core::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
     capabilities::Status,
-    cast::{cast, CastDType},
+    cast::{CastDType, cast},
     dot::Dot,
     each::{EachBlend, EachFma, EachScale, EachSum},
     reduce::{ReduceMinMax, ReduceMoments, SumSqToF64},
@@ -114,9 +114,7 @@ pub const DEFAULT_ALIGNMENT: usize = 128;
 /// satisfy, so it reports [`Error::AllocationFailed`] rather than wrapping into a small request
 /// that the caller would then write past the end of.
 pub(crate) fn layout_for<Scalar>(count: usize) -> Result<core::alloc::Layout, Error> {
-    let bytes = count
-        .checked_mul(core::mem::size_of::<Scalar>())
-        .ok_or(Error::AllocationFailed)?;
+    let bytes = count.checked_mul(core::mem::size_of::<Scalar>()).ok_or(Error::AllocationFailed)?;
     layout_for_bytes(bytes)
 }
 
@@ -304,28 +302,33 @@ pub(crate) struct PackedBuffer<Alloc: Allocator = Global> {
 impl<Alloc: Allocator> PackedBuffer<Alloc> {
     /// An empty buffer owning no allocation; fill it with [`reset_for_pack`](Self::reset_for_pack).
     pub(crate) fn empty_in(alloc: Alloc) -> Self {
-        Self {
-            data: NonNull::dangling(),
-            size: 0,
-            capacity: 0,
-            alloc,
-        }
+        Self { data: NonNull::dangling(), size: 0, capacity: 0, alloc }
     }
 
     /// Bytes currently allocated (`>= size`).
-    pub(crate) fn capacity(&self) -> usize { self.capacity }
+    pub(crate) fn capacity(&self) -> usize {
+        self.capacity
+    }
 
     /// Reference to the stored allocator.
-    pub(crate) fn allocator(&self) -> &Alloc { &self.alloc }
+    pub(crate) fn allocator(&self) -> &Alloc {
+        &self.alloc
+    }
 
     /// Pointer to the packed data.
-    pub(crate) fn as_ptr(&self) -> *const u8 { self.data.as_ptr() }
+    pub(crate) fn as_ptr(&self) -> *const u8 {
+        self.data.as_ptr()
+    }
 
     /// The live packed bytes.
-    pub(crate) fn as_bytes(&self) -> &[u8] { unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) } }
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(self.data.as_ptr(), self.size) }
+    }
 
     /// Reset to logically empty, keeping the allocation for the next pack.
-    pub(crate) fn clear(&mut self) { self.size = 0; }
+    pub(crate) fn clear(&mut self) {
+        self.size = 0;
+    }
 
     /// Make room for a fresh `needed`-byte pack, reusing the allocation when it already fits and
     /// reallocating — discarding the old contents, since packing overwrites — only when it must
@@ -378,11 +381,8 @@ impl<Alloc: Allocator> PackedBuffer<Alloc> {
 
     /// Grow to exactly `needed` bytes — dealloc old, alloc new; contents are discarded.
     fn grow_to(&mut self, needed: usize) -> Result<(), Error> {
-        let (new_data, actual) = if needed == 0 {
-            (NonNull::dangling(), 0)
-        } else {
-            alloc_block(&self.alloc, layout_for_bytes(needed)?)?
-        };
+        let (new_data, actual) =
+            if needed == 0 { (NonNull::dangling(), 0) } else { alloc_block(&self.alloc, layout_for_bytes(needed)?)? };
         if self.capacity > 0 {
             unsafe { self.dealloc_current() };
         }
@@ -396,9 +396,11 @@ impl<Alloc: Allocator> PackedBuffer<Alloc> {
     /// # Safety
     /// The buffer must own a live allocation — the `capacity == 0` case holds a dangling pointer.
     unsafe fn dealloc_current(&self) {
-        // `capacity` came from a layout that succeeded, so rebuilding it cannot fail.
-        if let Ok(layout) = layout_for_bytes(self.capacity) {
-            self.alloc.deallocate(self.data, layout);
+        unsafe {
+            // `capacity` came from a layout that succeeded, so rebuilding it cannot fail.
+            if let Ok(layout) = layout_for_bytes(self.capacity) {
+                self.alloc.deallocate(self.data, layout);
+            }
         }
     }
 }
@@ -650,11 +652,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         let total: usize = shape_product(shape)?;
         if total == 0 && !shape.is_empty() {
             if let Some(i) = shape.iter().position(|&d| d == 0) {
-                return Err(Error::InvalidShape {
-                    axis: i,
-                    size: 0,
-                    reason: "zero-sized dimension",
-                });
+                return Err(Error::InvalidShape { axis: i, size: 0, reason: "zero-sized dimension" });
             }
         }
 
@@ -666,11 +664,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
                 reason: "innermost dimension must be divisible by dimensions_per_value()",
             });
         }
-        let storage_count = if dims_per_value == 1 {
-            total
-        } else {
-            total / dims_per_value
-        };
+        let storage_count = if dims_per_value == 1 { total } else { total / dims_per_value };
 
         // Allocate a SIMD-aligned buffer and initialize every storage element
         let (data, capacity) = if storage_count == 0 {
@@ -687,14 +681,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         let mut strides_arr = [0isize; MAX_RANK];
         Self::compute_strides_into(shape, dims_per_value, &mut strides_arr);
 
-        Ok(Self {
-            data,
-            shape: shape_arr,
-            strides: strides_arr,
-            ndim: shape.len(),
-            capacity,
-            alloc,
-        })
+        Ok(Self { data, shape: shape_arr, strides: strides_arr, ndim: shape.len(), capacity, alloc })
     }
 
     /// Creates a zero-initialized Tensor using a custom allocator.
@@ -730,11 +717,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         let total: usize = shape_product(shape)?;
         if total == 0 && !shape.is_empty() {
             if let Some(i) = shape.iter().position(|&d| d == 0) {
-                return Err(Error::InvalidShape {
-                    axis: i,
-                    size: 0,
-                    reason: "zero-sized dimension",
-                });
+                return Err(Error::InvalidShape { axis: i, size: 0, reason: "zero-sized dimension" });
             }
         }
 
@@ -746,11 +729,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
                 reason: "innermost dimension must be divisible by dimensions_per_value()",
             });
         }
-        let storage_count = if dims_per_value == 1 {
-            total
-        } else {
-            total / dims_per_value
-        };
+        let storage_count = if dims_per_value == 1 { total } else { total / dims_per_value };
 
         let (data, capacity) = if storage_count == 0 {
             (NonNull::dangling(), 0)
@@ -767,14 +746,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         let mut strides_arr = [0isize; MAX_RANK];
         Self::compute_strides_into(shape, dims_per_value, &mut strides_arr);
 
-        Ok(Self {
-            data,
-            shape: shape_arr,
-            strides: strides_arr,
-            ndim: shape.len(),
-            capacity,
-            alloc,
-        })
+        Ok(Self { data, shape: shape_arr, strides: strides_arr, ndim: shape.len(), capacity, alloc })
     }
 
     /// Creates a Tensor from existing storage data using a custom allocator.
@@ -796,17 +768,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
                 reason: "innermost dimension must be divisible by dimensions_per_value()",
             });
         }
-        let expected_storage = if dims_per_value == 1 {
-            total
-        } else {
-            total / dims_per_value
-        };
+        let expected_storage = if dims_per_value == 1 { total } else { total / dims_per_value };
         if data.len() != expected_storage {
-            return Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: expected_storage,
-                got: data.len(),
-            });
+            return Err(Error::ShapeMismatch { axis: 0, expected: expected_storage, got: data.len() });
         }
 
         // Allocate SIMD-aligned buffer and copy using our allocator
@@ -821,10 +785,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
                 for (i, item) in data[..expected_storage].iter().enumerate() {
                     core::ptr::write(ptr.add(i), *item);
                 }
-                (
-                    NonNull::new_unchecked(ptr),
-                    actual_bytes / core::mem::size_of::<Scalar>(),
-                )
+                (NonNull::new_unchecked(ptr), actual_bytes / core::mem::size_of::<Scalar>())
             }
         };
 
@@ -834,14 +795,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         let mut strides_arr = [0isize; MAX_RANK];
         Self::compute_strides_into(shape, dims_per_value, &mut strides_arr);
 
-        Ok(Self {
-            data: ptr,
-            shape: shape_arr,
-            strides: strides_arr,
-            ndim: shape.len(),
-            capacity,
-            alloc,
-        })
+        Ok(Self { data: ptr, shape: shape_arr, strides: strides_arr, ndim: shape.len(), capacity, alloc })
     }
 
     /// Creates a Tensor from per-dimension `f32` values using a custom allocator.
@@ -856,11 +810,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     {
         let total: usize = shape_product(shape)?;
         if scalars.len() != total {
-            return Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: total,
-                got: scalars.len(),
-            });
+            return Err(Error::ShapeMismatch { axis: 0, expected: total, got: scalars.len() });
         }
         // Pack through a Vector so sub-byte types round-trip via `set`.
         let flat = Vector::<Scalar, Alloc>::from_scalars_in(scalars, alloc.clone())?;
@@ -887,11 +837,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     {
         let total: usize = shape_product(shape)?;
         if dim_values.len() != total {
-            return Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: total,
-                got: dim_values.len(),
-            });
+            return Err(Error::ShapeMismatch { axis: 0, expected: total, got: dim_values.len() });
         }
         let flat = Vector::<Scalar, Alloc>::from_dims_in(dim_values, alloc.clone())?;
         let mut tensor = Self::zeros_in(shape, alloc)?;
@@ -915,30 +861,28 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         let mut stride = elem_size as isize;
         for i in (0..shape.len()).rev() {
             strides[i] = stride;
-            let dim_storage = if i == shape.len() - 1 && dims_per_value > 1 {
-                shape[i] / dims_per_value
-            } else {
-                shape[i]
-            };
+            let dim_storage =
+                if i == shape.len() - 1 && dims_per_value > 1 { shape[i] / dims_per_value } else { shape[i] };
             stride *= dim_storage as isize;
         }
     }
 
     /// Returns a reference to the allocator.
-    pub fn allocator(&self) -> &Alloc { &self.alloc }
+    pub fn allocator(&self) -> &Alloc {
+        &self.alloc
+    }
 
     /// Number of storage values — for sub-byte types, less than numel.
-    pub fn storage_len(&self) -> usize { self.numel() / Scalar::dimensions_per_value() }
+    pub fn storage_len(&self) -> usize {
+        self.numel() / Scalar::dimensions_per_value()
+    }
 
     /// Convert a 1D contiguous tensor into a [`Vector`], transferring ownership without copying.
     ///
     /// Returns an error if the tensor is not 1D or not contiguous.
     pub fn into_vector(self) -> Result<Vector<Scalar, Alloc>, Error> {
         if self.ndim != 1 {
-            return Err(Error::DimensionMismatch {
-                expected: 1,
-                got: self.ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: 1, got: self.ndim });
         }
         let expected_stride = core::mem::size_of::<Scalar>() as isize;
         if self.strides[0] != expected_stride {
@@ -972,26 +916,25 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         alloc: Alloc,
     ) -> Self {
         let capacity = shape[..ndim].iter().product::<usize>() / Scalar::dimensions_per_value();
-        Self {
-            data,
-            shape,
-            strides,
-            ndim,
-            capacity,
-            alloc,
-        }
+        Self { data, shape, strides, ndim, capacity, alloc }
     }
 
     /// Returns the shape of the array.
-    pub fn shape(&self) -> &[usize] { &self.shape[..self.ndim] }
+    pub fn shape(&self) -> &[usize] {
+        &self.shape[..self.ndim]
+    }
 
     /// Returns the number of dimensions.
-    pub fn ndim(&self) -> usize { self.ndim }
+    pub fn ndim(&self) -> usize {
+        self.ndim
+    }
 
     /// Allocated storage-value capacity (`Scalar` slots) — the ceiling
     /// [`resize`](Self::resize) honors. Always `>= numel() /
     /// Scalar::dimensions_per_value()`.
-    pub fn capacity(&self) -> usize { self.capacity }
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
 
     /// Validate `shape` and return its packed storage-value count (shared by resize/reserve).
     fn shape_storage_count(shape: &[usize]) -> Result<usize, Error> {
@@ -999,11 +942,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             return Err(Error::TooManyRanks { got: shape.len() });
         }
         if let Some(axis) = shape.iter().position(|&d| d == 0) {
-            return Err(Error::InvalidShape {
-                axis,
-                size: 0,
-                reason: "zero-sized dimension",
-            });
+            return Err(Error::InvalidShape { axis, size: 0, reason: "zero-sized dimension" });
         }
         let dims_per_value = Scalar::dimensions_per_value();
         if dims_per_value > 1 && !shape.is_empty() && !shape[shape.len() - 1].is_multiple_of(dims_per_value) {
@@ -1014,11 +953,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
             });
         }
         let total: usize = shape_product(shape)?;
-        Ok(if dims_per_value == 1 {
-            total
-        } else {
-            total / dims_per_value
-        })
+        Ok(if dims_per_value == 1 { total } else { total / dims_per_value })
     }
 
     /// Resize in place to `new_shape` without moving storage.
@@ -1036,10 +971,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     pub fn resize(&mut self, new_shape: &[usize]) -> Result<(), Error> {
         let storage_count = Self::shape_storage_count(new_shape)?;
         if storage_count > self.capacity {
-            return Err(Error::CapacityExceeded {
-                requested: storage_count,
-                capacity: self.capacity,
-            });
+            return Err(Error::CapacityExceeded { requested: storage_count, capacity: self.capacity });
         }
         let mut shape_arr = [0usize; MAX_RANK];
         shape_arr[..new_shape.len()].copy_from_slice(new_shape);
@@ -1085,13 +1017,19 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     }
 
     /// Returns the stride in bytes for the given dimension.
-    pub fn stride_bytes(&self, dim: usize) -> isize { self.strides[dim] }
+    pub fn stride_bytes(&self, dim: usize) -> isize {
+        self.strides[dim]
+    }
 
     /// Returns a pointer to the data.
-    pub fn as_ptr(&self) -> *const Scalar { self.data.as_ptr() }
+    pub fn as_ptr(&self) -> *const Scalar {
+        self.data.as_ptr()
+    }
 
     /// Returns a mutable pointer to the data.
-    pub fn as_mut_ptr(&mut self) -> *mut Scalar { self.data.as_ptr() }
+    pub fn as_mut_ptr(&mut self) -> *mut Scalar {
+        self.data.as_ptr()
+    }
 
     /// Returns the underlying storage data as a slice.
     ///
@@ -1158,7 +1096,9 @@ impl<Scalar: StorageElement + Clone, const MAX_RANK: usize> Tensor<Scalar, Globa
     /// assert_eq!(zeros.numel(), 6);
     /// assert!(zeros.as_slice().iter().all(|&v| v == 0.0));
     /// ```
-    pub fn full(shape: &[usize], value: Scalar) -> Result<Self, Error> { Self::full_in(shape, value, Global) }
+    pub fn full(shape: &[usize], value: Scalar) -> Result<Self, Error> {
+        Self::full_in(shape, value, Global)
+    }
 
     /// Creates a zero-initialized Tensor using the global allocator.
     pub fn zeros(shape: &[usize]) -> Result<Self, Error>
@@ -1247,16 +1187,24 @@ pub enum SliceRange {
 
 impl SliceRange {
     /// Create a full range.
-    pub fn full() -> Self { Self::Full }
+    pub fn full() -> Self {
+        Self::Full
+    }
 
     /// Create a single index.
-    pub fn index(i: usize) -> Self { Self::Index(i) }
+    pub fn index(i: usize) -> Self {
+        Self::Index(i)
+    }
 
     /// Create a range from start to end.
-    pub fn range(start: usize, end: usize) -> Self { Self::Range { start, end } }
+    pub fn range(start: usize, end: usize) -> Self {
+        Self::Range { start, end }
+    }
 
     /// Create a range with step.
-    pub fn range_step(start: usize, end: usize, step: isize) -> Self { Self::RangeStep { start, end, step } }
+    pub fn range_step(start: usize, end: usize, step: isize) -> Self {
+        Self::RangeStep { start, end, step }
+    }
 }
 
 /// A stepped range for use in tuple-based slicing — compile-time dispatch.
@@ -1278,7 +1226,9 @@ pub struct RangeStep {
 
 impl RangeStep {
     /// Builds a stepped range from its bounds and step.
-    pub fn new(start: usize, end: usize, step: isize) -> Self { Self { start, end, step } }
+    pub fn new(start: usize, end: usize, step: isize) -> Self {
+        Self { start, end, step }
+    }
 }
 
 // endregion: SliceRange
@@ -1294,10 +1244,7 @@ fn resolve_signed_(index: isize, dim_size: usize) -> Result<usize, Error> {
     } else {
         dim_size
             .checked_sub(index.unsigned_abs())
-            .ok_or(Error::IndexOutOfBounds {
-                index: index.unsigned_abs(),
-                size: dim_size,
-            })
+            .ok_or(Error::IndexOutOfBounds { index: index.unsigned_abs(), size: dim_size })
     }
 }
 
@@ -1360,10 +1307,7 @@ impl SliceArg for usize {
         offset: &mut isize,
     ) -> Result<(), Error> {
         if self >= dim_size {
-            return Err(Error::IndexOutOfBounds {
-                index: self,
-                size: dim_size,
-            });
+            return Err(Error::IndexOutOfBounds { index: self, size: dim_size });
         }
         *offset += self as isize * dim_stride;
         Ok(())
@@ -1397,10 +1341,7 @@ impl SliceArg for core::ops::Range<usize> {
         offset: &mut isize,
     ) -> Result<(), Error> {
         if self.start > self.end || self.end > dim_size {
-            return Err(Error::IndexOutOfBounds {
-                index: self.end,
-                size: dim_size,
-            });
+            return Err(Error::IndexOutOfBounds { index: self.end, size: dim_size });
         }
         out_shape[*new_ndim] = self.end - self.start;
         out_strides[*new_ndim] = dim_stride;
@@ -1541,11 +1482,7 @@ impl SliceArg for RangeStep {
             });
         }
         if self.step == 0 {
-            return Err(Error::InvalidShape {
-                axis: 0,
-                size: 0,
-                reason: "step cannot be zero",
-            });
+            return Err(Error::InvalidShape { axis: 0, size: 0, reason: "step cannot be zero" });
         }
         let count = if self.step > 0 {
             self.end.saturating_sub(self.start).div_ceil(self.step as usize)
@@ -1634,11 +1571,7 @@ impl<Axis0: SliceArg> SliceSpec for (Axis0,) {
             &mut sliced_ndim,
             &mut byte_offset,
         )?;
-        let len = if sliced_ndim == 0 {
-            1
-        } else {
-            sliced_shape[..sliced_ndim].iter().product()
-        };
+        let len = if sliced_ndim == 0 { 1 } else { sliced_shape[..sliced_ndim].iter().product() };
         Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
@@ -1679,11 +1612,7 @@ impl<Axis0: SliceArg, Axis1: SliceArg> SliceSpec for (Axis0, Axis1) {
             &mut sliced_ndim,
             &mut byte_offset,
         )?;
-        let len = if sliced_ndim == 0 {
-            1
-        } else {
-            sliced_shape[..sliced_ndim].iter().product()
-        };
+        let len = if sliced_ndim == 0 { 1 } else { sliced_shape[..sliced_ndim].iter().product() };
         Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
@@ -1732,11 +1661,7 @@ impl<Axis0: SliceArg, Axis1: SliceArg, Axis2: SliceArg> SliceSpec for (Axis0, Ax
             &mut sliced_ndim,
             &mut byte_offset,
         )?;
-        let len = if sliced_ndim == 0 {
-            1
-        } else {
-            sliced_shape[..sliced_ndim].iter().product()
-        };
+        let len = if sliced_ndim == 0 { 1 } else { sliced_shape[..sliced_ndim].iter().product() };
         Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
@@ -1793,11 +1718,7 @@ impl<Axis0: SliceArg, Axis1: SliceArg, Axis2: SliceArg, Axis3: SliceArg> SliceSp
             &mut sliced_ndim,
             &mut byte_offset,
         )?;
-        let len = if sliced_ndim == 0 {
-            1
-        } else {
-            sliced_shape[..sliced_ndim].iter().product()
-        };
+        let len = if sliced_ndim == 0 { 1 } else { sliced_shape[..sliced_ndim].iter().product() };
         Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
@@ -1864,11 +1785,7 @@ impl<Axis0: SliceArg, Axis1: SliceArg, Axis2: SliceArg, Axis3: SliceArg, Axis4: 
             &mut sliced_ndim,
             &mut byte_offset,
         )?;
-        let len = if sliced_ndim == 0 {
-            1
-        } else {
-            sliced_shape[..sliced_ndim].iter().product()
-        };
+        let len = if sliced_ndim == 0 { 1 } else { sliced_shape[..sliced_ndim].iter().product() };
         Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
@@ -1943,24 +1860,20 @@ impl<Axis0: SliceArg, Axis1: SliceArg, Axis2: SliceArg, Axis3: SliceArg, Axis4: 
             &mut sliced_ndim,
             &mut byte_offset,
         )?;
-        let len = if sliced_ndim == 0 {
-            1
-        } else {
-            sliced_shape[..sliced_ndim].iter().product()
-        };
+        let len = if sliced_ndim == 0 { 1 } else { sliced_shape[..sliced_ndim].iter().product() };
         Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
 
 impl<
-        Axis0: SliceArg,
-        Axis1: SliceArg,
-        Axis2: SliceArg,
-        Axis3: SliceArg,
-        Axis4: SliceArg,
-        Axis5: SliceArg,
-        Axis6: SliceArg,
-    > SliceSpec for (Axis0, Axis1, Axis2, Axis3, Axis4, Axis5, Axis6)
+    Axis0: SliceArg,
+    Axis1: SliceArg,
+    Axis2: SliceArg,
+    Axis3: SliceArg,
+    Axis4: SliceArg,
+    Axis5: SliceArg,
+    Axis6: SliceArg,
+> SliceSpec for (Axis0, Axis1, Axis2, Axis3, Axis4, Axis5, Axis6)
 {
     fn apply_layout<const MAX_RANK: usize>(
         self,
@@ -2037,25 +1950,21 @@ impl<
             &mut sliced_ndim,
             &mut byte_offset,
         )?;
-        let len = if sliced_ndim == 0 {
-            1
-        } else {
-            sliced_shape[..sliced_ndim].iter().product()
-        };
+        let len = if sliced_ndim == 0 { 1 } else { sliced_shape[..sliced_ndim].iter().product() };
         Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
 
 impl<
-        Axis0: SliceArg,
-        Axis1: SliceArg,
-        Axis2: SliceArg,
-        Axis3: SliceArg,
-        Axis4: SliceArg,
-        Axis5: SliceArg,
-        Axis6: SliceArg,
-        Axis7: SliceArg,
-    > SliceSpec for (Axis0, Axis1, Axis2, Axis3, Axis4, Axis5, Axis6, Axis7)
+    Axis0: SliceArg,
+    Axis1: SliceArg,
+    Axis2: SliceArg,
+    Axis3: SliceArg,
+    Axis4: SliceArg,
+    Axis5: SliceArg,
+    Axis6: SliceArg,
+    Axis7: SliceArg,
+> SliceSpec for (Axis0, Axis1, Axis2, Axis3, Axis4, Axis5, Axis6, Axis7)
 {
     fn apply_layout<const MAX_RANK: usize>(
         self,
@@ -2140,11 +2049,7 @@ impl<
             &mut sliced_ndim,
             &mut byte_offset,
         )?;
-        let len = if sliced_ndim == 0 {
-            1
-        } else {
-            sliced_shape[..sliced_ndim].iter().product()
-        };
+        let len = if sliced_ndim == 0 { 1 } else { sliced_shape[..sliced_ndim].iter().product() };
         Ok((sliced_shape, sliced_strides, sliced_ndim, byte_offset, len))
     }
 }
@@ -2156,7 +2061,7 @@ pub trait TensorCoordinates {
     const ARITY: usize;
 
     fn resolve<const MAX_RANK: usize>(self, shape: &[usize; MAX_RANK], ndim: usize)
-        -> Result<[usize; MAX_RANK], Error>;
+    -> Result<[usize; MAX_RANK], Error>;
 }
 
 impl<I0: VectorIndex, I1: VectorIndex> TensorCoordinates for (I0, I1) {
@@ -2168,10 +2073,7 @@ impl<I0: VectorIndex, I1: VectorIndex> TensorCoordinates for (I0, I1) {
         ndim: usize,
     ) -> Result<[usize; MAX_RANK], Error> {
         if ndim != Self::ARITY {
-            return Err(Error::DimensionMismatch {
-                expected: Self::ARITY,
-                got: ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: Self::ARITY, got: ndim });
         }
         let mut resolved = [0usize; MAX_RANK];
         resolved[0] = resolve_index_for_size_(self.0, shape[0])?;
@@ -2189,10 +2091,7 @@ impl<I0: VectorIndex, I1: VectorIndex, I2: VectorIndex> TensorCoordinates for (I
         ndim: usize,
     ) -> Result<[usize; MAX_RANK], Error> {
         if ndim != Self::ARITY {
-            return Err(Error::DimensionMismatch {
-                expected: Self::ARITY,
-                got: ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: Self::ARITY, got: ndim });
         }
         let mut resolved = [0usize; MAX_RANK];
         resolved[0] = resolve_index_for_size_(self.0, shape[0])?;
@@ -2211,10 +2110,7 @@ impl<I0: VectorIndex, I1: VectorIndex, I2: VectorIndex, I3: VectorIndex> TensorC
         ndim: usize,
     ) -> Result<[usize; MAX_RANK], Error> {
         if ndim != Self::ARITY {
-            return Err(Error::DimensionMismatch {
-                expected: Self::ARITY,
-                got: ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: Self::ARITY, got: ndim });
         }
         let mut resolved = [0usize; MAX_RANK];
         resolved[0] = resolve_index_for_size_(self.0, shape[0])?;
@@ -2236,10 +2132,7 @@ impl<I0: VectorIndex, I1: VectorIndex, I2: VectorIndex, I3: VectorIndex, I4: Vec
         ndim: usize,
     ) -> Result<[usize; MAX_RANK], Error> {
         if ndim != Self::ARITY {
-            return Err(Error::DimensionMismatch {
-                expected: Self::ARITY,
-                got: ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: Self::ARITY, got: ndim });
         }
         let mut resolved = [0usize; MAX_RANK];
         resolved[0] = resolve_index_for_size_(self.0, shape[0])?;
@@ -2262,10 +2155,7 @@ impl<I0: VectorIndex, I1: VectorIndex, I2: VectorIndex, I3: VectorIndex, I4: Vec
         ndim: usize,
     ) -> Result<[usize; MAX_RANK], Error> {
         if ndim != Self::ARITY {
-            return Err(Error::DimensionMismatch {
-                expected: Self::ARITY,
-                got: ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: Self::ARITY, got: ndim });
         }
         let mut resolved = [0usize; MAX_RANK];
         resolved[0] = resolve_index_for_size_(self.0, shape[0])?;
@@ -2279,14 +2169,14 @@ impl<I0: VectorIndex, I1: VectorIndex, I2: VectorIndex, I3: VectorIndex, I4: Vec
 }
 
 impl<
-        I0: VectorIndex,
-        I1: VectorIndex,
-        I2: VectorIndex,
-        I3: VectorIndex,
-        I4: VectorIndex,
-        I5: VectorIndex,
-        I6: VectorIndex,
-    > TensorCoordinates for (I0, I1, I2, I3, I4, I5, I6)
+    I0: VectorIndex,
+    I1: VectorIndex,
+    I2: VectorIndex,
+    I3: VectorIndex,
+    I4: VectorIndex,
+    I5: VectorIndex,
+    I6: VectorIndex,
+> TensorCoordinates for (I0, I1, I2, I3, I4, I5, I6)
 {
     const ARITY: usize = 7;
 
@@ -2296,10 +2186,7 @@ impl<
         ndim: usize,
     ) -> Result<[usize; MAX_RANK], Error> {
         if ndim != Self::ARITY {
-            return Err(Error::DimensionMismatch {
-                expected: Self::ARITY,
-                got: ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: Self::ARITY, got: ndim });
         }
         let mut resolved = [0usize; MAX_RANK];
         resolved[0] = resolve_index_for_size_(self.0, shape[0])?;
@@ -2314,15 +2201,15 @@ impl<
 }
 
 impl<
-        I0: VectorIndex,
-        I1: VectorIndex,
-        I2: VectorIndex,
-        I3: VectorIndex,
-        I4: VectorIndex,
-        I5: VectorIndex,
-        I6: VectorIndex,
-        I7: VectorIndex,
-    > TensorCoordinates for (I0, I1, I2, I3, I4, I5, I6, I7)
+    I0: VectorIndex,
+    I1: VectorIndex,
+    I2: VectorIndex,
+    I3: VectorIndex,
+    I4: VectorIndex,
+    I5: VectorIndex,
+    I6: VectorIndex,
+    I7: VectorIndex,
+> TensorCoordinates for (I0, I1, I2, I3, I4, I5, I6, I7)
 {
     const ARITY: usize = 8;
 
@@ -2332,10 +2219,7 @@ impl<
         ndim: usize,
     ) -> Result<[usize; MAX_RANK], Error> {
         if ndim != Self::ARITY {
-            return Err(Error::DimensionMismatch {
-                expected: Self::ARITY,
-                got: ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: Self::ARITY, got: ndim });
         }
         let mut resolved = [0usize; MAX_RANK];
         resolved[0] = resolve_index_for_size_(self.0, shape[0])?;
@@ -2385,7 +2269,9 @@ pub struct TensorView<'a, Scalar, const MAX_RANK: usize = DEFAULT_MAX_RANK, Allo
 }
 
 impl<Scalar, const MAX_RANK: usize, Alloc> Clone for TensorView<'_, Scalar, MAX_RANK, Alloc> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<Scalar, const MAX_RANK: usize, Alloc> Copy for TensorView<'_, Scalar, MAX_RANK, Alloc> {}
@@ -2419,7 +2305,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorView<'a, Scalar, M
     ///
     /// Returns `Err` if `shape.len() > MAX_RANK` or `shape.len() != strides_bytes.len()`.
     pub unsafe fn from_raw_parts(data: *const Scalar, shape: &[usize], strides_bytes: &[isize]) -> Result<Self, Error> {
-        Self::from_raw_parts_in(data, shape, strides_bytes, &GLOBAL)
+        unsafe { Self::from_raw_parts_in(data, shape, strides_bytes, &GLOBAL) }
     }
 }
 
@@ -2440,33 +2326,36 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize, Alloc: Allocator> Tensor
         let mut stride_storage = [0isize; MAX_RANK];
         shape_storage[..ndim].copy_from_slice(shape);
         stride_storage[..ndim].copy_from_slice(strides_bytes);
-        Ok(Self {
-            data,
-            shape: shape_storage,
-            strides: stride_storage,
-            ndim,
-            allocator,
-            _marker: PhantomData,
-        })
+        Ok(Self { data, shape: shape_storage, strides: stride_storage, ndim, allocator, _marker: PhantomData })
     }
 
     /// Returns the shape of the view.
-    pub fn shape(&self) -> &[usize] { &self.shape[..self.ndim] }
+    pub fn shape(&self) -> &[usize] {
+        &self.shape[..self.ndim]
+    }
 
     /// Returns the number of dimensions.
-    pub fn ndim(&self) -> usize { self.ndim }
+    pub fn ndim(&self) -> usize {
+        self.ndim
+    }
 
     /// Returns the stride in bytes for the given dimension.
-    pub fn stride_bytes(&self, dim: usize) -> isize { self.strides[dim] }
+    pub fn stride_bytes(&self, dim: usize) -> isize {
+        self.strides[dim]
+    }
 
     /// Returns a pointer to the first element.
-    pub fn as_ptr(&self) -> *const Scalar { self.data }
+    pub fn as_ptr(&self) -> *const Scalar {
+        self.data
+    }
 
     /// Get element at flat index; only valid for contiguous views.
     ///
     /// # Safety
     /// Caller must ensure the view is contiguous and index is in bounds.
-    pub unsafe fn get_unchecked(&self, index: usize) -> &Scalar { &*self.data.add(index) }
+    pub unsafe fn get_unchecked(&self, index: usize) -> &Scalar {
+        unsafe { &*self.data.add(index) }
+    }
 
     /// Get an element by flat logical row-major index.
     ///
@@ -2503,10 +2392,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize, Alloc: Allocator> Tensor
     /// Access the scalar value of a rank-0 tensor view.
     pub fn scalar(&self) -> Result<&Scalar, Error> {
         if self.ndim != 0 {
-            return Err(Error::DimensionMismatch {
-                expected: 0,
-                got: self.ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: 0, got: self.ndim });
         }
         Ok(unsafe { &*self.data })
     }
@@ -2582,7 +2468,9 @@ impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize, Alloc: Allocator
     }
 
     /// Number of storage values — for sub-byte types, less than numel.
-    pub fn storage_len(&self) -> usize { self.numel() / Scalar::dimensions_per_value() }
+    pub fn storage_len(&self) -> usize {
+        self.numel() / Scalar::dimensions_per_value()
+    }
 
     /// Convert to slice; only valid for contiguous views.
     pub fn as_contiguous_slice(&self) -> Option<&[Scalar]> {
@@ -2610,11 +2498,8 @@ impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize, Alloc: Allocator
             if self.strides[i] != expected_stride {
                 return false;
             }
-            let extent = if i == self.ndim - 1 && dims_per_value > 1 {
-                self.shape[i] / dims_per_value
-            } else {
-                self.shape[i]
-            };
+            let extent =
+                if i == self.ndim - 1 && dims_per_value > 1 { self.shape[i] / dims_per_value } else { self.shape[i] };
             expected_stride *= extent as isize;
         }
         true
@@ -2733,7 +2618,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize> TensorSpan<'a, Scalar, M
     ///
     /// Returns `Err` if `shape.len() > MAX_RANK` or `shape.len() != strides_bytes.len()`.
     pub unsafe fn from_raw_parts(data: *mut Scalar, shape: &[usize], strides_bytes: &[isize]) -> Result<Self, Error> {
-        Self::from_raw_parts_in(data, shape, strides_bytes, &GLOBAL)
+        unsafe { Self::from_raw_parts_in(data, shape, strides_bytes, &GLOBAL) }
     }
 }
 
@@ -2754,30 +2639,33 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize, Alloc: Allocator> Tensor
         let mut stride_storage = [0isize; MAX_RANK];
         shape_storage[..ndim].copy_from_slice(shape);
         stride_storage[..ndim].copy_from_slice(strides_bytes);
-        Ok(Self {
-            data,
-            shape: shape_storage,
-            strides: stride_storage,
-            ndim,
-            allocator,
-            _marker: PhantomData,
-        })
+        Ok(Self { data, shape: shape_storage, strides: stride_storage, ndim, allocator, _marker: PhantomData })
     }
 
     /// Returns the shape of the view.
-    pub fn shape(&self) -> &[usize] { &self.shape[..self.ndim] }
+    pub fn shape(&self) -> &[usize] {
+        &self.shape[..self.ndim]
+    }
 
     /// Returns the number of dimensions.
-    pub fn ndim(&self) -> usize { self.ndim }
+    pub fn ndim(&self) -> usize {
+        self.ndim
+    }
 
     /// Returns the stride in bytes for the given dimension.
-    pub fn stride_bytes(&self, dim: usize) -> isize { self.strides[dim] }
+    pub fn stride_bytes(&self, dim: usize) -> isize {
+        self.strides[dim]
+    }
 
     /// Returns a pointer to the first element.
-    pub fn as_ptr(&self) -> *const Scalar { self.data }
+    pub fn as_ptr(&self) -> *const Scalar {
+        self.data
+    }
 
     /// Returns a mutable pointer to the first element.
-    pub fn as_mut_ptr(&mut self) -> *mut Scalar { self.data }
+    pub fn as_mut_ptr(&mut self) -> *mut Scalar {
+        self.data
+    }
 
     /// Reborrow as immutable view.
     pub fn as_view(&self) -> TensorView<'_, Scalar, MAX_RANK, Alloc> {
@@ -2842,10 +2730,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize, Alloc: Allocator> Tensor
     /// Access the scalar value of a rank-0 tensor span.
     pub fn scalar(&self) -> Result<&Scalar, Error> {
         if self.ndim != 0 {
-            return Err(Error::DimensionMismatch {
-                expected: 0,
-                got: self.ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: 0, got: self.ndim });
         }
         Ok(unsafe { &*self.data })
     }
@@ -2853,10 +2738,7 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize, Alloc: Allocator> Tensor
     /// Access the mutable scalar value of a rank-0 tensor span.
     pub fn scalar_mut(&mut self) -> Result<&mut Scalar, Error> {
         if self.ndim != 0 {
-            return Err(Error::DimensionMismatch {
-                expected: 0,
-                got: self.ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: 0, got: self.ndim });
         }
         Ok(unsafe { &mut *self.data })
     }
@@ -2928,7 +2810,9 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize, Alloc: Allocator> Tensor
 
 impl<'a, Scalar: StorageElement, const MAX_RANK: usize, Alloc: Allocator> TensorSpan<'a, Scalar, MAX_RANK, Alloc> {
     /// Number of storage values — for sub-byte types, less than numel.
-    pub fn storage_len(&self) -> usize { self.numel() / Scalar::dimensions_per_value() }
+    pub fn storage_len(&self) -> usize {
+        self.numel() / Scalar::dimensions_per_value()
+    }
 
     /// Convert to slice; only valid for contiguous views.
     pub fn as_contiguous_slice(&self) -> Option<&[Scalar]> {
@@ -3012,15 +2896,21 @@ pub trait TensorRef<Scalar: StorageElement, const MAX_RANK: usize> {
     /// let t = Tensor::<f32>::full(&[2, 3, 4], 0.0).unwrap();
     /// assert_eq!(t.numel(), 24);
     /// ```
-    fn numel(&self) -> usize { self.shape().iter().product() }
+    fn numel(&self) -> usize {
+        self.shape().iter().product()
+    }
 
     /// Alias for [`ndim`](TensorRef::ndim) — number of dimensions.
-    fn rank(&self) -> usize { self.ndim() }
+    fn rank(&self) -> usize {
+        self.ndim()
+    }
 
     /// Returns `true` if the tensor contains zero logical elements.
     ///
     /// A rank-0 tensor is a scalar and is _not_ empty — it has one element.
-    fn is_empty(&self) -> bool { self.numel() == 0 }
+    fn is_empty(&self) -> bool {
+        self.numel() == 0
+    }
 
     /// Returns `true` for rank-2 tensors whose innermost stride equals one element — the layout
     /// required by GEMM's left-hand matrix.
@@ -3041,11 +2931,8 @@ pub trait TensorRef<Scalar: StorageElement, const MAX_RANK: usize> {
             if self.stride_bytes(i) != expected {
                 return false;
             }
-            let dim_storage = if i == ndim - 1 && dims_per_value > 1 {
-                self.shape()[i] / dims_per_value
-            } else {
-                self.shape()[i]
-            };
+            let dim_storage =
+                if i == ndim - 1 && dims_per_value > 1 { self.shape()[i] / dims_per_value } else { self.shape()[i] };
             expected *= dim_storage as isize;
         }
         true
@@ -3102,11 +2989,21 @@ pub trait CopyFrom<Source> {
 
 impl<Scalar: StorageElement, Alloc: Allocator, const R: usize> TensorRef<Scalar, R> for Tensor<Scalar, Alloc, R> {
     type Alloc = Alloc;
-    fn allocator(&self) -> &Alloc { &self.alloc }
-    fn shape(&self) -> &[usize] { &self.shape[..self.ndim] }
-    fn ndim(&self) -> usize { self.ndim }
-    fn stride_bytes(&self, dim: usize) -> isize { self.strides[dim] }
-    fn as_ptr(&self) -> *const Scalar { self.data.as_ptr() }
+    fn allocator(&self) -> &Alloc {
+        &self.alloc
+    }
+    fn shape(&self) -> &[usize] {
+        &self.shape[..self.ndim]
+    }
+    fn ndim(&self) -> usize {
+        self.ndim
+    }
+    fn stride_bytes(&self, dim: usize) -> isize {
+        self.strides[dim]
+    }
+    fn as_ptr(&self) -> *const Scalar {
+        self.data.as_ptr()
+    }
     fn view(&self) -> TensorView<'_, Scalar, R, Alloc> {
         TensorView {
             data: self.data.as_ptr(),
@@ -3120,37 +3017,65 @@ impl<Scalar: StorageElement, Alloc: Allocator, const R: usize> TensorRef<Scalar,
 }
 
 impl<Scalar: StorageElement, Alloc: Allocator, const R: usize> TensorMut<Scalar, R> for Tensor<Scalar, Alloc, R> {
-    fn as_mut_ptr(&mut self) -> *mut Scalar { self.data.as_ptr() }
+    fn as_mut_ptr(&mut self) -> *mut Scalar {
+        self.data.as_ptr()
+    }
 }
 
 impl<'a, Scalar: StorageElement, const R: usize, Alloc: Allocator> TensorRef<Scalar, R>
     for TensorView<'a, Scalar, R, Alloc>
 {
     type Alloc = Alloc;
-    fn allocator(&self) -> &Alloc { self.allocator }
-    fn shape(&self) -> &[usize] { &self.shape[..self.ndim] }
-    fn ndim(&self) -> usize { self.ndim }
-    fn stride_bytes(&self, dim: usize) -> isize { self.strides[dim] }
-    fn as_ptr(&self) -> *const Scalar { self.data }
-    fn view(&self) -> TensorView<'_, Scalar, R, Alloc> { *self }
+    fn allocator(&self) -> &Alloc {
+        self.allocator
+    }
+    fn shape(&self) -> &[usize] {
+        &self.shape[..self.ndim]
+    }
+    fn ndim(&self) -> usize {
+        self.ndim
+    }
+    fn stride_bytes(&self, dim: usize) -> isize {
+        self.strides[dim]
+    }
+    fn as_ptr(&self) -> *const Scalar {
+        self.data
+    }
+    fn view(&self) -> TensorView<'_, Scalar, R, Alloc> {
+        *self
+    }
 }
 
 impl<'a, Scalar: StorageElement, const R: usize, Alloc: Allocator> TensorRef<Scalar, R>
     for TensorSpan<'a, Scalar, R, Alloc>
 {
     type Alloc = Alloc;
-    fn allocator(&self) -> &Alloc { self.allocator }
-    fn shape(&self) -> &[usize] { &self.shape[..self.ndim] }
-    fn ndim(&self) -> usize { self.ndim }
-    fn stride_bytes(&self, dim: usize) -> isize { self.strides[dim] }
-    fn as_ptr(&self) -> *const Scalar { self.data }
-    fn view(&self) -> TensorView<'_, Scalar, R, Alloc> { self.as_view() }
+    fn allocator(&self) -> &Alloc {
+        self.allocator
+    }
+    fn shape(&self) -> &[usize] {
+        &self.shape[..self.ndim]
+    }
+    fn ndim(&self) -> usize {
+        self.ndim
+    }
+    fn stride_bytes(&self, dim: usize) -> isize {
+        self.strides[dim]
+    }
+    fn as_ptr(&self) -> *const Scalar {
+        self.data
+    }
+    fn view(&self) -> TensorView<'_, Scalar, R, Alloc> {
+        self.as_view()
+    }
 }
 
 impl<'a, Scalar: StorageElement, const R: usize, Alloc: Allocator> TensorMut<Scalar, R>
     for TensorSpan<'a, Scalar, R, Alloc>
 {
-    fn as_mut_ptr(&mut self) -> *mut Scalar { self.data }
+    fn as_mut_ptr(&mut self) -> *mut Scalar {
+        self.data
+    }
 }
 
 // endregion: TensorRef / TensorMut Traits
@@ -3166,10 +3091,7 @@ fn value_is_default_bit_pattern<Scalar: StorageElement>(value: Scalar) -> bool {
     let value_bytes =
         unsafe { core::slice::from_raw_parts((&value as *const Scalar) as *const u8, core::mem::size_of::<Scalar>()) };
     let default_bytes = unsafe {
-        core::slice::from_raw_parts(
-            (&default_value as *const Scalar) as *const u8,
-            core::mem::size_of::<Scalar>(),
-        )
+        core::slice::from_raw_parts((&default_value as *const Scalar) as *const u8, core::mem::size_of::<Scalar>())
     };
     value_bytes == default_bytes
 }
@@ -3182,18 +3104,20 @@ unsafe fn overlay_value_into_storage<Scalar: StorageElement>(
     storage_count: usize,
     value: Scalar,
 ) {
-    if storage_count == 0 {
-        return;
-    }
-    if value_is_default_bit_pattern(value) {
-        return;
-    }
-    if core::mem::size_of::<Scalar>() == 1 {
-        let value_byte = *((&value as *const Scalar) as *const u8);
-        core::ptr::write_bytes(storage_ptr as *mut u8, value_byte, storage_count);
-    } else {
-        for storage_index in 0..storage_count {
-            core::ptr::write(storage_ptr.add(storage_index), value);
+    unsafe {
+        if storage_count == 0 {
+            return;
+        }
+        if value_is_default_bit_pattern(value) {
+            return;
+        }
+        if core::mem::size_of::<Scalar>() == 1 {
+            let value_byte = *((&value as *const Scalar) as *const u8);
+            core::ptr::write_bytes(storage_ptr as *mut u8, value_byte, storage_count);
+        } else {
+            for storage_index in 0..storage_count {
+                core::ptr::write(storage_ptr.add(storage_index), value);
+            }
         }
     }
 }
@@ -3224,11 +3148,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> CopyFrom<&
     fn copy_from(&mut self, source: &[Scalar]) -> Result<(), Error> {
         let storage_count = self.storage_len();
         if source.len() != storage_count {
-            return Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: storage_count,
-                got: source.len(),
-            });
+            return Err(Error::ShapeMismatch { axis: 0, expected: storage_count, got: source.len() });
         }
         if storage_count == 0 {
             return Ok(());
@@ -3294,11 +3214,7 @@ impl<'a, 'b, Scalar: StorageElement, const MAX_RANK: usize, Alloc: Allocator, So
 {
     fn copy_from(&mut self, source: &'b TensorView<'_, Scalar, MAX_RANK, SourceAlloc>) -> Result<(), Error> {
         if self.shape() != source.shape() {
-            return Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: source.numel(),
-                got: self.numel(),
-            });
+            return Err(Error::ShapeMismatch { axis: 0, expected: source.numel(), got: self.numel() });
         }
         if self.is_empty() {
             return Ok(());
@@ -3462,10 +3378,7 @@ impl<'a, Scalar, const MAX_RANK: usize, Alloc: Allocator> TensorView<'a, Scalar,
     ) -> Result<AxisIterator<'a, Scalar, MAX_RANK, Alloc>, Error> {
         let axis = normalize_axis(axis, self.ndim)?;
         if self.ndim == 0 {
-            return Err(Error::IndexOutOfBounds {
-                index: 0,
-                size: self.ndim,
-            });
+            return Err(Error::IndexOutOfBounds { index: 0, size: self.ndim });
         }
         Ok(AxisIterator {
             data: self.data,
@@ -3522,30 +3435,18 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize, Alloc: Allocator> Tensor
         }
         let (shape, strides, ndim) =
             reshape_layout::<Scalar, MAX_RANK>(&self.shape, &self.strides, self.ndim, self.numel(), new_shape)?;
-        Ok(TensorView {
-            data: self.data,
-            shape,
-            strides,
-            ndim,
-            allocator: self.allocator,
-            _marker: PhantomData,
-        })
+        Ok(TensorView { data: self.data, shape, strides, ndim, allocator: self.allocator, _marker: PhantomData })
     }
 
     /// Flatten to 1D; requires contiguous layout.
-    pub fn flatten(&self) -> Result<TensorView<'a, Scalar, MAX_RANK, Alloc>, Error> { self.reshape(&[self.numel()]) }
+    pub fn flatten(&self) -> Result<TensorView<'a, Scalar, MAX_RANK, Alloc>, Error> {
+        self.reshape(&[self.numel()])
+    }
 
     /// Remove dimensions of size 1.
     pub fn squeeze(&self) -> TensorView<'a, Scalar, MAX_RANK, Alloc> {
         let (shape, strides, ndim) = squeeze_layout::<Scalar, MAX_RANK>(&self.shape, &self.strides, self.ndim);
-        TensorView {
-            data: self.data,
-            shape,
-            strides,
-            ndim,
-            allocator: self.allocator,
-            _marker: PhantomData,
-        }
+        TensorView { data: self.data, shape, strides, ndim, allocator: self.allocator, _marker: PhantomData }
     }
 }
 
@@ -3587,30 +3488,18 @@ impl<'a, Scalar: StorageElement, const MAX_RANK: usize, Alloc: Allocator> Tensor
         }
         let (shape, strides, ndim) =
             reshape_layout::<Scalar, MAX_RANK>(&self.shape, &self.strides, self.ndim, self.numel(), new_shape)?;
-        Ok(TensorSpan {
-            data: self.data,
-            shape,
-            strides,
-            ndim,
-            allocator: self.allocator,
-            _marker: PhantomData,
-        })
+        Ok(TensorSpan { data: self.data, shape, strides, ndim, allocator: self.allocator, _marker: PhantomData })
     }
 
     /// Flatten to 1D; requires contiguous layout.
-    pub fn flatten(&self) -> Result<TensorSpan<'a, Scalar, MAX_RANK, Alloc>, Error> { self.reshape(&[self.numel()]) }
+    pub fn flatten(&self) -> Result<TensorSpan<'a, Scalar, MAX_RANK, Alloc>, Error> {
+        self.reshape(&[self.numel()])
+    }
 
     /// Remove dimensions of size 1.
     pub fn squeeze(&self) -> TensorSpan<'a, Scalar, MAX_RANK, Alloc> {
         let (shape, strides, ndim) = squeeze_layout::<Scalar, MAX_RANK>(&self.shape, &self.strides, self.ndim);
-        TensorSpan {
-            data: self.data,
-            shape,
-            strides,
-            ndim,
-            allocator: self.allocator,
-            _marker: PhantomData,
-        }
+        TensorSpan { data: self.data, shape, strides, ndim, allocator: self.allocator, _marker: PhantomData }
     }
 }
 
@@ -3634,10 +3523,7 @@ impl<'a, Scalar, const MAX_RANK: usize, Alloc: Allocator> TensorSpan<'a, Scalar,
     ) -> Result<AxisIteratorMut<'a, Scalar, MAX_RANK, Alloc>, Error> {
         let axis = normalize_axis(axis, self.ndim)?;
         if self.ndim == 0 {
-            return Err(Error::IndexOutOfBounds {
-                index: 0,
-                size: self.ndim,
-            });
+            return Err(Error::IndexOutOfBounds { index: 0, size: self.ndim });
         }
         Ok(AxisIteratorMut {
             data: self.data,
@@ -3670,10 +3556,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     ) -> Result<AxisIteratorMut<'_, Scalar, MAX_RANK, Alloc>, Error> {
         let axis = normalize_axis(axis, self.ndim)?;
         if self.ndim == 0 {
-            return Err(Error::IndexOutOfBounds {
-                index: 0,
-                size: self.ndim,
-            });
+            return Err(Error::IndexOutOfBounds { index: 0, size: self.ndim });
         }
         Ok(AxisIteratorMut {
             data: self.data.as_ptr(),
@@ -3782,7 +3665,9 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> Iterator for TensorVie
         }
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) { (self.remaining, Some(self.remaining)) }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
 }
 
 impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> ExactSizeIterator
@@ -3796,7 +3681,9 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> core::iter::FusedItera
 
 impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> TensorViewIterator<'a, Scalar, MAX_RANK> {
     /// Adapt this iterator to yield only dimension proxies, discarding positions.
-    pub fn dims(self) -> TensorViewDims<'a, Scalar, MAX_RANK> { TensorViewDims { inner: self } }
+    pub fn dims(self) -> TensorViewDims<'a, Scalar, MAX_RANK> {
+        TensorViewDims { inner: self }
+    }
 }
 
 /// Dimension-only adapter over [`TensorViewIterator`], yielding [`DimRef`] without positions.
@@ -3815,9 +3702,13 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> Iterator for TensorVie
     type Item = DimRef<'a, Scalar>;
 
     #[inline]
-    fn next(&mut self) -> Option<DimRef<'a, Scalar>> { self.inner.next().map(|(_, v)| v) }
+    fn next(&mut self) -> Option<DimRef<'a, Scalar>> {
+        self.inner.next().map(|(_, v)| v)
+    }
 
-    fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
 }
 
 impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> ExactSizeIterator for TensorViewDims<'a, Scalar, MAX_RANK> {}
@@ -3883,7 +3774,9 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> Iterator for TensorSpa
         }
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) { (self.remaining, Some(self.remaining)) }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
 }
 
 impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> ExactSizeIterator
@@ -3897,7 +3790,9 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> core::iter::FusedItera
 
 impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> TensorSpanIterator<'a, Scalar, MAX_RANK> {
     /// Adapt this iterator to yield only mutable dimension proxies, discarding positions.
-    pub fn dims(self) -> TensorSpanDims<'a, Scalar, MAX_RANK> { TensorSpanDims { inner: self } }
+    pub fn dims(self) -> TensorSpanDims<'a, Scalar, MAX_RANK> {
+        TensorSpanDims { inner: self }
+    }
 }
 
 /// A mutable dimension-only adapter over [`TensorSpanIterator`], yielding [`DimMut`] items and
@@ -3910,9 +3805,13 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> Iterator for TensorSpa
     type Item = DimMut<'a, Scalar>;
 
     #[inline]
-    fn next(&mut self) -> Option<DimMut<'a, Scalar>> { self.inner.next().map(|(_, v)| v) }
+    fn next(&mut self) -> Option<DimMut<'a, Scalar>> {
+        self.inner.next().map(|(_, v)| v)
+    }
 
-    fn size_hint(&self) -> (usize, Option<usize>) { self.inner.size_hint() }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
 }
 
 impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize> ExactSizeIterator for TensorSpanDims<'a, Scalar, MAX_RANK> {}
@@ -4002,7 +3901,9 @@ impl<Scalar: FloatConvertible, Alloc: Allocator, const MAX_RANK: usize> Tensor<S
     /// Returns a lazy iterator over all logical scalars in row-major order.
     ///
     /// Yields `(position, DimRef)` pairs. Use `.iter().dims()` for just dimensions.
-    pub fn iter(&self) -> TensorViewIterator<'_, Scalar, MAX_RANK> { self.view().iter() }
+    pub fn iter(&self) -> TensorViewIterator<'_, Scalar, MAX_RANK> {
+        self.view().iter()
+    }
 
     /// Returns a mutable iterator over all logical scalars in row-major order.
     ///
@@ -4032,7 +3933,9 @@ impl<'a, Scalar: FloatConvertible, Alloc: Allocator, const MAX_RANK: usize> Into
 {
     type Item = ([usize; MAX_RANK], DimRef<'a, Scalar>);
     type IntoIter = TensorViewIterator<'a, Scalar, MAX_RANK>;
-    fn into_iter(self) -> Self::IntoIter { self.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize, Alloc: Allocator> IntoIterator
@@ -4040,7 +3943,9 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize, Alloc: Allocator> Into
 {
     type Item = ([usize; MAX_RANK], DimRef<'a, Scalar>);
     type IntoIter = TensorViewIterator<'a, Scalar, MAX_RANK>;
-    fn into_iter(self) -> Self::IntoIter { self.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize, Alloc: Allocator> IntoIterator
@@ -4048,7 +3953,9 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize, Alloc: Allocator> Into
 {
     type Item = ([usize; MAX_RANK], DimRef<'a, Scalar>);
     type IntoIter = TensorViewIterator<'a, Scalar, MAX_RANK>;
-    fn into_iter(self) -> Self::IntoIter { self.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 // endregion: IntoIterator, immutable
@@ -4060,7 +3967,9 @@ impl<'a, Scalar: FloatConvertible, Alloc: Allocator, const MAX_RANK: usize> Into
 {
     type Item = ([usize; MAX_RANK], DimMut<'a, Scalar>);
     type IntoIter = TensorSpanIterator<'a, Scalar, MAX_RANK>;
-    fn into_iter(self) -> Self::IntoIter { self.iter_mut() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
 }
 
 impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize, Alloc: Allocator> IntoIterator
@@ -4068,7 +3977,9 @@ impl<'a, Scalar: FloatConvertible, const MAX_RANK: usize, Alloc: Allocator> Into
 {
     type Item = ([usize; MAX_RANK], DimMut<'a, Scalar>);
     type IntoIter = TensorSpanIterator<'a, Scalar, MAX_RANK>;
-    fn into_iter(self) -> Self::IntoIter { self.iter_mut() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
 }
 
 // endregion: IntoIterator, mutable
@@ -4116,7 +4027,9 @@ where
 impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> AsRef<[Scalar]>
     for Tensor<Scalar, Alloc, MAX_RANK>
 {
-    fn as_ref(&self) -> &[Scalar] { self.as_slice() }
+    fn as_ref(&self) -> &[Scalar] {
+        self.as_slice()
+    }
 }
 
 // endregion: AsRef
@@ -4200,10 +4113,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     /// Access the scalar value of a rank-0 tensor.
     pub fn scalar(&self) -> Result<&Scalar, Error> {
         if self.ndim != 0 {
-            return Err(Error::DimensionMismatch {
-                expected: 0,
-                got: self.ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: 0, got: self.ndim });
         }
         Ok(unsafe { &*self.data.as_ptr() })
     }
@@ -4211,10 +4121,7 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     /// Access the mutable scalar value of a rank-0 tensor.
     pub fn scalar_mut(&mut self) -> Result<&mut Scalar, Error> {
         if self.ndim != 0 {
-            return Err(Error::DimensionMismatch {
-                expected: 0,
-                got: self.ndim,
-            });
+            return Err(Error::DimensionMismatch { expected: 0, got: self.ndim });
         }
         Ok(unsafe { &mut *self.data.as_ptr() })
     }
@@ -4296,7 +4203,9 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
 
 impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Transpose — reverse all dimensions, no data copy.
-    pub fn transpose(&self) -> Result<TensorView<'_, Scalar, MAX_RANK, Alloc>, Error> { self.view().transpose() }
+    pub fn transpose(&self) -> Result<TensorView<'_, Scalar, MAX_RANK, Alloc>, Error> {
+        self.view().transpose()
+    }
 
     /// Reshape the array — must have same total elements, contiguous only.
     pub fn reshape(&self, new_shape: &[usize]) -> Result<TensorView<'_, Scalar, MAX_RANK, Alloc>, Error> {
@@ -4304,10 +4213,14 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
     }
 
     /// Flatten to 1D; requires contiguous layout.
-    pub fn flatten(&self) -> Result<TensorView<'_, Scalar, MAX_RANK, Alloc>, Error> { self.view().flatten() }
+    pub fn flatten(&self) -> Result<TensorView<'_, Scalar, MAX_RANK, Alloc>, Error> {
+        self.view().flatten()
+    }
 
     /// Remove dimensions of size 1.
-    pub fn squeeze(&self) -> TensorView<'_, Scalar, MAX_RANK, Alloc> { self.view().squeeze() }
+    pub fn squeeze(&self) -> TensorView<'_, Scalar, MAX_RANK, Alloc> {
+        self.view().squeeze()
+    }
 }
 
 // endregion: Tensor View and Slice Methods
@@ -4332,10 +4245,7 @@ fn validate_raw_parts<const MAX_RANK: usize>(shape: &[usize], strides_bytes: &[i
         return Err(Error::TooManyRanks { got: shape.len() });
     }
     if shape.len() != strides_bytes.len() {
-        return Err(Error::DimensionMismatch {
-            expected: shape.len(),
-            got: strides_bytes.len(),
-        });
+        return Err(Error::DimensionMismatch { expected: shape.len(), got: strides_bytes.len() });
     }
     Ok(())
 }
@@ -4346,18 +4256,11 @@ fn validate_same_shape(left: &[usize], right: &[usize]) -> Result<(), Error> {
         return Ok(());
     }
     if left.len() != right.len() {
-        return Err(Error::DimensionMismatch {
-            expected: left.len(),
-            got: right.len(),
-        });
+        return Err(Error::DimensionMismatch { expected: left.len(), got: right.len() });
     }
     for (i, (&l, &r)) in left.iter().zip(right).enumerate() {
         if l != r {
-            return Err(Error::ShapeMismatch {
-                axis: i,
-                expected: l,
-                got: r,
-            });
+            return Err(Error::ShapeMismatch { axis: i, expected: l, got: r });
         }
     }
     Ok(())
@@ -4368,8 +4271,7 @@ fn normalize_axis<AnyIndex: VectorIndex>(axis: AnyIndex, ndim: usize) -> Result<
     if ndim == 0 {
         return Err(Error::IndexOutOfBounds { index: 0, size: ndim });
     }
-    axis.resolve(ndim)
-        .ok_or(Error::IndexOutOfBounds { index: 0, size: ndim })
+    axis.resolve(ndim).ok_or(Error::IndexOutOfBounds { index: 0, size: ndim })
 }
 
 #[inline]
@@ -4410,11 +4312,7 @@ fn reshape_layout<Scalar, const R: usize>(
     }
     let new_len: usize = shape_product(new_shape)?;
     if new_len != len {
-        return Err(Error::ShapeMismatch {
-            axis: 0,
-            expected: new_len,
-            got: len,
-        });
+        return Err(Error::ShapeMismatch { axis: 0, expected: new_len, got: len });
     }
     // Check contiguous
     let elem_size = core::mem::size_of::<Scalar>() as isize;
@@ -4515,10 +4413,7 @@ fn slice_layout_<const MAX_RANK: usize>(
         return Err(Error::SubByteUnsupported);
     }
     if ranges.len() != ndim {
-        return Err(Error::DimensionMismatch {
-            expected: ndim,
-            got: ranges.len(),
-        });
+        return Err(Error::DimensionMismatch { expected: ndim, got: ranges.len() });
     }
 
     let mut new_shape = [0usize; MAX_RANK];
@@ -4544,10 +4439,7 @@ fn slice_layout_<const MAX_RANK: usize>(
             }
             SliceRange::Range { start, end } => {
                 if start > end || end > dim_size {
-                    return Err(Error::IndexOutOfBounds {
-                        index: end,
-                        size: dim_size,
-                    });
+                    return Err(Error::IndexOutOfBounds { index: end, size: dim_size });
                 }
                 new_shape[new_ndim] = end - start;
                 new_strides[new_ndim] = dim_stride;
@@ -4562,11 +4454,7 @@ fn slice_layout_<const MAX_RANK: usize>(
                     });
                 }
                 if step == 0 {
-                    return Err(Error::InvalidShape {
-                        axis: dim,
-                        size: 0,
-                        reason: "step cannot be zero",
-                    });
+                    return Err(Error::InvalidShape { axis: dim, size: 0, reason: "step cannot be zero" });
                 }
                 let count = if step > 0 {
                     end.saturating_sub(start).div_ceil(step as usize)
@@ -4582,11 +4470,7 @@ fn slice_layout_<const MAX_RANK: usize>(
         }
     }
 
-    let new_len = if new_ndim == 0 {
-        1
-    } else {
-        new_shape[..new_ndim].iter().product()
-    };
+    let new_len = if new_ndim == 0 { 1 } else { new_shape[..new_ndim].iter().product() };
     Ok((new_shape, new_strides, new_ndim, offset, new_len))
 }
 
@@ -4607,11 +4491,7 @@ fn slice_leading_layout_<AnyIndex: VectorIndex, const MAX_RANK: usize>(
     new_strides[..ndim - 1].copy_from_slice(&strides[1..ndim]);
     let new_ndim = ndim - 1;
     let offset = leading as isize * strides[0];
-    let new_len = if new_ndim == 0 {
-        1
-    } else {
-        new_shape[..new_ndim].iter().product()
-    };
+    let new_len = if new_ndim == 0 { 1 } else { new_shape[..new_ndim].iter().product() };
     Ok((new_shape, new_strides, new_ndim, offset, new_len))
 }
 
@@ -4732,66 +4612,66 @@ unsafe fn walk_contiguous_blocks_2<TIn, TOut, Kernel>(
 where
     Kernel: FnMut(*const TIn, *mut TOut, usize) -> Result<(), Error>,
 {
-    let tail_dims = shared_contiguous_tail_2(
-        shape,
-        source_strides,
-        core::mem::size_of::<TIn>() as isize,
-        target_strides,
-        core::mem::size_of::<TOut>() as isize,
-    );
-    let tail_len = if tail_dims == 0 {
-        1
-    } else {
-        shape[shape.len() - tail_dims..].iter().product()
-    };
-    let outer_dims = shape.len().saturating_sub(tail_dims);
+    unsafe {
+        let tail_dims = shared_contiguous_tail_2(
+            shape,
+            source_strides,
+            core::mem::size_of::<TIn>() as isize,
+            target_strides,
+            core::mem::size_of::<TOut>() as isize,
+        );
+        let tail_len = if tail_dims == 0 { 1 } else { shape[shape.len() - tail_dims..].iter().product() };
+        let outer_dims = shape.len().saturating_sub(tail_dims);
 
-    unsafe fn walk_outer_dimension<TIn, TOut, Kernel>(
-        dim_index: usize,
-        outer_dims: usize,
-        source_ptr: *const u8,
-        source_strides: &[isize],
-        target_ptr: *mut u8,
-        target_strides: &[isize],
-        shape: &[usize],
-        tail_len: usize,
-        kernel: &mut Kernel,
-    ) -> Result<(), Error>
-    where
-        Kernel: FnMut(*const TIn, *mut TOut, usize) -> Result<(), Error>,
-    {
-        if dim_index == outer_dims {
-            return kernel(source_ptr as *const TIn, target_ptr as *mut TOut, tail_len);
+        unsafe fn walk_outer_dimension<TIn, TOut, Kernel>(
+            dim_index: usize,
+            outer_dims: usize,
+            source_ptr: *const u8,
+            source_strides: &[isize],
+            target_ptr: *mut u8,
+            target_strides: &[isize],
+            shape: &[usize],
+            tail_len: usize,
+            kernel: &mut Kernel,
+        ) -> Result<(), Error>
+        where
+            Kernel: FnMut(*const TIn, *mut TOut, usize) -> Result<(), Error>,
+        {
+            unsafe {
+                if dim_index == outer_dims {
+                    return kernel(source_ptr as *const TIn, target_ptr as *mut TOut, tail_len);
+                }
+                for offset_index in 0..shape[dim_index] {
+                    let source_child = source_ptr.offset(offset_index as isize * source_strides[dim_index]);
+                    let target_child = target_ptr.offset(offset_index as isize * target_strides[dim_index]);
+                    walk_outer_dimension::<TIn, TOut, Kernel>(
+                        dim_index + 1,
+                        outer_dims,
+                        source_child,
+                        source_strides,
+                        target_child,
+                        target_strides,
+                        shape,
+                        tail_len,
+                        kernel,
+                    )?;
+                }
+                Ok(())
+            }
         }
-        for offset_index in 0..shape[dim_index] {
-            let source_child = source_ptr.offset(offset_index as isize * source_strides[dim_index]);
-            let target_child = target_ptr.offset(offset_index as isize * target_strides[dim_index]);
-            walk_outer_dimension::<TIn, TOut, Kernel>(
-                dim_index + 1,
-                outer_dims,
-                source_child,
-                source_strides,
-                target_child,
-                target_strides,
-                shape,
-                tail_len,
-                kernel,
-            )?;
-        }
-        Ok(())
+
+        walk_outer_dimension::<TIn, TOut, Kernel>(
+            0,
+            outer_dims,
+            source_ptr as *const u8,
+            source_strides,
+            target_ptr as *mut u8,
+            target_strides,
+            shape,
+            tail_len,
+            &mut kernel,
+        )
     }
-
-    walk_outer_dimension::<TIn, TOut, Kernel>(
-        0,
-        outer_dims,
-        source_ptr as *const u8,
-        source_strides,
-        target_ptr as *mut u8,
-        target_strides,
-        shape,
-        tail_len,
-        &mut kernel,
-    )
 }
 
 unsafe fn walk_contiguous_blocks_3<TFirst, TSecond, TOut, Kernel>(
@@ -4807,80 +4687,80 @@ unsafe fn walk_contiguous_blocks_3<TFirst, TSecond, TOut, Kernel>(
 where
     Kernel: FnMut(*const TFirst, *const TSecond, *mut TOut, usize) -> Result<(), Error>,
 {
-    let tail_dims = shared_contiguous_tail_3(
-        shape,
-        first_strides,
-        core::mem::size_of::<TFirst>() as isize,
-        second_strides,
-        core::mem::size_of::<TSecond>() as isize,
-        target_strides,
-        core::mem::size_of::<TOut>() as isize,
-    );
-    let tail_len = if tail_dims == 0 {
-        1
-    } else {
-        shape[shape.len() - tail_dims..].iter().product()
-    };
-    let outer_dims = shape.len().saturating_sub(tail_dims);
+    unsafe {
+        let tail_dims = shared_contiguous_tail_3(
+            shape,
+            first_strides,
+            core::mem::size_of::<TFirst>() as isize,
+            second_strides,
+            core::mem::size_of::<TSecond>() as isize,
+            target_strides,
+            core::mem::size_of::<TOut>() as isize,
+        );
+        let tail_len = if tail_dims == 0 { 1 } else { shape[shape.len() - tail_dims..].iter().product() };
+        let outer_dims = shape.len().saturating_sub(tail_dims);
 
-    unsafe fn walk_outer_dimension<TFirst, TSecond, TOut, Kernel>(
-        dim_index: usize,
-        outer_dims: usize,
-        first_ptr: *const u8,
-        first_strides: &[isize],
-        second_ptr: *const u8,
-        second_strides: &[isize],
-        target_ptr: *mut u8,
-        target_strides: &[isize],
-        shape: &[usize],
-        tail_len: usize,
-        kernel: &mut Kernel,
-    ) -> Result<(), Error>
-    where
-        Kernel: FnMut(*const TFirst, *const TSecond, *mut TOut, usize) -> Result<(), Error>,
-    {
-        if dim_index == outer_dims {
-            return kernel(
-                first_ptr as *const TFirst,
-                second_ptr as *const TSecond,
-                target_ptr as *mut TOut,
-                tail_len,
-            );
+        unsafe fn walk_outer_dimension<TFirst, TSecond, TOut, Kernel>(
+            dim_index: usize,
+            outer_dims: usize,
+            first_ptr: *const u8,
+            first_strides: &[isize],
+            second_ptr: *const u8,
+            second_strides: &[isize],
+            target_ptr: *mut u8,
+            target_strides: &[isize],
+            shape: &[usize],
+            tail_len: usize,
+            kernel: &mut Kernel,
+        ) -> Result<(), Error>
+        where
+            Kernel: FnMut(*const TFirst, *const TSecond, *mut TOut, usize) -> Result<(), Error>,
+        {
+            unsafe {
+                if dim_index == outer_dims {
+                    return kernel(
+                        first_ptr as *const TFirst,
+                        second_ptr as *const TSecond,
+                        target_ptr as *mut TOut,
+                        tail_len,
+                    );
+                }
+                for offset_index in 0..shape[dim_index] {
+                    let first_child = first_ptr.offset(offset_index as isize * first_strides[dim_index]);
+                    let second_child = second_ptr.offset(offset_index as isize * second_strides[dim_index]);
+                    let target_child = target_ptr.offset(offset_index as isize * target_strides[dim_index]);
+                    walk_outer_dimension::<TFirst, TSecond, TOut, Kernel>(
+                        dim_index + 1,
+                        outer_dims,
+                        first_child,
+                        first_strides,
+                        second_child,
+                        second_strides,
+                        target_child,
+                        target_strides,
+                        shape,
+                        tail_len,
+                        kernel,
+                    )?;
+                }
+                Ok(())
+            }
         }
-        for offset_index in 0..shape[dim_index] {
-            let first_child = first_ptr.offset(offset_index as isize * first_strides[dim_index]);
-            let second_child = second_ptr.offset(offset_index as isize * second_strides[dim_index]);
-            let target_child = target_ptr.offset(offset_index as isize * target_strides[dim_index]);
-            walk_outer_dimension::<TFirst, TSecond, TOut, Kernel>(
-                dim_index + 1,
-                outer_dims,
-                first_child,
-                first_strides,
-                second_child,
-                second_strides,
-                target_child,
-                target_strides,
-                shape,
-                tail_len,
-                kernel,
-            )?;
-        }
-        Ok(())
+
+        walk_outer_dimension::<TFirst, TSecond, TOut, Kernel>(
+            0,
+            outer_dims,
+            first_ptr as *const u8,
+            first_strides,
+            second_ptr as *const u8,
+            second_strides,
+            target_ptr as *mut u8,
+            target_strides,
+            shape,
+            tail_len,
+            &mut kernel,
+        )
     }
-
-    walk_outer_dimension::<TFirst, TSecond, TOut, Kernel>(
-        0,
-        outer_dims,
-        first_ptr as *const u8,
-        first_strides,
-        second_ptr as *const u8,
-        second_strides,
-        target_ptr as *mut u8,
-        target_strides,
-        shape,
-        tail_len,
-        &mut kernel,
-    )
 }
 
 unsafe fn walk_contiguous_blocks_4<TFirst, TSecond, TThird, TOut, Kernel>(
@@ -4898,90 +4778,90 @@ unsafe fn walk_contiguous_blocks_4<TFirst, TSecond, TThird, TOut, Kernel>(
 where
     Kernel: FnMut(*const TFirst, *const TSecond, *const TThird, *mut TOut, usize) -> Result<(), Error>,
 {
-    let tail_dims = shared_contiguous_tail_4(
-        shape,
-        first_strides,
-        core::mem::size_of::<TFirst>() as isize,
-        second_strides,
-        core::mem::size_of::<TSecond>() as isize,
-        third_strides,
-        core::mem::size_of::<TThird>() as isize,
-        target_strides,
-        core::mem::size_of::<TOut>() as isize,
-    );
-    let tail_len = if tail_dims == 0 {
-        1
-    } else {
-        shape[shape.len() - tail_dims..].iter().product()
-    };
-    let outer_dims = shape.len().saturating_sub(tail_dims);
+    unsafe {
+        let tail_dims = shared_contiguous_tail_4(
+            shape,
+            first_strides,
+            core::mem::size_of::<TFirst>() as isize,
+            second_strides,
+            core::mem::size_of::<TSecond>() as isize,
+            third_strides,
+            core::mem::size_of::<TThird>() as isize,
+            target_strides,
+            core::mem::size_of::<TOut>() as isize,
+        );
+        let tail_len = if tail_dims == 0 { 1 } else { shape[shape.len() - tail_dims..].iter().product() };
+        let outer_dims = shape.len().saturating_sub(tail_dims);
 
-    unsafe fn walk_outer_dimension<TFirst, TSecond, TThird, TOut, Kernel>(
-        dim_index: usize,
-        outer_dims: usize,
-        first_ptr: *const u8,
-        first_strides: &[isize],
-        second_ptr: *const u8,
-        second_strides: &[isize],
-        third_ptr: *const u8,
-        third_strides: &[isize],
-        target_ptr: *mut u8,
-        target_strides: &[isize],
-        shape: &[usize],
-        tail_len: usize,
-        kernel: &mut Kernel,
-    ) -> Result<(), Error>
-    where
-        Kernel: FnMut(*const TFirst, *const TSecond, *const TThird, *mut TOut, usize) -> Result<(), Error>,
-    {
-        if dim_index == outer_dims {
-            return kernel(
-                first_ptr as *const TFirst,
-                second_ptr as *const TSecond,
-                third_ptr as *const TThird,
-                target_ptr as *mut TOut,
-                tail_len,
-            );
+        unsafe fn walk_outer_dimension<TFirst, TSecond, TThird, TOut, Kernel>(
+            dim_index: usize,
+            outer_dims: usize,
+            first_ptr: *const u8,
+            first_strides: &[isize],
+            second_ptr: *const u8,
+            second_strides: &[isize],
+            third_ptr: *const u8,
+            third_strides: &[isize],
+            target_ptr: *mut u8,
+            target_strides: &[isize],
+            shape: &[usize],
+            tail_len: usize,
+            kernel: &mut Kernel,
+        ) -> Result<(), Error>
+        where
+            Kernel: FnMut(*const TFirst, *const TSecond, *const TThird, *mut TOut, usize) -> Result<(), Error>,
+        {
+            unsafe {
+                if dim_index == outer_dims {
+                    return kernel(
+                        first_ptr as *const TFirst,
+                        second_ptr as *const TSecond,
+                        third_ptr as *const TThird,
+                        target_ptr as *mut TOut,
+                        tail_len,
+                    );
+                }
+                for offset_index in 0..shape[dim_index] {
+                    let first_child = first_ptr.offset(offset_index as isize * first_strides[dim_index]);
+                    let second_child = second_ptr.offset(offset_index as isize * second_strides[dim_index]);
+                    let third_child = third_ptr.offset(offset_index as isize * third_strides[dim_index]);
+                    let target_child = target_ptr.offset(offset_index as isize * target_strides[dim_index]);
+                    walk_outer_dimension::<TFirst, TSecond, TThird, TOut, Kernel>(
+                        dim_index + 1,
+                        outer_dims,
+                        first_child,
+                        first_strides,
+                        second_child,
+                        second_strides,
+                        third_child,
+                        third_strides,
+                        target_child,
+                        target_strides,
+                        shape,
+                        tail_len,
+                        kernel,
+                    )?;
+                }
+                Ok(())
+            }
         }
-        for offset_index in 0..shape[dim_index] {
-            let first_child = first_ptr.offset(offset_index as isize * first_strides[dim_index]);
-            let second_child = second_ptr.offset(offset_index as isize * second_strides[dim_index]);
-            let third_child = third_ptr.offset(offset_index as isize * third_strides[dim_index]);
-            let target_child = target_ptr.offset(offset_index as isize * target_strides[dim_index]);
-            walk_outer_dimension::<TFirst, TSecond, TThird, TOut, Kernel>(
-                dim_index + 1,
-                outer_dims,
-                first_child,
-                first_strides,
-                second_child,
-                second_strides,
-                third_child,
-                third_strides,
-                target_child,
-                target_strides,
-                shape,
-                tail_len,
-                kernel,
-            )?;
-        }
-        Ok(())
+
+        walk_outer_dimension::<TFirst, TSecond, TThird, TOut, Kernel>(
+            0,
+            outer_dims,
+            first_ptr as *const u8,
+            first_strides,
+            second_ptr as *const u8,
+            second_strides,
+            third_ptr as *const u8,
+            third_strides,
+            target_ptr as *mut u8,
+            target_strides,
+            shape,
+            tail_len,
+            &mut kernel,
+        )
     }
-
-    walk_outer_dimension::<TFirst, TSecond, TThird, TOut, Kernel>(
-        0,
-        outer_dims,
-        first_ptr as *const u8,
-        first_strides,
-        second_ptr as *const u8,
-        second_strides,
-        third_ptr as *const u8,
-        third_strides,
-        target_ptr as *mut u8,
-        target_strides,
-        shape,
-        tail_len,
-        &mut kernel,
-    )
 }
 
 fn for_each_axis_lane<Scalar, const MAX_RANK: usize, Alloc, Kernel>(
@@ -5007,10 +4887,7 @@ fn for_each_axis_lane<Scalar, const MAX_RANK: usize, Alloc, Kernel>(
         return;
     }
 
-    let total_lanes: usize = other_dims[..other_ndim]
-        .iter()
-        .map(|&dim_index| view.shape[dim_index])
-        .product();
+    let total_lanes: usize = other_dims[..other_ndim].iter().map(|&dim_index| view.shape[dim_index]).product();
 
     // Fast path: when non-axis dims form a uniform-stride progression, iterate with a constant
     // byte increment instead of recomputing offsets from multi-dimensional coordinates.
@@ -5103,14 +4980,16 @@ unsafe fn normalize_reduction_lane<Scalar>(
     lane_len: usize,
     lane_stride: isize,
 ) -> (*const Scalar, usize, usize, bool) {
-    if lane_len == 0 {
-        return (lane_ptr, 0, core::mem::size_of::<Scalar>(), false);
+    unsafe {
+        if lane_len == 0 {
+            return (lane_ptr, 0, core::mem::size_of::<Scalar>(), false);
+        }
+        if lane_stride >= 0 {
+            return (lane_ptr, lane_len, lane_stride as usize, false);
+        }
+        let last_ptr = (lane_ptr as *const u8).offset((lane_len as isize - 1) * lane_stride) as *const Scalar;
+        (last_ptr, lane_len, (-lane_stride) as usize, true)
     }
-    if lane_stride >= 0 {
-        return (lane_ptr, lane_len, lane_stride as usize, false);
-    }
-    let last_ptr = (lane_ptr as *const u8).offset((lane_len as isize - 1) * lane_stride) as *const Scalar;
-    (last_ptr, lane_len, (-lane_stride) as usize, true)
 }
 
 /// Build collapsed shape/strides arrays by merging `tail_dims` trailing dimensions into one.
@@ -5141,51 +5020,47 @@ where
     Scalar::SumOutput: Default + core::ops::AddAssign,
     Scalar::SumSqOutput: Default + core::ops::AddAssign,
 {
-    if shape.is_empty() {
-        return Scalar::reduce_moments(core::slice::from_raw_parts(data, 1), core::mem::size_of::<Scalar>());
-    }
-    if shape[0] == 0 {
-        return Ok((Scalar::SumOutput::default(), Scalar::SumSqOutput::default()));
-    }
-    // Re-analyze remaining dimensions for collapsibility at each recursive level.
-    if shape.len() >= 2 {
-        let (tail, count, _stride_magnitude) = uniform_stride_tail(shape, strides);
-        if tail == shape.len() {
-            let (ptr, count, stride, _) = normalize_reduction_lane(data, count, strides[shape.len() - 1]);
-            return Scalar::reduce_moments(core::slice::from_raw_parts(ptr, count), stride);
+    unsafe {
+        if shape.is_empty() {
+            return Scalar::reduce_moments(core::slice::from_raw_parts(data, 1), core::mem::size_of::<Scalar>());
         }
-        if tail >= 2 {
-            let mut collapsed_shape = [0usize; DEFAULT_MAX_RANK];
-            let mut collapsed_strides = [0isize; DEFAULT_MAX_RANK];
-            let collapsed_rank = build_collapsed_layout(
-                shape,
-                strides,
-                tail,
-                count,
-                &mut collapsed_shape,
-                &mut collapsed_strides,
-            );
-            return reduce_moments_recursive::<Scalar>(
-                data,
-                &collapsed_shape[..collapsed_rank],
-                &collapsed_strides[..collapsed_rank],
-            );
+        if shape[0] == 0 {
+            return Ok((Scalar::SumOutput::default(), Scalar::SumSqOutput::default()));
         }
-    }
-    if shape.len() == 1 {
-        let (lane_ptr, lane_len, lane_stride, _) = normalize_reduction_lane(data, shape[0], strides[0]);
-        return Scalar::reduce_moments(core::slice::from_raw_parts(lane_ptr, lane_len), lane_stride);
-    }
+        // Re-analyze remaining dimensions for collapsibility at each recursive level.
+        if shape.len() >= 2 {
+            let (tail, count, _stride_magnitude) = uniform_stride_tail(shape, strides);
+            if tail == shape.len() {
+                let (ptr, count, stride, _) = normalize_reduction_lane(data, count, strides[shape.len() - 1]);
+                return Scalar::reduce_moments(core::slice::from_raw_parts(ptr, count), stride);
+            }
+            if tail >= 2 {
+                let mut collapsed_shape = [0usize; DEFAULT_MAX_RANK];
+                let mut collapsed_strides = [0isize; DEFAULT_MAX_RANK];
+                let collapsed_rank =
+                    build_collapsed_layout(shape, strides, tail, count, &mut collapsed_shape, &mut collapsed_strides);
+                return reduce_moments_recursive::<Scalar>(
+                    data,
+                    &collapsed_shape[..collapsed_rank],
+                    &collapsed_strides[..collapsed_rank],
+                );
+            }
+        }
+        if shape.len() == 1 {
+            let (lane_ptr, lane_len, lane_stride, _) = normalize_reduction_lane(data, shape[0], strides[0]);
+            return Scalar::reduce_moments(core::slice::from_raw_parts(lane_ptr, lane_len), lane_stride);
+        }
 
-    let mut sum = Scalar::SumOutput::default();
-    let mut sumsq = Scalar::SumSqOutput::default();
-    for index in 0..shape[0] {
-        let child_ptr = (data as *const u8).offset(index as isize * strides[0]) as *const Scalar;
-        let (child_sum, child_sumsq) = reduce_moments_recursive::<Scalar>(child_ptr, &shape[1..], &strides[1..])?;
-        sum += child_sum;
-        sumsq += child_sumsq;
+        let mut sum = Scalar::SumOutput::default();
+        let mut sumsq = Scalar::SumSqOutput::default();
+        for index in 0..shape[0] {
+            let child_ptr = (data as *const u8).offset(index as isize * strides[0]) as *const Scalar;
+            let (child_sum, child_sumsq) = reduce_moments_recursive::<Scalar>(child_ptr, &shape[1..], &strides[1..])?;
+            sum += child_sum;
+            sumsq += child_sumsq;
+        }
+        Ok((sum, sumsq))
     }
-    Ok((sum, sumsq))
 }
 
 unsafe fn reduce_minmax_recursive<Scalar>(
@@ -5198,118 +5073,89 @@ where
     Scalar: ReduceMinMax,
     Scalar::Output: Clone + PartialOrd,
 {
-    if shape.is_empty() {
-        return Ok(
-            Scalar::reduce_minmax(core::slice::from_raw_parts(data, 1), core::mem::size_of::<Scalar>())?.map(|lane| {
-                MinMaxResult {
-                    min_index: logical_offset,
-                    max_index: logical_offset,
-                    ..lane
-                }
-            }),
-        );
-    }
-    if shape[0] == 0 {
-        return Ok(None);
-    }
-    // Re-analyze remaining dimensions for collapsibility at each recursive level.
-    if shape.len() >= 2 {
-        let (tail, count, _stride_magnitude) = uniform_stride_tail(shape, strides);
-        if tail == shape.len() {
-            let (lane_ptr, lane_len, lane_stride, reversed) =
-                normalize_reduction_lane(data, count, strides[shape.len() - 1]);
-            return Ok(
-                Scalar::reduce_minmax(core::slice::from_raw_parts(lane_ptr, lane_len), lane_stride)?.map(|lane| {
-                    let min_index = if reversed {
-                        lane_len - 1 - lane.min_index
-                    } else {
-                        lane.min_index
-                    };
-                    let max_index = if reversed {
-                        lane_len - 1 - lane.max_index
-                    } else {
-                        lane.max_index
-                    };
+    unsafe {
+        if shape.is_empty() {
+            return Ok(Scalar::reduce_minmax(core::slice::from_raw_parts(data, 1), core::mem::size_of::<Scalar>())?
+                .map(|lane| MinMaxResult { min_index: logical_offset, max_index: logical_offset, ..lane }));
+        }
+        if shape[0] == 0 {
+            return Ok(None);
+        }
+        // Re-analyze remaining dimensions for collapsibility at each recursive level.
+        if shape.len() >= 2 {
+            let (tail, count, _stride_magnitude) = uniform_stride_tail(shape, strides);
+            if tail == shape.len() {
+                let (lane_ptr, lane_len, lane_stride, reversed) =
+                    normalize_reduction_lane(data, count, strides[shape.len() - 1]);
+                return Ok(Scalar::reduce_minmax(core::slice::from_raw_parts(lane_ptr, lane_len), lane_stride)?.map(
+                    |lane| {
+                        let min_index = if reversed { lane_len - 1 - lane.min_index } else { lane.min_index };
+                        let max_index = if reversed { lane_len - 1 - lane.max_index } else { lane.max_index };
+                        MinMaxResult {
+                            min_index: logical_offset + min_index,
+                            max_index: logical_offset + max_index,
+                            ..lane
+                        }
+                    },
+                ));
+            }
+            if tail >= 2 {
+                let mut collapsed_shape = [0usize; DEFAULT_MAX_RANK];
+                let mut collapsed_strides = [0isize; DEFAULT_MAX_RANK];
+                let collapsed_rank =
+                    build_collapsed_layout(shape, strides, tail, count, &mut collapsed_shape, &mut collapsed_strides);
+                return reduce_minmax_recursive::<Scalar>(
+                    data,
+                    &collapsed_shape[..collapsed_rank],
+                    &collapsed_strides[..collapsed_rank],
+                    logical_offset,
+                );
+            }
+        }
+        if shape.len() == 1 {
+            let (lane_ptr, lane_len, lane_stride, reversed) = normalize_reduction_lane(data, shape[0], strides[0]);
+            return Ok(Scalar::reduce_minmax(core::slice::from_raw_parts(lane_ptr, lane_len), lane_stride)?.map(
+                |lane| {
+                    let min_index = if reversed { lane_len - 1 - lane.min_index } else { lane.min_index };
+                    let max_index = if reversed { lane_len - 1 - lane.max_index } else { lane.max_index };
                     MinMaxResult {
                         min_index: logical_offset + min_index,
                         max_index: logical_offset + max_index,
                         ..lane
                     }
-                }),
-            );
+                },
+            ));
         }
-        if tail >= 2 {
-            let mut collapsed_shape = [0usize; DEFAULT_MAX_RANK];
-            let mut collapsed_strides = [0isize; DEFAULT_MAX_RANK];
-            let collapsed_rank = build_collapsed_layout(
-                shape,
-                strides,
-                tail,
-                count,
-                &mut collapsed_shape,
-                &mut collapsed_strides,
-            );
-            return reduce_minmax_recursive::<Scalar>(
-                data,
-                &collapsed_shape[..collapsed_rank],
-                &collapsed_strides[..collapsed_rank],
-                logical_offset,
-            );
-        }
-    }
-    if shape.len() == 1 {
-        let (lane_ptr, lane_len, lane_stride, reversed) = normalize_reduction_lane(data, shape[0], strides[0]);
-        return Ok(
-            Scalar::reduce_minmax(core::slice::from_raw_parts(lane_ptr, lane_len), lane_stride)?.map(|lane| {
-                let min_index = if reversed {
-                    lane_len - 1 - lane.min_index
-                } else {
-                    lane.min_index
-                };
-                let max_index = if reversed {
-                    lane_len - 1 - lane.max_index
-                } else {
-                    lane.max_index
-                };
-                MinMaxResult {
-                    min_index: logical_offset + min_index,
-                    max_index: logical_offset + max_index,
-                    ..lane
-                }
-            }),
-        );
-    }
 
-    let inner_len: usize = shape[1..].iter().product();
-    let mut best_min: Option<(Scalar::Output, usize)> = None;
-    let mut best_max: Option<(Scalar::Output, usize)> = None;
+        let inner_len: usize = shape[1..].iter().product();
+        let mut best_min: Option<(Scalar::Output, usize)> = None;
+        let mut best_max: Option<(Scalar::Output, usize)> = None;
 
-    for index in 0..shape[0] {
-        let child_ptr = (data as *const u8).offset(index as isize * strides[0]) as *const Scalar;
-        let child_offset = logical_offset + index * inner_len;
-        if let Some(child) = reduce_minmax_recursive::<Scalar>(child_ptr, &shape[1..], &strides[1..], child_offset)? {
-            match &best_min {
-                Some((best_value, _)) if child.min_value.partial_cmp(best_value) != Some(core::cmp::Ordering::Less) => {
+        for index in 0..shape[0] {
+            let child_ptr = (data as *const u8).offset(index as isize * strides[0]) as *const Scalar;
+            let child_offset = logical_offset + index * inner_len;
+            if let Some(child) = reduce_minmax_recursive::<Scalar>(child_ptr, &shape[1..], &strides[1..], child_offset)?
+            {
+                match &best_min {
+                    Some((best_value, _))
+                        if child.min_value.partial_cmp(best_value) != Some(core::cmp::Ordering::Less) => {}
+                    _ => best_min = Some((child.min_value, child.min_index)),
                 }
-                _ => best_min = Some((child.min_value, child.min_index)),
-            }
-            match &best_max {
-                Some((best_value, _))
-                    if child.max_value.partial_cmp(best_value) != Some(core::cmp::Ordering::Greater) => {}
-                _ => best_max = Some((child.max_value, child.max_index)),
+                match &best_max {
+                    Some((best_value, _))
+                        if child.max_value.partial_cmp(best_value) != Some(core::cmp::Ordering::Greater) => {}
+                    _ => best_max = Some((child.max_value, child.max_index)),
+                }
             }
         }
-    }
 
-    Ok(match (best_min, best_max) {
-        (Some((min_value, min_index)), Some((max_value, max_index))) => Some(MinMaxResult {
-            min_value,
-            min_index,
-            max_value,
-            max_index,
-        }),
-        _ => None,
-    })
+        Ok(match (best_min, best_max) {
+            (Some((min_value, min_index)), Some((max_value, max_index))) => {
+                Some(MinMaxResult { min_value, min_index, max_value, max_index })
+            }
+            _ => None,
+        })
+    }
 }
 
 // SumSqToF64 trait moved to crate::reduce
@@ -5338,23 +5184,13 @@ fn rebind_view_rank<'a, Scalar, Alloc, const TARGET_MAX_RANK: usize, const SOURC
     view: &TensorView<'a, Scalar, SOURCE_MAX_RANK, Alloc>,
 ) -> Result<TensorView<'a, Scalar, TARGET_MAX_RANK, Alloc>, Error> {
     if view.ndim > TARGET_MAX_RANK {
-        return Err(Error::DimensionMismatch {
-            expected: TARGET_MAX_RANK,
-            got: view.ndim,
-        });
+        return Err(Error::DimensionMismatch { expected: TARGET_MAX_RANK, got: view.ndim });
     }
     let mut shape = [0usize; TARGET_MAX_RANK];
     let mut strides = [0isize; TARGET_MAX_RANK];
     shape[..view.ndim].copy_from_slice(&view.shape[..view.ndim]);
     strides[..view.ndim].copy_from_slice(&view.strides[..view.ndim]);
-    Ok(TensorView {
-        data: view.data,
-        shape,
-        strides,
-        ndim: view.ndim,
-        allocator: view.allocator,
-        _marker: PhantomData,
-    })
+    Ok(TensorView { data: view.data, shape, strides, ndim: view.ndim, allocator: view.allocator, _marker: PhantomData })
 }
 
 fn unary_kernel_into<Source, SourceAlloc, Destination, OutputTensor, Kernel, const MAX_RANK: usize>(
@@ -5816,9 +5652,7 @@ where
     where
         Alloc: Clone,
     {
-        alloc_output_like(self.shape(), self.allocator.clone(), |span| {
-            self.scale_tensor_into(alpha, beta, span)
-        })
+        alloc_output_like(self.shape(), self.allocator.clone(), |span| self.scale_tensor_into(alpha, beta, span))
     }
 
     /// Writes α × aᵢ + β into the output tensor.
@@ -5837,9 +5671,7 @@ where
         beta: Scalar::Scalar,
         out: &mut OutputTensor,
     ) -> Result<(), Error> {
-        unary_kernel_into(self, out, |source, target| {
-            Scalar::each_scale(source, alpha, beta, target)
-        })
+        unary_kernel_into(self, out, |source, target| Scalar::each_scale(source, alpha, beta, target))
     }
 
     /// Element-wise add scalar into a new tensor.
@@ -5847,9 +5679,7 @@ where
     where
         Alloc: Clone,
     {
-        alloc_output_like(self.shape(), self.allocator.clone(), |span| {
-            self.add_scalar_into(scalar, span)
-        })
+        alloc_output_like(self.shape(), self.allocator.clone(), |span| self.add_scalar_into(scalar, span))
     }
 
     /// Element-wise subtract scalar into a new tensor.
@@ -5857,9 +5687,7 @@ where
     where
         Alloc: Clone,
     {
-        alloc_output_like(self.shape(), self.allocator.clone(), |span| {
-            self.sub_scalar_into(scalar, span)
-        })
+        alloc_output_like(self.shape(), self.allocator.clone(), |span| self.sub_scalar_into(scalar, span))
     }
 
     /// Element-wise multiply scalar into a new tensor.
@@ -5867,9 +5695,7 @@ where
     where
         Alloc: Clone,
     {
-        alloc_output_like(self.shape(), self.allocator.clone(), |span| {
-            self.mul_scalar_into(scalar, span)
-        })
+        alloc_output_like(self.shape(), self.allocator.clone(), |span| self.mul_scalar_into(scalar, span))
     }
 
     /// Element-wise add scalar into the output tensor.
@@ -5887,11 +5713,7 @@ where
         scalar: Scalar::Scalar,
         out: &mut OutputTensor,
     ) -> Result<(), Error> {
-        self.affine_into(
-            Scalar::Scalar::from(1.0f32),
-            Scalar::Scalar::from(-1.0f32) * scalar,
-            out,
-        )
+        self.affine_into(Scalar::Scalar::from(1.0f32), Scalar::Scalar::from(-1.0f32) * scalar, out)
     }
 
     /// Element-wise multiply scalar into the output tensor.
@@ -5913,9 +5735,7 @@ impl<'a, Scalar: Clone + EachSum, const MAX_RANK: usize, Alloc: Allocator> Tenso
     where
         Alloc: Clone,
     {
-        alloc_output_like(self.shape(), self.allocator.clone(), |span| {
-            self.add_tensor_into(other, span)
-        })
+        alloc_output_like(self.shape(), self.allocator.clone(), |span| self.add_tensor_into(other, span))
     }
 
     /// Element-wise sum of two tensors into the output tensor.
@@ -5924,9 +5744,7 @@ impl<'a, Scalar: Clone + EachSum, const MAX_RANK: usize, Alloc: Allocator> Tenso
         other: &TensorView<'_, Scalar, MAX_RANK, OtherAlloc>,
         out: &mut OutputTensor,
     ) -> Result<(), Error> {
-        binary_kernel_into(self, other, out, |first, second, target| {
-            Scalar::each_sum(first, second, target)
-        })
+        binary_kernel_into(self, other, out, |first, second, target| Scalar::each_sum(first, second, target))
     }
 }
 
@@ -5944,9 +5762,7 @@ where
     where
         Alloc: Clone,
     {
-        alloc_output_like(self.shape(), self.allocator.clone(), |span| {
-            self.blend_tensor_into(other, alpha, beta, span)
-        })
+        alloc_output_like(self.shape(), self.allocator.clone(), |span| self.blend_tensor_into(other, alpha, beta, span))
     }
 
     /// Writes α × aᵢ + β × otherᵢ into the output tensor.
@@ -5970,9 +5786,7 @@ where
     where
         Alloc: Clone,
     {
-        alloc_output_like(self.shape(), self.allocator.clone(), |span| {
-            self.sub_tensor_into(other, span)
-        })
+        alloc_output_like(self.shape(), self.allocator.clone(), |span| self.sub_tensor_into(other, span))
     }
 
     /// Element-wise difference of two tensors into the output tensor.
@@ -6000,9 +5814,7 @@ where
     where
         Alloc: Clone,
     {
-        alloc_output_like(self.shape(), self.allocator.clone(), |span| {
-            self.fma_tensors_into(b, c, alpha, beta, span)
-        })
+        alloc_output_like(self.shape(), self.allocator.clone(), |span| self.fma_tensors_into(b, c, alpha, beta, span))
     }
 
     /// Writes α × aᵢ × bᵢ + β × cᵢ into the output tensor.
@@ -6031,9 +5843,7 @@ where
     where
         Alloc: Clone,
     {
-        alloc_output_like(self.shape(), self.allocator.clone(), |span| {
-            self.mul_tensor_into(other, span)
-        })
+        alloc_output_like(self.shape(), self.allocator.clone(), |span| self.mul_tensor_into(other, span))
     }
 
     /// Element-wise product of two tensors into the output tensor.
@@ -6042,13 +5852,7 @@ where
         other: &TensorView<'_, Scalar, MAX_RANK, OtherAlloc>,
         out: &mut OutputTensor,
     ) -> Result<(), Error> {
-        self.fma_tensors_into(
-            other,
-            self,
-            Scalar::Scalar::from(1.0f32),
-            Scalar::Scalar::from(0.0f32),
-            out,
-        )
+        self.fma_tensors_into(other, self, Scalar::Scalar::from(1.0f32), Scalar::Scalar::from(0.0f32), out)
     }
 }
 
@@ -6148,11 +5952,7 @@ impl<Scalar: Clone + Dot, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar
             });
         }
         if self.numel() != other.numel() {
-            return Err(Error::ShapeMismatch {
-                axis: 0,
-                expected: self.numel(),
-                got: other.numel(),
-            });
+            return Err(Error::ShapeMismatch { axis: 0, expected: self.numel(), got: other.numel() });
         }
         Scalar::dot(self.as_slice(), other.as_slice())
     }
@@ -6249,7 +6049,9 @@ where
     }
 
     /// Sum over all elements.
-    pub fn sum_all(&self) -> Result<Scalar::SumOutput, Error> { Ok(self.moments_all()?.0) }
+    pub fn sum_all(&self) -> Result<Scalar::SumOutput, Error> {
+        Ok(self.moments_all()?.0)
+    }
 
     /// Sum along one axis, into a new tensor.
     pub fn sum_axis<AnyIndex: VectorIndex>(
@@ -6383,14 +6185,7 @@ where
         let mut min_indices = Tensor::full_in(output_shape, 0, self.allocator.clone())?;
         let mut max_values = Tensor::full_in(output_shape, Scalar::Output::default(), self.allocator.clone())?;
         let mut max_indices = Tensor::full_in(output_shape, 0, self.allocator.clone())?;
-        self.minmax_axis_into(
-            axis,
-            keep_dims,
-            &mut min_values,
-            &mut min_indices,
-            &mut max_values,
-            &mut max_indices,
-        )?;
+        self.minmax_axis_into(axis, keep_dims, &mut min_values, &mut min_indices, &mut max_values, &mut max_indices)?;
         Ok(MinMaxResult {
             min_value: min_values,
             min_index: min_indices,
@@ -6447,12 +6242,7 @@ where
             let (lane_ptr, lane_len, lane_stride, reversed) =
                 unsafe { normalize_reduction_lane(lane_ptr, lane_len, lane_stride) };
             let lane = unsafe { Scalar::reduce_minmax(core::slice::from_raw_parts(lane_ptr, lane_len), lane_stride) };
-            let MinMaxResult {
-                min_value,
-                min_index,
-                max_value,
-                max_index,
-            } = match lane {
+            let MinMaxResult { min_value, min_index, max_value, max_index } = match lane {
                 Ok(Some(extremes)) => extremes,
                 Ok(None) => {
                     outcome = Err(Error::InvalidShape {
@@ -6484,16 +6274,24 @@ where
     }
 
     /// Minimum over all elements.
-    pub fn min_all(&self) -> Result<Scalar::Output, Error> { Ok(self.minmax_all()?.min_value) }
+    pub fn min_all(&self) -> Result<Scalar::Output, Error> {
+        Ok(self.minmax_all()?.min_value)
+    }
 
     /// Index of the minimum over all elements.
-    pub fn argmin_all(&self) -> Result<usize, Error> { Ok(self.minmax_all()?.min_index) }
+    pub fn argmin_all(&self) -> Result<usize, Error> {
+        Ok(self.minmax_all()?.min_index)
+    }
 
     /// Maximum over all elements.
-    pub fn max_all(&self) -> Result<Scalar::Output, Error> { Ok(self.minmax_all()?.max_value) }
+    pub fn max_all(&self) -> Result<Scalar::Output, Error> {
+        Ok(self.minmax_all()?.max_value)
+    }
 
     /// Index of the maximum over all elements.
-    pub fn argmax_all(&self) -> Result<usize, Error> { Ok(self.minmax_all()?.max_index) }
+    pub fn argmax_all(&self) -> Result<usize, Error> {
+        Ok(self.minmax_all()?.max_index)
+    }
 
     /// Minimum along one axis, into a new tensor.
     pub fn min_axis<AnyIndex: VectorIndex>(
@@ -6605,24 +6403,28 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
                 reason: "per-tensor scale must be present exactly when the format defines one",
             });
         }
-        Ok(ScaledTensor {
-            elements,
-            block_scales,
-            tensor_scale,
-        })
+        Ok(ScaledTensor { elements, block_scales, tensor_scale })
     }
 
     /// Borrow the packed element values.
-    pub fn elements(&self) -> TensorView<'_, F::Element, DEFAULT_MAX_RANK, A> { self.elements.view() }
+    pub fn elements(&self) -> TensorView<'_, F::Element, DEFAULT_MAX_RANK, A> {
+        self.elements.view()
+    }
 
     /// Borrow the per-block scale bytes.
-    pub fn block_scales(&self) -> TensorView<'_, F::Scale, DEFAULT_MAX_RANK, A> { self.block_scales.view() }
+    pub fn block_scales(&self) -> TensorView<'_, F::Scale, DEFAULT_MAX_RANK, A> {
+        self.block_scales.view()
+    }
 
     /// The per-tensor multiplier (`Some` for NVFP4, `None` for the MX family).
-    pub fn tensor_scale(&self) -> Option<f32> { self.tensor_scale }
+    pub fn tensor_scale(&self) -> Option<f32> {
+        self.tensor_scale
+    }
 
     /// Logical `(rows, columns)` shape of the elements tensor.
-    pub fn shape(&self) -> &[usize] { self.elements.shape() }
+    pub fn shape(&self) -> &[usize] {
+        self.elements.shape()
+    }
 
     /// Borrow the whole tensor as a [`ScaledTensorView`].
     pub fn view(&self) -> ScaledTensorView<'_, F, A> {
@@ -6644,13 +6446,13 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
 
     /// Allocated element-storage capacity of the packed `elements` buffer (`F::Element` slots) —
     /// the ceiling a coordinated [`resize`](Self::resize) honors.
-    pub fn capacity(&self) -> usize { self.elements.capacity() }
+    pub fn capacity(&self) -> usize {
+        self.elements.capacity()
+    }
 
     /// Derive the paired scales shape for an element `shape`, with the last axis counted in blocks.
     fn scales_shape_into(shape: &[usize], out: &mut [usize]) -> Result<usize, Error> {
-        let (&last, leading) = shape
-            .split_last()
-            .ok_or(Error::DimensionMismatch { expected: 1, got: 0 })?;
+        let (&last, leading) = shape.split_last().ok_or(Error::DimensionMismatch { expected: 1, got: 0 })?;
         if last % F::BLOCK_SIZE != 0 {
             return Err(Error::InvalidShape {
                 axis: leading.len(),
@@ -6677,17 +6479,11 @@ impl<F: BlockScaledFormat, A: Allocator> ScaledTensor<F, A> {
         // Pre-validate both capacities so neither child is mutated on failure.
         let elem_storage = Tensor::<F::Element, A>::shape_storage_count(new_shape)?;
         if elem_storage > self.elements.capacity() {
-            return Err(Error::CapacityExceeded {
-                requested: elem_storage,
-                capacity: self.elements.capacity(),
-            });
+            return Err(Error::CapacityExceeded { requested: elem_storage, capacity: self.elements.capacity() });
         }
         let scale_storage = Tensor::<F::Scale, A>::shape_storage_count(scales_shape)?;
         if scale_storage > self.block_scales.capacity() {
-            return Err(Error::CapacityExceeded {
-                requested: scale_storage,
-                capacity: self.block_scales.capacity(),
-            });
+            return Err(Error::CapacityExceeded { requested: scale_storage, capacity: self.block_scales.capacity() });
         }
         self.elements.resize(new_shape)?;
         self.block_scales.resize(scales_shape)?;
@@ -6721,36 +6517,45 @@ pub struct ScaledTensorView<'a, F: BlockScaledFormat, A = Global> {
 }
 
 impl<F: BlockScaledFormat, A> Clone for ScaledTensorView<'_, F, A> {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<F: BlockScaledFormat, A> Copy for ScaledTensorView<'_, F, A> {}
 
 impl<'a, F: BlockScaledFormat, A: Allocator> ScaledTensorView<'a, F, A> {
     /// Borrow the packed element values.
-    pub fn elements(&self) -> TensorView<'_, F::Element, DEFAULT_MAX_RANK, A> { self.elements }
+    pub fn elements(&self) -> TensorView<'_, F::Element, DEFAULT_MAX_RANK, A> {
+        self.elements
+    }
 
     /// Borrow the per-block scale bytes.
-    pub fn block_scales(&self) -> TensorView<'_, F::Scale, DEFAULT_MAX_RANK, A> { self.block_scales }
+    pub fn block_scales(&self) -> TensorView<'_, F::Scale, DEFAULT_MAX_RANK, A> {
+        self.block_scales
+    }
 
     /// The per-tensor multiplier (`Some` for NVFP4, `None` for the MX family).
-    pub fn tensor_scale(&self) -> Option<f32> { self.tensor_scale }
+    pub fn tensor_scale(&self) -> Option<f32> {
+        self.tensor_scale
+    }
 
     /// Logical `(rows, columns)` shape.
-    pub fn shape(&self) -> &[usize] { self.elements.shape() }
+    pub fn shape(&self) -> &[usize] {
+        self.elements.shape()
+    }
 
     /// Borrow leading-axis index `i` as a new [`ScaledTensorView`], slicing both sub-tensors in
     /// lockstep and keeping the rank, with the leading extent reduced to 1 rather than dropped.
-    pub fn row(&self, i: usize) -> Result<ScaledTensorView<'a, F, A>, Error> { self.rows(i, i + 1) }
+    pub fn row(&self, i: usize) -> Result<ScaledTensorView<'a, F, A>, Error> {
+        self.rows(i, i + 1)
+    }
 
     /// Slice a contiguous leading-axis range `start..end`, slicing both sub-tensors in lockstep.
     pub fn rows(&self, start: usize, end: usize) -> Result<ScaledTensorView<'a, F, A>, Error> {
         let leading = self.elements.shape().first().copied().unwrap_or(0);
         if end > leading || start > end {
-            return Err(Error::IndexOutOfBounds {
-                index: end,
-                size: leading,
-            });
+            return Err(Error::IndexOutOfBounds { index: end, size: leading });
         }
         // Slice the leading axis; keep every trailing axis, including the quantized last axis, intact.
         let ndim = self.elements.ndim();
@@ -6759,11 +6564,7 @@ impl<'a, F: BlockScaledFormat, A: Allocator> ScaledTensorView<'a, F, A> {
         // Trailing axes stay `SliceRange::Full` from the initializer.
         let elements = self.elements.slice(&spec[..ndim])?;
         let block_scales = self.block_scales.slice(&spec[..ndim])?;
-        Ok(ScaledTensorView {
-            elements,
-            block_scales,
-            tensor_scale: self.tensor_scale,
-        })
+        Ok(ScaledTensorView { elements, block_scales, tensor_scale: self.tensor_scale })
     }
 }
 
@@ -6777,16 +6578,24 @@ pub struct ScaledTensorSpan<'a, F: BlockScaledFormat, A = Global> {
 
 impl<'a, F: BlockScaledFormat, A: Allocator> ScaledTensorSpan<'a, F, A> {
     /// Mutably borrow the packed element values.
-    pub fn elements(&mut self) -> &mut TensorSpan<'a, F::Element, DEFAULT_MAX_RANK, A> { &mut self.elements }
+    pub fn elements(&mut self) -> &mut TensorSpan<'a, F::Element, DEFAULT_MAX_RANK, A> {
+        &mut self.elements
+    }
 
     /// Mutably borrow the per-block scale bytes.
-    pub fn block_scales(&mut self) -> &mut TensorSpan<'a, F::Scale, DEFAULT_MAX_RANK, A> { &mut self.block_scales }
+    pub fn block_scales(&mut self) -> &mut TensorSpan<'a, F::Scale, DEFAULT_MAX_RANK, A> {
+        &mut self.block_scales
+    }
 
     /// The per-tensor multiplier (`Some` for NVFP4, `None` for the MX family).
-    pub fn tensor_scale(&self) -> Option<f32> { self.tensor_scale }
+    pub fn tensor_scale(&self) -> Option<f32> {
+        self.tensor_scale
+    }
 
     /// Logical shape of the packed elements.
-    pub fn shape(&self) -> &[usize] { self.elements.shape() }
+    pub fn shape(&self) -> &[usize] {
+        self.elements.shape()
+    }
 
     /// Reborrow as a read-only [`ScaledTensorView`].
     pub fn as_view(&self) -> ScaledTensorView<'_, F, A> {
@@ -6836,9 +6645,7 @@ mod tests {
             let c0 = below(columns);
             let c1 = c0 + 1 + below(columns - c0);
 
-            let view = t
-                .slice(&[SliceRange::range(r0, r1), SliceRange::range(c0, c1)])
-                .unwrap();
+            let view = t.slice(&[SliceRange::range(r0, r1), SliceRange::range(c0, c1)]).unwrap();
             assert_eq!(view.shape(), [r1 - r0, c1 - c0]);
 
             let mut expected: Vec<f32> = Vec::new();
@@ -6934,11 +6741,7 @@ mod tests {
         let got = owned.as_slice();
         for i in 0..4 {
             for j in 0..3 {
-                assert_eq!(
-                    got[i * 3 + j],
-                    data[j * 4 + i],
-                    "transpose materialization at ({i}, {j})"
-                );
+                assert_eq!(got[i * 3 + j], data[j * 4 + i], "transpose materialization at ({i}, {j})");
             }
         }
     }
@@ -6974,9 +6777,7 @@ mod tests {
             }
         }
 
-        let arena = Counting {
-            live_bytes: AtomicUsize::new(0),
-        };
+        let arena = Counting { live_bytes: AtomicUsize::new(0) };
         {
             let mut tensor = Tensor::<f32, _>::from_slice_in(&[1.0, 2.0, 3.0, 4.0], &[4], &arena).unwrap();
             // Growth goes through `Allocator::grow`, which may move the block. The live elements
@@ -7014,9 +6815,7 @@ mod tests {
             }
         }
 
-        let arena = Counting {
-            allocations: AtomicUsize::new(0),
-        };
+        let arena = Counting { allocations: AtomicUsize::new(0) };
         let owner = Tensor::<f32, _>::from_slice_in(&[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], &[2, 3], &arena).unwrap();
         let row = owner.slice((1_usize, ..)).unwrap();
         let before = arena.allocations.load(Ordering::Relaxed);
@@ -7046,11 +6845,7 @@ mod tests {
         assert_eq!(repeating_byte(&0.0_f32), Some(0));
         assert_eq!(repeating_byte(&(-1_i8)), Some(0xFF));
         assert_eq!(repeating_byte(&1.5_f32), None);
-        assert!(Tensor::<i8>::full(&[3, 4], -1)
-            .unwrap()
-            .as_slice()
-            .iter()
-            .all(|&v| v == -1));
+        assert!(Tensor::<i8>::full(&[3, 4], -1).unwrap().as_slice().iter().all(|&v| v == -1));
     }
 
     #[test]
@@ -7075,7 +6870,7 @@ mod tests {
 
     #[test]
     fn sub_byte_indexing_stays_inside_storage() {
-        use crate::types::{i4x2, u1x8, u4x2, DimLocation};
+        use crate::types::{DimLocation, i4x2, u1x8, u4x2};
 
         // 64 logical bits live in 8 bytes. The bounds check counts dimensions, the offset counts
         // storage values, and locating the dimension is what keeps the two in the same units —
@@ -7089,27 +6884,9 @@ mod tests {
         assert!(packed.flat(64_usize).is_err());
 
         // Eight consecutive dimensions share one byte, and the nibble types pair up.
-        assert_eq!(
-            u1x8::locate_dim(63),
-            DimLocation {
-                value_index: 7,
-                sub_index: 7
-            }
-        );
-        assert_eq!(
-            i4x2::locate_dim(5),
-            DimLocation {
-                value_index: 2,
-                sub_index: 1
-            }
-        );
-        assert_eq!(
-            f32::locate_dim(5),
-            DimLocation {
-                value_index: 5,
-                sub_index: 0
-            }
-        );
+        assert_eq!(u1x8::locate_dim(63), DimLocation { value_index: 7, sub_index: 7 });
+        assert_eq!(i4x2::locate_dim(5), DimLocation { value_index: 2, sub_index: 1 });
+        assert_eq!(f32::locate_dim(5), DimLocation { value_index: 5, sub_index: 0 });
         assert_eq!(u1x8::dimensions_to_values(16), 2);
         assert_eq!(f32::dimensions_to_values(9), 9);
 
@@ -7123,10 +6900,7 @@ mod tests {
         let leading_only = [SliceRange::range(0, 1), SliceRange::Full];
         assert!(nibbles.view().slice(&leading_only[..]).is_ok());
         let narrows_innermost = [SliceRange::Full, SliceRange::range(0, 2)];
-        assert_eq!(
-            nibbles.view().slice(&narrows_innermost[..]).unwrap_err(),
-            Error::SubByteUnsupported
-        );
+        assert_eq!(nibbles.view().slice(&narrows_innermost[..]).unwrap_err(), Error::SubByteUnsupported);
     }
 
     #[test]
@@ -7160,10 +6934,7 @@ mod tests {
         // A quarter of the address space in `f32` slots is its whole size in bytes, which wraps to
         // zero, so an unchecked multiply produced a zero-sized layout, a dangling pointer, and a
         // constructor that then wrote that many elements through it.
-        assert_eq!(
-            Tensor::<f32>::full(&[1_usize << (usize::BITS - 2), 1], 1.0).unwrap_err(),
-            Error::AllocationFailed
-        );
+        assert_eq!(Tensor::<f32>::full(&[1_usize << (usize::BITS - 2), 1], 1.0).unwrap_err(), Error::AllocationFailed);
         assert_eq!(Vector::<f32>::zeros(usize::MAX).unwrap_err(), Error::AllocationFailed);
         // The shape product wraps before any byte count is involved, which would leave the stored
         // shape and the derived element count disagreeing.
@@ -7257,9 +7028,7 @@ mod tests {
     fn tensor_noncontiguous_lookup_and_rank_zero() {
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let tensor = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
-        let even_columns = tensor
-            .slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)])
-            .unwrap();
+        let even_columns = tensor.slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)]).unwrap();
 
         assert_eq!(even_columns.shape(), &[3, 2]);
         assert_eq!(*even_columns.flat(0_usize).unwrap(), 0.0);
@@ -7318,10 +7087,7 @@ mod tests {
         let (sum_4d, sumsq_4d) = t4d.view().moments_all().unwrap();
         let (sum_1d, sumsq_1d) = t1d.view().moments_all().unwrap();
         assert!((sum_4d - sum_1d).abs() < 1e-3, "4D vs 1D sum: {sum_4d} != {sum_1d}");
-        assert!(
-            (sumsq_4d - sumsq_1d).abs() < 1e-1,
-            "4D vs 1D sumsq: {sumsq_4d} != {sumsq_1d}"
-        );
+        assert!((sumsq_4d - sumsq_1d).abs() < 1e-1, "4D vs 1D sumsq: {sumsq_4d} != {sumsq_1d}");
         let mm_4d = t4d.view().minmax_all().unwrap();
         let mm_1d = t1d.view().minmax_all().unwrap();
         assert_eq!(mm_4d.min_value, mm_1d.min_value);
@@ -7343,33 +7109,19 @@ mod tests {
         let t = Tensor::<f32>::from_slice(&data, &[4, 4, 3]).unwrap();
 
         // Channel subview: [:, :, 1] → shape [4, 4], stride = 3 * sizeof(f32)
-        let channel = t
-            .slice(&[SliceRange::full(), SliceRange::full(), SliceRange::index(1)])
-            .unwrap();
+        let channel = t.slice(&[SliceRange::full(), SliceRange::full(), SliceRange::index(1)]).unwrap();
         assert_eq!(channel.shape(), &[4, 4]);
         let (ch_sum, _) = channel.moments_all().unwrap();
         let expected: f64 = (0..16).map(|i| (i * 3 + 1) as f64).sum();
-        assert!(
-            (ch_sum - expected).abs() < 1e-3,
-            "channel subview sum: {ch_sum} != {expected}"
-        );
+        assert!((ch_sum - expected).abs() < 1e-3, "channel subview sum: {ch_sum} != {expected}");
 
         // Row skip: [::2, :, :] → shape [2, 4, 3], outer stride doubled
-        let skipped = t
-            .slice(&[SliceRange::range_step(0, 4, 2), SliceRange::full(), SliceRange::full()])
-            .unwrap();
+        let skipped = t.slice(&[SliceRange::range_step(0, 4, 2), SliceRange::full(), SliceRange::full()]).unwrap();
         assert_eq!(skipped.shape(), &[2, 4, 3]);
         let (skip_sum, _) = skipped.moments_all().unwrap();
-        let expected_skip: f64 = data
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| *i < 12 || (*i >= 24 && *i < 36))
-            .map(|(_, v)| *v as f64)
-            .sum();
-        assert!(
-            (skip_sum - expected_skip).abs() < 1e-3,
-            "row skip sum: {skip_sum} != {expected_skip}"
-        );
+        let expected_skip: f64 =
+            data.iter().enumerate().filter(|(i, _)| *i < 12 || (*i >= 24 && *i < 36)).map(|(_, v)| *v as f64).sum();
+        assert!((skip_sum - expected_skip).abs() < 1e-3, "row skip sum: {skip_sum} != {expected_skip}");
     }
 
     #[test]
@@ -7400,9 +7152,7 @@ mod tests {
         // Axis reduction on strided subview: [::2, :, :] on [4, 3, 4]
         let data48: Vec<f32> = (0..48).map(|i| i as f32).collect();
         let t48 = Tensor::<f32>::from_slice(&data48, &[4, 3, 4]).unwrap();
-        let skipped = t48
-            .slice(&[SliceRange::range_step(0, 4, 2), SliceRange::full(), SliceRange::full()])
-            .unwrap();
+        let skipped = t48.slice(&[SliceRange::range_step(0, 4, 2), SliceRange::full(), SliceRange::full()]).unwrap();
         assert_eq!(skipped.shape(), &[2, 3, 4]);
         let (sums_skip_last, _) = skipped.moments_axis(-1_i32, false).unwrap();
         assert_eq!(sums_skip_last.shape(), &[2, 3]);
@@ -7436,41 +7186,20 @@ mod tests {
         let right = Tensor::<f32c>::from_slice(&right_values, &[2]).unwrap();
 
         let added = left.add_tensor(&right).unwrap();
-        assert_eq!(
-            added.as_slice(),
-            &[f32c { re: 6.0, im: 8.0 }, f32c { re: 10.0, im: 12.0 }]
-        );
+        assert_eq!(added.as_slice(), &[f32c { re: 6.0, im: 8.0 }, f32c { re: 10.0, im: 12.0 }]);
 
-        let scaled = left
-            .scale(f32c { re: 1.0, im: 0.0 }, f32c { re: 1.0, im: 0.0 })
-            .unwrap();
-        assert_eq!(
-            scaled.as_slice(),
-            &[f32c { re: 2.0, im: 2.0 }, f32c { re: 4.0, im: 4.0 }]
-        );
+        let scaled = left.scale(f32c { re: 1.0, im: 0.0 }, f32c { re: 1.0, im: 0.0 }).unwrap();
+        assert_eq!(scaled.as_slice(), &[f32c { re: 2.0, im: 2.0 }, f32c { re: 4.0, im: 4.0 }]);
 
-        let blended = left
-            .view()
-            .blend_tensor(&right.view(), f32c { re: 1.0, im: 0.0 }, f32c { re: -1.0, im: 0.0 })
-            .unwrap();
-        assert_eq!(
-            blended.as_slice(),
-            &[f32c { re: -4.0, im: -4.0 }, f32c { re: -4.0, im: -4.0 }]
-        );
+        let blended =
+            left.view().blend_tensor(&right.view(), f32c { re: 1.0, im: 0.0 }, f32c { re: -1.0, im: 0.0 }).unwrap();
+        assert_eq!(blended.as_slice(), &[f32c { re: -4.0, im: -4.0 }, f32c { re: -4.0, im: -4.0 }]);
 
         let fma = left
             .view()
-            .fma_tensors(
-                &right.view(),
-                &zeros.view(),
-                f32c { re: 1.0, im: 0.0 },
-                f32c { re: 0.0, im: 0.0 },
-            )
+            .fma_tensors(&right.view(), &zeros.view(), f32c { re: 1.0, im: 0.0 }, f32c { re: 0.0, im: 0.0 })
             .unwrap();
-        assert_eq!(
-            fma.as_slice(),
-            &[f32c { re: -7.0, im: 16.0 }, f32c { re: -11.0, im: 52.0 }]
-        );
+        assert_eq!(fma.as_slice(), &[f32c { re: -7.0, im: 16.0 }, f32c { re: -11.0, im: 52.0 }]);
 
         let mut inplace = Tensor::<f32c>::from_slice(&left_values, &[2]).unwrap();
         inplace.add_tensor_inplace(&right).unwrap();
@@ -7482,59 +7211,24 @@ mod tests {
 
         let strided = Tensor::<f16c>::from_slice(
             &[
-                f16c {
-                    re: f16::from_f32(1.0),
-                    im: f16::from_f32(2.0),
-                },
-                f16c {
-                    re: f16::from_f32(100.0),
-                    im: f16::from_f32(101.0),
-                },
-                f16c {
-                    re: f16::from_f32(3.0),
-                    im: f16::from_f32(4.0),
-                },
-                f16c {
-                    re: f16::from_f32(102.0),
-                    im: f16::from_f32(103.0),
-                },
+                f16c { re: f16::from_f32(1.0), im: f16::from_f32(2.0) },
+                f16c { re: f16::from_f32(100.0), im: f16::from_f32(101.0) },
+                f16c { re: f16::from_f32(3.0), im: f16::from_f32(4.0) },
+                f16c { re: f16::from_f32(102.0), im: f16::from_f32(103.0) },
             ],
             &[2, 2],
         )
         .unwrap();
         let complex_column = strided.slice(&[SliceRange::full(), SliceRange::range(0, 1)]).unwrap();
-        let mut out = Tensor::<f16c>::full(
-            &[2, 1],
-            f16c {
-                re: f16::ZERO,
-                im: f16::ZERO,
-            },
-        )
-        .unwrap();
+        let mut out = Tensor::<f16c>::full(&[2, 1], f16c { re: f16::ZERO, im: f16::ZERO }).unwrap();
         complex_column
-            .scale_tensor_into(
-                f16c {
-                    re: f16::ONE,
-                    im: f16::ZERO,
-                },
-                f16c {
-                    re: f16::ZERO,
-                    im: f16::ONE,
-                },
-                &mut out,
-            )
+            .scale_tensor_into(f16c { re: f16::ONE, im: f16::ZERO }, f16c { re: f16::ZERO, im: f16::ONE }, &mut out)
             .unwrap();
         assert_eq!(
             out.as_slice(),
             &[
-                f16c {
-                    re: f16::from_f32(1.0),
-                    im: f16::from_f32(3.0)
-                },
-                f16c {
-                    re: f16::from_f32(3.0),
-                    im: f16::from_f32(5.0)
-                }
+                f16c { re: f16::from_f32(1.0), im: f16::from_f32(3.0) },
+                f16c { re: f16::from_f32(3.0), im: f16::from_f32(5.0) }
             ]
         );
     }
