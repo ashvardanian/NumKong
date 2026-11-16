@@ -511,6 +511,40 @@ NUMKONG_API nk_status_t nk_clearances_packed_f32_cuda(nk_f32_t const *heights, v
                                                       nk_f32_t *results, nk_size_t results_stride, nk_stream_t stream);
 #endif // NUMKONG_TARGET_CUDA
 
+#if NUMKONG_TARGET_ROCM
+/** @copydoc nk_haversines_pack_size_f64_best */
+NUMKONG_API nk_status_t nk_haversines_pack_size_f64_rocm(nk_size_t points, nk_size_t *bytes);
+/** @copydoc nk_haversines_pack_size_f64_best */
+NUMKONG_API nk_status_t nk_vincentys_pack_size_f64_rocm(nk_size_t points, nk_size_t *bytes);
+/** @copydoc nk_haversines_pack_f64_best */
+NUMKONG_API nk_status_t nk_haversines_pack_f64_rocm(nk_f64_t const *latitudes, nk_f64_t const *longitudes,
+                                                    nk_size_t count, void *packed, nk_stream_t stream);
+/** @copydoc nk_vincentys_pack_f64_best */
+NUMKONG_API nk_status_t nk_vincentys_pack_f64_rocm(nk_f64_t const *latitudes, nk_f64_t const *longitudes,
+                                                   nk_size_t count, void *packed, nk_stream_t stream);
+/** @copydoc nk_haversines_packed_f64_best */
+NUMKONG_API nk_status_t nk_haversines_packed_f64_rocm(void const *a_packed, void const *b_packed, nk_f64_t *results,
+                                                      nk_size_t results_stride, nk_stream_t stream);
+/** @copydoc nk_vincentys_packed_f64_best */
+NUMKONG_API nk_status_t nk_vincentys_packed_f64_rocm(void const *a_packed, void const *b_packed, nk_f64_t *results,
+                                                     nk_size_t results_stride, nk_stream_t stream);
+/** @copydoc nk_terrain_pack_size_f32_best */
+NUMKONG_API nk_status_t nk_terrain_pack_size_f32_rocm(nk_size_t rows, nk_size_t columns, nk_size_t *bytes);
+/** @copydoc nk_terrain_pack_f32_best */
+NUMKONG_API nk_status_t nk_terrain_pack_f32_rocm(nk_f32_t const *heights, nk_size_t rows, nk_size_t columns,
+                                                 nk_size_t heights_stride, nk_f64_t row_metres, nk_f64_t column_metres,
+                                                 void *packed, nk_stream_t stream);
+/** @copydoc nk_terrain_heights_packed_f32_best */
+NUMKONG_API nk_status_t nk_terrain_heights_packed_f32_rocm(nk_f32_t const *heights, void const *packed,
+                                                           nk_f32_t const *points, nk_size_t count, nk_f32_t *results,
+                                                           nk_stream_t stream);
+/** @copydoc nk_clearances_packed_f32_best */
+NUMKONG_API nk_status_t nk_clearances_packed_f32_rocm(nk_f32_t const *heights, void const *packed,
+                                                      nk_f32_t const *viewpoints, nk_f32_t const *views, nk_size_t rows,
+                                                      nk_f32_t const *targets, nk_size_t columns, nk_f64_t refraction,
+                                                      nk_f32_t *results, nk_size_t results_stride, nk_stream_t stream);
+#endif // NUMKONG_TARGET_ROCM
+
 /** Returns the output dtype of @c sqeuclideans3d: exact @c u64 for @c i32, @c f64 for @c f64. */
 NUMKONG_INLINE nk_dtype_t nk_sqeuclideans3d_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
@@ -569,6 +603,7 @@ NUMKONG_API nk_status_t nk_geospatial_find_kernel(nk_kernel_kind_t kind, nk_dtyp
 #include "numkong/geospatial/rvv.h"
 #include "numkong/geospatial/powervsx.h"
 #include "numkong/geospatial/cuda.cuh"
+#include "numkong/geospatial/rocm.cuh"
 
 #if defined(__cplusplus)
 extern "C" {

@@ -8,7 +8,8 @@
  *  CDNA3, CDNA4 and CDNA5.
  */
 #include "cross_device.hpp"
-#include "reduce.hpp" // `test_reduce_moments`, `test_reduce_minmax`
+#include "geospatial.hpp" // `test_geodesics_packed`, `test_terrain_packed`
+#include "reduce.hpp"     // `test_reduce_moments`, `test_reduce_minmax`
 
 namespace ashvardanian::numkong::test {
 
@@ -215,6 +216,12 @@ void test_cross_rocm(error_stats_section_t &check) {
           nk_attention_pack_size_i8_rocm, nk_attention_pack_i8_rocm, nk_attention_packed_i8_rocm);
     check("attention_packed_gradients_bf16_rocm", test_attention_packed_gradients<bf16_t, rocm_backend_t>,
           nk_attention_pack_size_bf16_rocm, nk_attention_pack_bf16_rocm, nk_attention_packed_gradients_bf16_rocm);
+    check("haversines_packed_f64_rocm", test_geodesics_packed<f64_t, nk_kernel_haversines_packed_k, rocm_backend_t>,
+          nk_haversines_pack_size_f64_rocm, nk_haversines_pack_f64_rocm, nk_haversines_packed_f64_rocm);
+    check("vincentys_packed_f64_rocm", test_geodesics_packed<f64_t, nk_kernel_vincentys_packed_k, rocm_backend_t>,
+          nk_vincentys_pack_size_f64_rocm, nk_vincentys_pack_f64_rocm, nk_vincentys_packed_f64_rocm);
+    check("clearances_packed_f32_rocm", test_terrain_packed<f32_t, rocm_backend_t>, nk_terrain_pack_size_f32_rocm,
+          nk_terrain_pack_f32_rocm, nk_terrain_heights_packed_f32_rocm, nk_clearances_packed_f32_rocm);
 
     check.section("Reductions ROCm", nk_cap_rocm_k);
     check("reduce_moments_f32_rocm", test_reduce_moments<f32_t, rocm_backend_t>, nk_reduce_moments_f32_rocm);
