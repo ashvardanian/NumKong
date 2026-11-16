@@ -11,6 +11,9 @@
  *  The signature matches the @c cuda capability's, with an @c id<MTLCommandQueue> as the stream.
  *  The launcher plans the hub of a bulk cast the way @c nk_cast_elementwise_serial_ picks it, and
  *  a block-scaled cast deriving its tensor scale commits an abs-max pass before the chunks.
+ *
+ *  Each launcher writes its operands' GPU addresses into the kernel's launch record, the one buffer
+ *  slot it binds, and keeps their allocations resident for the call through @c useResource.
  */
 #ifndef NUMKONG_CAST_METAL_H
 #define NUMKONG_CAST_METAL_H
@@ -41,18 +44,31 @@ static char const nk_cast_source_metal_[] = {
 /** Threads of every cast threadgroup, and the most threadgroups one launch loops over. */
 enum { nk_cast_threads_metal_k = 256, nk_cast_groups_metal_k = 65535 };
 
-/** The launch record of a block-scaled cast, laid out as the kernels' record of the same name. A
- *  plain side has an unknown scale type and blocks of one value, and a tensor scale not applied an
- *  unknown tensor scale type. */
+/** The launch record of a bulk cast, laid out as the kernels' record of the same name: the GPU
+ *  addresses of both ends, then their plan. */
 typedef struct {
+    nk_u64_t from, to;
+    nk_cast_plan_t plan;
+} nk_cast_plan_metal_t;
+
+/** The launch record of a block-scaled cast, laid out as the kernels' record of the same name. It
+ *  opens with the GPU addresses of both sides' codes, block scales and tensor scales. A plain side
+ *  has an unknown scale type, blocks of one value and 0 for its block scales, and a tensor scale
+ *  not applied an unknown tensor scale type and 0 for its address. */
+typedef struct {
+    nk_u64_t from, from_scales, from_tensor_scale, to, to_scales, to_tensor_scale;
     nk_u64_t count, chunks;
     nk_u32_t from_dtype, from_scale_dtype, from_tensor_scale_dtype, from_block;
     nk_u32_t to_dtype, to_scale_dtype, to_tensor_scale_dtype, to_block;
 } nk_cast_block_scaled_arguments_metal_t;
 
 nk_static_assert_(sizeof(nk_cast_plan_t) == 32, nk_cast_plan_must_be_32_bytes);
-nk_static_assert_(sizeof(nk_cast_block_scaled_arguments_metal_t) == 48,
-                  nk_cast_block_scaled_arguments_metal_must_be_48_bytes);
+nk_static_assert_(sizeof(nk_cast_plan_metal_t) == 48, nk_cast_plan_metal_must_be_48_bytes);
+nk_static_assert_(sizeof(nk_cast_block_scaled_arguments_metal_t) == 96,
+                  nk_cast_block_scaled_arguments_metal_must_be_96_bytes);
+nk_static_assert_(offsetof(nk_cast_plan_metal_t, plan) == 16, nk_cast_plan_metal_must_open_with_2_addresses);
+nk_static_assert_(offsetof(nk_cast_block_scaled_arguments_metal_t, count) == 48,
+                  nk_cast_block_scaled_arguments_metal_must_open_with_6_addresses);
 
 /** The bytes that @p count values of @p dtype span, rounded up to whole bytes, or zero when the
  *  product overflows. */
@@ -66,33 +82,33 @@ NUMKONG_CONSTEXPR int nk_dtype_bytes_metal_(nk_dtype_t dtype, nk_size_t count, n
 /**
  *  @brief Encodes @p kernel over @p threads threads, at most as many threadgroups as a launch
  *      spreads its loop over, then commits it.
- *  @param[in] pointers Host addresses of the buffers bound in slots from zero, null for one the
- *      kernel leaves unread, which binds the first buffer that is not in its place.
- *  @param[in] bytes The bytes each buffer spans.
+ *  @param[in] pointers Host addresses of the operands whose GPU addresses open @p arguments, in
+ *      order, null for one the kernel leaves unread, which gets the address 0.
+ *  @param[in] bytes The bytes each operand spans.
+ *  @param[in] arguments The launch record, whose first @p addresses_count fields this fills.
  */
 NUMKONG_INLINE nk_status_t nk_cast_call_metal_(char const *kernel, void const *const *pointers, nk_size_t const *bytes,
-                                               nk_size_t buffers_count, void const *arguments,
-                                               nk_size_t arguments_bytes, nk_size_t threads, nk_stream_t stream) {
+                                               nk_size_t addresses_count, void *arguments, nk_size_t arguments_bytes,
+                                               nk_size_t threads, nk_stream_t stream) {
     nk_metal_call_t call;
     nk_status_t const status = nk_enter_metal_(stream, &call);
     if (status != nk_success_k) return status;
-    void *buffers[6], *stand_in = NUMKONG_NULL;
-    nk_size_t offsets[6], stand_in_offset = 0;
-    for (nk_size_t index = 0; index != buffers_count; ++index) {
+    nk_u64_t addresses[6] = {0};
+    int resolved = 0;
+    for (nk_size_t index = 0; index != addresses_count; ++index) {
         if (!pointers[index]) continue;
-        buffers[index] = nk_resolve_metal_(&call, pointers[index], bytes[index], offsets + index);
-        if (!buffers[index]) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
-        if (!stand_in) stand_in = buffers[index], stand_in_offset = offsets[index];
+        nk_size_t offset = 0;
+        void *const buffer = nk_resolve_metal_(&call, pointers[index], bytes[index], &offset);
+        if (!buffer) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
+        addresses[index] = nk_count_metal_(buffer, "gpuAddress") + offset, resolved = 1;
     }
-    for (nk_size_t index = 0; index != buffers_count; ++index)
-        if (!pointers[index]) buffers[index] = stand_in, offsets[index] = stand_in_offset;
-    if (!stand_in) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
+    if (!resolved) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
     void *const pipeline = nk_pipeline_metal_(call.context, nk_cast_source_metal_, kernel, NUMKONG_METAL_LANGUAGE_3_1_);
     if (!pipeline) return nk_abort_metal_(&call, nk_device_code_mismatch_k);
     nk_encoder_metal_(&call, pipeline);
-    for (nk_size_t index = 0; index != buffers_count; ++index)
-        nk_bind_metal_(call.encoder, buffers[index], offsets[index], index);
-    nk_bind_bytes_metal_(call.encoder, arguments, arguments_bytes, buffers_count);
+    // Every launch record opens with its operands' addresses, which the static assertions above pin
+    memcpy(arguments, addresses, addresses_count * sizeof(nk_u64_t));
+    nk_bind_bytes_metal_(call.encoder, arguments, arguments_bytes, 0);
     nk_size_t groups = nk_size_divide_round_up_(threads, nk_cast_threads_metal_k);
     if (groups > nk_cast_groups_metal_k) groups = nk_cast_groups_metal_k;
     nk_metal_size_t const grid = {groups, 1, 1}, group = {nk_cast_threads_metal_k, 1, 1};
@@ -157,13 +173,15 @@ NUMKONG_API nk_status_t nk_cast_metal(void const *from, nk_dtype_t from_dtype, v
     if (((nk_size_t)from & (nk_dtype_alignment_serial_(from_dtype) - 1)) ||
         ((nk_size_t)to & (nk_dtype_alignment_serial_(to_dtype) - 1)))
         return nk_misaligned_k;
-    nk_cast_plan_t plan;
+    nk_cast_plan_metal_t arguments;
     nk_size_t bytes[2];
     if (!nk_dtype_bytes_metal_(from_dtype, count, bytes + 0) || !nk_dtype_bytes_metal_(to_dtype, count, bytes + 1))
         return nk_unexpected_dimensions_k;
-    if (!nk_cast_plan_serial_(from_dtype, to_dtype, count, (nk_size_t)from | (nk_size_t)to, &plan)) return nk_success_k;
+    if (!nk_cast_plan_serial_(from_dtype, to_dtype, count, (nk_size_t)from | (nk_size_t)to, &arguments.plan))
+        return nk_success_k;
     void const *const pointers[2] = {from, to};
-    return nk_cast_call_metal_("nk_cast_metal_kernel_", pointers, bytes, 2, &plan, sizeof(plan), plan.units, stream);
+    return nk_cast_call_metal_("nk_cast_metal_kernel_", pointers, bytes, 2, &arguments, sizeof(arguments),
+                               arguments.plan.units, stream);
 }
 #endif // NUMKONG_TARGET_METAL
 

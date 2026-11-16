@@ -27,6 +27,9 @@
  *  maxima, sums and weighted values a merge kernel combines in a fixed order.
  *  The baseline's gradients take a SIMD-group per key for dK and dV, then one per query row for dQ,
  *  while @c apple9 and @c apple10 take 32-key tiles, then 32-row tiles, on their matrices.
+ *
+ *  Each launcher writes its operands' GPU addresses into the kernel's launch record, the one buffer
+ *  slot it binds, and keeps their allocations resident for the call through @c useResource.
  */
 #ifndef NUMKONG_ATTENTION_METAL_H
 #define NUMKONG_ATTENTION_METAL_H
@@ -56,21 +59,35 @@ static char const nk_attention_source_metal_[] = {
 
 #pragma region Launchers
 
-/** The launch record of a RoPE kernel, laid out as the kernels' record of the same name. */
+/** The launch record of a RoPE kernel, laid out as the kernels' record of the same name, opening
+ *  with the GPU addresses of the inputs, the cosine and sine tables, and the outputs. */
 typedef struct {
+    nk_u64_t x, cosine, sine, y;
     nk_u64_t rows, heads, depth, x_stride, y_stride;
 } nk_attention_rope_arguments_metal_t;
 
-/** The launch record of the pack kernels, laid out as the kernels' record of the same name. */
+/** The launch record of the pack kernels, laid out as the kernels' record of the same name. It
+ *  opens with the GPU addresses of the keys, the values, the key offsets and lengths, the pack,
+ *  both sides' block scales and both tensor scales. The key lengths are 0 when absent, with
+ *  @c lengths_bytes 0, as are the block scales of formats without them and a tensor scale whose
+ *  presence flag is 0. The directory kernels read neither the keys, the values nor their scales. */
 typedef struct {
+    nk_u64_t keys, values, key_offsets, key_lengths, packed, key_scales, value_scales, key_tensor_scale,
+        value_tensor_scale;
     nk_u64_t key_value_head_count, depth, head_bytes, segments, key_stride, value_stride, tasks_begin, tasks_end;
     nk_u64_t key_bytes, value_bytes, packed_bytes, lengths_bytes, capability;
     nk_u64_t code_bytes, key_scales_stride, value_scales_stride, key_scales_bytes, value_scales_bytes;
     nk_u32_t key_tensor_present, value_tensor_present;
 } nk_attention_pack_arguments_metal_t;
 
-/** The launch record of the attention kernels, laid out as the kernels' record of the same name. */
+/** The launch record of the attention kernels, laid out as the kernels' record of the same name. It
+ *  opens with the GPU addresses of the queries, the pack, the outputs, the query offsets, the
+ *  log-sum-exp rows, the split workspace, the query block scales and the query tensor scale. The
+ *  log-sum-exp rows are 0 when absent, with @c log_sum_exp_bytes 0, the workspace when no split
+ *  kernel runs, the block scales for formats without them, and the tensor scale when
+ *  @c query_tensor_present is 0. */
 typedef struct {
+    nk_u64_t queries, packed, output, query_offsets, log_sum_exp, split, query_scales, query_tensor_scale;
     nk_u64_t heads, kv_heads, depth, query_tokens, query_stride, output_stride, keys_before, keys_after;
     nk_u64_t tasks_begin, tasks_end, packed_bytes, offsets_bytes, log_sum_exp_bytes, capability;
     nk_f32_t scale2;
@@ -78,20 +95,32 @@ typedef struct {
     nk_u64_t query_scales_stride;
 } nk_attention_arguments_metal_t;
 
-/** The launch record of the backward kernels, laid out as the kernels' record of the same name. */
+/** The launch record of the backward kernels, laid out as the kernels' record of the same name:
+ *  the GPU addresses of the output, query, key and value gradients, then the attention record,
+ *  whose own addresses give the queries, the pack, the outputs, the query offsets and the
+ *  log-sum-exp rows, its split workspace and query scales staying 0. */
 typedef struct {
+    nk_u64_t output_gradient, query_gradient, key_gradient, value_gradient;
     nk_attention_arguments_metal_t attention;
     nk_u64_t query_gradient_stride, key_value_gradient_stride, key_value_gradient_bytes;
     nk_f32_t scale;
 } nk_attention_backward_arguments_metal_t;
 
-nk_static_assert_(sizeof(nk_attention_rope_arguments_metal_t) == 40,
-                  nk_attention_rope_arguments_metal_must_be_40_bytes);
-nk_static_assert_(sizeof(nk_attention_pack_arguments_metal_t) == 152,
-                  nk_attention_pack_arguments_metal_must_be_152_bytes);
-nk_static_assert_(sizeof(nk_attention_arguments_metal_t) == 128, nk_attention_arguments_metal_must_be_128_bytes);
-nk_static_assert_(sizeof(nk_attention_backward_arguments_metal_t) == 160,
-                  nk_attention_backward_arguments_metal_must_be_160_bytes);
+nk_static_assert_(sizeof(nk_attention_rope_arguments_metal_t) == 72,
+                  nk_attention_rope_arguments_metal_must_be_72_bytes);
+nk_static_assert_(sizeof(nk_attention_pack_arguments_metal_t) == 224,
+                  nk_attention_pack_arguments_metal_must_be_224_bytes);
+nk_static_assert_(sizeof(nk_attention_arguments_metal_t) == 192, nk_attention_arguments_metal_must_be_192_bytes);
+nk_static_assert_(sizeof(nk_attention_backward_arguments_metal_t) == 256,
+                  nk_attention_backward_arguments_metal_must_be_256_bytes);
+nk_static_assert_(offsetof(nk_attention_rope_arguments_metal_t, rows) == 32,
+                  nk_attention_rope_arguments_metal_must_open_with_4_addresses);
+nk_static_assert_(offsetof(nk_attention_pack_arguments_metal_t, key_value_head_count) == 72,
+                  nk_attention_pack_arguments_metal_must_open_with_9_addresses);
+nk_static_assert_(offsetof(nk_attention_arguments_metal_t, heads) == 64,
+                  nk_attention_arguments_metal_must_open_with_8_addresses);
+nk_static_assert_(offsetof(nk_attention_backward_arguments_metal_t, attention) == 32,
+                  nk_attention_backward_arguments_metal_must_open_with_4_addresses);
 
 /** Encodes @p groups threadgroups of @p threads each and a barrier after them, without committing,
  *  for calls that chain kernels. */
@@ -136,9 +165,14 @@ NUMKONG_INLINE nk_status_t nk_attention_rope_launch_metal_(char const *kernel, n
     if (!pipeline) return nk_abort_metal_(&call, nk_device_code_mismatch_k);
     nk_encoder_metal_(&call, pipeline);
 
-    for (nk_size_t index = 0; index != 4; ++index) nk_bind_metal_(call.encoder, buffers[index], offsets[index], index);
-    nk_attention_rope_arguments_metal_t const arguments = {rows, head_count, depth, x_stride, y_stride};
-    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 4);
+    nk_attention_rope_arguments_metal_t arguments;
+    arguments.x = nk_count_metal_(buffers[0], "gpuAddress") + offsets[0];
+    arguments.cosine = nk_count_metal_(buffers[1], "gpuAddress") + offsets[1];
+    arguments.sine = nk_count_metal_(buffers[2], "gpuAddress") + offsets[2];
+    arguments.y = nk_count_metal_(buffers[3], "gpuAddress") + offsets[3];
+    arguments.rows = rows, arguments.heads = head_count, arguments.depth = depth;
+    arguments.x_stride = x_stride, arguments.y_stride = y_stride;
+    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 0);
     nk_size_t const groups = nk_size_divide_round_up_(heads, 8), groups_limit = (nk_size_t)1 << 20;
     nk_metal_size_t const grid = {groups < groups_limit ? groups : groups_limit, 1, 1}, threads = {256, 1, 1};
     return nk_dispatch_metal_(&call, grid, threads);
@@ -202,8 +236,10 @@ NUMKONG_INLINE nk_status_t nk_attention_pack_launch_metal_(
     nk_metal_call_t call;
     nk_status_t const status = nk_enter_metal_(stream, &call);
     if (status != nk_success_k) return status;
-    nk_size_t offsets[10] = {0};
-    void *buffers[10];
+    // Operands in the order their addresses open the record: keys, values, key offsets and lengths,
+    // the pack, both sides' block scales and both tensor scales
+    nk_size_t offsets[9] = {0};
+    void *buffers[9];
     buffers[4] = nk_resolve_metal_(&call, packed, directory_bytes, offsets + 4);
     buffers[2] = nk_resolve_metal_(&call, key_offsets, (segment_count + 1) * sizeof(nk_u32_t), offsets + 2);
     if (!buffers[4] || !buffers[2]) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
@@ -212,21 +248,30 @@ NUMKONG_INLINE nk_status_t nk_attention_pack_launch_metal_(
                          : buffers[2];
     buffers[0] = payload ? nk_resolve_metal_(&call, keys.elements, row_bytes, offsets) : buffers[4];
     buffers[1] = payload ? nk_resolve_metal_(&call, values.elements, row_bytes, offsets + 1) : buffers[4];
-    buffers[6] = scales ? nk_resolve_metal_(&call, keys.scales, scales_row_bytes, offsets + 6) : buffers[4];
-    buffers[7] = scales ? nk_resolve_metal_(&call, values.scales, scales_row_bytes, offsets + 7) : buffers[4];
-    buffers[8] = keys.tensor_scale ? nk_resolve_metal_(&call, keys.tensor_scale, sizeof(nk_f32_t), offsets + 8)
+    buffers[5] = scales ? nk_resolve_metal_(&call, keys.scales, scales_row_bytes, offsets + 5) : buffers[4];
+    buffers[6] = scales ? nk_resolve_metal_(&call, values.scales, scales_row_bytes, offsets + 6) : buffers[4];
+    buffers[7] = keys.tensor_scale ? nk_resolve_metal_(&call, keys.tensor_scale, sizeof(nk_f32_t), offsets + 7)
                                    : buffers[4];
-    buffers[9] = values.tensor_scale ? nk_resolve_metal_(&call, values.tensor_scale, sizeof(nk_f32_t), offsets + 9)
+    buffers[8] = values.tensor_scale ? nk_resolve_metal_(&call, values.tensor_scale, sizeof(nk_f32_t), offsets + 8)
                                      : buffers[4];
-    for (nk_size_t index = 0; index != 10; ++index)
-        if (index != 5 && !buffers[index]) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
+    for (nk_size_t index = 0; index != 9; ++index)
+        if (!buffers[index]) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
     if (!lengths) offsets[3] = offsets[2];
     if (!payload) offsets[0] = offsets[1] = offsets[4];
-    if (!scales) offsets[6] = offsets[7] = offsets[4];
-    if (!keys.tensor_scale) offsets[8] = offsets[4];
-    if (!values.tensor_scale) offsets[9] = offsets[4];
+    if (!scales) offsets[5] = offsets[6] = offsets[4];
+    if (!keys.tensor_scale) offsets[7] = offsets[4];
+    if (!values.tensor_scale) offsets[8] = offsets[4];
+    nk_u64_t addresses[9];
+    for (nk_size_t index = 0; index != 9; ++index)
+        addresses[index] = nk_count_metal_(buffers[index], "gpuAddress") + offsets[index];
 
+    // Without a payload, the keys and values take the pack's address, as only the directory runs
     nk_attention_pack_arguments_metal_t arguments;
+    arguments.keys = addresses[0], arguments.values = addresses[1], arguments.key_offsets = addresses[2];
+    arguments.key_lengths = lengths ? addresses[3] : 0, arguments.packed = addresses[4];
+    arguments.key_scales = scales ? addresses[5] : 0, arguments.value_scales = scales ? addresses[6] : 0;
+    arguments.key_tensor_scale = keys.tensor_scale ? addresses[7] : 0;
+    arguments.value_tensor_scale = values.tensor_scale ? addresses[8] : 0;
     arguments.key_value_head_count = key_value_head_count, arguments.depth = depth, arguments.head_bytes = head_bytes;
     arguments.segments = segment_count, arguments.key_stride = key_stride, arguments.value_stride = value_stride;
     arguments.tasks_begin = tasks_begin, arguments.tasks_end = end;
@@ -236,13 +281,11 @@ NUMKONG_INLINE nk_status_t nk_attention_pack_launch_metal_(
     arguments.lengths_bytes = lengths ? nk_count_metal_(buffers[3], "length") - offsets[3] : 0;
     arguments.capability = capability, arguments.code_bytes = code_bytes;
     arguments.key_scales_stride = keys.scales_stride, arguments.value_scales_stride = values.scales_stride;
-    arguments.key_scales_bytes = scales ? nk_count_metal_(buffers[6], "length") - offsets[6] : 0;
-    arguments.value_scales_bytes = scales ? nk_count_metal_(buffers[7], "length") - offsets[7] : 0;
+    arguments.key_scales_bytes = scales ? nk_count_metal_(buffers[5], "length") - offsets[5] : 0;
+    arguments.value_scales_bytes = scales ? nk_count_metal_(buffers[6], "length") - offsets[6] : 0;
     arguments.key_tensor_present = keys.tensor_scale != NUMKONG_NULL;
     arguments.value_tensor_present = values.tensor_scale != NUMKONG_NULL;
-    for (nk_size_t index = 0; index != 10; ++index)
-        if (index != 5) nk_bind_metal_(call.encoder, buffers[index], offsets[index], index);
-    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 5);
+    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 0);
 
     if (tasks_begin == 0) {
         void *const pipeline = nk_pipeline_metal_(call.context, nk_attention_source_metal_, directory_kernel,
@@ -317,25 +360,39 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_metal_(
     nk_metal_call_t call;
     nk_status_t const status = nk_enter_metal_(stream, &call);
     if (status != nk_success_k) return status;
-    nk_size_t offsets[9] = {0};
-    void *buffers[9];
+    nk_size_t offsets[4] = {0}, log_sum_exp_offset = 0, scales_offset = 0, tensor_offset = 0;
+    void *buffers[4];
     buffers[0] = nk_resolve_metal_(&call, queries.elements, query_bytes, offsets);
     buffers[1] = nk_resolve_metal_(&call, packed, sizeof(nk_attention_packed_header_t), offsets + 1);
     buffers[2] = nk_resolve_metal_(&call, output, output_bytes, offsets + 2);
     buffers[3] = nk_resolve_metal_(&call, query_offsets, 2 * sizeof(nk_u32_t), offsets + 3);
-    buffers[5] = log_sum_exp ? nk_resolve_metal_(&call, log_sum_exp, log_sum_exp_bytes, offsets + 5) : buffers[1];
-    buffers[7] = scales_bytes ? nk_resolve_metal_(&call, queries.scales, scales_bytes, offsets + 7) : buffers[1];
-    buffers[8] = queries.tensor_scale ? nk_resolve_metal_(&call, queries.tensor_scale, sizeof(nk_f32_t), offsets + 8)
-                                      : buffers[1];
-    if (!log_sum_exp) offsets[5] = offsets[1];
-    if (!scales_bytes) offsets[7] = offsets[1];
-    if (!queries.tensor_scale) offsets[8] = offsets[1];
-    for (nk_size_t index = 0; index != 9; ++index)
-        if (index != 4 && index != 6 && !buffers[index]) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
+    void *const log_sum_exp_buffer = log_sum_exp
+                                         ? nk_resolve_metal_(&call, log_sum_exp, log_sum_exp_bytes, &log_sum_exp_offset)
+                                         : NUMKONG_NULL;
+    void *const scales_buffer = scales_bytes ? nk_resolve_metal_(&call, queries.scales, scales_bytes, &scales_offset)
+                                             : NUMKONG_NULL;
+    void *const tensor_buffer = queries.tensor_scale
+                                    ? nk_resolve_metal_(&call, queries.tensor_scale, sizeof(nk_f32_t), &tensor_offset)
+                                    : NUMKONG_NULL;
+    for (nk_size_t index = 0; index != 4; ++index)
+        if (!buffers[index]) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
+    if ((log_sum_exp && !log_sum_exp_buffer) || (scales_bytes && !scales_buffer) ||
+        (queries.tensor_scale && !tensor_buffer))
+        return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
     nk_size_t const packed_bytes = nk_count_metal_(buffers[1], "length") - offsets[1];
     nk_size_t const offsets_bytes = nk_count_metal_(buffers[3], "length") - offsets[3];
 
+    // The split workspace stays 0 until the split path takes it
     nk_attention_arguments_metal_t arguments;
+    arguments.queries = nk_count_metal_(buffers[0], "gpuAddress") + offsets[0];
+    arguments.packed = nk_count_metal_(buffers[1], "gpuAddress") + offsets[1];
+    arguments.output = nk_count_metal_(buffers[2], "gpuAddress") + offsets[2];
+    arguments.query_offsets = nk_count_metal_(buffers[3], "gpuAddress") + offsets[3];
+    arguments.log_sum_exp = log_sum_exp_buffer ? nk_count_metal_(log_sum_exp_buffer, "gpuAddress") + log_sum_exp_offset
+                                               : 0;
+    arguments.split = 0;
+    arguments.query_scales = scales_buffer ? nk_count_metal_(scales_buffer, "gpuAddress") + scales_offset : 0;
+    arguments.query_tensor_scale = tensor_buffer ? nk_count_metal_(tensor_buffer, "gpuAddress") + tensor_offset : 0;
     arguments.heads = head_count, arguments.kv_heads = key_value_head_count, arguments.depth = depth;
     arguments.query_tokens = query_token_count, arguments.query_stride = query_stride;
     arguments.output_stride = output_stride, arguments.keys_before = keys_before, arguments.keys_after = keys_after;
@@ -345,9 +402,6 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_metal_(
     arguments.scale2 = scale * NUMKONG_F32_LOG2E_;
     arguments.query_tensor_present = queries.tensor_scale != NUMKONG_NULL;
     arguments.query_scales_stride = queries.scales_stride;
-    for (nk_size_t index = 0; index != 9; ++index)
-        if (index != 4 && index != 6) nk_bind_metal_(call.encoder, buffers[index], offsets[index], index);
-    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 4);
 
     // Threadgroups walk segment × head pairs along x and the window's rows along y
     nk_size_t const rows = nk_size_divide_round_up_(tasks_end, head_count) - tasks_begin / head_count;
@@ -364,7 +418,8 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_metal_(
         nk_size_t split_offset;
         void *const split = nk_resolve_metal_(&call, workspace, split_bytes, &split_offset);
         if (!split) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
-        nk_bind_metal_(call.encoder, split, split_offset, 6);
+        arguments.split = nk_count_metal_(split, "gpuAddress") + split_offset;
+        nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 0);
         nk_size_t const groups = pairs < 65535 / rows ? pairs : 65535 / rows;
         nk_metal_size_t const grid = {groups, rows, 16}, threads = {128, 1, 1};
         nk_encoder_metal_(&call, split_pipeline);
@@ -381,6 +436,7 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_metal_(
     void *const pipeline = nk_pipeline_metal_(call.context, source, kernel, language_version);
     if (!pipeline) return nk_abort_metal_(&call, nk_device_code_mismatch_k);
     nk_encoder_metal_(&call, pipeline);
+    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 0);
     nk_size_t const row_groups = nk_min_of_two(32, nk_size_divide_round_up_(rows, 32));
     nk_size_t const groups = pairs < 65535 / row_groups ? pairs : 65535 / row_groups;
     nk_metal_size_t const grid = {groups, row_groups, 1}, threads = {128, 1, 1};
@@ -429,23 +485,27 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_metal_(
     nk_metal_call_t call;
     nk_status_t const status = nk_enter_metal_(stream, &call);
     if (status != nk_success_k) return status;
-    nk_size_t offsets[10] = {0};
-    void *buffers[10];
+    // Operands in the order of the attention record's addresses, then of the gradients' own
+    nk_size_t offsets[9] = {0};
+    void *buffers[9];
     buffers[0] = nk_resolve_metal_(&call, queries, query_bytes, offsets);
     buffers[1] = nk_resolve_metal_(&call, packed, sizeof(nk_attention_packed_header_t), offsets + 1);
     buffers[2] = nk_resolve_metal_(&call, output, output_bytes, offsets + 2);
     buffers[3] = nk_resolve_metal_(&call, query_offsets, 2 * sizeof(nk_u32_t), offsets + 3);
-    buffers[5] = nk_resolve_metal_(&call, log_sum_exp, log_sum_exp_bytes, offsets + 5);
-    buffers[6] = nk_resolve_metal_(&call, output_gradient, output_bytes, offsets + 6);
-    buffers[7] = nk_resolve_metal_(&call, query_gradient, query_gradient_bytes, offsets + 7);
-    buffers[8] = nk_resolve_metal_(&call, key_gradient, gradient_row_bytes, offsets + 8);
-    buffers[9] = nk_resolve_metal_(&call, value_gradient, gradient_row_bytes, offsets + 9);
-    for (nk_size_t index = 0; index != 10; ++index)
-        if (index != 4 && !buffers[index]) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
+    buffers[4] = nk_resolve_metal_(&call, log_sum_exp, log_sum_exp_bytes, offsets + 4);
+    buffers[5] = nk_resolve_metal_(&call, output_gradient, output_bytes, offsets + 5);
+    buffers[6] = nk_resolve_metal_(&call, query_gradient, query_gradient_bytes, offsets + 6);
+    buffers[7] = nk_resolve_metal_(&call, key_gradient, gradient_row_bytes, offsets + 7);
+    buffers[8] = nk_resolve_metal_(&call, value_gradient, gradient_row_bytes, offsets + 8);
+    for (nk_size_t index = 0; index != 9; ++index)
+        if (!buffers[index]) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
+    nk_u64_t addresses[9];
+    for (nk_size_t index = 0; index != 9; ++index)
+        addresses[index] = nk_count_metal_(buffers[index], "gpuAddress") + offsets[index];
     nk_size_t const packed_bytes = nk_count_metal_(buffers[1], "length") - offsets[1];
     nk_size_t const offsets_bytes = nk_count_metal_(buffers[3], "length") - offsets[3];
-    nk_size_t const key_gradient_bytes = nk_count_metal_(buffers[8], "length") - offsets[8];
-    nk_size_t const value_gradient_bytes = nk_count_metal_(buffers[9], "length") - offsets[9];
+    nk_size_t const key_gradient_bytes = nk_count_metal_(buffers[7], "length") - offsets[7];
+    nk_size_t const value_gradient_bytes = nk_count_metal_(buffers[8], "length") - offsets[8];
     nk_size_t tasks;
     if (!nk_size_mul_checked_(offsets_bytes / sizeof(nk_u32_t) - 1, key_value_head_count, &tasks))
         tasks = NUMKONG_SIZE_MAX;
@@ -453,7 +513,12 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_metal_(
     if (tasks_begin >= tasks_end) return nk_abort_metal_(&call, nk_success_k);
 
     nk_attention_backward_arguments_metal_t arguments;
+    arguments.output_gradient = addresses[5], arguments.query_gradient = addresses[6];
+    arguments.key_gradient = addresses[7], arguments.value_gradient = addresses[8];
     nk_attention_arguments_metal_t *const attention = &arguments.attention;
+    attention->queries = addresses[0], attention->packed = addresses[1], attention->output = addresses[2];
+    attention->query_offsets = addresses[3], attention->log_sum_exp = addresses[4];
+    attention->split = 0, attention->query_scales = 0, attention->query_tensor_scale = 0;
     attention->heads = head_count, attention->kv_heads = key_value_head_count, attention->depth = depth;
     attention->query_tokens = query_token_count, attention->query_stride = query_stride;
     attention->output_stride = output_stride, attention->keys_before = keys_before, attention->keys_after = keys_after;
@@ -466,9 +531,7 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_metal_(
     arguments.key_value_gradient_stride = key_value_gradient_stride;
     arguments.key_value_gradient_bytes = nk_min_of_two(key_gradient_bytes, value_gradient_bytes);
     arguments.scale = scale;
-    for (nk_size_t index = 0; index != 10; ++index)
-        if (index != 4) nk_bind_metal_(call.encoder, buffers[index], offsets[index], index);
-    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 4);
+    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 0);
 
     void *const keys_pipeline = nk_pipeline_metal_(call.context, source, keys_kernel, language_version);
     void *const queries_pipeline = nk_pipeline_metal_(call.context, source, queries_kernel, language_version);

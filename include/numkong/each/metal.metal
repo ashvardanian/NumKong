@@ -16,30 +16,41 @@
  *  across SIMD-groups. Only the RMSNorm of F32 stays out, as it reduces in F64, which no Apple GPU
  *  has, while the downcasts from F32 reduce in F32. The host picks the kernel for a missing @c up
  *  or @c gamma, so no thread branches on either.
+ *
+ *  Every kernel binds only its launch record, at buffer slot 0, and reads its operands through the
+ *  GPU addresses that open it, so a caller holding its own heaps may fill the record directly.
  */
 
-/** The launch record of SwiGLU, laid out as the C launcher's record of the same name. */
+/** The launch record of SwiGLU, laid out as the C launcher's record of the same name. It opens
+ *  with the GPU addresses of the operands, and @c up is 0 when absent, as only the ungated kernels
+ *  take it, which run plain SiLU. */
 struct nk_each_swiglu_arguments_metal_t {
+    ulong gate, up, y;
     ulong gate_stride, up_stride, y_stride;
     uint columns;
     float gate_scale, output_scale;
 };
 
-/** The launch record of RMSNorm, laid out as the C launcher's record of the same name. */
+/** The launch record of RMSNorm, laid out as the C launcher's record of the same name. It opens
+ *  with the GPU addresses of the operands, and @c gamma is 0 when absent, as only the unscaled
+ *  kernels take it, which run plain RMS. */
 struct nk_each_rmsnorm_arguments_metal_t {
+    ulong x, gamma, y;
     ulong x_stride, y_stride;
     uint columns;
     float epsilon;
 };
 
-/** The launch record of a sum, laid out as the C launcher's record of the same name. */
+/** The launch record of a sum, laid out as the C launcher's record of the same name, opening with
+ *  the GPU addresses of the operands. */
 struct nk_each_sum_arguments_metal_t {
+    ulong a, b, result;
     ulong count;
 };
 
-static_assert(sizeof(nk_each_swiglu_arguments_metal_t) == 40, "mirrors the C record in each/metal.h");
-static_assert(sizeof(nk_each_rmsnorm_arguments_metal_t) == 24, "mirrors the C record in each/metal.h");
-static_assert(sizeof(nk_each_sum_arguments_metal_t) == 8, "mirrors the C record in each/metal.h");
+static_assert(sizeof(nk_each_swiglu_arguments_metal_t) == 64, "mirrors the C record in each/metal.h");
+static_assert(sizeof(nk_each_rmsnorm_arguments_metal_t) == 48, "mirrors the C record in each/metal.h");
+static_assert(sizeof(nk_each_sum_arguments_metal_t) == 32, "mirrors the C record in each/metal.h");
 
 /** SwiGLU multiplying SiLU of the gate by the up row. */
 struct nk_each_gated_metal_t {};
@@ -71,10 +82,11 @@ inline float nk_each_gain_metal_(nk_each_scaled_metal_t, device float const *gam
 
 inline float nk_each_gain_metal_(nk_each_unscaled_metal_t, device float const *, uint) { return 1.0f; }
 
-/** SiLU of @p value, x / (1 + e^-x), keeping the subnormal precision of tiny reciprocals. */
+/** SiLU of @p value, x / (1 + e^-x), through @c precise::exp, within a few ULP as CUDA's @c expf
+ *  is, keeping the subnormal precision of tiny reciprocals. */
 inline float nk_each_silu_metal_(float value) {
 #pragma clang fp contract(off) reassociate(off)
-    float const denominator = 1.0f + nk_exp2_metal_(-value * 1.4426950408889634074f);
+    float const denominator = 1.0f + precise::exp(-value);
     // Scale subnormal reciprocals into integers before Metal flushes them
     return denominator > 0x1p126f
                ? ldexp(value * (rint(precise::divide(0x1p126f, denominator) * 0x1p23f) * 0x1p-23f), -126)
@@ -162,276 +174,375 @@ void nk_each_rmsnorm_metal_(device uchar const *x, device float const *gamma, de
     }
 }
 
-kernel void nk_each_sum_f32_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                          device uchar *result [[buffer(2)]],
-                                          constant nk_each_sum_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_each_sum_f32_metal_kernel_(constant nk_each_sum_arguments_metal_t &arguments [[buffer(0)]],
                                           uint chunk [[thread_position_in_grid]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *result = (device uchar *)arguments.result;
     nk_each_sum_metal_<nk::f32_t>(a, b, result, arguments, chunk);
 }
 
-kernel void nk_each_sum_f16_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                          device uchar *result [[buffer(2)]],
-                                          constant nk_each_sum_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_each_sum_f16_metal_kernel_(constant nk_each_sum_arguments_metal_t &arguments [[buffer(0)]],
                                           uint chunk [[thread_position_in_grid]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *result = (device uchar *)arguments.result;
     nk_each_sum_metal_<nk::f16_t>(a, b, result, arguments, chunk);
 }
 
-kernel void nk_each_sum_bf16_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                           device uchar *result [[buffer(2)]],
-                                           constant nk_each_sum_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_each_sum_bf16_metal_kernel_(constant nk_each_sum_arguments_metal_t &arguments [[buffer(0)]],
                                            uint chunk [[thread_position_in_grid]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *result = (device uchar *)arguments.result;
     nk_each_sum_metal_<nk::bf16_t>(a, b, result, arguments, chunk);
 }
 
-kernel void nk_each_swiglu_f32_gated_metal_kernel_(device uchar const *gate [[buffer(0)]],
-                                                   device uchar const *up [[buffer(1)]], device uchar *y [[buffer(2)]],
-                                                   constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_each_swiglu_f32_gated_metal_kernel_(constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(0)]],
                                                    uint2 position [[thread_position_in_grid]]) {
+    device uchar const *gate = (device uchar const *)arguments.gate;
+    device uchar const *up = (device uchar const *)arguments.up;
+    device uchar *y = (device uchar *)arguments.y;
     nk_each_swiglu_metal_<nk::f32_t, nk_each_gated_metal_t>(gate, up, y, arguments, position);
 }
 
-kernel void nk_each_swiglu_f32_ungated_metal_kernel_(device uchar const *gate [[buffer(0)]],
-                                                     device uchar const *up [[buffer(1)]],
-                                                     device uchar *y [[buffer(2)]],
-                                                     constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_each_swiglu_f32_ungated_metal_kernel_(constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(0)]],
                                                      uint2 position [[thread_position_in_grid]]) {
+    device uchar const *gate = (device uchar const *)arguments.gate;
+    device uchar const *up = (device uchar const *)arguments.up;
+    device uchar *y = (device uchar *)arguments.y;
     nk_each_swiglu_metal_<nk::f32_t, nk_each_ungated_metal_t>(gate, up, y, arguments, position);
 }
 
-kernel void nk_each_swiglu_f16_gated_metal_kernel_(device uchar const *gate [[buffer(0)]],
-                                                   device uchar const *up [[buffer(1)]], device uchar *y [[buffer(2)]],
-                                                   constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_each_swiglu_f16_gated_metal_kernel_(constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(0)]],
                                                    uint2 position [[thread_position_in_grid]]) {
+    device uchar const *gate = (device uchar const *)arguments.gate;
+    device uchar const *up = (device uchar const *)arguments.up;
+    device uchar *y = (device uchar *)arguments.y;
     nk_each_swiglu_metal_<nk::f16_t, nk_each_gated_metal_t>(gate, up, y, arguments, position);
 }
 
-kernel void nk_each_swiglu_f16_ungated_metal_kernel_(device uchar const *gate [[buffer(0)]],
-                                                     device uchar const *up [[buffer(1)]],
-                                                     device uchar *y [[buffer(2)]],
-                                                     constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_each_swiglu_f16_ungated_metal_kernel_(constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(0)]],
                                                      uint2 position [[thread_position_in_grid]]) {
+    device uchar const *gate = (device uchar const *)arguments.gate;
+    device uchar const *up = (device uchar const *)arguments.up;
+    device uchar *y = (device uchar *)arguments.y;
     nk_each_swiglu_metal_<nk::f16_t, nk_each_ungated_metal_t>(gate, up, y, arguments, position);
 }
 
-kernel void nk_each_swiglu_bf16_gated_metal_kernel_(device uchar const *gate [[buffer(0)]],
-                                                    device uchar const *up [[buffer(1)]], device uchar *y [[buffer(2)]],
-                                                    constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_each_swiglu_bf16_gated_metal_kernel_(constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(0)]],
                                                     uint2 position [[thread_position_in_grid]]) {
+    device uchar const *gate = (device uchar const *)arguments.gate;
+    device uchar const *up = (device uchar const *)arguments.up;
+    device uchar *y = (device uchar *)arguments.y;
     nk_each_swiglu_metal_<nk::bf16_t, nk_each_gated_metal_t>(gate, up, y, arguments, position);
 }
 
-kernel void nk_each_swiglu_bf16_ungated_metal_kernel_(
-    device uchar const *gate [[buffer(0)]], device uchar const *up [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(3)]], uint2 position [[thread_position_in_grid]]) {
+kernel void nk_each_swiglu_bf16_ungated_metal_kernel_(constant nk_each_swiglu_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint2 position [[thread_position_in_grid]]) {
+    device uchar const *gate = (device uchar const *)arguments.gate;
+    device uchar const *up = (device uchar const *)arguments.up;
+    device uchar *y = (device uchar *)arguments.y;
     nk_each_swiglu_metal_<nk::bf16_t, nk_each_ungated_metal_t>(gate, up, y, arguments, position);
 }
 
-kernel void nk_each_swiglu_e4m3_gated_metal_kernel_(device uchar const *gate [[buffer(0)]],
-                                                    device uchar const *up [[buffer(1)]], device uchar *y [[buffer(2)]],
-                                                    constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_each_swiglu_e4m3_gated_metal_kernel_(constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(0)]],
                                                     uint2 position [[thread_position_in_grid]]) {
+    device uchar const *gate = (device uchar const *)arguments.gate;
+    device uchar const *up = (device uchar const *)arguments.up;
+    device uchar *y = (device uchar *)arguments.y;
     nk_each_swiglu_metal_<nk::e4m3_t, nk_each_gated_metal_t>(gate, up, y, arguments, position);
 }
 
-kernel void nk_each_swiglu_e4m3_ungated_metal_kernel_(
-    device uchar const *gate [[buffer(0)]], device uchar const *up [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_swiglu_arguments_metal_t &arguments [[buffer(3)]], uint2 position [[thread_position_in_grid]]) {
+kernel void nk_each_swiglu_e4m3_ungated_metal_kernel_(constant nk_each_swiglu_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint2 position [[thread_position_in_grid]]) {
+    device uchar const *gate = (device uchar const *)arguments.gate;
+    device uchar const *up = (device uchar const *)arguments.up;
+    device uchar *y = (device uchar *)arguments.y;
     nk_each_swiglu_metal_<nk::e4m3_t, nk_each_ungated_metal_t>(gate, up, y, arguments, position);
 }
 
-kernel void nk_each_rmsnorm_f16_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmsnorm_f16_scaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                     [[buffer(0)]],
+                                                     uint2 vector [[threadgroup_position_in_grid]],
+                                                     uint lane [[thread_index_in_threadgroup]],
+                                                     uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f16_t, nk::f16_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                          threads.x, partials);
 }
 
-kernel void nk_each_rmsnorm_f16_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmsnorm_f16_unscaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                       [[buffer(0)]],
+                                                       uint2 vector [[threadgroup_position_in_grid]],
+                                                       uint lane [[thread_index_in_threadgroup]],
+                                                       uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f16_t, nk::f16_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                            threads.x, partials);
 }
 
-kernel void nk_each_rmsnorm_bf16_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmsnorm_bf16_scaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint2 vector [[threadgroup_position_in_grid]],
+                                                      uint lane [[thread_index_in_threadgroup]],
+                                                      uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::bf16_t, nk::bf16_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                            threads.x, partials);
 }
 
-kernel void nk_each_rmsnorm_bf16_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmsnorm_bf16_unscaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                        [[buffer(0)]],
+                                                        uint2 vector [[threadgroup_position_in_grid]],
+                                                        uint lane [[thread_index_in_threadgroup]],
+                                                        uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::bf16_t, nk::bf16_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                              threads.x, partials);
 }
 
-kernel void nk_each_rmsnorm_e4m3_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmsnorm_e4m3_scaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint2 vector [[threadgroup_position_in_grid]],
+                                                      uint lane [[thread_index_in_threadgroup]],
+                                                      uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::e4m3_t, nk::e4m3_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                            threads.x, partials);
 }
 
-kernel void nk_each_rmsnorm_e4m3_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmsnorm_e4m3_unscaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                        [[buffer(0)]],
+                                                        uint2 vector [[threadgroup_position_in_grid]],
+                                                        uint lane [[thread_index_in_threadgroup]],
+                                                        uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::e4m3_t, nk::e4m3_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                              threads.x, partials);
 }
 
-kernel void nk_each_rmscast_bf16_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_bf16_scaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint2 vector [[threadgroup_position_in_grid]],
+                                                      uint lane [[thread_index_in_threadgroup]],
+                                                      uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::bf16_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
 
-kernel void nk_each_rmscast_bf16_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_bf16_unscaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                        [[buffer(0)]],
+                                                        uint2 vector [[threadgroup_position_in_grid]],
+                                                        uint lane [[thread_index_in_threadgroup]],
+                                                        uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::bf16_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                             threads.x, partials);
 }
 
-kernel void nk_each_rmscast_f16_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_f16_scaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                     [[buffer(0)]],
+                                                     uint2 vector [[threadgroup_position_in_grid]],
+                                                     uint lane [[thread_index_in_threadgroup]],
+                                                     uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::f16_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                          threads.x, partials);
 }
 
-kernel void nk_each_rmscast_f16_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_f16_unscaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                       [[buffer(0)]],
+                                                       uint2 vector [[threadgroup_position_in_grid]],
+                                                       uint lane [[thread_index_in_threadgroup]],
+                                                       uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::f16_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                            threads.x, partials);
 }
 
-kernel void nk_each_rmscast_e4m3_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_e4m3_scaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint2 vector [[threadgroup_position_in_grid]],
+                                                      uint lane [[thread_index_in_threadgroup]],
+                                                      uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e4m3_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
 
-kernel void nk_each_rmscast_e4m3_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_e4m3_unscaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                        [[buffer(0)]],
+                                                        uint2 vector [[threadgroup_position_in_grid]],
+                                                        uint lane [[thread_index_in_threadgroup]],
+                                                        uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e4m3_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                             threads.x, partials);
 }
 
-kernel void nk_each_rmscast_e5m2_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_e5m2_scaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint2 vector [[threadgroup_position_in_grid]],
+                                                      uint lane [[thread_index_in_threadgroup]],
+                                                      uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e5m2_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
 
-kernel void nk_each_rmscast_e5m2_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_e5m2_unscaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                        [[buffer(0)]],
+                                                        uint2 vector [[threadgroup_position_in_grid]],
+                                                        uint lane [[thread_index_in_threadgroup]],
+                                                        uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e5m2_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                             threads.x, partials);
 }
 
-kernel void nk_each_rmscast_e2m3_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_e2m3_scaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint2 vector [[threadgroup_position_in_grid]],
+                                                      uint lane [[thread_index_in_threadgroup]],
+                                                      uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e2m3_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
 
-kernel void nk_each_rmscast_e2m3_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_e2m3_unscaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                        [[buffer(0)]],
+                                                        uint2 vector [[threadgroup_position_in_grid]],
+                                                        uint lane [[thread_index_in_threadgroup]],
+                                                        uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e2m3_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                             threads.x, partials);
 }
 
-kernel void nk_each_rmscast_e3m2_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_e3m2_scaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint2 vector [[threadgroup_position_in_grid]],
+                                                      uint lane [[thread_index_in_threadgroup]],
+                                                      uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e3m2_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
 
-kernel void nk_each_rmscast_e3m2_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_e3m2_unscaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                        [[buffer(0)]],
+                                                        uint2 vector [[threadgroup_position_in_grid]],
+                                                        uint lane [[thread_index_in_threadgroup]],
+                                                        uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::f32_t, nk::e3m2_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                             threads.x, partials);
 }
 
-kernel void nk_each_rmscast_i8_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_i8_scaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(0)]],
+                                                    uint2 vector [[threadgroup_position_in_grid]],
+                                                    uint lane [[thread_index_in_threadgroup]],
+                                                    uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::i32_t, nk::i8_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane, threads.x,
                                                                         partials);
 }
 
-kernel void nk_each_rmscast_i8_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_i8_unscaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint2 vector [[threadgroup_position_in_grid]],
+                                                      uint lane [[thread_index_in_threadgroup]],
+                                                      uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::i32_t, nk::i8_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);
 }
 
-kernel void nk_each_rmscast_u8_scaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_u8_scaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(0)]],
+                                                    uint2 vector [[threadgroup_position_in_grid]],
+                                                    uint lane [[thread_index_in_threadgroup]],
+                                                    uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::u32_t, nk::u8_t, nk_each_scaled_metal_t>(x, gamma, y, arguments, vector, lane, threads.x,
                                                                         partials);
 }
 
-kernel void nk_each_rmscast_u8_unscaled_metal_kernel_(
-    device uchar const *x [[buffer(0)]], device float const *gamma [[buffer(1)]], device uchar *y [[buffer(2)]],
-    constant nk_each_rmsnorm_arguments_metal_t &arguments [[buffer(3)]], uint2 vector [[threadgroup_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]], uint2 threads [[threads_per_threadgroup]]) {
+kernel void nk_each_rmscast_u8_unscaled_metal_kernel_(constant nk_each_rmsnorm_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint2 vector [[threadgroup_position_in_grid]],
+                                                      uint lane [[thread_index_in_threadgroup]],
+                                                      uint2 threads [[threads_per_threadgroup]]) {
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *gamma = (device float const *)arguments.gamma;
+    device uchar *y = (device uchar *)arguments.y;
     threadgroup float partials[8];
     nk_each_rmsnorm_metal_<nk::u32_t, nk::u8_t, nk_each_unscaled_metal_t>(x, gamma, y, arguments, vector, lane,
                                                                           threads.x, partials);

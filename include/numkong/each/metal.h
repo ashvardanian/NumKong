@@ -11,6 +11,9 @@
  *
  *  Every signature matches the @c cuda capability's, with an @c id<MTLCommandQueue> as the stream.
  *  Each launcher picks the kernel for a present or missing @c up or @c gamma.
+ *
+ *  Each launcher writes its operands' GPU addresses into the kernel's launch record, the one buffer
+ *  slot it binds, and keeps their allocations resident for the call through @c useResource.
  */
 #ifndef NUMKONG_EACH_METAL_H
 #define NUMKONG_EACH_METAL_H
@@ -40,28 +43,42 @@ static char const nk_each_source_metal_[] = {
 /** Threads of a SwiGLU threadgroup, and the most an RMSNorm one takes, as in the kernels. */
 enum { nk_each_threads_metal_k = 256 };
 
-/** The launch record of SwiGLU, laid out as the kernels' record of the same name. */
+/** The launch record of SwiGLU, laid out as the kernels' record of the same name. It opens with
+ *  the GPU addresses of the operands, and @c up is 0 when absent, as only the ungated kernels take
+ *  it, which run plain SiLU. */
 typedef struct {
+    nk_u64_t gate, up, y;
     nk_u64_t gate_stride, up_stride, y_stride;
     nk_u32_t columns;
     nk_f32_t gate_scale, output_scale;
 } nk_each_swiglu_arguments_metal_t;
 
-/** The launch record of RMSNorm, laid out as the kernels' record of the same name. */
+/** The launch record of RMSNorm, laid out as the kernels' record of the same name. It opens with
+ *  the GPU addresses of the operands, and @c gamma is 0 when absent, as only the unscaled kernels
+ *  take it, which run plain RMS. */
 typedef struct {
+    nk_u64_t x, gamma, y;
     nk_u64_t x_stride, y_stride;
     nk_u32_t columns;
     nk_f32_t epsilon;
 } nk_each_rmsnorm_arguments_metal_t;
 
-/** The launch record of an element-wise sum, laid out as the kernels' record of the same name. */
+/** The launch record of an element-wise sum, laid out as the kernels' record of the same name,
+ *  opening with the GPU addresses of the operands. */
 typedef struct {
+    nk_u64_t a, b, result;
     nk_u64_t count;
 } nk_each_sum_arguments_metal_t;
 
-nk_static_assert_(sizeof(nk_each_swiglu_arguments_metal_t) == 40, nk_each_swiglu_arguments_metal_must_be_40_bytes);
-nk_static_assert_(sizeof(nk_each_rmsnorm_arguments_metal_t) == 24, nk_each_rmsnorm_arguments_metal_must_be_24_bytes);
-nk_static_assert_(sizeof(nk_each_sum_arguments_metal_t) == 8, nk_each_sum_arguments_metal_must_be_8_bytes);
+nk_static_assert_(sizeof(nk_each_swiglu_arguments_metal_t) == 64, nk_each_swiglu_arguments_metal_must_be_64_bytes);
+nk_static_assert_(sizeof(nk_each_rmsnorm_arguments_metal_t) == 48, nk_each_rmsnorm_arguments_metal_must_be_48_bytes);
+nk_static_assert_(sizeof(nk_each_sum_arguments_metal_t) == 32, nk_each_sum_arguments_metal_must_be_32_bytes);
+nk_static_assert_(offsetof(nk_each_swiglu_arguments_metal_t, gate_stride) == 24,
+                  nk_each_swiglu_arguments_metal_must_open_with_3_addresses);
+nk_static_assert_(offsetof(nk_each_rmsnorm_arguments_metal_t, x_stride) == 24,
+                  nk_each_rmsnorm_arguments_metal_must_open_with_3_addresses);
+nk_static_assert_(offsetof(nk_each_sum_arguments_metal_t, count) == 24,
+                  nk_each_sum_arguments_metal_must_open_with_3_addresses);
 
 /** Validates the contract and encodes the sum of @p n values of @p value_bytes each through
  *  @p kernel, one thread per 16-byte chunk. */
@@ -86,11 +103,11 @@ NUMKONG_INLINE nk_status_t nk_each_sum_launch_metal_(char const *kernel, nk_size
     nk_encoder_metal_(&call, pipeline);
 
     nk_each_sum_arguments_metal_t arguments;
+    arguments.a = nk_count_metal_(a_buffer, "gpuAddress") + a_offset;
+    arguments.b = nk_count_metal_(b_buffer, "gpuAddress") + b_offset;
+    arguments.result = nk_count_metal_(result_buffer, "gpuAddress") + result_offset;
     arguments.count = n;
-    nk_bind_metal_(call.encoder, a_buffer, a_offset, 0);
-    nk_bind_metal_(call.encoder, b_buffer, b_offset, 1);
-    nk_bind_metal_(call.encoder, result_buffer, result_offset, 2);
-    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 3);
+    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 0);
     nk_metal_size_t const grid = {nk_size_divide_round_up_(chunks, nk_each_threads_metal_k), 1, 1};
     nk_metal_size_t const group = {nk_each_threads_metal_k, 1, 1};
     return nk_dispatch_metal_(&call, grid, group);
@@ -120,21 +137,21 @@ NUMKONG_INLINE nk_status_t nk_each_swiglu_launch_metal_(char const *gated_kernel
     if (status != nk_success_k) return status;
     nk_size_t gate_offset = 0, up_offset = 0, y_offset = 0;
     void *const gate_buffer = nk_resolve_metal_(&call, gate, gate_bytes, &gate_offset);
-    void *const up_buffer = up ? nk_resolve_metal_(&call, up, up_bytes, &up_offset) : gate_buffer;
+    void *const up_buffer = up ? nk_resolve_metal_(&call, up, up_bytes, &up_offset) : NUMKONG_NULL;
     void *const y_buffer = nk_resolve_metal_(&call, y, y_bytes, &y_offset);
-    if (!gate_buffer || !up_buffer || !y_buffer) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
+    if (!gate_buffer || (up && !up_buffer) || !y_buffer) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
     void *const pipeline = nk_pipeline_metal_(call.context, nk_each_source_metal_, up ? gated_kernel : ungated_kernel,
                                               NUMKONG_METAL_LANGUAGE_3_1_);
     if (!pipeline) return nk_abort_metal_(&call, nk_device_code_mismatch_k);
     nk_encoder_metal_(&call, pipeline);
 
     nk_each_swiglu_arguments_metal_t arguments;
+    arguments.gate = nk_count_metal_(gate_buffer, "gpuAddress") + gate_offset;
+    arguments.up = up ? nk_count_metal_(up_buffer, "gpuAddress") + up_offset : 0;
+    arguments.y = nk_count_metal_(y_buffer, "gpuAddress") + y_offset;
     arguments.gate_stride = gate_stride, arguments.up_stride = up_stride, arguments.y_stride = y_stride;
     arguments.columns = (nk_u32_t)columns, arguments.gate_scale = gate_scale, arguments.output_scale = output_scale;
-    nk_bind_metal_(call.encoder, gate_buffer, gate_offset, 0);
-    nk_bind_metal_(call.encoder, up_buffer, up ? up_offset : gate_offset, 1);
-    nk_bind_metal_(call.encoder, y_buffer, y_offset, 2);
-    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 3);
+    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 0);
     nk_size_t const chunks = nk_size_divide_round_up_(columns, 16 / value_bytes);
     nk_metal_size_t const grid = {nk_size_divide_round_up_(chunks, nk_each_threads_metal_k), rows, 1};
     nk_metal_size_t const group = {nk_each_threads_metal_k, 1, 1};
@@ -168,21 +185,21 @@ NUMKONG_INLINE nk_status_t nk_each_rmsnorm_launch_metal_(char const *scaled_kern
     if (status != nk_success_k) return status;
     nk_size_t x_offset = 0, gamma_offset = 0, y_offset = 0;
     void *const x_buffer = nk_resolve_metal_(&call, x, x_bytes, &x_offset);
-    void *const gamma_buffer = gamma ? nk_resolve_metal_(&call, gamma, gamma_bytes, &gamma_offset) : x_buffer;
+    void *const gamma_buffer = gamma ? nk_resolve_metal_(&call, gamma, gamma_bytes, &gamma_offset) : NUMKONG_NULL;
     void *const y_buffer = nk_resolve_metal_(&call, y, y_bytes, &y_offset);
-    if (!x_buffer || !gamma_buffer || !y_buffer) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
+    if (!x_buffer || (gamma && !gamma_buffer) || !y_buffer) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
     void *const pipeline = nk_pipeline_metal_(call.context, nk_each_source_metal_,
                                               gamma ? scaled_kernel : unscaled_kernel, NUMKONG_METAL_LANGUAGE_3_1_);
     if (!pipeline) return nk_abort_metal_(&call, nk_device_code_mismatch_k);
     nk_encoder_metal_(&call, pipeline);
 
     nk_each_rmsnorm_arguments_metal_t arguments;
+    arguments.x = nk_count_metal_(x_buffer, "gpuAddress") + x_offset;
+    arguments.gamma = gamma ? nk_count_metal_(gamma_buffer, "gpuAddress") + gamma_offset : 0;
+    arguments.y = nk_count_metal_(y_buffer, "gpuAddress") + y_offset;
     arguments.x_stride = x_stride, arguments.y_stride = y_stride;
     arguments.columns = (nk_u32_t)columns, arguments.epsilon = epsilon;
-    nk_bind_metal_(call.encoder, x_buffer, x_offset, 0);
-    nk_bind_metal_(call.encoder, gamma_buffer, gamma ? gamma_offset : x_offset, 1);
-    nk_bind_metal_(call.encoder, y_buffer, y_offset, 2);
-    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 3);
+    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 0);
     nk_size_t const chunks = nk_size_divide_round_up_(columns, 16 / output_bytes);
     nk_size_t const threads = chunks < nk_each_threads_metal_k ? nk_size_round_up_to_multiple_(chunks, 32)
                                                                : nk_each_threads_metal_k;

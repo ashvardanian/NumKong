@@ -12,6 +12,9 @@
  *  The kernels travel as their own <tt>.metal</tt> source, embedded here and compiled on the device at
  *  first use under Metal 3.1, the first with @c bfloat, so every Apple GPU from family 7 runs them.
  *  The pack, its shape reader and the launch core serve @c apple9 and @c apple10 too.
+ *
+ *  Each launcher writes its operands' GPU addresses into the kernel's launch record, the one buffer
+ *  slot it binds, and keeps their allocations resident for the call through @c useResource.
  */
 #ifndef NUMKONG_DOTS_METAL_H
 #define NUMKONG_DOTS_METAL_H
@@ -45,8 +48,12 @@ static char const nk_dots_source_metal_[] = {
 /** Side of the output tile one threadgroup owns, and the threads it runs, as in the kernels. */
 enum { nk_cross_tile_metal_k = 64, nk_cross_threads_metal_k = 256 };
 
-/** The launch record of a tile kernel, laid out as the kernels' record of the same name. */
+/** The launch record of a tile kernel, laid out as the kernels' record of the same name. It opens
+ *  with the GPU addresses of A, B, C, both sides' block scales and both tensor scales, the scales 0
+ *  when absent, as for every format without them, and a tensor scale 0 when absent, as its presence
+ *  flag then says. */
 typedef struct {
+    nk_u64_t a, b, c, a_scales, b_scales, a_tensor_scale, b_tensor_scale;
     nk_u64_t a_stride, b_stride, c_stride;
     nk_u32_t rows_begin, rows_end, column_count, depth;
     nk_u32_t upper_triangle;
@@ -54,8 +61,11 @@ typedef struct {
     nk_u32_t a_tensor_present, b_tensor_present;
 } nk_cross_arguments_metal_t;
 
-/** The launch record of a pack kernel, laid out as the kernels' record of the same name. */
+/** The launch record of a pack kernel, laid out as the kernels' record of the same name. It opens
+ *  with the GPU addresses of B, the packed buffer, B's block scales and its tensor scale, the last
+ *  two 0 when absent, as for every format without them. */
 typedef struct {
+    nk_u64_t b, b_packed, scales, tensor_scale;
     nk_u64_t b_stride, depth_bytes, row_bytes;
     nk_capability_t capability;
     nk_u32_t column_count, depth, depth_padded_values, columns_begin, columns_end;
@@ -63,8 +73,12 @@ typedef struct {
     nk_u32_t tensor_present;
 } nk_cross_pack_arguments_metal_t;
 
-nk_static_assert_(sizeof(nk_cross_arguments_metal_t) == 72, nk_cross_arguments_metal_must_be_72_bytes);
-nk_static_assert_(sizeof(nk_cross_pack_arguments_metal_t) == 72, nk_cross_pack_arguments_metal_must_be_72_bytes);
+nk_static_assert_(sizeof(nk_cross_arguments_metal_t) == 128, nk_cross_arguments_metal_must_be_128_bytes);
+nk_static_assert_(sizeof(nk_cross_pack_arguments_metal_t) == 104, nk_cross_pack_arguments_metal_must_be_104_bytes);
+nk_static_assert_(offsetof(nk_cross_arguments_metal_t, a_stride) == 56,
+                  nk_cross_arguments_metal_must_open_with_7_addresses);
+nk_static_assert_(offsetof(nk_cross_pack_arguments_metal_t, b_stride) == 32,
+                  nk_cross_pack_arguments_metal_must_open_with_4_addresses);
 
 NUMKONG_INLINE int nk_cross_small_int4_metal_(nk_dtype_t dtype, nk_capability_t capability, nk_size_t rows,
                                               nk_size_t columns) {
@@ -163,7 +177,12 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_metal_(char const *kernel, nk_cr
     if (!pipeline) return nk_abort_metal_(&call, nk_device_code_mismatch_k);
     nk_encoder_metal_(&call, pipeline);
 
+    // An empty window reads no B, so B takes the pack's address, and absent scales take 0
     nk_cross_pack_arguments_metal_t arguments;
+    arguments.b_packed = nk_count_metal_(packed_buffer, "gpuAddress") + packed_offset;
+    arguments.b = b_buffer ? nk_count_metal_(b_buffer, "gpuAddress") + b_offset : arguments.b_packed;
+    arguments.scales = scales_buffer ? nk_count_metal_(scales_buffer, "gpuAddress") + scales_offset : 0;
+    arguments.tensor_scale = tensor_buffer ? nk_count_metal_(tensor_buffer, "gpuAddress") + tensor_offset : 0;
     nk_size_t const values = nk_cross_padded_values_serial_(depth, depth_simd_dimensions, dimensions_per_value,
                                                             value_bytes);
     arguments.b_stride = b_stride, arguments.depth_bytes = depth / dimensions_per_value * value_bytes;
@@ -179,13 +198,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_metal_(char const *kernel, nk_cr
     nk_size_t const simdgroups_per_group = 8;
     nk_size_t const columns_count = columns_end > columns_begin ? columns_end - columns_begin : 0;
     nk_size_t const groups = columns_count ? nk_size_divide_round_up_(columns_count, simdgroups_per_group) : 1;
-    nk_bind_metal_(call.encoder, b_buffer ? b_buffer : packed_buffer, b_buffer ? b_offset : packed_offset, 0);
-    nk_bind_metal_(call.encoder, packed_buffer, packed_offset, 1);
-    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 2);
-    nk_bind_metal_(call.encoder, scales_buffer ? scales_buffer : packed_buffer,
-                   scales_buffer ? scales_offset : packed_offset, 3);
-    nk_bind_metal_(call.encoder, tensor_buffer ? tensor_buffer : packed_buffer,
-                   tensor_buffer ? tensor_offset : packed_offset, 4);
+    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 0);
     nk_metal_size_t const grid = {groups, 1, 1}, threads = {simdgroups_per_group * 32, 1, 1};
     return nk_dispatch_metal_(&call, grid, threads);
 }
@@ -249,25 +262,22 @@ NUMKONG_INLINE nk_status_t nk_cross_encode_metal_(char const *source, nk_size_t 
     if (!pipeline) return nk_abort_metal_(&call, nk_device_code_mismatch_k);
     nk_encoder_metal_(&call, pipeline);
 
+    // A and B without bytes to read take C's address, and absent scales take 0
     nk_cross_arguments_metal_t arguments;
+    arguments.a = nk_count_metal_(a_buffer, "gpuAddress") + a_offset;
+    arguments.b = nk_count_metal_(b_buffer, "gpuAddress") + b_offset + b_extra_offset;
+    arguments.c = nk_count_metal_(c_buffer, "gpuAddress") + c_offset;
+    arguments.a_scales = a_scales_buffer ? nk_count_metal_(a_scales_buffer, "gpuAddress") + a_scales_offset : 0;
+    arguments.b_scales = b_scales_buffer ? nk_count_metal_(b_scales_buffer, "gpuAddress") + b_scales_offset : 0;
+    arguments.a_tensor_scale = a_tensor_buffer ? nk_count_metal_(a_tensor_buffer, "gpuAddress") + a_tensor_offset : 0;
+    arguments.b_tensor_scale = b_tensor_buffer ? nk_count_metal_(b_tensor_buffer, "gpuAddress") + b_tensor_offset : 0;
     arguments.a_stride = a_stride, arguments.b_stride = b_stride, arguments.c_stride = c_stride / result_bytes;
     arguments.rows_begin = (nk_u32_t)rows_begin, arguments.rows_end = (nk_u32_t)rows_end;
     arguments.column_count = (nk_u32_t)column_count, arguments.depth = (nk_u32_t)depth;
     arguments.upper_triangle = upper_triangle;
     arguments.a_scales_stride = a.scales_stride, arguments.b_scales_stride = b.scales_stride;
     arguments.a_tensor_present = a.tensor_scale != NULL, arguments.b_tensor_present = b.tensor_scale != NULL;
-    nk_bind_metal_(call.encoder, a_buffer, a_offset, 0);
-    nk_bind_metal_(call.encoder, b_buffer, b_offset + b_extra_offset, 1);
-    nk_bind_metal_(call.encoder, c_buffer, c_offset, 2);
-    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 3);
-    nk_bind_metal_(call.encoder, a_scales_buffer ? a_scales_buffer : a_buffer,
-                   a_scales_buffer ? a_scales_offset : a_offset, 4);
-    nk_bind_metal_(call.encoder, b_scales_buffer ? b_scales_buffer : b_buffer,
-                   b_scales_buffer ? b_scales_offset : b_offset, 5);
-    nk_bind_metal_(call.encoder, a_tensor_buffer ? a_tensor_buffer : a_buffer,
-                   a_tensor_buffer ? a_tensor_offset : a_offset, 6);
-    nk_bind_metal_(call.encoder, b_tensor_buffer ? b_tensor_buffer : b_buffer,
-                   b_tensor_buffer ? b_tensor_offset : b_offset, 7);
+    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 0);
     nk_metal_size_t const grid = {nk_size_divide_round_up_(column_count, tile_side),
                                   nk_size_divide_round_up_(rows_end - rows_begin, tile_side), 1};
     nk_metal_size_t const group = {threads, 1, 1};

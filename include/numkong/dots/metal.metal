@@ -18,6 +18,9 @@
  *  @c float pair carrying its own exponent, so blocks of any spread round once, and the tensor
  *  scales multiply in the epilogue. Integer distances form ab − d² and a + b − 2d in 64-bit
  *  integers before a @c float tail, as the CPU finalizers do.
+ *
+ *  Every kernel binds only its launch record, at buffer slot 0, and reads its operands through the
+ *  GPU addresses that open it, so a caller holding its own heaps may fill the record directly.
  */
 
 /** The four codes from dimension 4 × @p index of a 16-byte chunk of a row: its 16-bit halves, its
@@ -41,8 +44,11 @@ inline uint4 nk_tail_load_(device uchar const *row, uint dimensions) {
     return words;
 }
 
-/** The launch record of a pack, laid out as the C launcher's record of the same name. */
+/** The launch record of a pack, laid out as the C launcher's record of the same name. It opens
+ *  with the GPU addresses of B, the packed buffer, B's block scales and its tensor scale, the last
+ *  two 0 when absent, as for every format without them. */
 struct nk_cross_pack_arguments_metal_t {
+    ulong b, b_packed, scales, tensor_scale;
     ulong b_stride, depth_bytes, row_bytes, capability;
     uint column_count, depth, depth_padded_values, columns_begin, columns_end;
     ulong scales_stride;
@@ -57,7 +63,7 @@ struct nk_cross_packed_buffer_header_t {
     ulong capability;
 };
 
-static_assert(sizeof(nk_cross_pack_arguments_metal_t) == 72, "mirrors the C record in dots/metal.h");
+static_assert(sizeof(nk_cross_pack_arguments_metal_t) == 104, "mirrors the C record in dots/metal.h");
 static_assert(sizeof(nk_cross_packed_buffer_header_t) == 64, "mirrors the C header in dots/serial.h");
 
 /** Packs one column: the row zero-padded to its padded depth, then its sum of squares among the
@@ -102,8 +108,12 @@ void nk_cross_pack_metal_(device uchar const *b, device uchar *b_packed,
 /** Side of the output tile a threadgroup owns, depth of one staged slab, and threads per group. */
 constant uint nk_cross_tile_metal_k = 64, nk_cross_slab_metal_k = 16, nk_cross_threads_metal_k = 256;
 
-/** The launch record of every capability's tile, A and B strides in bytes and C's in results. */
+/** The launch record of every capability's tile, A and B strides in bytes and C's in results. It
+ *  opens with the GPU addresses of A, B, C, both sides' block scales and both tensor scales, the
+ *  scales 0 when absent, as for every format without them, and a tensor scale 0 when absent, as
+ *  its presence flag then says. */
 struct nk_cross_arguments_metal_t {
+    ulong a, b, c, a_scales, b_scales, a_tensor_scale, b_tensor_scale;
     ulong a_stride, b_stride, c_stride;
     uint rows_begin, rows_end, column_count, depth;
 
@@ -113,7 +123,7 @@ struct nk_cross_arguments_metal_t {
     uint a_tensor_present, b_tensor_present;
 };
 
-static_assert(sizeof(nk_cross_arguments_metal_t) == 72, "mirrors the C record in dots/metal.h");
+static_assert(sizeof(nk_cross_arguments_metal_t) == 128, "mirrors the C record in dots/metal.h");
 
 enum nk_cross_metric_metal_t { nk_cross_dot_metal_k, nk_cross_angular_metal_k, nk_cross_euclidean_metal_k };
 
@@ -249,190 +259,212 @@ void nk_cross_tile_metal_(device uchar const *a, device uchar const *b, device r
 
 #pragma region Kernels
 
-kernel void nk_dots_pack_i8_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *b_packed [[buffer(1)]],
-                                          constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
+kernel void nk_dots_pack_i8_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                           uint simdgroup [[simdgroup_index_in_threadgroup]],
                                           uint simdgroups [[simdgroups_per_threadgroup]],
                                           uint group [[threadgroup_position_in_grid]],
                                           uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *b_packed = (device uchar *)arguments.b_packed;
     nk_cross_pack_metal_<nk::i8_t>(b, b_packed, arguments, group * simdgroups + simdgroup, lane);
 }
-kernel void nk_dots_pack_u8_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *b_packed [[buffer(1)]],
-                                          constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
+kernel void nk_dots_pack_u8_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                           uint simdgroup [[simdgroup_index_in_threadgroup]],
                                           uint simdgroups [[simdgroups_per_threadgroup]],
                                           uint group [[threadgroup_position_in_grid]],
                                           uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *b_packed = (device uchar *)arguments.b_packed;
     nk_cross_pack_metal_<nk::u8_t>(b, b_packed, arguments, group * simdgroups + simdgroup, lane);
 }
-kernel void nk_dots_pack_i4_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *b_packed [[buffer(1)]],
-                                          constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
+kernel void nk_dots_pack_i4_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                           uint simdgroup [[simdgroup_index_in_threadgroup]],
                                           uint simdgroups [[simdgroups_per_threadgroup]],
                                           uint group [[threadgroup_position_in_grid]],
                                           uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *b_packed = (device uchar *)arguments.b_packed;
     nk_cross_pack_metal_<nk::i4x2_t>(b, b_packed, arguments, group * simdgroups + simdgroup, lane);
 }
-kernel void nk_dots_pack_u4_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *b_packed [[buffer(1)]],
-                                          constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
+kernel void nk_dots_pack_u4_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                           uint simdgroup [[simdgroup_index_in_threadgroup]],
                                           uint simdgroups [[simdgroups_per_threadgroup]],
                                           uint group [[threadgroup_position_in_grid]],
                                           uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *b_packed = (device uchar *)arguments.b_packed;
     nk_cross_pack_metal_<nk::u4x2_t>(b, b_packed, arguments, group * simdgroups + simdgroup, lane);
 }
-kernel void nk_dots_pack_f16_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *b_packed [[buffer(1)]],
-                                           constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
+kernel void nk_dots_pack_f16_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                            uint simdgroup [[simdgroup_index_in_threadgroup]],
                                            uint simdgroups [[simdgroups_per_threadgroup]],
                                            uint group [[threadgroup_position_in_grid]],
                                            uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *b_packed = (device uchar *)arguments.b_packed;
     nk_cross_pack_metal_<nk::f16_t>(b, b_packed, arguments, group * simdgroups + simdgroup, lane);
 }
-kernel void nk_dots_pack_bf16_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *b_packed [[buffer(1)]],
-                                            constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
+kernel void nk_dots_pack_bf16_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                             uint simdgroup [[simdgroup_index_in_threadgroup]],
                                             uint simdgroups [[simdgroups_per_threadgroup]],
                                             uint group [[threadgroup_position_in_grid]],
                                             uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *b_packed = (device uchar *)arguments.b_packed;
     nk_cross_pack_metal_<nk::bf16_t>(b, b_packed, arguments, group * simdgroups + simdgroup, lane);
 }
-kernel void nk_dots_pack_e4m3_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *b_packed [[buffer(1)]],
-                                            constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
+kernel void nk_dots_pack_e4m3_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                             uint simdgroup [[simdgroup_index_in_threadgroup]],
                                             uint simdgroups [[simdgroups_per_threadgroup]],
                                             uint group [[threadgroup_position_in_grid]],
                                             uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *b_packed = (device uchar *)arguments.b_packed;
     nk_cross_pack_metal_<nk::e4m3_t>(b, b_packed, arguments, group * simdgroups + simdgroup, lane);
 }
-kernel void nk_dots_pack_e5m2_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *b_packed [[buffer(1)]],
-                                            constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
+kernel void nk_dots_pack_e5m2_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                             uint simdgroup [[simdgroup_index_in_threadgroup]],
                                             uint simdgroups [[simdgroups_per_threadgroup]],
                                             uint group [[threadgroup_position_in_grid]],
                                             uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *b_packed = (device uchar *)arguments.b_packed;
     nk_cross_pack_metal_<nk::e5m2_t>(b, b_packed, arguments, group * simdgroups + simdgroup, lane);
 }
-kernel void nk_dots_pack_e3m2_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *b_packed [[buffer(1)]],
-                                            constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
+kernel void nk_dots_pack_e3m2_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                             uint simdgroup [[simdgroup_index_in_threadgroup]],
                                             uint simdgroups [[simdgroups_per_threadgroup]],
                                             uint group [[threadgroup_position_in_grid]],
                                             uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *b_packed = (device uchar *)arguments.b_packed;
     nk_cross_pack_metal_<nk::e3m2_t>(b, b_packed, arguments, group * simdgroups + simdgroup, lane);
 }
-kernel void nk_dots_pack_e2m3_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *b_packed [[buffer(1)]],
-                                            constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
+kernel void nk_dots_pack_e2m3_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                             uint simdgroup [[simdgroup_index_in_threadgroup]],
                                             uint simdgroups [[simdgroups_per_threadgroup]],
                                             uint group [[threadgroup_position_in_grid]],
                                             uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *b_packed = (device uchar *)arguments.b_packed;
     nk_cross_pack_metal_<nk::e2m3_t>(b, b_packed, arguments, group * simdgroups + simdgroup, lane);
 }
-kernel void nk_dots_pack_e2m1_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *b_packed [[buffer(1)]],
-                                            constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
+kernel void nk_dots_pack_e2m1_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                             uint simdgroup [[simdgroup_index_in_threadgroup]],
                                             uint simdgroups [[simdgroups_per_threadgroup]],
                                             uint group [[threadgroup_position_in_grid]],
                                             uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *b_packed = (device uchar *)arguments.b_packed;
     nk_cross_pack_metal_<nk::e2m1x2_t>(b, b_packed, arguments, group * simdgroups + simdgroup, lane);
 }
 
-kernel void nk_dots_i8_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                     device int *c [[buffer(2)]],
-                                     constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_i8_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                      uint2 group [[threadgroup_position_in_grid]],
                                      uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device int *c = (device int *)arguments.c;
     threadgroup int a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
     nk_cross_tile_metal_<nk::i8_t>(a, b, c, arguments, group, thread_index, a_slab, b_slab);
 }
-kernel void nk_dots_u8_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                     device uint *c [[buffer(2)]],
-                                     constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_u8_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                      uint2 group [[threadgroup_position_in_grid]],
                                      uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uint *c = (device uint *)arguments.c;
     threadgroup uint a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
     nk_cross_tile_metal_<nk::u8_t>(a, b, c, arguments, group, thread_index, a_slab, b_slab);
 }
-kernel void nk_dots_i4_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                     device int *c [[buffer(2)]],
-                                     constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_i4_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                      uint2 group [[threadgroup_position_in_grid]],
                                      uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device int *c = (device int *)arguments.c;
     threadgroup int a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
     nk_cross_tile_metal_<nk::i4x2_t>(a, b, c, arguments, group, thread_index, a_slab, b_slab);
 }
-kernel void nk_dots_u4_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                     device uint *c [[buffer(2)]],
-                                     constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_u4_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                      uint2 group [[threadgroup_position_in_grid]],
                                      uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uint *c = (device uint *)arguments.c;
     threadgroup uint a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
     nk_cross_tile_metal_<nk::u4x2_t>(a, b, c, arguments, group, thread_index, a_slab, b_slab);
 }
-kernel void nk_dots_f16_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                      device float *c [[buffer(2)]],
-                                      constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_f16_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                       uint2 group [[threadgroup_position_in_grid]],
                                       uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
     nk_cross_tile_metal_<nk::f16_t>(a, b, c, arguments, group, thread_index, a_slab, b_slab);
 }
-kernel void nk_dots_bf16_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                       device float *c [[buffer(2)]],
-                                       constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_bf16_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                        uint2 group [[threadgroup_position_in_grid]],
                                        uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
     nk_cross_tile_metal_<nk::bf16_t>(a, b, c, arguments, group, thread_index, a_slab, b_slab);
 }
-kernel void nk_dots_e4m3_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                       device float *c [[buffer(2)]],
-                                       constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_e4m3_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                        uint2 group [[threadgroup_position_in_grid]],
                                        uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
     nk_cross_tile_metal_<nk::e4m3_t>(a, b, c, arguments, group, thread_index, a_slab, b_slab);
 }
-kernel void nk_dots_e5m2_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                       device float *c [[buffer(2)]],
-                                       constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_e5m2_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                        uint2 group [[threadgroup_position_in_grid]],
                                        uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
     nk_cross_tile_metal_<nk::e5m2_t>(a, b, c, arguments, group, thread_index, a_slab, b_slab);
 }
-kernel void nk_dots_e3m2_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                       device float *c [[buffer(2)]],
-                                       constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_e3m2_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                        uint2 group [[threadgroup_position_in_grid]],
                                        uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
     nk_cross_tile_metal_<nk::e3m2_t>(a, b, c, arguments, group, thread_index, a_slab, b_slab);
 }
-kernel void nk_dots_e2m3_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                       device float *c [[buffer(2)]],
-                                       constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_e2m3_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                        uint2 group [[threadgroup_position_in_grid]],
                                        uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
     nk_cross_tile_metal_<nk::e2m3_t>(a, b, c, arguments, group, thread_index, a_slab, b_slab);
 }
-kernel void nk_dots_e2m1_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                       device float *c [[buffer(2)]],
-                                       constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_e2m1_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                        uint2 group [[threadgroup_position_in_grid]],
                                        uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
         b_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1];
     nk_cross_tile_metal_<nk::e2m1x2_t>(a, b, c, arguments, group, thread_index, a_slab, b_slab);
@@ -655,76 +687,94 @@ void nk_cross_scaled_tile_metal_(device uchar const *a, device uchar const *b, d
     }
 }
 
-kernel void nk_dots_pack_mxfp8e4m3_metal_kernel_(
-    device uchar const *b [[buffer(0)]], device uchar *packed [[buffer(1)]],
-    constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]], device uchar const *scales [[buffer(3)]],
-    device float const *tensor [[buffer(4)]], uint group [[threadgroup_position_in_grid]],
-    uint simdgroup [[simdgroup_index_in_threadgroup]], uint simdgroups [[simdgroups_per_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_dots_pack_mxfp8e4m3_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
+                                                 uint group [[threadgroup_position_in_grid]],
+                                                 uint simdgroup [[simdgroup_index_in_threadgroup]],
+                                                 uint simdgroups [[simdgroups_per_threadgroup]],
+                                                 uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *packed = (device uchar *)arguments.b_packed;
+    device uchar const *scales = (device uchar const *)arguments.scales;
+    device float const *tensor = (device float const *)arguments.tensor_scale;
     nk_cross_scaled_pack_metal_<nk::e4m3_t, 32, nk_cross_scale_e8m0_metal_k>(b, packed, scales, tensor, arguments,
                                                                              group * simdgroups + simdgroup, lane);
 }
 
-kernel void nk_dots_pack_mxfp8e5m2_metal_kernel_(
-    device uchar const *b [[buffer(0)]], device uchar *packed [[buffer(1)]],
-    constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]], device uchar const *scales [[buffer(3)]],
-    device float const *tensor [[buffer(4)]], uint group [[threadgroup_position_in_grid]],
-    uint simdgroup [[simdgroup_index_in_threadgroup]], uint simdgroups [[simdgroups_per_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_dots_pack_mxfp8e5m2_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
+                                                 uint group [[threadgroup_position_in_grid]],
+                                                 uint simdgroup [[simdgroup_index_in_threadgroup]],
+                                                 uint simdgroups [[simdgroups_per_threadgroup]],
+                                                 uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *packed = (device uchar *)arguments.b_packed;
+    device uchar const *scales = (device uchar const *)arguments.scales;
+    device float const *tensor = (device float const *)arguments.tensor_scale;
     nk_cross_scaled_pack_metal_<nk::e5m2_t, 32, nk_cross_scale_e8m0_metal_k>(b, packed, scales, tensor, arguments,
                                                                              group * simdgroups + simdgroup, lane);
 }
 
-kernel void nk_dots_pack_mxfp6e2m3_metal_kernel_(
-    device uchar const *b [[buffer(0)]], device uchar *packed [[buffer(1)]],
-    constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]], device uchar const *scales [[buffer(3)]],
-    device float const *tensor [[buffer(4)]], uint group [[threadgroup_position_in_grid]],
-    uint simdgroup [[simdgroup_index_in_threadgroup]], uint simdgroups [[simdgroups_per_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_dots_pack_mxfp6e2m3_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
+                                                 uint group [[threadgroup_position_in_grid]],
+                                                 uint simdgroup [[simdgroup_index_in_threadgroup]],
+                                                 uint simdgroups [[simdgroups_per_threadgroup]],
+                                                 uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *packed = (device uchar *)arguments.b_packed;
+    device uchar const *scales = (device uchar const *)arguments.scales;
+    device float const *tensor = (device float const *)arguments.tensor_scale;
     nk_cross_scaled_pack_metal_<nk::e2m3_t, 32, nk_cross_scale_e8m0_metal_k>(b, packed, scales, tensor, arguments,
                                                                              group * simdgroups + simdgroup, lane);
 }
 
-kernel void nk_dots_pack_mxfp6e3m2_metal_kernel_(
-    device uchar const *b [[buffer(0)]], device uchar *packed [[buffer(1)]],
-    constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]], device uchar const *scales [[buffer(3)]],
-    device float const *tensor [[buffer(4)]], uint group [[threadgroup_position_in_grid]],
-    uint simdgroup [[simdgroup_index_in_threadgroup]], uint simdgroups [[simdgroups_per_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_dots_pack_mxfp6e3m2_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
+                                                 uint group [[threadgroup_position_in_grid]],
+                                                 uint simdgroup [[simdgroup_index_in_threadgroup]],
+                                                 uint simdgroups [[simdgroups_per_threadgroup]],
+                                                 uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *packed = (device uchar *)arguments.b_packed;
+    device uchar const *scales = (device uchar const *)arguments.scales;
+    device float const *tensor = (device float const *)arguments.tensor_scale;
     nk_cross_scaled_pack_metal_<nk::e3m2_t, 32, nk_cross_scale_e8m0_metal_k>(b, packed, scales, tensor, arguments,
                                                                              group * simdgroups + simdgroup, lane);
 }
 
-kernel void nk_dots_pack_mxfp4_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *packed [[buffer(1)]],
-                                             constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
-                                             device uchar const *scales [[buffer(3)]],
-                                             device float const *tensor [[buffer(4)]],
+kernel void nk_dots_pack_mxfp4_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                              uint group [[threadgroup_position_in_grid]],
                                              uint simdgroup [[simdgroup_index_in_threadgroup]],
                                              uint simdgroups [[simdgroups_per_threadgroup]],
                                              uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *packed = (device uchar *)arguments.b_packed;
+    device uchar const *scales = (device uchar const *)arguments.scales;
+    device float const *tensor = (device float const *)arguments.tensor_scale;
     nk_cross_scaled_pack_metal_<nk::e2m1x2_t, 32, nk_cross_scale_e8m0_metal_k>(b, packed, scales, tensor, arguments,
                                                                                group * simdgroups + simdgroup, lane);
 }
 
-kernel void nk_dots_pack_nvfp4_metal_kernel_(device uchar const *b [[buffer(0)]], device uchar *packed [[buffer(1)]],
-                                             constant nk_cross_pack_arguments_metal_t &arguments [[buffer(2)]],
-                                             device uchar const *scales [[buffer(3)]],
-                                             device float const *tensor [[buffer(4)]],
+kernel void nk_dots_pack_nvfp4_metal_kernel_(constant nk_cross_pack_arguments_metal_t &arguments [[buffer(0)]],
                                              uint group [[threadgroup_position_in_grid]],
                                              uint simdgroup [[simdgroup_index_in_threadgroup]],
                                              uint simdgroups [[simdgroups_per_threadgroup]],
                                              uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *b = (device uchar const *)arguments.b;
+    device uchar *packed = (device uchar *)arguments.b_packed;
+    device uchar const *scales = (device uchar const *)arguments.scales;
+    device float const *tensor = (device float const *)arguments.tensor_scale;
     nk_cross_scaled_pack_metal_<nk::e2m1x2_t, 16, nk_cross_scale_e4m3_metal_k>(b, packed, scales, tensor, arguments,
                                                                                group * simdgroups + simdgroup, lane);
 }
 
-kernel void nk_dots_mxfp8e4m3_metal_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]]) {
+kernel void nk_dots_mxfp8e4m3_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                            uint2 group [[threadgroup_position_in_grid]],
+                                            uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
@@ -733,12 +783,16 @@ kernel void nk_dots_mxfp8e4m3_metal_kernel_(
         a, b, c, a_scales, b_scales, a_tensor, b_tensor, arguments, group, thread_index, a_slab, b_slab, nullptr);
 }
 
-kernel void nk_dots_mxfp8e5m2_metal_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]]) {
+kernel void nk_dots_mxfp8e5m2_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                            uint2 group [[threadgroup_position_in_grid]],
+                                            uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
@@ -747,12 +801,16 @@ kernel void nk_dots_mxfp8e5m2_metal_kernel_(
         a, b, c, a_scales, b_scales, a_tensor, b_tensor, arguments, group, thread_index, a_slab, b_slab, nullptr);
 }
 
-kernel void nk_dots_mxfp6e2m3_metal_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]]) {
+kernel void nk_dots_mxfp6e2m3_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                            uint2 group [[threadgroup_position_in_grid]],
+                                            uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
@@ -761,12 +819,16 @@ kernel void nk_dots_mxfp6e2m3_metal_kernel_(
         a, b, c, a_scales, b_scales, a_tensor, b_tensor, arguments, group, thread_index, a_slab, b_slab, nullptr);
 }
 
-kernel void nk_dots_mxfp6e3m2_metal_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]]) {
+kernel void nk_dots_mxfp6e3m2_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                            uint2 group [[threadgroup_position_in_grid]],
+                                            uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
@@ -775,12 +837,16 @@ kernel void nk_dots_mxfp6e3m2_metal_kernel_(
         a, b, c, a_scales, b_scales, a_tensor, b_tensor, arguments, group, thread_index, a_slab, b_slab, nullptr);
 }
 
-kernel void nk_dots_mxfp4_metal_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]]) {
+kernel void nk_dots_mxfp4_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                        uint2 group [[threadgroup_position_in_grid]],
+                                        uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],
@@ -789,12 +855,16 @@ kernel void nk_dots_mxfp4_metal_kernel_(
         a, b, c, a_scales, b_scales, a_tensor, b_tensor, arguments, group, thread_index, a_slab, b_slab, nullptr);
 }
 
-kernel void nk_dots_nvfp4_metal_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]]) {
+kernel void nk_dots_nvfp4_metal_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                        uint2 group [[threadgroup_position_in_grid]],
+                                        uint thread_index [[thread_index_in_threadgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup float a_slab[nk_cross_slab_metal_k][nk_cross_tile_metal_k + 1],

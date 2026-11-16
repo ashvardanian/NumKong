@@ -2395,8 +2395,8 @@ typedef enum {
     nk_cast_hub_f64c_k,
 } nk_cast_hub_t;
 
-/** The plan of a bulk cast, everything but its two ends: Metal binds it beside its buffers, and the
- *  SIMT kernels take it inside @c nk_cast_arguments_t. */
+/** The plan of a bulk cast, everything but its two ends: Metal takes it after their addresses in
+ *  @c nk_cast_plan_metal_t, and the SIMT kernels take it inside @c nk_cast_arguments_t. */
 typedef struct {
     nk_u64_t count, units;
     nk_dtype_t from_dtype, to_dtype;

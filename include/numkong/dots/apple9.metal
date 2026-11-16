@@ -126,79 +126,86 @@ void nk_cross_tile_apple9_(device uchar const *a, device uchar const *b, device 
 
 #pragma region Kernels
 
-kernel void nk_dots_f16_apple9_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                       device float *c [[buffer(2)]],
-                                       constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_f16_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                        uint2 group [[threadgroup_position_in_grid]],
                                        uint thread_index [[thread_index_in_threadgroup]],
                                        uint simdgroup [[simdgroup_index_in_threadgroup]],
                                        uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     alignas(16) threadgroup half stage[2][nk_cross_tile_apple9_k][nk_cross_pitch_apple9_k];
     threadgroup float spills[4][8][8];
     nk_cross_tile_apple9_<nk::f16_t>(a, b, c, arguments, group, thread_index, simdgroup, lane, stage, spills);
 }
-kernel void nk_dots_bf16_apple9_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                        device float *c [[buffer(2)]],
-                                        constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_bf16_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                         uint2 group [[threadgroup_position_in_grid]],
                                         uint thread_index [[thread_index_in_threadgroup]],
                                         uint simdgroup [[simdgroup_index_in_threadgroup]],
                                         uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     alignas(16) threadgroup bfloat stage[2][nk_cross_tile_apple9_k][nk_cross_pitch_apple9_k];
     threadgroup float spills[4][8][8];
     nk_cross_tile_apple9_<nk::bf16_t>(a, b, c, arguments, group, thread_index, simdgroup, lane, stage, spills);
 }
-kernel void nk_dots_e4m3_apple9_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                        device float *c [[buffer(2)]],
-                                        constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_e4m3_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                         uint2 group [[threadgroup_position_in_grid]],
                                         uint thread_index [[thread_index_in_threadgroup]],
                                         uint simdgroup [[simdgroup_index_in_threadgroup]],
                                         uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     alignas(16) threadgroup half stage[2][nk_cross_tile_apple9_k][nk_cross_pitch_apple9_k];
     threadgroup float spills[4][8][8];
     nk_cross_tile_apple9_<nk::e4m3_t>(a, b, c, arguments, group, thread_index, simdgroup, lane, stage, spills);
 }
-kernel void nk_dots_e5m2_apple9_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                        device float *c [[buffer(2)]],
-                                        constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_e5m2_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                         uint2 group [[threadgroup_position_in_grid]],
                                         uint thread_index [[thread_index_in_threadgroup]],
                                         uint simdgroup [[simdgroup_index_in_threadgroup]],
                                         uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     alignas(16) threadgroup half stage[2][nk_cross_tile_apple9_k][nk_cross_pitch_apple9_k];
     threadgroup float spills[4][8][8];
     nk_cross_tile_apple9_<nk::e5m2_t>(a, b, c, arguments, group, thread_index, simdgroup, lane, stage, spills);
 }
-kernel void nk_dots_e3m2_apple9_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                        device float *c [[buffer(2)]],
-                                        constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_e3m2_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                         uint2 group [[threadgroup_position_in_grid]],
                                         uint thread_index [[thread_index_in_threadgroup]],
                                         uint simdgroup [[simdgroup_index_in_threadgroup]],
                                         uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     alignas(16) threadgroup half stage[2][nk_cross_tile_apple9_k][nk_cross_pitch_apple9_k];
     threadgroup float spills[4][8][8];
     nk_cross_tile_apple9_<nk::e3m2_t>(a, b, c, arguments, group, thread_index, simdgroup, lane, stage, spills);
 }
-kernel void nk_dots_e2m3_apple9_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                        device float *c [[buffer(2)]],
-                                        constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_e2m3_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                         uint2 group [[threadgroup_position_in_grid]],
                                         uint thread_index [[thread_index_in_threadgroup]],
                                         uint simdgroup [[simdgroup_index_in_threadgroup]],
                                         uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     alignas(16) threadgroup half stage[2][nk_cross_tile_apple9_k][nk_cross_pitch_apple9_k];
     threadgroup float spills[4][8][8];
     nk_cross_tile_apple9_<nk::e2m3_t>(a, b, c, arguments, group, thread_index, simdgroup, lane, stage, spills);
 }
-kernel void nk_dots_e2m1_apple9_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
-                                        device float *c [[buffer(2)]],
-                                        constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
+kernel void nk_dots_e2m1_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
                                         uint2 group [[threadgroup_position_in_grid]],
                                         uint thread_index [[thread_index_in_threadgroup]],
                                         uint simdgroup [[simdgroup_index_in_threadgroup]],
                                         uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
     alignas(16) threadgroup half stage[2][nk_cross_tile_apple9_k][nk_cross_pitch_apple9_k];
     threadgroup float spills[4][8][8];
     nk_cross_tile_apple9_<nk::e2m1x2_t>(a, b, c, arguments, group, thread_index, simdgroup, lane, stage, spills);
@@ -287,13 +294,18 @@ void nk_cross_scaled_tile_apple9_(device uchar const *a, device uchar const *b, 
     }
 }
 
-kernel void nk_dots_mxfp8e4m3_apple9_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_dots_mxfp8e4m3_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                             uint2 group [[threadgroup_position_in_grid]],
+                                             uint thread_index [[thread_index_in_threadgroup]],
+                                             uint simdgroup [[simdgroup_index_in_threadgroup]],
+                                             uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup half stage[2][nk_cross_scaled_tile_apple9_k][32 + 8];
@@ -303,13 +315,18 @@ kernel void nk_dots_mxfp8e4m3_apple9_kernel_(
         nullptr);
 }
 
-kernel void nk_dots_mxfp8e5m2_apple9_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_dots_mxfp8e5m2_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                             uint2 group [[threadgroup_position_in_grid]],
+                                             uint thread_index [[thread_index_in_threadgroup]],
+                                             uint simdgroup [[simdgroup_index_in_threadgroup]],
+                                             uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup half stage[2][nk_cross_scaled_tile_apple9_k][32 + 8];
@@ -319,13 +336,18 @@ kernel void nk_dots_mxfp8e5m2_apple9_kernel_(
         nullptr);
 }
 
-kernel void nk_dots_mxfp6e2m3_apple9_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_dots_mxfp6e2m3_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                             uint2 group [[threadgroup_position_in_grid]],
+                                             uint thread_index [[thread_index_in_threadgroup]],
+                                             uint simdgroup [[simdgroup_index_in_threadgroup]],
+                                             uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup half stage[2][nk_cross_scaled_tile_apple9_k][32 + 8];
@@ -335,13 +357,18 @@ kernel void nk_dots_mxfp6e2m3_apple9_kernel_(
         nullptr);
 }
 
-kernel void nk_dots_mxfp6e3m2_apple9_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_dots_mxfp6e3m2_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                             uint2 group [[threadgroup_position_in_grid]],
+                                             uint thread_index [[thread_index_in_threadgroup]],
+                                             uint simdgroup [[simdgroup_index_in_threadgroup]],
+                                             uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup half stage[2][nk_cross_scaled_tile_apple9_k][32 + 8];
@@ -351,13 +378,18 @@ kernel void nk_dots_mxfp6e3m2_apple9_kernel_(
         nullptr);
 }
 
-kernel void nk_dots_mxfp4_apple9_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_dots_mxfp4_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                         uint2 group [[threadgroup_position_in_grid]],
+                                         uint thread_index [[thread_index_in_threadgroup]],
+                                         uint simdgroup [[simdgroup_index_in_threadgroup]],
+                                         uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup half stage[2][nk_cross_scaled_tile_apple9_k][32 + 8];
@@ -367,13 +399,18 @@ kernel void nk_dots_mxfp4_apple9_kernel_(
         nullptr);
 }
 
-kernel void nk_dots_nvfp4_apple9_kernel_(
-    device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
-    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]], device uchar const *a_scales [[buffer(4)]],
-    device uchar const *b_scales [[buffer(5)]], device float const *a_tensor_pointer [[buffer(6)]],
-    device float const *b_tensor_pointer [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_dots_nvfp4_apple9_kernel_(constant nk_cross_arguments_metal_t &arguments [[buffer(0)]],
+                                         uint2 group [[threadgroup_position_in_grid]],
+                                         uint thread_index [[thread_index_in_threadgroup]],
+                                         uint simdgroup [[simdgroup_index_in_threadgroup]],
+                                         uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *a = (device uchar const *)arguments.a;
+    device uchar const *b = (device uchar const *)arguments.b;
+    device float *c = (device float *)arguments.c;
+    device uchar const *a_scales = (device uchar const *)arguments.a_scales;
+    device uchar const *b_scales = (device uchar const *)arguments.b_scales;
+    device float const *a_tensor_pointer = (device float const *)arguments.a_tensor_scale;
+    device float const *b_tensor_pointer = (device float const *)arguments.b_tensor_scale;
     float const a_tensor = arguments.a_tensor_present ? *a_tensor_pointer : 1;
     float const b_tensor = arguments.b_tensor_present ? *b_tensor_pointer : 1;
     threadgroup half stage[2][nk_cross_scaled_tile_apple9_k][16 + 8];

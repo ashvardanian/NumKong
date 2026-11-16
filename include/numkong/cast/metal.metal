@@ -16,6 +16,9 @@
  *  destination tensor scale first gathers the abs-max of the source into its bits with the sign
  *  set, through @c atomic_fetch_max_explicit, so it reads as "derive" until the chunk pass writes
  *  the final scale over it.
+ *
+ *  Every kernel binds only its launch record, at buffer slot 0, and reads its operands through the
+ *  GPU addresses that open it, so a caller holding its own heaps may fill the record directly.
  */
 
 /** The bits of @c nk_dtype_t that the launcher passes. */
@@ -59,21 +62,26 @@ enum nk_cast_hub_metal_t : uint {
     nk_cast_hub_f64c_metal_k,
 };
 
-/** The plan of a bulk cast, laid out as @c nk_cast_plan_t of the C launchers. */
+/** The launch record of a bulk cast, laid out as the C launcher's record of that name: the GPU
+ *  addresses of both ends, then the fields of @c nk_cast_plan_t. */
 struct nk_cast_plan_metal_t {
+    ulong from, to;
     ulong count, units;
     uint from_dtype, to_dtype, hub, unit_values;
 };
 
-/** The launch record of a block-scaled cast, laid out as the C launcher's record of that name. */
+/** The launch record of a block-scaled cast, laid out as the C launcher's record of that name. It
+ *  opens with the GPU addresses of both sides' codes, block scales and tensor scales, and a side's
+ *  scales or tensor scale are 0 when absent, as its scale and tensor scale types then say. */
 struct nk_cast_block_scaled_arguments_metal_t {
+    ulong from, from_scales, from_tensor_scale, to, to_scales, to_tensor_scale;
     ulong count, chunks;
     uint from_dtype, from_scale_dtype, from_tensor_scale_dtype, from_block;
     uint to_dtype, to_scale_dtype, to_tensor_scale_dtype, to_block;
 };
 
-static_assert(sizeof(nk_cast_plan_metal_t) == 32, "mirrors the C plan in cast/serial.h");
-static_assert(sizeof(nk_cast_block_scaled_arguments_metal_t) == 48, "mirrors the C record in cast/metal.h");
+static_assert(sizeof(nk_cast_plan_metal_t) == 48, "mirrors the C record in cast/metal.h");
+static_assert(sizeof(nk_cast_block_scaled_arguments_metal_t) == 96, "mirrors the C record in cast/metal.h");
 
 /** The F32 bits of one and of the default NaN of Arm cores. */
 constant constexpr uint nk_f32_one_metal_k = 0x3F800000u, nk_f32_nan_metal_k = 0x7FC00000u;
@@ -596,9 +604,10 @@ inline void nk_cast_unit_metal_(device uchar const *from, device uchar *to, cons
                                  first + offset);
 }
 
-kernel void nk_cast_metal_kernel_(device uchar const *from [[buffer(0)]], device uchar *to [[buffer(1)]],
-                                  constant nk_cast_plan_metal_t &arguments [[buffer(2)]],
+kernel void nk_cast_metal_kernel_(constant nk_cast_plan_metal_t &arguments [[buffer(0)]],
                                   uint position [[thread_position_in_grid]], uint threads [[threads_per_grid]]) {
+    device uchar const *from = (device uchar const *)arguments.from;
+    device uchar *to = (device uchar *)arguments.to;
     for (ulong unit = position; unit < arguments.units; unit += threads) nk_cast_unit_metal_(from, to, arguments, unit);
 }
 
@@ -818,12 +827,16 @@ inline void nk_cast_block_scaled_chunk_metal_(device uchar const *from, device u
     }
 }
 
-kernel void nk_cast_block_scaled_chunks_metal_kernel_(
-    device uchar const *from [[buffer(0)]], device uchar const *from_scales [[buffer(1)]],
-    device uint const *from_tensor_scale [[buffer(2)]], device uchar *to [[buffer(3)]],
-    device uchar *to_scales [[buffer(4)]], device atomic_uint *to_tensor_scale [[buffer(5)]],
-    constant nk_cast_block_scaled_arguments_metal_t &arguments [[buffer(6)]], uint position [[thread_position_in_grid]],
-    uint threads [[threads_per_grid]]) {
+kernel void nk_cast_block_scaled_chunks_metal_kernel_(constant nk_cast_block_scaled_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint position [[thread_position_in_grid]],
+                                                      uint threads [[threads_per_grid]]) {
+    device uchar const *from = (device uchar const *)arguments.from;
+    device uchar const *from_scales = (device uchar const *)arguments.from_scales;
+    device uint const *from_tensor_scale = (device uint const *)arguments.from_tensor_scale;
+    device uchar *to = (device uchar *)arguments.to;
+    device uchar *to_scales = (device uchar *)arguments.to_scales;
+    device atomic_uint *to_tensor_scale = (device atomic_uint *)arguments.to_tensor_scale;
     uint const chunk = max(arguments.from_block, arguments.to_block);
     for (ulong index = position; index < arguments.chunks; index += threads)
         nk_cast_block_scaled_chunk_metal_(from, from_scales, from_tensor_scale, to, to_scales, to_tensor_scale,
@@ -836,12 +849,15 @@ kernel void nk_cast_block_scaled_chunks_metal_kernel_(
 
 /** Gathers the abs-max of the scaled source, skipping NaNs, into the bits of a tensor scale left
  *  to derive, which order like the magnitudes they encode, one atomic per SIMD-group. */
-kernel void nk_cast_block_scaled_amax_metal_kernel_(
-    device uchar const *from [[buffer(0)]], device uchar const *from_scales [[buffer(1)]],
-    device uint const *from_tensor_scale [[buffer(2)]], device uchar *to [[buffer(3)]],
-    device uchar *to_scales [[buffer(4)]], device atomic_uint *to_tensor_scale [[buffer(5)]],
-    constant nk_cast_block_scaled_arguments_metal_t &arguments [[buffer(6)]], uint position [[thread_position_in_grid]],
-    uint threads [[threads_per_grid]], uint simd_lane [[thread_index_in_simdgroup]]) {
+kernel void nk_cast_block_scaled_amax_metal_kernel_(constant nk_cast_block_scaled_arguments_metal_t &arguments
+                                                    [[buffer(0)]],
+                                                    uint position [[thread_position_in_grid]],
+                                                    uint threads [[threads_per_grid]],
+                                                    uint simd_lane [[thread_index_in_simdgroup]]) {
+    device uchar const *from = (device uchar const *)arguments.from;
+    device uchar const *from_scales = (device uchar const *)arguments.from_scales;
+    device uint const *from_tensor_scale = (device uint const *)arguments.from_tensor_scale;
+    device atomic_uint *to_tensor_scale = (device atomic_uint *)arguments.to_tensor_scale;
     uint const bits = atomic_load_explicit(to_tensor_scale, memory_order_relaxed);
     if (bits && !(bits >> 31)) return;
     uint amax = 0;

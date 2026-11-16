@@ -83,148 +83,189 @@ inline void nk_attention_tiles_apple9_(queries_type_ queries, device uchar const
             scores, maximum, corrections, sums, multipliers, bases);
 }
 
-kernel void nk_attention_packed_bf16_apple9_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint warp [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_packed_bf16_apple9_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                    uint2 group [[threadgroup_position_in_grid]],
+                                                    uint2 groups [[threadgroups_per_grid]],
+                                                    uint thread_index [[thread_index_in_threadgroup]],
+                                                    uint warp [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
     threadgroup bfloat left[32 * 64], right[64 * 32];
     threadgroup float scores[32 * 64], maximum[32], corrections[32], sums[32], multipliers[32];
     threadgroup int bases[32];
-    nk_attention_tiles_apple9_<bfloat, nk::bf16_t>(queries, packed, output, query_offsets, log_sum_exp, a, group,
-                                                   groups, thread_index, warp, left, right, scores, maximum,
+    nk_attention_tiles_apple9_<bfloat, nk::bf16_t>(queries, packed, output, query_offsets, log_sum_exp, arguments,
+                                                   group, groups, thread_index, warp, left, right, scores, maximum,
                                                    corrections, sums, multipliers, bases);
 }
 
-kernel void nk_attention_packed_f16_apple9_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint warp [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_packed_f16_apple9_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                   uint2 group [[threadgroup_position_in_grid]],
+                                                   uint2 groups [[threadgroups_per_grid]],
+                                                   uint thread_index [[thread_index_in_threadgroup]],
+                                                   uint warp [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
     threadgroup half left[32 * 64], right[64 * 32];
     threadgroup float scores[32 * 64], maximum[32], corrections[32], sums[32], multipliers[32];
     threadgroup int bases[32];
-    nk_attention_tiles_apple9_<half, nk::f16_t>(queries, packed, output, query_offsets, log_sum_exp, a, group, groups,
-                                                thread_index, warp, left, right, scores, maximum, corrections, sums,
-                                                multipliers, bases);
+    nk_attention_tiles_apple9_<half, nk::f16_t>(queries, packed, output, query_offsets, log_sum_exp, arguments, group,
+                                                groups, thread_index, warp, left, right, scores, maximum, corrections,
+                                                sums, multipliers, bases);
 }
 
-kernel void nk_attention_packed_e4m3_apple9_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint warp [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_packed_e4m3_apple9_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                    uint2 group [[threadgroup_position_in_grid]],
+                                                    uint2 groups [[threadgroups_per_grid]],
+                                                    uint thread_index [[thread_index_in_threadgroup]],
+                                                    uint warp [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
     threadgroup half left[32 * 64], right[64 * 32];
     threadgroup float scores[32 * 64], maximum[32], corrections[32], sums[32], multipliers[32];
     threadgroup int bases[32];
-    nk_attention_tiles_apple9_<half, nk::e4m3_t>(queries, packed, output, query_offsets, log_sum_exp, a, group, groups,
-                                                 thread_index, warp, left, right, scores, maximum, corrections, sums,
-                                                 multipliers, bases);
+    nk_attention_tiles_apple9_<half, nk::e4m3_t>(queries, packed, output, query_offsets, log_sum_exp, arguments, group,
+                                                 groups, thread_index, warp, left, right, scores, maximum, corrections,
+                                                 sums, multipliers, bases);
 }
 
-kernel void nk_attention_packed_nvfp4_apple9_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], device float const *query_tensor_scale [[buffer(8)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint warp [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_packed_nvfp4_apple9_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                     uint2 group [[threadgroup_position_in_grid]],
+                                                     uint2 groups [[threadgroups_per_grid]],
+                                                     uint thread_index [[thread_index_in_threadgroup]],
+                                                     uint warp [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
+    device float const *query_tensor_scale = (device float const *)arguments.query_tensor_scale;
     threadgroup half left[32 * 64], right[64 * 32];
     threadgroup float scores[32 * 64], maximum[32], corrections[32], sums[32], multipliers[32];
     threadgroup int bases[32];
     nk_attention_tiles_apple9_<half, nk::f16_t>(
         nk_attention_scaled_queries_metal_<nk::e2m1x2_t, 16, nk_cross_scale_e4m3_metal_k>(
-            queries, query_scales, query_tensor_scale, packed, a),
-        packed, output, query_offsets, log_sum_exp, a, group, groups, thread_index, warp, left, right, scores, maximum,
-        corrections, sums, multipliers, bases);
+            queries, query_scales, query_tensor_scale, packed, arguments),
+        packed, output, query_offsets, log_sum_exp, arguments, group, groups, thread_index, warp, left, right, scores,
+        maximum, corrections, sums, multipliers, bases);
 }
 
-kernel void nk_attention_packed_mxfp4_apple9_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint thread_index [[thread_index_in_threadgroup]],
-    uint warp [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_packed_mxfp4_apple9_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                     uint2 group [[threadgroup_position_in_grid]],
+                                                     uint2 groups [[threadgroups_per_grid]],
+                                                     uint thread_index [[thread_index_in_threadgroup]],
+                                                     uint warp [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup bfloat left[32 * 64], right[64 * 32];
     threadgroup float scores[32 * 64], maximum[32], corrections[32], sums[32], multipliers[32];
     threadgroup int bases[32];
     nk_attention_tiles_apple9_<bfloat, nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e2m1x2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales,
-                                                                                          nullptr, packed, a),
-        packed, output, query_offsets, log_sum_exp, a, group, groups, thread_index, warp, left, right, scores, maximum,
-        corrections, sums, multipliers, bases);
+                                                                                          nullptr, packed, arguments),
+        packed, output, query_offsets, log_sum_exp, arguments, group, groups, thread_index, warp, left, right, scores,
+        maximum, corrections, sums, multipliers, bases);
 }
 
-kernel void nk_attention_packed_mxfp6e2m3_apple9_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint thread_index [[thread_index_in_threadgroup]],
-    uint warp [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_packed_mxfp6e2m3_apple9_kernel_(constant nk_attention_arguments_metal_t &arguments
+                                                         [[buffer(0)]],
+                                                         uint2 group [[threadgroup_position_in_grid]],
+                                                         uint2 groups [[threadgroups_per_grid]],
+                                                         uint thread_index [[thread_index_in_threadgroup]],
+                                                         uint warp [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup bfloat left[32 * 64], right[64 * 32];
     threadgroup float scores[32 * 64], maximum[32], corrections[32], sums[32], multipliers[32];
     threadgroup int bases[32];
     nk_attention_tiles_apple9_<bfloat, nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e2m3_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, log_sum_exp, a, group, groups, thread_index, warp, left, right, scores, maximum,
-        corrections, sums, multipliers, bases);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, log_sum_exp, arguments, group, groups, thread_index, warp, left, right, scores,
+        maximum, corrections, sums, multipliers, bases);
 }
 
-kernel void nk_attention_packed_mxfp6e3m2_apple9_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint thread_index [[thread_index_in_threadgroup]],
-    uint warp [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_packed_mxfp6e3m2_apple9_kernel_(constant nk_attention_arguments_metal_t &arguments
+                                                         [[buffer(0)]],
+                                                         uint2 group [[threadgroup_position_in_grid]],
+                                                         uint2 groups [[threadgroups_per_grid]],
+                                                         uint thread_index [[thread_index_in_threadgroup]],
+                                                         uint warp [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup bfloat left[32 * 64], right[64 * 32];
     threadgroup float scores[32 * 64], maximum[32], corrections[32], sums[32], multipliers[32];
     threadgroup int bases[32];
     nk_attention_tiles_apple9_<bfloat, nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e3m2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, log_sum_exp, a, group, groups, thread_index, warp, left, right, scores, maximum,
-        corrections, sums, multipliers, bases);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, log_sum_exp, arguments, group, groups, thread_index, warp, left, right, scores,
+        maximum, corrections, sums, multipliers, bases);
 }
 
-kernel void nk_attention_packed_mxfp8e4m3_apple9_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint thread_index [[thread_index_in_threadgroup]],
-    uint warp [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_packed_mxfp8e4m3_apple9_kernel_(constant nk_attention_arguments_metal_t &arguments
+                                                         [[buffer(0)]],
+                                                         uint2 group [[threadgroup_position_in_grid]],
+                                                         uint2 groups [[threadgroups_per_grid]],
+                                                         uint thread_index [[thread_index_in_threadgroup]],
+                                                         uint warp [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup bfloat left[32 * 64], right[64 * 32];
     threadgroup float scores[32 * 64], maximum[32], corrections[32], sums[32], multipliers[32];
     threadgroup int bases[32];
     nk_attention_tiles_apple9_<bfloat, nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e4m3_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, log_sum_exp, a, group, groups, thread_index, warp, left, right, scores, maximum,
-        corrections, sums, multipliers, bases);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, log_sum_exp, arguments, group, groups, thread_index, warp, left, right, scores,
+        maximum, corrections, sums, multipliers, bases);
 }
 
-kernel void nk_attention_packed_mxfp8e5m2_apple9_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint thread_index [[thread_index_in_threadgroup]],
-    uint warp [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_packed_mxfp8e5m2_apple9_kernel_(constant nk_attention_arguments_metal_t &arguments
+                                                         [[buffer(0)]],
+                                                         uint2 group [[threadgroup_position_in_grid]],
+                                                         uint2 groups [[threadgroups_per_grid]],
+                                                         uint thread_index [[thread_index_in_threadgroup]],
+                                                         uint warp [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup bfloat left[32 * 64], right[64 * 32];
     threadgroup float scores[32 * 64], maximum[32], corrections[32], sums[32], multipliers[32];
     threadgroup int bases[32];
     nk_attention_tiles_apple9_<bfloat, nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e5m2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, log_sum_exp, a, group, groups, thread_index, warp, left, right, scores, maximum,
-        corrections, sums, multipliers, bases);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, log_sum_exp, arguments, group, groups, thread_index, warp, left, right, scores,
+        maximum, corrections, sums, multipliers, bases);
 }
 
 /** The S, dP and gradient products of @c nk_attention_backward_keys_matrix_metal_ and
@@ -300,34 +341,44 @@ struct nk_attention_backward_operations_apple9_t {
     }
 };
 
-kernel void nk_attention_backward_keys_bf16_apple9_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar const *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_backward_arguments_metal_t &b [[buffer(4)]], device float const *log_sum_exp [[buffer(5)]],
-    device uchar const *output_gradient [[buffer(6)]], device uchar *key_gradient [[buffer(8)]],
-    device uchar *value_gradient [[buffer(9)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint thread_index [[thread_index_in_threadgroup]],
-    uint warp [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_backward_keys_bf16_apple9_kernel_(constant nk_attention_backward_arguments_metal_t &arguments
+                                                           [[buffer(0)]],
+                                                           uint2 group [[threadgroup_position_in_grid]],
+                                                           uint2 groups [[threadgroups_per_grid]],
+                                                           uint thread_index [[thread_index_in_threadgroup]],
+                                                           uint warp [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.attention.queries;
+    device uchar const *packed = (device uchar const *)arguments.attention.packed;
+    device uchar const *output = (device uchar const *)arguments.attention.output;
+    device uint const *query_offsets = (device uint const *)arguments.attention.query_offsets;
+    device float const *log_sum_exp = (device float const *)arguments.attention.log_sum_exp;
+    device uchar const *output_gradient = (device uchar const *)arguments.output_gradient;
+    device uchar *key_gradient = (device uchar *)arguments.key_gradient;
+    device uchar *value_gradient = (device uchar *)arguments.value_gradient;
     threadgroup float stage[32 * 128], scores[32 * 32], weight_gradients[32 * 32];
     threadgroup bfloat weights[32 * 32], score_gradients[32 * 32];
     threadgroup nk_attention_backward_panel_metal_t panel;
     nk_attention_backward_keys_matrix_metal_<nk_attention_backward_operations_apple9_t>(
-        queries, packed, output, query_offsets, b, log_sum_exp, output_gradient, key_gradient, value_gradient, group,
-        groups, thread_index, warp, (threadgroup bfloat *)stage, scores, weight_gradients, weights, score_gradients,
-        panel);
+        queries, packed, output, query_offsets, arguments, log_sum_exp, output_gradient, key_gradient, value_gradient,
+        group, groups, thread_index, warp, (threadgroup bfloat *)stage, scores, weight_gradients, weights,
+        score_gradients, panel);
 }
 
 kernel void nk_attention_backward_queries_bf16_apple9_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar const *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_backward_arguments_metal_t &b [[buffer(4)]], device float const *log_sum_exp [[buffer(5)]],
-    device uchar const *output_gradient [[buffer(6)]], device uchar *query_gradient [[buffer(7)]],
+    constant nk_attention_backward_arguments_metal_t &arguments [[buffer(0)]],
     uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
     uint thread_index [[thread_index_in_threadgroup]], uint warp [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.attention.queries;
+    device uchar const *packed = (device uchar const *)arguments.attention.packed;
+    device uchar const *output = (device uchar const *)arguments.attention.output;
+    device uint const *query_offsets = (device uint const *)arguments.attention.query_offsets;
+    device float const *log_sum_exp = (device float const *)arguments.attention.log_sum_exp;
+    device uchar const *output_gradient = (device uchar const *)arguments.output_gradient;
+    device uchar *query_gradient = (device uchar *)arguments.query_gradient;
     threadgroup float stage[32 * 128], scores[32 * 32], weight_gradients[32 * 32];
     threadgroup bfloat weights[32 * 32], score_gradients[32 * 32];
     threadgroup nk_attention_backward_panel_metal_t panel;
     nk_attention_backward_queries_matrix_metal_<nk_attention_backward_operations_apple9_t>(
-        queries, packed, output, query_offsets, b, log_sum_exp, output_gradient, query_gradient, group, groups,
+        queries, packed, output, query_offsets, arguments, log_sum_exp, output_gradient, query_gradient, group, groups,
         thread_index, warp, (threadgroup bfloat *)stage, scores, weight_gradients, weights, score_gradients, panel);
 }

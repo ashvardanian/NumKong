@@ -30,14 +30,19 @@
  *  depth 256, and every gradient sums in one order whatever the window. The tiled @c apple9 and
  *  @c apple10 gradients are FlashAttention-2's over 32-key and 32-row tiles, 128 gradient columns
  *  at a time, P, dS and dO entering their products in BF16.
+ *
+ *  Every kernel binds only its launch record, at buffer slot 0, and reads its operands through the
+ *  GPU addresses that open it, so a caller holding its own heaps may fill the record directly.
  */
 
-/** The launch record of a RoPE kernel, laid out as @c nk_attention_rope_arguments_metal_t. */
+/** The launch record of a RoPE kernel, laid out as @c nk_attention_rope_arguments_metal_t, opening
+ *  with the GPU addresses of the inputs, the cosine and sine tables, and the outputs. */
 struct nk_attention_rope_arguments_metal_t {
+    ulong x, cosine, sine, y;
     ulong rows, heads, depth, x_stride, y_stride;
 };
 
-static_assert(sizeof(nk_attention_rope_arguments_metal_t) == 40, "mirrors the C record in attention/metal.h");
+static_assert(sizeof(nk_attention_rope_arguments_metal_t) == 72, "mirrors the C record in attention/metal.h");
 
 /** Rotates every head of every row as @c nk_attention_rope_f32_serial does, a simdgroup each. */
 template <typename element_type_>
@@ -61,37 +66,40 @@ inline void nk_attention_rope_metal_(device uchar const *x, device float const *
     }
 }
 
-kernel void nk_attention_rope_f32_metal_kernel_(device uchar const *x [[buffer(0)]],
-                                                device float const *cosine [[buffer(1)]],
-                                                device float const *sine [[buffer(2)]], device uchar *y [[buffer(3)]],
-                                                constant nk_attention_rope_arguments_metal_t &a [[buffer(4)]],
+kernel void nk_attention_rope_f32_metal_kernel_(constant nk_attention_rope_arguments_metal_t &arguments [[buffer(0)]],
                                                 uint group [[threadgroup_position_in_grid]],
                                                 uint groups [[threadgroups_per_grid]],
                                                 uint simdgroup [[simdgroup_index_in_threadgroup]],
                                                 uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_rope_metal_<nk::f32_t>(x, cosine, sine, y, a, group, groups, simdgroup, lane);
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *cosine = (device float const *)arguments.cosine;
+    device float const *sine = (device float const *)arguments.sine;
+    device uchar *y = (device uchar *)arguments.y;
+    nk_attention_rope_metal_<nk::f32_t>(x, cosine, sine, y, arguments, group, groups, simdgroup, lane);
 }
 
-kernel void nk_attention_rope_bf16_metal_kernel_(device uchar const *x [[buffer(0)]],
-                                                 device float const *cosine [[buffer(1)]],
-                                                 device float const *sine [[buffer(2)]], device uchar *y [[buffer(3)]],
-                                                 constant nk_attention_rope_arguments_metal_t &a [[buffer(4)]],
+kernel void nk_attention_rope_bf16_metal_kernel_(constant nk_attention_rope_arguments_metal_t &arguments [[buffer(0)]],
                                                  uint group [[threadgroup_position_in_grid]],
                                                  uint groups [[threadgroups_per_grid]],
                                                  uint simdgroup [[simdgroup_index_in_threadgroup]],
                                                  uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_rope_metal_<nk::bf16_t>(x, cosine, sine, y, a, group, groups, simdgroup, lane);
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *cosine = (device float const *)arguments.cosine;
+    device float const *sine = (device float const *)arguments.sine;
+    device uchar *y = (device uchar *)arguments.y;
+    nk_attention_rope_metal_<nk::bf16_t>(x, cosine, sine, y, arguments, group, groups, simdgroup, lane);
 }
 
-kernel void nk_attention_rope_e4m3_metal_kernel_(device uchar const *x [[buffer(0)]],
-                                                 device float const *cosine [[buffer(1)]],
-                                                 device float const *sine [[buffer(2)]], device uchar *y [[buffer(3)]],
-                                                 constant nk_attention_rope_arguments_metal_t &a [[buffer(4)]],
+kernel void nk_attention_rope_e4m3_metal_kernel_(constant nk_attention_rope_arguments_metal_t &arguments [[buffer(0)]],
                                                  uint group [[threadgroup_position_in_grid]],
                                                  uint groups [[threadgroups_per_grid]],
                                                  uint simdgroup [[simdgroup_index_in_threadgroup]],
                                                  uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_rope_metal_<nk::e4m3_t>(x, cosine, sine, y, a, group, groups, simdgroup, lane);
+    device uchar const *x = (device uchar const *)arguments.x;
+    device float const *cosine = (device float const *)arguments.cosine;
+    device float const *sine = (device float const *)arguments.sine;
+    device uchar *y = (device uchar *)arguments.y;
+    nk_attention_rope_metal_<nk::e4m3_t>(x, cosine, sine, y, arguments, group, groups, simdgroup, lane);
 }
 
 /** The packed header, laid out as @c nk_attention_packed_header_t. */
@@ -102,18 +110,30 @@ struct nk_attention_packed_header_metal_t {
     ulong capability;
 };
 
-/** The launch record of the pack kernels, laid out as @c nk_attention_pack_arguments_metal_t. */
+/** The launch record of the pack kernels, laid out as @c nk_attention_pack_arguments_metal_t. It
+ *  opens with the GPU addresses of the keys, the values, the key offsets and lengths, the pack,
+ *  both sides' block scales and both tensor scales. The key lengths are 0 when absent, with
+ *  @c lengths_bytes 0, as are the block scales of formats without them and a tensor scale whose
+ *  presence flag is 0. The directory kernels read neither the keys, the values nor their scales. */
 struct nk_attention_pack_arguments_metal_t {
+    ulong keys, values, key_offsets, key_lengths, packed, key_scales, value_scales, key_tensor_scale,
+        value_tensor_scale;
     ulong key_value_head_count, depth, head_bytes, segments, key_stride, value_stride, tasks_begin, tasks_end;
     ulong key_bytes, value_bytes, packed_bytes, lengths_bytes, capability;
     ulong code_bytes, key_scales_stride, value_scales_stride, key_scales_bytes, value_scales_bytes;
     uint key_tensor_present, value_tensor_present;
 };
 
-static_assert(sizeof(nk_attention_pack_arguments_metal_t) == 152, "mirrors the C record in attention/metal.h");
+static_assert(sizeof(nk_attention_pack_arguments_metal_t) == 224, "mirrors the C record in attention/metal.h");
 
-/** The launch record of the attention kernels, laid out as @c nk_attention_arguments_metal_t. */
+/** The launch record of the attention kernels, laid out as @c nk_attention_arguments_metal_t. It
+ *  opens with the GPU addresses of the queries, the pack, the outputs, the query offsets, the
+ *  log-sum-exp rows, the split workspace, the query block scales and the query tensor scale. The
+ *  log-sum-exp rows are 0 when absent, with @c log_sum_exp_bytes 0, the workspace when no split
+ *  kernel runs, the block scales for formats without them, and the tensor scale when
+ *  @c query_tensor_present is 0. */
 struct nk_attention_arguments_metal_t {
+    ulong queries, packed, output, query_offsets, log_sum_exp, split, query_scales, query_tensor_scale;
     ulong heads, kv_heads, depth, query_tokens, query_stride, output_stride, keys_before, keys_after;
     ulong tasks_begin, tasks_end, packed_bytes, offsets_bytes, log_sum_exp_bytes, capability;
     float scale2;
@@ -121,17 +141,21 @@ struct nk_attention_arguments_metal_t {
     ulong query_scales_stride;
 };
 
-static_assert(sizeof(nk_attention_arguments_metal_t) == 128, "mirrors the C record in attention/metal.h");
+static_assert(sizeof(nk_attention_arguments_metal_t) == 192, "mirrors the C record in attention/metal.h");
 
-/** The launch record of the backward kernels, laid out as the C record of the same name: the
- *  attention record, its window over segments × K and V heads, then the gradients' own fields. */
+/** The launch record of the backward kernels, laid out as the C record of the same name: the GPU
+ *  addresses of the output, query, key and value gradients, then the attention record, whose own
+ *  addresses give the queries, the pack, the outputs, the query offsets and the log-sum-exp rows,
+ *  its split workspace and query scales staying 0, with its window over segments × K and V heads,
+ *  then the gradients' own fields. */
 struct nk_attention_backward_arguments_metal_t {
+    ulong output_gradient, query_gradient, key_gradient, value_gradient;
     nk_attention_arguments_metal_t attention;
     ulong query_gradient_stride, key_value_gradient_stride, key_value_gradient_bytes;
     float scale;
 };
 
-static_assert(sizeof(nk_attention_backward_arguments_metal_t) == 160, "mirrors the C record in attention/metal.h");
+static_assert(sizeof(nk_attention_backward_arguments_metal_t) == 256, "mirrors the C record in attention/metal.h");
 
 /** The widest span of block exponents an MX plane or query row rebases across, a raw plane's
  *  entry, and the binades a rebase leaves above the largest block, all as <tt>serial.h</tt> sets them. */
@@ -184,12 +208,12 @@ inline ulong nk_attention_directory_metal_(device uint const *key_offsets, devic
     return running;
 }
 
-kernel void nk_attention_directory_metal_kernel_(device uint const *key_offsets [[buffer(2)]],
-                                                 device uint const *key_lengths [[buffer(3)]],
-                                                 device uchar *packed [[buffer(4)]],
-                                                 constant nk_attention_pack_arguments_metal_t &a [[buffer(5)]],
+kernel void nk_attention_directory_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments [[buffer(0)]],
                                                  uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_directory_metal_(key_offsets, key_lengths, packed, a, lane);
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    nk_attention_directory_metal_(key_offsets, key_lengths, packed, arguments, lane);
 }
 
 /** Keys of the segments from @p first up to @p end at pack time, which the threadgroup's 256
@@ -211,38 +235,44 @@ inline ulong nk_attention_keys_between_metal_(device uint const *key_offsets, de
 
 /** Copies the K and V planes of every task of the window over segments × K and V heads, a
  *  threadgroup per task, at offsets the key counts before it give, so windows run in any order. */
-kernel void nk_attention_pack_metal_kernel_(
-    device uchar const *keys [[buffer(0)]], device uchar const *values [[buffer(1)]],
-    device uint const *key_offsets [[buffer(2)]], device uint const *key_lengths [[buffer(3)]],
-    device uchar *packed [[buffer(4)]], constant nk_attention_pack_arguments_metal_t &a [[buffer(5)]],
-    uint group [[threadgroup_position_in_grid]], uint groups [[threadgroups_per_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_pack_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments [[buffer(0)]],
+                                            uint group [[threadgroup_position_in_grid]],
+                                            uint groups [[threadgroups_per_grid]],
+                                            uint thread_index [[thread_index_in_threadgroup]],
+                                            uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *keys = (device uchar const *)arguments.keys;
+    device uchar const *values = (device uchar const *)arguments.values;
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
     threadgroup uint partials[8];
-    ulong const payload_offset = nk_attention_payload_offset_metal_(a.segments);
-    ulong const row_bytes = a.key_value_head_count * a.head_bytes;
+    ulong const payload_offset = nk_attention_payload_offset_metal_(arguments.segments);
+    ulong const row_bytes = arguments.key_value_head_count * arguments.head_bytes;
     ulong segment_first = 0, positions_before = 0;
-    for (ulong task = a.tasks_begin + group; task < a.tasks_end; task += groups) {
-        ulong const segment = task / a.key_value_head_count, head = task % a.key_value_head_count;
-        positions_before += nk_attention_keys_between_metal_(key_offsets, key_lengths, a, segment_first, segment,
-                                                             thread_index, simdgroup, partials);
+    for (ulong task = arguments.tasks_begin + group; task < arguments.tasks_end; task += groups) {
+        ulong const segment = task / arguments.key_value_head_count, head = task % arguments.key_value_head_count;
+        positions_before += nk_attention_keys_between_metal_(key_offsets, key_lengths, arguments, segment_first,
+                                                             segment, thread_index, simdgroup, partials);
         segment_first = segment;
 
-        ulong const length = nk_attention_key_count_metal_(key_offsets, key_lengths, a, segment);
-        ulong const start = key_offsets[segment], plane_bytes = length * a.head_bytes;
+        ulong const length = nk_attention_key_count_metal_(key_offsets, key_lengths, arguments, segment);
+        ulong const start = key_offsets[segment], plane_bytes = length * arguments.head_bytes;
         ulong const keys_offset = payload_offset + 2 * positions_before * row_bytes + head * plane_bytes;
-        if (!length || keys_offset > a.packed_bytes ||
-            (a.key_value_head_count + 1) * plane_bytes > a.packed_bytes - keys_offset)
+        if (!length || keys_offset > arguments.packed_bytes ||
+            (arguments.key_value_head_count + 1) * plane_bytes > arguments.packed_bytes - keys_offset)
             continue;
-        if (row_bytes > a.key_bytes || row_bytes > a.value_bytes ||
-            (a.key_stride && start + length - 1 > (a.key_bytes - row_bytes) / a.key_stride) ||
-            (a.value_stride && start + length - 1 > (a.value_bytes - row_bytes) / a.value_stride))
+        if (row_bytes > arguments.key_bytes || row_bytes > arguments.value_bytes ||
+            (arguments.key_stride && start + length - 1 > (arguments.key_bytes - row_bytes) / arguments.key_stride) ||
+            (arguments.value_stride &&
+             start + length - 1 > (arguments.value_bytes - row_bytes) / arguments.value_stride))
             continue;
         device uchar *keys_plane = packed + keys_offset;
-        device uchar *values_plane = keys_plane + a.key_value_head_count * plane_bytes;
+        device uchar *values_plane = keys_plane + arguments.key_value_head_count * plane_bytes;
         for (ulong byte = thread_index; byte < plane_bytes; byte += 256) {
-            ulong const position = byte / a.head_bytes, element = byte - position * a.head_bytes;
-            keys_plane[byte] = keys[(start + position) * a.key_stride + head * a.head_bytes + element];
-            values_plane[byte] = values[(start + position) * a.value_stride + head * a.head_bytes + element];
+            ulong const position = byte / arguments.head_bytes, element = byte - position * arguments.head_bytes;
+            keys_plane[byte] = keys[(start + position) * arguments.key_stride + head * arguments.head_bytes + element];
+            values_plane[byte] =
+                values[(start + position) * arguments.value_stride + head * arguments.head_bytes + element];
         }
     }
 }
@@ -397,142 +427,178 @@ inline void nk_attention_pack_scaled_metal_(device uchar const *keys, device uch
     }
 }
 
-kernel void nk_attention_directory_nvfp4_metal_kernel_(device uint const *key_offsets [[buffer(2)]],
-                                                       device uint const *key_lengths [[buffer(3)]],
-                                                       device uchar *packed [[buffer(4)]],
-                                                       constant nk_attention_pack_arguments_metal_t &a [[buffer(5)]],
-                                                       device float const *key_tensor_scale [[buffer(8)]],
-                                                       device float const *value_tensor_scale [[buffer(9)]],
+kernel void nk_attention_directory_nvfp4_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments
+                                                       [[buffer(0)]],
                                                        uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_directory_scaled_metal_<nk_cross_scale_e4m3_metal_k>(key_offsets, key_lengths, packed, a,
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    device float const *key_tensor_scale = (device float const *)arguments.key_tensor_scale;
+    device float const *value_tensor_scale = (device float const *)arguments.value_tensor_scale;
+    nk_attention_directory_scaled_metal_<nk_cross_scale_e4m3_metal_k>(key_offsets, key_lengths, packed, arguments,
                                                                       key_tensor_scale, value_tensor_scale, lane);
 }
 
-kernel void nk_attention_directory_mxfp4_metal_kernel_(device uint const *key_offsets [[buffer(2)]],
-                                                       device uint const *key_lengths [[buffer(3)]],
-                                                       device uchar *packed [[buffer(4)]],
-                                                       constant nk_attention_pack_arguments_metal_t &a [[buffer(5)]],
+kernel void nk_attention_directory_mxfp4_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments
+                                                       [[buffer(0)]],
                                                        uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_directory_scaled_metal_<nk_cross_scale_e8m0_metal_k>(key_offsets, key_lengths, packed, a, nullptr,
-                                                                      nullptr, lane);
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    nk_attention_directory_scaled_metal_<nk_cross_scale_e8m0_metal_k>(key_offsets, key_lengths, packed, arguments,
+                                                                      nullptr, nullptr, lane);
 }
 
-kernel void nk_attention_directory_mxfp6e2m3_metal_kernel_(device uint const *key_offsets [[buffer(2)]],
-                                                           device uint const *key_lengths [[buffer(3)]],
-                                                           device uchar *packed [[buffer(4)]],
-                                                           constant nk_attention_pack_arguments_metal_t &a
-                                                           [[buffer(5)]],
+kernel void nk_attention_directory_mxfp6e2m3_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments
+                                                           [[buffer(0)]],
                                                            uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_directory_scaled_metal_<nk_cross_scale_e8m0_metal_k>(key_offsets, key_lengths, packed, a, nullptr,
-                                                                      nullptr, lane);
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    nk_attention_directory_scaled_metal_<nk_cross_scale_e8m0_metal_k>(key_offsets, key_lengths, packed, arguments,
+                                                                      nullptr, nullptr, lane);
 }
 
-kernel void nk_attention_directory_mxfp6e3m2_metal_kernel_(device uint const *key_offsets [[buffer(2)]],
-                                                           device uint const *key_lengths [[buffer(3)]],
-                                                           device uchar *packed [[buffer(4)]],
-                                                           constant nk_attention_pack_arguments_metal_t &a
-                                                           [[buffer(5)]],
+kernel void nk_attention_directory_mxfp6e3m2_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments
+                                                           [[buffer(0)]],
                                                            uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_directory_scaled_metal_<nk_cross_scale_e8m0_metal_k>(key_offsets, key_lengths, packed, a, nullptr,
-                                                                      nullptr, lane);
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    nk_attention_directory_scaled_metal_<nk_cross_scale_e8m0_metal_k>(key_offsets, key_lengths, packed, arguments,
+                                                                      nullptr, nullptr, lane);
 }
 
-kernel void nk_attention_directory_mxfp8e4m3_metal_kernel_(device uint const *key_offsets [[buffer(2)]],
-                                                           device uint const *key_lengths [[buffer(3)]],
-                                                           device uchar *packed [[buffer(4)]],
-                                                           constant nk_attention_pack_arguments_metal_t &a
-                                                           [[buffer(5)]],
+kernel void nk_attention_directory_mxfp8e4m3_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments
+                                                           [[buffer(0)]],
                                                            uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_directory_scaled_metal_<nk_cross_scale_e8m0_metal_k>(key_offsets, key_lengths, packed, a, nullptr,
-                                                                      nullptr, lane);
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    nk_attention_directory_scaled_metal_<nk_cross_scale_e8m0_metal_k>(key_offsets, key_lengths, packed, arguments,
+                                                                      nullptr, nullptr, lane);
 }
 
-kernel void nk_attention_directory_mxfp8e5m2_metal_kernel_(device uint const *key_offsets [[buffer(2)]],
-                                                           device uint const *key_lengths [[buffer(3)]],
-                                                           device uchar *packed [[buffer(4)]],
-                                                           constant nk_attention_pack_arguments_metal_t &a
-                                                           [[buffer(5)]],
+kernel void nk_attention_directory_mxfp8e5m2_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments
+                                                           [[buffer(0)]],
                                                            uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_directory_scaled_metal_<nk_cross_scale_e8m0_metal_k>(key_offsets, key_lengths, packed, a, nullptr,
-                                                                      nullptr, lane);
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    nk_attention_directory_scaled_metal_<nk_cross_scale_e8m0_metal_k>(key_offsets, key_lengths, packed, arguments,
+                                                                      nullptr, nullptr, lane);
 }
 
-kernel void nk_attention_pack_nvfp4_metal_kernel_(
-    device uchar const *keys [[buffer(0)]], device uchar const *values [[buffer(1)]],
-    device uint const *key_offsets [[buffer(2)]], device uint const *key_lengths [[buffer(3)]],
-    device uchar *packed [[buffer(4)]], constant nk_attention_pack_arguments_metal_t &a [[buffer(5)]],
-    device uchar const *key_scales [[buffer(6)]], device uchar const *value_scales [[buffer(7)]],
-    uint group [[threadgroup_position_in_grid]], uint groups [[threadgroups_per_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_pack_nvfp4_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments [[buffer(0)]],
+                                                  uint group [[threadgroup_position_in_grid]],
+                                                  uint groups [[threadgroups_per_grid]],
+                                                  uint thread_index [[thread_index_in_threadgroup]],
+                                                  uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *keys = (device uchar const *)arguments.keys;
+    device uchar const *values = (device uchar const *)arguments.values;
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    device uchar const *key_scales = (device uchar const *)arguments.key_scales;
+    device uchar const *value_scales = (device uchar const *)arguments.value_scales;
     threadgroup uint partials[16];
     nk_attention_pack_scaled_metal_<nk::e2m1x2_t, 16, nk_cross_scale_e4m3_metal_k>(
-        keys, values, key_offsets, key_lengths, packed, a, key_scales, value_scales, group, groups, thread_index,
-        simdgroup, partials);
+        keys, values, key_offsets, key_lengths, packed, arguments, key_scales, value_scales, group, groups,
+        thread_index, simdgroup, partials);
 }
 
-kernel void nk_attention_pack_mxfp4_metal_kernel_(
-    device uchar const *keys [[buffer(0)]], device uchar const *values [[buffer(1)]],
-    device uint const *key_offsets [[buffer(2)]], device uint const *key_lengths [[buffer(3)]],
-    device uchar *packed [[buffer(4)]], constant nk_attention_pack_arguments_metal_t &a [[buffer(5)]],
-    device uchar const *key_scales [[buffer(6)]], device uchar const *value_scales [[buffer(7)]],
-    uint group [[threadgroup_position_in_grid]], uint groups [[threadgroups_per_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_pack_mxfp4_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments [[buffer(0)]],
+                                                  uint group [[threadgroup_position_in_grid]],
+                                                  uint groups [[threadgroups_per_grid]],
+                                                  uint thread_index [[thread_index_in_threadgroup]],
+                                                  uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *keys = (device uchar const *)arguments.keys;
+    device uchar const *values = (device uchar const *)arguments.values;
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    device uchar const *key_scales = (device uchar const *)arguments.key_scales;
+    device uchar const *value_scales = (device uchar const *)arguments.value_scales;
     threadgroup uint partials[16];
     nk_attention_pack_scaled_metal_<nk::e2m1x2_t, 32, nk_cross_scale_e8m0_metal_k>(
-        keys, values, key_offsets, key_lengths, packed, a, key_scales, value_scales, group, groups, thread_index,
-        simdgroup, partials);
+        keys, values, key_offsets, key_lengths, packed, arguments, key_scales, value_scales, group, groups,
+        thread_index, simdgroup, partials);
 }
 
-kernel void nk_attention_pack_mxfp6e2m3_metal_kernel_(
-    device uchar const *keys [[buffer(0)]], device uchar const *values [[buffer(1)]],
-    device uint const *key_offsets [[buffer(2)]], device uint const *key_lengths [[buffer(3)]],
-    device uchar *packed [[buffer(4)]], constant nk_attention_pack_arguments_metal_t &a [[buffer(5)]],
-    device uchar const *key_scales [[buffer(6)]], device uchar const *value_scales [[buffer(7)]],
-    uint group [[threadgroup_position_in_grid]], uint groups [[threadgroups_per_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_pack_mxfp6e2m3_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint group [[threadgroup_position_in_grid]],
+                                                      uint groups [[threadgroups_per_grid]],
+                                                      uint thread_index [[thread_index_in_threadgroup]],
+                                                      uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *keys = (device uchar const *)arguments.keys;
+    device uchar const *values = (device uchar const *)arguments.values;
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    device uchar const *key_scales = (device uchar const *)arguments.key_scales;
+    device uchar const *value_scales = (device uchar const *)arguments.value_scales;
     threadgroup uint partials[16];
     nk_attention_pack_scaled_metal_<nk::e2m3_t, 32, nk_cross_scale_e8m0_metal_k>(
-        keys, values, key_offsets, key_lengths, packed, a, key_scales, value_scales, group, groups, thread_index,
-        simdgroup, partials);
+        keys, values, key_offsets, key_lengths, packed, arguments, key_scales, value_scales, group, groups,
+        thread_index, simdgroup, partials);
 }
 
-kernel void nk_attention_pack_mxfp6e3m2_metal_kernel_(
-    device uchar const *keys [[buffer(0)]], device uchar const *values [[buffer(1)]],
-    device uint const *key_offsets [[buffer(2)]], device uint const *key_lengths [[buffer(3)]],
-    device uchar *packed [[buffer(4)]], constant nk_attention_pack_arguments_metal_t &a [[buffer(5)]],
-    device uchar const *key_scales [[buffer(6)]], device uchar const *value_scales [[buffer(7)]],
-    uint group [[threadgroup_position_in_grid]], uint groups [[threadgroups_per_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_pack_mxfp6e3m2_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint group [[threadgroup_position_in_grid]],
+                                                      uint groups [[threadgroups_per_grid]],
+                                                      uint thread_index [[thread_index_in_threadgroup]],
+                                                      uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *keys = (device uchar const *)arguments.keys;
+    device uchar const *values = (device uchar const *)arguments.values;
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    device uchar const *key_scales = (device uchar const *)arguments.key_scales;
+    device uchar const *value_scales = (device uchar const *)arguments.value_scales;
     threadgroup uint partials[16];
     nk_attention_pack_scaled_metal_<nk::e3m2_t, 32, nk_cross_scale_e8m0_metal_k>(
-        keys, values, key_offsets, key_lengths, packed, a, key_scales, value_scales, group, groups, thread_index,
-        simdgroup, partials);
+        keys, values, key_offsets, key_lengths, packed, arguments, key_scales, value_scales, group, groups,
+        thread_index, simdgroup, partials);
 }
 
-kernel void nk_attention_pack_mxfp8e4m3_metal_kernel_(
-    device uchar const *keys [[buffer(0)]], device uchar const *values [[buffer(1)]],
-    device uint const *key_offsets [[buffer(2)]], device uint const *key_lengths [[buffer(3)]],
-    device uchar *packed [[buffer(4)]], constant nk_attention_pack_arguments_metal_t &a [[buffer(5)]],
-    device uchar const *key_scales [[buffer(6)]], device uchar const *value_scales [[buffer(7)]],
-    uint group [[threadgroup_position_in_grid]], uint groups [[threadgroups_per_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_pack_mxfp8e4m3_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint group [[threadgroup_position_in_grid]],
+                                                      uint groups [[threadgroups_per_grid]],
+                                                      uint thread_index [[thread_index_in_threadgroup]],
+                                                      uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *keys = (device uchar const *)arguments.keys;
+    device uchar const *values = (device uchar const *)arguments.values;
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    device uchar const *key_scales = (device uchar const *)arguments.key_scales;
+    device uchar const *value_scales = (device uchar const *)arguments.value_scales;
     threadgroup uint partials[16];
     nk_attention_pack_scaled_metal_<nk::e4m3_t, 32, nk_cross_scale_e8m0_metal_k>(
-        keys, values, key_offsets, key_lengths, packed, a, key_scales, value_scales, group, groups, thread_index,
-        simdgroup, partials);
+        keys, values, key_offsets, key_lengths, packed, arguments, key_scales, value_scales, group, groups,
+        thread_index, simdgroup, partials);
 }
 
-kernel void nk_attention_pack_mxfp8e5m2_metal_kernel_(
-    device uchar const *keys [[buffer(0)]], device uchar const *values [[buffer(1)]],
-    device uint const *key_offsets [[buffer(2)]], device uint const *key_lengths [[buffer(3)]],
-    device uchar *packed [[buffer(4)]], constant nk_attention_pack_arguments_metal_t &a [[buffer(5)]],
-    device uchar const *key_scales [[buffer(6)]], device uchar const *value_scales [[buffer(7)]],
-    uint group [[threadgroup_position_in_grid]], uint groups [[threadgroups_per_grid]],
-    uint thread_index [[thread_index_in_threadgroup]], uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+kernel void nk_attention_pack_mxfp8e5m2_metal_kernel_(constant nk_attention_pack_arguments_metal_t &arguments
+                                                      [[buffer(0)]],
+                                                      uint group [[threadgroup_position_in_grid]],
+                                                      uint groups [[threadgroups_per_grid]],
+                                                      uint thread_index [[thread_index_in_threadgroup]],
+                                                      uint simdgroup [[simdgroup_index_in_threadgroup]]) {
+    device uchar const *keys = (device uchar const *)arguments.keys;
+    device uchar const *values = (device uchar const *)arguments.values;
+    device uint const *key_offsets = (device uint const *)arguments.key_offsets;
+    device uint const *key_lengths = (device uint const *)arguments.key_lengths;
+    device uchar *packed = (device uchar *)arguments.packed;
+    device uchar const *key_scales = (device uchar const *)arguments.key_scales;
+    device uchar const *value_scales = (device uchar const *)arguments.value_scales;
     threadgroup uint partials[16];
     nk_attention_pack_scaled_metal_<nk::e5m2_t, 32, nk_cross_scale_e8m0_metal_k>(
-        keys, values, key_offsets, key_lengths, packed, a, key_scales, value_scales, group, groups, thread_index,
-        simdgroup, partials);
+        keys, values, key_offsets, key_lengths, packed, arguments, key_scales, value_scales, group, groups,
+        thread_index, simdgroup, partials);
 }
 
 /** Whether @p element_type_ quantizes its softmax weights to U8, as the serial I8 kernel does. */
@@ -1175,384 +1241,509 @@ inline void nk_attention_fallback_metal_(queries_type_ queries, device uchar con
     }
 }
 
-kernel void nk_attention_packed_bf16_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_packed_bf16_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                   uint2 group [[threadgroup_position_in_grid]],
+                                                   uint2 groups [[threadgroups_per_grid]],
+                                                   uint warp [[simdgroup_index_in_threadgroup]],
+                                                   uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
     threadgroup float scratch[1288];
-    nk_attention_fallback_metal_<nk::bf16_t>(queries, packed, output, query_offsets, a, log_sum_exp, group, groups,
-                                             warp, lane, scratch);
+    nk_attention_fallback_metal_<nk::bf16_t>(queries, packed, output, query_offsets, arguments, log_sum_exp, group,
+                                             groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_packed_f16_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_packed_f16_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                  uint2 group [[threadgroup_position_in_grid]],
+                                                  uint2 groups [[threadgroups_per_grid]],
+                                                  uint warp [[simdgroup_index_in_threadgroup]],
+                                                  uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
     threadgroup float scratch[1288];
-    nk_attention_fallback_metal_<nk::f16_t>(queries, packed, output, query_offsets, a, log_sum_exp, group, groups, warp,
-                                            lane, scratch);
+    nk_attention_fallback_metal_<nk::f16_t>(queries, packed, output, query_offsets, arguments, log_sum_exp, group,
+                                            groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_packed_e4m3_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_packed_e4m3_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                   uint2 group [[threadgroup_position_in_grid]],
+                                                   uint2 groups [[threadgroups_per_grid]],
+                                                   uint warp [[simdgroup_index_in_threadgroup]],
+                                                   uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
     threadgroup float scratch[1288];
-    nk_attention_fallback_metal_<nk::e4m3_t>(queries, packed, output, query_offsets, a, log_sum_exp, group, groups,
-                                             warp, lane, scratch);
+    nk_attention_fallback_metal_<nk::e4m3_t>(queries, packed, output, query_offsets, arguments, log_sum_exp, group,
+                                             groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_packed_i8_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_packed_i8_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                 uint2 group [[threadgroup_position_in_grid]],
+                                                 uint2 groups [[threadgroups_per_grid]],
+                                                 uint warp [[simdgroup_index_in_threadgroup]],
+                                                 uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
     threadgroup float scratch[1288];
-    nk_attention_fallback_metal_<nk::i8_t>(queries, packed, output, query_offsets, a, log_sum_exp, group, groups, warp,
-                                           lane, scratch);
+    nk_attention_fallback_metal_<nk::i8_t>(queries, packed, output, query_offsets, arguments, log_sum_exp, group,
+                                           groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_packed_nvfp4_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], device float const *query_tensor_scale [[buffer(8)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_packed_nvfp4_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                    uint2 group [[threadgroup_position_in_grid]],
+                                                    uint2 groups [[threadgroups_per_grid]],
+                                                    uint warp [[simdgroup_index_in_threadgroup]],
+                                                    uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
+    device float const *query_tensor_scale = (device float const *)arguments.query_tensor_scale;
     threadgroup float scratch[1288];
     nk_attention_fallback_metal_<nk::f16_t>(
         nk_attention_scaled_queries_metal_<nk::e2m1x2_t, 16, nk_cross_scale_e4m3_metal_k>(
-            queries, query_scales, query_tensor_scale, packed, a),
-        packed, output, query_offsets, a, log_sum_exp, group, groups, warp, lane, scratch);
+            queries, query_scales, query_tensor_scale, packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_packed_mxfp4_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_packed_mxfp4_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                    uint2 group [[threadgroup_position_in_grid]],
+                                                    uint2 groups [[threadgroups_per_grid]],
+                                                    uint warp [[simdgroup_index_in_threadgroup]],
+                                                    uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup float scratch[1288];
     nk_attention_fallback_metal_<nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e2m1x2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales,
-                                                                                          nullptr, packed, a),
-        packed, output, query_offsets, a, log_sum_exp, group, groups, warp, lane, scratch);
+                                                                                          nullptr, packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_packed_mxfp6e2m3_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_packed_mxfp6e2m3_metal_kernel_(constant nk_attention_arguments_metal_t &arguments
+                                                        [[buffer(0)]],
+                                                        uint2 group [[threadgroup_position_in_grid]],
+                                                        uint2 groups [[threadgroups_per_grid]],
+                                                        uint warp [[simdgroup_index_in_threadgroup]],
+                                                        uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup float scratch[1288];
     nk_attention_fallback_metal_<nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e2m3_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, a, log_sum_exp, group, groups, warp, lane, scratch);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_packed_mxfp6e3m2_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_packed_mxfp6e3m2_metal_kernel_(constant nk_attention_arguments_metal_t &arguments
+                                                        [[buffer(0)]],
+                                                        uint2 group [[threadgroup_position_in_grid]],
+                                                        uint2 groups [[threadgroups_per_grid]],
+                                                        uint warp [[simdgroup_index_in_threadgroup]],
+                                                        uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup float scratch[1288];
     nk_attention_fallback_metal_<nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e3m2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, a, log_sum_exp, group, groups, warp, lane, scratch);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_packed_mxfp8e4m3_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_packed_mxfp8e4m3_metal_kernel_(constant nk_attention_arguments_metal_t &arguments
+                                                        [[buffer(0)]],
+                                                        uint2 group [[threadgroup_position_in_grid]],
+                                                        uint2 groups [[threadgroups_per_grid]],
+                                                        uint warp [[simdgroup_index_in_threadgroup]],
+                                                        uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup float scratch[1288];
     nk_attention_fallback_metal_<nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e4m3_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, a, log_sum_exp, group, groups, warp, lane, scratch);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_packed_mxfp8e5m2_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device uchar const *query_scales [[buffer(7)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_packed_mxfp8e5m2_metal_kernel_(constant nk_attention_arguments_metal_t &arguments
+                                                        [[buffer(0)]],
+                                                        uint2 group [[threadgroup_position_in_grid]],
+                                                        uint2 groups [[threadgroups_per_grid]],
+                                                        uint warp [[simdgroup_index_in_threadgroup]],
+                                                        uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup float scratch[1288];
     nk_attention_fallback_metal_<nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e5m2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, a, log_sum_exp, group, groups, warp, lane, scratch);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_split_bf16_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uint const *query_offsets [[buffer(3)]], constant nk_attention_arguments_metal_t &a [[buffer(4)]],
-    device float *split [[buffer(6)]], uint3 group [[threadgroup_position_in_grid]],
-    uint3 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_split_bf16_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                  uint3 group [[threadgroup_position_in_grid]],
+                                                  uint3 groups [[threadgroups_per_grid]],
+                                                  uint warp [[simdgroup_index_in_threadgroup]],
+                                                  uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *split = (device float *)arguments.split;
     threadgroup float scratch[1288];
-    nk_attention_split_metal_<nk::bf16_t, nk_attention_partition_metal_k>(queries, packed, query_offsets, a, split,
-                                                                          group, groups, warp, lane, scratch);
+    nk_attention_split_metal_<nk::bf16_t, nk_attention_partition_metal_k>(queries, packed, query_offsets, arguments,
+                                                                          split, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_split_f16_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uint const *query_offsets [[buffer(3)]], constant nk_attention_arguments_metal_t &a [[buffer(4)]],
-    device float *split [[buffer(6)]], uint3 group [[threadgroup_position_in_grid]],
-    uint3 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_split_f16_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                 uint3 group [[threadgroup_position_in_grid]],
+                                                 uint3 groups [[threadgroups_per_grid]],
+                                                 uint warp [[simdgroup_index_in_threadgroup]],
+                                                 uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *split = (device float *)arguments.split;
     threadgroup float scratch[1288];
-    nk_attention_split_metal_<nk::f16_t, nk_attention_partition_metal_k>(queries, packed, query_offsets, a, split,
-                                                                         group, groups, warp, lane, scratch);
+    nk_attention_split_metal_<nk::f16_t, nk_attention_partition_metal_k>(queries, packed, query_offsets, arguments,
+                                                                         split, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_split_e4m3_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uint const *query_offsets [[buffer(3)]], constant nk_attention_arguments_metal_t &a [[buffer(4)]],
-    device float *split [[buffer(6)]], uint3 group [[threadgroup_position_in_grid]],
-    uint3 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_split_e4m3_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                  uint3 group [[threadgroup_position_in_grid]],
+                                                  uint3 groups [[threadgroups_per_grid]],
+                                                  uint warp [[simdgroup_index_in_threadgroup]],
+                                                  uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *split = (device float *)arguments.split;
     threadgroup float scratch[1288];
-    nk_attention_split_metal_<nk::e4m3_t, nk_attention_partition_metal_k>(queries, packed, query_offsets, a, split,
-                                                                          group, groups, warp, lane, scratch);
+    nk_attention_split_metal_<nk::e4m3_t, nk_attention_partition_metal_k>(queries, packed, query_offsets, arguments,
+                                                                          split, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_split_i8_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uint const *query_offsets [[buffer(3)]], constant nk_attention_arguments_metal_t &a [[buffer(4)]],
-    device float *split [[buffer(6)]], uint3 group [[threadgroup_position_in_grid]],
-    uint3 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_split_i8_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                uint3 group [[threadgroup_position_in_grid]],
+                                                uint3 groups [[threadgroups_per_grid]],
+                                                uint warp [[simdgroup_index_in_threadgroup]],
+                                                uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *split = (device float *)arguments.split;
     threadgroup float scratch[1288];
-    nk_attention_split_metal_<nk::i8_t, nk_attention_partition_metal_k>(queries, packed, query_offsets, a, split, group,
-                                                                        groups, warp, lane, scratch);
+    nk_attention_split_metal_<nk::i8_t, nk_attention_partition_metal_k>(queries, packed, query_offsets, arguments,
+                                                                        split, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_weights_i8_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uint const *query_offsets [[buffer(3)]], constant nk_attention_arguments_metal_t &a [[buffer(4)]],
-    device float *split [[buffer(6)]], uint3 group [[threadgroup_position_in_grid]],
-    uint3 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_weights_i8_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                  uint3 group [[threadgroup_position_in_grid]],
+                                                  uint3 groups [[threadgroups_per_grid]],
+                                                  uint warp [[simdgroup_index_in_threadgroup]],
+                                                  uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *split = (device float *)arguments.split;
     threadgroup float scratch[1288];
-    nk_attention_split_metal_<nk::i8_t, nk_attention_values_metal_k>(queries, packed, query_offsets, a, split, group,
-                                                                     groups, warp, lane, scratch);
+    nk_attention_split_metal_<nk::i8_t, nk_attention_values_metal_k>(queries, packed, query_offsets, arguments, split,
+                                                                     group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_split_nvfp4_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uint const *query_offsets [[buffer(3)]], constant nk_attention_arguments_metal_t &a [[buffer(4)]],
-    device float *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    device float const *query_tensor_scale [[buffer(8)]], uint3 group [[threadgroup_position_in_grid]],
-    uint3 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_split_nvfp4_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                   uint3 group [[threadgroup_position_in_grid]],
+                                                   uint3 groups [[threadgroups_per_grid]],
+                                                   uint warp [[simdgroup_index_in_threadgroup]],
+                                                   uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *split = (device float *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
+    device float const *query_tensor_scale = (device float const *)arguments.query_tensor_scale;
     threadgroup float scratch[1288];
     nk_attention_split_metal_<nk::f16_t, nk_attention_partition_metal_k>(
         nk_attention_scaled_queries_metal_<nk::e2m1x2_t, 16, nk_cross_scale_e4m3_metal_k>(
-            queries, query_scales, query_tensor_scale, packed, a),
-        packed, query_offsets, a, split, group, groups, warp, lane, scratch);
+            queries, query_scales, query_tensor_scale, packed, arguments),
+        packed, query_offsets, arguments, split, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_split_mxfp4_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uint const *query_offsets [[buffer(3)]], constant nk_attention_arguments_metal_t &a [[buffer(4)]],
-    device float *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    uint3 group [[threadgroup_position_in_grid]], uint3 groups [[threadgroups_per_grid]],
-    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_split_mxfp4_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                   uint3 group [[threadgroup_position_in_grid]],
+                                                   uint3 groups [[threadgroups_per_grid]],
+                                                   uint warp [[simdgroup_index_in_threadgroup]],
+                                                   uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *split = (device float *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup float scratch[1288];
     nk_attention_split_metal_<nk::bf16_t, nk_attention_partition_metal_k>(
         nk_attention_scaled_queries_metal_<nk::e2m1x2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales,
-                                                                                          nullptr, packed, a),
-        packed, query_offsets, a, split, group, groups, warp, lane, scratch);
+                                                                                          nullptr, packed, arguments),
+        packed, query_offsets, arguments, split, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_split_mxfp6e2m3_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uint const *query_offsets [[buffer(3)]], constant nk_attention_arguments_metal_t &a [[buffer(4)]],
-    device float *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    uint3 group [[threadgroup_position_in_grid]], uint3 groups [[threadgroups_per_grid]],
-    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_split_mxfp6e2m3_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                       uint3 group [[threadgroup_position_in_grid]],
+                                                       uint3 groups [[threadgroups_per_grid]],
+                                                       uint warp [[simdgroup_index_in_threadgroup]],
+                                                       uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *split = (device float *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup float scratch[1288];
     nk_attention_split_metal_<nk::bf16_t, nk_attention_partition_metal_k>(
         nk_attention_scaled_queries_metal_<nk::e2m3_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, query_offsets, a, split, group, groups, warp, lane, scratch);
+                                                                                        packed, arguments),
+        packed, query_offsets, arguments, split, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_split_mxfp6e3m2_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uint const *query_offsets [[buffer(3)]], constant nk_attention_arguments_metal_t &a [[buffer(4)]],
-    device float *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    uint3 group [[threadgroup_position_in_grid]], uint3 groups [[threadgroups_per_grid]],
-    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_split_mxfp6e3m2_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                       uint3 group [[threadgroup_position_in_grid]],
+                                                       uint3 groups [[threadgroups_per_grid]],
+                                                       uint warp [[simdgroup_index_in_threadgroup]],
+                                                       uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *split = (device float *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup float scratch[1288];
     nk_attention_split_metal_<nk::bf16_t, nk_attention_partition_metal_k>(
         nk_attention_scaled_queries_metal_<nk::e3m2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, query_offsets, a, split, group, groups, warp, lane, scratch);
+                                                                                        packed, arguments),
+        packed, query_offsets, arguments, split, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_split_mxfp8e4m3_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uint const *query_offsets [[buffer(3)]], constant nk_attention_arguments_metal_t &a [[buffer(4)]],
-    device float *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    uint3 group [[threadgroup_position_in_grid]], uint3 groups [[threadgroups_per_grid]],
-    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_split_mxfp8e4m3_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                       uint3 group [[threadgroup_position_in_grid]],
+                                                       uint3 groups [[threadgroups_per_grid]],
+                                                       uint warp [[simdgroup_index_in_threadgroup]],
+                                                       uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *split = (device float *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup float scratch[1288];
     nk_attention_split_metal_<nk::bf16_t, nk_attention_partition_metal_k>(
         nk_attention_scaled_queries_metal_<nk::e4m3_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, query_offsets, a, split, group, groups, warp, lane, scratch);
+                                                                                        packed, arguments),
+        packed, query_offsets, arguments, split, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_split_mxfp8e5m2_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uint const *query_offsets [[buffer(3)]], constant nk_attention_arguments_metal_t &a [[buffer(4)]],
-    device float *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    uint3 group [[threadgroup_position_in_grid]], uint3 groups [[threadgroups_per_grid]],
-    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_split_mxfp8e5m2_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                       uint3 group [[threadgroup_position_in_grid]],
+                                                       uint3 groups [[threadgroups_per_grid]],
+                                                       uint warp [[simdgroup_index_in_threadgroup]],
+                                                       uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *split = (device float *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     threadgroup float scratch[1288];
     nk_attention_split_metal_<nk::bf16_t, nk_attention_partition_metal_k>(
         nk_attention_scaled_queries_metal_<nk::e5m2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, query_offsets, a, split, group, groups, warp, lane, scratch);
+                                                                                        packed, arguments),
+        packed, query_offsets, arguments, split, group, groups, warp, lane, scratch);
 }
 
-kernel void nk_attention_merge_bf16_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device float const *split [[buffer(6)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_merge_metal_<nk::bf16_t>(queries, packed, output, query_offsets, a, log_sum_exp, split, group, groups,
-                                          lane);
+kernel void nk_attention_merge_bf16_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                  uint2 group [[threadgroup_position_in_grid]],
+                                                  uint2 groups [[threadgroups_per_grid]],
+                                                  uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device float const *split = (device float const *)arguments.split;
+    nk_attention_merge_metal_<nk::bf16_t>(queries, packed, output, query_offsets, arguments, log_sum_exp, split, group,
+                                          groups, lane);
 }
 
-kernel void nk_attention_merge_f16_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device float const *split [[buffer(6)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_merge_metal_<nk::f16_t>(queries, packed, output, query_offsets, a, log_sum_exp, split, group, groups,
-                                         lane);
+kernel void nk_attention_merge_f16_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                 uint2 group [[threadgroup_position_in_grid]],
+                                                 uint2 groups [[threadgroups_per_grid]],
+                                                 uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device float const *split = (device float const *)arguments.split;
+    nk_attention_merge_metal_<nk::f16_t>(queries, packed, output, query_offsets, arguments, log_sum_exp, split, group,
+                                         groups, lane);
 }
 
-kernel void nk_attention_merge_e4m3_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device float const *split [[buffer(6)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_merge_metal_<nk::e4m3_t>(queries, packed, output, query_offsets, a, log_sum_exp, split, group, groups,
-                                          lane);
+kernel void nk_attention_merge_e4m3_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                  uint2 group [[threadgroup_position_in_grid]],
+                                                  uint2 groups [[threadgroups_per_grid]],
+                                                  uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device float const *split = (device float const *)arguments.split;
+    nk_attention_merge_metal_<nk::e4m3_t>(queries, packed, output, query_offsets, arguments, log_sum_exp, split, group,
+                                          groups, lane);
 }
 
-kernel void nk_attention_merge_i8_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device float const *split [[buffer(6)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint lane [[thread_index_in_simdgroup]]) {
-    nk_attention_merge_metal_<nk::i8_t>(queries, packed, output, query_offsets, a, log_sum_exp, split, group, groups,
-                                        lane);
+kernel void nk_attention_merge_i8_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                uint2 group [[threadgroup_position_in_grid]],
+                                                uint2 groups [[threadgroups_per_grid]],
+                                                uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device float const *split = (device float const *)arguments.split;
+    nk_attention_merge_metal_<nk::i8_t>(queries, packed, output, query_offsets, arguments, log_sum_exp, split, group,
+                                        groups, lane);
 }
 
-kernel void nk_attention_merge_nvfp4_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device float const *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    device float const *query_tensor_scale [[buffer(8)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_merge_nvfp4_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                   uint2 group [[threadgroup_position_in_grid]],
+                                                   uint2 groups [[threadgroups_per_grid]],
+                                                   uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device float const *split = (device float const *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
+    device float const *query_tensor_scale = (device float const *)arguments.query_tensor_scale;
     nk_attention_merge_metal_<nk::f16_t>(
         nk_attention_scaled_queries_metal_<nk::e2m1x2_t, 16, nk_cross_scale_e4m3_metal_k>(
-            queries, query_scales, query_tensor_scale, packed, a),
-        packed, output, query_offsets, a, log_sum_exp, split, group, groups, lane);
+            queries, query_scales, query_tensor_scale, packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, split, group, groups, lane);
 }
 
-kernel void nk_attention_merge_mxfp4_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device float const *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_merge_mxfp4_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                   uint2 group [[threadgroup_position_in_grid]],
+                                                   uint2 groups [[threadgroups_per_grid]],
+                                                   uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device float const *split = (device float const *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     nk_attention_merge_metal_<nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e2m1x2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales,
-                                                                                          nullptr, packed, a),
-        packed, output, query_offsets, a, log_sum_exp, split, group, groups, lane);
+                                                                                          nullptr, packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, split, group, groups, lane);
 }
 
-kernel void nk_attention_merge_mxfp6e2m3_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device float const *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_merge_mxfp6e2m3_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                       uint2 group [[threadgroup_position_in_grid]],
+                                                       uint2 groups [[threadgroups_per_grid]],
+                                                       uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device float const *split = (device float const *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     nk_attention_merge_metal_<nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e2m3_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, a, log_sum_exp, split, group, groups, lane);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, split, group, groups, lane);
 }
 
-kernel void nk_attention_merge_mxfp6e3m2_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device float const *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_merge_mxfp6e3m2_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                       uint2 group [[threadgroup_position_in_grid]],
+                                                       uint2 groups [[threadgroups_per_grid]],
+                                                       uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device float const *split = (device float const *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     nk_attention_merge_metal_<nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e3m2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, a, log_sum_exp, split, group, groups, lane);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, split, group, groups, lane);
 }
 
-kernel void nk_attention_merge_mxfp8e4m3_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device float const *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_merge_mxfp8e4m3_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                       uint2 group [[threadgroup_position_in_grid]],
+                                                       uint2 groups [[threadgroups_per_grid]],
+                                                       uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device float const *split = (device float const *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     nk_attention_merge_metal_<nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e4m3_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, a, log_sum_exp, split, group, groups, lane);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, split, group, groups, lane);
 }
 
-kernel void nk_attention_merge_mxfp8e5m2_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_arguments_metal_t &a [[buffer(4)]], device float *log_sum_exp [[buffer(5)]],
-    device float const *split [[buffer(6)]], device uchar const *query_scales [[buffer(7)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_merge_mxfp8e5m2_metal_kernel_(constant nk_attention_arguments_metal_t &arguments [[buffer(0)]],
+                                                       uint2 group [[threadgroup_position_in_grid]],
+                                                       uint2 groups [[threadgroups_per_grid]],
+                                                       uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.queries;
+    device uchar const *packed = (device uchar const *)arguments.packed;
+    device uchar *output = (device uchar *)arguments.output;
+    device uint const *query_offsets = (device uint const *)arguments.query_offsets;
+    device float *log_sum_exp = (device float *)arguments.log_sum_exp;
+    device float const *split = (device float const *)arguments.split;
+    device uchar const *query_scales = (device uchar const *)arguments.query_scales;
     nk_attention_merge_metal_<nk::bf16_t>(
         nk_attention_scaled_queries_metal_<nk::e5m2_t, 32, nk_cross_scale_e8m0_metal_k>(queries, query_scales, nullptr,
-                                                                                        packed, a),
-        packed, output, query_offsets, a, log_sum_exp, split, group, groups, lane);
+                                                                                        packed, arguments),
+        packed, output, query_offsets, arguments, log_sum_exp, split, group, groups, lane);
 }
 
 /** Stages a 32-row tile of the work's queries, each row under its base in @p bases, and a 64-key
@@ -2360,40 +2551,52 @@ inline void nk_attention_backward_queries_matrix_metal_(
     }
 }
 
-kernel void nk_attention_backward_keys_bf16_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar const *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_backward_arguments_metal_t &b [[buffer(4)]], device float const *log_sum_exp [[buffer(5)]],
-    device uchar const *output_gradient [[buffer(6)]], device uchar *key_gradient [[buffer(8)]],
-    device uchar *value_gradient [[buffer(9)]], uint2 group [[threadgroup_position_in_grid]],
-    uint2 groups [[threadgroups_per_grid]], uint warp [[simdgroup_index_in_threadgroup]],
-    uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_backward_keys_bf16_metal_kernel_(constant nk_attention_backward_arguments_metal_t &arguments
+                                                          [[buffer(0)]],
+                                                          uint2 group [[threadgroup_position_in_grid]],
+                                                          uint2 groups [[threadgroups_per_grid]],
+                                                          uint warp [[simdgroup_index_in_threadgroup]],
+                                                          uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.attention.queries;
+    device uchar const *packed = (device uchar const *)arguments.attention.packed;
+    device uchar const *output = (device uchar const *)arguments.attention.output;
+    device uint const *query_offsets = (device uint const *)arguments.attention.query_offsets;
+    device float const *log_sum_exp = (device float const *)arguments.attention.log_sum_exp;
+    device uchar const *output_gradient = (device uchar const *)arguments.output_gradient;
+    device uchar *key_gradient = (device uchar *)arguments.key_gradient;
+    device uchar *value_gradient = (device uchar *)arguments.value_gradient;
     threadgroup float queries_tile[8 * 256], gradients_tile[8 * 256];
     threadgroup nk_attention_backward_rows_metal_t rows;
-    if (b.attention.depth <= 256)
+    if (arguments.attention.depth <= 256)
         nk_attention_backward_keys_bf16_metal_<nk_attention_accumulate_registers_metal_k>(
-            queries, packed, output, query_offsets, b, log_sum_exp, output_gradient, key_gradient, value_gradient,
-            group, groups, warp, lane, queries_tile, gradients_tile, rows);
+            queries, packed, output, query_offsets, arguments, log_sum_exp, output_gradient, key_gradient,
+            value_gradient, group, groups, warp, lane, queries_tile, gradients_tile, rows);
     else
         nk_attention_backward_keys_bf16_metal_<nk_attention_accumulate_device_metal_k>(
-            queries, packed, output, query_offsets, b, log_sum_exp, output_gradient, key_gradient, value_gradient,
-            group, groups, warp, lane, queries_tile, gradients_tile, rows);
+            queries, packed, output, query_offsets, arguments, log_sum_exp, output_gradient, key_gradient,
+            value_gradient, group, groups, warp, lane, queries_tile, gradients_tile, rows);
 }
 
-kernel void nk_attention_backward_queries_bf16_metal_kernel_(
-    device uchar const *queries [[buffer(0)]], device uchar const *packed [[buffer(1)]],
-    device uchar const *output [[buffer(2)]], device uint const *query_offsets [[buffer(3)]],
-    constant nk_attention_backward_arguments_metal_t &b [[buffer(4)]], device float const *log_sum_exp [[buffer(5)]],
-    device uchar const *output_gradient [[buffer(6)]], device uchar *query_gradient [[buffer(7)]],
-    uint2 group [[threadgroup_position_in_grid]], uint2 groups [[threadgroups_per_grid]],
-    uint warp [[simdgroup_index_in_threadgroup]], uint lane [[thread_index_in_simdgroup]]) {
+kernel void nk_attention_backward_queries_bf16_metal_kernel_(constant nk_attention_backward_arguments_metal_t &arguments
+                                                             [[buffer(0)]],
+                                                             uint2 group [[threadgroup_position_in_grid]],
+                                                             uint2 groups [[threadgroups_per_grid]],
+                                                             uint warp [[simdgroup_index_in_threadgroup]],
+                                                             uint lane [[thread_index_in_simdgroup]]) {
+    device uchar const *queries = (device uchar const *)arguments.attention.queries;
+    device uchar const *packed = (device uchar const *)arguments.attention.packed;
+    device uchar const *output = (device uchar const *)arguments.attention.output;
+    device uint const *query_offsets = (device uint const *)arguments.attention.query_offsets;
+    device float const *log_sum_exp = (device float const *)arguments.attention.log_sum_exp;
+    device uchar const *output_gradient = (device uchar const *)arguments.output_gradient;
+    device uchar *query_gradient = (device uchar *)arguments.query_gradient;
     threadgroup float keys_tile[8 * 256], values_tile[8 * 256];
-    if (b.attention.depth <= 256)
+    if (arguments.attention.depth <= 256)
         nk_attention_backward_queries_bf16_metal_<nk_attention_accumulate_registers_metal_k>(
-            queries, packed, output, query_offsets, b, log_sum_exp, output_gradient, query_gradient, group, groups,
-            warp, lane, keys_tile, values_tile);
+            queries, packed, output, query_offsets, arguments, log_sum_exp, output_gradient, query_gradient, group,
+            groups, warp, lane, keys_tile, values_tile);
     else
         nk_attention_backward_queries_bf16_metal_<nk_attention_accumulate_device_metal_k>(
-            queries, packed, output, query_offsets, b, log_sum_exp, output_gradient, query_gradient, group, groups,
-            warp, lane, keys_tile, values_tile);
+            queries, packed, output, query_offsets, arguments, log_sum_exp, output_gradient, query_gradient, group,
+            groups, warp, lane, keys_tile, values_tile);
 }
