@@ -33,6 +33,9 @@ void bench_cross_rocm(environment_t const &env, rocm_backend_t const &backend, n
                                     nk_dots_pack_f32_rocm, nk_euclideans_packed_f32_rocm, backend);
     run_euclideans_symmetric<nk_f64_k>(env, "euclideans_symmetric_f64_rocm", nk_euclideans_symmetric_f64_rocm, backend);
     run_euclideans_symmetric<nk_f32_k>(env, "euclideans_symmetric_f32_rocm", nk_euclideans_symmetric_f32_rocm, backend);
+    run_attention_rope<nk_f32_k>(env, "attention_rope_f32_rocm", nk_attention_rope_f32_rocm, backend);
+    run_attention_rope<nk_bf16_k>(env, "attention_rope_bf16_rocm", nk_attention_rope_bf16_rocm, backend);
+    run_attention_rope<nk_e4m3_k>(env, "attention_rope_e4m3_rocm", nk_attention_rope_e4m3_rocm, backend);
     std::size_t const tokens = 4096, hidden = 4096;
     run_moments_rows<nk_f64_k>(env, "reduce_moments_f64_rocm", nk_reduce_moments_f64_rocm, tokens, hidden, backend);
     run_moments_rows<nk_f32_k>(env, "reduce_moments_f32_rocm", nk_reduce_moments_f32_rocm, tokens, hidden, backend);

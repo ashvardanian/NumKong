@@ -523,6 +523,30 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_rocm_(void const *keys_k
     return nk_launch_resident_rocm_(queries_kernel, nk_attention_threads_k, 0, 0, task_count, &arguments, stream);
 }
 
+/** Validates the contract and launches @p kernel with a wavefront per head of every row, at most
+ *  2²⁰ blocks of them. */
+NUMKONG_INLINE nk_status_t nk_attention_rope_launch_rocm_(void const *kernel, nk_size_t value_bytes, void const *x,
+                                                          nk_f32_t const *cos, nk_f32_t const *sin, void *y,
+                                                          nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                          nk_size_t x_stride, nk_size_t y_stride, nk_stream_t stream) {
+    if (depth % 2) return nk_unexpected_dimensions_k;
+    if ((((nk_size_t)x) | x_stride | ((nk_size_t)y) | y_stride) & (value_bytes - 1) ||
+        (((nk_size_t)cos) | ((nk_size_t)sin)) & 3)
+        return nk_misaligned_k;
+    nk_attention_rope_arguments_t arguments;
+    arguments.x = (unsigned char const *)x, arguments.cos = cos, arguments.sin = sin, arguments.y = (unsigned char *)y;
+    arguments.head_count = head_count, arguments.half_depth = depth / 2, arguments.heads = rows * head_count;
+    arguments.x_stride = x_stride, arguments.y_stride = y_stride;
+    if (arguments.heads == 0 || depth == 0) return nk_success_k;
+    // Sized for 32-lane wavefronts; the kernel strides over the heads a 64-lane one leaves.
+    nk_size_t const blocks = nk_size_divide_round_up_(arguments.heads, nk_attention_threads_k / 32),
+                    blocks_limit = (nk_size_t)1 << 20;
+    void *launch_arguments[1];
+    launch_arguments[0] = &arguments;
+    return nk_launch_rocm_(kernel, blocks < blocks_limit ? blocks : blocks_limit, nk_attention_threads_k,
+                           launch_arguments, 0, stream);
+}
+
 #pragma endregion Launchers
 
 #pragma region Attention Macros
@@ -646,6 +670,44 @@ NUMKONG_INLINE nk_status_t nk_attention_backward_launch_rocm_(void const *keys_k
             stream);                                                                                                   \
     }
 
+/** Generates the RoPE kernel of @p input_type for @p isa_suffix, after @c nk_define_attention_rope_
+ *  of the serial backend, and its entry point: each wavefront rotates one head of one row, so the
+ *  row and head divisions happen once per head rather than once per pair. */
+#define nk_define_attention_rope_rocm_(input_type, isa_suffix, load_and_convert, convert_and_store)                   \
+    static __global__ void __launch_bounds__(nk_attention_threads_k, 1)                                               \
+        nk_attention_rope_##input_type##_##isa_suffix##_kernel_(nk_attention_rope_arguments_t arguments) {            \
+        unsigned const lanes = nk_warp_lanes_rocm_(), lane = threadIdx.x % lanes;                                     \
+        nk_size_t const groups = blockDim.x / lanes;                                                                  \
+        for (nk_size_t head = (nk_size_t)blockIdx.x * groups + threadIdx.x / lanes; head < arguments.heads;           \
+             head += (nk_size_t)gridDim.x * groups) {                                                                 \
+            nk_size_t const row = head / arguments.head_count;                                                        \
+            nk_size_t const first = (head - row * arguments.head_count) * 2 * arguments.half_depth;                   \
+            nk_f32_t const *cos_row = arguments.cos + row * arguments.half_depth;                                     \
+            nk_f32_t const *sin_row = arguments.sin + row * arguments.half_depth;                                     \
+            nk_##input_type##_t const *x = (nk_##input_type##_t const *)(arguments.x + row * arguments.x_stride) +    \
+                                           first;                                                                     \
+            nk_##input_type##_t *y = (nk_##input_type##_t *)(arguments.y + row * arguments.y_stride) + first;         \
+            for (nk_size_t pair = lane; pair < arguments.half_depth; pair += lanes) {                                 \
+                nk_f32_t low, high;                                                                                   \
+                load_and_convert(x + pair, &low);                                                                     \
+                load_and_convert(x + pair + arguments.half_depth, &high);                                             \
+                nk_f32_t const cosine = cos_row[pair], sine = sin_row[pair];                                          \
+                nk_f32_t const rotated_low = low * cosine - high * sine;                                              \
+                nk_f32_t const rotated_high = low * sine + high * cosine;                                             \
+                convert_and_store(&rotated_low, y + pair);                                                            \
+                convert_and_store(&rotated_high, y + pair + arguments.half_depth);                                    \
+            }                                                                                                         \
+        }                                                                                                             \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_attention_rope_##input_type##_##isa_suffix(                                            \
+        nk_##input_type##_t const *x, nk_f32_t const *cos, nk_f32_t const *sin, nk_##input_type##_t *y,               \
+        nk_size_t rows, nk_size_t head_count, nk_size_t depth, nk_size_t x_stride, nk_size_t y_stride,                \
+        nk_stream_t stream) {                                                                                         \
+        return nk_attention_rope_launch_rocm_((void const *)&nk_attention_rope_##input_type##_##isa_suffix##_kernel_, \
+                                              sizeof(nk_##input_type##_t), x, cos, sin, y, rows, head_count, depth,   \
+                                              x_stride, y_stride, stream);                                            \
+    }
+
 #pragma endregion Attention Macros
 
 #pragma region Pack
@@ -753,6 +815,9 @@ nk_define_attention_baseline_rocm_(bf16, rocm, bf16, 2)
 nk_define_attention_baseline_rocm_(e4m3, rocm, e4m3, 1)
 nk_define_attention_baseline_rocm_(i8, rocm, i8, 1)
 nk_define_attention_backward_rocm_(bf16, rocm, bf16)
+nk_define_attention_rope_rocm_(f32, rocm, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_attention_rope_rocm_(bf16, rocm, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_attention_rope_rocm_(e4m3, rocm, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
 #endif // NUMKONG_TARGET_ROCM
 
 #pragma endregion Instantiations

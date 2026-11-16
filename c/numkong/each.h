@@ -2499,6 +2499,15 @@ NUMKONG_API nk_status_t nk_each_rmscast_u8_rocm(nk_u32_t const *x, nk_f32_t cons
 #endif // NUMKONG_TARGET_ROCM
 
 #if NUMKONG_TARGET_METAL
+/** @copydoc nk_each_sum_f32_best */
+NUMKONG_API nk_status_t nk_each_sum_f32_metal(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
+                                              nk_stream_t stream);
+/** @copydoc nk_each_sum_f16_best */
+NUMKONG_API nk_status_t nk_each_sum_f16_metal(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result,
+                                              nk_stream_t stream);
+/** @copydoc nk_each_sum_bf16_best */
+NUMKONG_API nk_status_t nk_each_sum_bf16_metal(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result,
+                                               nk_stream_t stream);
 /** @copydoc nk_each_swiglu_f32_best */
 NUMKONG_API nk_status_t nk_each_swiglu_f32_metal(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y, nk_size_t rows,
                                                  nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride,

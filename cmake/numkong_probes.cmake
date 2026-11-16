@@ -255,6 +255,7 @@ add_library(numkong_rocm_capabilities_compiled_ INTERFACE)
 add_library(numkong::rocm_capabilities_compiled ALIAS numkong_rocm_capabilities_compiled_)
 target_compile_definitions(numkong_rocm_capabilities_compiled_ INTERFACE NUMKONG_ARCH_ROCM_=1)
 add_library(numkong_metal_capabilities_compiled_ INTERFACE)
+add_library(numkong::metal_capabilities_compiled ALIAS numkong_metal_capabilities_compiled_)
 target_compile_definitions(numkong_metal_capabilities_compiled_ INTERFACE NUMKONG_ARCH_METAL_=1)
 
 # One GPU capability, named `capability_name_` in its cache variable: caches the `CUDA_ARCHITECTURES`,

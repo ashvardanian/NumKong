@@ -16,6 +16,9 @@ namespace ashvardanian::numkong::test {
 void test_each_metal(error_stats_section_t &check) {
 #if NUMKONG_TARGET_METAL
     check.section("Elementwise Operations Metal", nk_cap_metal_k);
+    check("each_sum_f32_metal", test_sum<f32_t, metal_backend_t>, nk_each_sum_f32_metal);
+    check("each_sum_f16_metal", test_sum<f16_t, metal_backend_t>, nk_each_sum_f16_metal);
+    check("each_sum_bf16_metal", test_sum<bf16_t, metal_backend_t>, nk_each_sum_bf16_metal);
     check("each_swiglu_f32_metal", test_swiglu<f32_t, metal_backend_t>, nk_each_swiglu_f32_metal);
     check("each_swiglu_f16_metal", test_swiglu<f16_t, metal_backend_t>, nk_each_swiglu_f16_metal);
     check("each_swiglu_bf16_metal", test_swiglu<bf16_t, metal_backend_t>, nk_each_swiglu_bf16_metal);

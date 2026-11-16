@@ -3253,6 +3253,18 @@ NUMKONG_API nk_status_t nk_attention_packed_workspace_size_i8_rocm(nk_size_t hea
 NUMKONG_API nk_status_t nk_attention_packed_gradients_workspace_size_bf16_rocm(
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_size_t query_token_count,
     nk_size_t keys_before, nk_size_t keys_after, nk_size_t *bytes);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_f32_rocm(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                   nk_f32_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                   nk_size_t x_stride, nk_size_t y_stride, nk_stream_t stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_bf16_rocm(nk_bf16_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                    nk_bf16_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                    nk_size_t x_stride, nk_size_t y_stride, nk_stream_t stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_e4m3_rocm(nk_e4m3_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                    nk_e4m3_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                    nk_size_t x_stride, nk_size_t y_stride, nk_stream_t stream);
 #endif // NUMKONG_TARGET_ROCM
 
 /*  AMD Instinct MI300 backends, gfx942, through its matrix cores. */

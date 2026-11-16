@@ -160,20 +160,29 @@ error_stats_t test_sum(settings_t const &settings, typename scalar_type_::sum_ke
     auto result = make_vector<scalar_t>(backend, count);
     auto reference = make_vector<scalar_t>(count);
 
+    auto const score = [&](std::size_t length) {
+        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), length, result.raw_values_data());
+        if (!stats.expect(backend.synchronize())) return;
+        stats.expect(nk::add<scalar_t>(a.values_data(), b.values_data(), length, reference.values_data(), no_tiers_k));
+        for (std::size_t i = 0; i < length; i++) stats.accumulate(result[i], reference[i]);
+    };
     for (deadline_t const deadline = settings.deadline(); deadline.ahead();) {
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
-
-        auto const score = [&](std::size_t length) {
-            backend.call(kernel, a.raw_values_data(), b.raw_values_data(), length, result.raw_values_data());
-            if (!stats.expect(backend.synchronize())) return;
-            stats.expect(
-                nk::add<scalar_t>(a.values_data(), b.values_data(), length, reference.values_data(), no_tiers_k));
-            for (std::size_t i = 0; i < length; i++) stats.accumulate(result[i], reference[i]);
-        };
         score(count);
         // A short prefix too, so the partial loads and stores run
         score(nk::min_of<std::size_t>(1 + generator() % 31, count));
+    }
+    // Subnormal operands, sums that fall below the normals and sums that climb into them, which
+    // every backend must keep as the serial kernel does rather than flush to zero
+    if constexpr (requires { scalar_t::subnormal_min(); }) {
+        double const smallest = double(scalar_t::subnormal_min()), normal = double(scalar_t::positive_min());
+        for (std::size_t i = 0; i < count; i++) {
+            double const step = smallest * double(1 + i % 7);
+            a.values_data()[i] = scalar_t(i % 3 ? step : normal - step);
+            b.values_data()[i] = scalar_t(i % 2 ? step : -smallest * double(i % 5));
+        }
+        score(count);
     }
     return stats;
 }

@@ -5331,6 +5331,12 @@ static nk_capability_kernels_t const *nk_attention_rope_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_attention_rope_f32_cuda,
 #endif
     };
+    static nk_kernel_punned_t const rocm[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_ROCM
+        (nk_kernel_punned_t)&nk_attention_rope_f32_rocm,
+#endif
+    };
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
 #if NUMKONG_TARGET_METAL
@@ -5342,7 +5348,7 @@ static nk_capability_kernels_t const *nk_attention_rope_f32_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
-        {0, nk_no_kernels_},
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
         {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
@@ -5384,6 +5390,12 @@ static nk_capability_kernels_t const *nk_attention_rope_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_attention_rope_bf16_cuda,
 #endif
     };
+    static nk_kernel_punned_t const rocm[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_ROCM
+        (nk_kernel_punned_t)&nk_attention_rope_bf16_rocm,
+#endif
+    };
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
 #if NUMKONG_TARGET_METAL
@@ -5395,7 +5407,7 @@ static nk_capability_kernels_t const *nk_attention_rope_bf16_capabilities(void) 
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
-        {0, nk_no_kernels_},
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
         {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;
@@ -5437,6 +5449,12 @@ static nk_capability_kernels_t const *nk_attention_rope_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_attention_rope_e4m3_cuda,
 #endif
     };
+    static nk_kernel_punned_t const rocm[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_ROCM
+        (nk_kernel_punned_t)&nk_attention_rope_e4m3_rocm,
+#endif
+    };
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
 #if NUMKONG_TARGET_METAL
@@ -5448,7 +5466,7 @@ static nk_capability_kernels_t const *nk_attention_rope_e4m3_capabilities(void) 
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
-        {0, nk_no_kernels_},
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM, rocm},
         {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
     };
     return lists;

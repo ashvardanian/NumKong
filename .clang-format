@@ -173,6 +173,7 @@ StatementMacros:
   - nk_define_attention_tma_blackwell_
   - nk_define_attention_backward_cuda_
   - nk_define_attention_backward_rocm_
+  - nk_define_attention_rope_rocm_
   - nk_define_attention_rope_cuda_
   - nk_define_attention_rope_
   - nk_define_reduce_moments_simt_

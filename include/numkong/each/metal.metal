@@ -2,18 +2,20 @@
  *  @file include/numkong/each/metal.metal
  *  @author Ash Vardanian
  *  @date October 5, 2026
- *  @brief SwiGLU, grouped RMSNorm and its downcasting form on the SIMT cores of every Apple GPU.
+ *  @brief Element-wise sums, SwiGLU, grouped RMSNorm and its downcasting form on the SIMT cores of
+ *      every Apple GPU.
  *
  *  @sa include/numkong/each/metal.h, which embeds and launches this source
  *  @sa include/numkong/each/simt.cuh, the CUDA and ROCm sibling
  *
- *  SwiGLU runs a grid of 16-byte chunks by rows, each thread one chunk of one row. RMSNorm gives
- *  each normalized vector one threadgroup, in a grid of groups by rows, whose threads take 16-byte
- *  chunks of the output a threadgroup apart, reading the input twice rather than keeping it.
- *  Squares sum in plain F32, merged down each SIMD-group through shuffles and then across
- *  SIMD-groups. Only the RMSNorm of F32 stays out, as it reduces in F64, which no Apple GPU has,
- *  while the downcasts from F32 reduce in F32. The host picks the kernel for a missing @c up or
- *  @c gamma, so no thread branches on either.
+ *  Sums run a grid of 16-byte chunks, each thread adding one chunk in F32 and rounding once to the
+ *  stored type. SwiGLU runs a grid of 16-byte chunks by rows, each thread one chunk of one row.
+ *  RMSNorm gives each normalized vector one threadgroup, in a grid of groups by rows, whose threads
+ *  take 16-byte chunks of the output a threadgroup apart, reading the input twice rather than
+ *  keeping it. Squares sum in plain F32, merged down each SIMD-group through shuffles and then
+ *  across SIMD-groups. Only the RMSNorm of F32 stays out, as it reduces in F64, which no Apple GPU
+ *  has, while the downcasts from F32 reduce in F32. The host picks the kernel for a missing @c up
+ *  or @c gamma, so no thread branches on either.
  */
 
 /** The launch record of SwiGLU, laid out as the C launcher's record of the same name. */
@@ -30,8 +32,14 @@ struct nk_each_rmsnorm_arguments_metal_t {
     float epsilon;
 };
 
+/** The launch record of a sum, laid out as the C launcher's record of the same name. */
+struct nk_each_sum_arguments_metal_t {
+    ulong count;
+};
+
 static_assert(sizeof(nk_each_swiglu_arguments_metal_t) == 40, "mirrors the C record in each/metal.h");
 static_assert(sizeof(nk_each_rmsnorm_arguments_metal_t) == 24, "mirrors the C record in each/metal.h");
+static_assert(sizeof(nk_each_sum_arguments_metal_t) == 8, "mirrors the C record in each/metal.h");
 
 /** SwiGLU multiplying SiLU of the gate by the up row. */
 struct nk_each_gated_metal_t {};
@@ -71,6 +79,22 @@ inline float nk_each_silu_metal_(float value) {
     return denominator > 0x1p126f
                ? ldexp(value * (rint(precise::divide(0x1p126f, denominator) * 0x1p23f) * 0x1p-23f), -126)
                : value * precise::divide(1.0f, denominator);
+}
+
+/** The sum of one 16-byte @p chunk of @p a and @p b, widened to F32 and rounded once on store. */
+template <typename dtype_>
+void nk_each_sum_metal_(device uchar const *a, device uchar const *b, device uchar *result,
+                        constant nk_each_sum_arguments_metal_t &arguments, uint chunk) {
+    // Fast math may flush subnormal operands and sums, which the serial sum keeps
+#pragma METAL fp math_mode(safe)
+    ulong const first = ulong(chunk) * dtype_::chunk_values;
+    if (first >= arguments.count) return;
+    ulong const end = min(arguments.count, first + dtype_::chunk_values);
+    // A row pointer per chunk keeps every index within the 32 bits `load` and `store` take
+    ulong const offset = first * sizeof(typename dtype_::raw_t);
+    a += offset, b += offset, result += offset;
+    for (uint index = 0; index != uint(end - first); ++index)
+        dtype_::store(result, index, dtype_::load(a, index) + dtype_::load(b, index));
 }
 
 /** SwiGLU of one 16-byte chunk of one row, @p position holding the chunk and the row. */
@@ -136,6 +160,27 @@ void nk_each_rmsnorm_metal_(device uchar const *x, device float const *gamma, de
             output_::store(y, column, value * inverse_rms * nk_each_gain_metal_(scaling_(), gamma, column));
         }
     }
+}
+
+kernel void nk_each_sum_f32_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
+                                          device uchar *result [[buffer(2)]],
+                                          constant nk_each_sum_arguments_metal_t &arguments [[buffer(3)]],
+                                          uint chunk [[thread_position_in_grid]]) {
+    nk_each_sum_metal_<nk::f32_t>(a, b, result, arguments, chunk);
+}
+
+kernel void nk_each_sum_f16_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
+                                          device uchar *result [[buffer(2)]],
+                                          constant nk_each_sum_arguments_metal_t &arguments [[buffer(3)]],
+                                          uint chunk [[thread_position_in_grid]]) {
+    nk_each_sum_metal_<nk::f16_t>(a, b, result, arguments, chunk);
+}
+
+kernel void nk_each_sum_bf16_metal_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
+                                           device uchar *result [[buffer(2)]],
+                                           constant nk_each_sum_arguments_metal_t &arguments [[buffer(3)]],
+                                           uint chunk [[thread_position_in_grid]]) {
+    nk_each_sum_metal_<nk::bf16_t>(a, b, result, arguments, chunk);
 }
 
 kernel void nk_each_swiglu_f32_gated_metal_kernel_(device uchar const *gate [[buffer(0)]],

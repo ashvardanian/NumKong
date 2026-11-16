@@ -216,6 +216,9 @@ void test_cross_rocm(error_stats_section_t &check) {
           nk_attention_pack_size_i8_rocm, nk_attention_pack_i8_rocm, nk_attention_packed_i8_rocm);
     check("attention_packed_gradients_bf16_rocm", test_attention_packed_gradients<bf16_t, rocm_backend_t>,
           nk_attention_pack_size_bf16_rocm, nk_attention_pack_bf16_rocm, nk_attention_packed_gradients_bf16_rocm);
+    check("attention_rope_f32_rocm", test_attention_rope<f32_t, rocm_backend_t>, nk_attention_rope_f32_rocm);
+    check("attention_rope_bf16_rocm", test_attention_rope<bf16_t, rocm_backend_t>, nk_attention_rope_bf16_rocm);
+    check("attention_rope_e4m3_rocm", test_attention_rope<e4m3_t, rocm_backend_t>, nk_attention_rope_e4m3_rocm);
     check("haversines_packed_f64_rocm", test_geodesics_packed<f64_t, nk_kernel_haversines_packed_k, rocm_backend_t>,
           nk_haversines_pack_size_f64_rocm, nk_haversines_pack_f64_rocm, nk_haversines_packed_f64_rocm);
     check("vincentys_packed_f64_rocm", test_geodesics_packed<f64_t, nk_kernel_vincentys_packed_k, rocm_backend_t>,

@@ -2,8 +2,8 @@
  *  @file include/numkong/each/metal.h
  *  @author Ash Vardanian
  *  @date October 5, 2026
- *  @brief SwiGLU, grouped RMSNorm and its downcasting form on the SIMT cores of every Apple GPU,
- *      launched from C.
+ *  @brief Element-wise sums, SwiGLU, grouped RMSNorm and its downcasting form on the SIMT cores of
+ *      every Apple GPU, launched from C.
  *
  *  @sa c/numkong/each.h
  *  @sa include/numkong/each/metal.metal, the kernels this embeds
@@ -54,8 +54,47 @@ typedef struct {
     nk_f32_t epsilon;
 } nk_each_rmsnorm_arguments_metal_t;
 
+/** The launch record of an element-wise sum, laid out as the kernels' record of the same name. */
+typedef struct {
+    nk_u64_t count;
+} nk_each_sum_arguments_metal_t;
+
 nk_static_assert_(sizeof(nk_each_swiglu_arguments_metal_t) == 40, nk_each_swiglu_arguments_metal_must_be_40_bytes);
 nk_static_assert_(sizeof(nk_each_rmsnorm_arguments_metal_t) == 24, nk_each_rmsnorm_arguments_metal_must_be_24_bytes);
+nk_static_assert_(sizeof(nk_each_sum_arguments_metal_t) == 8, nk_each_sum_arguments_metal_must_be_8_bytes);
+
+/** Validates the contract and encodes the sum of @p n values of @p value_bytes each through
+ *  @p kernel, one thread per 16-byte chunk. */
+NUMKONG_INLINE nk_status_t nk_each_sum_launch_metal_(char const *kernel, nk_size_t value_bytes, void const *a,
+                                                     void const *b, nk_size_t n, void *result, nk_stream_t stream) {
+    if ((((nk_size_t)a) | ((nk_size_t)b) | ((nk_size_t)result)) & (value_bytes - 1)) return nk_misaligned_k;
+    if (n == 0) return nk_success_k;
+    nk_size_t bytes;
+    nk_size_t const chunks = nk_size_divide_round_up_(n, 16 / value_bytes);
+    if (chunks > 0xFFFFFFFFu || !nk_size_mul_checked_(n, value_bytes, &bytes)) return nk_unexpected_dimensions_k;
+
+    nk_metal_call_t call;
+    nk_status_t const status = nk_enter_metal_(stream, &call);
+    if (status != nk_success_k) return status;
+    nk_size_t a_offset = 0, b_offset = 0, result_offset = 0;
+    void *const a_buffer = nk_resolve_metal_(&call, a, bytes, &a_offset);
+    void *const b_buffer = nk_resolve_metal_(&call, b, bytes, &b_offset);
+    void *const result_buffer = nk_resolve_metal_(&call, result, bytes, &result_offset);
+    if (!a_buffer || !b_buffer || !result_buffer) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
+    void *const pipeline = nk_pipeline_metal_(call.context, nk_each_source_metal_, kernel, NUMKONG_METAL_LANGUAGE_3_1_);
+    if (!pipeline) return nk_abort_metal_(&call, nk_device_code_mismatch_k);
+    nk_encoder_metal_(&call, pipeline);
+
+    nk_each_sum_arguments_metal_t arguments;
+    arguments.count = n;
+    nk_bind_metal_(call.encoder, a_buffer, a_offset, 0);
+    nk_bind_metal_(call.encoder, b_buffer, b_offset, 1);
+    nk_bind_metal_(call.encoder, result_buffer, result_offset, 2);
+    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 3);
+    nk_metal_size_t const grid = {nk_size_divide_round_up_(chunks, nk_each_threads_metal_k), 1, 1};
+    nk_metal_size_t const group = {nk_each_threads_metal_k, 1, 1};
+    return nk_dispatch_metal_(&call, grid, group);
+}
 
 /** Validates the contract and encodes SwiGLU, one thread per 16-byte chunk of a row, through
  *  @p gated_kernel, or @p ungated_kernel when @p up is NULL. */
@@ -152,6 +191,21 @@ NUMKONG_INLINE nk_status_t nk_each_rmsnorm_launch_metal_(char const *scaled_kern
 }
 
 #if NUMKONG_TARGET_METAL
+NUMKONG_API nk_status_t nk_each_sum_f32_metal(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
+                                              nk_stream_t stream) {
+    return nk_each_sum_launch_metal_("nk_each_sum_f32_metal_kernel_", sizeof(nk_f32_t), a, b, n, result, stream);
+}
+
+NUMKONG_API nk_status_t nk_each_sum_f16_metal(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result,
+                                              nk_stream_t stream) {
+    return nk_each_sum_launch_metal_("nk_each_sum_f16_metal_kernel_", sizeof(nk_f16_t), a, b, n, result, stream);
+}
+
+NUMKONG_API nk_status_t nk_each_sum_bf16_metal(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result,
+                                               nk_stream_t stream) {
+    return nk_each_sum_launch_metal_("nk_each_sum_bf16_metal_kernel_", sizeof(nk_bf16_t), a, b, n, result, stream);
+}
+
 NUMKONG_API nk_status_t nk_each_swiglu_f32_metal(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y, nk_size_t rows,
                                                  nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride,
                                                  nk_size_t y_stride, nk_f32_t gate_scale, nk_f32_t output_scale,
