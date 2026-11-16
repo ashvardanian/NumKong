@@ -1480,6 +1480,64 @@ error_stats_t test_raw_values_data(settings_t const &) {
     return stats;
 }
 
+/** Typed views and spans cross to their bytes and back with rank and outer strides kept, as
+ *  @c std::as_bytes does for spans, and fail closed where the bytes would not lie end to end. */
+error_stats_t test_byte_views(settings_t const &) {
+    error_stats_t stats(comparison_family_t::exact_k);
+    alignas(64) float buffer[24];
+    for (int i = 0; i < 24; ++i) buffer[i] = static_cast<float>(i);
+    auto *const values = reinterpret_cast<nk::f32_t *>(buffer);
+
+    // A matrix's bytes keep its rows and its row pitch, and the last extent counts bytes.
+    nk::tensor_span<nk::f32_t, 2> const matrix(values, 4, 6);
+    nk::tensor_span<std::byte, 2> const bytes = nk::as_writable_bytes(matrix);
+    stats.expect(bytes.rank() == 2 && bytes.extent(0) == 4 && bytes.extent(1) == 24, "matrix bytes extents");
+    stats.expect(bytes.stride_bytes(0) == 24 && bytes.stride_bytes(1) == 1, "matrix bytes strides");
+    stats.expect(bytes.byte_data() == matrix.byte_data(), "matrix bytes alias the matrix");
+    stats.expect(nk::as_bytes(matrix).byte_data() == matrix.byte_data(), "read-only bytes of a span");
+
+    // The bytes read back as the same values, and as another dtype of the same width.
+    nk::tensor_span<nk::f32_t, 2> const again = nk::as_writable_values<nk::f32_t>(bytes);
+    stats.expect(again.extent(0) == 4 && again.extent(1) == 6 && again.stride_bytes(0) == 24, "values round trip");
+    stats.expect(again.data()[7] == matrix.data()[7], "values alias the bytes");
+    nk::tensor_view<std::uint32_t, 2> const words = nk::as_values<std::uint32_t>(nk::as_bytes(matrix));
+    stats.expect(words.extent(1) == 6 && words.data()[1] == 0x3F800000u, "bytes read as another dtype");
+    nk::tensor_view<nk::f16_t, 2> const halves = nk::as_values<nk::f16_t>(nk::as_bytes(matrix));
+    stats.expect(halves.extent(1) == 12 && halves.stride_bytes(1) == 2, "a narrower dtype doubles the extent");
+
+    // A strided view keeps its outer pitch; one strided along its last dimension fails closed.
+    nk::tensor_view<nk::f32_t, 2> const pitched(values, std::array<std::size_t, 2> {2, 3},
+                                                std::array<std::ptrdiff_t, 2> {48, 4});
+    stats.expect(pitched.extent(0) == 2 && pitched.stride_bytes(0) == 48 && pitched(1, 2) == values[14],
+                 "strided constructor");
+    stats.expect(nk::as_bytes(pitched).stride_bytes(0) == 48, "outer pitch survives");
+    nk::tensor_view<nk::f32_t, 2> const columns(values, std::array<std::size_t, 2> {3, 2},
+                                                std::array<std::ptrdiff_t, 2> {4, 24});
+    stats.expect(nk::as_bytes(columns).empty(), "a strided last dimension fails closed");
+
+    // Bytes that end mid-value, or start misaligned, fail closed too.
+    std::span<std::byte> const raw = std::as_writable_bytes(std::span<float>(buffer, 24));
+    stats.expect(nk::as_values<nk::f32_t>(raw.first(10)).empty(), "bytes ending mid-value");
+    stats.expect(nk::as_values<nk::f32_t>(raw.subspan(2, 8)).empty(), "misaligned bytes");
+    nk::tensor_span<nk::f32_t, 1> const flat = nk::as_writable_values<nk::f32_t>(raw);
+    stats.expect(flat.extent(0) == 24 && flat.data() == values, "a byte std::span reads as a rank-1 span");
+
+    // Packed dtypes count logical dimensions, so their bytes hold half or an eighth as many.
+    alignas(64) nk::u8_t packed_bytes[4] = {};
+    nk::tensor_view<nk::u4x2_t, 1> const nibbles(reinterpret_cast<nk::u4x2_t const *>(packed_bytes), 8);
+    stats.expect(nk::as_bytes(nibbles).extent(0) == 4, "packed values count their storage bytes");
+    stats.expect(nk::as_values<nk::u1x8_t>(nk::as_bytes(nibbles)).extent(0) == 32, "bits per byte");
+
+    // Vectors cross the same way.
+    nk::vector_span<nk::f32_t> const row(values, 6u);
+    nk::vector_span<std::byte> const row_bytes = nk::as_writable_bytes(row);
+    stats.expect(row_bytes.size() == 24 && row_bytes.stride_bytes() == 1, "vector bytes");
+    stats.expect(nk::as_values<nk::f32_t>(row_bytes).size() == 6, "vector values round trip");
+    stats.expect(nk::as_writable_values<nk::f32_t>(row_bytes).data() == values, "vector values alias");
+    stats.expect(nk::as_bytes(nk::vector_view<nk::f32_t>(values, 6u)).size() == 24, "vector view bytes");
+    return stats;
+}
+
 /** `explicit operator bool` on every owning + non-owning handle type. */
 error_stats_t test_operator_bool(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
@@ -1731,6 +1789,7 @@ void test_tensor_ops(error_stats_section_t &check) {
 
     check("tensor_typed_pointer_ctors", test_typed_pointer_ctors);
     check("tensor_raw_values_data", test_raw_values_data);
+    check("tensor_byte_views", test_byte_views);
     check("tensor_operator_bool", test_operator_bool);
     check("tensor_flatten_out_rank", test_flatten_out_rank);
     check("tensor_resize_capacity", test_resize_capacity);

@@ -35,8 +35,11 @@
 #ifndef NUMKONG_VECTOR_HPP
 #define NUMKONG_VECTOR_HPP
 
+#include <cstddef> // `std::byte`
+#include <cstdint> // `std::uintptr_t`
+#include <cstring> // `std::memset`
+
 #include <concepts>    // `std::integral`
-#include <cstring>     // `std::memset`
 #include <iterator>    // `std::random_access_iterator_tag`
 #include <memory>      // `std::allocator_traits`
 #include <span>        // `std::span`
@@ -604,6 +607,56 @@ struct vector_span {
 };
 
 #pragma endregion Vector Span
+
+#pragma region Byte Views
+
+/** The bytes a contiguous typed @p view spans, one byte apart, as @c std::as_bytes takes a span;
+ *  empty when the view is strided or ends mid-value. */
+template <typename value_type_>
+constexpr vector_view<std::byte> as_bytes(vector_view<value_type_> view) noexcept {
+    if (!view.is_contiguous() || !fills_whole_values_<value_type_>(view.size())) return {};
+    return {view.byte_data(), view.size() / dimensions_per_value<value_type_>() * sizeof(value_type_), 1};
+}
+
+/** The read-only bytes a contiguous typed @p span spans, as @ref as_bytes of its view. */
+template <typename value_type_>
+constexpr vector_view<std::byte> as_bytes(vector_span<value_type_> span) noexcept {
+    return as_bytes(vector_view<value_type_>(span));
+}
+
+/** The writable bytes a contiguous typed @p span spans, as @c std::as_writable_bytes takes a
+ *  span. */
+template <typename value_type_>
+constexpr vector_span<std::byte> as_writable_bytes(vector_span<value_type_> span) noexcept {
+    vector_view<std::byte> const bytes = as_bytes(vector_view<value_type_>(span));
+    return {bytes.byte_data() ? span.byte_data() : nullptr, bytes.size(), 1};
+}
+
+/** The @p value_type_ values contiguous @p bytes hold, the reverse of @ref as_bytes ; empty when
+ *  the bytes are strided, end mid-value or start misaligned for @p value_type_ . */
+template <typename value_type_>
+constexpr vector_view<value_type_> as_values(vector_view<std::byte> bytes) noexcept {
+    if (!bytes.is_contiguous() || bytes.size() % sizeof(value_type_) != 0) return {};
+    if (reinterpret_cast<std::uintptr_t>(bytes.byte_data()) % alignof(value_type_) != 0) return {};
+    return {bytes.byte_data(), bytes.size() / sizeof(value_type_) * dimensions_per_value<value_type_>(),
+            sizeof(value_type_)};
+}
+
+/** The read-only @p value_type_ values a contiguous byte @p span holds, as @ref as_values of its
+ *  view. */
+template <typename value_type_>
+constexpr vector_view<value_type_> as_values(vector_span<std::byte> bytes) noexcept {
+    return as_values<value_type_>(vector_view<std::byte>(bytes));
+}
+
+/** The writable @p value_type_ values contiguous @p bytes hold, as @ref as_values reads them. */
+template <typename value_type_>
+constexpr vector_span<value_type_> as_writable_values(vector_span<std::byte> bytes) noexcept {
+    vector_view<value_type_> const values = as_values<value_type_>(vector_view<std::byte>(bytes));
+    return {values.byte_data() ? bytes.byte_data() : nullptr, values.size(), sizeof(value_type_)};
+}
+
+#pragma endregion Byte Views
 
 #pragma region Vector
 

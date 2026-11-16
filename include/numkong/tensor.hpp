@@ -28,10 +28,13 @@
 #ifndef NUMKONG_TENSOR_HPP
 #define NUMKONG_TENSOR_HPP
 
-#include <array>   // `std::array`
+#include <cstddef> // `std::byte`
+#include <cstdint> // `std::uintptr_t`
 #include <cstring> // `std::memcpy`, `std::memcmp`, `std::memset`
-#include <span>    // `std::span`
-#include <tuple>   // `std::tuple_element_t`
+
+#include <array> // `std::array`
+#include <span>  // `std::span`
+#include <tuple> // `std::tuple_element_t`
 #include <type_traits>
 
 #include "vector.hpp" // `aligned_allocator`
@@ -307,6 +310,20 @@ struct tensor_view {
         requires(array_rank_ <= max_rank_)
         : data_(reinterpret_cast<char const *>(data)) {
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.data(), array_rank_);
+    }
+
+    /** Views storage laid out by a foreign interface, @p byte_strides apart along each of the
+     *  @p extents , as a C call hands a base pointer and a row pitch; rank equals
+     *  @c array_rank_ . */
+    template <std::size_t array_rank_>
+    constexpr tensor_view(value_type const *data, std::array<size_type, array_rank_> const &extents,
+                          std::array<difference_type, array_rank_> const &byte_strides) noexcept
+        requires(array_rank_ >= 1 && array_rank_ <= max_rank_)
+        : data_(reinterpret_cast<char const *>(data)) {
+        shape_.rank = array_rank_;
+        for (std::size_t i = 0; i != array_rank_; ++i)
+            shape_.extents[i] = extents[i], shape_.strides[i] = byte_strides[i];
+        shape_.normalize_spare_();
     }
 
     /** Number of dimensions. */
@@ -624,6 +641,20 @@ struct tensor_span {
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents.data(), array_rank_);
     }
 
+    /** Spans storage laid out by a foreign interface, @p byte_strides apart along each of the
+     *  @p extents , as a C call hands a base pointer and a row pitch; rank equals
+     *  @c array_rank_ . */
+    template <std::size_t array_rank_>
+    constexpr tensor_span(value_type *data, std::array<size_type, array_rank_> const &extents,
+                          std::array<difference_type, array_rank_> const &byte_strides) noexcept
+        requires(array_rank_ >= 1 && array_rank_ <= max_rank_)
+        : data_(reinterpret_cast<char *>(data)) {
+        shape_.rank = array_rank_;
+        for (std::size_t i = 0; i != array_rank_; ++i)
+            shape_.extents[i] = extents[i], shape_.strides[i] = byte_strides[i];
+        shape_.normalize_spare_();
+    }
+
     /** Number of dimensions. */
     constexpr size_type rank() const noexcept { return shape_.rank; }
 
@@ -891,6 +922,90 @@ struct tensor_span {
 };
 
 #pragma endregion Tensor Span
+
+#pragma region Byte Views
+
+/**
+ *  @brief The bytes a typed @p view spans, as @c std::as_bytes takes a span: the same rank and
+ *      outer byte strides, the last extent counting its storage bytes one byte apart.
+ *
+ *  Empty when the last dimension is strided or ends mid-value, as @ref tensor_view::reshape fails
+ *  closed, since its bytes would then not lie end to end.
+ */
+template <typename value_type_, std::size_t max_rank_>
+constexpr tensor_view<std::byte, max_rank_> as_bytes(tensor_view<value_type_, max_rank_> view) noexcept {
+    shape_storage_<max_rank_> shape = view.shape();
+    if (shape.rank == 0) return {};
+    std::size_t const last = shape.rank - 1;
+    if (shape.strides[last] != static_cast<std::ptrdiff_t>(sizeof(value_type_))) return {};
+    if (!shape_fills_whole_values_<value_type_>(shape)) return {};
+    shape.extents[last] = dimensions_to_values_<value_type_>(shape.extents[last]) * sizeof(value_type_);
+    shape.strides[last] = 1;
+    return {view.byte_data(), shape};
+}
+
+/** The read-only bytes a typed @p span spans, as @ref as_bytes of its view. */
+template <typename value_type_, std::size_t max_rank_>
+constexpr tensor_view<std::byte, max_rank_> as_bytes(tensor_span<value_type_, max_rank_> span) noexcept {
+    return as_bytes(tensor_view<value_type_, max_rank_>(span));
+}
+
+/** The writable bytes a typed @p span spans, as @c std::as_writable_bytes takes a span, laid out
+ *  as @ref as_bytes lays them. */
+template <typename value_type_, std::size_t max_rank_>
+constexpr tensor_span<std::byte, max_rank_> as_writable_bytes(tensor_span<value_type_, max_rank_> span) noexcept {
+    tensor_view<std::byte, max_rank_> const bytes = as_bytes(tensor_view<value_type_, max_rank_>(span));
+    return {bytes.byte_data() ? span.byte_data() : nullptr, bytes.shape()};
+}
+
+/**
+ *  @brief The @p value_type_ values @p bytes hold, the reverse of @ref as_bytes : the same rank and
+ *      outer byte strides, the last extent counting the logical dimensions its bytes store.
+ *
+ *  Empty when the last dimension's bytes are strided or end mid-value, or when the base or an
+ *  outer stride is misaligned for @p value_type_ .
+ */
+template <typename value_type_, std::size_t max_rank_>
+constexpr tensor_view<value_type_, max_rank_> as_values(tensor_view<std::byte, max_rank_> bytes) noexcept {
+    shape_storage_<max_rank_> shape = bytes.shape();
+    if (shape.rank == 0) return {};
+    std::size_t const last = shape.rank - 1;
+    if (shape.strides[last] != 1 || shape.extents[last] % sizeof(value_type_) != 0) return {};
+    if (reinterpret_cast<std::uintptr_t>(bytes.byte_data()) % alignof(value_type_) != 0) return {};
+    for (std::size_t i = 0; i != last; ++i)
+        if (shape.strides[i] % static_cast<std::ptrdiff_t>(alignof(value_type_)) != 0) return {};
+    shape.extents[last] = shape.extents[last] / sizeof(value_type_) * dimensions_per_value<value_type_>();
+    shape.strides[last] = static_cast<std::ptrdiff_t>(sizeof(value_type_));
+    return {bytes.byte_data(), shape};
+}
+
+/** The read-only @p value_type_ values a byte @p span holds, as @ref as_values of its view. */
+template <typename value_type_, std::size_t max_rank_>
+constexpr tensor_view<value_type_, max_rank_> as_values(tensor_span<std::byte, max_rank_> bytes) noexcept {
+    return as_values<value_type_>(tensor_view<std::byte, max_rank_>(bytes));
+}
+
+/** The writable @p value_type_ values @p bytes hold, laid out as @ref as_values lays them. */
+template <typename value_type_, std::size_t max_rank_>
+constexpr tensor_span<value_type_, max_rank_> as_writable_values(tensor_span<std::byte, max_rank_> bytes) noexcept {
+    tensor_view<value_type_, max_rank_> const values = as_values<value_type_>(tensor_view<std::byte, max_rank_>(bytes));
+    return {values.byte_data() ? bytes.byte_data() : nullptr, values.shape()};
+}
+
+/** The @p value_type_ values a byte @c std::span holds, as a rank-1 view. */
+template <typename value_type_, typename byte_type_, std::size_t extent_>
+    requires std::is_same_v<std::remove_const_t<byte_type_>, std::byte>
+constexpr tensor_view<value_type_, 1> as_values(std::span<byte_type_, extent_> bytes) noexcept {
+    return as_values<value_type_>(tensor_view<std::byte, 1>(std::span<std::byte const>(bytes)));
+}
+
+/** The writable @p value_type_ values a byte @c std::span holds, as a rank-1 span. */
+template <typename value_type_, std::size_t extent_>
+constexpr tensor_span<value_type_, 1> as_writable_values(std::span<std::byte, extent_> bytes) noexcept {
+    return as_writable_values<value_type_>(tensor_span<std::byte, 1>(std::span<std::byte>(bytes)));
+}
+
+#pragma endregion Byte Views
 
 template <typename value_type_, std::size_t max_rank_, std::size_t extent_>
 constexpr decltype(auto) tensor_lookup_resolved_(tensor_view<value_type_, max_rank_> input,
