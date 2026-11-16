@@ -19,8 +19,8 @@ void bench_each_rocm([[maybe_unused]] environment_t const &env, [[maybe_unused]]
     [[maybe_unused]] constexpr nk_kernel_kind_t sum_k = nk_kernel_each_sum_k;
 #if NUMKONG_TARGET_ROCM
     if (enabled & nk_cap_rocm_k) {
-        run_each<nk_f32_k, sum_k, nk_f32_k>(env, "each_sum_f32_rocm", nk_each_sum_f32_rocm, backend);
-        run_each<nk_bf16_k, sum_k, nk_f32_k>(env, "each_sum_bf16_rocm", nk_each_sum_bf16_rocm, backend);
+        run_each<nk_f32_k, sum_k>(env, "each_sum_f32_rocm", nk_each_sum_f32_rocm, backend);
+        run_each<nk_bf16_k, sum_k>(env, "each_sum_bf16_rocm", nk_each_sum_bf16_rocm, backend);
         run_rmsnorm<nk_f32_k>(env, "each_rmsnorm_f32_rocm", nk_each_rmsnorm_f32_rocm, backend);
         run_rmsnorm<nk_bf16_k>(env, "each_rmsnorm_bf16_rocm", nk_each_rmsnorm_bf16_rocm, backend);
         run_rmsnorm<nk_e4m3_k>(env, "each_rmsnorm_e4m3_rocm", nk_each_rmsnorm_e4m3_rocm, backend);

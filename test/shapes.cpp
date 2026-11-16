@@ -19,14 +19,6 @@ constexpr nk_kernel_kind_t gromovwassersteins_k = nk_kernel_gromovwassersteins_p
 constexpr nk_kernel_kind_t pack_k = nk_kernel_shapes_pack_k;
 constexpr nk_kernel_kind_t pack_normalized_k = nk_kernel_shapes_pack_normalized_k;
 
-/** The serial normalized pack of @p scalar_type_, for the similar clouds every kernel compares. */
-template <typename scalar_type_>
-typename scalar_type_::shapes_pack_kernel_t shapes_pack_normalized_serial() noexcept {
-    if constexpr (std::is_same_v<scalar_type_, f64_t>) return nk_shapes_pack_normalized_f64_serial;
-    else if constexpr (std::is_same_v<scalar_type_, f32_t>) return nk_shapes_pack_normalized_f32_serial;
-    else return nk_shapes_pack_normalized_f16_serial;
-}
-
 /** Packs a fixed set of clouds through @p pack_size and @p pack for the kernels under test. */
 template <typename scalar_type_, std::size_t count_>
 nk::shapes_packed<scalar_type_> pack_clouds(nk::vector<scalar_type_> const (&clouds)[count_],
@@ -360,7 +352,11 @@ error_stats_t test_shapes_kind(settings_t const &settings, typename scalar_type_
         for (std::size_t i = 0; i != column_clouds[0].size_values(); ++i)
             largest_input = nk::max_of(largest_input,
                                        std::fabs(static_cast<nk_f64_t>(column_clouds[0].values_data()[i])));
-        auto const pack_normalized = shapes_pack_normalized_serial<scalar_t>();
+        // Every kernel scores the same normalized packs, which the CPU's dispatch makes
+        typename scalar_t::shapes_pack_kernel_t const pack_normalized =
+            [](typename scalar_t::raw_t const *cloud, nk_size_t points, void *packed, nk_stream_t) noexcept {
+                return static_cast<nk_status_t>(nk::shapes_pack_normalized<scalar_t>(cloud, points, packed));
+            };
         auto const rows = pack_clouds(row_clouds, pack_size, pack_normalized, stats);
         auto const columns = pack_clouds(column_clouds, pack_size, pack_normalized, stats);
         if (run(rows, columns, results, rotations)) {
@@ -890,11 +886,6 @@ error_stats_t test_shapes_kabsch(settings_t const &settings, typename scalar_typ
     return stats;
 }
 
-template <typename scalar_type_>
-using rmsds_packed_kernel_t = nk_status_t (*)(void const *const *, nk_size_t, void const *const *, nk_size_t,
-                                              typename scalar_type_::shapes_distance_t::raw_t *, nk_size_t,
-                                              nk_stream_t);
-
 /** RMS distance of a frame's points from its centroid, the spread its centered moments see. */
 template <typename scalar_type_>
 nk_f64_t centroid_spread(nk::vector<scalar_type_> const &frame) noexcept {
@@ -954,7 +945,7 @@ nk_f64_t rmsd_error_bound(std::size_t n, nk_f64_t rmsd, nk_f64_t spread, nk_f64_
 template <typename scalar_type_>
 error_stats_t test_rmsds_packed(settings_t const &settings, typename scalar_type_::shapes_pack_size_kernel_t pack_size,
                                 typename scalar_type_::shapes_pack_kernel_t pack,
-                                rmsds_packed_kernel_t<scalar_type_> kernel) {
+                                typename scalar_type_::rmsds_packed_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using distance_t = typename scalar_t::shapes_distance_t;
     using raw_distance_t = typename distance_t::raw_t;
@@ -1076,9 +1067,8 @@ error_stats_t test_rmsds_packed(settings_t const &settings, typename scalar_type
 template <typename scalar_type_>
 error_stats_t test_shapes_ties(settings_t const &settings, typename scalar_type_::shapes_pack_size_kernel_t pack_size,
                                typename scalar_type_::shapes_pack_kernel_t pack,
-                               rmsds_packed_kernel_t<scalar_type_> rmsds) {
+                               typename scalar_type_::rmsds_packed_kernel_t rmsds) {
     using scalar_t = scalar_type_;
-    using raw_t = typename scalar_t::raw_t;
     using distance_t = typename scalar_t::shapes_distance_t;
     using raw_distance_t = typename distance_t::raw_t;
     using reference_t = reference_for<scalar_t>;
@@ -1138,12 +1128,7 @@ error_stats_t test_shapes_ties(settings_t const &settings, typename scalar_type_
         clouds[clouds_count++] = whitened(settings.shape_points, 0.5);
 
     auto const packed_point = [](void const *packed, std::size_t point, std::size_t axis) {
-        nk_size_t stride = 0;
-        raw_t const *axes;
-        if constexpr (std::is_same_v<scalar_t, f16_t>) axes = nk_shapes_packed_axes_f16_serial_(packed, &stride);
-        else if constexpr (std::is_same_v<scalar_t, f32_t>) axes = nk_shapes_packed_axes_f32_serial_(packed, &stride);
-        else axes = nk_shapes_packed_axes_f64_serial_(packed, &stride);
-        return static_cast<nk_f64_t>(scalar_t::from_raw(axes[axis * stride + point]));
+        return static_cast<nk_f64_t>(nk::shapes_cloud_<scalar_t>(packed).template coordinate<nk::f64_t>(point, axis));
     };
     // The larger of the Chamfer and Hausdorff distances between two packs, least over the 8 flips
     auto const flip_distance = [&](void const *a, void const *b, std::size_t points) {

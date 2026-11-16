@@ -173,8 +173,8 @@ error_stats_t test_sum(settings_t const &settings, typename scalar_type_::sum_ke
         // A short prefix too, so the partial loads and stores run
         score(nk::min_of<std::size_t>(1 + generator() % 31, count));
     }
-    // Subnormal operands, sums that fall below the normals and sums that climb into them, which
-    // every backend must keep as the serial kernel does rather than flush to zero
+    // Subnormal operands, sums that fall below the normals and sums that climb into them, held to
+    // the same bound as every other sum
     if constexpr (requires { scalar_t::subnormal_min(); }) {
         double const smallest = double(scalar_t::subnormal_min()), normal = double(scalar_t::positive_min());
         for (std::size_t i = 0; i < count; i++) {

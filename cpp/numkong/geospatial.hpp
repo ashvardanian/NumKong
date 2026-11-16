@@ -14,9 +14,11 @@
 
 #include <cstddef> // `std::size_t`
 
+#include <limits>      // `std::numeric_limits`
 #include <type_traits> // `std::conditional_t`, `std::is_same_v`
 
 #include "numkong/geospatial.h"
+#include "numkong/geospatial/serial.h" // `nk_terrain_packed_header_t`
 
 #include "numkong/types.hpp"
 
@@ -327,33 +329,188 @@ inline status_t terrain_pack(f32_t const *heights, std::size_t rows, std::size_t
                                                             row_metres.raw_, column_metres.raw_, packed, stream));
 }
 
+/** Bilinear heights under @p count interleaved [column, row] points, NaN off the grid, rounding
+ *  once into @p result_type_ from at least @c f64_t, as the kernels do. */
+template <typename result_type_>
+void terrain_heights_reference_(f32_t const *heights, void const *packed, f32_t const *points, std::size_t count,
+                                result_type_ *results) noexcept {
+    using math_t = std::conditional_t<(sizeof(result_type_) < sizeof(f64_t)), f64_t, result_type_>;
+    nk_terrain_packed_header_t const *header = static_cast<nk_terrain_packed_header_t const *>(packed);
+    std::size_t const rows = static_cast<std::size_t>(header->rows);
+    std::size_t const columns = static_cast<std::size_t>(header->columns);
+    std::size_t const stride = static_cast<std::size_t>(header->heights_stride);
+    math_t const zero(0.0), last_row(static_cast<double>(rows - 1)), last_column(static_cast<double>(columns - 1));
+    auto const height = [&](std::size_t row, std::size_t column) noexcept {
+        f32_t const *line = reinterpret_cast<f32_t const *>(reinterpret_cast<char const *>(heights) + row * stride);
+        return math_t(static_cast<double>(line[column].raw_));
+    };
+    // The index of the cell a coordinate on the grid falls in, its fraction left to interpolate
+    auto const cell = [](math_t coordinate) noexcept {
+        std::size_t index = static_cast<std::size_t>(static_cast<double>(coordinate));
+        if (coordinate < math_t(static_cast<double>(index))) --index;
+        return index;
+    };
+    for (std::size_t point = 0; point != count; ++point) {
+        math_t const column(static_cast<double>(points[point * 2].raw_));
+        math_t const row(static_cast<double>(points[point * 2 + 1].raw_));
+        if (!(zero <= column && column <= last_column && zero <= row && row <= last_row)) {
+            results[point] = result_type_(std::numeric_limits<double>::quiet_NaN());
+            continue;
+        }
+        std::size_t column_first = cell(column), row_first = cell(row);
+        if (column_first + 1 == columns && columns > 1) --column_first;
+        if (row_first + 1 == rows && rows > 1) --row_first;
+        std::size_t const column_second = columns > 1 ? column_first + 1 : column_first;
+        std::size_t const row_second = rows > 1 ? row_first + 1 : row_first;
+        math_t const column_fraction = column - math_t(static_cast<double>(column_first));
+        math_t const row_fraction = row - math_t(static_cast<double>(row_first));
+        math_t const north_west = height(row_first, column_first), north_east = height(row_first, column_second);
+        math_t const south_west = height(row_second, column_first), south_east = height(row_second, column_second);
+        math_t const north = north_west + column_fraction * (north_east - north_west);
+        math_t const south = south_west + column_fraction * (south_east - south_west);
+        results[point] = result_type_(static_cast<double>(north + row_fraction * (south - north)));
+    }
+}
+
+/** Clearances from every row viewpoint to every column target, rounding once into @p result_type_
+ *  from at least @c f64_t: the lowest gap over every crossing of the sight line with the grid
+ *  lines, without the pyramid, NaN when either end leaves the grid, and minus infinity when the
+ *  target falls outside the viewpoint's view. */
+template <typename result_type_>
+void clearances_reference_(f32_t const *heights, void const *packed, f32_t const *viewpoints, f32_t const *views,
+                           std::size_t rows, f32_t const *targets, std::size_t columns, f64_t refraction,
+                           result_type_ *results, std::size_t results_stride) noexcept {
+    using math_t = std::conditional_t<(sizeof(result_type_) < sizeof(f64_t)), f64_t, result_type_>;
+    nk_terrain_packed_header_t const *header = static_cast<nk_terrain_packed_header_t const *>(packed);
+    std::size_t const grid_rows = static_cast<std::size_t>(header->rows);
+    std::size_t const grid_columns = static_cast<std::size_t>(header->columns);
+    std::size_t const stride = static_cast<std::size_t>(header->heights_stride);
+    math_t const zero(0.0), one(1.0), two(2.0);
+    math_t const last_row(static_cast<double>(grid_rows - 1)), last_column(static_cast<double>(grid_columns - 1));
+    math_t const row_metres(header->row_metres), column_metres(header->column_metres);
+    math_t const drop_scale = (one - math_t(refraction.raw_)) / (two * math_t(NUMKONG_EARTH_MEAN_RADIUS));
+    math_t const full_turn(2 * 3.14159265358979323846);
+    auto const value = [](f32_t const *values, std::size_t index) noexcept {
+        return math_t(static_cast<double>(values[index].raw_));
+    };
+    auto const height = [&](std::size_t row, std::size_t column) noexcept {
+        f32_t const *line = reinterpret_cast<f32_t const *>(reinterpret_cast<char const *>(heights) + row * stride);
+        return math_t(static_cast<double>(line[column].raw_));
+    };
+    auto const cell = [](math_t coordinate) noexcept {
+        std::size_t index = static_cast<std::size_t>(static_cast<double>(coordinate));
+        if (coordinate < math_t(static_cast<double>(index))) --index;
+        return index;
+    };
+    // Both ends lie on the grid, so only a rounding near an edge can step a crossing outside it
+    auto const clamp = [&](math_t coordinate, math_t last) noexcept {
+        return coordinate < zero ? zero : (last < coordinate ? last : coordinate);
+    };
+    // A view of azimuth, elevation, field and range, all optional, hides what falls outside it
+    auto const outside = [&](math_t east, math_t north, math_t up, f32_t const *view) noexcept {
+        math_t const azimuth = value(view, 0), elevation = value(view, 1), field = value(view, 2);
+        math_t const range = value(view, 3);
+        math_t const slant = (east * east + north * north + up * up).sqrt();
+        if (range == range && range < slant) return true;
+        if (azimuth != azimuth || !(field < full_turn)) return false;
+        math_t const half_field = field / two;
+        if (elevation != elevation) {
+            math_t const ground = (east * east + north * north).sqrt();
+            if (ground == zero) return false;
+            return (east * azimuth.sin() + north * azimuth.cos()) / ground < half_field.cos();
+        }
+        if (slant == zero) return false;
+        math_t const cos_elevation = elevation.cos();
+        math_t const along = east * azimuth.sin() * cos_elevation + north * azimuth.cos() * cos_elevation +
+                             up * elevation.sin();
+        return along / slant < half_field.cos();
+    };
+    // One pass per sight line, its viewpoint and target read off the line's index
+    for (std::size_t sight = 0; sight != rows * columns; ++sight) {
+        std::size_t const row = sight / columns, column = sight % columns;
+        result_type_ *output = reinterpret_cast<result_type_ *>(reinterpret_cast<char *>(results) +
+                                                                row * results_stride);
+        math_t const column_start = value(viewpoints, row * 3), row_start = value(viewpoints, row * 3 + 1);
+        math_t const height_start = value(viewpoints, row * 3 + 2);
+        bool const viewpoint_on_grid = zero <= column_start && column_start <= last_column && zero <= row_start &&
+                                       row_start <= last_row;
+        math_t const column_end = value(targets, column * 3), row_end = value(targets, column * 3 + 1);
+        if (!viewpoint_on_grid ||
+            !(zero <= column_end && column_end <= last_column && zero <= row_end && row_end <= last_row)) {
+            output[column] = result_type_(std::numeric_limits<double>::quiet_NaN());
+            continue;
+        }
+        math_t const column_delta = column_end - column_start, row_delta = row_end - row_start;
+        math_t const east = column_delta * column_metres, south = row_delta * row_metres;
+        math_t const distance = (east * east + south * south).sqrt();
+        math_t const height_delta = value(targets, column * 3 + 2) - drop_scale * distance * distance - height_start;
+        if (views && outside(east, -south, height_delta, views + row * 4)) {
+            output[column] = result_type_(-std::numeric_limits<double>::infinity());
+            continue;
+        }
+        math_t clearance(std::numeric_limits<double>::infinity());
+        auto const fold = [&](math_t u, math_t first, math_t second, math_t fraction) noexcept {
+            math_t const ground = fraction == zero ? first : first + fraction * (second - first);
+            if (ground != ground) return;
+            math_t const along = u * distance;
+            math_t const gap = height_start + u * height_delta - (ground - drop_scale * along * along);
+            if (gap < clearance) clearance = gap;
+        };
+        for (std::size_t line = 0; line != grid_columns && column_delta != zero; ++line) {
+            math_t const u = (math_t(static_cast<double>(line)) - column_start) / column_delta;
+            if (!(zero < u && u < one)) continue;
+            math_t const crossing = clamp(row_start + u * row_delta, last_row);
+            std::size_t const first = cell(crossing), second = first + 1 < grid_rows ? first + 1 : first;
+            fold(u, height(first, line), height(second, line), crossing - math_t(static_cast<double>(first)));
+        }
+        for (std::size_t line = 0; line != grid_rows && row_delta != zero; ++line) {
+            math_t const u = (math_t(static_cast<double>(line)) - row_start) / row_delta;
+            if (!(zero < u && u < one)) continue;
+            math_t const crossing = clamp(column_start + u * column_delta, last_column);
+            std::size_t const first = cell(crossing), second = first + 1 < grid_columns ? first + 1 : first;
+            fold(u, height(line, first), height(line, second), crossing - math_t(static_cast<double>(first)));
+        }
+        output[column] = result_type_(static_cast<double>(clearance));
+    }
+}
+
 /** Bilinear terrain heights under @p count interleaved [column, row] points, NaN off the grid,
- *  dispatched as @c terrain_pack is. */
-inline status_t terrain_heights_packed(f32_t const *heights, void const *packed, f32_t const *points, std::size_t count,
-                                       f32_t *results, nk_capability_t capabilities = default_capabilities(),
-                                       nk_stream_t stream = nullptr) noexcept {
-    if (capabilities)
-        return static_cast<status_t>(nk_terrain_heights_packed_f32_best(&heights->raw_, packed, &points->raw_, count,
-                                                                        &results->raw_, capabilities, stream));
-    return static_cast<status_t>(
-        nk_terrain_heights_packed_f32_serial(&heights->raw_, packed, &points->raw_, count, &results->raw_, stream));
+ *  dispatched as @c terrain_pack is, or with zero capabilities from the template rounding once
+ *  into @p result_type_. */
+template <typename in_type_ = f32_t, typename result_type_ = in_type_>
+status_t terrain_heights_packed(std::type_identity_t<in_type_> const *heights, void const *packed,
+                                std::type_identity_t<in_type_> const *points, std::size_t count, result_type_ *results,
+                                nk_capability_t capabilities = default_capabilities(),
+                                nk_stream_t stream = nullptr) noexcept {
+    static_assert(std::is_same_v<in_type_, f32_t>, "terrain packs hold f32 heights");
+    if constexpr (std::is_same_v<result_type_, f32_t>)
+        if (capabilities)
+            return static_cast<status_t>(nk_terrain_heights_packed_f32_best(
+                &heights->raw_, packed, &points->raw_, count, &results->raw_, capabilities, stream));
+    terrain_heights_reference_(heights, packed, points, count, results);
+    return status_t::success_k;
 }
 
 /** Clearances in metres from every row viewpoint to every column target over one terrain, as
- *  @c nk_clearances_packed_f32_best defines them, dispatched as @c terrain_pack is. */
-inline status_t clearances_packed(f32_t const *heights, void const *packed, f32_t const *viewpoints, f32_t const *views,
-                                  std::size_t rows, f32_t const *targets, std::size_t columns, f64_t refraction,
-                                  f32_t *results, std::size_t results_stride,
-                                  nk_capability_t capabilities = default_capabilities(),
-                                  nk_stream_t stream = nullptr) noexcept {
-    nk_f32_t const *raw_views = views ? &views->raw_ : nullptr;
-    if (capabilities)
-        return static_cast<status_t>(nk_clearances_packed_f32_best(
-            &heights->raw_, packed, &viewpoints->raw_, raw_views, rows, &targets->raw_, columns, refraction.raw_,
-            &results->raw_, results_stride, capabilities, stream));
-    return static_cast<status_t>(nk_clearances_packed_f32_serial(&heights->raw_, packed, &viewpoints->raw_, raw_views,
-                                                                 rows, &targets->raw_, columns, refraction.raw_,
-                                                                 &results->raw_, results_stride, stream));
+ *  @c nk_clearances_packed_f32_best defines them, dispatched as @c terrain_pack is, or with zero
+ *  capabilities from the template in @p result_type_. */
+template <typename in_type_ = f32_t, typename result_type_ = in_type_>
+status_t clearances_packed(std::type_identity_t<in_type_> const *heights, void const *packed,
+                           std::type_identity_t<in_type_> const *viewpoints,
+                           std::type_identity_t<in_type_> const *views, std::size_t rows,
+                           std::type_identity_t<in_type_> const *targets, std::size_t columns, f64_t refraction,
+                           result_type_ *results, std::size_t results_stride,
+                           nk_capability_t capabilities = default_capabilities(),
+                           nk_stream_t stream = nullptr) noexcept {
+    static_assert(std::is_same_v<in_type_, f32_t>, "terrain packs hold f32 heights");
+    if constexpr (std::is_same_v<result_type_, f32_t>)
+        if (capabilities)
+            return static_cast<status_t>(nk_clearances_packed_f32_best(
+                &heights->raw_, packed, &viewpoints->raw_, views ? &views->raw_ : nullptr, rows, &targets->raw_,
+                columns, refraction.raw_, &results->raw_, results_stride, capabilities, stream));
+    clearances_reference_(heights, packed, viewpoints, views, rows, targets, columns, refraction, results,
+                          results_stride);
+    return status_t::success_k;
 }
 
 } // namespace ashvardanian::numkong

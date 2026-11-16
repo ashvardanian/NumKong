@@ -3270,6 +3270,31 @@ fixture_guards() { # fixture_guards <relative-path> <<< content
     esac
 }
 
+assert_rejects "test including a serial header" "includes a serial header" test/probe.cpp <<'FIXTURE'
+#include "numkong/probe/serial.h"
+FIXTURE
+
+assert_rejects "test comparing against a serial kernel" "names a serial kernel" test/probe.cpp <<'FIXTURE'
+namespace ashvardanian::numkong::test {
+int probe_reference(int value) { return nk_probe_f32_serial(value); }
+} // namespace ashvardanian::numkong::test
+FIXTURE
+
+assert_rejects "benchmark packing through a serial helper" "names a serial kernel" bench/probe.cpp <<'FIXTURE'
+namespace ashvardanian::numkong::bench {
+int probe_pack(int value) { return nk_probe_pack_f32_serial_(value); }
+} // namespace ashvardanian::numkong::bench
+FIXTURE
+
+assert_accepts "registration putting the serial kernel under test" test/probe.cpp <<'FIXTURE'
+namespace ashvardanian::numkong::test {
+void probe_register(section_t &check) {
+    check("probe_f32_serial", test_probe<f32_t>, nk_probe_size_f32_serial,
+          nk_probe_f32_serial);
+}
+} // namespace ashvardanian::numkong::test
+FIXTURE
+
 assert_rejects "kernel calling a kernel" "calls a public kernel" include/numkong/probe/haswell.h <<'FIXTURE'
 NUMKONG_API int nk_probe_haswell(int value) { return nk_probe_serial(value); }
 FIXTURE

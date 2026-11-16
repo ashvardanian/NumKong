@@ -558,6 +558,57 @@ void shapes_nearest_reference_(void const *const *a_packed, std::size_t rows, vo
         }
 }
 
+/** Superposed RMSD of every pair in @p distance_type_: the proper rotation the SVD of the
+ *  cross-covariance H = Σ bᵢ × aᵢᵀ yields, then Σ‖aᵢ − R × bᵢ‖² summed directly. Every pack must
+ *  hold as many points as the first, and empty ones score zero. */
+template <typename in_type_, typename distance_type_>
+status_t shapes_rmsds_reference_(void const *const *a_packed, std::size_t rows, void const *const *b_packed,
+                                 std::size_t columns, distance_type_ *results, std::size_t results_stride) noexcept {
+    using math_t = distance_type_;
+    if (!rows || !columns) return status_t::success_k;
+    std::size_t const points = shapes_cloud_<in_type_>(a_packed[0]).points;
+    for (std::size_t row = 0; row != rows; ++row)
+        if (shapes_cloud_<in_type_>(a_packed[row]).points != points) return status_t::unexpected_dimensions_k;
+    for (std::size_t column = 0; column != columns; ++column)
+        if (shapes_cloud_<in_type_>(b_packed[column]).points != points) return status_t::unexpected_dimensions_k;
+    // One pass per pair, its row and column read off the pair's index
+    for (std::size_t pair = 0; pair != rows * columns; ++pair) {
+        std::size_t const row = pair / columns, column = pair % columns;
+        shapes_cloud_<in_type_> const a(a_packed[row]), b(b_packed[column]);
+        distance_type_ &result = reinterpret_cast<distance_type_ *>(reinterpret_cast<char *>(results) +
+                                                                    row * results_stride)[column];
+        if (!points) {
+            result = math_t(0.0);
+            continue;
+        }
+        // Entry 3 × j + k of H sums b_j × a_k over the points
+        math_t cross[9] {};
+        for (std::size_t i = 0; i != points; ++i)
+            for (std::size_t entry = 0; entry != 9; ++entry)
+                cross[entry] = cross[entry] + b.template coordinate<math_t>(i, entry / 3) *
+                                                  a.template coordinate<math_t>(i, entry % 3);
+        math_t svd_u[9], svd_v[9], rotation[9];
+        svd3x3_(cross, svd_u, svd_v);
+        rotation_from_svd_(svd_u, svd_v, rotation);
+        // A reflection flips the axis of the smallest singular value back into a rotation
+        if (det3x3_(rotation) < math_t(0.0)) {
+            for (std::size_t axis = 0; axis != 3; ++axis) svd_v[axis * 3 + 2] = math_t(0.0) - svd_v[axis * 3 + 2];
+            rotation_from_svd_(svd_u, svd_v, rotation);
+        }
+        math_t sum {};
+        for (std::size_t i = 0; i != points; ++i)
+            for (std::size_t axis = 0; axis != 3; ++axis) {
+                math_t const residual = a.template coordinate<math_t>(i, axis) -
+                                        rotation[axis * 3 + 0] * b.template coordinate<math_t>(i, 0) -
+                                        rotation[axis * 3 + 1] * b.template coordinate<math_t>(i, 1) -
+                                        rotation[axis * 3 + 2] * b.template coordinate<math_t>(i, 2);
+                sum = sum + residual * residual;
+            }
+        result = (sum / math_t(static_cast<double>(points))).sqrt();
+    }
+    return status_t::success_k;
+}
+
 /** Orders two packs by points, spreads, max_radius, and then their coordinate bytes. */
 template <typename in_type_>
 int shapes_compare_(shapes_cloud_<in_type_> const &a, shapes_cloud_<in_type_> const &b) noexcept {
@@ -1279,7 +1330,7 @@ status_t shapes_unpack(void const *packed, typename in_type_::raw_t *points,
  *  @param[in] columns Number of column packs.
  *  @param[out] results The @b [rows,columns] distances, @p results_stride bytes apart.
  *  @param[in] results_stride Bytes between the rows of @p results.
- *  @param[in] capabilities Capabilities to pick from.
+ *  @param[in] capabilities Capabilities to pick from, or 0 for the template in @p distance_type_.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *
  *  @par Statuses:
@@ -1287,19 +1338,23 @@ status_t shapes_unpack(void const *packed, typename in_type_::raw_t *points,
  *  - @c unexpected_dimensions_k The packs differ in points.
  *  - @c missing_kernel_k
  */
-template <shapes_dtype in_type_>
+template <shapes_dtype in_type_, typename distance_type_ = typename in_type_::shapes_distance_t>
 status_t rmsds_packed(void const *const *a_packed, std::size_t rows, void const *const *b_packed, std::size_t columns,
-                      typename in_type_::shapes_distance_t *results, std::size_t results_stride,
+                      distance_type_ *results, std::size_t results_stride,
                       nk_capability_t capabilities = default_capabilities(), nk_stream_t stream = nullptr) noexcept {
-    if constexpr (std::is_same_v<in_type_, f64_t>)
-        return static_cast<status_t>(nk_rmsds_packed_f64_best(a_packed, rows, b_packed, columns, &results->raw_,
-                                                              results_stride, capabilities, stream));
-    else if constexpr (std::is_same_v<in_type_, f32_t>)
-        return static_cast<status_t>(nk_rmsds_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_,
-                                                              results_stride, capabilities, stream));
-    else
-        return static_cast<status_t>(nk_rmsds_packed_f16_best(a_packed, rows, b_packed, columns, &results->raw_,
-                                                              results_stride, capabilities, stream));
+    constexpr bool dispatch = std::is_same_v<distance_type_, typename in_type_::shapes_distance_t>;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f64_t> && dispatch)
+            return static_cast<status_t>(nk_rmsds_packed_f64_best(a_packed, rows, b_packed, columns, &results->raw_,
+                                                                  results_stride, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f32_t> && dispatch)
+            return static_cast<status_t>(nk_rmsds_packed_f32_best(a_packed, rows, b_packed, columns, &results->raw_,
+                                                                  results_stride, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t> && dispatch)
+            return static_cast<status_t>(nk_rmsds_packed_f16_best(a_packed, rows, b_packed, columns, &results->raw_,
+                                                                  results_stride, capabilities, stream));
+    }
+    return shapes_rmsds_reference_<in_type_>(a_packed, rows, b_packed, columns, results, results_stride);
 }
 
 /**

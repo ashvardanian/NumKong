@@ -913,18 +913,18 @@ void run_attention_rope(environment_t const &env, std::string const &name, kerne
 #pragma region Token Rows
 
 /** Times the element-wise @p kernel_kind_, a sum, scale, blend or FMA, over @p count values with
- *  α = 0.2 and β = 0.3; @c bytes counts the inputs. */
-template <nk_dtype_t input_dtype_, nk_kernel_kind_t kernel_kind_, nk_dtype_t alpha_dtype_, typename backend_type_,
-          typename kernel_type_>
+ *  α = 0.2 and β = 0.3 in the input's @c scale_t, as real parts when it is complex; @c bytes
+ *  counts the inputs. */
+template <nk_dtype_t input_dtype_, nk_kernel_kind_t kernel_kind_, typename backend_type_, typename kernel_type_>
 void measure_each(loop_t &loop, environment_t const &env, backend_type_ backend, kernel_type_ kernel,
                   std::size_t count) {
     using input_t = typename nk::type_for<input_dtype_>::type;
-    using alpha_t = typename nk::type_for<alpha_dtype_>::type;
+    using scale_t = typename input_t::scale_t;
     using values_t = nk::vector<input_t, typename backend_type_::template allocator<input_t>>;
     std::size_t const inputs = kernel_kind_ == nk_kernel_each_fma_k     ? 3
                                : kernel_kind_ == nk_kernel_each_scale_k ? 1
                                                                         : 2;
-    alpha_t const host_coefficients[2] = {alpha_t(0.2f), alpha_t(0.3f)};
+    scale_t const host_coefficients[2] = {{0.2f}, {0.3f}};
     auto const [coefficients, coefficients_status] = upload(backend, host_coefficients, 2);
     if (!nk::succeeded(coefficients_status)) return loop.skip(nk::status_name(coefficients_status));
     if (coefficients.empty()) return loop.skip("coefficient allocation failed");
@@ -957,13 +957,12 @@ void measure_each(loop_t &loop, environment_t const &env, backend_type_ backend,
 }
 
 template <nk_dtype_t input_dtype_, nk_kernel_kind_t kernel_kind_ = nk_kernel_unknown_k,
-          nk_dtype_t alpha_dtype_ = nk_dtype_unknown_k, typename backend_type_ = host_backend_t,
-          typename kernel_type_ = void>
+          typename backend_type_ = host_backend_t, typename kernel_type_ = void>
 void run_each(environment_t const &env, std::string const &name, kernel_type_ *kernel, backend_type_ backend = {}) {
     std::size_t const rows = backend.token_rows(env), columns = env.settings.batch_per_core;
     run_benchmark(env, token_rows_name(name, rows, columns),
-                  measure_each<input_dtype_, kernel_kind_, alpha_dtype_, backend_type_, kernel_type_ *>, backend,
-                  kernel, rows * columns);
+                  measure_each<input_dtype_, kernel_kind_, backend_type_, kernel_type_ *>, backend, kernel,
+                  rows * columns);
 }
 
 /** Times SwiGLU over @p rows rows of @p columns gate and up values; @c bytes counts both inputs. */

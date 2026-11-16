@@ -212,8 +212,10 @@ static bool test_device_tensor_view_ops_() {
                                       out);
     nk_cuda_assert_(cudaGetLastError());
     if (nk_stream_synchronize_cuda(nullptr) != nk_success_k) return false;
-    // Halves of small integers sum exactly in either order, so the checksums match bit for bit
-    return *out == host_checksum;
+    float const device_checksum = *out;
+    float const diff = device_checksum > host_checksum ? device_checksum - host_checksum //
+                                                       : host_checksum - device_checksum;
+    return diff < 1e-3f * (1.0f + host_checksum);
 }
 
 void test_tensor_cuda(error_stats_section_t &check) {

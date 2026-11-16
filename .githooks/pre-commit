@@ -4339,6 +4339,30 @@ check_cpython_format_shortcuts_absent() {
 }
 
 # Routes one staged file through the checks only NumKong has.
+# Rejects a test or benchmark line including a serial header or naming an `nk_*_serial` kernel or helper,
+# because a serial kernel serving as its own oracle hides its bugs: references come from the C++ templates at
+# each family's reference precision and setup goes through the public dispatched exports. A statement that
+# registers a `"<name>_serial"` check or benchmark may pass the serial kernels it puts under test.
+check_tests_avoid_serial_references() {
+    local serial_uses
+    serial_uses=$(scan_staged_file_marking_added_lines '
+            { lines[++count] = FNR; texts[count] = $0; statement = statement $0 "\n" }
+            /[;{}][[:space:]]*$/ || /^[[:space:]]*#/ {
+                subject = statement ~ /"[A-Za-z0-9_]*_serial"/
+                for (position = 1; position <= count; ++position) {
+                    if (!(lines[position] in added)) continue
+                    text = texts[position]
+                    if (text ~ /^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"]numkong\/[a-z0-9_]+\/serial\.h[>"]/ ||
+                        (!subject && text ~ /(^|[^A-Za-z0-9_])nk_[a-z0-9_]+_serial_?([^A-Za-z0-9_]|$)/))
+                        printf "line %d: %s\n", lines[position], text
+                }
+                statement = ""; count = 0
+            }' "$staged_code_path")
+    [ -z "$serial_uses" ] || reject_with_reason "$serial_uses" \
+        "$staged_path includes a serial header or names a serial kernel outside its own registration;" \
+        "            compare against the C++ reference templates and set up through the public dispatched exports:"
+}
+
 run_project_checks() {
     case "$staged_path" in
     CHANGELOG*) ;;
@@ -4354,6 +4378,12 @@ run_project_checks() {
     esac
     case "$staged_path" in
     c/numkong/types.h) check_architecture_flags_read_no_target ;;
+    esac
+    case "$staged_path" in
+    test/*.c | test/*.h | test/*.cpp | test/*.hpp | test/*.cu | test/*.hip | bench/*.c | bench/*.h | bench/*.cpp | \
+        bench/*.hpp | bench/*.cu | bench/*.hip)
+        check_tests_avoid_serial_references
+        ;;
     esac
     case "$staged_path" in
     *.c | *.h | *.cpp | *.hpp | *.cc | *.cu | *.cuh | *.hip | *.metal)

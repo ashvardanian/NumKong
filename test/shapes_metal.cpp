@@ -2,72 +2,23 @@
  *  @file test/shapes_metal.cpp
  *  @author Ash Vardanian
  *  @date October 24, 2026
- *  @brief Chamfer and Hausdorff simdgroup bodies through the shared device scenarios, and the
- *      transport workspace's slots, refusals and side swaps.
+ *  @brief RMSD and transport exports through the shared device scenarios, and the transport
+ *      workspace's slots, refusals and side swaps.
  *
- *  The bodies are device helpers, so this unit compiles its own kernel over them, after the source
- *  the library embeds, and keeps the @c metal exports of their header switched off, as the library
- *  already defines them.
+ *  The slots come from the Metal header's helpers, so this unit keeps the @c metal exports of that
+ *  header switched off, as the library already defines them.
  */
 #undef NUMKONG_TARGET_METAL
 #define NUMKONG_TARGET_METAL 0
-#include "cross_device.hpp" // `device_shapes_packed`
+#include "cross_device.hpp" // `test_rmsds_packed`, `device_transport_packs`
 
 #if NUMKONG_ARCH_METAL_
-#include "numkong/shapes/metal.h" // `nk_shapes_source_metal_`, `nk_shapes_resolve_packs_metal_`
+#include "numkong/shapes/metal.h" // `nk_wassersteinprocrustes_slot_bytes_metal_`
 #endif
 
 namespace ashvardanian::numkong::test {
 
 #if NUMKONG_ARCH_METAL_
-
-/** Encodes a kernel scoring each pair of the two tables on its own simdgroup, each lane keeping its
- *  own result, after the library's shapes source, kept for the program's life as compiled pipelines
- *  remember their source by address. */
-template <nk_kernel_kind_t kind_>
-static nk_status_t shapes_pairs_metal(void const *const *a_packed, void const *const *b_packed, nk_size_t pairs,
-                                      nk_f32_t const *limits, nk_f32_t *results, nk_stream_t stream) {
-    static std::string const source = std::string(nk_shapes_source_metal_) + R"(
-kernel void shapes_pairs_kernel_(device ulong const *a_table [[buffer(0)]], device ulong const *b_table [[buffer(1)]],
-                                 device float const *limits [[buffer(2)]], device float *results [[buffer(3)]],
-                                 constant nk_shapes_arguments_metal_t &arguments [[buffer(4)]],
-                                 constant uint &hausdorff [[buffer(5)]], uint thread_index [[thread_position_in_grid]]) {
-    ulong const pair = thread_index / 32;
-    if (pair >= arguments.rows) return;
-    device uchar const *a = nk_shapes_pack_metal_(a_table[pair], arguments);
-    device uchar const *b = nk_shapes_pack_metal_(b_table[pair], arguments);
-    results[thread_index] = hausdorff ? nk_hausdorff_simdgroup_packed_f16_metal_(a, b, limits[pair], thread_index % 32)
-                                      : nk_chamfer_simdgroup_packed_f16_metal_(a, b, limits[pair], thread_index % 32);
-}
-)";
-    nk_metal_call_t call;
-    nk_status_t status = nk_enter_metal_(stream, &call);
-    if (status != nk_success_k) return status;
-    nk_shapes_arguments_metal_t arguments {};
-    arguments.rows = pairs;
-    status = nk_shapes_resolve_packs_metal_(&call, a_packed, pairs, NUMKONG_SIZE_MAX, &arguments);
-    if (status == nk_success_k)
-        status = nk_shapes_resolve_packs_metal_(&call, b_packed, pairs, NUMKONG_SIZE_MAX, &arguments);
-    if (status != nk_success_k) return nk_abort_metal_(&call, status);
-    nk_size_t offsets[4] = {0, 0, 0, 0};
-    void *const buffers[4] = {nk_resolve_metal_(&call, a_packed, pairs * sizeof(void const *), offsets),
-                              nk_resolve_metal_(&call, b_packed, pairs * sizeof(void const *), offsets + 1),
-                              nk_resolve_metal_(&call, limits, pairs * sizeof(nk_f32_t), offsets + 2),
-                              nk_resolve_metal_(&call, results, pairs * 32 * sizeof(nk_f32_t), offsets + 3)};
-    for (void *buffer : buffers)
-        if (!buffer) return nk_abort_metal_(&call, nk_device_memory_mismatch_k);
-    void *const pipeline = nk_pipeline_metal_(call.context, source.c_str(), "shapes_pairs_kernel_",
-                                              NUMKONG_METAL_LANGUAGE_3_1_);
-    if (!pipeline) return nk_abort_metal_(&call, nk_device_code_mismatch_k);
-    nk_encoder_metal_(&call, pipeline);
-    for (std::size_t slot = 0; slot != 4; ++slot) nk_bind_metal_(call.encoder, buffers[slot], offsets[slot], slot);
-    nk_bind_bytes_metal_(call.encoder, &arguments, sizeof(arguments), 4);
-    nk_u32_t const hausdorff = kind_ == nk_kernel_hausdorffs_packed_k;
-    nk_bind_bytes_metal_(call.encoder, &hausdorff, sizeof(hausdorff), 5);
-    nk_metal_size_t const grid = {nk_size_divide_round_up_(pairs * 32, nk_shapes_threads_metal_k), 1, 1};
-    nk_metal_size_t const threads = {nk_shapes_threads_metal_k, 1, 1};
-    return nk_dispatch_metal_(&call, grid, threads);
-}
 
 /** The Metal transport workspace: a misaligned one and one below a slot are refused, and one of 6
  *  slots walks the 35 pairs in launches that reuse them, with sides swapped keeping the distances
@@ -132,12 +83,6 @@ void test_shapes_metal(error_stats_section_t &check) {
     check.section("Shapes Metal", nk_cap_metal_k);
     check("rmsds_packed_f16_metal", test_rmsds_packed<f16_t, metal_backend_t>,
           [](auto... arguments) noexcept { return call_best<nk_rmsds_packed_f16_best>(nk_cap_metal_k, arguments...); });
-    check("hausdorff_simdgroup_packed_f16_metal",
-          test_shapes_device<f16_t, nk_kernel_hausdorffs_packed_k, 32, metal_backend_t>,
-          shapes_pairs_metal<nk_kernel_hausdorffs_packed_k>);
-    check("chamfer_simdgroup_packed_f16_metal",
-          test_shapes_device<f16_t, nk_kernel_chamfers_packed_k, 32, metal_backend_t>,
-          shapes_pairs_metal<nk_kernel_chamfers_packed_k>);
     check(
         "wassersteinprocrustes_packed_f16_metal",
         test_transport_packed<f16_t, nk_kernel_wassersteinprocrustes_packed_k, metal_backend_t>,

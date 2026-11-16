@@ -6,8 +6,8 @@
  *
  *  Every scenario is a template over its kernels and a backend owning where the operands live and
  *  when results become readable, @c host_backend_t by default. Each judges a backend against the
- *  same references: geodesics against their formulas in double-double, and clearances against a
- *  visit of every crossing without the pyramid, with packs and heights matching the serial ones.
+ *  same references: geodesics against their formulas in double-double, and heights and clearances
+ *  against their templates, visiting every crossing without the pyramid in the kernels' arithmetic.
  */
 #pragma once
 #ifndef NUMKONG_TEST_GEOSPATIAL_HPP
@@ -19,9 +19,8 @@
 #include <limits> // `std::numeric_limits`
 #include <random> // `std::normal_distribution`, `std::uniform_real_distribution`
 
-#include "numkong/geospatial.h"        // `nk_haversines_error_bound`, `nk_terrain_pack_f32_serial`
-#include "numkong/geospatial.hpp"      // `nk::haversines`, `nk::vincentys`
-#include "numkong/geospatial/serial.h" // `nk_geospatial_packed_header_t`, `nk_terrain_packed_header_t`
+#include "numkong/geospatial.h"   // `nk_haversines_error_bound`, `nk_vincentys_error_bound`
+#include "numkong/geospatial.hpp" // `nk::haversines`, `nk::terrain_heights_packed`, `nk::clearances_packed`
 
 #include "harness.hpp"
 
@@ -35,9 +34,9 @@ enum class geodesics_case_t { anywhere_k, nearby_k, coincident_k, antipodal_k, l
  *  @brief A geodesic family's @p pack and @p kernel against its formula in double-double.
  *
  *  Shapes are ragged, and columns lie anywhere within a cap of a common centre, near their rows,
- *  on them, opposite them, or on landmarks. Packs must match the serial ones byte for byte.
- *  Vincenty's points stay within a hemisphere, as its iteration need not converge near the
- *  antipode, but its poles, half a meridian apart, must not come out as coincident.
+ *  on them, opposite them, or on landmarks. Vincenty's points stay within a hemisphere, as its
+ *  iteration need not converge near the antipode, but its poles, half a meridian apart, must not
+ *  come out as coincident.
  */
 template <typename scalar_type_, nk_kernel_kind_t kind_, typename backend_type_ = host_backend_t,
           typename pack_size_type_, typename pack_type_, typename kernel_type_>
@@ -46,7 +45,6 @@ error_stats_t test_geodesics_packed(settings_t const &settings, pack_size_type_ 
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     constexpr bool spherical = kind_ == nk_kernel_haversines_packed_k;
-    auto const serial_pack = spherical ? nk_haversines_pack_f64_serial : nk_vincentys_pack_f64_serial;
     error_stats_t stats(spherical ? nk_haversines_error_bound(scalar_t::dtype())
                                   : nk_vincentys_error_bound(scalar_t::dtype()));
     auto backend = make_backend<backend_type_>(settings);
@@ -119,23 +117,6 @@ error_stats_t test_geodesics_packed(settings_t const &settings, pack_size_type_ 
                              static_cast<void const *>(b_packed.raw_values_data()), results.raw_values_data(),
                              columns * sizeof(raw_t));
                 if (!stats.expect(backend.synchronize())) return stats;
-
-                // Packs hold the serial header and coordinates, past the padding neither writes.
-                for (auto const [packed, latitudes_data, longitudes_data, count] :
-                     {std::tuple {a_packed.raw_values_data(), a_lat, a_lon, rows},
-                      std::tuple {b_packed.raw_values_data(), b_lat, b_lon, columns}}) {
-                    auto expected = make_vector<std::byte>(a_bytes > b_bytes ? a_bytes : b_bytes);
-                    stats.expect(serial_pack(&latitudes_data->raw_, &longitudes_data->raw_, count,
-                                             expected.raw_values_data(), nullptr));
-                    std::size_t const axis_stride = ((nk_geospatial_packed_header_t const *)packed)->axis_stride;
-                    bool same = !std::memcmp(packed, expected.raw_values_data(), sizeof(nk_geospatial_packed_header_t));
-                    for (std::size_t axis = 0; axis != 3 && same; ++axis)
-                        same = !std::memcmp(
-                            packed + nk_default_alignment_k + axis * axis_stride * sizeof(raw_t),
-                            expected.raw_values_data() + nk_default_alignment_k + axis * axis_stride * sizeof(raw_t),
-                            count * sizeof(raw_t));
-                    stats.expect(same, "a pack differs from the serial one");
-                }
                 std::vector<scalar_t> reference(rows * columns);
                 if constexpr (spherical)
                     nk::haversines<f118_t>(a_lat, a_lon, rows, b_lat, b_lon, columns, reference.data(),
@@ -174,14 +155,14 @@ error_stats_t test_geodesics_packed(settings_t const &settings, pack_size_type_ 
  *  @brief A terrain @p pack_kernel, @p heights_kernel and @p clearances_kernel over random walks
  *      with a missing cell, a flat sea of signed zeros, and single cells, rows and columns.
  *
- *  The pack and the heights must match the serial ones byte for byte, and every clearance without
- *  a view must equal a visit of every crossing without the pyramid, in the arithmetic the kernels
- *  use, as skipping blocks may change nothing. A view only ever hides a target as minus infinity,
- *  matching the serial kernel. Points fall off the grid, onto its edges, onto their viewpoints and
- *  into their cells, under refractions of light, none and full. A flat sea 50 km wide closes it:
- *  two 10 m masts see each other across twice the distance to the horizon from 10 m, 22.58 km
- *  without refraction and 24.38 km with the 1/7 of light, a view facing east sees east and not
- *  west and reaches no farther than its range, and heights interpolate bilinearly.
+ *  The heights must match their template byte for byte, and every clearance without a view must
+ *  equal a visit of every crossing without the pyramid, in the arithmetic the kernels use, as
+ *  skipping blocks may change nothing. A view only ever hides a target as minus infinity, matching
+ *  the template. Points fall off the grid, onto its edges, onto their viewpoints and into their
+ *  cells, under refractions of light, none and full. A flat sea 50 km wide closes it: two 10 m
+ *  masts see each other across twice the distance to the horizon from 10 m, 22.58 km without
+ *  refraction and 24.38 km with the 1/7 of light, a view facing east sees east and not west and
+ *  reaches no farther than its range, and heights interpolate bilinearly.
  */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_type_, typename pack_type_,
           typename heights_type_, typename clearances_type_>
@@ -192,10 +173,10 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
     error_stats_t stats(0.0);
     auto backend = make_backend<backend_type_>(settings);
     std::mt19937 generator(settings.seed.value);
-    std::normal_distribution<float> step(0.0f, 4.0f);
-    std::uniform_real_distribution<float> unit(0.0f, 1.0f);
-    float const not_a_number = std::numeric_limits<float>::quiet_NaN();
-    float const infinity = std::numeric_limits<float>::infinity();
+    std::normal_distribution<raw_t> step(0.0f, 4.0f);
+    std::uniform_real_distribution<raw_t> unit(0.0f, 1.0f);
+    raw_t const not_a_number = std::numeric_limits<raw_t>::quiet_NaN();
+    raw_t const infinity = std::numeric_limits<raw_t>::infinity();
     auto const same = [](raw_t actual, raw_t expected) {
         return !std::memcmp(&actual, &expected, sizeof(raw_t)) || (actual != actual && expected != expected);
     };
@@ -216,22 +197,22 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
             raw_t *terrain = heights.raw_values_data();
             for (std::size_t row = 0; row != rows; ++row)
                 for (std::size_t column = 0; column != columns; ++column) {
-                    float const north = row ? terrain[(row - 1) * padded + column] : 100.0f;
-                    float const west = column ? terrain[row * padded + column - 1] : north;
+                    raw_t const north = row ? terrain[(row - 1) * padded + column] : 100.0f;
+                    raw_t const west = column ? terrain[row * padded + column - 1] : north;
                     terrain[row * padded + column] = grid.flat ? ((row + column) % 2 ? -0.0f : 0.0f)
                                                                : (north + west) / 2 + step(generator);
                 }
             if (!grid.flat) terrain[rows / 2 * padded + columns / 3] = not_a_number;
             auto place = [&](raw_t *point, std::size_t index) {
                 // Some points fall off the grid, some onto its edges, the rest 2-60 m above it.
-                point[0] = unit(generator) * float(columns + 1) - 1.0f;
-                point[1] = unit(generator) * float(rows + 1) - 1.0f;
-                if (index % 5 == 1) point[0] = float(columns - 1);
+                point[0] = unit(generator) * raw_t(columns + 1) - 1.0f;
+                point[1] = unit(generator) * raw_t(rows + 1) - 1.0f;
+                if (index % 5 == 1) point[0] = raw_t(columns - 1);
                 if (index % 7 == 2) point[1] = 0.0f;
-                std::size_t const row = nk::min_of<std::size_t>(rows - 1, std::size_t(nk::max_of(point[1], 0.0f)));
+                std::size_t const row = nk::min_of<std::size_t>(rows - 1, std::size_t(nk::max_of(point[1], raw_t(0))));
                 std::size_t const column = nk::min_of<std::size_t>(columns - 1,
-                                                                   std::size_t(nk::max_of(point[0], 0.0f)));
-                float const ground = terrain[row * padded + column];
+                                                                   std::size_t(nk::max_of(point[0], raw_t(0))));
+                raw_t const ground = terrain[row * padded + column];
                 point[2] = (ground == ground ? ground : 100.0f) + 2.0f + unit(generator) * 58.0f;
             };
             auto points = make_vector<scalar_t>(backend, points_count * 2);
@@ -242,11 +223,11 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
             raw_t *view_values = views.raw_values_data(), *target_values = targets.raw_values_data();
             for (std::size_t point = 0; point != points_count; ++point) {
                 raw_t *coordinates = point_values + point * 2;
-                coordinates[0] = unit(generator) * float(columns + 1) - 1.0f;
-                coordinates[1] = unit(generator) * float(rows + 1) - 1.0f;
-                if (point % 5 == 1) coordinates[0] = float(columns - 1);
-                if (point % 7 == 2) coordinates[1] = float(rows - 1);
-                if (point % 11 == 3) coordinates[0] = std::floor(nk::max_of(coordinates[0], 0.0f));
+                coordinates[0] = unit(generator) * raw_t(columns + 1) - 1.0f;
+                coordinates[1] = unit(generator) * raw_t(rows + 1) - 1.0f;
+                if (point % 5 == 1) coordinates[0] = raw_t(columns - 1);
+                if (point % 7 == 2) coordinates[1] = raw_t(rows - 1);
+                if (point % 11 == 3) coordinates[0] = std::floor(nk::max_of(coordinates[0], raw_t(0)));
                 if (point % 13 == 4) coordinates[1] = not_a_number;
             }
             for (std::size_t viewpoint = 0; viewpoint != viewpoints_count; ++viewpoint) {
@@ -286,28 +267,25 @@ error_stats_t test_terrain_packed(settings_t const &settings, pack_size_type_ pa
             if (!stats.expect(backend.synchronize())) return stats;
 
             auto expected_packed = make_vector<std::byte>(bytes);
-            stats.expect(nk_terrain_pack_f32_serial(terrain, rows, columns, padded * sizeof(raw_t), row_metres,
-                                                    column_metres, expected_packed.raw_values_data(), nullptr));
-            stats.expect(!std::memcmp(packed.raw_values_data(), expected_packed.raw_values_data(),
-                                      sizeof(nk_terrain_packed_header_t)) &&
-                             !std::memcmp(packed.raw_values_data() + nk_default_alignment_k,
-                                          expected_packed.raw_values_data() + nk_default_alignment_k,
-                                          bytes - nk_default_alignment_k),
-                         "a terrain pack differs from the serial one");
-            std::vector<raw_t> expected(nk::max_of(points_count, cells));
-            stats.expect(nk_terrain_heights_packed_f32_serial(terrain, expected_packed.raw_values_data(), point_values,
-                                                              points_count, expected.data(), nullptr));
+            stats.expect(nk::terrain_pack(heights.values_data(), rows, columns, padded * sizeof(raw_t), row_metres,
+                                          column_metres, expected_packed.raw_values_data()));
+            // Heights and viewed clearances against their templates in f64, as the kernels compute
+            std::vector<f64_t> expected(nk::max_of(points_count, cells));
+            stats.expect(nk::terrain_heights_packed<scalar_t, f64_t>(
+                heights.values_data(), expected_packed.raw_values_data(), points.values_data(), points_count,
+                expected.data(), no_tiers_k));
             for (std::size_t point = 0; point != points_count; ++point)
-                stats.expect(same(point_heights.raw_values_data()[point], expected[point]),
-                             "a terrain height differs from the serial one");
-            stats.expect(nk_clearances_packed_f32_serial(
-                terrain, expected_packed.raw_values_data(), viewpoint_values, view_values, viewpoints_count,
-                target_values, targets_count, refractions[1], expected.data(), targets_count * sizeof(raw_t), nullptr));
+                stats.expect(same(point_heights.raw_values_data()[point], static_cast<raw_t>(expected[point].raw_)),
+                             "a terrain height differs from its template");
+            stats.expect(nk::clearances_packed<scalar_t, f64_t>(
+                heights.values_data(), expected_packed.raw_values_data(), viewpoints.values_data(), views.values_data(),
+                viewpoints_count, targets.values_data(), targets_count, refractions[1], expected.data(),
+                targets_count * sizeof(f64_t), no_tiers_k));
             raw_t const *viewed = clearances.raw_values_data() + cells;
             for (std::size_t cell = 0; cell != cells; ++cell)
-                stats.expect(same(viewed[cell], expected[cell]) &&
+                stats.expect(same(viewed[cell], static_cast<raw_t>(expected[cell].raw_)) &&
                                  (viewed[cell] == -infinity || same(viewed[cell], clearances.raw_values_data()[cell])),
-                             "a view changes a clearance other than by hiding it as the serial kernel does");
+                             "a view changes a clearance other than by hiding it as its template does");
 
             // Every crossing in turn, without the pyramid, in the arithmetic the kernels use.
             double const last_row = double(rows - 1), last_column = double(columns - 1);
