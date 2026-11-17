@@ -61,66 +61,24 @@ typedef struct attention_arguments_t {
     nk_stream_t stream;
 } attention_arguments_t;
 
-/** Most windows of the query tokens × heads grid one attention call is cut into, as their
- *  bounds live in a table on the caller's stack; past 1024 threads a window is under a quarter
- *  of a share. */
-enum { attention_windows_limit_k = 4096 };
-
-/** Attention cut into windows of the query tokens × heads grid, window @c w spanning the tasks
- *  from `window_bounds[w]` to `window_bounds[w + 1]`. */
+/** Attention over the query tokens × heads grid from @c tasks_begin, in @c window_count windows of
+ *  equal task counts, which the scheduler's shared counter balances however uneven their costs. */
 typedef struct attention_task_t {
     nk_attention_packed_punned_t kernel;
     attention_arguments_t arguments;
-    nk_size_t window_bounds[attention_windows_limit_k + 1];
+    nk_size_t tasks_begin, task_count, window_count;
 } attention_task_t;
 
 static nk_status_t attention_tile_(nk_size_t tile_index, void *context) {
     attention_task_t const *task = (attention_task_t const *)context;
     attention_arguments_t const *arguments = &task->arguments;
+    nk_size_t const tasks_begin = task->tasks_begin + task->task_count * tile_index / task->window_count;
+    nk_size_t const tasks_end = task->tasks_begin + task->task_count * (tile_index + 1) / task->window_count;
     return task->kernel(arguments->head_count, arguments->key_value_head_count, arguments->depth,
                         arguments->query_offsets, arguments->query_token_count, arguments->scale,
                         arguments->keys_before, arguments->keys_after, arguments->queries, arguments->query_stride,
                         arguments->key_value_packed, arguments->output, arguments->output_stride,
-                        arguments->log_sum_exp, task->window_bounds[tile_index], task->window_bounds[tile_index + 1],
-                        NULL, 0, arguments->stream);
-}
-
-/** The cost of one head of query @p row of a segment of @p queries queries and @p keys keys: the
- *  keys it sees under @p band, plus one for writing the row. */
-static nk_u64_t attention_row_cost_(nk_diagonal_band_t band, nk_size_t row, nk_size_t queries, nk_size_t keys) {
-    nk_size_t key_begin, key_end;
-    nk_diagonal_band_row_range_(band, (nk_i64_t)keys - (nk_i64_t)queries + (nk_i64_t)row, keys, &key_begin, &key_end);
-    return key_end - key_begin + 1;
-}
-
-/** Cuts the query tokens × heads grid into @p window_count windows of about equal cost, cutting
- *  inside a token where a share ends, so a single decode token still spreads over its heads. */
-static void attention_windows_(nk_u32_t const *query_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count,
-                               nk_size_t head_count, nk_diagonal_band_t band, nk_size_t window_count,
-                               nk_size_t *window_bounds) {
-    nk_u64_t total = 0;
-    for (nk_size_t segment = 0; segment < segment_count; segment++) {
-        nk_size_t const queries = query_offsets[segment + 1] - query_offsets[segment];
-        for (nk_size_t row = 0; row < queries; row++)
-            total += attention_row_cost_(band, row, queries, key_lengths[segment]) * head_count;
-    }
-    nk_u64_t done = 0;
-    nk_size_t window = 1;
-    window_bounds[0] = query_offsets[0] * head_count;
-    for (nk_size_t segment = 0; segment < segment_count; segment++) {
-        nk_size_t const queries = query_offsets[segment + 1] - query_offsets[segment];
-        for (nk_size_t row = 0; row < queries; row++) {
-            nk_u64_t const cost = attention_row_cost_(band, row, queries, key_lengths[segment]);
-            for (; window < window_count; window++) {
-                nk_u64_t const target = total * window / window_count;
-                if (target > done + cost * head_count) break;
-                nk_u64_t const heads = target > done ? nk_u64_divide_round_up_(target - done, cost) : 0;
-                window_bounds[window] = (query_offsets[segment] + row) * head_count + (nk_size_t)heads;
-            }
-            done += cost * head_count;
-        }
-    }
-    for (; window <= window_count; window++) window_bounds[window] = query_offsets[segment_count] * head_count;
+                        arguments->log_sum_exp, tasks_begin, tasks_end, NULL, 0, arguments->stream);
 }
 
 /** One segment and key-value head task of the gradients, with the forward's output, the output
@@ -619,7 +577,7 @@ char const doc_attention_packed[] =                                             
     "  keys_after (int, optional): Keys visible after each query; None is unbounded.\n"                //
     "  log_sum_exp (array_like, optional): Writable contiguous f32 (tokens, heads) that receives\n"    //
     "    each row's natural log-sum-exp, -inf for rows without keys, for the gradients.\n"             //
-    "  threads (int): Threads sharing equal-cost windows of the token*head grid; 0 = all;\n"           //
+    "  threads (int): Threads sharing windows of the token*head grid; 0 = all;\n"                      //
     "    ignored on a GPU, which covers the grid in one launch and returns before it ends.\n"          //
     "  stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"                //
     "Returns:\n"                                                                                       //
@@ -867,28 +825,21 @@ PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t
     }
     if (threads == 0) threads = nk_parallel_concurrency();
     nk_u32_t const *query_offsets = task.arguments.query_offsets;
+    task.tasks_begin = query_offsets[0] * task.arguments.head_count;
+    task.task_count = query_offsets[packed->segment_count] * task.arguments.head_count - task.tasks_begin;
     if (on_gpu) {
         // A GPU covers every row itself, in one launch, and its packed header is not host memory
-        task.window_bounds[0] = query_offsets[0] * task.arguments.head_count;
-        task.window_bounds[1] = query_offsets[packed->segment_count] * task.arguments.head_count;
+        task.window_count = 1;
         PyThreadState *save = PyEval_SaveThread();
         nk_status_t const status = attention_tile_(0, &task);
         PyEval_RestoreThread(save);
         check_status(status);
         return attention_buffers_release_(&buffers);
     }
-    nk_size_t const task_count = (query_offsets[packed->segment_count] - query_offsets[0]) * task.arguments.head_count;
-    nk_size_t window_count = threads > 1 ? 4 * threads : 1;
-    if (window_count > attention_windows_limit_k) window_count = attention_windows_limit_k;
-    if (window_count > task_count) window_count = task_count;
+    task.window_count = threads > 1 ? 64 * threads : 1;
+    if (task.window_count > task.task_count) task.window_count = task.task_count;
     PyThreadState *save = PyEval_SaveThread();
-    nk_diagonal_band_t const band = {keys_before, keys_after};
-    nk_u32_t const *pack_key_offsets = NULL, *key_lengths = NULL;
-    nk_attention_packed_segments(packed->data, packed->segment_count, &pack_key_offsets, &key_lengths);
-    nk_unused_(pack_key_offsets);
-    attention_windows_(query_offsets, key_lengths, packed->segment_count, task.arguments.head_count, band, window_count,
-                       task.window_bounds);
-    nk_status_t const status = nk_parallel_for_tiles(window_count, threads, attention_tile_, &task);
+    nk_status_t const status = nk_parallel_for_tiles(task.window_count, threads, attention_tile_, &task);
     PyEval_RestoreThread(save);
     check_status(status);
     return attention_buffers_release_(&buffers);
